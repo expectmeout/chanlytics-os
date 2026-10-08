@@ -178,7 +178,7 @@ export { DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS } from "./people/person-doubt
 export { MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./people/person-merge";
 export { callerName, personName } from "./people/person-name";
 export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./people/person-profile";
-export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayReach } from "./people/person-reach";
+export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, rowReachWords, mayReach } from "./people/person-reach";
 export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./people/person-receptionist";
 export { cameFromOf, visitTitleFor, toPersonRowVM } from "./people/person-row";
 export { ago } from "./people/person-row-facts";

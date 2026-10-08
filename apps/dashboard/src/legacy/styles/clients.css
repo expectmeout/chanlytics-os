@@ -900,32 +900,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.cl-row-agent {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  padding: 2px 8px 2px 4px;
-  max-width: 240px;
-}
-.cl-row-agent .live-dot { width: 5px; height: 5px; }
-.cl-row-agent.approval { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
-.cl-row-agent.escalated { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
-.cl-row-agent .agent-avatar {
-  width: 18px; height: 18px;
-  font-size: 9px;
-  border-radius: var(--radius-xs);
-}
-.cl-row-agent-verb {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* A strip of channel glyphs (people/cells/channel-glyph.tsx): the demo's Lists page draws it; People's rows say the
+   wire in words (8 Oct 2026). */
 .cl-row-channels {
   display: inline-flex;
   gap: 2px;
@@ -1933,16 +1909,10 @@
 .cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { opacity: 1; }
 .cl-row-name-them:hover { color: var(--accent); }
 .cl-row-last-visit { font-size: 11.5px; color: var(--ink-faint); }
-.cl-row-offers { font-size: 11.5px; }
-.cl-row-offers.yes { color: var(--ink-muted); font-weight: 500; }
-.cl-row-offers.no { color: var(--ink-muted); }
-.cl-row-offers.unasked { color: var(--ink-faint); }
 .cl-table td.cl-actions-cell { width: 1%; white-space: nowrap; padding-left: 0; }
 .cl-table th.cl-actions-head { width: 1%; }
 .cl-row-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
 .cl-table tbody tr:hover .cl-row-actions, .cl-table tbody tr.focused .cl-row-actions, .cl-row-actions:focus-within { opacity: 1; }
-.cl-row-act { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-dim); cursor: pointer; transition: color 120ms ease, border-color 120ms ease; }
-.cl-row-act:hover { color: var(--ink); border-color: var(--line-strong); }
 .cl-table tbody tr.focused { background: var(--bg-hover); box-shadow: inset 2px 0 0 var(--accent); }
 /* The cursor's row holds focus (a tab stop that follows the cursor): the ring, drawn as an outline because a row
    paints no box-shadow, inside the row so the pinned cells do not cover it. */
@@ -2210,10 +2180,26 @@
 .clients .cl-head-stats { flex-shrink: 0; }
 
 /* A People row's reason and words (B9), its visit door (B26), and a list chip that opens its list (B18). */
-/* Reach: the channels a person uses and the one way to reach them, in the row's small type, where they were the
-   third line under the name. A column of its own reads down the table; the line read across a crowded row. */
-.cl-row-reach { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
-.cl-row-reach .tabular { font-variant-numeric: tabular-nums; }
+/* Reach (8 Oct 2026): the wire they last wrote on over the one way to reach them there, in words (contracts
+   rowReachWords). Two quiet lines, as the name's and the State's are, and a third only for an address that stopped
+   accepting mail; it was a strip of glyphs, where WhatsApp and a text shared one, and then the number. */
+.cl-row-reach { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; }
+.cl-row-reach-id, .cl-row-reach-may { font-size: var(--text-xs); color: var(--ink-dim); }
+/* A long address ends in an ellipsis so the column stays narrow, and its whole is the cell's tip (columns.tsx
+   plReachCell). A number is never cut: it wears .tabular, and the tip does not say it again. */
+.cl-row-reach-id:not(.tabular) { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+/* The next step (0007): its words over its day ("Due today", "Overdue since Mon"), two lines as the cells beside it
+   are, the words cut with an ellipsis so the column stays narrow (their whole is the cell's tip), and the day in the
+   warn ink once it has come: said in words too, so never by the colour alone. Named for the step, never "next":
+   .cl-row-next is the next visit's day in the Visits cell, and a rule of that name here broke that day onto a line
+   of its own. */
+.cl-row-step { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 18ch; }
+.cl-row-step-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); color: var(--ink); }
+.cl-row-step-when { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.cl-step-cell[data-due]:not([data-due="ahead"]) .cl-row-step-when { color: var(--warn-ink); font-weight: var(--weight-medium); }
+/* The last contact: when, over who, so the column the table is sorted by reads by its time. */
+.cl-row-last { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+.cl-row-last-by { font-size: var(--text-xs); color: var(--ink-dim); }
 .cl-row-words { max-width: 52ch; margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
@@ -2230,7 +2216,6 @@
 @media (hover: none) { .cl-list-rename { opacity: 1; } }
 .cl-list-renaming { flex-wrap: wrap; }
 .cl-list-renaming input { font-size: 14px; font-weight: 500; }
-.cl-row-act-drop:hover { color: var(--danger); }
 
 /* ==== People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md) ============================
    The page draws these only at 900px and under (PL_PHONE_QUERY), the band the rows, the bar and the Lists sheet share. */

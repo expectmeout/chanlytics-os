@@ -35,6 +35,9 @@ function sortKeyOf(p: PersonRowVM, sortBy: string, sortDir: string): number | st
     }
     case "offers":
       return OFFER_RANK[p.consent.marketing] ?? 1;
+    // The soonest step first, and a row with none last whichever way the heading is pressed: the day keys sort as text.
+    case "next":
+      return p.nextStep ? p.nextStep.day.day : sortDir === "asc" ? "~" : "";
     default:
       return p.lastContact.ts ?? -Infinity;
   }

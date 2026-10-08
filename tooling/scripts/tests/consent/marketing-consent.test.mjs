@@ -610,7 +610,8 @@ test('every read of "said yes to offers" points at the offers column', () => {
   try {
     const offersColumn = PL_COLUMNS.find((c) => c.key === "offers");
     assert.deepEqual(
-      [yesToOffers, noToOffers, notAsked].map((p) => offersColumn.cell(p, {}).props.children[0].props.children[0]),
+      // The cell is the kit's pill (8 Oct 2026): its word is the pill's label.
+      [yesToOffers, noToOffers, notAsked].map((p) => offersColumn.cell(p, {}).props.children[0].props.label),
       ["Yes", "No", "Not asked"],
       "the column titled Offers",
     );
