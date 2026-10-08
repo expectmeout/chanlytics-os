@@ -184,6 +184,8 @@ globalThis.React = {
   // A store outside React (the seam): the value it holds now, which each draw here asks again.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
+// A layout effect is an effect here, as it is on the kit's stub (_legacy-react.mjs): the board fits its hour in one.
+globalThis.React.useLayoutEffect = globalThis.React.useEffect;
 // The TSX surface imports its hooks from "react", which under this runner has none: the same stub is set on that module.
 const reactModule = createRequire(new URL("../../../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
   "react",
@@ -195,6 +197,7 @@ for (const hook of [
   "useMemo",
   "useId",
   "useEffect",
+  "useLayoutEffect",
   "useCallback",
   "useSyncExternalStore",
 ])
@@ -256,7 +259,9 @@ globalThis.window.__chrome = { state: stateOf };
 const S = "../../../../apps/dashboard/src/surfaces";
 const { calendar } = await import(`${S}/calendar/verbs.ts`);
 const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
-const { CALENDAR_PAGE, CR_WARM_MS } = await import(`${S}/calendar/words.ts`);
+const { CALENDAR_PAGE, CR_WARM_MS, fitHourPx } = await import(`${S}/calendar/words.ts`);
+// The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
+const CR_HOUR_MIN_PX = fitHourPx(0, 1);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const realVerbs = { ...calendar };
 globalThis.window.__calendar = calendar;
@@ -888,6 +893,65 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
   );
   assert.ok(byTestId(tree, "cal-feed-note-repeats"), "the repeats explained on the page");
   assert.ok(byTestId(tree, "cal-feed-note-undrawn"), "the undrawn events explained on the page");
+});
+
+test("the board is drawn in hours of the stylesheet's hour (--cal-hour): one value moves every block, band, tick and the now line, so a phone fits the day by setting it", () => {
+  // The blocks stood at 64px an hour in pixels of their own; a phone's board that fits the room the page leaves needs
+  // the hour to be one value (blocks.tsx CrBoard sets it, calendar.css reads it), and every length a share of it.
+  fresh();
+  const tree = page();
+  const vm = toCalendarVM(dto(), NOW);
+  const grid = find(tree, (n) => /\bcal-grid\b/.test(String(n.props?.className ?? "")));
+  assert.ok(grid, "the week grid");
+  assert.equal(
+    grid.props.style["--cal-hours"],
+    vm.hours.end - vm.hours.start,
+    "how many hours tall, for the stylesheet",
+  );
+  const cols = all(tree, (n) => n.props?.["data-testid"] === "cal-col");
+  assert.equal(cols.length, 7);
+  assert.ok(
+    cols.every((c) => c.props.style === undefined),
+    "a column's height is the stylesheet's (--cal-hours of --cal-hour), not pixels of its own",
+  );
+  const hours = /^calc\([\d.]+ \* var\(--cal-hour\)\)$/;
+  const block = byTestId(tree, "cal-block");
+  assert.ok(block, "the week's appointment");
+  assert.match(block.props.style.top, hours, "a block starts so many hours down");
+  assert.match(
+    block.props.style.height,
+    /^max\(22px, calc\([\d.]+ \* var\(--cal-hour\)\) - 2px\)$/,
+    "and runs so many hours, never under the two lines it holds",
+  );
+  const tick = find(tree, (n) => /\bcal-hour\b/.test(String(n.props?.className ?? "")));
+  assert.match(tick.props.style.top, hours, "an hour's label stands at its hour");
+  const band = find(tree, (n) => /\bcal-unavail\b/.test(String(n.props?.className ?? "")));
+  assert.ok(band, "a band outside the hours");
+  assert.match(band.props.style.top, hours);
+  assert.match(band.props.style.height, hours);
+});
+
+test("what fits a phone's board: the room shared by the day's hours, in whole pixels, never under the floor a half-hour block needs", () => {
+  assert.equal(fitHourPx(540, 9), 60, "a salon's nine hours in 540px: sixty to the hour, and the day holds still");
+  assert.equal(fitHourPx(545, 9), 60, "whole pixels, so the hour lines stay crisp");
+  assert.equal(
+    fitHourPx(373, 9),
+    41,
+    "nine hours in the room a 375px phone leaves: just over the floor, and the day fits",
+  );
+  assert.equal(
+    fitHourPx(373, 11),
+    CR_HOUR_MIN_PX,
+    "eleven hours there would be 33: the floor holds, and the day scrolls inside its pane",
+  );
+  assert.equal(
+    fitHourPx(450, 14),
+    CR_HOUR_MIN_PX,
+    "seven in the morning to eight at night in 450px would be 32: the floor too",
+  );
+  assert.equal(fitHourPx(0, 9), CR_HOUR_MIN_PX, "no room yet (nothing laid out) is the floor, never nothing");
+  assert.equal(fitHourPx(-10, 9), CR_HOUR_MIN_PX, "a room the heads outgrow is the floor too");
+  assert.equal(fitHourPx(500, 0), 500, "a day of no hours divides by one, never by nothing");
 });
 
 test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid four times the screen's width", () => {

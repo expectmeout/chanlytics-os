@@ -976,8 +976,10 @@ test.describe("Phone shell on a real workspace", () => {
 
   /**
    * The Calendar holds its bar and walks its days (25 Sep). Its range, steps and views scrolled away with the days, and
-   * a pull dragged them, as People's strip did before #1041: now only the days scroll and pull, and a swipe across them
-   * walks to the next or previous days, as the steps do. The views keep their 38px look, with 44px to press.
+   * a pull dragged them, as People's strip did before #1041: now the bar stands over a pane that holds still (8 Oct
+   * 2026: the board takes the room the page leaves, so nothing of the page is under the tab bar to scroll to, and the
+   * pane never pulls), and a swipe across the days walks to the next or previous days, as the steps do. The views keep
+   * their 38px look, with 44px to press.
    */
   test("the Calendar's bar stays over its days, a swipe walks them, and its views are a thumb tall to press", async ({
     page,
@@ -994,10 +996,10 @@ test.describe("Phone shell on a real workspace", () => {
       return false;
     });
     expect(barScrolls, "the bar stands over what scrolls").toBe(false);
-    const pulls = await page
+    const still = await page
       .getByTestId("cal-pane")
-      .evaluate((el) => getComputedStyle(el).overflowY === "auto" && el.scrollHeight > el.clientHeight);
-    expect(pulls, "the days scroll, and pull however few").toBe(true);
+      .evaluate((el) => getComputedStyle(el).overscrollBehaviorY === "none" && el.scrollHeight <= el.clientHeight + 1);
+    expect(still, "the pane holds still: nothing of it is off the screen, and it never pulls").toBe(true);
     const tall = await page.getByTestId("cal-view-week").evaluate((el) => {
       const r = el.getBoundingClientRect();
       const x = r.left + r.width / 2;

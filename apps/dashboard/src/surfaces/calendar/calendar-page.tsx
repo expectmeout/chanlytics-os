@@ -160,8 +160,9 @@ function CalendarReal({ initialDay = null, C }: CalendarAddress & { C: CalendarS
     // so a window the tab holds, painted at once, never flickers.
     <div className="calendar" data-testid="calendar-real" data-loading={pending ? "" : undefined}>
       {calendarHead(bar)}
-      {/* On a phone the bar stands over the days and only they scroll and pull (mobile.css .cal-pane), as every page's
-          strip does, and a swipe across them walks to the next or previous days; on a desk this box is display:
+      {/* On a phone the bar stands over the days, as every page's strip does, and the pane under it holds still (mobile.css
+          .cal-pane; calendar.css, the phone block: the board takes the room the page leaves, so nothing is under the tab
+          bar to scroll to); a swipe across the days walks to the next or previous days. On a desk this box is display:
           contents and the page scrolls as one. */}
       <div className="cal-pane" data-testid="cal-pane" {...touchSwipeStaying({ pages: swipePages, when: crPhone })}>
         {consultNote({ vm, service })}
