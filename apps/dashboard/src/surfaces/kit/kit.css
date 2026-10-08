@@ -1156,26 +1156,30 @@ a.more-item {
 .stabs-tab.active {
   border-bottom-color: var(--accent);
 }
-/* A thumb carrying the page (surface-tabs.jsx stripPager): one underline, between the tab picked and the one the page
-   is going to; the picked tab's own is clear meanwhile. */
-.stabs[data-glide]::after {
-  content: "";
+/* The highlight a change of view carries from the tab lit to the tab picked (view-tabs/glide.ts): one element, moved
+   by transform alone on the page's own timeline (motion/view-deck.ts), and drawn only while the strip says a change is
+   under way (data-glide); the picked tab's own is clear meanwhile, and at rest the tab draws its own with nothing
+   measured. Its width is a fixed one, which a glide scales across to a tab's. It was a pseudo-element placed by two
+   custom properties and eased by its width, which only the main thread can move: it stalled in the frame the next page
+   rendered in, and jumped on every swipe (8 Oct 2026). */
+.stabs-pill {
   position: absolute;
   left: 0;
-  width: var(--glide-w, 0px);
-  transform: translateX(var(--glide-x, 0px));
+  width: 100px;
+  transform-origin: 0 50%;
   pointer-events: none;
+  visibility: hidden;
 }
-.stabs[data-glide="ease"]::after {
-  transition:
-    transform 180ms var(--ease-out),
-    width 180ms var(--ease-out);
-}
-.stabs[data-glide] .stabs-tab {
-  transition: color var(--duration-base) var(--ease-out);
+.stabs[data-glide] .stabs-pill {
+  visibility: visible;
 }
 .stabs[data-glide] .stabs-tab.active {
   border-bottom-color: transparent;
+}
+/* A view with something on now (a call on the line) wears the dot at a tab's size. */
+.stabs-tab .live-dot {
+  width: 5px;
+  height: 5px;
 }
 
 @media (max-width: 900px) {
@@ -1280,13 +1284,6 @@ a.more-item {
 }
 .stabs-tab:active {
   transform: translateY(0.5px) scale(0.985);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stabs[data-glide="ease"]::after,
-  .stabs[data-glide] .stabs-tab {
-    transition: none;
-  }
 }
 
 /* ============================================================
@@ -3431,11 +3428,10 @@ a.list-row {
   box-shadow: var(--selected-depth);
   color: var(--ink);
 }
-.stabs[data-glide]::after {
+.stabs-pill {
   top: 4px;
   bottom: 4px;
   z-index: -1;
-  height: auto;
   border-radius: var(--radius-full);
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);

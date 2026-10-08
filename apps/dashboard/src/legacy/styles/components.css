@@ -637,24 +637,27 @@
 @media (prefers-reduced-motion: reduce) {
   .route-view { animation: none; }
 }
-/* A view from the tab beside comes in from that side on a phone (app-shell.jsx routeSlide), so a tap and a swipe read
-   as one control. It outranks route-stay (People's scopes) and draws at once, no fade, as route-stay does; it moves
-   `translate`, never `transform`, so a finger that takes the page as it lands keeps it. A strip drawn inside the page
-   (People's) goes the other way on the same curve, so it stays where it is as the page comes in around it. */
-@media (max-width: 720px) and (prefers-reduced-motion: no-preference) {
-  .route-view.route-slide-next { animation: route-slide-next 220ms var(--ease-out); }
-  .route-view.route-slide-prev { animation: route-slide-prev 220ms var(--ease-out); }
-  .route-slide-next .stabs { animation: route-slide-prev 220ms var(--ease-out); }
-  .route-slide-prev .stabs { animation: route-slide-next 220ms var(--ease-out); }
+/* A view from the tab beside arrives from that side by the deck (surfaces/kit/motion/view-deck.ts), on the timeline of
+   the page it replaced, at every width: it says its side (app-shell.jsx `data-slide`; a page's own views say theirs the
+   same way) and plays no entrance of its own. A phone had a slide here and a desk the fade above, each begun as the
+   view mounted, whatever the page before it was doing: the page leaving was cut wherever the next one's render fell,
+   and this one began 40px to its side at full opacity (measured frame by frame, 8 Oct 2026). */
+.route-view[data-slide] { animation: none; }
+/* The view React took away, put back as a still copy until it has left (view-deck.ts): over where it stood and out of
+   the layout, taking no press, and playing nothing of its own a second time (its entrance, a row's rise). */
+.view-leaving {
+  position: absolute;
+  pointer-events: none;
 }
-/* People's page is one column to 900px (its rows are a phone's there, PL_PHONE_QUERY), so its strip is walked and a
-   view comes in from its side to there too (surface-tabs.jsx stripPhoneFor; the view says its strip, data-strip). */
-@media (min-width: 721px) and (max-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .route-view[data-strip="people"].route-slide-next { animation: route-slide-next 220ms var(--ease-out); }
-  .route-view[data-strip="people"].route-slide-prev { animation: route-slide-prev 220ms var(--ease-out); }
+.view-leaving,
+.view-leaving * {
+  animation: none !important;
 }
-@keyframes route-slide-next { from { translate: 40px 0; } }
-@keyframes route-slide-prev { from { translate: -40px 0; } }
+/* People's page is one column to 900px (its rows are a phone's there, PL_PHONE_QUERY), so its views travel their own
+   width to there too, and a finger walks its strip (the view says its strip, data-strip; the rest is the tokens'). */
+@media (max-width: 900px) {
+  .route-view[data-strip="people"] { --view-travel: 100%; }
+}
 
 /* ---------- Unified stat strip (dashboard anchors · clients head · profile money) ---------- */
 .stat-strip {

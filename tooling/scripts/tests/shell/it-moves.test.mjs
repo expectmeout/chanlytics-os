@@ -238,76 +238,100 @@ test("under reduced motion the finger still carries it, and the rest happens at 
 });
 
 /* ------------------------------------ a page ------------------------------------ */
-// A page under a strip, walked across on a phone (surface-tabs.jsx stripPager answers `pages`).
+// A page under a strip, walked across on a phone. The strip's pager answers `pages` (surfaces/kit/view-tabs/pager.ts) and
+// moves the page itself, by the deck every change of view moves by (surfaces/kit/motion/view-deck.ts): this reader says
+// how far the finger is, which side it is going to, whether a page is there, and how it let go. It moved the element
+// itself before, by an inline style React was about to take away with the page (8 Oct 2026).
 
-const pager = (over = {}) => ({ prev: true, next: true, go() {}, ...over });
+const pager = (over = {}) => ({ prev: true, next: true, drag() {}, settle() {}, go() {}, ...over });
+/** The Calendar's days: a page that stays, and turns in place. It says only what is each side and how to turn. */
+const days = (over = {}) => ({ prev: true, next: true, stays: true, go() {}, ...over });
 
-test("a page follows the thumb across, both ways, and says how far toward the tab beside it is", () => {
+test("a page follows the thumb across, both ways: it is told how far, which side, and that a page is there", () => {
   const seen = [];
   const el = element();
-  const h = touchSwipe({ pages: () => pager({ follow: (p, step, how) => seen.push([p, step, how]) }) });
+  const h = touchSwipe({
+    pages: () => pager({ drag: (dx, step, open) => seen.push([dx, step, open]), settle: () => seen.push("settle") }),
+  });
   h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
   h.onTouchMove({ touches: [{ clientX: 125, clientY: 304 }], currentTarget: el });
-  assert.equal(el.style.transform, "translate3d(-75px, 0, 0)");
-  assert.deepEqual(seen.at(-1), [0.2, 1, "move"], "75px of 375: a fifth of the way to the next");
+  assert.deepEqual(seen.at(-1), [-75, 1, true], "75px toward the next");
   h.onTouchMove({ touches: [{ clientX: 275, clientY: 304 }], currentTarget: el });
-  assert.equal(el.style.transform, "translate3d(75px, 0, 0)");
-  assert.deepEqual(seen.at(-1), [0.2, -1, "move"]);
+  assert.deepEqual(seen.at(-1), [75, -1, true]);
+  assert.equal(el.style.transform, undefined, "the page moves its own view: the reader puts nothing on the element");
   h.onTouchCancel({ currentTarget: el });
-  assert.equal(seen.at(-1)[2], "settle");
-  assert.equal(el.style.transform, "translate3d(0, 0, 0)");
+  assert.equal(seen.at(-1), "settle");
 });
 
-test("past the last tab a page gives a quarter of the drag, 48px at most, and settles back", () => {
+test("past the last tab a page is told a quarter of the drag, 48px at most, and that no page is there; then it settles", () => {
+  const seen = [];
   const went = [];
   const el = element();
-  const h = touchSwipe({ pages: () => pager({ next: false, go: (s) => went.push(s) }) });
+  const h = touchSwipe({
+    pages: () =>
+      pager({
+        next: false,
+        drag: (dx, step, open) => seen.push([dx, step, open]),
+        settle: () => seen.push("settle"),
+        go: (s) => went.push(s),
+      }),
+  });
   h.onTouchStart({ touches: [{ clientX: 300, clientY: 300 }], currentTarget: el, target: el });
   h.onTouchMove({ touches: [{ clientX: 220, clientY: 300 }], currentTarget: el });
-  assert.equal(el.style.transform, "translate3d(-20px, 0, 0)");
+  assert.deepEqual(seen.at(-1), [-20, 1, false]);
   h.onTouchMove({ touches: [{ clientX: 40, clientY: 300 }], currentTarget: el });
-  assert.equal(el.style.transform, "translate3d(-48px, 0, 0)");
+  assert.deepEqual(seen.at(-1), [-48, 1, false]);
   h.onTouchEnd({ changedTouches: [{ clientX: 40, clientY: 300 }], currentTarget: el });
-  assert.equal(el.style.transform, "translate3d(0, 0, 0)", "a flick at a dead end is still nothing");
+  assert.equal(seen.at(-1), "settle", "a flick at a dead end is still nothing");
   assert.deepEqual(went, []);
 });
 
-test("let go past a third, a page leaves the way it went, and the tab beside is pressed as the finger lets go", async () => {
+test("let go past a third, or with a flick, the tab beside is pressed as the finger lets go; short of both it settles", async () => {
   // The tab waited for the leaving (180 ms) before its page began to draw, and the screen stood empty for it on both
   // strips (5 Oct 2026); the page beside draws now while this one leaves.
   const went = [];
-  const hows = [];
-  const el = element();
-  const h = touchSwipe({
-    pages: () => pager({ prev: false, follow: (p, s, how) => hows.push(how), go: (s) => went.push(s) }),
-  });
-  drag(h, el, [300, 300], [240, 300], [160, 300]);
-  assert.equal(el.style.transform, "translate3d(-375px, 0, 0)", "away, a page's width");
-  assert.equal(hows.at(-1), "leave");
+  const settled = [];
+  const h = touchSwipe({ pages: () => pager({ prev: false, go: (s) => went.push(s), settle: () => settled.push(1) }) });
+  drag(h, element(), [300, 300], [240, 300], [160, 300]);
   assert.deepEqual(went, [1], "pressed as the finger lets go");
   await wait(220);
   assert.deepEqual(went, [1], "and once");
-  // Short of a flick and of a third, it settles back.
-  const near = element();
-  drag(h, near, [300, 300], [285, 300], [280, 300]);
-  assert.equal(near.style.transform, "translate3d(0, 0, 0)");
+  assert.deepEqual(settled, []);
+  drag(h, element(), [300, 300], [285, 300], [280, 300]);
   assert.deepEqual(went, [1]);
+  assert.deepEqual(settled, [1], "short of a flick and of a third, back");
 });
 
-test("a page whose strip is inside it moves everything but the strip: what it names moves, the view itself stays", async () => {
-  const el = element();
-  const bar = element();
-  const rows = element();
-  const h = touchSwipe({ pages: () => pager({ moving: [bar, rows] }) });
-  h.onTouchStart({ touches: [{ clientX: 300, clientY: 300 }], currentTarget: el, target: el });
-  h.onTouchMove({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el });
-  assert.equal(bar.style.transform, "translate3d(-100px, 0, 0)");
-  assert.equal(rows.style.transform, "translate3d(-100px, 0, 0)");
-  assert.equal(el.style.transform, undefined, "the view, and the strip in it, stay where they are");
-  h.onTouchEnd({ changedTouches: [{ clientX: 60, clientY: 300 }], currentTarget: el });
-  assert.equal(rows.style.transform, "translate3d(-375px, 0, 0)");
-  await wait(220);
-  assert.equal(el.style.transform, undefined);
+test("the page is let go at the finger's speed across, and at none where the finger stood still first", () => {
+  // The page leaving eased in from rest whatever the finger had been doing: one moving 1.4px a millisecond crawled 7px
+  // in its first 85 ms (measured, 8 Oct 2026). The page is handed the speed now, and carries on at it.
+  const keep = Date.now;
+  let clock = 5000;
+  Date.now = () => clock;
+  try {
+    const went = [];
+    const h = touchSwipe({ pages: () => pager({ go: (s, speed) => went.push([s, speed]) }) });
+    const el = element();
+    h.onTouchStart({ touches: [{ clientX: 300, clientY: 300 }], currentTarget: el, target: el });
+    clock += 50;
+    h.onTouchMove({ touches: [{ clientX: 240, clientY: 300 }], currentTarget: el });
+    clock += 50;
+    h.onTouchMove({ touches: [{ clientX: 160, clientY: 300 }], currentTarget: el });
+    clock += 10;
+    h.onTouchEnd({ changedTouches: [{ clientX: 160, clientY: 300 }], currentTarget: el });
+    assert.deepEqual(went, [[1, -1.6]], "80px in the last 50 ms, leftward");
+    const held = element();
+    h.onTouchStart({ touches: [{ clientX: 300, clientY: 300 }], currentTarget: held, target: held });
+    clock += 50;
+    h.onTouchMove({ touches: [{ clientX: 240, clientY: 300 }], currentTarget: held });
+    clock += 50;
+    h.onTouchMove({ touches: [{ clientX: 120, clientY: 300 }], currentTarget: held });
+    clock += 400;
+    h.onTouchEnd({ changedTouches: [{ clientX: 120, clientY: 300 }], currentTarget: held });
+    assert.deepEqual(went.at(-1), [1, 0], "held where it was for a moment, it is let go at rest");
+  } finally {
+    Date.now = keep;
+  }
 });
 
 test("a page never moves from the screen's edges, where the page refuses the touch, or where a thread goes back", () => {
@@ -342,7 +366,7 @@ test("a page that stays (the Calendar's days) leaves, turns, and comes back in f
       },
     }),
   });
-  const h = touchSwipe({ pages: () => pager({ stays: true, go: (s) => went.push(s) }) });
+  const h = touchSwipe({ pages: () => days({ go: (s) => went.push(s) }) });
   drag(h, el, [300, 300], [240, 300], [160, 300]);
   assert.equal(style.transform, "translate3d(-375px, 0, 0)", "away first, as any page");
   await wait(220);
@@ -357,9 +381,9 @@ test("a page that stays (the Calendar's days) leaves, turns, and comes back in f
 });
 
 test("a page that stays waits where it went until `go` says the next has landed, then comes back in with it", async () => {
-  // Reports' lenses: the strip's `go` answers once the address and the page have moved (surface-tabs.jsx stripPager).
-  // Brought back in as soon as it was asked, the page came in showing the lens it was leaving, which turned into the
-  // next in mid-air (7 Oct 2026).
+  // A turn that is not drawn at once answers a promise, and the page comes back in only when it has landed: brought
+  // back as soon as it was asked, it came in showing what it was leaving, which turned into the next in mid-air (Reports'
+  // lenses, 7 Oct 2026, which are views of a strip now and move by the deck).
   const moves = [];
   const style = {};
   const el = element({
@@ -374,8 +398,7 @@ test("a page that stays waits where it went until `go` says the next has landed,
   let landed = null;
   const h = touchSwipe({
     pages: () =>
-      pager({
-        stays: true,
+      days({
         go: () =>
           new Promise((r) => {
             landed = r;
@@ -490,53 +513,60 @@ test("nothing leaves from a frame mounted and let go of at once, under reduced m
   assert.ok(true, "a node already taken off the page is left alone");
 });
 
-test("People's strip is walked to 900px, where its page is one column; any other strip only on a phone (720px)", async () => {
-  // Between 721 and 900px People drew a phone's rows and no swipe crossed its strip (5 Oct 2026). The view says whose
-  // strip it stands on (app-shell.jsx data-strip), and the strip's pager answers for it (surface-tabs.jsx stripPhoneFor).
+test("a strip is walked only where the shell is narrow, and there only where the page says it travels its own width", async () => {
+  // People's strip is walked to 900px, where its page is one column, and any other only on a phone (5 Oct 2026). That is
+  // the stylesheet's to say now, by the token that says how far a page travels (`--view-travel`: the tokens', and
+  // People's to 900px in components.css): the strip's pager asks the deck whether a finger walks the page on screen.
+  const { viewPager } = await import("../../../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
+  const { viewDeck } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
+  Object.assign(globalThis.window, { viewPager, viewDeck });
   await import("../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
   const keep = globalThis.window.matchMedia;
   let width = 800;
+  let token = "100%";
   globalThis.window.matchMedia = (q) => {
     const m = /max-width: (\d+)px/.exec(q);
     return { matches: q.includes("reduce") ? false : m ? width <= Number(m[1]) : false };
   };
-  const walked = (strip) => {
+  globalThis.document.timeline = { currentTime: 0 };
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => token });
+  const walked = () => {
     const pressed = [];
     const tab = (active, name) => ({
-      style: {},
-      offsetLeft: active ? 0 : 90,
+      offsetLeft: active ? 4 : 90,
       offsetWidth: 80,
-      isConnected: true,
       classList: { contains: (c) => c === "active" && active },
-      // Pressed, the tab is the address's own at once here: `go` answers as soon as it is (stripPager).
-      getAttribute: (n) => (n === "aria-current" ? "page" : null),
       click: () => pressed.push(name),
     });
     const tabs = [tab(true, "people"), tab(false, "leads")];
     const bar = {
-      style: { setProperty() {}, removeProperty() {} },
-      offsetWidth: 300,
       getClientRects: () => [1],
       querySelectorAll: () => tabs,
+      querySelector: () => null,
       setAttribute() {},
       removeAttribute() {},
       hasAttribute: () => false,
     };
     const view = element({
       parentElement: { querySelector: () => bar },
-      dataset: strip ? { strip } : {},
-      contains: () => false,
+      dataset: {},
+      offsetParent: null,
+      addEventListener() {},
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 375, height: 600 }),
+      animate: () => ({ finished: new Promise(() => {}), cancel() {} }),
     });
+    view.contains = (other) => other === view;
+    viewDeck.view("frame")(view);
     drag(globalThis.window.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
     return pressed;
   };
   try {
-    assert.deepEqual(walked("people"), ["leads"], "at 800px People's strip is walked");
-    assert.deepEqual(walked("inbox"), [], "and the Inbox's, two panes there, is not");
-    width = 600;
-    assert.deepEqual(walked("inbox"), ["leads"], "on a phone every strip is walked");
+    assert.deepEqual(walked(), ["leads"], "a page of one column, under 900px: walked");
+    token = "56px";
+    assert.deepEqual(walked(), [], "two panes at the same width travel a desk's length: not a finger's to carry");
+    token = "100%";
     width = 1000;
-    assert.deepEqual(walked("people"), [], "past 900px nothing is");
+    assert.deepEqual(walked(), [], "past 900px nothing is");
   } finally {
     globalThis.window.matchMedia = keep;
   }

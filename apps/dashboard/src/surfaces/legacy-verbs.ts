@@ -12,6 +12,7 @@
  */
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
 import type { AskApi } from "../legacy-bridge/ask";
+import type { ViewPage } from "./kit/view-tabs/pager";
 import type { SetupSurface } from "./setup/surface";
 import { surfaceValue } from "./surface-values";
 import type { ApiResult } from "../client/api";
@@ -259,17 +260,25 @@ export type GateProps = {
   onPointerCancel?: undefined;
 };
 
-/** A page under a strip, walked across by a swipe (data-bits `touchSwipe`, `pages`): the page each side, and how it follows. */
-interface SwipePage {
+/**
+ * A page that stays as a swipe walks it (the Calendar's days: the same element shows the next): what is each side and
+ * how to turn. data-bits turns it in place (`swipeStays`).
+ */
+export interface StayingPage {
   prev: boolean;
   next: boolean;
-  moving?: Element | null;
-  follow: (progress: number, step: number, how: "move" | "leave" | "settle") => void;
+  stays: true;
   go: (step: number) => void;
 }
 
+/**
+ * A page a swipe walks (data-bits `touchSwipe`, `pages`): one under a strip of views, which moves itself by the deck
+ * (the kit's `viewPager`), or one that stays.
+ */
+type SwipePage = ViewPage | StayingPage;
+
 /** What a swipe answers to (data-bits `touchSwipe`): each is the page's own to do, called once the thumb has let go. */
-export interface SwipeOptions {
+interface SwipeOptions {
   onLeft?: (() => void) | null;
   onRight?: (() => void) | null;
   onDown?: (() => void) | null;

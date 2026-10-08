@@ -36,6 +36,7 @@ import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/li
 import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
 import { MonthRange } from "../../../../apps/dashboard/src/surfaces/kit/datepicker/month-range.tsx";
 import { Panel } from "../../../../apps/dashboard/src/surfaces/kit/panel/panel.tsx";
+import { ViewTabs } from "../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx";
 import { cx } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
 installLegacyReact();
@@ -788,5 +789,60 @@ test("MonthRange draws the gallery's Month range family: the window's band on th
     root.props.children[1].props["aria-hidden"],
     "true",
     "the grid is the page's words' picture, not read twice",
+  );
+});
+
+/** A strip's views, as a page hands them: an address each. */
+const viewsOf = (...labels) => labels.map((label) => ({ id: label.toLowerCase(), label, href: "#kit" }));
+
+/** The gallery's Tab strip family, entry by entry. */
+const VIEW_TABS = {
+  stabs: () =>
+    h(ViewTabs, {
+      name: "inbox",
+      label: "Section views",
+      picked: "needs you",
+      onPick() {},
+      tabs: [
+        { id: "needs you", label: "Needs you", href: "#kit", count: 3, tone: "warn" },
+        { id: "conversations", label: "Conversations", href: "#kit" },
+        { id: "live", label: "Live", href: "#kit", live: true },
+      ],
+    }),
+  "stabs-campaigns": () =>
+    h(ViewTabs, {
+      name: "campaigns",
+      label: "Section views",
+      picked: "broadcasts",
+      onPick() {},
+      tabs: viewsOf("Playbooks", "Broadcasts", "Templates"),
+    }),
+};
+
+test("ViewTabs draws the gallery's Tab strip family: links on one capsule, the highlight before them, a count and a dot beside the words", () => {
+  assert.deepEqual(parting(FAMILIES, "Tab strip", VIEW_TABS), HELD);
+  const strip = drawn(
+    h(ViewTabs, {
+      name: "reports",
+      label: "Which report",
+      testid: "reports-lenses",
+      className: "rpt-strip",
+      picked: "overview",
+      onPick() {},
+      tabs: viewsOf("Overview", "People"),
+    }),
+  );
+  assert.equal(strip.type, "nav");
+  assert.equal(strip.props.className, "stabs stabs-reports rpt-strip", "the page's layout class comes last");
+  assert.deepEqual(keysOf(strip), ["aria-label", "className", "data-testid", "ref"]);
+  const [pill, ...tabs] = strip.props.children.flat().filter(Boolean);
+  assert.equal(pill.props.className, "stabs-pill");
+  assert.deepEqual(
+    tabs.map((t) => [t.type, t.props.className, t.props["aria-current"]]),
+    [
+      ["a", "stabs-tab active", "page"],
+      ["a", "stabs-tab", undefined],
+    ],
+    "a view has an address: a tab is a link, never a button",
   );
 });

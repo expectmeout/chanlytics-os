@@ -16,6 +16,11 @@
  * fold registry's two answers to the Settings rail.
  *
  * Nothing here is behaviour: it is the kit's own components, and a page draws them exactly as it drew the old ones.
+ *
+ * The strip of views and what moves a view are the frame's to draw and to ask until the frame itself moves (decision 0015,
+ * step 13): the strip (`ViewTabs`, which the shell's SurfaceTabs draws), the page a swipe walks (`viewPager`, which it
+ * hands data-bits `touchSwipe`), and the deck the frame's `main` registers with (`viewDeck`). Settings and Reports
+ * import them.
  */
 import { AgendaItem, AgendaItems, AgendaOpen } from "./agenda/agenda";
 import { AttnRow } from "./attention/attn-row";
@@ -26,6 +31,7 @@ import { FieldError } from "./field-error/field-error";
 import { Icon } from "./icon/icon";
 import { TlMedia } from "./media/tl-media";
 import { MoreMenu } from "./more-menu/more-menu";
+import { viewDeck } from "./motion/view-deck";
 import { StatePill } from "./pill/state-pill";
 import { useHoldToTalk } from "./talk/use-hold-to-talk";
 import { PolicyChip } from "./policy-chip/policy-chip";
@@ -41,6 +47,8 @@ import { RecordChips, RecordDispute, RecordRow, RecordSourceChip, recRowPress } 
 import { RecordFoot, RecordSays } from "./record/says";
 import { RecordSheet } from "./record/sheet";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "./record/work";
+import { viewPager } from "./view-tabs/pager";
+import { ViewTabs } from "./view-tabs/view-tabs";
 
 export const KIT_GLOBALS = {
   Icon,
@@ -84,6 +92,9 @@ export const KIT_GLOBALS = {
   UnsavedAsk,
   tabDraft,
   RecordSheet,
+  ViewTabs,
+  viewPager,
+  viewDeck,
   /** The rule that only one fold is open, which the pages ask by its id. */
   __recordFolds: recFolds,
   /** The Settings rail's question before it replaces a pane: does anything hold unsaved changes? The open fold answers. */

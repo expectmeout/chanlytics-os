@@ -92,6 +92,10 @@ globalThis.document = { addEventListener() {}, removeEventListener() {}, body: {
 
 const win = globalThis.window;
 await import("../../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
+// publishes it (seed-globals.ts); its hooks are this file's stub's.
+(await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
+globalThis.ViewTabs = (await import("../../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
 await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
 
 const walk = (n, fn) => {
@@ -136,7 +140,7 @@ const strip = (page, param = null) => {
   frames.begin();
   const tree = win.SurfaceTabs({ page, param, onNavigate() {} });
   if (!tree) return null;
-  return tree.props.children.map((b) => ({
+  return findAll(tree, (n) => hasClass(n, "stabs-tab")).map((b) => ({
     label: textOf(b.props.children.filter((c) => typeof c === "string")).trim(),
     active: hasClass(b, "active"),
     badge: textOf(findAll(b, (n) => hasClass(n, "stabs-badge"))[0]) || null,

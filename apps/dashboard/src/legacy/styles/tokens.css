@@ -144,6 +144,11 @@
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 360ms;
+  /* How far a view travels as it changes (the kit's view deck, surfaces/kit/motion/view-deck.ts): a short length on a
+     desk, where the page leaving dims where it is and the two cross-fade; its own width where a page is one column
+     (the foot of this sheet), so the pages go by side by side, as a finger carries them. One motion at every width,
+     and this is the one length of it that differs. */
+  --view-travel: 56px;
 
   /* ---------- Blur and saturation (a look's material) ----------
      How far a glass surface softens what is behind it and how much it warms its colour: the control layer's, the
@@ -677,5 +682,11 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 @media (max-width: 900px) {
   :root, [data-theme] {
     --gutter-page: 16px;
+  }
+}
+/* On a phone a page is one column: a view travels its own width (--view-travel, above), and a finger walks its strip. */
+@media (max-width: 720px) {
+  :root {
+    --view-travel: 100%;
   }
 }

@@ -490,12 +490,13 @@ const usePageFocus = (page, routeLoading) => {
 
 /**
  * How the route view comes in. A move between two views of one strip -- the Inbox's Needs you to Conversations, People
- * to Leads or the Pipeline -- arrives as a tab does: the route fade on a desk, from the side its tab stands on on a
- * phone (components.css route-slide-*). People's scopes once drew at once instead, when a switch drew the whole scope
- * before anything answered and a fade on top read as a wait; the press answers first now and the page is drawn once
- * (5 Oct 2026). A view that follows another of the same family and is no strip's move (one person's page to the next)
- * draws at once; a page landing where the reading pane stood fades in. A person's profile is somewhere else, though
- * its route starts with the list's word.
+ * to Leads or the Pipeline -- arrives from the side its tab stands on, by the deck every change of view moves by (the
+ * kit's viewDeck, surfaces/kit/motion/view-deck.ts): the view says which side (`data-slide`), and the deck brings it in
+ * on the timeline of the page it replaced, the same on a desk and a phone, tapped or swiped. A phone had a slide of its
+ * own for this and a desk a fade, each begun as the view mounted, whatever the page before it was doing (8 Oct 2026).
+ * A view that follows another of the same family and is no strip's move (one person's page to the next) draws at once;
+ * a page landing where the reading pane stood, or arriving from somewhere else, fades in (components.css route-in). A
+ * person's profile is somewhere else, though its route starts with the list's word.
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
  * (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
  * frame in. `mountKey` is what the view is mounted under, the route table's answer (drawRoute).
@@ -503,8 +504,8 @@ const usePageFocus = (page, routeLoading) => {
 const useViewFade = ({ page, param }, mountKey, routeLoading) => {
   const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
   const family = page === "clients" && param && !/^(leads(:|$)|pipeline(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
-  // Where the view stands on a strip (surface-tabs.jsx stripPlace): a view from the tab beside comes in from its side on
-  // a phone, whether the tab was tapped or the page swiped (components.css route-slide-*), never after a reading pane.
+  // Where the view stands on a strip (surface-tabs.jsx stripPlace): a view from the tab beside comes in from its side,
+  // whether the tab was tapped or the page swiped, never after a reading pane.
   const place = window.stripPlace ? window.stripPlace(page, param) : null;
   const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false, place: null, slide: null });
   if (viewRef.current.key !== viewKey) {
@@ -638,12 +639,15 @@ const appChrome = (s) => {
         <LiveCallBar />
         <ShellStatusBar />
         {glassHead({ glass, pane, where: "over", page, param, views, navigate, primaryAction })}
-        {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
+        {/* The view is the deck's to move: it registers as it mounts and says which side it arrives from. On a phone a
+            swipe across it walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <main
           id="main"
           key={viewKey}
-          className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""} ${routeSlide ? `route-slide-${routeSlide}` : ""}`}
+          ref={window.viewDeck ? window.viewDeck.view("frame") : undefined}
+          className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""}`}
           data-strip={routeStrip || undefined}
+          data-slide={routeSlide || undefined}
           aria-busy={routeLoading ? "true" : undefined}
           {...(window.stripSwipe ? window.stripSwipe() : {})}
         >
