@@ -392,6 +392,102 @@ test("REGRESSION: a person reached only by email is not held by WhatsApp's windo
   assert.deepEqual([caller.replyVia, caller.replyWindow], [null, null]);
 });
 
+test("REGRESSION: a row replies on the wire they last wrote on (00320), so a texter is not held by WhatsApp's window", () => {
+  // Found on production, 8 Oct 2026: four of five people had only ever texted. Their Reach read "Text", and the same
+  // row's booking-link button said "Only an approved message reaches them until they write again": WhatsApp's rule,
+  // on a wire that has no window. The row read WhatsApp for anyone who had written and was not email-only.
+  const shutWa = iso(3 * D);
+  const texter = toPersonRowVM(
+    row({
+      channels: [],
+      has_chat: true,
+      message_channels: ["sms"],
+      last_inbound_channel: "sms",
+      call_count: 0,
+      latest_wa_inbound_at: null,
+    }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(texter.replyVia, "Text");
+  assert.deepEqual(texter.replyWindow, { open: true, hoursLeft: 0 }, "only WhatsApp has a window");
+  assert.deepEqual(texter.bookingLinkAction, {
+    label: "Text the booking link",
+    title: "Opens the thread with the link ready to send as a text",
+    ready: true,
+  });
+
+  // Both wires: the one they wrote on last decides, as the reply route does (verbs replyChannelOf).
+  const both = (last, over = {}) =>
+    toPersonRowVM(
+      row({ message_channels: ["sms", "whatsapp"], last_inbound_channel: last, latest_wa_inbound_at: shutWa, ...over }),
+      ZONE,
+      NOW,
+    );
+  const lastText = both("sms");
+  assert.deepEqual(
+    [lastText.replyVia, lastText.bookingLinkAction.ready],
+    ["Text", true],
+    "WhatsApp's shut window holds no text",
+  );
+  const lastWa = both("whatsapp");
+  assert.equal(lastWa.replyVia, "WhatsApp");
+  assert.equal(lastWa.replyWindow.open, false);
+  assert.deepEqual(
+    [lastWa.bookingLinkAction.label, lastWa.bookingLinkAction.ready],
+    ["Send the booking link", false],
+    "last on WhatsApp, a day and more ago: only an approved message goes",
+  );
+  const waOpen = both("whatsapp", { latest_wa_inbound_at: iso(2 * 3_600_000) });
+  assert.deepEqual([waOpen.replyWindow, waOpen.bookingLinkAction.ready], [{ open: true, hoursLeft: 22 }, true]);
+
+  // WhatsApp and email, last by email: the reply goes by email, which no window holds...
+  const mail = (over = {}) =>
+    toPersonRowVM(
+      row({
+        email: "ana@example.com",
+        message_channels: ["email", "whatsapp"],
+        last_inbound_channel: "email",
+        latest_wa_inbound_at: shutWa,
+        ...over,
+      }),
+      ZONE,
+      NOW,
+    );
+  assert.deepEqual([mail().replyVia, mail().bookingLinkAction.label], ["Email", "Email the booking link"]);
+  // ...and where that address stopped accepting mail the row offers nothing, as the route would refuse it. The row
+  // read WhatsApp here and offered a send that could not go.
+  const stopped = mail({ email_suppressed_at: iso(2 * D) });
+  assert.equal(stopped.emailSuppressed, true);
+  assert.deepEqual([stopped.replyVia, stopped.bookingLinkAction.ready], ["Email", false]);
+  assert.equal(stopped.bookingLinkAction.title, "Email can't reach them: their address stopped accepting mail");
+
+  // A row that does not say where they last wrote (they have written nothing themselves, or it was read before
+  // 00320) keeps the strictest reading: it may say a reply is held when it is not, never the reverse.
+  const unknown = toPersonRowVM(
+    row({
+      channels: [],
+      has_chat: true,
+      message_channels: ["sms"],
+      last_inbound_channel: null,
+      latest_wa_inbound_at: null,
+    }),
+    ZONE,
+    NOW,
+  );
+  assert.deepEqual([unknown.replyVia, unknown.bookingLinkAction.ready], ["WhatsApp", false]);
+  // A value this build does not know is no wire, not a wire: the same strictest reading.
+  const odd = toPersonRowVM(
+    row({ message_channels: ["whatsapp"], last_inbound_channel: "voice", latest_wa_inbound_at: shutWa }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(odd.replyVia, "WhatsApp");
+  // No chat, no thread to reply in: no wire, whatever the column says.
+  const noChat = toPersonRowVM(row({ has_chat: false, message_channels: [], last_inbound_channel: "sms" }), ZONE, NOW);
+  assert.deepEqual([noChat.replyVia, noChat.replyWindow], [null, null]);
+});
+
 /* ------------------------- lists and aggregates -------------------------- */
 
 test("smart lists: phoned-only, and opted-out includes someone who also needs you", () => {
@@ -920,6 +1016,7 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
     email: null,
     channels: ["whatsapp", "voice"],
     lastChannel: "whatsapp",
+    replyVia: "WhatsApp",
     replyWindow: { open: true, hoursLeft: 9 },
     emailSuppressed: false,
     stopped: false,
@@ -943,7 +1040,14 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   const byNumber = rowReachWords({ ...base, name: "+1 (786) 555-0181" }, false);
   assert.deepEqual([byNumber.wire, byNumber.id], ["WhatsApp", null]);
   // By email: the address is the identifier, even beside a number, and a stopped address says so.
-  const mail = { ...base, email: "zoe@example.com", lastChannel: "email", replyWindow: null, channelWords: "Email" };
+  const mail = {
+    ...base,
+    email: "zoe@example.com",
+    lastChannel: "email",
+    replyVia: "Email",
+    replyWindow: { open: true, hoursLeft: 0 },
+    channelWords: "Email",
+  };
   assert.deepEqual(rowReachWords(mail, true), {
     wire: "Email",
     id: "zoe@example.com",
@@ -952,7 +1056,14 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   });
   assert.equal(rowReachWords({ ...mail, emailSuppressed: true }, true).may, "Stopped accepting mail");
   // Only ever phoned: the wire is the phone, and no window to speak of.
-  const phoned = { ...base, channels: ["voice"], lastChannel: null, replyWindow: null, channelWords: "Phone" };
+  const phoned = {
+    ...base,
+    channels: ["voice"],
+    lastChannel: null,
+    replyVia: null,
+    replyWindow: null,
+    channelWords: "Phone",
+  };
   assert.deepEqual(rowReachWords(phoned, true), { wire: "Phone", id: "+1 (786) 555-0181", may: null, tip: "Phone" });
   // Nothing at all (added by hand, never wrote): the identifier alone.
   const quiet = { ...phoned, channels: [], channelWords: "" };
@@ -960,41 +1071,52 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   // Opted out: the State says it; the row's reach says only the wire and the number.
   const stopped = rowReachWords({ ...base, stopped: true }, true);
   assert.deepEqual([stopped.may, stopped.tip], [null, "WhatsApp · Phone"]);
-  // REGRESSION (the review of 8 Oct 2026): the wire is the one they last wrote on. The row's own reply wire reads
-  // WhatsApp for anyone who has written and is not email-only, so a person who only ever texted was said to be on
-  // WhatsApp, held to approved messages by a window a text does not have.
-  const texted = { ...base, channels: ["sms"], lastChannel: "sms", channelWords: "Text" };
-  assert.deepEqual(rowReachWords({ ...texted, replyWindow: { open: false, hoursLeft: 0 } }, true), {
+  // REGRESSION (the review of 8 Oct 2026): the wire is the one they last wrote on. Drawn through the row itself from
+  // here on, as People draws it, so the cell's words and the row's own reply wire are read together.
+  const rowOf = (over) => toPersonRowVM(row({ channels: [], call_count: 0, has_chat: true, ...over }), ZONE, NOW);
+  const reach = (over) => rowReachWords(rowOf(over), true);
+  const shutWa = iso(3 * D);
+  // A person who only ever texted is on Text, with nothing held. They were said to be on WhatsApp, behind its window.
+  assert.deepEqual(reach({ message_channels: ["sms"], last_inbound_channel: "sms", latest_wa_inbound_at: null }), {
     wire: "Text",
     id: "+1 (786) 555-0181",
     may: null,
     tip: "Text · Any time, by text",
   });
   // On two wires, the last one written on is the one a reply goes out on: WhatsApp's shut window is not a text's.
-  const both = { ...base, channels: ["whatsapp", "sms"], channelWords: "WhatsApp · Text" };
-  const shut = { open: false, hoursLeft: 0 };
-  assert.equal(rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).wire, "Text");
-  assert.equal(rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).may, null);
-  assert.equal(
-    rowReachWords({ ...both, lastChannel: "whatsapp", replyWindow: shut }, true).tip,
-    "WhatsApp · Text · Approved messages only, until they write again",
-    "WhatsApp's window is read only where the wire is WhatsApp",
+  const both = { message_channels: ["sms", "whatsapp"], latest_wa_inbound_at: shutWa };
+  const lastText = reach({ ...both, last_inbound_channel: "sms" });
+  assert.deepEqual([lastText.wire, lastText.may, lastText.tip], ["Text", null, "WhatsApp · Text · Any time, by text"]);
+  const lastWa = reach({ ...both, last_inbound_channel: "whatsapp" });
+  assert.deepEqual(
+    [lastWa.wire, lastWa.tip],
+    ["WhatsApp", "WhatsApp · Text · Approved messages only, until they write again"],
   );
-  assert.equal(
-    rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).tip,
-    "WhatsApp · Text · Any time, by text",
+  // A row that does not say where they last wrote names the first wire words travelled, WhatsApp before a text.
+  assert.equal(reach({ ...both, last_inbound_channel: null }).wire, "WhatsApp");
+  // And what a reply may be is the row's own answer, the one its booking-link button is written from. Someone we
+  // texted who has written nothing is answered on WhatsApp by the reply route, so only an approved message goes:
+  // the tip said "Any time, by text" beside a button that said the opposite.
+  const never = rowOf({ message_channels: ["sms"], last_inbound_channel: null, latest_wa_inbound_at: null });
+  assert.deepEqual(
+    [rowReachWords(never, true).wire, rowReachWords(never, true).tip],
+    ["Text", "Text · Approved messages only, until they write again"],
   );
-  // A row read before the channel was kept (00320) says the first wire they have written on, WhatsApp before a text.
-  assert.equal(rowReachWords({ ...both, lastChannel: null }, true).wire, "WhatsApp");
-  assert.equal(rowReachWords({ ...texted, lastChannel: null }, true).wire, "Text");
-  // And through the row itself, as People draws it: a texter's row reads Text, with nothing held.
-  const row7 = toPersonRowVM(
-    row({ channels: [], has_chat: true, message_channels: ["sms"], last_inbound_channel: "sms", call_count: 0 }),
-    ZONE,
-    NOW,
-  );
-  const said = rowReachWords(row7, true);
-  assert.deepEqual([said.wire, said.may], ["Text", null], "a texter's row never says WhatsApp");
+  assert.equal(never.bookingLinkAction.ready, false, "the button on the same row says the same");
+  // Every row the cell draws says one thing with its button: what the tip says a reply may be is free text exactly
+  // where the button fills the composer.
+  for (const last of ["whatsapp", "sms", "email", null])
+    for (const wa of [iso(2 * H), shutWa, null])
+      for (const wrote of [["sms"], ["whatsapp"], ["email"], ["sms", "whatsapp"], ["email", "whatsapp"]]) {
+        const vm = rowOf({
+          email: "zoe@example.com",
+          message_channels: wrote,
+          last_inbound_channel: last,
+          latest_wa_inbound_at: wa,
+        });
+        const free = /Any (time|message)/.test(rowReachWords(vm, true).tip);
+        assert.equal(free, vm.bookingLinkAction.ready, `${JSON.stringify(wrote)}, last ${last}, WhatsApp ${wa}`);
+      }
 });
 
 test("a person's proposal is their deal's (0008): the deal's link while it is out, their own with no open deal, a client's none", () => {
