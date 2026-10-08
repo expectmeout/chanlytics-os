@@ -223,6 +223,7 @@ export {
   whatsappChannelFacts,
   textLineFacts,
   playbookChannels,
+  playbookForChannels,
   queuedRecipients,
   runGoesByOthers,
   campaignMonthSent,

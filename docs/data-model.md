@@ -26,7 +26,7 @@ what the script writes.
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
 | [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
-| [`broadcasts`](#broadcasts) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
+| [`broadcasts`](#broadcasts) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
 | [`business_records`](#business_records) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
@@ -438,7 +438,7 @@ Foreign keys:
 
 ### broadcasts
 
-- Owned by: `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 

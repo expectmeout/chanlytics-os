@@ -12,7 +12,8 @@
  * the gate a card checks before Approve lets the roles that role lets (ROLE_PERMS, on the server's own ladder). The two
  * kinds PR 4.6 added (a person's note and details, the Phase 4 plan's D8 and D9) answer the three readings as their
  * family's cards do, and their calls are pinned over the answers their routes really give; so are PR 4.7's two, a list
- * kept by its rule (D10) and a playbook's run waiting for a person (D11).
+ * kept by its rule (D10) and a playbook's run waiting for a person (D11), and the one of 8 Oct 2026, the channels a
+ * playbook that exists goes by.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,7 +25,9 @@ import {
   ASK_UNDO_MS,
   MEMBERSHIP_ROLES,
   PROPOSAL_GATE,
+  LIFECYCLE_TOAST,
   PROPOSAL_SPECS,
+  PROPOSAL_WORDS,
   ROLE_PERMS,
   ROUTE_KEYS,
   askUndoOpen,
@@ -34,7 +37,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The sixteen kinds, in AskProposal's order, and one no card has. */
+/** The seventeen kinds, in AskProposal's order, and one no card has. */
 const KINDS = [
   "reply",
   "steer",
@@ -52,12 +55,13 @@ const KINDS = [
   "person_details",
   "list",
   "run",
+  "playbook_channels",
   "teleport",
 ];
 
 /* ------------------------------------------------------------------ the gate */
 
-test("the gate each kind checks before Approve is the one it checked at a993b71d; a person's note and details, a list and a run, each an operator's, check approve", () => {
+test("the gate each kind checks before Approve is the one it checked at a993b71d; a person's note and details, a list, a run and a playbook's channels, each an operator's, check approve", () => {
   assert.deepEqual(PROPOSAL_GATE, {
     reply: "approve",
     steer: "approve",
@@ -75,6 +79,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     person_details: "approve",
     list: "approve",
     run: "approve",
+    playbook_channels: "approve",
   });
 });
 
@@ -100,7 +105,7 @@ const VERSIONS = [null, 4, 5];
 
 /**
  * askUndoOpen at a993b71d, per kind: one group per entry of UNDOS, in order; inside a group, for each of ATS, the
- * three VERSIONS -- 1 where the undo was offered. The four kinds since keep the family's ten minutes.
+ * three VERSIONS -- 1 where the undo was offered. The five kinds since keep the family's ten minutes.
  */
 const UNDO_OPEN = {
   reply: "000000000 000000000 111111111 000000000 000000000 000000000 000000000 000000000",
@@ -119,6 +124,7 @@ const UNDO_OPEN = {
   person_details: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   list: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   run: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  playbook_channels: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   teleport: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
 };
 
@@ -190,6 +196,9 @@ const OPEN = {
   person_details: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   list: "clients",
   run: "broadcasts",
+  // None of the table's payloads names a playbook: the home, where the old Playbooks address lands. With one, its drawer
+  // (the spec's own test below).
+  playbook_channels: "outbound",
   teleport: [null, null, "inbox/th-c1", null, null, "inbox/th-c1", null, null, null, null, null, null, null, null],
 };
 
@@ -228,6 +237,17 @@ const ANSWER = {
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
+/**
+ * A playbook's channels changed, as the act builds its card (server/ask/tools/act/playbook-channels.ts): the channels
+ * asked, the ones it had for the undo, and whether a run of it already waits. Nothing else of the playbook.
+ */
+const GOES_BY = {
+  playbook_id: "pb1",
+  name: "Visit reminder",
+  channels: ["whatsapp", "email"],
+  was: ["whatsapp"],
+  run_waits: false,
+};
 /** A card of every shape each kind makes: each thread verb, a lead search new and answering, a deal with its step. */
 const SHAPES = {
   reply: [card("reply", { conversation_id: "c1", text: "On our way.", who: "Rosa" })],
@@ -268,6 +288,7 @@ const SHAPES = {
     card("run", { broadcast_id: "b1", verb: "approve", name: "Win-back · 2026-09-26", people: 12 }),
     card("run", { broadcast_id: "b1", verb: "skip", name: "Win-back · 2026-09-26", people: 12 }),
   ],
+  playbook_channels: [card("playbook_channels", GOES_BY)],
 };
 
 /** Every route a kind's spec reaches over its shapes: its commit, a second call, and the undo of what it kept. */
@@ -290,8 +311,62 @@ function routesOf(kind) {
   return seen;
 }
 
-test("the sixteen kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 16));
+test("a playbook's channels, changed from a card: the playbook's own PUT with the channels alone, the drawer's sentence as its receipt, and an undo that puts back the ones it had", () => {
+  const spec = PROPOSAL_SPECS.playbook_channels;
+  const p = card("playbook_channels", GOES_BY);
+  assert.deepEqual([spec.needs, spec.gate], ["operator", "approve"]);
+  // The channels and nothing else: the route judges them against the playbook as it stands and writes them alone, so
+  // a card approved after the playbook was edited puts nothing of an older copy back.
+  assert.deepEqual(spec.commit(p, TAB), {
+    route: "PUT playbooks/[id]",
+    params: { id: "pb1" },
+    body: { channels: ["whatsapp", "email"] },
+  });
+  // The channels are the card's own, in the product's order, whatever order they were named in and whatever else is
+  // there: a payload that carries more of a playbook (a card made before this change) sends none of it.
+  const loose = card("playbook_channels", {
+    ...GOES_BY,
+    channels: ["email", "carrier-pigeon", "whatsapp"],
+    body: { name: "An older copy", run_hour: 9 },
+  });
+  assert.deepEqual(spec.commit(loose, TAB).body, { channels: ["whatsapp", "email"] });
+  // The drawer's own sentence (LIFECYCLE_TOAST.channels), whole: with what a run that already waits keeps.
+  const sentence = (parts) => parts.map((x) => (typeof x === "string" ? x : x.b)).join("");
+  assert.equal(spec.receipt(p, {}), "Visit reminder goes by WhatsApp and Email now");
+  assert.equal(spec.receipt(p, {}), sentence(LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp", "email"], false)));
+  const waits = card("playbook_channels", { ...GOES_BY, run_waits: true });
+  assert.equal(
+    spec.receipt(waits, {}),
+    "Visit reminder goes by WhatsApp and Email now · the run that waits keeps the channels it was made with",
+  );
+  assert.equal(
+    spec.receipt(waits, {}),
+    sentence(LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp", "email"], true)),
+  );
+  assert.equal(spec.undo.label(p), "Put it back to WhatsApp");
+  assert.equal(spec.undo.window, "ten_minutes");
+  const kept = spec.undo.record(p, {}, TAB);
+  assert.deepEqual(kept, { playbook_id: "pb1", was: ["whatsapp"] });
+  assert.deepEqual(spec.undo.call(kept, TAB_AFTER), {
+    route: "PUT playbooks/[id]",
+    params: { id: "pb1" },
+    body: { channels: ["whatsapp"] },
+  });
+  assert.equal(spec.undo.receipt({}), "Its channels are as they were");
+  assert.equal(spec.open(p, null), "campaigns/moment:pb1", "its drawer, where the Goes by row is");
+  // A card with no playbook, or no channel it knows, commits nothing; an undo with nothing to put back says so.
+  for (const broken of [
+    { ...GOES_BY, playbook_id: null },
+    { ...GOES_BY, channels: [] },
+    { ...GOES_BY, channels: "whatsapp" },
+  ])
+    assert.deepEqual(spec.commit(card("playbook_channels", broken), TAB), { refused: PROPOSAL_WORDS.cannotApprove });
+  assert.deepEqual(spec.undo.call({ ...kept, was: [] }, TAB_AFTER), { refused: PROPOSAL_WORDS.noUndo });
+  assert.equal(spec.open(card("playbook_channels", { ...GOES_BY, playbook_id: null }), null), "outbound");
+});
+
+test("the seventeen kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 17));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -319,6 +394,7 @@ test("the sixteen kinds each have a spec, and every route a spec names is a rout
     person_details: ["PUT contacts/[id]/details"],
     list: ["DELETE segments/[id]", "POST segments"],
     run: ["POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"],
+    playbook_channels: ["PUT playbooks/[id]"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });

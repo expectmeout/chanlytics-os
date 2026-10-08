@@ -842,7 +842,16 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const readsReach =
       ["search_people", "list_audiences", "propose_broadcast", "propose_playbook"].includes(old) &&
       counted.includes("rpc:people_list");
-    const reachReads = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
+    const reached = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
+    // 8 Oct 2026 (Ask names channels; the spec of that day, decision 5): a playbook proposed with no channel named goes
+    // by what the composer would tick for it (contracts newCampaignChannels), so it asks what the workspace can send on
+    // before its check (act/playbook.ts unnamedChannels, over readers/facts.ts channelsReady: the number's row and the
+    // texting line's, the read the people's pool makes once a turn). A call that goes on to count its people makes no
+    // read more; one the CHECK refuses never got that far, and makes those two. The one change to its reads; the bytes
+    // are unchanged, this workspace's default being WhatsApp alone.
+    const refusedAtTheCheck =
+      old === "propose_playbook" && input.channels === undefined && want.result === '{"error":"List not found."}';
+    const reachReads = refusedAtTheCheck ? [...reached, "tenant_channels.select", "lines.select"] : reached;
     // 6 Oct 2026 (#1431): a person's page reads the decisions recorded about them, not only those on their threads
     // (packages/db personDecisions), so people.get reads `decisions` once even for a person with no thread, or none at all.
     // The one change to its reads; its bytes are unchanged.

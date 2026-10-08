@@ -13,7 +13,7 @@ import { SENDING_HOURS_WORDS } from "./playbook-triggers";
 import type { LifecyclePlaybook, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
 
 /** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
-const channelsGoesByWords = (channels: readonly ConsentChannel[]): string =>
+export const channelsGoesByWords = (channels: readonly ConsentChannel[]): string =>
   joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
 
 export const LIFECYCLE_WORDS = {

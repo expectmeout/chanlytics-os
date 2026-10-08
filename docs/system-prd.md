@@ -861,6 +861,27 @@ figure, a bar and a note that pressed nothing. A read still out, or one that fai
 the line's own gutter; the channels' standing is the readiness's to say and stands either way. The desk's tile, its
 ladder and its doors to the yes are as they were.
 
+**Ask and a playbook's channels** (8 October 2026): the channels a new playbook goes by until its owner says otherwise
+are one reading in contracts (`playbookChannelsRead` with "new", over `newCampaignChannels` and its one switch,
+`NEW_PLAYBOOK_TICKS_EVERY_CHANNEL`), made by the composer and by Ask. A playbook Ask proposes with no channel named
+goes by what the composer would open it on: every channel a playbook of its kind may go by now for that message (the
+workspace can send on it, the message holds a version there, its purpose is carried there, and by email an offer only
+once offers by email are open), said on the card and committed; where that is WhatsApp alone it says and commits what it
+always did, and a message written for email alone is proposed by email where it was refused in WhatsApp's words. The
+tool's words to the model follow the switch. A broadcast still names its channels. And Ask changes the channels a
+playbook that exists goes by (`propose_campaign`, action `channels`; the card kind `playbook_channels`). The act reads
+the one playbook as far as its channels need (`playbookChannelsRow`: its row, the channels it keeps, whether a run of it
+waits), never the Playbooks page, and judges the channels asked by the check its Approve runs (`PUT playbooks/[id]` with
+`{ channels }` alone: core `checkPlaybookChannels`, against the playbook as it stands). The card carries the channels
+and nothing else of the playbook, so Approve, and Undo, the same PUT with the channels it had, write the channels and
+put nothing of an older copy back; its class is not re-derived. What the card says of each channel is the one reading
+the drawer and the rail make: one it keeps and cannot go by yet waits, with the reason (no line, no version of its
+message there, offers by email not open), its runs holding those people until it can; and where a run of it already
+waits for approval, the card and the receipt say that run keeps the channels it was made with. The receipt is the
+drawer's own sentence (`LIFECYCLE_TOAST.channels`). `campaigns` with action `playbooks` says the channels each playbook
+goes by now, since a change must name them whole. A playbook that already goes by those channels gets no card, and a
+reach-out's step is changed on its own sheet. Not recorded as a decision, as the drawer's change is not.
+
 ### 14.4 Reach out — cold email, built (nothing sends until a reach-out exists and its secrets are set)
 
 Reach out is cold email to the businesses a workspace's searches found, from its own domains

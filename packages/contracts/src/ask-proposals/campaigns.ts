@@ -1,7 +1,14 @@
 /**
- * Campaigns' cards: a broadcast, a playbook that sends on its own, and a playbook's run that waits for a person.
+ * Campaigns' cards: a broadcast, a playbook that sends on its own, the channels a playbook goes by, and a playbook's run
+ * that waits for a person.
  */
-import { CONSENT_CHANNEL_WORDS, channelsWords, type ConsentChannel } from "../consent/consent-channels";
+import {
+  CONSENT_CHANNELS,
+  CONSENT_CHANNEL_WORDS,
+  channelsWords,
+  type ConsentChannel,
+} from "../consent/consent-channels";
+import { LIFECYCLE_TOAST, channelsGoesByWords } from "../playbooks/lifecycle-words";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";
@@ -109,6 +116,53 @@ export const playbookSpec: ProposalSpec = {
     receipt: () => "Deleted — nothing will run",
   },
   open: () => "outbound",
+};
+
+/** The channels a payload names, in the product's order: what a card's commit and its receipt read; none where it names none. */
+const channelsIn = (v: unknown): ConsentChannel[] =>
+  Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => (v as unknown[]).includes(c)) : [];
+
+/**
+ * The channels an existing playbook goes by, changed from a card (8 Oct 2026): what a press on the Goes by row of its
+ * drawer does, proposed by Ask. The commit is the playbook's own PUT with the channels ALONE, as the drawer sends it:
+ * the server judges them against the playbook as it stands then and writes nothing else (core checkPlaybookChannels),
+ * so a card approved after somebody edited the playbook puts nothing of an older copy back, and neither does its
+ * undo, which is the same PUT with the channels it had. The card carried the whole playbook as it was when proposed,
+ * and both wrote all of it. `run_waits`: a run of the playbook already waits for approval, and keeps the channels it
+ * was made with, which the receipt says as the drawer's does.
+ */
+export const playbookChannelsSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    const channels = channelsIn(pl.channels);
+    if (!id || channels.length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return { route: "PUT playbooks/[id]", params: { id }, body: { channels } };
+  },
+  // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
+  // after it that the run which waits keeps the channels it was made with, where one does.
+  receipt: ({ payload: pl }) =>
+    LIFECYCLE_TOAST.channels(asText(pl.name) || "The playbook", channelsIn(pl.channels), pl.run_waits === true)
+      .map((part) => (typeof part === "string" ? part : part.b))
+      .join(""),
+  undo: {
+    label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
+    window: "ten_minutes",
+    record: (p) => ({ playbook_id: p.payload.playbook_id, was: p.payload.was }),
+    call: (u) => {
+      const was = channelsIn(u.was);
+      return was.length === 0 || !asText(u.playbook_id)
+        ? refuseWith(PROPOSAL_WORDS.noUndo)
+        : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: { channels: was } };
+    },
+    receipt: () => "Its channels are as they were",
+  },
+  // Its drawer on Campaigns' home, where the Goes by row shows what it goes by now.
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  },
 };
 
 /**

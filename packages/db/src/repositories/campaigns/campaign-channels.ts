@@ -72,6 +72,43 @@ export async function playbookChannels(db: Db, playbookId: string): Promise<stri
 }
 
 /**
+ * One playbook, read for a change of its channels alone (Ask's card): its name, moment, class and message from its row,
+ * and whether a run of it waits for approval (`run_waits`: that run keeps the channels it was made with, which core
+ * run-playbook stores as it enrols). In the workspace named, under the caller's row security; null where it
+ * has no such playbook. The channels it keeps are playbookChannels', which knows a database 00298 has not reached.
+ * Throws on a failed read.
+ */
+export async function playbookForChannels(
+  db: Db,
+  tenantId: string,
+  playbookId: string,
+): Promise<
+  | (Pick<
+      Database["public"]["Tables"]["playbooks"]["Row"],
+      "id" | "name" | "trigger" | "policy_class" | "template_id"
+    > & { run_waits: boolean })
+  | null
+> {
+  const { data, error } = await db
+    .from("playbooks")
+    .select("id, name, trigger, policy_class, template_id")
+    .eq("tenant_id", tenantId)
+    .eq("id", playbookId)
+    .maybeSingle();
+  if (error) throw new Error(`playbook_for_channels: ${error.message}`);
+  if (!data) return null;
+  const waiting = await db
+    .from("broadcasts")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("playbook_id", playbookId)
+    .eq("state", "pending_approval")
+    .limit(1);
+  if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
+  return { ...data, run_waits: (waiting.data ?? []).length > 0 };
+}
+
+/**
  * Whether a read failed because the database has not reached the migration that adds a channel column it named: a
  * person's `consent_channels` and `marketing_channels` (00297), or a recipient's `channel` (00298). Postgres's 42703,
  * "column ... does not exist", read by its words as readLeadContext reads it. The caller reads again without the

@@ -7,6 +7,7 @@ import {
   PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
   audiencePreview,
+  campaignChannelsOf,
   clockStamp,
   compareTemplates,
   listToken,
@@ -309,6 +310,9 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       trigger: p.trigger,
       trigger_label: triggerOf(p.trigger)?.label ?? p.trigger,
       template: p.template_name,
+      // The channels it goes by (WhatsApp alone for one made before channels): what propose_campaign with action
+      // channels is asked to change, and must be told whole.
+      channels: campaignChannelsOf(p.channels),
       state: p.state,
       policy_class: p.policy_class,
       mode: modeOf(p.policy_class),
@@ -453,7 +457,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the playbooks",
       words:
-        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
       run: listPlaybooksTool,
     }),
     broadcasts: readAction({

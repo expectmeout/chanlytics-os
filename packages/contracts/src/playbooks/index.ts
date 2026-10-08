@@ -79,7 +79,7 @@ export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle";
 export { reachCountsOf } from "./lifecycle-tiles";
-export { LIFECYCLE_WORDS, LIFECYCLE_TOAST } from "./lifecycle-words";
+export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords } from "./lifecycle-words";
 export type {
   LifecycleAct,
   LifecycleBroadcasts,

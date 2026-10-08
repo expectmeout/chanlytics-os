@@ -6438,6 +6438,592 @@ function citationRoute(c, read) {
   return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
 
+// src/shell/campaign-rooms.ts
+var CAMPAIGN_ROOMS = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent, library } = CAMPAIGN_ROOMS;
+var PLAYBOOK_DELETE_WORDS = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent} with their numbers.`
+};
+var NO_TEMPLATE_WORDS = {
+  lead: "No message to send yet \u2014 add the starter set, or write one in the",
+  link: library
+};
+function noMessageWords(forThisMoment) {
+  return {
+    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in the`,
+    link: library
+  };
+}
+var LIBRARY_WORDS = {
+  title: library,
+  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
+  reading: `Reading the ${library}\u2026`,
+  failed: `The ${library} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
+  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
+  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
+  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
+  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
+  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
+};
+var NEW_MESSAGE_WORDS = {
+  /** The first choice's name: Email, Text or WhatsApp. */
+  where: "Where is it sent",
+  /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
+  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
+  /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
+  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+  /** What a text says after the carriers' sentence: the way out. */
+  textGoesByEmail: "This one can go by email.",
+  writeAsEmail: "Write it as an email",
+  /** The act that takes the last of a message's values away: only the last, so no value is renumbered under words that use it. */
+  removeValue: "Remove the last value",
+  /** Under the title: the name the message is filed under, which WhatsApp would know it by. */
+  knownAs: "WhatsApp would know it as",
+  titleMissing: "Give it a title.",
+  titleTooLong: (max) => `A title is at most ${max} characters.`,
+  titleNeedsWords: "A title needs letters or digits in it.",
+  nameTaken: "There is a message by that name already. Give this one another title.",
+  valuesNeedWords: "Give each value a name and an example.",
+  valueTooLong: (what, max) => `A value's ${what} is at most ${max} characters.`
+};
+var LIBRARY_STARTER_WORDS = {
+  /** The banner's second line: the languages it comes in, and what is written now. */
+  banner: (languages, hasNumber) => hasNumber ? `In ${languages} \u2014 email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.` : `In ${languages} \u2014 email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
+  /** The toast's clauses: what was written, what could not be, and what waits. */
+  versionsWritten: (n) => `${n} email and text version${n === 1 ? "" : "s"} written`,
+  versionsFailed: (n, why) => `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
+  waitsForNumber: "WhatsApp versions wait for a number",
+  /** The route's refusal when the channels it is asked for are none it knows. */
+  pickAChannel: "Pick at least one channel: WhatsApp, email or text."
+};
+var BROADCAST_WORDS = {
+  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
+};
+function runStoppedWords(was) {
+  if (was === "sending") return "stops after this batch";
+  return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+}
+var OFFERS_IN_WRITING_WORDS = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent}`
+};
+
+// src/workspace/billing.ts
+var BILLING_MODES = ["stripe", "direct"];
+var BILLING_STATUSES = [
+  "none",
+  "incomplete",
+  "incomplete_expired",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+  "unpaid",
+  "paused"
+];
+var BILLING_TRIAL_DAYS = 14;
+function receptionistOn(status) {
+  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
+}
+function billingDoorOpen(b) {
+  return !!b && b.mode === "stripe" && b.ready;
+}
+function maySpend(mode, status) {
+  if (mode !== "stripe") return true;
+  return status === "active";
+}
+function mayUseModels(mode, status, workspace) {
+  if (workspace.paused || workspace.ended) return false;
+  return mode !== "stripe" || receptionistOn(status);
+}
+var SPEND_NUMBER = { before: "buying a number", can: "buy a number" };
+var SPEND_LEADS = { before: "finding leads", can: "find leads" };
+var SPEND_TEXTING = { before: "registering for texting", can: "register for texting" };
+function whyCannotSpend(mode, status, doing = SPEND_NUMBER) {
+  if (maySpend(mode, status)) return null;
+  if (status === "none") return `Start your plan from Billing before ${doing.before}.`;
+  if (status === "trialing")
+    return `Your free trial doesn't cover ${doing.before}. Start your plan from Billing, then ${doing.can}.`;
+  if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
+  if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
+  if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
+    return `This workspace is not subscribed. Start it again from Billing before ${doing.before}.`;
+  }
+  return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
+}
+function tenantStatusFor(mode, status) {
+  if (mode !== "stripe") return null;
+  return receptionistOn(status) ? "active" : "paused";
+}
+var PAUSED_WORDS = "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.";
+var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
+var CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings \u203A Billing.`;
+function planBilling(before, sub, nowMs) {
+  const row2 = {
+    stripe_subscription_id: sub.id,
+    status: sub.status,
+    price_id: sub.price_id,
+    current_period_end: sub.current_period_end,
+    trial_end: sub.trial_end,
+    cancel_at: sub.cancel_at,
+    cancel_at_period_end: sub.cancel_at_period_end,
+    card_brand: sub.card_brand,
+    card_last4: sub.card_last4
+  };
+  const wanted = tenantStatusFor(before.mode, sub.status);
+  const tenantStatus = wanted && wanted !== before.tenant_status ? wanted : null;
+  const wasOn = receptionistOn(before.status);
+  const isOn = receptionistOn(sub.status);
+  const switched = before.mode === "stripe" && wasOn !== isOn ? isOn ? "resumed" : "paused" : null;
+  let bell = null;
+  if (switched === "paused") {
+    bell = {
+      title: "Your receptionist is paused",
+      body: sub.status === "paused" ? `The trial ended without a card on file. ${PAUSED_WORDS} Resume from Billing.` : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`
+    };
+  } else if (switched === "resumed") {
+    bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
+  } else if (before.status !== "trialing" && sub.status === "trialing") {
+    bell = {
+      title: "Your trial has started",
+      body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.`
+    };
+  }
+  return { row: row2, tenantStatus, switched, bell };
+}
+var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
+function dayWords(iso) {
+  if (!iso) return "";
+  const ms2 = Date.parse(iso);
+  return Number.isNaN(ms2) ? "" : DATE_FMT2.format(new Date(ms2));
+}
+function trialOffer(days, again = false) {
+  if (!(days > 0)) {
+    return again ? "Start again with a card; the first charge is today." : "Subscribe with a card; the first charge is today, and you can cancel from here any time.";
+  }
+  return again ? `Start again with a card; the ${days}-day trial applies once.` : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
+}
+function trialWords(trialEnd, nowMs) {
+  if (!trialEnd) return "";
+  const end = Date.parse(trialEnd);
+  if (Number.isNaN(end)) return "";
+  const days = Math.ceil((end - nowMs) / DAY_MS);
+  if (days <= 0) return "Trial ends today";
+  return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
+}
+function priceWords(p) {
+  if (!p || p.unit_amount === null) return "";
+  const amount = numberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
+    p.unit_amount / 100
+  );
+  const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
+  return `${amount} ${per}`;
+}
+var BILLING_TEST_MODE_CLAUSE = "Billing is in test mode, so only Stripe's test cards work and no real money moves";
+var TRIAL_COVERS = "A phone number, texting and lead searches start with the plan.";
+var START_PLAN_WORDS = {
+  button: "Start my plan now",
+  busy: "Starting\u2026",
+  question: "Start your plan today?",
+  detail: (plan, card) => `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. A phone number, texting and lead searches open straight after.`,
+  yes: "Yes, start it",
+  no: "Not now",
+  started: "Your plan has started.",
+  /** Stripe took the trial's end but not the charge. */
+  unpaid: "Your plan started, but the charge did not go through. Update the card in Billing."
+};
+function toBillingVM(dto, nowMs = Date.now()) {
+  const a = dto.account;
+  const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} \xB7 ` : ""}${priceWords(dto.price)}` : "";
+  const card = a?.card_brand && a.card_last4 ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}` : null;
+  if (!a || a.mode === "direct") {
+    return {
+      mode: "direct",
+      status: a?.status ?? "active",
+      headline: "Direct arrangement",
+      detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.",
+      tone: "",
+      plan,
+      card: null,
+      actions: { checkout: false, portal: false, resume: false, startNow: false },
+      paused: false,
+      testMode: null
+    };
+  }
+  const s = a.status;
+  const base = {
+    mode: "stripe",
+    status: s,
+    plan,
+    card,
+    testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null
+  };
+  switch (s) {
+    case "none":
+      return {
+        ...base,
+        headline: "No subscription yet",
+        detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
+        tone: "warn",
+        actions: { checkout: dto.ready, portal: false, resume: false, startNow: false },
+        paused: false
+      };
+    case "trialing":
+      if (a.cancel_at || a.cancel_at_period_end) {
+        return {
+          ...base,
+          headline: "On trial, ending",
+          detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
+          tone: "warn",
+          actions: { checkout: false, portal: true, resume: false, startNow: false },
+          paused: false
+        };
+      }
+      return {
+        ...base,
+        headline: "On trial",
+        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
+        tone: "ok",
+        // Its plan may start now, for what the trial does not cover (maySpend).
+        actions: { checkout: false, portal: true, resume: false, startNow: true },
+        paused: false
+      };
+    case "active":
+      return {
+        ...base,
+        headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed",
+        detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
+        tone: "ok",
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
+        paused: false
+      };
+    case "past_due":
+      return {
+        ...base,
+        headline: "Payment failed",
+        detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
+        paused: false
+      };
+    case "incomplete":
+      return {
+        ...base,
+        headline: "Finishing checkout",
+        detail: "The first payment is still being confirmed. This page updates by itself.",
+        tone: "warn",
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
+        paused: false
+      };
+    case "paused":
+      return {
+        ...base,
+        headline: "Paused",
+        detail: "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
+        paused: true
+      };
+    case "unpaid":
+      return {
+        ...base,
+        headline: "Paused",
+        detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
+        paused: true
+      };
+    case "canceled":
+    case "incomplete_expired":
+    default:
+      return {
+        ...base,
+        headline: "Subscription ended",
+        detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
+        tone: "danger",
+        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false, startNow: false },
+        paused: true
+      };
+  }
+}
+function billingPill(vm) {
+  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
+}
+var INVOICE_STATUS_WORDS = {
+  draft: "Draft",
+  open: "Not paid yet",
+  paid: "Paid",
+  uncollectible: "Could not be collected",
+  void: "Cancelled"
+};
+function invoiceStatusWords(status) {
+  if (!status) return "\u2014";
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] ?? status : status;
+}
+var CHECKOUT_RETURNS = ["billing", "start"];
+var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
+function isCheckoutReturn(v) {
+  return typeof v === "string" && CHECKOUT_RETURNS.includes(v);
+}
+var CHECKOUT_OUTCOME_WORDS = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+function moneyWords(amountCents, currency) {
+  try {
+    return numberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
+  } catch {
+    return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+function billingAccountDto(r2) {
+  return {
+    mode: r2.mode === "direct" ? "direct" : "stripe",
+    status: BILLING_STATUSES.includes(r2.status ?? "") ? r2.status : "none",
+    price_id: r2.price_id ?? null,
+    current_period_end: r2.current_period_end ?? null,
+    trial_end: r2.trial_end ?? null,
+    cancel_at: r2.cancel_at ?? null,
+    cancel_at_period_end: !!r2.cancel_at_period_end,
+    card_brand: r2.card_brand ?? null,
+    card_last4: r2.card_last4 ?? null,
+    last_payment_failed_at: r2.last_payment_failed_at ?? null,
+    last_paid_at: r2.last_paid_at ?? null,
+    updated_at: r2.updated_at
+  };
+}
+function pausedVoiceFacts(businessName) {
+  const name = (businessName ?? "").trim() || "this business";
+  return [
+    `You are answering the phone for ${name}. Their automated receptionist is paused right now, so you cannot help with bookings, prices, hours or questions today.`,
+    "Say so plainly and kindly, in the caller's language. Take the caller's name, their number and what they need, tell them someone from the business will call them back, and end the call politely.",
+    "Do not quote a price, do not book or reschedule anything, do not transfer the call, and do not promise a time for the call back."
+  ].join("\n");
+}
+
+// src/playbooks/lifecycle-words.ts
+var channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
+var LIFECYCLE_WORDS = {
+  title: CAMPAIGN_ROOMS.home,
+  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
+  library: CAMPAIGN_ROOMS.library,
+  newMessage: CAMPAIGN_ROOMS.newMessage,
+  // Said, after the standard beat, where a tile's read is still out.
+  reading: "Reading\u2026",
+  close: "Close",
+  rail: "Your customer, start to finish",
+  needs: {
+    none: "Answers whoever writes",
+    messages: "Reaches a yes to messages",
+    offers: "Needs a yes to offers"
+  },
+  receptionist: "Answers \xB7 asks for the yes",
+  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
+  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  alsoRunning: "Also running",
+  callText: {
+    name: "The call's text",
+    words: "The booking link and your WhatsApp, sent while they're on the phone",
+    on: "When a caller asks",
+    none: "No message for it yet"
+  },
+  monthsOffer: { name: "The month's offer" },
+  // What the drawer's head calls a line that is not a stage.
+  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
+  gone: {
+    title: "That playbook isn't here any more.",
+    body: "Its runs stay in Sent, with their numbers."
+  },
+  compose: {
+    title: CAMPAIGN_ROOMS.newMessage,
+    kind: "What kind of message",
+    once: "Send once",
+    every: "Every time a moment comes",
+    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
+    failed: {
+      what: "who and what you can send to",
+      body: "Nothing goes out until it reads. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
+  channels: {
+    goesBy: "Goes by",
+    /** A kept channel the workspace cannot send on yet, after its name: "Email · waits". */
+    waits: "waits",
+    /** The marks' line to a screen reader: "Goes by WhatsApp and Email; Text waits; could also go by Email". */
+    marks: (on, waits, could) => [
+      on.length > 0 ? `Goes by ${joinWords(on)}` : waits.length > 0 ? "" : "Goes by nothing yet",
+      waits.length > 0 ? `${joinWords(waits)} ${waits.length === 1 ? "waits" : "wait"}` : "",
+      could.length > 0 ? `could also go by ${joinWords(could)}` : ""
+    ].filter(Boolean).join("; "),
+    /** After a change of channels, where a run of the playbook already waits: it was made with the channels it had. */
+    runKeeps: "the run that waits keeps the channels it was made with"
+  },
+  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
+  // kit's failed read where the data would be, and its Retry reads `surface` again.
+  failed: {
+    templates: {
+      what: "your templates",
+      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      surface: "settings"
+    },
+    counts: {
+      what: "who each moment reaches",
+      body: "The moments show who they reach once it reads. Everything else here is current.",
+      surface: "playbooks"
+    },
+    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    // The broadcasts read itself, said in each tile made from it.
+    reach: {
+      what: "who can hear you",
+      body: "The ladder shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    coming: {
+      what: "what is coming up",
+      body: "What is coming shows once it reads. Everything else here is current.",
+      surface: "broadcasts"
+    },
+    results: {
+      what: "what came back",
+      body: "The numbers show once they read. Everything else here is current.",
+      surface: "broadcasts"
+    }
+  },
+  reach: {
+    title: "Who can hear you",
+    people: "In People",
+    messages: "Can get your messages",
+    offers: "Said yes to offers",
+    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
+    opensMessages: "Opens:",
+    ownOffers: ["the month's offer", "your notes"],
+    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    /** The phone's line in the Moments head: who of everyone in People a message can reach now. */
+    phoneHear: (canHear, people) => `${canHear} of ${people} can hear you`,
+    /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
+    phoneYes: "Get their yes",
+    code: "Show the code",
+    copy: "Copy the phrase",
+    link: "People"
+  },
+  coming: {
+    title: "Coming up",
+    window: "next 7 days",
+    link: "Calendar",
+    rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
+    empty: "Nothing is set to go out in the next 7 days.",
+    nobody: "Nobody",
+    waiting: "Waiting on you",
+    /**
+     * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
+     * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you
+     * say so."), which promises nobody the month's allowance holds back.
+     */
+    approval: {
+      approve: "Approve",
+      approving: "Approving\u2026",
+      skip: "Skip",
+      /** The two acts named whole for a screen reader: where two runs wait, "Approve" twice says nothing of which. */
+      approveOf: (name) => `Approve this run of ${name}`,
+      skipOf: (name) => `Skip this run of ${name}`,
+      question: (name) => `Skip this run of ${name}?`,
+      detail: "Nothing sends, and the run closes.",
+      yes: "Yes, skip it"
+    },
+    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
+    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
+    paused: {
+      when: { day: "Paused", at: "for billing" },
+      // The fact in its one spelling (workspace/billing.ts), which a waiting run on the line below says too, with its door.
+      why: WORKSPACE_PAUSED_FACT,
+      pill: "Workspace paused"
+    }
+  },
+  results: {
+    title: "What came back",
+    link: "All runs",
+    quiet: "Nothing went out, and nobody said yes or asked to stop.",
+    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
+    funnelLabel: "Sent, delivered, read and replied",
+    funnelLabelNoRead: "Sent, delivered and replied",
+    /** Under the funnel where a text or an email went too (0030): a read is WhatsApp's own receipt. */
+    readOf: (whatsappSent) => `Read is of WhatsApp's ${whatsappSent}: a text or an email keeps no read receipt.`,
+    noRead: "These went by text or email, which keep no read receipt."
+  }
+};
+var LIFECYCLE_TOAST = {
+  resumed: (name) => [{ b: name }, " resumed"],
+  changed: (name) => [{ b: name }, " changed"],
+  // A new playbook's next run is under Coming up, by the business's clock; there is no card to look on any more.
+  running: (name) => [
+    { b: name },
+    " is running \u2014 its next run is under Coming up, by your clock"
+  ],
+  /** The name of a line the page has no row for, where a toast must name it. */
+  nameless: "It",
+  /**
+   * A waiting run approved: the server's own count, and when it really goes in the page's clock words ("sending now",
+   * "scheduled for tomorrow 9:00 AM"), since the server may move a late approval to the next sending hour.
+   */
+  approved: (name, people, when) => [
+    { b: name },
+    ` approved \u2014 ${plural(people, "person", "people")}, ${when}`
+  ],
+  /**
+   * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts
+   * runStoppedWords, Sent's own receipt). A run that waited closes unsent; one a teammate approved a moment before, and
+   * that is already going, stops after the batch in hand, and the page does not say "nothing will send" of it.
+   */
+  skipped: (name, was) => [
+    { b: name },
+    ` ${runStoppedWords(was)}`
+  ],
+  /**
+   * A playbook's channels changed, from its drawer or from Ask's card: "Visit reminder goes by WhatsApp and Email now".
+   * `runWaits`: a run of it already waits for approval, and keeps the channels it was made with (core run-playbook
+   * stores them as it enrols), so the sentence says the change is the next run's.
+   */
+  channels: (name, channels, runWaits) => [
+    { b: name },
+    ` goes by ${channelsGoesByWords(channels)} now${runWaits ? ` \xB7 ${LIFECYCLE_WORDS.channels.runKeeps}` : ""}`
+  ],
+  phraseCopied: "Phrase copied",
+  /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
+  copyFailed: (phrase) => `Couldn't copy, the phrase is: ${phrase}`
+};
+function lifecycleClock(p) {
+  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
+}
+function lifecycleStateOf(p) {
+  const stated = (words3, tone, paused = false, short = words3) => ({
+    words: words3,
+    short,
+    tone,
+    paused
+  });
+  if (p.off) return stated("Not running here", "plain");
+  if (p.state !== "running") return stated("Paused", "warn", true);
+  if (p.totals.waiting) return stated("Waiting on you", "warn");
+  return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
+}
+
 // src/ask-proposals/spec.ts
 var PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
@@ -6525,6 +7111,35 @@ var playbookSpec = {
     receipt: () => "Deleted \u2014 nothing will run"
   },
   open: () => "outbound"
+};
+var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
+var playbookChannelsSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    const channels = channelsIn(pl.channels);
+    if (!id || channels.length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return { route: "PUT playbooks/[id]", params: { id }, body: { channels } };
+  },
+  // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
+  // after it that the run which waits keeps the channels it was made with, where one does.
+  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The playbook", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
+  undo: {
+    label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
+    window: "ten_minutes",
+    record: (p) => ({ playbook_id: p.payload.playbook_id, was: p.payload.was }),
+    call: (u) => {
+      const was = channelsIn(u.was);
+      return was.length === 0 || !asText(u.playbook_id) ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: { channels: was } };
+    },
+    receipt: () => "Its channels are as they were"
+  },
+  // Its drawer on Campaigns' home, where the Goes by row shows what it goes by now.
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
 };
 function runGoes(pl, data) {
   const d = rec(data);
@@ -9798,7 +10413,8 @@ var PROPOSAL_SPECS = {
   note: noteSpec,
   person_details: personDetailsSpec,
   list: listSpec,
-  run: runSpec
+  run: runSpec,
+  playbook_channels: playbookChannelsSpec
 };
 function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
@@ -13448,300 +14064,6 @@ function reachBarWords(split) {
   if (!first) return "Reaches nobody";
   if (parts2.length === 1) return `Reaches ${first.words}`;
   return `Reaches ${split.reached.toLocaleString("en-US")}: ${parts2.map((p) => p.words).join(", ")}`;
-}
-
-// src/workspace/billing.ts
-var BILLING_MODES = ["stripe", "direct"];
-var BILLING_STATUSES = [
-  "none",
-  "incomplete",
-  "incomplete_expired",
-  "trialing",
-  "active",
-  "past_due",
-  "canceled",
-  "unpaid",
-  "paused"
-];
-var BILLING_TRIAL_DAYS = 14;
-function receptionistOn(status) {
-  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
-}
-function billingDoorOpen(b) {
-  return !!b && b.mode === "stripe" && b.ready;
-}
-function maySpend(mode, status) {
-  if (mode !== "stripe") return true;
-  return status === "active";
-}
-function mayUseModels(mode, status, workspace) {
-  if (workspace.paused || workspace.ended) return false;
-  return mode !== "stripe" || receptionistOn(status);
-}
-var SPEND_NUMBER = { before: "buying a number", can: "buy a number" };
-var SPEND_LEADS = { before: "finding leads", can: "find leads" };
-var SPEND_TEXTING = { before: "registering for texting", can: "register for texting" };
-function whyCannotSpend(mode, status, doing = SPEND_NUMBER) {
-  if (maySpend(mode, status)) return null;
-  if (status === "none") return `Start your plan from Billing before ${doing.before}.`;
-  if (status === "trialing")
-    return `Your free trial doesn't cover ${doing.before}. Start your plan from Billing, then ${doing.can}.`;
-  if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
-  if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
-  if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
-    return `This workspace is not subscribed. Start it again from Billing before ${doing.before}.`;
-  }
-  return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
-}
-function tenantStatusFor(mode, status) {
-  if (mode !== "stripe") return null;
-  return receptionistOn(status) ? "active" : "paused";
-}
-var PAUSED_WORDS = "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.";
-var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
-var CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings \u203A Billing.`;
-function planBilling(before, sub, nowMs) {
-  const row2 = {
-    stripe_subscription_id: sub.id,
-    status: sub.status,
-    price_id: sub.price_id,
-    current_period_end: sub.current_period_end,
-    trial_end: sub.trial_end,
-    cancel_at: sub.cancel_at,
-    cancel_at_period_end: sub.cancel_at_period_end,
-    card_brand: sub.card_brand,
-    card_last4: sub.card_last4
-  };
-  const wanted = tenantStatusFor(before.mode, sub.status);
-  const tenantStatus = wanted && wanted !== before.tenant_status ? wanted : null;
-  const wasOn = receptionistOn(before.status);
-  const isOn = receptionistOn(sub.status);
-  const switched = before.mode === "stripe" && wasOn !== isOn ? isOn ? "resumed" : "paused" : null;
-  let bell = null;
-  if (switched === "paused") {
-    bell = {
-      title: "Your receptionist is paused",
-      body: sub.status === "paused" ? `The trial ended without a card on file. ${PAUSED_WORDS} Resume from Billing.` : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`
-    };
-  } else if (switched === "resumed") {
-    bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
-  } else if (before.status !== "trialing" && sub.status === "trialing") {
-    bell = {
-      title: "Your trial has started",
-      body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.`
-    };
-  }
-  return { row: row2, tenantStatus, switched, bell };
-}
-var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
-function dayWords(iso) {
-  if (!iso) return "";
-  const ms2 = Date.parse(iso);
-  return Number.isNaN(ms2) ? "" : DATE_FMT2.format(new Date(ms2));
-}
-function trialOffer(days, again = false) {
-  if (!(days > 0)) {
-    return again ? "Start again with a card; the first charge is today." : "Subscribe with a card; the first charge is today, and you can cancel from here any time.";
-  }
-  return again ? `Start again with a card; the ${days}-day trial applies once.` : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
-}
-function trialWords(trialEnd, nowMs) {
-  if (!trialEnd) return "";
-  const end = Date.parse(trialEnd);
-  if (Number.isNaN(end)) return "";
-  const days = Math.ceil((end - nowMs) / DAY_MS);
-  if (days <= 0) return "Trial ends today";
-  return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
-}
-function priceWords(p) {
-  if (!p || p.unit_amount === null) return "";
-  const amount = numberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
-    p.unit_amount / 100
-  );
-  const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
-  return `${amount} ${per}`;
-}
-var BILLING_TEST_MODE_CLAUSE = "Billing is in test mode, so only Stripe's test cards work and no real money moves";
-var TRIAL_COVERS = "A phone number, texting and lead searches start with the plan.";
-var START_PLAN_WORDS = {
-  button: "Start my plan now",
-  busy: "Starting\u2026",
-  question: "Start your plan today?",
-  detail: (plan, card) => `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. A phone number, texting and lead searches open straight after.`,
-  yes: "Yes, start it",
-  no: "Not now",
-  started: "Your plan has started.",
-  /** Stripe took the trial's end but not the charge. */
-  unpaid: "Your plan started, but the charge did not go through. Update the card in Billing."
-};
-function toBillingVM(dto, nowMs = Date.now()) {
-  const a = dto.account;
-  const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} \xB7 ` : ""}${priceWords(dto.price)}` : "";
-  const card = a?.card_brand && a.card_last4 ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}` : null;
-  if (!a || a.mode === "direct") {
-    return {
-      mode: "direct",
-      status: a?.status ?? "active",
-      headline: "Direct arrangement",
-      detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.",
-      tone: "",
-      plan,
-      card: null,
-      actions: { checkout: false, portal: false, resume: false, startNow: false },
-      paused: false,
-      testMode: null
-    };
-  }
-  const s = a.status;
-  const base = {
-    mode: "stripe",
-    status: s,
-    plan,
-    card,
-    testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null
-  };
-  switch (s) {
-    case "none":
-      return {
-        ...base,
-        headline: "No subscription yet",
-        detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
-        tone: "warn",
-        actions: { checkout: dto.ready, portal: false, resume: false, startNow: false },
-        paused: false
-      };
-    case "trialing":
-      if (a.cancel_at || a.cancel_at_period_end) {
-        return {
-          ...base,
-          headline: "On trial, ending",
-          detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
-          tone: "warn",
-          actions: { checkout: false, portal: true, resume: false, startNow: false },
-          paused: false
-        };
-      }
-      return {
-        ...base,
-        headline: "On trial",
-        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
-        tone: "ok",
-        // Its plan may start now, for what the trial does not cover (maySpend).
-        actions: { checkout: false, portal: true, resume: false, startNow: true },
-        paused: false
-      };
-    case "active":
-      return {
-        ...base,
-        headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed",
-        detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
-        tone: "ok",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false
-      };
-    case "past_due":
-      return {
-        ...base,
-        headline: "Payment failed",
-        detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false
-      };
-    case "incomplete":
-      return {
-        ...base,
-        headline: "Finishing checkout",
-        detail: "The first payment is still being confirmed. This page updates by itself.",
-        tone: "warn",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false
-      };
-    case "paused":
-      return {
-        ...base,
-        headline: "Paused",
-        detail: "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: true, startNow: false },
-        paused: true
-      };
-    case "unpaid":
-      return {
-        ...base,
-        headline: "Paused",
-        detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: true, startNow: false },
-        paused: true
-      };
-    case "canceled":
-    case "incomplete_expired":
-    default:
-      return {
-        ...base,
-        headline: "Subscription ended",
-        detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
-        tone: "danger",
-        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false, startNow: false },
-        paused: true
-      };
-  }
-}
-function billingPill(vm) {
-  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
-}
-var INVOICE_STATUS_WORDS = {
-  draft: "Draft",
-  open: "Not paid yet",
-  paid: "Paid",
-  uncollectible: "Could not be collected",
-  void: "Cancelled"
-};
-function invoiceStatusWords(status) {
-  if (!status) return "\u2014";
-  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] ?? status : status;
-}
-var CHECKOUT_RETURNS = ["billing", "start"];
-var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
-function isCheckoutReturn(v) {
-  return typeof v === "string" && CHECKOUT_RETURNS.includes(v);
-}
-var CHECKOUT_OUTCOME_WORDS = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-function moneyWords(amountCents, currency) {
-  try {
-    return numberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
-  } catch {
-    return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
-  }
-}
-function billingAccountDto(r2) {
-  return {
-    mode: r2.mode === "direct" ? "direct" : "stripe",
-    status: BILLING_STATUSES.includes(r2.status ?? "") ? r2.status : "none",
-    price_id: r2.price_id ?? null,
-    current_period_end: r2.current_period_end ?? null,
-    trial_end: r2.trial_end ?? null,
-    cancel_at: r2.cancel_at ?? null,
-    cancel_at_period_end: !!r2.cancel_at_period_end,
-    card_brand: r2.card_brand ?? null,
-    card_last4: r2.card_last4 ?? null,
-    last_payment_failed_at: r2.last_payment_failed_at ?? null,
-    last_paid_at: r2.last_paid_at ?? null,
-    updated_at: r2.updated_at
-  };
-}
-function pausedVoiceFacts(businessName) {
-  const name = (businessName ?? "").trim() || "this business";
-  return [
-    `You are answering the phone for ${name}. Their automated receptionist is paused right now, so you cannot help with bookings, prices, hours or questions today.`,
-    "Say so plainly and kindly, in the caller's language. Take the caller's name, their number and what they need, tell them someone from the business will call them back, and end the call politely.",
-    "Do not quote a price, do not book or reschedule anything, do not transfer the call, and do not promise a time for the call back."
-  ].join("\n");
 }
 
 // src/broadcasts/channels-standing.ts
@@ -26478,88 +26800,6 @@ It kept trying through the day. If today's message matters, you can send it your
   };
 }
 
-// src/shell/campaign-rooms.ts
-var CAMPAIGN_ROOMS = {
-  home: "Campaigns",
-  sent: "Sent",
-  library: "Library",
-  newMessage: "New message"
-};
-var { sent, library } = CAMPAIGN_ROOMS;
-var PLAYBOOK_DELETE_WORDS = {
-  /** The toast's tail, after the playbook's name. */
-  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
-  /** The question's detail. */
-  detail: `Its runs stay in ${sent} with their numbers.`
-};
-var NO_TEMPLATE_WORDS = {
-  lead: "No message to send yet \u2014 add the starter set, or write one in the",
-  link: library
-};
-function noMessageWords(forThisMoment) {
-  return {
-    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in the`,
-    link: library
-  };
-}
-var LIBRARY_WORDS = {
-  title: library,
-  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
-  reading: `Reading the ${library}\u2026`,
-  failed: `The ${library} couldn\u2019t be loaded right now`,
-  failedWhat: `the ${library}`,
-  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
-  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
-  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
-  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
-  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
-  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
-  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
-};
-var NEW_MESSAGE_WORDS = {
-  /** The first choice's name: Email, Text or WhatsApp. */
-  where: "Where is it sent",
-  /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
-  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
-  /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
-  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
-  /** What a text says after the carriers' sentence: the way out. */
-  textGoesByEmail: "This one can go by email.",
-  writeAsEmail: "Write it as an email",
-  /** The act that takes the last of a message's values away: only the last, so no value is renumbered under words that use it. */
-  removeValue: "Remove the last value",
-  /** Under the title: the name the message is filed under, which WhatsApp would know it by. */
-  knownAs: "WhatsApp would know it as",
-  titleMissing: "Give it a title.",
-  titleTooLong: (max) => `A title is at most ${max} characters.`,
-  titleNeedsWords: "A title needs letters or digits in it.",
-  nameTaken: "There is a message by that name already. Give this one another title.",
-  valuesNeedWords: "Give each value a name and an example.",
-  valueTooLong: (what, max) => `A value's ${what} is at most ${max} characters.`
-};
-var LIBRARY_STARTER_WORDS = {
-  /** The banner's second line: the languages it comes in, and what is written now. */
-  banner: (languages, hasNumber) => hasNumber ? `In ${languages} \u2014 email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.` : `In ${languages} \u2014 email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
-  /** The toast's clauses: what was written, what could not be, and what waits. */
-  versionsWritten: (n) => `${n} email and text version${n === 1 ? "" : "s"} written`,
-  versionsFailed: (n, why) => `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
-  waitsForNumber: "WhatsApp versions wait for a number",
-  /** The route's refusal when the channels it is asked for are none it knows. */
-  pickAChannel: "Pick at least one channel: WhatsApp, email or text."
-};
-var BROADCAST_WORDS = {
-  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
-};
-function runStoppedWords(was) {
-  if (was === "sending") return "stops after this batch";
-  return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
-}
-var OFFERS_IN_WRITING_WORDS = {
-  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
-  link: `print one in ${sent}`
-};
-
 // src/templates/campaign-message.ts
 function variablesSlotCount(variables) {
   if (!Array.isArray(variables)) return 0;
@@ -26790,216 +27030,6 @@ function bookingTemplate(templates) {
     (t) => t.meta_status === "approved" && !templateBlocked(t) && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link")
   );
   return usable.find((t) => t.name === "call_text") ?? usable.find((t) => t.name === "booking_link") ?? usable.slice().sort(compareTemplates)[0] ?? null;
-}
-
-// src/playbooks/lifecycle-words.ts
-var channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
-var LIFECYCLE_WORDS = {
-  title: CAMPAIGN_ROOMS.home,
-  lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
-  library: CAMPAIGN_ROOMS.library,
-  newMessage: CAMPAIGN_ROOMS.newMessage,
-  // Said, after the standard beat, where a tile's read is still out.
-  reading: "Reading\u2026",
-  close: "Close",
-  rail: "Your customer, start to finish",
-  needs: {
-    none: "Answers whoever writes",
-    messages: "Reaches a yes to messages",
-    offers: "Needs a yes to offers"
-  },
-  receptionist: "Answers \xB7 asks for the yes",
-  // First contact where the workspace has nothing to answer on: no number and no channel that can send.
-  noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
-  alsoRunning: "Also running",
-  callText: {
-    name: "The call's text",
-    words: "The booking link and your WhatsApp, sent while they're on the phone",
-    on: "When a caller asks",
-    none: "No message for it yet"
-  },
-  monthsOffer: { name: "The month's offer" },
-  // What the drawer's head calls a line that is not a stage.
-  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
-  gone: {
-    title: "That playbook isn't here any more.",
-    body: "Its runs stay in Sent, with their numbers."
-  },
-  compose: {
-    title: CAMPAIGN_ROOMS.newMessage,
-    kind: "What kind of message",
-    once: "Send once",
-    every: "Every time a moment comes",
-    // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
-    failed: {
-      what: "who and what you can send to",
-      body: "Nothing goes out until it reads. Everything else here is current.",
-      surface: "broadcasts"
-    }
-  },
-  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
-  // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
-  channels: {
-    goesBy: "Goes by",
-    /** A kept channel the workspace cannot send on yet, after its name: "Email · waits". */
-    waits: "waits",
-    /** The marks' line to a screen reader: "Goes by WhatsApp and Email; Text waits; could also go by Email". */
-    marks: (on, waits, could) => [
-      on.length > 0 ? `Goes by ${joinWords(on)}` : waits.length > 0 ? "" : "Goes by nothing yet",
-      waits.length > 0 ? `${joinWords(waits)} ${waits.length === 1 ? "waits" : "wait"}` : "",
-      could.length > 0 ? `could also go by ${joinWords(could)}` : ""
-    ].filter(Boolean).join("; "),
-    /** After a change of channels, where a run of the playbook already waits: it was made with the channels it had. */
-    runKeeps: "the run that waits keeps the channels it was made with"
-  },
-  // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
-  // kit's failed read where the data would be, and its Retry reads `surface` again.
-  failed: {
-    templates: {
-      what: "your templates",
-      body: "The call's text and the Library's count show once they read. Everything else here is current.",
-      surface: "settings"
-    },
-    counts: {
-      what: "who each moment reaches",
-      body: "The moments show who they reach once it reads. Everything else here is current.",
-      surface: "playbooks"
-    },
-    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
-    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
-    // The broadcasts read itself, said in each tile made from it.
-    reach: {
-      what: "who can hear you",
-      body: "The ladder shows once it reads. Everything else here is current.",
-      surface: "broadcasts"
-    },
-    coming: {
-      what: "what is coming up",
-      body: "What is coming shows once it reads. Everything else here is current.",
-      surface: "broadcasts"
-    },
-    results: {
-      what: "what came back",
-      body: "The numbers show once they read. Everything else here is current.",
-      surface: "broadcasts"
-    }
-  },
-  reach: {
-    title: "Who can hear you",
-    people: "In People",
-    messages: "Can get your messages",
-    offers: "Said yes to offers",
-    // What a yes opens, in the moments' own names; the month's offer and a person's own notes are not stages.
-    opensMessages: "Opens:",
-    ownOffers: ["the month's offer", "your notes"],
-    asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
-    /** The phone's line in the Moments head: who of everyone in People a message can reach now. */
-    phoneHear: (canHear, people) => `${canHear} of ${people} can hear you`,
-    /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
-    phoneYes: "Get their yes",
-    code: "Show the code",
-    copy: "Copy the phrase",
-    link: "People"
-  },
-  coming: {
-    title: "Coming up",
-    window: "next 7 days",
-    link: "Calendar",
-    rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
-    empty: "Nothing is set to go out in the next 7 days.",
-    nobody: "Nobody",
-    waiting: "Waiting on you",
-    /**
-     * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
-     * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you
-     * say so."), which promises nobody the month's allowance holds back.
-     */
-    approval: {
-      approve: "Approve",
-      approving: "Approving\u2026",
-      skip: "Skip",
-      /** The two acts named whole for a screen reader: where two runs wait, "Approve" twice says nothing of which. */
-      approveOf: (name) => `Approve this run of ${name}`,
-      skipOf: (name) => `Skip this run of ${name}`,
-      question: (name) => `Skip this run of ${name}?`,
-      detail: "Nothing sends, and the run closes.",
-      yes: "Yes, skip it"
-    },
-    // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
-    // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
-    paused: {
-      when: { day: "Paused", at: "for billing" },
-      // The fact in its one spelling (workspace/billing.ts), which a waiting run on the line below says too, with its door.
-      why: WORKSPACE_PAUSED_FACT,
-      pill: "Workspace paused"
-    }
-  },
-  results: {
-    title: "What came back",
-    link: "All runs",
-    quiet: "Nothing went out, and nobody said yes or asked to stop.",
-    funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
-    funnelLabel: "Sent, delivered, read and replied",
-    funnelLabelNoRead: "Sent, delivered and replied",
-    /** Under the funnel where a text or an email went too (0030): a read is WhatsApp's own receipt. */
-    readOf: (whatsappSent) => `Read is of WhatsApp's ${whatsappSent}: a text or an email keeps no read receipt.`,
-    noRead: "These went by text or email, which keep no read receipt."
-  }
-};
-var LIFECYCLE_TOAST = {
-  resumed: (name) => [{ b: name }, " resumed"],
-  changed: (name) => [{ b: name }, " changed"],
-  // A new playbook's next run is under Coming up, by the business's clock; there is no card to look on any more.
-  running: (name) => [
-    { b: name },
-    " is running \u2014 its next run is under Coming up, by your clock"
-  ],
-  /** The name of a line the page has no row for, where a toast must name it. */
-  nameless: "It",
-  /**
-   * A waiting run approved: the server's own count, and when it really goes in the page's clock words ("sending now",
-   * "scheduled for tomorrow 9:00 AM"), since the server may move a late approval to the next sending hour.
-   */
-  approved: (name, people, when) => [
-    { b: name },
-    ` approved \u2014 ${plural(people, "person", "people")}, ${when}`
-  ],
-  /**
-   * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts
-   * runStoppedWords, Sent's own receipt). A run that waited closes unsent; one a teammate approved a moment before, and
-   * that is already going, stops after the batch in hand, and the page does not say "nothing will send" of it.
-   */
-  skipped: (name, was) => [
-    { b: name },
-    ` ${runStoppedWords(was)}`
-  ],
-  /**
-   * A playbook's channels changed, from its drawer or from Ask's card: "Visit reminder goes by WhatsApp and Email now".
-   * `runWaits`: a run of it already waits for approval, and keeps the channels it was made with (core run-playbook
-   * stores them as it enrols), so the sentence says the change is the next run's.
-   */
-  channels: (name, channels, runWaits) => [
-    { b: name },
-    ` goes by ${channelsGoesByWords(channels)} now${runWaits ? ` \xB7 ${LIFECYCLE_WORDS.channels.runKeeps}` : ""}`
-  ],
-  phraseCopied: "Phrase copied",
-  /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
-  copyFailed: (phrase) => `Couldn't copy, the phrase is: ${phrase}`
-};
-function lifecycleClock(p) {
-  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
-}
-function lifecycleStateOf(p) {
-  const stated = (words3, tone, paused = false, short = words3) => ({
-    words: words3,
-    short,
-    tone,
-    paused
-  });
-  if (p.off) return stated("Not running here", "plain");
-  if (p.state !== "running") return stated("Paused", "warn", true);
-  if (p.totals.waiting) return stated("Waiting on you", "warn");
-  return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
 }
 
 // src/today/today-runs.ts
@@ -38002,6 +38032,7 @@ export {
   channelKindWords,
   channelNeverCarries,
   channelRefuses,
+  channelsGoesByWords,
   channelsOf,
   channelsOfYes,
   channelsReady,

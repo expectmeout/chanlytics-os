@@ -751,6 +751,14 @@ async function playbookChannels(db, playbookId) {
   }
   return data?.channels ?? null;
 }
+async function playbookForChannels(db, tenantId, playbookId) {
+  const { data, error } = await db.from("playbooks").select("id, name, trigger, policy_class, template_id").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
+  if (error) throw new Error(`playbook_for_channels: ${error.message}`);
+  if (!data) return null;
+  const waiting = await db.from("broadcasts").select("id").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
+  if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
+  return { ...data, run_waits: (waiting.data ?? []).length > 0 };
+}
 function noChannelColumns(error) {
   return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
@@ -4360,6 +4368,7 @@ export {
   platformHoldStands,
   platformWide,
   playbookChannels,
+  playbookForChannels,
   playbooksOnList,
   providerEventOf,
   purgeAiUsage,
