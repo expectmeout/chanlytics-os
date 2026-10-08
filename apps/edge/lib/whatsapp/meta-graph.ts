@@ -91,6 +91,38 @@ export function wabaInfo(token: string, wabaId: string): Promise<GraphResult<{ i
   return graphCall(`/${encodeURIComponent(wabaId)}?fields=id,name`, { method: "GET", token });
 }
 
+/** What Meta's introspection says a token was granted: each permission, and the ids it was granted on. */
+interface TokenGrants {
+  data?: {
+    is_valid?: boolean;
+    granular_scopes?: { scope?: string; target_ids?: (string | number)[] }[];
+  };
+}
+
+/**
+ * The business token, read back by Meta's introspection as the app this deployment speaks for (`debug_token` takes the
+ * app's own token, `app_id|app_secret`; the secret rides in the header, never in the URL). What comes back names the
+ * WhatsApp accounts the sign-up granted, the newest first.
+ */
+export function tokenGrants(appId: string, appSecret: string, token: string): Promise<GraphResult<TokenGrants>> {
+  const qs = new URLSearchParams({ input_token: token });
+  return graphCall(`/debug_token?${qs}`, { method: "GET", token: `${appId}|${appSecret}` });
+}
+
+/** The WABAs a token was granted management of, newest first (Meta's own order), as the ids the Graph takes. */
+export function wabaIdsGranted(grants: TokenGrants): string[] {
+  const scope = (grants.data?.granular_scopes ?? []).find((s) => s.scope === "whatsapp_business_management");
+  return (scope?.target_ids ?? []).map(String).filter((id) => /^\d{6,32}$/.test(id));
+}
+
+/** The numbers a WABA holds, each as the number read is (phoneNumber). */
+export function wabaPhoneNumbers(token: string, wabaId: string): Promise<GraphResult<{ data?: PhoneNumberInfo[] }>> {
+  return graphCall(
+    `/${encodeURIComponent(wabaId)}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type`,
+    { method: "GET", token },
+  );
+}
+
 /** Meta's text cut to what an owner reads and a row keeps: a sentence, never a page. */
 const STANDING_TEXT_MAX = 300;
 /** The most problems, and the most notes, one standing keeps. */

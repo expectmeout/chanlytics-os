@@ -172,6 +172,8 @@ function meta({
   wabaStanding,
   funding,
   owner,
+  grants,
+  numbers,
 } = {}) {
   const seen = [];
   const real = globalThis.fetch;
@@ -207,6 +209,38 @@ function meta({
       return funding ?? { body: { id: WABA, primary_funding_id: "100200300400500" } };
     if (p.startsWith(`/${WABA}?fields=owner_business_info`))
       return owner ?? { body: { id: WABA, owner_business_info: { id: "410540000000001" } } };
+    // The token's own grant, and the account's numbers: asked only for an id the browser did not hear.
+    if (p.startsWith("/debug_token?"))
+      return (
+        grants ?? {
+          body: {
+            data: {
+              is_valid: true,
+              granular_scopes: [
+                { scope: "whatsapp_business_messaging", target_ids: [WABA] },
+                { scope: "whatsapp_business_management", target_ids: [WABA] },
+              ],
+            },
+          },
+        }
+      );
+    if (p.startsWith(`/${WABA}/phone_numbers?fields=`))
+      return (
+        numbers ?? {
+          body: {
+            data: [
+              {
+                id: PHONE,
+                display_phone_number: "+1 555-123-4567",
+                verified_name: "Harbor Moving",
+                quality_rating: "GREEN",
+                code_verification_status: "VERIFIED",
+                platform_type: "NOT_APPLICABLE",
+              },
+            ],
+          },
+        }
+      );
     if (p.startsWith(`/${PHONE}?fields=`))
       return (
         numberRefused ?? {
@@ -266,7 +300,7 @@ const printed = (x) => JSON.stringify(x);
 
 /* ================================= connect ================================= */
 
-test("connect, the door: a token for another door, a forgery and no credential are 403; without the app secret the door is shut with a 503; a body naming another workspace than the token is refused; every field is required; no database is a 503 -- and none of it reaches Meta or the database", async () => {
+test("connect, the door: a token for another door, a forgery and no credential are 403; without the app secret the door is shut with a 503; a body naming another workspace than the token is refused; the code is required and an id, when given, is Meta's; no database is a 503 -- and none of it reaches Meta or the database", async () => {
   const { db } = use();
   const net = unreachable("a refused connection must not reach Meta");
   try {
@@ -291,14 +325,15 @@ test("connect, the door: a token for another door, a forgery and no credential a
     const required = {
       ok: false,
       error: "bad_request",
-      detail: "tenant_id, user_id, code, phone_number_id and waba_id required",
+      detail: "tenant_id, user_id and code required; phone_number_id and waba_id, when given, Meta's ids",
     };
+    // An id the browser did not hear is absent, never malformed: the edge reads it from the token's grant (below).
     for (const body of [
       signedUp({ code: "" }),
       signedUp({ code: "x".repeat(2001) }),
       signedUp({ phone_number_id: "12345" }),
       signedUp({ phone_number_id: "abc123456789" }),
-      signedUp({ waba_id: "" }),
+      signedUp({ waba_id: "x" }),
     ])
       assert.deepEqual(await answer(await knock(body)), [400, required], printed(body));
     await withEnv({ EDGE_CALL_SECRET: undefined, DIAG_KEY: "diag-key-for-this-file" }, async () => {
@@ -515,6 +550,9 @@ test("connect, the whole way: the code becomes the business's token as the app t
   assert.deepEqual(body, {
     ok: true,
     channel_id: row.id,
+    phone_number_id: PHONE,
+    waba_id: WABA,
+    ids_from: "message",
     number_e164: "+15551234567",
     verified_name: "Harbor Moving",
     quality_rating: "GREEN",
@@ -528,6 +566,116 @@ test("connect, the whole way: the code becomes the business's token as the app t
     log.lines.some((l) => l.includes('"event":"wa_connected"') && l.includes(row.id)),
     "the log says which channel connected",
   );
+});
+
+test("connect, the ids the window did not hand back: the token itself is asked which account it grants (as the app, the secret in no URL) and the account which number it has; one number is the business that signed up, connected as if named; a number held elsewhere is refused once it is known; and what the token cannot say is named, with nothing written", async () => {
+  // 8 October 2026: three sign-ups finished on Meta's side (PARTNER_APP_INSTALLED, 17:47 to 17:49 UTC) and the page heard
+  // no ids, so each code was thrown away and nothing was connected; the settings rate bucket shows the route never called.
+  const unheard = { phone_number_id: undefined, waba_id: undefined };
+  const { tables, kept } = use();
+  const m = meta();
+  const log = quiet();
+  let status, body;
+  try {
+    [status, body] = await answer(await knock(signedUp(unheard)));
+  } finally {
+    log.restore();
+    m.restore();
+  }
+  assert.equal(status, 200, printed(body));
+  assert.deepEqual(
+    m.paths().slice(0, 4),
+    ["GET /oauth/access_token", "GET /debug_token", `GET /${WABA}/phone_numbers`, `GET /${PHONE}`],
+    "the token first, then its grant, then the account's numbers, then the connection as ever",
+  );
+  const grant = m.seen[1];
+  assert.equal(grant.headers.authorization, `Bearer ${APP}|${SECRET}`, "the app asks Meta's introspection as the app");
+  assert.ok(!grant.url.includes(SECRET), "and the secret rides in no URL");
+  assert.equal(new URL(grant.url).searchParams.get("input_token"), TOKEN, "about the token the code became");
+  assert.equal(
+    m.seen[2].headers.authorization,
+    `Bearer ${TOKEN}`,
+    "the account's numbers, with the business's own token",
+  );
+  const row = tables.tenant_channels[0];
+  assert.deepEqual([row.tenant_id, row.external_id, row.waba_id, row.status], [A, PHONE, WABA, "active"]);
+  assert.deepEqual([body.phone_number_id, body.waba_id, body.ids_from], [PHONE, WABA, "token"]);
+  assert.equal(kept[0].p_secret.phone_id, PHONE, "the credential names the number found");
+  for (const secret of [TOKEN, SECRET, CODE])
+    assert.ok(!log.lines.some((l) => l.includes(secret)), `${secret} is not in the log`);
+  assert.ok(
+    log.lines.some(
+      (l) =>
+        l.includes('"event":"wa_connect_found"') &&
+        l.includes('"waba_from":"token"') &&
+        l.includes('"number_from":"account"'),
+    ),
+    "the log says where each id came from",
+  );
+
+  // The window named the account and not the number (FINISH_ONLY_WABA): only the account is asked.
+  const half = use();
+  const m2 = meta();
+  try {
+    [status, body] = await answer(await knock(signedUp({ phone_number_id: undefined })));
+  } finally {
+    m2.restore();
+  }
+  assert.equal(status, 200, printed(body));
+  assert.deepEqual(m2.paths().slice(0, 3), ["GET /oauth/access_token", `GET /${WABA}/phone_numbers`, `GET /${PHONE}`]);
+  assert.equal(half.tables.tenant_channels.length, 1);
+  assert.equal(body.ids_from, "token");
+
+  // The number found is another workspace's: refused once it is known, with nothing subscribed, registered or written.
+  const theirs = use({ tenant_channels: [held(B)] });
+  const m3 = meta();
+  try {
+    [status, body] = await answer(await knock(signedUp(unheard)));
+  } finally {
+    m3.restore();
+  }
+  assert.deepEqual([status, body], [409, { ok: false, error: "number_taken" }]);
+  assert.deepEqual(m3.paths(), ["GET /oauth/access_token", "GET /debug_token", `GET /${WABA}/phone_numbers`]);
+  assert.equal(writes(theirs.db, "tenant_channels").length + theirs.kept.length, 0);
+  assert.equal(theirs.tables.tenant_channels[0].tenant_id, B, "B's row is exactly as it was");
+
+  // What the token cannot say is named in the answer, nothing after it is asked, and nothing is written.
+  const lookedUp = ["GET /oauth/access_token", "GET /debug_token", `GET /${WABA}/phone_numbers`];
+  const cases = [
+    [
+      "grant_unreadable",
+      { grants: refused(400, "Invalid OAuth access token.", 190) },
+      ["GET /oauth/access_token", "GET /debug_token"],
+    ],
+    [
+      "waba_not_granted",
+      { grants: { body: { data: { is_valid: true, granular_scopes: [{ scope: "whatsapp_business_messaging" }] } } } },
+      ["GET /oauth/access_token", "GET /debug_token"],
+    ],
+    ["number_unreadable", { numbers: refused(400, "Unsupported get request.", 100) }, lookedUp],
+    ["number_missing", { numbers: { body: { data: [] } } }, lookedUp],
+    ["number_ambiguous", { numbers: { body: { data: [{ id: PHONE }, { id: "1234567890124" }] } } }, lookedUp],
+  ];
+  for (const [error, script, asked] of cases) {
+    const { db, kept: kept2 } = use();
+    const mm = meta(script);
+    let res;
+    try {
+      res = await knock(signedUp(unheard));
+    } finally {
+      mm.restore();
+    }
+    const [s, b] = await answer(res);
+    assert.equal(s, 502, error);
+    assert.equal(b.error, error);
+    assert.deepEqual(mm.paths(), asked, error);
+    assert.equal(
+      writes(db, "tenant_channels").length + kept2.length + writes(db, "events").length,
+      0,
+      `${error}: nothing written`,
+    );
+    if (error === "number_ambiguous") assert.equal(b.detail, "2 numbers on the account", "how many, never which");
+  }
 });
 
 test("connect, what Meta holds about the number: read once the line and its token are written, kept whole through the door, and told to the owner when Meta says the number cannot send -- the payment method Meta asks for at the end of its window is the problem its fixture names; a read that fails never fails the connection", async () => {

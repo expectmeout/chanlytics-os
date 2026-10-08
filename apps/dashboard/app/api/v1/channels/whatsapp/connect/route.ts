@@ -7,11 +7,12 @@ import { connectWhatsApp } from "@/server/connections/whatsapp";
  * POST /api/v1/channels/whatsapp/connect — the owner's number becomes a
  * channel of the workspace.
  *
- * Body: what Embedded Signup gave the browser — { code, phone_number_id,
- * waba_id }. Owner only, rate-limited with the other settings changes. The
- * edge does the exchange, the registration and the Vault write; this route
- * proves who is asking, keeps the ledger, and says what happened in the
- * owner's words.
+ * Body: what Embedded Signup gave the browser — { code } and, where the
+ * browser heard them, { phone_number_id, waba_id }; the edge reads an id the
+ * browser did not hear from the token's own grant. Owner only, rate-limited
+ * with the other settings changes. The edge does the exchange, the
+ * registration and the Vault write; this route proves who is asking, keeps
+ * the ledger, and says what happened in the owner's words.
  */
 const ID = /^\d{6,32}$/;
 
@@ -21,6 +22,12 @@ const SAID: Record<string, string> = {
   channel_read_failed:
     "Chanlytics could not check whether that number is already connected, so nothing was changed. Try again in a moment.",
   exchange_failed: "Meta did not accept the sign-up code. Start the connection again.",
+  grant_unreadable: "Meta did not say which WhatsApp account the sign-up granted. Start the connection again.",
+  waba_not_granted:
+    "The sign-up granted Chanlytics no WhatsApp Business Account. Start it again and share the account when Meta asks.",
+  number_missing: "The account has no phone number yet. Start the sign-up again and add the number when Meta asks.",
+  number_ambiguous:
+    "The account has several numbers and the sign-up window did not say which. Start it again and pick the number to connect.",
   number_unreadable:
     "Meta did not let Chanlytics read that number. Check that the number was selected in the sign-up window.",
   waba_unreadable:
@@ -50,16 +57,17 @@ export const POST = write({
     const wabaId = typeof body?.waba_id === "string" ? body.waba_id.trim() : "";
     if (!code || code.length > 2000)
       throw new AppError("validation", "The sign-up code is missing. Start the connection again.");
-    if (!ID.test(phoneNumberId) || !ID.test(wabaId))
+    // An id is Meta's or absent: the browser sends what the sign-up window said, and the edge finds the rest.
+    if ((phoneNumberId && !ID.test(phoneNumberId)) || (wabaId && !ID.test(wabaId)))
       throw new AppError(
         "validation",
-        "The sign-up window did not hand back a number and an account. Start the connection again.",
+        "The sign-up window handed back an account or a number Chanlytics cannot read. Start the connection again.",
       );
 
     const r = await connectWhatsApp(member.tenantId, ctx.userId, {
       code,
-      phone_number_id: phoneNumberId,
-      waba_id: wabaId,
+      ...(phoneNumberId ? { phone_number_id: phoneNumberId } : {}),
+      ...(wabaId ? { waba_id: wabaId } : {}),
     });
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The connection did not complete (${r.reason}).`;
@@ -71,8 +79,9 @@ export const POST = write({
     }
     const decisionId = await recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {
       kind: "whatsapp",
-      phone_number_id: phoneNumberId,
-      waba_id: wabaId,
+      phone_number_id: r.phoneNumberId,
+      waba_id: r.wabaId,
+      ids_from: r.idsFrom,
       number_e164: r.numberE164,
       verified_name: r.verifiedName,
       registration: r.registration,

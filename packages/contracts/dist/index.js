@@ -25124,6 +25124,8 @@ function replyChannelOfRow(r2) {
   const last = lastChannelOf(r2.last_inbound_channel);
   if (last) return last;
   const wrote = r2.message_channels;
+  const only = wrote && wrote.length === 1 ? lastChannelOf(wrote[0]) : null;
+  if (only) return only;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";
 }
@@ -32048,6 +32050,7 @@ var EDGE_ERROR_CODES = [
   "erasure_unreadable",
   "exchange_failed",
   "google_refused",
+  "grant_unreadable",
   "host_elsewhere",
   "host_taken",
   "in_flight",
@@ -32120,6 +32123,8 @@ var EDGE_ERROR_CODES = [
   "not_rejected",
   "not_trialing",
   "nothing_to_answer",
+  "number_ambiguous",
+  "number_missing",
   "number_taken",
   "number_unreadable",
   "payment_required",
@@ -32167,6 +32172,7 @@ var EDGE_ERROR_CODES = [
   "unfile_failed",
   "unknown_op",
   "unreadable",
+  "waba_not_granted",
   "waba_unreadable",
   "workspace_mismatch",
   "write_failed"

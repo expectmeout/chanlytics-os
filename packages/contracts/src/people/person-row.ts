@@ -90,16 +90,22 @@ function channelsOf(r: PersonRowDto): PersonChannel[] {
  * (found on production, 8 Oct 2026).
  *
  * A row that does not say where they last wrote (they have written nothing themselves, or it was read before the
- * column was kept) knows only which wires words have travelled. That is exact for a person reached only by email,
- * whose reply can never be held by WhatsApp's window, and otherwise it reads WhatsApp's window, the strictest there
- * is: a row that cannot tell may say a reply is held when it is not, and never the reverse. The profile, which has
- * every message, answers it exactly (replyChannelOfThreads).
+ * column was kept) knows only which wires words have travelled between them (`message_channels`, either way). Where
+ * that is one wire alone the answer is exact, whoever wrote: the reply route answers such a thread where the last
+ * thing from their side came by, else where our own words last went (the dashboard's replyChannelOf, since a member
+ * may write first), and on one wire both are that wire. A person a member texted first read WhatsApp here, held by
+ * its window, while their thread's box and their page said Text. A person reached only by email was always read so.
+ * On more than one wire the row cannot tell which was last and reads WhatsApp's window, the strictest there is: a row
+ * that cannot tell may say a reply is held when it is not, and never the reverse. The profile, which has every
+ * message, answers it exactly (replyChannelOfThreads, ourWireOfThreads).
  */
 function replyChannelOfRow(r: PersonRowDto): "whatsapp" | "sms" | "email" | null {
   if (!r.has_chat) return null;
   const last = lastChannelOf(r.last_inbound_channel);
   if (last) return last;
   const wrote = r.message_channels;
+  const only = wrote && wrote.length === 1 ? lastChannelOf(wrote[0]) : null;
+  if (only) return only;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";
 }

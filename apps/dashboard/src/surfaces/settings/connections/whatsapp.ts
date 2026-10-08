@@ -4,11 +4,12 @@
  * Meta's SDK opens a window the business completes on Meta's own pages
  * (login, business, number). Two things come back to this page: a one-time
  * code through the login callback, and the ids of the WABA and phone number
- * through a message event from facebook.com. Both go to the app's own
- * route, which proves the owner and hands the exchange to the edge. Nothing
- * here holds a credential; the code is single-use and only the edge's
- * secret can turn it into a token. After the route answers, the refresh map
- * re-reads Settings, where the number now shows.
+ * through a message event from facebook.com. The code goes to the app's own
+ * route with whichever ids were heard; the route proves the owner and hands
+ * the exchange to the edge, which reads an id the page did not hear from the
+ * token's own grant. Nothing here holds a credential; the code is single-use
+ * and only the edge's secret can turn it into a token. After the route
+ * answers, the refresh map re-reads Settings, where the number now shows.
  *
  * A browser gives a page a window only inside a press, and a phone's holds to it: a press that first waits on the network
  * gets none, and Meta's SDK says nothing when that happens. So Connections fetches Meta's SDK as it opens (`prepare`), the
@@ -23,7 +24,7 @@ import { api, read } from "@/legacy-bridge/api";
 
 type Refused = {
   ok: false;
-  reason: "cancelled" | "not_ready" | "sdk" | "no_ids" | "failed" | "blocked" | "home_screen";
+  reason: "cancelled" | "not_ready" | "sdk" | "failed" | "blocked" | "home_screen";
   message: string;
 };
 type ConnectResult =
@@ -38,9 +39,23 @@ interface FB {
 }
 
 const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
-const META_ORIGINS = new Set(["https://www.facebook.com", "https://web.facebook.com"]);
 /** How long a message from the popup may trail its callback and still be heard. */
 const LATE_MESSAGE_MS = 300;
+
+/**
+ * Whether a message came from Meta's own pages: Meta's sample listener takes any origin ending in facebook.com, since its
+ * window speaks from more than one of its hosts (www, web, business); held here to https and to the domain itself, never a
+ * name that only ends in those letters. Two hosts named outright heard nothing from a third (8 October 2026).
+ */
+function fromMeta(origin: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(origin);
+  } catch {
+    return false;
+  }
+  return u.protocol === "https:" && (u.hostname === "facebook.com" || u.hostname.endsWith(".facebook.com"));
+}
 
 /**
  * The mark a sign-up leaves in this tab's sessionStorage while Meta's window is open: the instant it began. A reload takes with
@@ -157,12 +172,16 @@ function windowGiven(win: Window, ask: () => void): boolean | null {
   return given;
 }
 
-/** The ids Meta posts back when the sign-up window finishes. */
-export function parseSignupMessage(
-  origin: string,
-  data: unknown,
-): { phone_number_id: string; waba_id: string } | { cancelled: true } | null {
-  if (!META_ORIGINS.has(origin)) return null;
+/** What the sign-up window said as it finished: the ids it named (either may be missing), or that the owner closed it. */
+type SignupSaid = { phone_number_id: string | null; waba_id: string | null } | { cancelled: true };
+
+/**
+ * The ids Meta posts back when the sign-up window finishes: both on a FINISH, the account alone on a FINISH_ONLY_WABA (a
+ * number is added later), and whichever a FINISH names when it names one. What is missing the edge reads from the token's
+ * own grant; the page sends what it heard.
+ */
+export function parseSignupMessage(origin: string, data: unknown): SignupSaid | null {
+  if (!fromMeta(origin)) return null;
   let obj: unknown = data;
   if (typeof data === "string") {
     try {
@@ -174,14 +193,17 @@ export function parseSignupMessage(
   const m = obj as {
     type?: string;
     event?: string;
-    data?: { phone_number_id?: string; waba_id?: string; current_step?: string };
+    data?: { phone_number_id?: string; waba_id?: string; waba_ids?: string[]; current_step?: string };
   } | null;
   if (!m || m.type !== "WA_EMBEDDED_SIGNUP") return null;
   if (m.event === "FINISH" || m.event === "FINISH_ONLY_WABA") {
     const d = m.data ?? {};
-    if (d.phone_number_id && d.waba_id)
-      return { phone_number_id: String(d.phone_number_id), waba_id: String(d.waba_id) };
-    return null;
+    const waba = d.waba_id ?? (Array.isArray(d.waba_ids) ? d.waba_ids[0] : undefined);
+    const said = {
+      phone_number_id: d.phone_number_id ? String(d.phone_number_id) : null,
+      waba_id: waba ? String(waba) : null,
+    };
+    return said.phone_number_id || said.waba_id ? said : null;
   }
   if (m.event === "CANCEL") return { cancelled: true };
   return null;
@@ -252,9 +274,10 @@ async function runSignup(win: Window): Promise<ConnectResult> {
   // In hand since Connections opened: nothing is waited for, and Meta's window is asked for inside the press.
   const held = IN_HAND.get(win) ?? (await fetchForSignup(win));
   if ("ok" in held) return held;
-  // The ids arrive by message while the window is open; the code arrives
-  // when it closes. Both are needed, in whichever order they come.
-  let ids: { phone_number_id: string; waba_id: string } | null = null;
+  // The ids arrive by message while the window is open; the code arrives when it closes. The code is what is needed:
+  // the ids are sent on where they were heard, and the edge reads the rest from the token's own grant (8 October 2026:
+  // three sign-ups finished on Meta's side, the page heard no ids, and each code was thrown away with nothing connected).
+  let ids: { phone_number_id: string | null; waba_id: string | null } | null = null;
   let cancelled = false;
   const onMessage = (e: MessageEvent) => {
     const parsed = parseSignupMessage(e.origin, e.data);
@@ -295,14 +318,13 @@ async function runSignup(win: Window): Promise<ConnectResult> {
       reason: "cancelled",
       message: "The sign-up was closed before it finished. Nothing was connected.",
     };
-  if (!ids)
-    return {
-      ok: false,
-      reason: "no_ids",
-      message: "The sign-up finished without a number. Start it again and pick the number to connect.",
-    };
+  const heard = ids as { phone_number_id: string | null; waba_id: string | null } | null;
   const r = await api()("POST channels/whatsapp/connect", {
-    body: { code, ...(ids as { phone_number_id: string; waba_id: string }) },
+    body: {
+      code,
+      ...(heard?.phone_number_id ? { phone_number_id: heard.phone_number_id } : {}),
+      ...(heard?.waba_id ? { waba_id: heard.waba_id } : {}),
+    },
   });
   if (!r.ok) return { ok: false, reason: "failed", message: r.message };
   return {

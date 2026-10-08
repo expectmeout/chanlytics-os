@@ -1000,7 +1000,7 @@ test("lines: searching, retrying and forwarding are the owner's; each body is ju
   ]);
 });
 
-test("connecting a WhatsApp number: the owner's, the sign-up ids validated at the door, and on this machine the exchange stops at the production guard with nothing on the ledger", async () => {
+test("connecting a WhatsApp number: the owner's, the code required and an id validated only when the window gave one, and on this machine the exchange stops at the production guard with nothing on the ledger", async () => {
   const tables = { memberships: both("operator", "owner"), decisions: [] };
   const signup = { code: "AQD-sign-up-code", phone_number_id: "123456789012", waba_id: "987654321098" };
   await refused(connect.POST.run(send("POST", signup, inA), ctxFor(tables)), "forbidden", 403, "Only an owner");
@@ -1014,11 +1014,18 @@ test("connecting a WhatsApp number: the owner's, the sign-up ids validated at th
     connect.POST.run(send("POST", { ...signup, waba_id: "x" }, inB), ctxFor(tables)),
     "validation",
     400,
-    "did not hand back a number and an account",
+    "handed back an account or a number Chanlytics cannot read",
   );
   const guard = ctxFor(tables);
   await refused(
     connect.POST.run(send("POST", signup, inB), guard),
+    "upstream_meta",
+    502,
+    "Connecting only works on the production dashboard.",
+  );
+  // The code alone is a sign-up the window said nothing about: the edge finds the ids, so the route lets it through.
+  await refused(
+    connect.POST.run(send("POST", { code: signup.code }, inB), guard),
     "upstream_meta",
     502,
     "Connecting only works on the production dashboard.",
