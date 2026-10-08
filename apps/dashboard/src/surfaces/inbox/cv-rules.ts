@@ -5,7 +5,7 @@
  * names from here). No React, so it stays light for whoever imports it. And the one row a person has in the list.
  */
 import type { SeenReading } from "@chanlytics/contracts";
-import type { ConversationRow } from "./types";
+import type { ConversationRow, Picked } from "./types";
 
 // Keyed on what the view model says (writtenChannelOf): "email", not "mail".
 // The map carried "mail" while nothing ever sent it, so the day a real email
@@ -91,7 +91,8 @@ export function cvCallsStandAsTheirThread(
 }
 
 // Whose a row is: the person, else their thread, else the row alone (a caller who withheld their number is nobody's).
-const cvWhose = (c: ConversationRow): string =>
+// A person's row keeps this name from one read to the next, where its id is its newest part's: a pick is held by it.
+export const cvWhose = (c: ConversationRow): string =>
   c.clientId ? `p:${c.clientId}` : c.threadId ? `t:${c.threadId}` : `r:${c.id}`;
 
 /**
@@ -144,6 +145,33 @@ export const cvSeenOf = (c: ConversationRow): SeenReading => ({
   heardAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.heardAtMs ?? 0)),
   markAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.markAtMs ?? 0)),
 });
+
+/**
+ * A person's row as a pick reads it (pages/pick.tsx): the thread Snooze and Archive act on, the person the reader's
+ * mark is on, and how it stands. Null for a row with neither behind it (a caller who withheld their number, a call
+ * still going that no thread holds): nothing a pick does applies, so it wears no box. The page says whether it is new
+ * to the reader now and whether its thread is archived, which the row itself does not hold.
+ */
+export function cvPicked(
+  c: ConversationRow,
+  said: { unread: boolean; archived: (conversationId: string) => boolean },
+): Picked | null {
+  const conversationId =
+    cvPartsOf(c)
+      .map((p) => cvWhoseRow(p).conversationId)
+      .find((id) => !!id) ?? null;
+  if (!c.clientId && !conversationId) return null;
+  return {
+    id: cvWhose(c),
+    who: c.who,
+    conversationId,
+    personId: c.clientId,
+    unread: said.unread,
+    reading: cvSeenOf(c),
+    snoozed: cvLeadOf(c).standing === "snoozed",
+    archived: !!conversationId && said.archived(conversationId),
+  };
+}
 
 /** The row of `rows` that holds `id`, and the part it names: a link to one call opens its person's row at that call. */
 export function cvFind(

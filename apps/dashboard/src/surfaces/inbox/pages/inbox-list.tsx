@@ -11,20 +11,20 @@
  *     Enter opens, Space picks it for a bulk act
  *
  * The person who has a thread a teammate is answering (ixAnswerer) is answerer.ts, where the member was in the list
- * (ixPlace) is place.ts, and a row, with the words of confidence, is list-rows.tsx.
+ * (ixPlace) is place.ts, a row, with the words of confidence, is list-rows.tsx, and the pick -- the boxes, the bar
+ * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
  */
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { Confirm } from "../../kit/confirm/confirm";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
 import { threadRow } from "./list-rows";
-import { askOnScreenKey, demoSession, gate, setAskOnScreen, surfaceState } from "../shell";
+import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
+import { askOnScreenKey, demoSession, setAskOnScreen, surfaceState } from "../shell";
 import { inboxData } from "../store";
 import type { InboxBucket, InboxView, Thread } from "../types";
-import { Button } from "../../kit/button/button";
 
 /** How much of a row the desk draws: the phone ignores it. */
 export type Density = "compact" | "medium" | "rich";
@@ -53,6 +53,8 @@ interface InboxListProps {
   onBulkApprove?: () => void;
   onBulkSnooze?: () => unknown;
   onBulkArchive?: () => unknown;
+  /** The reader's mark over what is picked, as the page worked it out: which way, and its press. None, none offered. */
+  bulkMark?: { seen: boolean; press: () => void } | null;
   /** The bulk act running on real threads, "snooze" or "archive", for the bar to say so. */
   bulkBusy?: string | null;
   stake?: Stake | null;
@@ -79,6 +81,7 @@ function listProps({
   onBulkApprove = () => {},
   onBulkSnooze = () => {},
   onBulkArchive = () => {},
+  bulkMark = null,
   bulkBusy = null,
   stake = null,
   density = "medium",
@@ -101,6 +104,7 @@ function listProps({
     onBulkApprove,
     onBulkSnooze,
     onBulkArchive,
+    bulkMark,
     bulkBusy,
     stake,
     density,
@@ -122,57 +126,6 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   inNeedsBucket: boolean;
   tabStopId: string | undefined;
   onRowKey: (e: KeyboardEvent<HTMLDivElement>, i: number) => void;
-}
-
-/** Whether an event's target is an `<input>`: judged by its tag, as the row's key handler always judged it. */
-const inInput = (e: KeyboardEvent<HTMLDivElement>): boolean =>
-  !!e.target && "tagName" in e.target && e.target.tagName === "INPUT";
-
-/**
- * The rows are a listbox with one tab stop: the open thread's row, or the first when none of these is
- * open. Arrows, J/K, Home and End open and focus the row on screen -- the page's own J/K walks its
- * bucket, not the rows a search shows. Enter opens; Space picks the row for a bulk act.
- */
-function rowKeys(p: {
-  visible: Thread[];
-  onSelectThread: (id: string) => void;
-  onToggleSelect: (id: string) => void;
-}): (e: KeyboardEvent<HTMLDivElement>, i: number) => void {
-  const { visible, onSelectThread, onToggleSelect } = p;
-  return (e, i) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || inInput(e)) return;
-    const t = visible[i];
-    if (e.key === "Enter") {
-      e.preventDefault();
-      onSelectThread(t.id);
-      return;
-    }
-    if (e.key === " ") {
-      e.preventDefault();
-      onToggleSelect(t.id);
-      return;
-    }
-    const to =
-      e.key === "ArrowDown" || e.key === "j"
-        ? i + 1
-        : e.key === "ArrowUp" || e.key === "k"
-          ? i - 1
-          : e.key === "Home"
-            ? 0
-            : e.key === "End"
-              ? visible.length - 1
-              : null;
-    if (to === null) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const next = visible[Math.max(0, Math.min(visible.length - 1, to))];
-    if (!next || next.id === t.id) return;
-    onSelectThread(next.id);
-    const row =
-      e.currentTarget.parentNode &&
-      e.currentTarget.parentNode.querySelector<HTMLElement>(`[data-thread-id="${next.id}"]`);
-    if (row) row.focus();
-  };
 }
 
 /**
@@ -200,22 +153,9 @@ function visibleRows(p: { query: string; allThreads: Thread[]; threads: Thread[]
   return [...visible].sort((a, b) => (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9));
 }
 
-/** The archive question, as the bar asks it: about the one thread picked, or about how many. */
-function archiveWords(p: { selected: string[]; allThreads: Thread[] }): {
-  pickedOne: { who?: string } | null;
-  pickedReal: boolean;
-  archiveQuestion: string;
-} {
-  const { selected, allThreads } = p;
-  // The server has no unarchive: a real pick asks first, where the demo's Undo is the mockup's.
-  const pickedReal = allThreads.some((t) => t.real && selected.includes(t.id));
-  const pickedOne: { who?: string } | null =
-    selected.length === 1 ? allThreads.find((t) => t.id === selected[0]) || {} : null;
-  const archiveQuestion = pickedOne
-    ? `Archive ${pickedOne.who ? `${pickedOne.who}'s` : "this"} conversation?`
-    : `Archive ${selected.length} conversations?`;
-  return { pickedOne, pickedReal, archiveQuestion };
-}
+/** The threads picked, in the order they were picked. */
+const pickedThreads = (L: Pick<ListCtx, "selected" | "allThreads">): Thread[] =>
+  L.selected.flatMap((id) => L.allThreads.find((t) => t.id === id) ?? []);
 
 export function InboxList(props: InboxListProps) {
   const base = listProps(props);
@@ -271,7 +211,14 @@ export function InboxList(props: InboxListProps) {
   });
 
   const tabStopId = visible.some((t) => t.id === activeThreadId) ? activeThreadId : visible[0]?.id;
-  const onRowKey = rowKeys({ visible, onSelectThread, onToggleSelect });
+  // One tab stop, on the open row; arrows and J/K open the row on screen -- the page's own J/K walks its bucket, not
+  // the rows a search shows. Enter opens; Space picks the row for a bulk act (pick.tsx).
+  const onRowKey = pickKeys({
+    rows: visible,
+    onOpen: onSelectThread,
+    onToggle: onToggleSelect,
+    attr: "data-thread-id",
+  });
   const L: ListCtx = {
     ...base,
     query,
@@ -339,29 +286,6 @@ function bucketTabs(L: ListCtx) {
   );
 }
 
-/** The select-all box, over the rows' own boxes: the list's head lost a 38px line of its own to it. */
-function selectAll(L: ListCtx) {
-  const { visible, selected, onToggleSelect, onClearSelection } = L;
-  const allSelected = visible.length > 0 && visible.every((t) => selected.includes(t.id));
-  return (
-    <label className="ix-checkall" title={allSelected ? "Clear the selection" : `Select all ${visible.length}`}>
-      <input
-        type="checkbox"
-        checked={allSelected}
-        aria-label={
-          allSelected
-            ? "Clear the selection"
-            : `Select all ${visible.length} conversation${visible.length === 1 ? "" : "s"}`
-        }
-        onChange={() => {
-          if (allSelected) onClearSelection();
-          else visible.forEach((t) => !selected.includes(t.id) && onToggleSelect(t.id));
-        }}
-      />
-    </label>
-  );
-}
-
 /**
  * Search + saved-views toggle row. The select-all box leads it, over the rows' own boxes: it sat on the list's
  * head, a 38px line of its own beside a count the chip already said.
@@ -370,7 +294,13 @@ function searchBox(L: ListCtx) {
   const { visible, allThreads, query, setQuery, views, showViews, setShowViews } = L;
   return (
     <div className="ix-search-row">
-      {visible.length > 0 && selectAll(L)}
+      {visible.length > 0 &&
+        pickAll({
+          ids: visible.map((t) => t.id),
+          selected: L.selected,
+          onToggle: L.onToggleSelect,
+          onClear: L.onClearSelection,
+        })}
       <div className="ix-search-wrap">
         <Icon name="search" size={12} />
         <input
@@ -446,49 +376,21 @@ function stakeLine(L: ListCtx) {
   );
 }
 
-/** What is picked: the count, and the acts over it. */
+/**
+ * What is picked: the count, and the acts over it (pick.tsx). The server has no unarchive, so a real pick is asked
+ * first, where the demo's Undo is the mockup's.
+ */
 function bulkBar(L: ListCtx) {
-  const { selected, threads, onBulkApprove, onBulkSnooze, onClearSelection, bulkBusy } = L;
-  const pressArchive = () => (archiveWords(L).pickedReal ? L.setAskArchive(true) : L.onBulkArchive());
-  return (
-    <div className="ix-bulk">
-      <span className="ix-bulk-count tabular">{selected.length} selected</span>
-      <div className="ix-bulk-actions">
-        {threads.some((t) => t.approval) && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onBulkApprove}
-            title="Approves selected approvals with ≥80% confidence"
-            {...gate("approve")}
-          >
-            Approve all safe
-          </Button>
-        )}
-        <Button
-          variant="quiet"
-          size="sm"
-          onClick={onBulkSnooze}
-          aria-busy={bulkBusy === "snooze" || undefined}
-          {...gate("approve")}
-        >
-          {bulkBusy === "snooze" ? "Snoozing…" : "Snooze"}
-        </Button>
-        <Button
-          variant="quiet"
-          size="sm"
-          onClick={pressArchive}
-          aria-busy={bulkBusy === "archive" || undefined}
-          {...gate("approve")}
-        >
-          {bulkBusy === "archive" ? "Archiving…" : "Archive"}
-        </Button>
-        <Button variant="quiet" size="sm" onClick={onClearSelection}>
-          Clear
-        </Button>
-      </div>
-    </div>
-  );
+  const { selected, threads, onBulkApprove, onBulkSnooze, bulkMark, onClearSelection, bulkBusy } = L;
+  return pickBar({
+    count: selected.length,
+    busy: bulkBusy,
+    approve: threads.some((t) => t.approval) ? onBulkApprove : null,
+    mark: bulkMark,
+    snooze: onBulkSnooze,
+    archive: () => (pickedThreads(L).some((t) => t.real) ? L.setAskArchive(true) : L.onBulkArchive()),
+    clear: onClearSelection,
+  });
 }
 
 /** What a search found: how many, and the words. */
@@ -519,27 +421,16 @@ function listHead(L: ListCtx) {
 
 function archiveAsk(L: ListCtx) {
   const { selected, askArchive, setAskArchive, bulkBusy, onBulkArchive } = L;
-  const { pickedOne, archiveQuestion } = archiveWords(L);
   return (
     selected.length > 0 &&
-    askArchive && (
-      <Confirm
-        block
-        question={archiveQuestion}
-        detail={
-          pickedOne
-            ? "It leaves the Inbox and their request is closed. If they write again, it comes back."
-            : "They leave the Inbox and each request is closed. If they write again, they come back."
-        }
-        yes={pickedOne ? "Yes, archive" : `Yes, archive ${selected.length}`}
-        no="Not now"
-        busy={bulkBusy === "archive"}
-        busyLabel="Archiving…"
-        onYes={() => Promise.resolve(onBulkArchive()).finally(() => setAskArchive(false))}
-        onNo={() => setAskArchive(false)}
-        testid="ix-bulk-archive"
-      />
-    )
+    askArchive &&
+    pickArchiveAsk({
+      // A pick the list no longer holds is still asked about, by its count.
+      picked: selected.map((id) => L.allThreads.find((t) => t.id === id) ?? {}),
+      busy: bulkBusy,
+      onYes: () => Promise.resolve(onBulkArchive()).finally(() => setAskArchive(false)),
+      onNo: () => setAskArchive(false),
+    })
   );
 }
 

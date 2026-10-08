@@ -677,3 +677,80 @@ test("REGRESSION: a row draws one glyph beside its words, the wire they came on 
   );
   assert.equal(callback.ask.channel, "phone", "a call back's words are the call's");
 });
+
+/* ------------------------- the reader's mark, over a pick ------------------------- */
+
+test("the bar offers the reader's mark the page worked out -- its word says which way -- and its ✕ lets the pick go", () => {
+  fresh();
+  const pressed = [];
+  const cleared = [];
+  const props = listProps({
+    selected: [rosa.id, nina.id],
+    bulkMark: { seen: true, press: () => pressed.push("read") },
+    onClearSelection: () => cleared.push(1),
+  });
+  const draw = (over = {}) => again(() => InboxList({ ...props, ...over }));
+  let tree = draw();
+  assert.match(textOf(find(tree, byTestId("pick-bar"))), /^2 selected/);
+  buttonNamed(tree, "Mark as read").props.onClick();
+  assert.deepEqual(pressed, ["read"]);
+  tree = draw({ bulkMark: { seen: false, press: () => pressed.push("unread") } });
+  buttonNamed(tree, "Mark as unread").props.onClick();
+  assert.deepEqual(pressed, ["read", "unread"]);
+  const clear = find(tree, (n) => n.type === "button" && n.props?.["aria-label"] === "Clear the selection");
+  assert.ok(clear, "REGRESSION guard: the bar's fourth act took Clear's room, so Clear is the ✕ at its end");
+  clear.props.onClick();
+  assert.deepEqual(cleared, [1]);
+  // A pick with nobody behind it to mark is offered none, and the rest stands.
+  tree = draw({ bulkMark: null });
+  assert.equal(buttonNamed(tree, "Mark as read"), null);
+  assert.equal(buttonNamed(tree, "Mark as unread"), null);
+  assert.ok(buttonNamed(tree, "Snooze") && buttonNamed(tree, "Archive"));
+});
+
+test("the Inbox works the mark out by the one rule: read while anyone picked is new to the reader, and only they are marked -- once, through the reader's own door, in one toast", async () => {
+  // People this file opened nowhere else: the tab's store holds no word of its own about them.
+  const lena = { ...toInboxThreadVM(conv("c7", "Lena Ortiz"), asked("c7"), ZONE, NOW), unread: true };
+  const omar = { ...toInboxThreadVM(conv("c8", "Omar Haddad"), asked("c8"), ZONE, NOW), unread: false };
+  inboxWith([lena, omar]);
+  const marks = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const hit = /\/contacts\/([^/]+)\/seen$/.exec(new URL(String(url), "https://app.chanlytics.com").pathname);
+    if (!hit) return json(404, { ok: false, error: { code: "not_found", message: "not read here" } });
+    marks.push([hit[1], JSON.parse(String(init.body)).seen]);
+    return json(200, { ok: true, data: { contact_id: hit[1], marked_at: new Date().toISOString() } });
+  };
+  const clocks = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout };
+  globalThis.setTimeout = () => 1;
+  globalThis.clearTimeout = () => {};
+  try {
+    fresh();
+    let tree;
+    const render = () => (tree = again(() => Inbox({ showAgentRail: false })));
+    const list = () => find(tree, (n) => n.type === InboxList).props;
+    render();
+    assert.equal(list().bulkMark, null, "nothing picked: no mark to offer");
+    list().onToggleSelect(omar.id);
+    render();
+    assert.equal(list().bulkMark.seen, false, "someone read already: the mark offered puts them back");
+    list().onToggleSelect(lena.id);
+    render();
+    assert.equal(list().bulkMark.seen, true, "one of them is new to the reader: the mark offered is read");
+    list().bulkMark.press();
+    for (let i = 0; i < 400 && marks.length < 1; i += 1) await settle();
+    for (let i = 0; i < 20; i += 1) await settle();
+    render();
+    assert.deepEqual(marks, [["p-c7", true]], "Lena alone: Omar was read already");
+    assert.deepEqual(list().selected, [], "the pick is let go");
+    const toasts = findAll(
+      tree,
+      (n) => typeof n.props?.className === "string" && n.props.className.startsWith("pp-toast "),
+    );
+    assert.equal(toasts.length, 1, "one toast for the act");
+    assert.match(textOf(toasts[0]), /Lena Ortiz marked as read/);
+  } finally {
+    Object.assign(globalThis, clocks);
+    globalThis.fetch = realFetch;
+  }
+});

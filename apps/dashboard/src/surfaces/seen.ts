@@ -46,8 +46,11 @@ interface Mine {
   at: number | null;
 }
 const mine = new Map<string, Mine>();
-/** The person put back while open: opening anyone lets go of it, so a row put back is not read again by staying on it. */
-let heldUnread: string | null = null;
+/**
+ * The people put back while on screen: opening anyone lets go of them, so a row put back is not read again by staying on
+ * it. Several at once where a pick put them back (inbox/pages/pick.tsx): the one open among them stays unread too.
+ */
+const heldUnread = new Set<string>();
 /** The people whose last mark did not land, and when: the row on screen is not marked again at once (seeWhileOpen). */
 const failedAt = new Map<string, number>();
 /** How long a person on screen whose mark failed waits before it is tried again by itself; a press tries at once. */
@@ -180,6 +183,13 @@ function notesAbout(who: RowOf): string[] {
  * had last written or called then, so what comes in after is new whatever any clock says.
  */
 export function seePerson(who: RowOf, reading: SeenReading = NO_READING): void {
+  markSeen(who, reading);
+  heldUnread.clear();
+  told();
+}
+
+/** The mark that a person is read, and the bell's notes about them with it: nothing drawn again yet. */
+function markSeen(who: RowOf, reading: SeenReading): void {
   const from = bell();
   for (const key of notesAbout(who)) {
     notesRead.add(key);
@@ -191,14 +201,32 @@ export function seePerson(who: RowOf, reading: SeenReading = NO_READING): void {
   const id = who.personId;
   const done = id ? mine.get(id) : undefined;
   if (id && !(done && done.seen && done.upTo === reading.heardAtMs)) send(id, { seen: true, upTo: reading.heardAtMs });
-  heldUnread = null;
+}
+
+/**
+ * The reader marked several people as read at once, from a pick, without opening any: each as `seePerson` marks one,
+ * the pages told once. Nobody was opened, so a person put back while on screen stays held unless they are among these.
+ */
+export function seePeople(rows: ReadonlyArray<{ who: RowOf; reading: SeenReading }>): void {
+  for (const row of rows) {
+    markSeen(row.who, row.reading);
+    if (row.who.personId) heldUnread.delete(row.who.personId);
+  }
   told();
 }
 
 /** The reader put this person back as unread: their row says so until they open it again. */
 export function unseePerson(personId: string): void {
-  heldUnread = personId;
-  send(personId, { seen: false, upTo: 0 });
+  unseePeople([{ personId }]);
+}
+
+/** The reader put several people back as unread at once, from a pick: the pages are told once. */
+export function unseePeople(people: ReadonlyArray<RowOf>): void {
+  for (const who of people) {
+    if (!who.personId) continue;
+    heldUnread.add(who.personId);
+    send(who.personId, { seen: false, upTo: 0 });
+  }
   told();
 }
 
@@ -228,7 +256,7 @@ export function unreadHere(who: RowOf, reading: SeenReading): boolean {
  */
 function seeWhileOpen(who: RowOf, reading: SeenReading): void {
   const id = who.personId;
-  if (id && heldUnread === id) return;
+  if (id && heldUnread.has(id)) return;
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
   const failed = id ? failedAt.get(id) : undefined;
   if (failed !== undefined && Date.now() - failed < RETRY_AFTER_MS) return;
