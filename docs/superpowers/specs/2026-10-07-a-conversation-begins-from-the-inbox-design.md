@@ -1,6 +1,6 @@
 # A conversation begins from the Inbox
 
-**Status:** built on 8 October 2026 and committed that day on Ruben's word, and merged with main's `ff53660df`; migration 00351
+**Status:** built on 8 October 2026 and committed that day on Ruben's word, and merged with main's `5f0d355f3`; migration 00351
 goes to production before the dashboard deploys. What the build's own look and its one review changed is §0.3, and
 what a second pass over the whole loop closed is §0.4. Where the text below says staged, or names an earlier commit,
 it speaks of the worktree as it stood before the commit. The history of the design follows as it was written: it was the fourth pass. Ruben read the first pass and said he
@@ -113,10 +113,10 @@ import into the sheet's on-demand chunk is not added unmeasured (§0.1). **A vie
 opens, Send says why their role may not, and the server refuses; a guard at the door would have to know the role
 before the page has it.
 
-Measured before the push, on Ruben's word for one local build: main (`ff53660df`) and the branch were built on one
+Measured before the push, on Ruben's word for one local build: main (`5f0d355f3`) and the branch were built on one
 machine and compared as CI compares them (main's JS equalled CI's own record to the byte). The kit's `Confirm` in the
 sheet's chunk moved no page: each page grew what it grew on 7 October, none by more than 1,735 bytes gzipped, and the
-route by 2,692 where it was 2,527 (the difference is what §0.3 and this section added to the route). The stylesheets
+route by 2,699 where it was 2,527 (the difference is what §0.3 and this section added to the route). The stylesheets
 are the exception: the same 1,635 raw bytes of rules weighed 250 gzipped until #1494 landed and 1,052 after, because
 the chunk that holds the Inbox's rules then passed the size the bundler divides a stylesheet chunk at, and its two
 files gzip worse than the one did (built again with CI's line endings to be sure: the same). The budget is raised by
