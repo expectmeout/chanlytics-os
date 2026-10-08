@@ -5,6 +5,7 @@
  * the page and the deal sheet read it.
  */
 import { optOutWords } from "../consent/consent";
+import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 
 /**
  * What a person's page says of an address that stopped accepting mail (a permanent bounce, a complaint or the provider's
@@ -152,6 +153,64 @@ export function repliesWords(
   if (!window.open) return "Approved messages only, until they write again";
   const h = window.hoursLeft;
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
+}
+
+/** The one thing a row says under the identifier: nothing sent to that address arrives (repliesWords is the page's sentence). */
+const EMAIL_STOPPED_SHORT = "Stopped accepting mail";
+/** The wires a person writes on, in the order a row names them (person-row.ts channelsOf): WhatsApp, a text, email. */
+const WRITTEN_WIRES = ["whatsapp", "sms", "email"] as const;
+
+/**
+ * What a People row says of reaching a person (8 Oct 2026): the wire a reply goes out on over the one way to reach them
+ * there, a line under them only for an address that stopped accepting mail, and every wire with the Replies row's
+ * sentence as the cell's tip. It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then
+ * the number. WhatsApp's window is the tip's to say and never a line: shut is the ordinary state of a WhatsApp thread
+ * (a day after they last wrote), so a line for it stood on nearly every row.
+ *
+ * The wire is the one they last wrote on (`lastChannel`, 00320), which is where a reply to them goes; a row read
+ * before that was kept says the first wire they have written on, and someone who only ever called, the phone. It is
+ * not the row's own `replyVia`, which reads WhatsApp for anyone who has written and is not email-only (the strictest
+ * window, so a button never offers free text it cannot send): said as a word, that called a person who only ever
+ * texted "WhatsApp" and held them to a window a text does not have.
+ */
+export interface RowReachWords {
+  /** "WhatsApp", "Text" or "Email" (REPLY_VIA); "Phone" for someone who only ever called; null with no wire at all. */
+  wire: string | null;
+  /** The address when the reply goes by email, else the number, else the address; null where the identifier is the name already. */
+  id: string | null;
+  /** An address that stopped accepting mail, where the reply goes by email; null otherwise, and where the State says why none may. */
+  may: string | null;
+  /** Every wire in words, then what a reply may be as the Replies row says it; empty where nothing is known. */
+  tip: string;
+}
+
+/** `named`: the row has a name of its own. Named by a number or an address, the identifier is the name, and the cell says the wire alone. */
+export function rowReachWords(
+  p: {
+    name: string;
+    phone: string | null;
+    email: string | null;
+    channels: readonly string[];
+    /** The channel of the last message they wrote themselves, where the row knows it. */
+    lastChannel: "whatsapp" | "sms" | "email" | null;
+    /** WhatsApp's window as the row has it: read only where the wire is WhatsApp, since no other wire has one. */
+    replyWindow: { open: boolean; hoursLeft: number } | null;
+    emailSuppressed: boolean;
+    stopped: boolean;
+    channelWords: string;
+  },
+  named: boolean,
+): RowReachWords {
+  const wrote = p.lastChannel ?? WRITTEN_WIRES.find((c) => p.channels.includes(c)) ?? null;
+  const via = wrote ? REPLY_VIA[wrote] : null;
+  const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
+  const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
+  const window = via === "WhatsApp" ? p.replyWindow : null;
+  const may = !p.stopped && via === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
+  const replies = p.stopped
+    ? null
+    : repliesWords(via, window, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
+  return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" · ") };
 }
 
 /**

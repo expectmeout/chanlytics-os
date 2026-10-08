@@ -24,7 +24,11 @@ export interface PersonLastContact {
   at: string | null;
   kind: "message" | "call" | null;
   who: "they" | "receptionist" | "you" | "system" | null;
-  /** "They wrote · 2h ago" */
+  /** Who spoke: "They wrote", "Receptionist replied", "Phoned", "We called"; "No contact recorded" with none. */
+  by: string;
+  /** How long ago: "2h ago", the business's date past a week; empty with none. The table's first line (8 Oct 2026). */
+  when: string;
+  /** "They wrote · 2h ago": by and when, the one sentence the CSV and a phone's card say. */
   label: string;
 }
 
@@ -41,17 +45,31 @@ export function theirTurnWords(last: Pick<PersonLastContact, "who" | "kind">): s
 export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
   const m = ts(r.last_message_at);
   const k = ts(r.last_call_at);
-  if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
+  if (m === null && k === null) {
+    return {
+      ts: null,
+      at: null,
+      kind: null,
+      who: null,
+      by: "No contact recorded",
+      when: "",
+      label: "No contact recorded",
+    };
+  }
   if (k !== null && (m === null || k > m)) {
     // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
     // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (person-state.ts) already reads it this way.
     const theirs = ts(r.last_inbound_call_at) === k;
+    const by = theirs ? "Phoned" : "We called";
+    const when = ago(k, tz, nowMs);
     return {
       ts: k,
       at: r.last_call_at,
       kind: "call",
       who: theirs ? "they" : "system",
-      label: `${theirs ? "Phoned" : "We called"} · ${ago(k, tz, nowMs)}`,
+      by,
+      when,
+      label: `${by} · ${when}`,
     };
   }
   const who: PersonLastContact["who"] =
@@ -70,13 +88,8 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
         : who === "receptionist"
           ? "Receptionist replied"
           : "We sent";
-  return {
-    ts: m,
-    at: r.last_message_at,
-    kind: "message",
-    who,
-    label: `${verb} · ${ago(m as number, tz, nowMs)}`,
-  };
+  const when = ago(m as number, tz, nowMs);
+  return { ts: m, at: r.last_message_at, kind: "message", who, by: verb, when, label: `${verb} · ${when}` };
 }
 
 export interface PersonFirstContact {

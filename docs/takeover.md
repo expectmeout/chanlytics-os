@@ -53,14 +53,14 @@ event-shaped clocks                   9   of the registered clocks (invariant 6)
 tables with more than one writer     58   387 writers among them
 personal columns with no erasure strategy  195   in 44 tables
 breakpoints outside the set          35   in 11 files
-literal style values                939   in 22 stylesheets
-primitives outside the kit         1807   selectors naming 740 classes
+literal style values                936   in 22 stylesheets
+primitives outside the kit         1805   selectors naming 740 classes
 inline style props                  207   in 56 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     291
 source-text reads in tests          762
 lint warnings                       353   in 152 files, 59 of them exhaustive-deps
-workspace route JS, KB gzipped      729   the shell included
+workspace route JS, KB gzipped      730   the shell included
 workspace route CSS, KB gzipped     146
 workspace pages' own JS, KB        1276   gzipped, beyond the route, summed over 14 pages
 trees the lint's limits hold         47   16 of them with max-params waiting
