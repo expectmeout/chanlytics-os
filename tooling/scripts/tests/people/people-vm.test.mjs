@@ -463,19 +463,57 @@ test("REGRESSION: a row replies on the wire they last wrote on (00320), so a tex
   assert.equal(stopped.bookingLinkAction.title, "Email can't reach them: their address stopped accepting mail");
 
   // A row that does not say where they last wrote (they have written nothing themselves, or it was read before
-  // 00320) keeps the strictest reading: it may say a reply is held when it is not, never the reverse.
-  const unknown = toPersonRowVM(
-    row({
-      channels: [],
-      has_chat: true,
-      message_channels: ["sms"],
-      last_inbound_channel: null,
-      latest_wa_inbound_at: null,
-    }),
-    ZONE,
-    NOW,
+  // 00320) knows only which wires words have travelled between them. Where that is one wire alone the reply goes
+  // there, whoever wrote: the reply route answers a thread nothing has come to where our own words last went (the
+  // dashboard's replyChannelOf). A person a member texted first read WhatsApp here, behind its window, beside a
+  // thread and a page that said Text.
+  const silent = (wrote) =>
+    toPersonRowVM(
+      row({
+        channels: [],
+        has_chat: true,
+        email: "ana@example.com",
+        message_channels: wrote,
+        last_inbound_channel: null,
+        latest_wa_inbound_at: null,
+      }),
+      ZONE,
+      NOW,
+    );
+  const textedFirst = silent(["sms"]);
+  assert.deepEqual(
+    [
+      textedFirst.replyVia,
+      textedFirst.replyWindow,
+      textedFirst.bookingLinkAction.label,
+      textedFirst.bookingLinkAction.ready,
+    ],
+    ["Text", { open: true, hoursLeft: 0 }, "Text the booking link", true],
   );
-  assert.deepEqual([unknown.replyVia, unknown.bookingLinkAction.ready], ["WhatsApp", false]);
+  assert.equal(silent(["email"]).replyVia, "Email", "as it always read");
+  assert.deepEqual(
+    [silent(["whatsapp"]).replyVia, silent(["whatsapp"]).bookingLinkAction.ready],
+    ["WhatsApp", false],
+    "WhatsApp alone is still WhatsApp, behind its window",
+  );
+  // On more than one wire it cannot tell which was last, and keeps the strictest reading: it may say a reply is held
+  // when it is not, never the reverse.
+  for (const wrote of [
+    ["sms", "whatsapp"],
+    ["email", "sms"],
+    ["email", "sms", "whatsapp"],
+  ])
+    assert.deepEqual(
+      [silent(wrote).replyVia, silent(wrote).bookingLinkAction.ready],
+      ["WhatsApp", false],
+      JSON.stringify(wrote),
+    );
+  // A wire that is not a written one is not "one wire alone": a row whose words went by something this build does not
+  // name keeps the strictest reading too, and so does a row read before the wires were said (00127).
+  assert.equal(silent(["voice"]).replyVia, "WhatsApp");
+  assert.equal(silent(["sms", "voice"]).replyVia, "WhatsApp");
+  assert.equal(silent(undefined).replyVia, "WhatsApp");
+  assert.equal(silent([]).replyVia, "WhatsApp");
   // A value this build does not know is no wire, not a wire: the same strictest reading.
   const odd = toPersonRowVM(
     row({ message_channels: ["whatsapp"], last_inbound_channel: "voice", latest_wa_inbound_at: shutWa }),
@@ -1094,15 +1132,20 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   );
   // A row that does not say where they last wrote names the first wire words travelled, WhatsApp before a text.
   assert.equal(reach({ ...both, last_inbound_channel: null }).wire, "WhatsApp");
-  // And what a reply may be is the row's own answer, the one its booking-link button is written from. Someone we
-  // texted who has written nothing is answered on WhatsApp by the reply route, so only an approved message goes:
-  // the tip said "Any time, by text" beside a button that said the opposite.
+  // And what a reply may be is the row's own answer, the one its booking-link button is written from. Someone a
+  // member texted first, who has written nothing, is answered by text (the reply route carries a conversation the
+  // business began on where it began), and the tip and the button say so together.
   const never = rowOf({ message_channels: ["sms"], last_inbound_channel: null, latest_wa_inbound_at: null });
   assert.deepEqual(
     [rowReachWords(never, true).wire, rowReachWords(never, true).tip],
-    ["Text", "Text · Approved messages only, until they write again"],
+    ["Text", "Text · Any time, by text"],
   );
-  assert.equal(never.bookingLinkAction.ready, false, "the button on the same row says the same");
+  assert.equal(never.bookingLinkAction.ready, true, "the button on the same row says the same");
+  // Words on two wires and none of them theirs: the row cannot tell which was last, so the tip says the strictest
+  // rule and the button holds with it. The tip once said "Any time, by text" beside a button that said the opposite.
+  const neverTwo = rowOf({ ...both, last_inbound_channel: null });
+  assert.equal(rowReachWords(neverTwo, true).tip, "WhatsApp · Text · Approved messages only, until they write again");
+  assert.equal(neverTwo.bookingLinkAction.ready, false);
   // Every row the cell draws says one thing with its button: what the tip says a reply may be is free text exactly
   // where the button fills the composer.
   for (const last of ["whatsapp", "sms", "email", null])

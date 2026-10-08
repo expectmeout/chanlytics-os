@@ -23871,6 +23871,8 @@ function replyChannelOfRow(r2) {
   const last = lastChannelOf(r2.last_inbound_channel);
   if (last) return last;
   const wrote = r2.message_channels;
+  const only = wrote && wrote.length === 1 ? lastChannelOf(wrote[0]) : null;
+  if (only) return only;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";
 }
