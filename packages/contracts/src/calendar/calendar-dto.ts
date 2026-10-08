@@ -72,6 +72,8 @@ export interface CalendarFeedDto {
   dropped?: number;
   /** When the calendar was last tried, good or not: the news when a read failed or a refresh couldn't reach it (C2). */
   checked_at?: string | null;
+  /** The owner said nothing books for them (config.bookings.by_hand): no page offers to connect a calendar then. */
+  by_hand?: boolean;
   /**
    * The booking notices the workspace's address has taken in (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
    * tool the latest came from, when, how many visits they hold in this span, and how many a person must look at. Absent
@@ -100,6 +102,12 @@ export interface CalendarNoticesDto {
   tool: string | null;
   /** The workspace's address, as the tool is to send to; null when it has none yet. */
   address: string | null;
+  /**
+   * The address the workspace would be given, where it has none and one can be made from its name (mailbox.ts
+   * suggestLocalPart): what the fold offers in one press. Null where it has one, where email is off on this deployment,
+   * or where the name gives no address; absent on an older read.
+   */
+  suggested?: string | null;
   /** When the latest notice that became a visit arrived; null until one has. */
   last_at: string | null;
   count: number;

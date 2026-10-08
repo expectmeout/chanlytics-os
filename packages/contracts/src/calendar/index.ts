@@ -60,6 +60,7 @@ export {
   appointmentKey,
   SAME_VISIT_MS,
   BOOKING_TOOL_IDS,
+  bookingToolCalendar,
   bookingToolOptions,
   BOOKING_TOOL_STEPS,
   GMAIL_FORWARD_NOTE,
@@ -67,7 +68,14 @@ export {
   NOTICE_HOLD_WORDS,
   forwardingConfirmationOf,
 } from "./booking-notice";
-export type { BookingTool, BookingToolWay, NoticeKind, NoticeHold, NoticeReading } from "./booking-notice";
+export type {
+  BookingTool,
+  BookingToolCalendar,
+  BookingToolWay,
+  NoticeKind,
+  NoticeHold,
+  NoticeReading,
+} from "./booking-notice";
 export {
   appointmentTitle,
   busyOfAppointments,

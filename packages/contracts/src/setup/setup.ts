@@ -47,7 +47,22 @@ export interface SetupDto {
   /** Email: whether this deployment has the channel, and the workspace's mailbox when it has one (mailbox.ts). Absent reads as off. */
   email?: EmailSetupDto;
   templates: { approved: number; pending: number; startersApproved: number };
-  calendar: { state: "ok" | "unavailable" | "none"; problem?: string | null };
+  /**
+   * What the calendar is fed by, as the one rule reads it (calendar-source.ts): the link's last read, the
+   * booking tool the owner named and what is known of its emails, and the owner's word that they book by hand. The
+   * parts after `problem` are absent on a read from before them, which then says what the link alone says.
+   */
+  calendar: {
+    state: "ok" | "unavailable" | "none";
+    problem?: string | null;
+    /** The latest read failed, and the one stated is the last good one. */
+    stale?: boolean;
+    tool?: string | null;
+    by_hand?: boolean;
+    emails?: { address: boolean; forwarding: boolean; last_at: string | null; held: number } | null;
+    /** Whether the receptionist has a booking link to send. */
+    booking_link?: boolean;
+  };
   team: {
     members: number;
     invitesOpen: number;

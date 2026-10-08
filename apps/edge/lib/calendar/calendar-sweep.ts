@@ -52,7 +52,7 @@ import { addPeopleFromCalendar } from "./calendar-people.js";
 import { keepAppointments } from "./calendar-appointments.js";
 import { bookedFromCalendar } from "./reach-out-booked.js";
 import { recordNotification } from "../ops/notify.js";
-import { ownAddressesOf, parseTenantConfig, peopleFromItems } from "../packages/contracts.js";
+import { BOOKING_DEFAULTS, ownAddressesOf, parseTenantConfig, peopleFromItems } from "../packages/contracts.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
@@ -107,7 +107,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     try {
       // The zone comes with the page (00245): the workspace's own, UTC when that is a name nobody knows.
       const tz = row.timezone;
-      const daysAhead = cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? 14;
+      const daysAhead = cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
       const items = await feedItemsFor(row.tenant_id, url, tz, now, daysAhead);
       if (!items) {
         out.failed += 1;

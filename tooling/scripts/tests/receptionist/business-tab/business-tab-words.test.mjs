@@ -74,6 +74,10 @@ const RETIRED = [
   "Hand over to a person when",
   "Transfers a caller to",
   "Calendar it may look at",
+  // 7 Oct 2026: one row, Booking tool, where these were two that sent the owner to each other.
+  "Calendar it reads",
+  "Where your bookings come from",
+  "Calendar feed address",
   "you set this",
   "differ from the default wording",
   "All times America/New_York",
@@ -132,10 +136,11 @@ test("every phrase §10 kept is drawn where it belongs", () => {
   const handoff = byTestId(tree, "rec-row-escalate_when");
   assert.match(textOf(handoff), /reasons? · on a call, /);
   assert.doesNotMatch(textOf(handoff), /WhatsApp|Phone/);
-  // Calendar it reads: the row in When you're open.
+  // Booking tool: the row in When you're open, one where "Calendar it reads" and "Where your bookings come from"
+  // were two (7 Oct 2026). Both names are retired, below.
   assert.equal(
     textOf(find(byTestId(tree, "rec-row-calendar"), (n) => classes(n).includes("rec-row-key"))),
-    "Calendar it reads",
+    "Booking tool",
   );
   // What it's told: the told section, by its name, and its door, Read it.
   const told = byTestId(tree, "rec-card-told");

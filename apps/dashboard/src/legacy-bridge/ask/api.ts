@@ -15,7 +15,7 @@ import type {
   PageContext,
   VoiceEndReason,
 } from "@chanlytics/contracts";
-import { MIN_MS, refusalOf, type SpeechPurpose } from "@chanlytics/contracts";
+import { MIN_MS, refusalOf, type AskOpeningsView, type SpeechPurpose } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
@@ -36,6 +36,8 @@ export interface OpeningsView {
   state: string;
   text: string;
   days: Array<{ key: string; label: string; windows: string[] }>;
+  /** With no calendar link: what the calendar is fed by instead (contracts AskOpeningsView.instead). */
+  instead?: AskOpeningsView["instead"];
 }
 
 /**

@@ -20,7 +20,7 @@
 // does when a component's hooks change in number (tooling/scripts/tests/_hook-frames.mjs), so the shape stands as a
 // habit and nothing new needs keeping to it.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { canDo, gateTitle } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
@@ -167,10 +167,29 @@ const useBtPageSubscriptions = (saver: Saver) => {
 };
 
 /**
+ * A door on another page names the row it wants open (`admin/workspace/<row>`: settings/frame/tabs.ts settingsRowOf):
+ * the Calendar's "Check the link", Setup's and Connections' row, Ask's "Connect a calendar". Once per arrival, when the
+ * rows are drawn: the row is brought into view, since it may be a screen down, and opened as its own act would open it
+ * (btOpenRow), for a role that may change it. A row the page does not draw opens nothing, and the page is where it
+ * landed.
+ */
+const useBtOpenRow = (row: string | null, drawn: boolean, canEdit: boolean) => {
+  const opened = useRef<string | null>(null);
+  useEffect(() => {
+    if (!row || !drawn || opened.current === row) return;
+    const key = document.getElementById(`rec-row-${row}-key`);
+    if (!key) return;
+    opened.current = row;
+    if (typeof key.scrollIntoView === "function") key.scrollIntoView({ block: "center" });
+    if (canEdit) btOpenRow(row);
+  }, [row, drawn, canEdit]);
+};
+
+/**
  * Settings › Business, drawn from the settings read. A workspace with no brain -- none set up, or a config the parser
  * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
  */
-export const BusinessTab = ({ flash = () => {} }: { flash?: Flash }) => {
+export const BusinessTab = ({ flash = () => {}, open = null }: { flash?: Flash; open?: string | null }) => {
   // The tab's one saver (save.tsx), which outlives the page: a page drawn again on coming back to this tab
   // finds the save still out and the answer to the last one. A save moving through it draws the page again, busy or
   // done, for as long as the page is on screen.
@@ -183,8 +202,9 @@ export const BusinessTab = ({ flash = () => {} }: { flash?: Flash }) => {
   const settings = settingsNow() || null;
   const config = settings && (settings.config as Config | null);
   const brain = (config && config.brain) || null;
-  if (!settings || !config || !brain) return null;
   const canEdit = canDo("settings");
+  useBtOpenRow(open, !!(settings && config && brain), canEdit);
+  if (!settings || !config || !brain) return null;
   // The config the next save goes on: what every row's "It will say" is worked out on.
   const base = saver.base();
   return (

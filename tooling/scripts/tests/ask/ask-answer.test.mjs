@@ -389,7 +389,19 @@ test("what is open: the days with open times as items, each a door to its day, s
   );
   const none = openingsAnswer({ state: "no_calendar", days: [] }, "en");
   assert.equal(none.say.headline, "No calendar is connected, so I can't see open times.");
-  assert.equal(none.do.open.to, "admin/integrations");
+  // The Business row that connects one, opened: it went to Connections, whose own row then sent the owner on.
+  assert.deepEqual(none.do.open, { to: "admin/workspace/calendar", label: "Connect a calendar", now: false });
+  // REGRESSION: a business whose bookings arrive by email was told it had no calendar, beside a board that showed
+  // them. It is told what it has, and the door is that board.
+  const byEmail = openingsAnswer({ state: "no_calendar", days: [], instead: { by: "emails", tool: "Booksy" } }, "en");
+  assert.equal(
+    byEmail.say.headline,
+    "Bookings arrive by email from Booksy and are on the Calendar, but without a calendar link I can't see open times.",
+  );
+  assert.deepEqual(byEmail.do.open, { to: "calendar", label: "Open the Calendar", now: false });
+  const byHand = openingsAnswer({ state: "no_calendar", days: [], instead: { by: "hand" } }, "es");
+  assert.equal(byHand.say.headline, "Tomas las reservas tú, así que no hay calendario del que leer horas libres.");
+  assert.equal(byHand.do.open.to, "admin/workspace/calendar");
   assert.equal(
     openingsAnswer({ state: "unavailable", days: [] }, "es").say.headline,
     "No se pudo leer el calendario ahora.",

@@ -107,7 +107,13 @@ test("the four rules carry three different guarantees", () => {
     assert.ok(r.chip.length > 0 && r.sentence.length > 0, `${k} needs a chip and a sentence`);
   }
   // The structural one says the switch does not decide it.
-  assert.match(ruleStrength("never_confirm_booking").sentence, /no appointments table/i);
+  // It said "There is no appointments table in this product", which stopped being true the day a booking tool's
+  // emails became appointments on the record (00345). What holds is what it cannot do.
+  assert.match(
+    ruleStrength("never_confirm_booking").sentence,
+    /^Nothing in this product can create, move or cancel an appointment\./,
+  );
+  assert.doesNotMatch(ruleStrength("never_confirm_booking").sentence, /no appointments table/i);
   // The checked one names both channels, because they differ -- and it names them in
   // checkedOn, not in the sentence: the page draws both, so a sentence that said the
   // channels too would print the same fact twice on one row.
@@ -779,7 +785,12 @@ test("what it cannot do is stated, and is not a setting", () => {
   const rows = cannotRows({ smsLive: false, hasBookingLink: true });
   const ids = rows.map((r) => r.id);
   assert.deepEqual(ids, ["book", "outbound_call", "sms"]);
-  assert.match(rows[0].detail, /no appointments table/i);
+  assert.match(rows[0].detail, /Nothing in this product can create, move or cancel an appointment/);
+  assert.doesNotMatch(
+    rows[0].detail,
+    /no appointments table/i,
+    "there is one now: it records what a booking tool reports",
+  );
   assert.match(rows[1].detail, /never calls a customer/i);
   assert.equal(rows[2].soon, true);
 });
@@ -1480,7 +1491,7 @@ test("with no booking link, the two rows that lean on one say what does the work
   assert.match(linked.book, /Your booking link does that, whichever tool is behind it\.$/);
   assert.equal(
     none.book,
-    "Not a setting you could switch on. There is no appointments table in this product — nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+    "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
   );
   assert.equal(
     none.sms,

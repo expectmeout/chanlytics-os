@@ -2409,7 +2409,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   const byLabel = Object.fromEntries(audiences.map((a) => [a.label, a]));
   assert.equal(byLabel.Regulars.list, `list:${S_REG}`);
   assert.equal(byLabel["Phoned only"].list, "seg:phoned_only");
-  assert.match(byLabel["Lapsed regulars"].cannot_count, /reads your calendar/);
+  assert.match(byLabel["Lapsed regulars"].cannot_count, /reads a calendar link/);
   assert.equal(byLabel["Lapsed regulars"].can_be_sent_offers, undefined, "no count it can't stand behind");
   assert.match(byLabel["From the future"].cannot_count, /written by a newer version/);
 
@@ -2482,7 +2482,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   assert.match(JSON.parse(onMine.result).error, /a playbook runs with no one looking/);
   const toCal = await propose("saved", S_CAL);
   assert.equal(toCal.isError, true);
-  assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads your calendar/);
+  assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads a calendar link/);
 });
 
 test("a gated list's refusal names the condition that failed: with a calendar and deals on but no consult-first service, Consultation booked is refused for the service alone", async () => {
@@ -2916,7 +2916,7 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
   }
   // No calendar: the line says why there is nothing to count, in the page's words.
   const bare = await turnOver(world(false));
-  assert.equal(bare.read.booking, "Connect your calendar under Settings › Business to see who booked.");
+  assert.equal(bare.read.booking, "Add a calendar link under Settings › Business to see who booked.");
   // Where the workspace's customers book, the page draws no Deals section, and the deals are not even read.
   const booked = await turnOver(world(false, "booking"));
   assert.equal(booked.read.deals, null);
@@ -4724,7 +4724,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
   );
   assert.deepEqual(
     [byId["pb-booked"].list, byId["pb-booked"].cannot_count],
-    ["seg:booked", "This list reads your calendar. Connect it under Settings › Business to count it."],
+    ["seg:booked", "This list reads a calendar link. Add one under Settings › Business to count it."],
   );
   assert.deepEqual([byId["pb-gone"].cannot_count, byId["pb-gone"].said_yes_now], ["its list was deleted", undefined]);
   assert.deepEqual(

@@ -1019,14 +1019,19 @@ test("a link can name a day: the page opens it in Day view, on a phone too", () 
 });
 
 test("REGRESSION (B19): a sentence that sends the owner to the calendar's address names the tab it is on -- Settings › Business, not Settings › Workspace", () => {
-  assert.equal(toBookingReportVM(null).sub, "Connect your calendar under Settings › Business to see who booked.");
+  assert.equal(toBookingReportVM(null).sub, "Add a calendar link under Settings › Business to see who booked.");
   fresh(
     dto({
       feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
     }),
   );
+  // With no calendar the card names no tab now: its press opens the Business row itself (the one answer's door,
+  // contracts CALENDAR_SETTING_ROUTE), where the sentence sent the owner to the top of a tab to find it.
   const none = textOf(byTestId(page(), "cal-feed-card"));
-  assert.ok(none.includes("Settings › Business") && !none.includes("Settings › Workspace"), none);
+  assert.ok(!none.includes("Settings › Workspace"), none);
+  went.length = 0;
+  byTestId(page(), "cal-feed-door").props.onClick();
+  assert.deepEqual(went, ["admin/workspace/calendar"], "the row, not the top of the tab");
   fresh(
     dto({
       feed: {
@@ -1831,9 +1836,19 @@ test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rul
   const bar = byTestId(page(), "cal-rules");
   assert.deepEqual(
     all(bar, (n) => n.props?.className === "cal-rules-label").map(textOf),
-    ["Hours", "Closed", "Booking", "Calendar it reads"],
-    "REGRESSION: 'Rules'; and the calendar is 'Calendar it reads', here as on Business (spec §10)",
+    ["Hours ", "Closed ", "Booking ", "Booking tool "],
+    "REGRESSION: 'Rules'; and what the business books with is 'Booking tool', here as on Business (spec §10)",
   );
+  // Each name is the door to the Business row of that name (7 Oct 2026): the sheet had one door, to the top of the tab.
+  went.length = 0;
+  for (const row of ["hours", "closures", "booking_rules", "calendar"])
+    byTestId(bar, `cal-rules-door-${row}`).props.onClick();
+  assert.deepEqual(went, [
+    "admin/workspace/hours",
+    "admin/workspace/closures",
+    "admin/workspace/booking_rules",
+    "admin/workspace/calendar",
+  ]);
   assert.ok(textOf(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textOf(bar)}`);
   const edit = find(bar, (n) => n.type === "button" && textOf(n).startsWith("Edit in"));
   assert.equal(
@@ -1937,14 +1952,14 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
     }),
   );
   const card = byTestId(page(), "cal-feed-card");
-  assert.ok(
-    all(card, (n) => n.type === "button")
-      .map(textOf)
-      .includes("Paste the address"),
-    "REGRESSION: 'Connect', where Setup and Connections say paste the address",
+  assert.deepEqual(
+    all(card, (n) => n.type === "button").map(textOf),
+    ["Connect your calendar"],
+    "REGRESSION: 'Paste the address', to a business that may have no address to paste: the one answer's own press",
   );
-  // Bookings arriving by email and no calendar (00345): the card says so, and its one door says what is next in
-  // Settings › Business -- the emails held for a look, else a calendar as the quiet extra it is.
+  assert.match(textOf(card), /No calendar connected\./);
+  // Bookings arriving by email and no calendar (00345): the card says so in the one answer's words, and asks for a
+  // press only where something is the owner's to do -- the emails held for a look.
   const feedNone = {
     present: false,
     state: "none",
@@ -1964,16 +1979,21 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
     ...over,
   });
   fresh(dto({ feed: { ...feedNone, notices: byEmail() } }));
-  let door = byTestId(page(), "cal-feed-door");
-  assert.equal(textOf(door), "Add a calendar");
-  assert.equal(door.props.variant, "quiet", "the calendar is the quiet extra once emails work");
+  assert.equal(byTestId(page(), "cal-feed-door"), null, "emails that work ask nothing: the card has no press");
   assert.match(textOf(byTestId(page(), "cal-feed-notices")), /Bookings arrive by email from Booksy\./);
   assert.doesNotMatch(textOf(byTestId(page(), "cal-feed-notices")), /need a look/);
   fresh(dto({ feed: { ...feedNone, notices: byEmail({ held: 2 }) } }));
-  door = byTestId(page(), "cal-feed-door");
+  let door = byTestId(page(), "cal-feed-door");
   assert.equal(textOf(door), "Look at them");
   assert.equal(door.props.variant, "primary", "emails held for a look are the primary act");
   assert.match(textOf(byTestId(page(), "cal-feed-notices")), /2 booking emails need a look\./);
+  // A tool named and no email yet: the steps, offered quietly; a business that books by hand is told nothing.
+  fresh(dto({ feed: { ...feedNone, notices: byEmail({ last_at: null, count: 0 }) } }));
+  door = byTestId(page(), "cal-feed-door");
+  assert.equal(textOf(door), "See the steps");
+  assert.equal(door.props.variant, "quiet");
+  fresh(dto({ feed: { ...feedNone, by_hand: true } }));
+  assert.equal(byTestId(page(), "cal-feed-card"), null, "booked by hand, by the owner's own word: no card");
   fresh();
   tree = page();
   assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");

@@ -36,6 +36,7 @@ import {
   type FeedItem,
   type Opening,
   type ParsedFeed,
+  BOOKING_DEFAULTS,
   DAY_MS,
   MIN_MS,
 } from "../packages/contracts.js";
@@ -154,7 +155,8 @@ async function parsedFeedOf(
 }
 
 async function parsedFeed(rt: TenantRuntime, url: string, now: Date): Promise<ParsedFeed | null> {
-  return parsedFeedOf(rt.tenantId, url, rt.timezone ?? "", rt.brain?.profile?.booking_rules?.max_days_ahead ?? 14, now);
+  const daysAhead = rt.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
+  return parsedFeedOf(rt.tenantId, url, rt.timezone ?? "", daysAhead, now);
 }
 
 /** The feed's appointments for one workspace, for the sweep that puts the people they name in People. Null when the feed cannot be read. */
@@ -189,7 +191,7 @@ export async function openingsData(rt: TenantRuntime, now = new Date()): Promise
     const feed = await parsedFeed(rt, url, now);
     if (!feed) return null;
     const rules = profile.booking_rules ?? null;
-    const daysAhead = rules?.max_days_ahead ?? 14;
+    const daysAhead = rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
     const openings = freeWindows({
       hours: profile.hours,
       closures: profile.closures,
