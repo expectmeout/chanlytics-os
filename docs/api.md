@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-221 handlers in 46 domains.
+224 handlers in 47 domains.
 
 ## activity
 
@@ -1191,6 +1191,41 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `email` | string | yes | at most 254 characters; matches `^[^@\s]+@[^@\s]+\.[^@\s]+$` |
+
+## people
+
+### `POST /api/v1/people/[id]/draft`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_draft` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `how` | one of `"message"`, `"call"` | yes |  |
+| `wire` | one of `"whatsapp"`, `"sms"`, `"email"` | no |  |
+| `about` | string | yes | at least 1 characters; at most 500 characters |
+| `answers` | array of object | no | at most 2 |
+| `previous` | object | no |  |
+| `tone` | one of `"shorter"`, `"warmer"` | no |  |
+
+### `POST /api/v1/people/[id]/message`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `reply` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `wire` | one of `"whatsapp"`, `"sms"`, `"email"` | yes |  |
+| `text` | string | no | at most 20000 characters |
+| `subject` | string | no | at least 1 characters; at most 200 characters |
+| `template` | object | no |  |
+| `email_to` | string | no | at most 320 characters |
+| `then` | one of `"receptionist"`, `"me"` | yes |  |
+| `note` | string | no | at least 1 characters; at most 280 characters |
+
+### `GET /api/v1/people/[id]/reach`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/people/[id]/reach/route.ts`).
 
 ## platform
 

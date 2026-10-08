@@ -56,6 +56,11 @@ export interface ReplyBody {
    * value, so an address that changed again in between is asked about again.
    */
   email_to?: string;
+  /**
+   * Email only: the subject of an email that answers none of theirs (the thread holds no email from them). An email
+   * that answers one carries that email's subject, and this is not read.
+   */
+  subject?: string;
 }
 /** `decision_id` is the ledger row, for an undo to name; absent on a receipt stored before it was kept. */
 export interface ReplyReceipt {
@@ -98,7 +103,13 @@ export interface QueuedReply {
 export type SendPayload = { message_id: string; conversation_id: string } & (
   { to_phone: string } | { to_email: string }
 ) &
-  ({ body: string } | { template: { name: string; language: string; params: string[] } });
+  ({ body: string } | { template: { name: string; language: string; params: string[] } }) & {
+    /**
+     * The first thing the person hears from the business on this wire (conversations/begin.ts): the job judges it as a
+     * start and holds it as a person's own words (messages/send.ts).
+     */
+    starts?: true;
+  };
 
 /** The email a reply answers, as the thread stores it. */
 export interface EmailParentFacts {
@@ -134,6 +145,22 @@ export interface EmailReplyPorts {
     parent: EmailParentFacts;
     body: string;
   }): Promise<{ request: Json; subject: string; own?: Json | null } | null>;
+  /**
+   * The request a first email leaves as, frozen, and the subject it carries: an email that answers none of theirs, so
+   * it names its own subject and threads under nothing. Null when the workspace has no mailbox to send from.
+   */
+  first(input: {
+    tenantId: TenantId;
+    messageId: string;
+    to: string;
+    subject: string;
+    body: string;
+  }): Promise<{ request: Json; subject: string } | null>;
+  /**
+   * The subject of the newest email the business sent on this thread, or null when it has sent none: what a second
+   * email is filed under when they have not answered the first.
+   */
+  lastSubject(conv: { id: string; tenant_id: TenantId }): Promise<string | null>;
   /** The row's id before the row exists. */
   newId(): string;
 }
@@ -220,6 +247,32 @@ export interface ReplyCommand {
   userId: string;
   body: ReplyBody;
   idempotencyKey: string | null;
+  /**
+   * The first thing the person hears from the business on this wire, as the caller judged it (conversations/begin.ts,
+   * by contracts writeWaysOf). A reply from the thread's own box never says it: it answers a thread that exists.
+   */
+  starts?: boolean;
+  /**
+   * The words as they leave, where they are not the words written: a first text carries the line that says how to
+   * stop (conversations/begin.ts). The key's intent stays the words written (`body`), so a retry is the same intent
+   * whichever way that line fell.
+   */
+  leavesAs?: string;
+  /**
+   * How long a receipt kept under the key answers the same intent, where the caller's key names one press and not the
+   * words (begin.ts: the client's own key, kept a day). Absent, a reply's own thirty seconds (IDEMPOTENCY_WINDOW_MS).
+   */
+  replayMs?: number;
+}
+
+/**
+ * What was written of an email: its words, the address the operator agreed it goes to where the server asked
+ * (ReplyBody.email_to), and the subject of one that answers none of theirs (ReplyBody.subject).
+ */
+interface EmailWritten {
+  text: string;
+  agreedTo: string | undefined;
+  subject: string | undefined;
 }
 
 /**
@@ -236,13 +289,12 @@ async function shapeEmailReply(
   ports: ReplyPorts,
   conv: ReplyThread,
   to: string,
-  text: string,
-  agreedTo: string | undefined,
+  { text, agreedTo, subject }: EmailWritten,
 ): Promise<{ id: string; meta: Json }> {
   // The send door's own words for it (deliver.ts refuses the same address at the wire), said before anything is queued.
   if (isEmailStopped(conv)) throw new AppError("conflict", PURPOSE_REFUSALS.email_suppressed);
   const parent = await ports.email.parent(conv);
-  if (!parent) throw new AppError("conflict", "There is no email from this person on this thread to reply to.");
+  if (!parent) return shapeFirstEmail(ports, conv, to, { text, subject });
   if (normalizeEmail(parent.from ?? "") !== to && agreedTo !== to) {
     throw new AppError(
       "conflict",
@@ -260,11 +312,7 @@ async function shapeEmailReply(
     parent,
     body: text,
   });
-  if (!frozen)
-    throw new AppError(
-      "conflict",
-      "This workspace has no email address to send from yet. Set one up in Settings › Channels first.",
-    );
+  if (!frozen) throw new AppError("conflict", NO_MAILBOX_REFUSAL);
   return {
     id,
     meta: {
@@ -278,6 +326,35 @@ async function shapeEmailReply(
       },
     } as Json,
   };
+}
+
+/** What a workspace with no mailbox is told, by a reply and by a first email alike. */
+const NO_MAILBOX_REFUSAL =
+  "This workspace has no email address to send from yet. Set one up in Settings › Channels first.";
+/**
+ * An email with no subject to go under: said here, and by a conversation's beginning before it opens a thread
+ * (begin.ts), so the same sentence is heard either way.
+ */
+export const EMAIL_NEEDS_SUBJECT_REFUSAL = "An email needs a subject.";
+
+/**
+ * An email that answers none of theirs: the thread holds no email from the person, so it names its own subject and
+ * threads under nothing. The subject is the one the member wrote, else the one the business's last email on this
+ * thread carried, so a second email before they answer is filed with the first; with neither it is refused in words,
+ * before anything is claimed or written.
+ */
+async function shapeFirstEmail(
+  ports: ReplyPorts,
+  conv: ReplyThread,
+  to: string,
+  { text, subject }: Pick<EmailWritten, "text" | "subject">,
+): Promise<{ id: string; meta: Json }> {
+  const named = subject?.trim() || (await ports.email.lastSubject(conv));
+  if (!named) throw new AppError("validation", EMAIL_NEEDS_SUBJECT_REFUSAL);
+  const id = ports.email.newId();
+  const frozen = await ports.email.first({ tenantId: conv.tenant_id, messageId: id, to, subject: named, body: text });
+  if (!frozen) throw new AppError("conflict", NO_MAILBOX_REFUSAL);
+  return { id, meta: { email: { subject: frozen.subject, to: [to], request: frozen.request } } as Json };
 }
 
 /**
@@ -339,7 +416,7 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
       // of the key alone.
       const sameIntent = prior?.request_hash === intentHash;
       const age = prior ? now - Date.parse(prior.created_at) : 0;
-      if (prior?.response && sameIntent && age < IDEMPOTENCY_WINDOW_MS) return prior.response;
+      if (prior?.response && sameIntent && age < (cmd.replayMs ?? IDEMPOTENCY_WINDOW_MS)) return prior.response;
       // No hold to read (let go between the claim and the read) is refused the
       // same way: a retry a moment later claims it.
       if (!prior || (!prior.response && age < HOLD_EXPIRY_MS))
@@ -362,6 +439,7 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     message_id: queued.message_id,
     window_open: window.open,
     template: sent.templateName,
+    ...(cmd.starts ? { starts: true } : {}),
   });
   await ports.resolveEscalation(conv.id, decision_id);
 
@@ -372,6 +450,86 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   const receipt: ReplyReceipt = { ...queued, decision_id };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso).catch(() => false);
   return receipt;
+}
+
+/** A template's send, shaped: its words for the row, its name and values, and what the job hands the wire. */
+interface ShapedTemplate {
+  body: string;
+  name: string;
+  vars: Json;
+  job: { name: string; language: string; params: string[] };
+}
+
+/**
+ * Outside the window only an approved template goes: found, judged and filled before anything is claimed or written,
+ * so a refusal means nothing happened. Moved whole out of queueReply, which had outgrown one function. A conversation's
+ * beginning asks it too, before the person's thread is opened (begin.ts): it reads the workspace, their answer about
+ * offers and their names, and nothing of a thread.
+ */
+export async function shapeTemplate(
+  ports: ReplyPorts,
+  conv: Pick<ReplyThread, "tenant_id" | "marketing_consent" | "display_name" | "wa_profile_name">,
+  body: ReplyBody,
+): Promise<ShapedTemplate> {
+  if (!body.template?.name)
+    throw new AppError(
+      "window_closed",
+      "The 24-hour WhatsApp window is closed — replies must use an approved template.",
+    );
+  const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
+  if (!tpl || tpl.meta_status !== "approved") throw new AppError("validation", "Template not found or not approved.");
+  // Which yes this template needs is Meta's category, and the door asks
+  // again at the wire. Asked here too, so the operator hears a sentence now
+  // instead of finding a canceled row later.
+  if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
+    throw new AppError(
+      "forbidden",
+      "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.",
+    );
+  }
+  // The template's own slots, filled as broadcasts and the assistant fill them (inboxSlots, resolveParams): the
+  // customer's first name, the business name, the booking link. The Inbox filled exactly two -- the business name
+  // and the link -- and turned away the workspace's own starters, which open with the first name (I6). A slot with
+  // words to write is one the Inbox does not ask for: refused here, in its own label, where the operator hears a
+  // sentence, not by Meta fifteen seconds after "queued".
+  const toWrite = slotToWrite(tpl);
+  if (toWrite) {
+    throw new AppError(
+      "validation",
+      `This template needs words for “${toWrite}”, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`,
+    );
+  }
+  // Params are TENANT FACTS (E4): the workspace's own words for the slots
+  // that name it, never the browser's, so the browser never chooses the
+  // link that lands on a phone. A workspace with no facts on file cannot
+  // send a template from here, and is told so before anything is queued.
+  const facts = await ports.templateFacts(conv.tenant_id);
+  if (!facts)
+    throw new AppError(
+      "validation",
+      "This workspace has no template facts configured yet. Add the business name in Settings › Business first.",
+    );
+  const slots = inboxSlots(tpl);
+  // A business that quotes each job has no link (the first run's decision 2). Its templates that name none still
+  // go; one that sends the link is refused here, in words, rather than sent with the slot empty. Asked of the slots
+  // the Inbox fills, not bookingTemplate's default kinds: a template whose slots were never recorded is sent with
+  // the Inbox's two, the business name and the link (I6), so here it takes the link.
+  if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+    throw new AppError(
+      "validation",
+      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings › Business first.",
+    );
+  const params: string[] = resolveParams(slots, {
+    firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
+    businessName: facts.business_name,
+    bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
+  });
+  return {
+    body: renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`,
+    name: tpl.name,
+    vars: { language: tpl.language, params },
+    job: { name: tpl.name, language: tpl.language, params },
+  };
 }
 
 /**
@@ -395,73 +553,19 @@ async function queueReply(
   const { conv, body } = cmd;
   const { now, channel, to, window, key } = facts;
   let messageBody: string;
-  let templateVars: Json | null = null;
-  let templateName: string | null = null;
-  let jobTemplate: { name: string; language: string; params: string[] } | undefined;
+  let template: ShapedTemplate | null = null;
   let email: { id: string; meta: Json } | null = null;
   if (window.open) {
     if (!body.text?.trim()) throw new AppError("validation", "Reply text is required.");
-    messageBody = body.text.trim();
+    messageBody = (cmd.leavesAs ?? body.text).trim();
     if (messageBody.length > REPLY_LIMITS[channel].max) throw new AppError("validation", REPLY_LIMITS[channel].refusal);
-    if (channel === "email") email = await shapeEmailReply(ports, conv, to, messageBody, body.email_to);
+    if (channel === "email") {
+      const written = { text: messageBody, agreedTo: body.email_to, subject: body.subject };
+      email = await shapeEmailReply(ports, conv, to, written);
+    }
   } else {
-    if (!body.template?.name)
-      throw new AppError(
-        "window_closed",
-        "The 24-hour WhatsApp window is closed — replies must use an approved template.",
-      );
-    const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
-    if (!tpl || tpl.meta_status !== "approved") throw new AppError("validation", "Template not found or not approved.");
-    // Which yes this template needs is Meta's category, and the door asks
-    // again at the wire. Asked here too, so the operator hears a sentence now
-    // instead of finding a canceled row later.
-    if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
-      throw new AppError(
-        "forbidden",
-        "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.",
-      );
-    }
-    // The template's own slots, filled as broadcasts and the assistant fill them (inboxSlots, resolveParams): the
-    // customer's first name, the business name, the booking link. The Inbox filled exactly two -- the business name
-    // and the link -- and turned away the workspace's own starters, which open with the first name (I6). A slot with
-    // words to write is one the Inbox does not ask for: refused here, in its own label, where the operator hears a
-    // sentence, not by Meta fifteen seconds after "queued".
-    const toWrite = slotToWrite(tpl);
-    if (toWrite) {
-      throw new AppError(
-        "validation",
-        `This template needs words for “${toWrite}”, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`,
-      );
-    }
-    // Params are TENANT FACTS (E4): the workspace's own words for the slots
-    // that name it, never the browser's, so the browser never chooses the
-    // link that lands on a phone. A workspace with no facts on file cannot
-    // send a template from here, and is told so before anything is queued.
-    const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts)
-      throw new AppError(
-        "validation",
-        "This workspace has no template facts configured yet. Add the business name in Settings › Business first.",
-      );
-    const slots = inboxSlots(tpl);
-    // A business that quotes each job has no link (the first run's decision 2). Its templates that name none still
-    // go; one that sends the link is refused here, in words, rather than sent with the slot empty. Asked of the slots
-    // the Inbox fills, not bookingTemplate's default kinds: a template whose slots were never recorded is sent with
-    // the Inbox's two, the business name and the link (I6), so here it takes the link.
-    if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
-      throw new AppError(
-        "validation",
-        "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings › Business first.",
-      );
-    const params: string[] = resolveParams(slots, {
-      firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
-      businessName: facts.business_name,
-      bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
-    });
-    templateName = tpl.name;
-    templateVars = { language: tpl.language, params };
-    messageBody = renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`;
-    jobTemplate = { name: tpl.name, language: tpl.language, params };
+    template = await shapeTemplate(ports, conv, body);
+    messageBody = template.body;
   }
 
   // ORDER MATTERS: pause the receptionist and claim the thread BEFORE any row
@@ -495,10 +599,10 @@ async function queueReply(
     contact_id: conv.contact_id,
     channel,
     sent_by: cmd.userId,
-    type: jobTemplate ? "template" : "text",
+    type: template ? "template" : "text",
     body: messageBody,
-    template_name: templateName,
-    template_vars: templateVars,
+    template_name: template?.name ?? null,
+    template_vars: template?.vars ?? null,
     content_hash: ports.hash(messageBody),
     ...(email ?? {}),
   });
@@ -522,7 +626,8 @@ async function queueReply(
       message_id,
       conversation_id: conv.id,
       ...(channel === "email" ? { to_email: to } : { to_phone: to }),
-      ...(jobTemplate ? { template: jobTemplate } : { body: messageBody }),
+      ...(template ? { template: template.job } : { body: messageBody }),
+      ...(cmd.starts ? { starts: true as const } : {}),
     });
   } catch (e) {
     // Never leave an orphan queued row that silently never sends -- nor one a
@@ -530,5 +635,5 @@ async function queueReply(
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  return { receipt, templateName };
+  return { receipt, templateName: template?.name ?? null };
 }

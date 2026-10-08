@@ -47,6 +47,29 @@ export function violatesNoPrices(text: string): boolean {
   return PRICE_PATTERNS.some((p) => p.test(text));
 }
 
+/**
+ * Each price a text names, as the figure it states: "45" of "$45" and of "45 dollars", "20" of "20% off", and the
+ * words themselves where a price is written with none ("half price", "forty-five dollars"). So two texts can be asked
+ * whether one names a price the other does not (a draft and what its author gave it: the dashboard's person-draft.ts),
+ * where violatesNoPrices can only say whether a price is named at all.
+ */
+export function priceFigures(text: string): string[] {
+  const found: string[] = [];
+  for (const p of PRICE_PATTERNS) {
+    for (const m of text.matchAll(new RegExp(p.source, p.flags.includes("g") ? p.flags : `${p.flags}g`))) {
+      // A pattern may stop at the figure's first digit ("$4" of "$45"): the figure is the whole run it touches.
+      let from = m.index;
+      let to = m.index + m[0].length;
+      while (from > 0 && /[\d.,]/.test(text.charAt(from - 1))) from -= 1;
+      while (to < text.length && /[\d.,]/.test(text.charAt(to))) to += 1;
+      const whole = text.slice(from, to);
+      const figure = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
+      found.push(figure ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
+    }
+  }
+  return found;
+}
+
 // Money the receptionist never decides, in English and Spanish: a refund, a
 // discount or coupon, a deposit, a payment plan, financing, a waived fee, a
 // thing given free of charge. Payment methods ("we take cards") are not here:

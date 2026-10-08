@@ -101,11 +101,24 @@ export function threadChannelOf(messages: ReadonlyArray<ChannelRow>): "whatsapp"
  * still their address); null when nothing has come from their side. The Inbox's reply box reads it, so the box names
  * the wire the route sends on, and threadChannelOf begins with it.
  */
-export function replyWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | null {
+function replyWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | null {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
   const theirs = [...messages].reverse().find(isFromTheirSide);
   return theirs ? writtenChannelOf(theirs.channel) : null;
+}
+
+/**
+ * The wire the thread's own reply box writes on: where a reply goes (replyWireOf), and on a thread nothing has come to
+ * from their side, the wire our own written words last went by, so a conversation the business began is carried on
+ * where it began; WhatsApp with neither, as every thread read before a wire was said. The Inbox's box asks this, and
+ * the reply route asks the same of the database (the dashboard's replyChannelOf).
+ */
+export function answerWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" {
+  const theirs = replyWireOf(messages);
+  if (theirs) return theirs;
+  const ours = [...messages].reverse().find((m) => isChatMessage(m) && m.direction === "outbound");
+  return writtenChannelOf(ours?.channel);
 }
 
 /** The same question, in the words a row shows. */

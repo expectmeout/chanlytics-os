@@ -7,6 +7,7 @@
  * The sentence is counted from the threads the page holds, by the rules the sidebar's badge and the tabs read
  * (rules.ts), so no two of them say different numbers.
  */
+import type { ReactNode } from "react";
 import { MIN_MS, tzSince } from "@chanlytics/contracts";
 import { useMinute } from "../../kit/head/dateline";
 import { useStanding } from "../../kit/head/standing";
@@ -43,10 +44,13 @@ export function inboxStanding(threads: Thread[], nowMs: number, zone: string): s
   return first;
 }
 
-/** The Inbox's standing, said to the frame's head as the page draws (in Glass the frame draws it; Classic has no head). */
-export function useInboxStanding(): void {
+/**
+ * The Inbox's standing, said to the frame's head as the page draws (in Glass the frame draws it; Classic has no head),
+ * with the page's one act at the right of the row of views (New conversation, new-conversation/act.tsx).
+ */
+export function useInboxStanding(act?: ReactNode): void {
   useSurface("inbox");
   const now = useMinute();
   // A thread opens beside the list, never over it, so the head has no way back above the name (canvas I1).
-  useStanding({ title: "Inbox", sentence: inboxStanding(inboxData().THREADS, now, clockZone()), back: null });
+  useStanding({ title: "Inbox", sentence: inboxStanding(inboxData().THREADS, now, clockZone()), back: null, act });
 }

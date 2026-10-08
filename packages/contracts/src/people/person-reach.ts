@@ -175,9 +175,10 @@ const WRITTEN_WIRES = ["whatsapp", "sms", "email"] as const;
  *
  * What a reply may be is the row's own answer, `replyVia` with its window: the sentence the booking-link button on the
  * same row and the Replies row on their page are written from, so the three cannot disagree. For someone who has
- * written nothing themselves that is WhatsApp's rule, whatever wire our words went by, because that is where the reply
- * route sends and what their thread's reply box says (the dashboard's replyChannelOf, inbox-thread.ts); the tip said
- * "Any time, by text" of them while the button beside it said only an approved message could go.
+ * written nothing themselves that is WhatsApp's rule, whatever wire our words went by: a row does not hold which wire
+ * our own words last went by, which is where the reply route answers such a thread (the dashboard's replyChannelOf),
+ * so it says the strictest, as replyChannelOfRow does, and their page says it exactly; the tip said "Any time, by
+ * text" of them while the button beside it said only an approved message could go.
  */
 export interface RowReachWords {
   /** "WhatsApp", "Text" or "Email" (REPLY_VIA); "Phone" for someone who only ever called; null with no wire at all. */

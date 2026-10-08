@@ -3,6 +3,7 @@ export { messageAt, isOptedOut, memberMetaOf } from "./thread-dto";
 export type { MessageDto, ConversationDto } from "./thread-dto";
 export {
   agentFor,
+  answerWireOf,
   isChatMessage,
   isFromTheirSide,
   isTheirOwnWords,

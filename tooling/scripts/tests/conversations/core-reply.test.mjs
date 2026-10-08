@@ -716,12 +716,17 @@ const FROZEN = {
   request: { to: [ADDRESS], subject: "Re: Quote for Saturday", idempotency_key: "id-1" },
   subject: "Re: Quote for Saturday",
 };
+/** A first email, frozen: no parent to thread under, the subject its own. */
+const FIRST = {
+  request: { to: [ADDRESS], subject: "Your quote", idempotency_key: "id-1" },
+  subject: "Your quote",
+};
 const byEmail = (over = {}) =>
   conv({ phone_e164: null, last_wa_inbound_at: null, email: ADDRESS, email_suppressed_at: null, ...over });
 /** The flat fakes, plus email's port group logged the same way. */
 function emailFakes(over = {}, email = {}) {
   const f = fakes({ replyChannel: "email", ...over });
-  const answers = { parent: PARENT, freeze: FROZEN, ...email };
+  const answers = { parent: PARENT, freeze: FROZEN, first: FIRST, lastSubject: null, ...email };
   f.ports.email = { newId: () => "id-1" };
   for (const [name, answer] of Object.entries(answers)) {
     f.ports.email[name] = async (...args) => {
@@ -813,8 +818,9 @@ test("an email reply that cannot go is refused in words before anything is touch
     "conflict",
     /has stopped/,
   );
+  // No email of theirs to answer, no subject written, and none the business sent before: it is not an email yet.
   const orphan = emailFakes({}, { parent: null });
-  await refused(replyToConversation(orphan.ports, cmd({ conv: byEmail() })), "conflict", /no email from this person/);
+  await refused(replyToConversation(orphan.ports, cmd({ conv: byEmail() })), "validation", /needs a subject/);
   const unset = emailFakes({}, { freeze: null });
   await refused(
     replyToConversation(unset.ports, cmd({ conv: byEmail() })),
@@ -982,4 +988,59 @@ test("the key ports over the fake table: a claim wins once and the next is shown
   assert.equal(await ports.storeReceipt("t1", "u1:k1", "h5", receipt, T), true);
   await ports.releaseKey("t1", "u1:k1", T);
   assert.equal(tables.idempotency_keys.length, 0, "a receipt kept before a job that then failed goes with its stamp");
+});
+
+test("an email that answers none of theirs names its own subject and threads under nothing", async () => {
+  const { ports, call, ops } = emailFakes({ queue: (row) => row.id }, { parent: null });
+  const out = await replyToConversation(
+    ports,
+    cmd({ conv: byEmail(), body: { text: "Following up on your quote.", subject: "  Your quote  " } }),
+  );
+  assert.equal(out.message_id, "id-1");
+  assert.deepEqual(call("email.first")[1], {
+    tenantId: "t1",
+    messageId: "id-1",
+    to: ADDRESS,
+    subject: "Your quote",
+    body: "Following up on your quote.",
+  });
+  assert.equal(call("email.freeze"), undefined, "nothing is frozen as a reply");
+  assert.deepEqual(call("queue")[1].meta, {
+    email: { subject: "Your quote", to: [ADDRESS], request: FIRST.request },
+  });
+  assert.deepEqual(call("schedule")[3], {
+    message_id: "id-1",
+    conversation_id: "c1",
+    to_email: ADDRESS,
+    body: "Following up on your quote.",
+  });
+  assert.ok(ops().indexOf("email.first") < ops().indexOf("claimForReply"), "frozen before the thread is claimed");
+});
+
+test("a second email before they answer is filed under the subject of the first; a workspace with no mailbox is told", async () => {
+  const again = emailFakes({ queue: (row) => row.id }, { parent: null, lastSubject: "Your quote" });
+  await replyToConversation(again.ports, cmd({ conv: byEmail(), body: { text: "One more thing." } }));
+  assert.equal(again.call("email.first")[1].subject, "Your quote");
+  const unset = emailFakes({}, { parent: null, first: null });
+  await refused(
+    replyToConversation(unset.ports, cmd({ conv: byEmail(), body: { text: "Hello", subject: "Hello" } })),
+    "conflict",
+    /no email address to send from/,
+  );
+  assert.deepEqual(
+    unset.ops().filter((o) => !o.startsWith("email.")),
+    [],
+    "nothing claimed, queued or scheduled",
+  );
+});
+
+test("a start says so to the job and to the ledger; a reply says nothing of it", async () => {
+  const start = fakes();
+  await replyToConversation(start.ports, cmd({ starts: true }));
+  assert.equal(start.call("schedule")[3].starts, true);
+  assert.deepEqual(start.call("record")[5], { message_id: "m1", window_open: true, template: null, starts: true });
+  const reply = fakes();
+  await replyToConversation(reply.ports, cmd());
+  assert.equal("starts" in reply.call("schedule")[3], false);
+  assert.equal("starts" in reply.call("record")[5], false);
 });

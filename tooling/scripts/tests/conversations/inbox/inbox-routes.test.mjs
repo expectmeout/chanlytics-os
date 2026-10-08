@@ -113,6 +113,8 @@ const conversation = (id, tenant_id, over = {}) => ({
   assignee_user_id: null,
   last_wa_inbound_at: ago(HOUR),
   last_message_at: ago(HOUR),
+  // They wrote: the door their message came through stamps it (ingest_inbound), as it stamps the WhatsApp one.
+  last_inbound_at: ago(HOUR),
   contact_id: K1,
   contacts: contact(),
   ...over,
@@ -601,4 +603,33 @@ test("ending a call and passing it to the business: the call is the row, only a 
     "this machine is not the production dashboard",
   );
   assert.equal(writes(handPreview), 0, "no decision for a hand-over that did not happen");
+});
+
+test("a reply on a thread nothing has come to is a start, and is judged as one before anything is written", async () => {
+  // A campaign's recipient, a business a reach-out wrote to, a person a member wrote to first: nobody to answer.
+  const unheard = conversation(C2, B, { last_inbound_at: null, last_wa_inbound_at: null });
+  const tables = { memberships: both("viewer", "operator"), conversations: [unheard], messages: [] };
+  const asked = [];
+  const ctx = ctxFor(
+    tables,
+    { id: C2 },
+    {
+      // People's own row is what a start is judged from; here they are no longer this workspace's.
+      people_list: (args) => {
+        asked.push(args);
+        return { data: [], error: null };
+      },
+    },
+  );
+  await refused(reply.POST.run(post({ text: "hi" }), ctx), "not_found", 404);
+  assert.deepEqual(asked, [{ p_tenant_id: B, p_contact_id: K1 }], "judged from People's row for that person");
+  assert.equal(writes(ctx), 0, "refused before a row is written");
+  // The same words on a thread they wrote on answer them, by the reply verb, and People is never asked.
+  const heard = ctxFor(
+    { ...tables, conversations: [conversation(C2, B, { last_wa_inbound_at: ago(48 * HOUR) })] },
+    {
+      id: C2,
+    },
+  );
+  await refused(reply.POST.run(post({ text: "hi" }), heard), "window_closed");
 });

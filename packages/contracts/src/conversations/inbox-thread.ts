@@ -9,7 +9,7 @@ import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
 import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
-import { agentFor, isChatMessage, replyWireOf, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
+import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
 import { mediaVM } from "./message-media";
@@ -204,7 +204,7 @@ export function toInboxThreadVM(
   // The wire a reply goes out on, as the reply route picks it (replyWireOf): where they last wrote. A text thread said
   // WhatsApp, its window read closed, and its composer offered only templates, which the route refuses on a text; an
   // out-of-office from their address made a WhatsApp thread read as email.
-  const chatChannel = writtenChannelOf(replyWireOf(dto.messages));
+  const chatChannel = answerWireOf(dto.messages);
   // replyWindow(), the rule the reply route enforces, on the wire it sends on. This decides whether the composer tells
   // the operator they can write freely; with two expressions those answers drift the moment either moves, and the
   // operator is told they can send something the server refuses. A text has no window, so the composer is open.

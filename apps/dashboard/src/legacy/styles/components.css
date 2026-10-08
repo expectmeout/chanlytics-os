@@ -2120,6 +2120,16 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     top: 118px;
   }
 }
+/* The Inbox's head holds an act now (New conversation, the kit's large button, at the right end of that row), so the
+   strip stands at its left, the act's width and a gap away, and covers neither. The width is the act's own (its mark,
+   its two words and its padding: 173px in the running app, 7 Oct 2026), and changes with its words. With the sidebar
+   open under 1010px the row has no room for the views, the strip and the act, and the strip stands over the views' last
+   tab for the seconds it is drawn, as it did from 901 to 1280px when it was centred. */
+@media (min-width: 901px) {
+  :root .main:has(> .pg-slot > .pg-act-slot > #pg-act:not(:empty)) .ix-sending-strip {
+    right: calc(var(--gutter-page) + 173px + var(--space-2));
+  }
+}
 
 /* The head's places (the interface kit's step 5.4; kit/head/frame-head.tsx draws into them): the date and time in the
    top bar's row where Classic's crumbs stand, the page's name with its sentence under the bar, and the row of views with

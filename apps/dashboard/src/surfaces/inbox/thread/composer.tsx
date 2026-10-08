@@ -11,6 +11,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup } from "../../kit/menu/menu";
 import { FOCUS_COMPOSER_MS, SAVED_NOTICE_MS } from "../constants";
+import { ixInDialog } from "../keys";
 import { canDo, gate, tabMemory } from "../shell";
 import { inboxData } from "../store";
 import type { ApprovedTemplate, Thread } from "../types";
@@ -282,12 +283,6 @@ const TemplateComposer = ({
 type SetText = Dispatch<SetStateAction<string>>;
 type BoxRef = RefObject<HTMLTextAreaElement | null>;
 
-/** Whether a key was pressed inside a dialog over the page (the deal sheet, any aria-modal). */
-function insideDialog(target: EventTarget | null | undefined): boolean {
-  const closest: unknown = target ? Reflect.get(target, "closest") : undefined;
-  return typeof closest === "function" ? !!closest.call(target, '[aria-modal="true"]') : false;
-}
-
 /** A reply carried in from a profile ("Text the booking link"): only into an empty composer, only for this thread, and only once. */
 function takeCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
   try {
@@ -323,8 +318,9 @@ function listenToComposer(k: ComposerKeys) {
   const { text, threadId, doSend, write, setText, taRef } = k;
   const onKey = (e: KeyboardEvent) => {
     // Not a key something else took (a sheet's own ⌘↵ records it), and not one pressed inside a dialog over the page
-    // (the deal sheet, any aria-modal): a ⌘↵ there sent whatever was in this box, even while the sheet saved.
-    if (e.defaultPrevented || insideDialog(e.target)) return;
+    // (the deal sheet, the New conversation sheet: keys.ts says which): a ⌘↵ there sent whatever was in this box, even
+    // while the sheet saved.
+    if (e.defaultPrevented || ixInDialog(e.target)) return;
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
       doSend();

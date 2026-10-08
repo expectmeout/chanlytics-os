@@ -1,15 +1,20 @@
 import "server-only";
 import {
   AppError,
+  NEW_CONVERSATION_WORDS,
   callerName,
   consentChangeOf,
   dealsAreOn,
   personName,
+  readyOrWhatsApp,
+  writeReachOf,
   type MessageDto,
   type PersonDetailDto,
   type PersonEscalationDto,
+  type PersonReachDto,
 } from "@chanlytics/contracts";
-import { openDoubtsOf, personDecisions, personRow, readAllRows } from "@chanlytics/db";
+import { SMS_FOOTER } from "@chanlytics/channels";
+import { openDoubtsOf, personDecisions, personReplyMode, personRow, readAllRows, textReached } from "@chanlytics/db";
 import {
   CALL_COLUMNS,
   CONVERSATION_COLUMNS,
@@ -302,5 +307,48 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       })),
     ];
     return { data: { person }, rows, stamp: stamp() };
+  },
+};
+
+/**
+ * How one person can be written to and called now (GET people/[id]/reach; a conversation begins from the Inbox): People's
+ * own row for them, asked the one rule (contracts writeReachOf) against what the workspace can send on, with the
+ * receptionist's mode in force for them, and the workspace's own words for an approved message's slots, read as the
+ * send reads them (ports/core-ports.ts templateFacts), and whether a text of ours has reached them, which decides the
+ * line a first text carries (the sheet shows it before the send). Small reads, and none of their messages: the sheet
+ * asks this as a person is picked. Channels that could not be read are WhatsApp alone, the others "could not be checked", as
+ * People counts.
+ */
+export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
+  name: "personReach",
+  async read(rc, { id }) {
+    const sb = rc.ctx.supabase;
+    const [row, ready, own, workspace, settings] = await Promise.all([
+      personRow(sb, rc.tenantId, id),
+      load(rc, facts.channelsReady, undefined).then((r) => r.data),
+      personReplyMode(sb, rc.tenantId, id),
+      load(rc, facts.policies, undefined).then((r) => r.data),
+      load(rc, facts.config, undefined).then((r) => r.data),
+    ]);
+    if (!row) throw new AppError("not_found", NEW_CONVERSATION_WORDS.refusals.notYours, 404);
+    // Asked of their one thread, as the send asks it (core begin.ts): with no thread, nothing of ours has reached them.
+    const texted = row.latest_conversation_id ? await textReached(sb, rc.tenantId, row.latest_conversation_id) : false;
+    const mode = own ?? workspace.find((p) => p.class === "reply")?.mode ?? null;
+    const brain = (settings?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
+    const reach = writeReachOf(row, {
+      ready: readyOrWhatsApp(ready),
+      mode,
+      // The name is enough: a message that sends no link needs none (the send refuses one that does, reply.ts).
+      facts: brain?.business_name
+        ? { business_name: brain.business_name, booking_link: brain.booking_link || null }
+        : null,
+      firstTextLine: texted ? null : SMS_FOOTER,
+      now: rc.now,
+    });
+    return {
+      data: { reach },
+      rows: [{ kind: "person", id: row.id, route: `clients/${row.id}`, label: reach.person.name }],
+      stamp: stamp(),
+    };
   },
 };

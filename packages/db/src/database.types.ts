@@ -6246,6 +6246,10 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
+      conversation_open: {
+        Args: { p_contact_id: string; p_tenant_id: string }
+        Returns: string
+      }
       create_mailbox: {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
         Returns: Json

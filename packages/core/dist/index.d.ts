@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, AppointmentState, EmailHold, JobNews, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, ChannelsReady, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, ConsentChannel, CampaignMessage, CampaignHow, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, AppointmentState, EmailHold, JobNews, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -508,6 +508,11 @@ interface ReplyBody {
      * value, so an address that changed again in between is asked about again.
      */
     email_to?: string;
+    /**
+     * Email only: the subject of an email that answers none of theirs (the thread holds no email from them). An email
+     * that answers one carries that email's subject, and this is not read.
+     */
+    subject?: string;
 }
 /** `decision_id` is the ledger row, for an undo to name; absent on a receipt stored before it was kept. */
 interface ReplyReceipt {
@@ -562,7 +567,13 @@ type SendPayload = {
         language: string;
         params: string[];
     };
-});
+}) & {
+    /**
+     * The first thing the person hears from the business on this wire (conversations/begin.ts): the job judges it as a
+     * start and holds it as a person's own words (messages/send.ts).
+     */
+    starts?: true;
+};
 /** The email a reply answers, as the thread stores it. */
 interface EmailParentFacts {
     /** The stored message. */
@@ -603,6 +614,28 @@ interface EmailReplyPorts {
         subject: string;
         own?: Json | null;
     } | null>;
+    /**
+     * The request a first email leaves as, frozen, and the subject it carries: an email that answers none of theirs, so
+     * it names its own subject and threads under nothing. Null when the workspace has no mailbox to send from.
+     */
+    first(input: {
+        tenantId: TenantId;
+        messageId: string;
+        to: string;
+        subject: string;
+        body: string;
+    }): Promise<{
+        request: Json;
+        subject: string;
+    } | null>;
+    /**
+     * The subject of the newest email the business sent on this thread, or null when it has sent none: what a second
+     * email is filed under when they have not answered the first.
+     */
+    lastSubject(conv: {
+        id: string;
+        tenant_id: TenantId;
+    }): Promise<string | null>;
     /** The row's id before the row exists. */
     newId(): string;
 }
@@ -685,6 +718,22 @@ interface ReplyCommand {
     userId: string;
     body: ReplyBody;
     idempotencyKey: string | null;
+    /**
+     * The first thing the person hears from the business on this wire, as the caller judged it (conversations/begin.ts,
+     * by contracts writeWaysOf). A reply from the thread's own box never says it: it answers a thread that exists.
+     */
+    starts?: boolean;
+    /**
+     * The words as they leave, where they are not the words written: a first text carries the line that says how to
+     * stop (conversations/begin.ts). The key's intent stays the words written (`body`), so a retry is the same intent
+     * whichever way that line fell.
+     */
+    leavesAs?: string;
+    /**
+     * How long a receipt kept under the key answers the same intent, where the caller's key names one press and not the
+     * words (begin.ts: the client's own key, kept a day). Absent, a reply's own thirty seconds (IDEMPOTENCY_WINDOW_MS).
+     */
+    replayMs?: number;
 }
 /**
  * Human reply (§4/§6): honest by API shape. Inside the 24h window → freeform;
@@ -694,6 +743,78 @@ interface ReplyCommand {
  * receptionist (D10).
  */
 declare function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand): Promise<ReplyReceipt>;
+
+/**
+ * A member begins a conversation with one person (a conversation begins from the Inbox): a message by the wire they
+ * chose, to someone who may never have written. The same send as a reply's, through the same verb and the same door,
+ * with four things a reply never needs: the wire is the member's choice, judged before anything is written (contracts
+ * writeWaysOf, the one rule the sheet drew its choices from); what the reply verb would refuse is asked before the
+ * person's thread is opened, so a refusal leaves no empty thread; the thread is opened when they have none; and the
+ * member says who answers what comes back, with the plan kept as a note the receptionist reads before it is asked to.
+ *
+ * It is also how a thread's own reply box writes on a thread nothing has come to (the dashboard's reply route): what
+ * is written there answers nobody, so it is judged as the start it is.
+ */
+interface BeginPorts {
+    /** The reply verb's world: the message is queued, claimed and scheduled exactly as a reply is. */
+    reply: ReplyPorts;
+    /** The hand-back verb's world, for a message the receptionist answers. */
+    handBack: HandBackPorts;
+    /** People's own row for this person, or null when they are not this workspace's (gone, erased, merged away). */
+    person(tenantId: TenantId, personId: string): Promise<WriteRow | null>;
+    /** What the workspace can send on now, asked fresh: a send is about to be committed on it. */
+    ready(tenantId: TenantId): Promise<ChannelsReady>;
+    /** Their one thread, opened when they have none, as the reply verb reads a thread. */
+    open(tenantId: TenantId, personId: string): Promise<ReplyThread>;
+    /** Whether a text of ours has ever reached them on this thread: what decides the line a first text carries. */
+    textedBefore(tenantId: TenantId, conversationId: string): Promise<boolean>;
+    /**
+     * A first text as it leaves: with the line that says how to stop, which the first text to a number owes (channels
+     * smsBody). Null when the words and that line do not fit one text: a line the carrier's ceiling cut is no line.
+     */
+    firstText(text: string): string | null;
+    /**
+     * The plan, kept on the person's page through the notes door (0007), as themselves, for the receptionist to read.
+     * Answers the note's id where the door says it.
+     */
+    keepNote(personId: string, body: string): Promise<string | null>;
+}
+interface BeginCommand {
+    tenantId: TenantId;
+    personId: string;
+    userId: string;
+    /** The wire the member chose. Required: nothing here guesses where a first message goes. */
+    wire: ConsentChannel;
+    body: ReplyBody;
+    /**
+     * Who answers what they write back: the receptionist, with the thread handed back at once, or the member, who
+     * keeps the thread as a reply keeps it. Required: a first message must not decide this by default.
+     */
+    then: "receptionist" | "me";
+    /**
+     * The plan, as the note the receptionist reads: kept once the message is queued and before the thread is handed
+     * back, so the receptionist never answers this person without it. Absent where the member answers, or left it out.
+     */
+    note?: string;
+    /** Their thread, where the caller already holds it (the thread's own reply box): nothing is opened then. */
+    conv?: ReplyThread;
+    /**
+     * The key this send is known by: the client's own for one press of Send. The reply verb claims it before anything is
+     * written and keeps its receipt before the job exists, so a retry after a failure further on (the ledger's row, the
+     * note, the hand-back, a request that died) is answered with that receipt and queues nothing twice.
+     */
+    idempotencyKey?: string | null;
+}
+interface BeginReceipt extends ReplyReceipt {
+    conversation_id: string;
+    /** The thread went back to the receptionist once the message was queued. */
+    handed_back: boolean;
+    /** The note was kept; false when it could not be, with the message still on its way; null when none was asked. */
+    note_kept: boolean | null;
+    /** The note that was kept, so a send taken back inside its window takes the note that said it with it. */
+    note_id: string | null;
+}
+declare function beginConversation(ports: BeginPorts, cmd: BeginCommand): Promise<BeginReceipt>;
 
 /**
  * The send path's view of the world: what the job verbs need, named for
@@ -768,6 +889,14 @@ interface SendQueuedCommand {
          */
         purpose?: SendPurpose;
         proactive?: boolean;
+        /**
+         * A person's own message that begins a conversation (core conversations/begin.ts): the first thing they hear from
+         * the business on this wire. It is judged as a start, so the door asks the yes a start asks, and held as that
+         * person's own words, so the thread's pause, which is theirs, does not hold it. A name of its own, not
+         * `proactive`, which an edge deployed before this reads as a campaign's send and holds under that pause: an edge
+         * that does not know the name sends the message as the reply it was before, so either deploy order works.
+         */
+        starts?: boolean;
         /** How many fresh jobs this send is already the result of, after a wire that could not be bound (retry above). */
         resumes?: number;
     };
@@ -4108,4 +4237,4 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
 type Subscriber = (event: DeliveredEvent) => Promise<void>;
 declare const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>>;
 
-export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BookingNoticePorts, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };
+export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BeginCommand, type BeginPorts, type BeginReceipt, type BookingNoticePorts, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, beginConversation, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };

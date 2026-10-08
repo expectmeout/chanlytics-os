@@ -11,6 +11,7 @@ import {
   claimIdempotencyKey,
   keepIdempotencyReceipt,
   lastInboundEmail,
+  lastOutboundEmailSubject,
   releaseIdempotencyKey,
   takeIdempotencyKey,
   type Json,
@@ -21,7 +22,7 @@ import type { RouteContext } from "../with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "../verbs";
 import { cancelKindFor, schedule } from "../jobs";
 import { letThreadControlGo, takeThreadControl } from "../conversations/thread-control";
-import { freezeReply } from "../connections/email";
+import { freezeFirst, freezeReply } from "../connections/email";
 import { log } from "@/server/log";
 
 /**
@@ -124,6 +125,8 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     email: {
       parent: (conv) => lastInboundEmail(ctx.supabase, conv.tenant_id, conv.id),
       freeze: (input) => freezeReply(ctx, input),
+      first: (input) => freezeFirst(ctx, input),
+      lastSubject: (conv) => lastOutboundEmailSubject(ctx.supabase, conv.tenant_id, conv.id),
       newId: () => crypto.randomUUID(),
     },
     claimKey: async (tenantId, key, requestHash, nowIso) => {

@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { asContactId, REPLY_MAX_ANY } from "@chanlytics/contracts";
-import { replyToConversation } from "@chanlytics/core";
+import { beginConversation, replyToConversation } from "@chanlytics/core";
 import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
+import { conversationScope, replyChannelOf } from "@/server/verbs";
+import { beginPorts } from "@/server/new-conversation/ports";
 import { replyPorts } from "@/server/ports/core-ports";
 
 /**
@@ -61,6 +62,13 @@ export const maxDuration = 60;
  * replyToConversation; this route is its adapter. The person's id enters the
  * verb here, the one command that takes it, checked as a ContactId (a uuid
  * column, never null, so the check refuses no row the scope loads).
+ *
+ * A thread nothing has come to (a campaign's recipient, a business a reach-out
+ * wrote to, a person a member wrote to first) has nobody to answer: what is
+ * written on it is a start, and the verb that judges a start sends it (core
+ * beginConversation), on the wire our own words last went by, with the thread
+ * staying the member's as a reply leaves it. Before this, such a thread took
+ * an approved message as a "reply" and was asked nothing a start is asked.
  */
 export const POST = write({
   scope: conversationScope,
@@ -69,11 +77,21 @@ export const POST = write({
   // The reply keeps its key itself, per member, with its own window (core reply.ts, 0004): route() leaves it alone.
   idempotent: "own",
   input: ReplyBody,
-  handle: ({ ctx, req, row: conv, input }) =>
-    replyToConversation(replyPorts(ctx), {
-      conv: { ...conv, contact_id: asContactId(conv.contact_id) },
+  handle: async ({ ctx, req, row, input }) => {
+    const conv = { ...row, contact_id: asContactId(row.contact_id) };
+    const idempotencyKey = req.headers.get("idempotency-key");
+    if (row.last_inbound_at) {
+      return replyToConversation(replyPorts(ctx), { conv, userId: ctx.userId, body: input, idempotencyKey });
+    }
+    return beginConversation(beginPorts(ctx), {
+      tenantId: row.tenant_id,
+      personId: row.contact_id,
       userId: ctx.userId,
+      wire: await replyChannelOf(ctx, row),
       body: input,
-      idempotencyKey: req.headers.get("idempotency-key"),
-    }),
+      then: "me",
+      conv,
+      idempotencyKey,
+    });
+  },
 });
