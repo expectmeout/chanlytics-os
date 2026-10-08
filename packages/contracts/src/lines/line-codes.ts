@@ -34,9 +34,11 @@ export function codeNotes(codes: readonly LineCodeDto[], nowMs: number): Connect
   const said = codes.filter((c) => !Number.isNaN(Date.parse(c.at)));
   if (said.length === 0) return [];
   return [
+    // What the owner is waiting for: on the row, never behind a press (ConnectionNote.live).
     ...said.map((c) => ({
       text: `${c.from ? `Code from ${c.from}` : "A code"}: ${c.code} · ${agoWords(Date.parse(c.at), nowMs)}`,
+      live: true as const,
     })),
-    { text: FOOT },
+    { text: FOOT, live: true as const },
   ];
 }

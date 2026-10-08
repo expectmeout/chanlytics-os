@@ -5,6 +5,7 @@
  * (brief-pane.tsx). It said "Nothing has come in yet today" over two conversations waiting since the 18th and a day
  * of appointments (Ruben, 1 Oct 2026): the brief is everything that needs a person now, then the day, then the rest.
  */
+import { todayAlsoWaiting } from "./today-bands";
 import type { TodayDayItemVM, TodayDayVM } from "./today-day";
 import { isPersonRow } from "./today-queue";
 import type { TodayVM } from "./today-vm";
@@ -68,13 +69,7 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
       if (detail) out.push([plain(detail)]);
     }
   }
-  if (calls) out.push([plain(calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`)]);
-  if (searches)
-    out.push([
-      plain(
-        searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`,
-      ),
-    ]);
+  for (const sentence of todayAlsoWaiting({ calls, searches })) out.push([plain(sentence)]);
   return out;
 }
 
@@ -129,6 +124,20 @@ const runSentence = (r: TodayBriefRun): TodayBriefSegment[] => [
  */
 export function todayBriefWords(vm: TodayVM, day: TodayDayVM | null, runs: readonly TodayBriefRun[]): TodayBriefWords {
   const dayWords = daySentence(day);
-  const sentences = [...needsSentences(vm), ...(dayWords ? [dayWords] : []), ...cameIn(vm), ...runs.map(runSentence)];
-  return { sentences, text: sentences.map((s) => s.map((x) => x.text).join("")).join(" ") };
+  const needs = needsSentences(vm);
+  // Nobody and nothing waits, and the receptionist is answering (the queue's own good news, todayQueueEmpty's "ok"):
+  // said first and once, as a sentence. A link under the brief used to say it ("Nothing waiting. 5 earlier
+  // conversations"), in a third size of type; the brief is one summary (Ruben, 7 Oct 2026).
+  const caught = !needs.length && !runs.length && vm.queue.empty.tone === "ok";
+  const sentences = [
+    ...needs,
+    ...(caught ? [[plain("You're all caught up.")]] : []),
+    ...(dayWords ? [dayWords] : []),
+    ...cameIn(vm),
+    ...runs.map(runSentence),
+  ];
+  // What a voice reads and Ask is handed says, too, what the figures do not carry and the page draws as a line of its
+  // own under the summary, with its door: a reply that failed to deliver. A brief that was read aloud left it out.
+  const also = (vm.recap ? vm.recap.sentences : []).filter((s) => !s.traffic).map((s) => s.text);
+  return { sentences, text: [...sentences.map((s) => s.map((x) => x.text).join("")), ...also].join(" ") };
 }

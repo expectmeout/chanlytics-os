@@ -12,6 +12,13 @@ export const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text"
   email: "Email",
 };
 
+/** That word's wire: REPLY_VIA read backwards, for a reader that holds a row's word alone (the page's reply, person-cards.ts). */
+export const REPLY_WIRE: Record<"WhatsApp" | "Text" | "Email", "whatsapp" | "sms" | "email"> = {
+  WhatsApp: "whatsapp",
+  Text: "sms",
+  Email: "email",
+};
+
 /** A channel in the owner's words. */
 export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
   whatsapp: "WhatsApp",

@@ -8,6 +8,8 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  BOOKED_NEEDS_A_LINK,
+  CALENDAR_SETTING_ROUTE,
   bookedTileOf,
   metricWordsOf,
   plural,
@@ -225,8 +227,8 @@ export function RptBooked({ bk, phone }: { bk: BookingReportVM | null; phone: bo
     return (
       <EmptyState
         kind="line"
-        title={bk ? bk.sub : "Connect your calendar under Settings › Business to see who booked."}
-        action={{ label: "Open Settings", to: "admin/workspace" }}
+        title={bk ? bk.sub : BOOKED_NEEDS_A_LINK}
+        action={{ label: "Add a calendar link", to: CALENDAR_SETTING_ROUTE }}
       />
     );
   }

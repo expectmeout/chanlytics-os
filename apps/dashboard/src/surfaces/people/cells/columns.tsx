@@ -36,9 +36,11 @@ function PeopleStatePill({ state, label }: { state: string; label: string }) {
 }
 
 /**
- * The row's own next steps, on hover: the thread, and the booking link when there is one -- a reply carried in inside the
- * 24-hour window, the template outside it. Nothing is sent from the row. With a list kept by hand open, the row also takes
- * the person off it (`drop`): the one thing the Lists page could do that this table could not.
+ * The row's own next steps, on hover: the thread, and the booking link when there is one -- carried into the thread's
+ * composer where free text can go on the wire they last wrote on (a text, an email, WhatsApp inside its 24-hour window),
+ * and where it cannot the thread offers the approved message (contracts bookingLinkAction, over the row's reply wire).
+ * Nothing is sent from the row. With a list kept by hand open, the row also takes the person off it (`drop`): the one
+ * thing the Lists page could do that this table could not.
  */
 function PeopleRowActions({
   p,

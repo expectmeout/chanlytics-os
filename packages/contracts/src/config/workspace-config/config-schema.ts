@@ -9,7 +9,7 @@
  * business-profile.ts and brain-config.ts beside it, and the numbers they are built from config-rules.ts.
  */
 import { feedProblemWords, feedUrlOk } from "../../calendar/feed-url";
-import { BOOKING_TOOL_IDS } from "../../calendar/booking-notice";
+import { isBookingTool } from "../../calendar/booking-notice";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
 import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
@@ -67,8 +67,16 @@ export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
  * intake then reads as bookings. A section of its own, never a key of `calendar`: a build from before it leaves out a
  * section it has never heard of and keeps answering, where a calendar section with no address would have failed its
  * whole parse and muted the receptionist (the note above; either deploy order, and a rollback).
+ *
+ * The tool is READ as a word, and held to the list only on the way in (WriteRules). It was the list's own enum on the
+ * read too, so the first build to offer a thirteenth tool would have stored a word the build beside it could not
+ * parse, and on this codepath a config that does not parse is a receptionist that says nothing (7 Oct 2026). A word
+ * the list does not know reads as a tool whose emails are never matched, which is what it is to that build.
+ *
+ * `by_hand` is the owner's own word that nothing books for them: no tool, no calendar to read. Every page then stops
+ * offering to connect one (setup/calendar-source.ts).
  */
-const BookingsConfigSchema = z.object({ tool: z.enum(BOOKING_TOOL_IDS).optional() }).strip();
+const BookingsConfigSchema = z.object({ tool: z.string().max(40).optional(), by_hand: z.boolean().optional() }).strip();
 
 /**
  * Opt-in abilities, off unless the workspace turns them on.
@@ -154,6 +162,14 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
       code: z.ZodIssueCode.custom,
       path: ["calendar", "ical_url"],
       message: feedProblemWords("address") ?? "Not an address the receptionist may read.",
+    });
+  }
+  // The booking tool: one of the list, by name, on the way in. The read takes any word (BookingsConfigSchema).
+  if (cfg.bookings?.tool !== undefined && !isBookingTool(cfg.bookings.tool)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["bookings", "tool"],
+      message: "Not a booking tool this product knows.",
     });
   }
   const p = cfg.brain?.profile;

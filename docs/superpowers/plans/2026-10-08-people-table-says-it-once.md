@@ -555,3 +555,11 @@ One review round over the whole branch, before the merge. What it changed from t
 - **A test the pull request could not see.** `tooling/scripts/tests/consent/marketing-consent.test.mjs` read the Offers word as the old span's child. CI on a pull request runs the tests of the folders it changed, and that folder was not one: the pull request was green three times and the nightly would have gone red. It reads the pill's label. Found by running every test file, in every folder, that names anything this branch changed (48 files, 1,287 tests).
 - **Light theme**, looked at after the first review pass: every new line reads at 4.9:1 or better on the pane.
 - Main moved under the branch (#1491): merged, the register's numbers regenerated from the merged tree.
+
+## After it merged: the row's reply wire (8 Oct 2026)
+
+Looked at on production after the merge, four of five people had only ever texted. Their Reach read "Text", and the booking-link button on the same row said only an approved message could reach them: the row's own reply wire (`person-row.ts` `replyChannelOfRow`) still read WhatsApp for anyone who had written and was not email-only. A separate change, since it is the row's view model and not the table's drawing:
+
+- **A row replies on the wire they last wrote on** (`last_inbound_channel`, 00320), the reply route's own rule and their page's. A row that does not say where they last wrote keeps the strictest reading, as before.
+- **Their page's fallback reads the row's word.** Where a page holds nothing they wrote, it took the row's wire as Email or else WhatsApp; it reads all three words now (`person-words.ts` `REPLY_WIRE`).
+- **The Reach tip is written from that same wire.** `rowReachWords` wrote what a reply may be from the word it shows, which for someone we texted who has written nothing said "Any time, by text" beside a button that said the opposite. The reply route answers such a person on WhatsApp, so the tip says its rule, and a test holds every row's tip and button to one answer.

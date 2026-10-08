@@ -359,8 +359,10 @@ function verificationNote(s: NumberStanding, limitSaid: boolean): ConnectionNote
 export function standingNotes(s: NumberStanding | null, o: { limitSaid: boolean }): ConnectionNote[] {
   if (!s) return [];
   const out: ConnectionNote[] = [];
+  // A name Meta declined or let lapse stops messages until the owner acts: on the row, never behind a press
+  // (ConnectionNote.live). The verification is what Meta holds, to act on "when you need more": it waits to be asked.
   const name = nameWords(s.name_status, s.name);
-  if (name) out.push({ text: name });
+  if (name) out.push({ text: name, live: true });
   const verification = verificationNote(s, o.limitSaid);
   if (verification) out.push(verification);
   return out;

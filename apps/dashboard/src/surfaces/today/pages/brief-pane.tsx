@@ -1,9 +1,10 @@
 /**
  * Your brief (canvas E3, Glass): what the day says in prose, beside the queue -- who needs you and how long the oldest
  * has waited, the calendar's day, what came in, the runs waiting for a word (contracts todayBriefWords, over what the
- * page already holds: the day's view model, the day's own, the broadcasts' runs) -- then the lines that are not
- * numbers (a reply that failed, a review that landed, what ran, the receipts), which the day's card draws under its
- * figures in Classic (card.tsx recapBeats: the same lines, drawn once, here in Glass and there in Classic). Two acts
+ * page already holds: the day's view model, the day's own, the broadcasts' runs) -- then only the lines a summary
+ * cannot carry as a sentence, each with its door (a reply that failed, a review that landed, what ran; card.tsx
+ * recapBeats). It is one summary: the quiet day's list of lines and numbers and the receipts stood
+ * under it as three more blocks in three sizes (Ruben, 7 Oct 2026), and the follow-up is there for the rest. Two acts
  * under the line, as E3 draws them: Listen, the brief read aloud in Ask's one voice (the one-way speech: the words on
  * screen, spoken as the vendor makes them, nobody speaking back; docs/superpowers/specs/2026-10-03-ask-spoken-design.md,
  * §3.5 as amended 4 Oct 2026), with how long it takes to hear beside it; and a follow-up to Ask, grounded in the same

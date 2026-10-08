@@ -328,7 +328,7 @@ test("REGRESSION: approving a waiting run the server moved to nine says so on To
   }
 });
 
-test("the day's receipts are all drawn -- the view model kept three and the hero showed one", () => {
+test("the brief is one summary: the day's receipts are the view model's still, and none is drawn under it", () => {
   const names = ["Rosa Díaz", "Nina Park", "Ada Lovelace"];
   const convs = names.map((name, i) =>
     conversation(`cv${i}`, name, [
@@ -346,25 +346,26 @@ test("the day's receipts are all drawn -- the view model kept three and the hero
   );
   const vm = toTodayVM(metrics(), convs, [], [], NOW);
   assert.equal(vm.recap.receipts.length, 3, "the fixture is a day with three replies");
-  const receipts = findAll(mountBrief(vm), (n) => n.props?.["data-testid"] === "brief-receipt");
-  assert.equal(receipts.length, 3, "REGRESSION: two of the three receipts were never drawn");
-  buttonsSaying(receipts[2], "Open")[0].props.onClick();
-  assert.equal(went.at(-1), vm.recap.receipts[2].to);
+  // The hero drew one of the three, then the brief all three, under its summary, in a third size of text (Ruben,
+  // 7 Oct 2026: "too cluttered and busy"). What was replied is a question away now: the follow-up asks Ask.
+  const brief = mountBrief(vm);
+  assert.equal(findAll(brief, (n) => n.props?.["data-testid"] === "brief-receipt").length, 0);
+  assert.ok(
+    find(brief, (n) => n.props?.["data-testid"] === "today-brief-line"),
+    "the summary stands",
+  );
 });
 
-test("a quiet day shows its proof -- which lines are on -- and the way to the conversations before it", () => {
+test("a quiet day says its proof in the summary, and draws no list of lines under it", () => {
   const yesterday = conversation("cv1", "Rosa Díaz", [msg({ created_at: "2026-09-05T12:00:00Z" })]);
   const vm = toTodayVM(metrics({ now: zeroNow, period: quietPeriod }), [yesterday], [], [], NOW);
   assert.ok(vm.quiet && vm.quiet.launchpad, "the fixture is a quiet day with an earlier conversation");
   const hero = mountBrief(vm);
-  const proof = find(hero, (n) => n.props?.["data-testid"] === "brief-quiet-proof");
-  assert.ok(proof, "REGRESSION: the quiet day's proof was never drawn");
-  assert.match(textOf(proof), /WhatsApp/);
-  assert.match(textOf(proof), /· on/);
-  const door = buttonsSaying(hero, "earlier conversation")[0];
-  assert.ok(door, "REGRESSION: the quiet day's way to earlier conversations was never drawn");
-  door.props.onClick();
-  assert.equal(went.at(-1), "conversations");
+  // The list of lines and their numbers ("WhatsApp: +1 … · on") and the door to earlier conversations stood under the
+  // summary as a block of their own. The summary says the day; which lines are on is Connections' to say.
+  assert.ok(!find(hero, (n) => n.props?.["data-testid"] === "brief-quiet-proof"));
+  assert.equal(buttonsSaying(hero, "earlier conversation").length, 0);
+  assert.ok(textOf(find(hero, (n) => n.props?.["data-testid"] === "today-brief-line")).length > 0);
 });
 
 /** A workspace's Setup read, as the surface publishes it (surfaces/setup/surface.ts): Setup's own view model over a DTO. */

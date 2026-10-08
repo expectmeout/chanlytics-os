@@ -27,7 +27,7 @@ import { holderOf } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
 import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
-import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
+import { PERSON_CHANNEL_WORDS, REPLY_VIA, REPLY_WIRE } from "./person-words";
 import { replyWindow } from "../config/policy";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { messageText, messageWords } from "../conversations/message-words";
@@ -161,9 +161,10 @@ function firstChannelOf(d: PersonDetailDto, base: PersonRowVM): string {
 }
 
 /**
- * Where a reply goes, exactly: the profile knows their last written words, the
- * row only which wires they have used (replyChannelOfRow says why it reads the
- * strictest window when it cannot tell). With the window on that wire (replyWindow) and the hours it has left.
+ * Where a reply goes, exactly: the profile reads their last written words from the messages themselves, and where it
+ * holds none from their side it takes the row's wire as the row says it (replyChannelOfRow: where they last wrote,
+ * else the strictest window). That fallback knew Email and called every other word WhatsApp, a text included. With
+ * the window on that wire (replyWindow) and the hours it has left.
  */
 function replyOf(
   d: PersonDetailDto,
@@ -172,8 +173,7 @@ function replyOf(
   now: Date,
   nowMs: number,
 ): PersonReply | null {
-  const via =
-    replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
+  const via = replyChannelOfThreads(d.conversations) ?? (base.replyVia ? REPLY_WIRE[base.replyVia] : null);
   const exactWindow = via ? replyWindow(via, row.latest_wa_inbound_at, now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso

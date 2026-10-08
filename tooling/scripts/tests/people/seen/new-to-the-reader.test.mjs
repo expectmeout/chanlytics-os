@@ -501,3 +501,29 @@ test("People's own row wears it, a desk's and a phone's; a read row and the Pipe
   assert.ok(!classesIn(name.cell(fresh, ctx)).includes("unread"));
   assert.ok(!classesIn(card.cell(fresh, ctx)).includes("pl-unread"));
 });
+
+test("several at once, from a pick: one mark each, a row with nobody behind it asks nothing, and marking some read leaves the rest as they were put", async () => {
+  const { seePeople, unseePeople } = await import(`${S}/surfaces/seen.ts`);
+  const heard = ms(ago(40));
+  const a = { personId: "p-many-a", conversationId: null };
+  const b = { personId: "p-many-b", conversationId: null };
+  marks.length = 0;
+  unseePeople([a, b, { personId: null, conversationId: "c-nobodys" }]);
+  await settle();
+  assert.deepEqual(marks.splice(0), [
+    ["p-many-a", false, null],
+    ["p-many-b", false, null],
+  ]);
+  assert.equal(unreadHere(a, read(false, heard)), true);
+  assert.equal(unreadHere(b, read(false, heard)), true);
+  seePeople([{ who: a, reading: read(true, heard) }]);
+  await settle();
+  assert.deepEqual(marks.splice(0), [["p-many-a", true, iso(heard)]]);
+  assert.equal(unreadHere(a, read(false, heard)), false, "marked read");
+  assert.equal(unreadHere(b, read(false, heard)), true, "the other stays as it was put");
+  // Opening one person still lets go of whoever was put back, as it always did.
+  seePerson(b, read(true, heard));
+  await settle();
+  assert.equal(unreadHere(b, read(false, heard)), false);
+  marks.length = 0;
+});

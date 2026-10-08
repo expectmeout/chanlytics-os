@@ -178,6 +178,11 @@ lane, and against what a modern booking-ingestion feature owes its owner.
       Calendar's own view model (`feed.notices.row`: an address to make, a forward to confirm, emails to look at, the
       last email's age, or waiting for the first). The tool's name reaches the board's card and the panel. Not built:
       a row of Setup's, and the receptionist's "book on Booksy" (its wording is the sells-by lane's).
+      **Since 8 October (#1493) it is one row with "Calendar it reads", named Booking tool:** the fold asks what the
+      owner books with first and draws only what that answer has (its calendar link, its booking emails, or neither
+      for "I book by hand"); an address is made in the fold in one press; and Setup, Connections, the Calendar's card
+      and Ask say one status of it (contracts `calendarSourceOf`). The fold named here is gone, and so is step 5's
+      "beside Calendar it reads".
 - [x] **B. Gmail's forwarding confirmation, surfaced.** Built: the intake claims Google's notice
       (`forwarding_confirmation`, contracts `forwardingConfirmationOf`), trusted from the proved sender only, and keeps
       the account, the code and the link on the mailbox (`mailboxes.forward_confirm_*`); the fold shows "Gmail asks to

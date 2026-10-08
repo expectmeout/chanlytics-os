@@ -9,7 +9,7 @@
  * the member's own (their saved view, on every device): it puts an optional
  * row off Today's card, and nothing else.
  */
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
+import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
 import { agoWords } from "../shared/time";
 import { plural } from "../shared/words";
 import { bookingPageOffered, listingLine } from "../google/google";
@@ -348,42 +348,35 @@ function emailRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null {
       };
 }
 
+/** Setup's state for each of the calendar's (calendar-source.ts): what works is ready, what is the owner's waits on them. */
+const SETUP_STATE_OF: Record<CalendarSourceState, SetupRowDraft["state"]> = {
+  ready: "ready",
+  attention: "waiting_you",
+  needs_you: "waiting_you",
+  waiting: "waiting_them",
+  hand: "ready",
+  none: "not_started",
+};
+
 /**
- * 6. Calendar — what is taken, so the receptionist offers real times.
+ * 6. Calendar — what is taken, so the receptionist offers real times. One answer for every page
+ * (calendar-source.ts): the row read the link alone, so a business whose bookings arrive by email was asked
+ * for an address its tool does not have, for good. The first email and "booked by hand" are said in the calendar's
+ * own words: "Waiting on us" is true of neither.
  */
 function calendarRow(i: SetupInputs): SetupRowDraft {
-  return i.calendar.state === "ok"
-    ? {
-        id: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        state: "ready",
-        required: false,
-        sentence: `${CALENDAR_FEED_WORDS.ok} — the receptionist offers times from it.`,
-        details: [],
-        verb: { label: "Open Calendar", to: "calendar" },
-      }
-    : i.calendar.state === "unavailable"
-      ? {
-          id: "calendar",
-          icon: "calendar",
-          title: "Calendar",
-          state: "waiting_you",
-          required: false,
-          sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings › Business.`,
-          details: [],
-          verb: { label: "Check the address", to: "admin/workspace" },
-        }
-      : {
-          id: "calendar",
-          icon: "calendar",
-          title: "Calendar",
-          state: "not_started",
-          required: false,
-          sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.",
-          details: [],
-          verb: { label: "Paste the address", to: "admin/workspace" },
-        };
+  const s = calendarSourceOf(calendarSourceFacts({ booking_link: i.business.bookingLink, ...i.calendar }));
+  return {
+    id: "calendar",
+    icon: "calendar",
+    title: "Calendar",
+    state: SETUP_STATE_OF[s.state],
+    ...(s.state === "waiting" || s.state === "hand" ? { stateWords: s.words } : {}),
+    required: false,
+    sentence: s.sentence,
+    details: [],
+    verb: s.next,
+  };
 }
 
 /**
