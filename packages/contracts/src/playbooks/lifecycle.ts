@@ -193,6 +193,7 @@ function stageOf(
     needs,
     needsWords: LIFECYCLE_WORDS.needs[needs],
     hint: null,
+    waits: false,
     // A playbook's channels; the receptionist's and an off moment's are none (what Turn on ticks is the composer's to say).
     channels: p ? channelMarksOf(p, playbooks.templates, ready) : [],
   };
@@ -230,6 +231,8 @@ function stageOf(
       phoneWords: s.short,
       tone: s.tone,
       covered: state === "on",
+      // On, and a run of it waits for the person: the node is a clock (the pill beside it says "Waiting on you").
+      waits: state === "on" && !!p.totals.waiting,
       act: p.off ? null : { kind: "open", label: "Open", playbookId: p.id },
     };
   }

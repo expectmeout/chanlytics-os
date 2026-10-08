@@ -22,6 +22,7 @@ import {
   starterByKey,
   starterText,
   toBroadcastVM,
+  zoneDayKey,
   type AudiencePreview,
   type BroadcastDto,
 } from "@chanlytics/contracts";
@@ -104,7 +105,9 @@ function audience(
 /** The demo's Broadcasts as of `now`: what `useSurface("broadcasts")` answers for a workspace that has read its own. */
 export function broadcastsSample(now = new Date()): BroadcastsSurface {
   const iso = (ms: number) => new Date(now.getTime() + ms).toISOString();
-  const day = (ms: number) => iso(ms).slice(0, 10);
+  // The day a run is made for is the business's (core run-playbook stamps it by the workspace's zone): the demo's own
+  // zone here. Stamped by UTC, the waiting run read as a day late every evening in New York, with nothing to approve.
+  const today = zoneDayKey(now.getTime(), DEMO_ZONE);
   const dto = (
     id: string,
     name: string,
@@ -131,7 +134,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     ...over,
   });
   const rows = [
-    dto("b-sample-2", `Welcome · ${day(0)}`, {
+    dto("b-sample-2", `Welcome · ${today}`, {
       template_id: "tpl-monthly_offer",
       template_name: "monthly_offer",
       audience: { kind: "playbook", id: "pb-sample-welcome", label: "Welcome" },
@@ -141,7 +144,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
       finished_at: null,
       recipient_count: 4,
       playbook_id: "pb-sample-welcome",
-      run_for: day(0),
+      run_for: today,
       counts: { queued: 4, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 },
     }),
     dto("b-sample-3", "Autumn hours", {

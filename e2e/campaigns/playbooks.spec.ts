@@ -98,6 +98,15 @@ test.describe("Campaigns' home on a real workspace", () => {
     await expect(home.getByTestId("cmh-reach")).toBeVisible();
     await expect(home.getByTestId("cmh-coming")).toBeVisible();
     await expect(home.getByTestId("cmh-results")).toBeVisible();
+    // A run waiting on the owner is approved or skipped where it waits (8 Oct 2026): its line in Coming up carries the
+    // acts, Approve unless the verb would refuse it (its day has passed), and then Skip alone. Read here, never pressed:
+    // the workspace keeps no test run, and one that happens to wait is the nightly's own to send or not.
+    const waiting = home.getByTestId("cmh-coming-line").filter({ has: page.getByTestId("cmh-waiting-acts") });
+    for (let i = 0; i < (await waiting.count()); i++) {
+      const line = waiting.nth(i);
+      await expect(line).toHaveAttribute("data-kind", "run");
+      await expect(line.getByTestId("cmh-approve").or(line.getByTestId("cmh-skip")).first()).toBeVisible();
+    }
 
     // New message opens the composer in a sheet from the side, on Send once; Every time a moment comes is the playbook
     // composer: the moments behind its moment, each with who it reaches today; the messages that fit it, or the honest
@@ -125,6 +134,14 @@ test.describe("Campaigns' home on a real workspace", () => {
     await expect(page.locator(".rec-combo-pop")).toBeHidden();
     await expect(composer).toBeVisible();
     await expect(composer.getByTestId("pb-guard")).toBeVisible();
+    // Send by stands under To and over Says (8 Oct 2026): the count under To is counted over the channels ticked.
+    const tops: number[] = [];
+    for (const id of ["pb-row-to", "pb-row-via", "pb-row-says"]) {
+      const box = await composer.getByTestId(id).boundingBox();
+      expect(box, id).not.toBeNull();
+      tops.push(box!.y);
+    }
+    expect(tops, "To, Send by, Says, in that order down the sheet").toEqual([...tops].sort((a, b) => a - b));
     // The messages it may offer are the ones a send by any of WhatsApp, email and text can carry (messagesOffered: what the
     // route answers, by contracts' rules), left with those whose every slot the moment it opened on can fill -- a visit's
     // time on a visit moment, a proposal's link on the follow-up -- which the picker says by its label. None of it assumes

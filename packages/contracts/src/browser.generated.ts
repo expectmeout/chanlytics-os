@@ -192,7 +192,7 @@ export { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./people/person-wo
 export { campaignsHomeOf, lifecycleKicker } from "./playbooks/lifecycle";
 export { reachCountsOf } from "./playbooks/lifecycle-tiles";
 export { LIFECYCLE_WORDS, LIFECYCLE_TOAST } from "./playbooks/lifecycle-words";
-export { poolWords, reachLines, runDayPassed, runApprovalRefusal, toApprovalVM } from "./playbooks/playbook-approval";
+export { poolWords, reachLines, runDayPassed, runApprovalRefusal, waitingRunOffer, toApprovalVM } from "./playbooks/playbook-approval";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";
 export { followUpNames, breathEndsAt, breathHolds, followUpIsFor, followUpKey, playbookRunStop, playbookStopBy, followUpRunAt, followUpStandOf, followUpWords, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, PLAYBOOK_TOUCH_WINDOW_MS } from "./playbooks/playbook-follow-ups";
@@ -263,7 +263,7 @@ export { MIN_MS, HOUR_MS, DAY_MS, WEEK_MS, jittered, spanUnits, spanLabel, waite
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./shared/unknown";
 export { plural } from "./shared/words";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, doorOf, ROUTE_WORDS } from "./shell/address";
-export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
+export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
 export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, routePrefetchScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, PREFETCH_SLOT, PREFETCH_READS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error";
 export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, inviteState, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity";

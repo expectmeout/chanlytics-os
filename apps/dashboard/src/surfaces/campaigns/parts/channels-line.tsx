@@ -1,8 +1,9 @@
 /**
- * Campaigns' home, the channels (the spec of 8 October 2026, "A campaign says where it goes"): where the workspace stands on
- * its channels, one line at the head (and in the phone's reach tile, where the head's line is not drawn), and the marks a
- * campaign carries for the channels it goes by, on a moment's card and on a line under the rail. Every word is the view
- * model's (contracts channelsStandingParts, channelMarksOf); this draws it and presses.
+ * Campaigns, the channels (the spec of 8 October 2026, "A campaign says where it goes"): where the workspace stands on its
+ * channels, one line at the home's head (and in the phone's reach tile, where the head's line is not drawn) and under a
+ * composer's Send by row where nothing can send at all; and the marks a campaign carries for the channels it goes by, on a
+ * moment's card and on a line under the rail. Every word is contracts' (channelsStandingParts, channelMarksOf); this draws
+ * it and presses. It stands with the parts because the home and both composers draw it.
  */
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type { ChannelStandingPart, LifecycleChannelMark } from "@chanlytics/contracts";

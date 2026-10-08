@@ -17,7 +17,6 @@ import {
   playbookName,
   poolWords,
   reachLines,
-  readyForMessage,
 } from "@chanlytics/contracts";
 import type { ConsentChannel, PlaybookTrigger, ReachSplit, TemplateGroup } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
@@ -280,13 +279,12 @@ function reachReading(input: ModelIn, mo: Moment, on: readonly ConsentChannel[])
  */
 function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }: Message) {
   const mine = tpl && data.templates ? data.templates.find((t) => t.id === tpl.id) : undefined;
-  // Before a message is picked the row reads as WhatsApp's version alone, as every campaign opened.
-  const workspace = cmReadyOf(data.ready);
+  // Before a message is picked there is no version to ask after: only what the workspace cannot send on closes a switch.
   const read = playbookChannelsRead(
     { trigger: trig ? trig.id : null, policy_class: onList ? f.cls : null },
     f.channels ?? "new",
     tpl ? { category: tpl.category, versions: (mine?.message ?? CM_NO_MESSAGE_YET).versions } : null,
-    tpl ? workspace : readyForMessage(workspace, CM_NO_MESSAGE_YET),
+    cmReadyOf(data.ready),
   );
   const { purpose, about } = read;
   return {

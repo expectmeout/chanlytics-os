@@ -8,6 +8,7 @@ import { purposeOfPlaybook } from "../consent/consent";
 import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../consent/consent-channels";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
+import { fmtDay } from "../reports/reports";
 import { clockNear, clockTime, zoneDayKey } from "../shared/clock";
 import { HOUR_MS, MIN_MS } from "../shared/time";
 import { plural } from "../shared/words";
@@ -27,8 +28,11 @@ import type {
   ReachCounts,
 } from "./lifecycle-types";
 import { LIFECYCLE_WORDS } from "./lifecycle-words";
+import { todayRunWords } from "../today/today-runs";
+import { waitingRunOffer } from "./playbook-approval";
 import { DAY_MS } from "./playbook-time";
 import { playbookReach } from "./playbook-reach";
+import { nextOpenMoment } from "./playbook-schedule";
 import { triggerOf } from "./playbook-triggers";
 
 /** How far ahead "Coming up" looks, and how far back "What came back" does. */
@@ -207,6 +211,7 @@ function momentRow(p: LifecyclePlaybook, nowMs: number, tz: string, workspacePau
       why: words.why,
       pill: { tone: "warn", label: words.pill },
       act: { kind: "open", label: "Open", playbookId: p.id },
+      waiting: null,
       atMs: nowMs,
     };
   }
@@ -220,24 +225,56 @@ function momentRow(p: LifecyclePlaybook, nowMs: number, tz: string, workspacePau
     why: who.why,
     pill: who.pill,
     act: { kind: "open", label: "Open", playbookId: p.id },
+    waiting: null,
     atMs: next.atMs,
   };
 }
 
-/** A run on its way: scheduled, or waiting for the person's approval. */
-function runRow(r: LifecycleRun, name: string, nowMs: number, tz: string): LifecycleComing {
+/** Where a waiting run stands when its line is drawn: the workspace's pause, and whether the page holds its playbook. */
+interface WaitingAt {
+  paused: boolean;
+  known: boolean;
+}
+
+/**
+ * What a waiting run's line may offer (playbook-approval.ts waitingRunOffer, THE reading), asked by the business's
+ * clock as the verb asks it (the business's day now, and the day of the next open sending moment), so the line never
+ * offers an Approve the route then answers 409 or 402, nor a one-tap approval of a reach-out's first cold emails.
+ */
+function offerOf(r: LifecycleRun, nowMs: number, tz: string, at: WaitingAt) {
+  return waitingRunOffer(
+    { playbook_id: r.playbook_id, run_for: r.run_for ?? null, audience: r.audience },
+    {
+      today: zoneDayKey(nowMs, tz),
+      sendsOn: zoneDayKey(nextOpenMoment(tz, new Date(nowMs)).at.getTime(), tz),
+      say: fmtDay,
+    },
+    at,
+  );
+}
+
+/**
+ * A run on its way: scheduled, or waiting for the person's approval. One that waits says what Today's row says of it
+ * ("7 people. Nothing sends until you say so.", or "12 businesses." for a reach-out's), and is approved or skipped on
+ * its own line (`waiting`) where a row may offer that; where the verb would refuse the approval it says the verb's
+ * sentence instead and Skip is the act left; a run decided on its sheet alone keeps its name as the door to it.
+ */
+function runRow(r: LifecycleRun, name: string, nowMs: number, tz: string, at: WaitingAt): LifecycleComing {
   const atMs = Date.parse(r.scheduled_for);
-  const waiting = r.state === "pending_approval";
+  const waits = r.state === "pending_approval";
+  const offer = waits ? offerOf(r, nowMs, tz, at) : null;
+  const refusal = offer?.kind === "skip" ? offer.why : null;
   return {
     id: `run:${r.id}`,
     kind: "run",
     when: { day: clockNear(atMs, tz, nowMs), at: clockTime(atMs, tz) },
     what: name,
-    why: waiting ? "A run is waiting for your approval" : "Scheduled",
-    pill: waiting
+    why: waits ? (refusal ?? todayRunWords(r).waiting.sentence) : "Scheduled",
+    pill: waits
       ? { tone: "warn", label: LIFECYCLE_WORDS.coming.waiting }
       : { tone: "ok", label: plural(r.recipient_count, "person", "people") },
     act: { kind: "route", label: "Open", route: `broadcasts/run:${r.id}` },
+    waiting: offer && offer.kind !== "open" ? { runId: r.id, people: r.recipient_count, refusal } : null,
     atMs,
   };
 }
@@ -279,6 +316,7 @@ function offRows(stages: readonly LifecycleStage[], nowMs: number): LifecycleCom
             why: offWhy(s.id, s.people ?? 0),
             pill: null,
             act: { kind: "turn_on" as const, label: "Turn on", moment: s.act.moment },
+            waiting: null,
             atMs: nowMs + COMING_DAYS * DAY_MS + i,
           },
         ]
@@ -298,16 +336,19 @@ export function lifecycleComing(input: LifecycleInput, stages: readonly Lifecycl
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const nameOf = (id: string | null, fallback: string) => playbooks.rows.find((p) => p.id === id)?.name ?? fallback;
+  const playbookOf = (id: string | null) => playbooks.rows.find((p) => p.id === id);
+  // The workspace's pause, as either surface's readiness says it (the playbooks' own, else the broadcasts').
+  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows
     .filter((r) => (r.state === "scheduled" || r.state === "pending_approval") && Date.parse(r.scheduled_for) <= end)
-    .map((r) => runRow(r, nameOf(r.playbook_id, r.name), nowMs, tz));
+    .map((r) => {
+      const p = playbookOf(r.playbook_id);
+      return runRow(r, p?.name ?? r.name, nowMs, tz, { paused, known: p !== undefined });
+    });
   const covered = new Set(
     broadcasts.rows.filter((r) => runs.some((x) => x.id === `run:${r.id}`) && r.playbook_id).map((r) => r.playbook_id),
   );
-  // The workspace's pause, as either surface's readiness says it (the playbooks' own, else the broadcasts').
-  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
   const moments = playbooks.rows
     .filter((p) => !covered.has(p.id))
     .flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);

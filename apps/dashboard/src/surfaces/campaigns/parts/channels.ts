@@ -14,6 +14,7 @@ import {
   campaignMessagesOf,
   channelChoices,
   channelNeverCarries,
+  channelsStandingParts,
   heldWords,
   messageHolds,
   newCampaignChannels,
@@ -23,6 +24,7 @@ import {
   readyOrWhatsApp,
   type AskedPurpose,
   type CampaignMessage,
+  type ChannelStandingPart,
   type ChannelsReady,
   type ConsentChannel,
   type MessageAbout,
@@ -34,6 +36,9 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import { RPT_CHANNEL_COLORS } from "@/surfaces/reports/series";
 
 /** What the page says of the Send by row, beyond the reasons contracts words (CHANNEL_WORDS, messageWhyNot). */
+/** What a playbook's kept channel that cannot send yet is promised. */
+const ONCE_IT_CAN = "It goes by it once it can.";
+
 export const CM_VIA_WORDS = {
   /** The row's word, and the group's name to a screen reader. */
   label: "Send by",
@@ -42,7 +47,9 @@ export const CM_VIA_WORDS = {
   /** Every ticked channel is closed to it: nobody is reached. */
   nowhere: "None of the channels ticked can carry this message yet.",
   /** A playbook keeps a channel that cannot send yet: its run holds those people until it can. */
-  waits: (why: string): string => `${why} It goes by it once it can.`,
+  waits: (why: string): string => `${why} ${ONCE_IT_CAN}`,
+  /** The same promise without the reason, under a line that has already said every channel's (send-by.tsx). */
+  onceItCan: ONCE_IT_CAN,
 } as const;
 
 /**
@@ -52,6 +59,18 @@ export const CM_VIA_WORDS = {
  */
 export function cmReadyOf(read: ChannelsReady | null | undefined): ChannelsReady {
   return readyOrWhatsApp(read);
+}
+
+/**
+ * Where the workspace can send on nothing at all, its standing in parts (contracts channelsStandingParts: "Nothing can send
+ * yet", then each channel with its reason and the door that mends it), which the Send by row says once in place of three
+ * closed switches' reasons. Null where any channel is open, and where the readiness was not read: the page then says what
+ * it always said. Null too for a workspace paused for billing, whose standing is that one fact: each composer says the
+ * pause where its Send would be (CAMPAIGNS_PAUSED_WORDS), and the row keeps its switches' own reasons.
+ */
+export function cmNothingOpen(read: ChannelsReady | null | undefined): ChannelStandingPart[] | null {
+  if (!read || read.paused === true || CONSENT_CHANNELS.some((c) => read[c].ready)) return null;
+  return channelsStandingParts(read);
 }
 
 /**

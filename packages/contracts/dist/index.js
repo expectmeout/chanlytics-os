@@ -21332,6 +21332,12 @@ function runApprovalRefusal(run, days) {
   const day = dayHasPassed(run, days.today) ?? (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
   return day ? dayGoneWords(day, days.say) : null;
 }
+function waitingRunOffer(run, days, at3) {
+  if (isReachOutRun(run.audience) || !at3.known) return { kind: "open" };
+  const late = runApprovalRefusal(run, days);
+  if (late) return { kind: "skip", why: late };
+  return at3.paused ? { kind: "skip", why: CAMPAIGNS_PAUSED_WORDS } : { kind: "approve" };
+}
 function toApprovalVM(d, opts) {
   const b = d.broadcast;
   const heldOn = allowanceHeldOn(d.recipients);
@@ -26534,6 +26540,10 @@ var LIBRARY_STARTER_WORDS = {
 var BROADCAST_WORDS = {
   tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
 };
+function runStoppedWords(was) {
+  if (was === "sending") return "stops after this batch";
+  return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+}
 var OFFERS_IN_WRITING_WORDS = {
   lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
   link: `print one in ${sent}`
@@ -26885,11 +26895,28 @@ var LIFECYCLE_WORDS = {
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
     waiting: "Waiting on you",
+    /**
+     * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
+     * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you
+     * say so."), which promises nobody the month's allowance holds back.
+     */
+    approval: {
+      approve: "Approve",
+      approving: "Approving\u2026",
+      skip: "Skip",
+      /** The two acts named whole for a screen reader: where two runs wait, "Approve" twice says nothing of which. */
+      approveOf: (name) => `Approve this run of ${name}`,
+      skipOf: (name) => `Skip this run of ${name}`,
+      question: (name) => `Skip this run of ${name}?`,
+      detail: "Nothing sends, and the run closes.",
+      yes: "Yes, skip it"
+    },
     // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
     // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
     paused: {
       when: { day: "Paused", at: "for billing" },
-      why: "The workspace is paused, so nothing goes until billing resumes",
+      // The fact in its one spelling (workspace/billing.ts), which a waiting run on the line below says too, with its door.
+      why: WORKSPACE_PAUSED_FACT,
       pill: "Workspace paused"
     }
   },
@@ -26915,6 +26942,23 @@ var LIFECYCLE_TOAST = {
   ],
   /** The name of a line the page has no row for, where a toast must name it. */
   nameless: "It",
+  /**
+   * A waiting run approved: the server's own count, and when it really goes in the page's clock words ("sending now",
+   * "scheduled for tomorrow 9:00 AM"), since the server may move a late approval to the next sending hour.
+   */
+  approved: (name, people, when) => [
+    { b: name },
+    ` approved \u2014 ${plural(people, "person", "people")}, ${when}`
+  ],
+  /**
+   * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts
+   * runStoppedWords, Sent's own receipt). A run that waited closes unsent; one a teammate approved a moment before, and
+   * that is already going, stops after the batch in hand, and the page does not say "nothing will send" of it.
+   */
+  skipped: (name, was) => [
+    { b: name },
+    ` ${runStoppedWords(was)}`
+  ],
   /**
    * A playbook's channels changed, from its drawer or from Ask's card: "Visit reminder goes by WhatsApp and Email now".
    * `runWaits`: a run of it already waits for approval, and keeps the channels it was made with (core run-playbook
@@ -26943,6 +26987,36 @@ function lifecycleStateOf(p) {
   if (p.state !== "running") return stated("Paused", "warn", true);
   if (p.totals.waiting) return stated("Waiting on you", "warn");
   return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
+}
+
+// src/today/today-runs.ts
+function todayRunWords(r2) {
+  const reach = isReachOutRun(r2.audience);
+  const one = r2.recipient_count === 1;
+  const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
+  const kind = reach ? "Reach-out" : "Playbook";
+  const sent2 = `${r2.counts.sent} sent`;
+  return {
+    people,
+    waiting: {
+      meta: `${kind} \xB7 ready`,
+      sentence: `${people}. Nothing sends until you say so.`,
+      status: ["Waiting for your approval"]
+    },
+    late: { meta: `${kind} \xB7 too late to approve`, status: ["Too late to approve"] },
+    soon: {
+      meta: `${kind} \xB7 sends ${r2.when}`,
+      sentence: `${people}. Stop it if you'd rather not.`,
+      status: ["Scheduled", `sends ${r2.when}`]
+    },
+    done: { counts: r2.counts.replied ? `${sent2}, ${r2.counts.replied} replied` : sent2, still: r2.state === "sending" }
+  };
+}
+function todayRunsSub(n) {
+  return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
+}
+function todayRunApproved(label, n, when) {
+  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 
 // src/playbooks/lifecycle-tiles.ts
@@ -27063,6 +27137,7 @@ function momentRow(p, nowMs, tz, workspacePaused) {
       why: words3.why,
       pill: { tone: "warn", label: words3.pill },
       act: { kind: "open", label: "Open", playbookId: p.id },
+      waiting: null,
       atMs: nowMs
     };
   }
@@ -27076,20 +27151,35 @@ function momentRow(p, nowMs, tz, workspacePaused) {
     why: who.why,
     pill: who.pill,
     act: { kind: "open", label: "Open", playbookId: p.id },
+    waiting: null,
     atMs: next.atMs
   };
 }
-function runRow(r2, name, nowMs, tz) {
+function offerOf(r2, nowMs, tz, at3) {
+  return waitingRunOffer(
+    { playbook_id: r2.playbook_id, run_for: r2.run_for ?? null, audience: r2.audience },
+    {
+      today: zoneDayKey(nowMs, tz),
+      sendsOn: zoneDayKey(nextOpenMoment(tz, new Date(nowMs)).at.getTime(), tz),
+      say: fmtDay
+    },
+    at3
+  );
+}
+function runRow(r2, name, nowMs, tz, at3) {
   const atMs = Date.parse(r2.scheduled_for);
-  const waiting = r2.state === "pending_approval";
+  const waits = r2.state === "pending_approval";
+  const offer = waits ? offerOf(r2, nowMs, tz, at3) : null;
+  const refusal = offer?.kind === "skip" ? offer.why : null;
   return {
     id: `run:${r2.id}`,
     kind: "run",
     when: { day: clockNear(atMs, tz, nowMs), at: clockTime(atMs, tz) },
     what: name,
-    why: waiting ? "A run is waiting for your approval" : "Scheduled",
-    pill: waiting ? { tone: "warn", label: LIFECYCLE_WORDS.coming.waiting } : { tone: "ok", label: plural(r2.recipient_count, "person", "people") },
+    why: waits ? refusal ?? todayRunWords(r2).waiting.sentence : "Scheduled",
+    pill: waits ? { tone: "warn", label: LIFECYCLE_WORDS.coming.waiting } : { tone: "ok", label: plural(r2.recipient_count, "person", "people") },
     act: { kind: "route", label: "Open", route: `broadcasts/run:${r2.id}` },
+    waiting: offer && offer.kind !== "open" ? { runId: r2.id, people: r2.recipient_count, refusal } : null,
     atMs
   };
 }
@@ -27124,6 +27214,7 @@ function offRows(stages, nowMs) {
         why: offWhy(s.id, s.people ?? 0),
         pill: null,
         act: { kind: "turn_on", label: "Turn on", moment: s.act.moment },
+        waiting: null,
         atMs: nowMs + COMING_DAYS * DAY_MS + i
       }
     ] : []
@@ -27135,13 +27226,16 @@ function lifecycleComing(input, stages) {
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const nameOf = (id, fallback) => playbooks.rows.find((p) => p.id === id)?.name ?? fallback;
+  const playbookOf2 = (id) => playbooks.rows.find((p) => p.id === id);
+  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
   const end = nowMs + COMING_DAYS * DAY_MS;
-  const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => runRow(r2, nameOf(r2.playbook_id, r2.name), nowMs, tz));
+  const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => {
+    const p = playbookOf2(r2.playbook_id);
+    return runRow(r2, p?.name ?? r2.name, nowMs, tz, { paused, known: p !== void 0 });
+  });
   const covered = new Set(
     broadcasts.rows.filter((r2) => runs.some((x) => x.id === `run:${r2.id}`) && r2.playbook_id).map((r2) => r2.playbook_id)
   );
-  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
   const moments = playbooks.rows.filter((p) => !covered.has(p.id)).flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
   const timed = [...moments, ...runs].sort((a, b) => a.atMs - b.atMs);
   const rows = [...timed, ...offRows(stages, nowMs)];
@@ -27311,6 +27405,7 @@ function stageOf(def, playbooks, line, ready) {
     needs: needs2,
     needsWords: LIFECYCLE_WORDS.needs[needs2],
     hint: null,
+    waits: false,
     // A playbook's channels; the receptionist's and an off moment's are none (what Turn on ticks is the composer's to say).
     channels: p ? channelMarksOf(p, playbooks.templates, ready) : []
   };
@@ -27347,6 +27442,8 @@ function stageOf(def, playbooks, line, ready) {
       phoneWords: s.short,
       tone: s.tone,
       covered: state === "on",
+      // On, and a run of it waits for the person: the node is a clock (the pill beside it says "Waiting on you").
+      waits: state === "on" && !!p.totals.waiting,
       act: p.off ? null : { kind: "open", label: "Open", playbookId: p.id }
     };
   }
@@ -34148,36 +34245,6 @@ function todayPeriodLine(r2) {
   return { text: `${r2.lead}: ${parts2.join(", ")}.`, to: "reports" };
 }
 
-// src/today/today-runs.ts
-function todayRunWords(r2) {
-  const reach = isReachOutRun(r2.audience);
-  const one = r2.recipient_count === 1;
-  const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
-  const kind = reach ? "Reach-out" : "Playbook";
-  const sent2 = `${r2.counts.sent} sent`;
-  return {
-    people,
-    waiting: {
-      meta: `${kind} \xB7 ready`,
-      sentence: `${people}. Nothing sends until you say so.`,
-      status: ["Waiting for your approval"]
-    },
-    late: { meta: `${kind} \xB7 too late to approve`, status: ["Too late to approve"] },
-    soon: {
-      meta: `${kind} \xB7 sends ${r2.when}`,
-      sentence: `${people}. Stop it if you'd rather not.`,
-      status: ["Scheduled", `sends ${r2.when}`]
-    },
-    done: { counts: r2.counts.replied ? `${sent2}, ${r2.counts.replied} replied` : sent2, still: r2.state === "sending" }
-  };
-}
-function todayRunsSub(n) {
-  return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
-}
-function todayRunApproved(label, n, when) {
-  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
-}
-
 // src/today/today-leaks.ts
 var TODAY_LEAK_MAX = 2;
 var LEAK_ORDER = [
@@ -38858,6 +38925,7 @@ export {
   runApprovalRefusal,
   runDayPassed,
   runDueNow,
+  runStoppedWords,
   runningTotal,
   runsWords,
   saidYesOnAny,
@@ -39134,6 +39202,7 @@ export {
   waitWords,
   waitedLabel,
   waitingOnProposal,
+  waitingRunOffer,
   wallClockAt,
   websiteHostOf,
   weekHoursOf,

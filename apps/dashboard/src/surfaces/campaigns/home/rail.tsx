@@ -17,8 +17,8 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Panel } from "../../kit/panel/panel";
 import { StatePill } from "../../kit/pill/state-pill";
+import { ChannelMarks, ChannelsLine } from "../parts/channels-line";
 import { cmRowPress } from "../parts/head";
-import { ChannelMarks, ChannelsLine } from "./channels-line";
 import { HomeFailed } from "./failed";
 
 /** What a press on a stage, a line or a button does: the page decides (home-page.tsx), the rail only says which. */
@@ -32,6 +32,12 @@ export interface RailActs {
 function StateWords({ tone, words, testid }: { tone: "ok" | "warn" | "plain"; words: string; testid?: string }) {
   return <StatePill kind="tone" value={tone} label={words} testid={testid} />;
 }
+
+/**
+ * A moment's node on the line: a clock while a run of its playbook waits for the owner (it is on, and it waits: the
+ * pill beside it says "Waiting on you"), the check once it is covered, else the moment's own glyph.
+ */
+const nodeGlyph = (s: LifecycleStage) => (s.waits ? "clock" : s.covered ? "check" : s.glyph);
 
 /** What a moment says under its name: its state, or the Turn on that makes it one. */
 function momentFoot(s: LifecycleStage, { onAct, gated }: RailActs) {
@@ -62,6 +68,7 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       data-stage={s.id}
       data-state={s.state}
       data-hint={s.hint ? "true" : undefined}
+      data-waits={s.waits ? "true" : undefined}
       data-testid="cmh-stage"
     >
       <span className="cmh-caps">{s.caps}</span>
@@ -71,7 +78,7 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       <span className="cmh-unit">{s.unit}</span>
       <span className="cmh-track" aria-hidden="true">
         <span className="cmh-node">
-          <Icon name={s.covered ? "check" : s.glyph} size={14} />
+          <Icon name={nodeGlyph(s)} size={14} />
         </span>
       </span>
       <div className="cmh-moment" data-state={s.state} role="presentation" onClick={open ? cmRowPress : undefined}>
@@ -194,10 +201,11 @@ function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       data-stage={s.id}
       data-state={s.state}
       data-hint={s.hint ? "true" : undefined}
+      data-waits={s.waits ? "true" : undefined}
       data-testid="cmh-stage"
     >
       <span className="cmh-node" aria-hidden="true">
-        <Icon name={s.covered ? "check" : s.glyph} size={13} />
+        <Icon name={nodeGlyph(s)} size={13} />
       </span>
       <span className="cmh-vwords">
         {open ? (

@@ -4105,6 +4105,15 @@ section:has(> .tpl-composer:not(.is-translate)) {
     gap: var(--space-1);
   }
 }
+/* Where the workspace can send on nothing, the row says so once under its switches (parts/send-by.tsx `standing`): the
+   row's whole width, in the quiet size, for a pointer and a thumb alike, since its words are the doors that mend it. */
+.cm-via > .cmh-channels {
+  flex-basis: 100%;
+  margin-top: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
 /* A row's word is one line: "Send by" is the longest of them. */
 .bc-grow-word,
 .pb-grow-word {
@@ -4856,6 +4865,13 @@ div.tpl-slotbox:not([data-lines="1"]) {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
+/* A moment whose run waits for the owner: the node gives up its filled ground and wears the amber, a clock where the
+   check stood ("needs you" is amber on every badge, the badges' rule). */
+:is(.cmh-stage, .cmh-vstage)[data-waits] .cmh-node {
+  border-color: var(--warn);
+  background: var(--bg-raised);
+  color: var(--warn-ink);
+}
 .cmh-moment {
   display: flex;
   flex-direction: column;
@@ -4961,8 +4977,10 @@ div.tpl-slotbox:not([data-lines="1"]) {
   margin: 0 6px;
   color: var(--ink-faint);
 }
-.cmh .cmh-channel-door {
+/* On the home, and under a composer's Send by switches (a sheet, drawn outside the home's own root). */
+:is(.cmh, .cm-via) .cmh-channel-door {
   display: inline; /* not the kit's inline-flex: the dot before it stays with its first word when the line wraps */
+  font-size: inherit; /* its line's own size: a door is words of the sentence it stands in */
   color: inherit;
   text-decoration: underline;
   text-decoration-color: var(--ink-faint);
@@ -4970,18 +4988,26 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 /* A door answers the pointer as the kit's quiet words do (its own hover is outranked by the rule above, which this page
    needs for the size and the wrap): the ink, and an underline in it. */
-.cmh .cmh-channel-door:hover {
+:is(.cmh, .cm-via) .cmh-channel-door:hover {
   color: var(--ink);
   text-decoration-color: currentColor;
 }
 /* A thumb's door: on a touch screen the door is a box 44px tall that stands on a line of its own once the words before it
    end, its words wrapping inside it. As 17px words in a wrapped line, three doors were three strips a thumb missed. */
 @media (pointer: coarse) {
-  .cmh .cmh-channel-door {
+  :is(.cmh, .cm-via) .cmh-channel-door {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
     vertical-align: middle;
+  }
+  /* Each part is then a line of its own, and the dots that joined them in a sentence are not drawn: between boxes a
+     line tall a dot stood alone on a line. */
+  :is(.cmh, .cm-via) .cmh-channel {
+    display: block;
+  }
+  :is(.cmh, .cm-via) .cmh-channel-dot {
+    display: none;
   }
 }
 .cmh-phone-reach .cmh-channels {
@@ -5002,6 +5028,10 @@ div.tpl-slotbox:not([data-lines="1"]) {
   text-align: right;
 }
 .cmh-rail-block > .cmh-block-head > .cmh-channels .cmh-channel {
+  display: inline;
+}
+/* ...and so keeps its dots on a touch screen too, where the parts elsewhere stack and drop them. */
+.cmh-rail-block > .cmh-block-head > .cmh-channels .cmh-channel-dot {
   display: inline;
 }
 /* A phone's Coming up row: the time at the left, the name and its words beside it at full width, and the state or the act
@@ -5269,9 +5299,30 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 .cmh .cmh-what-name {
   align-self: flex-start;
+  /* A name long enough to wrap reads from the line's edge, as its words under it do: a button centres its own. */
+  text-align: start;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   color: var(--ink);
+}
+/* A waiting run's two acts, or the question Skip asks, stand under its words on a desk and a phone alike: the tile is a
+   third of the page, and two buttons beside the state would squeeze the name they act on. */
+.cmh-coming-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  grid-column: 2 / -1;
+  min-width: 0;
+}
+.cmh[data-phone] .cmh-coming-line > .cmh-coming-acts {
+  justify-self: stretch;
+}
+/* Why a waiting run cannot be approved, the verb's whole sentence: across the line under its name, where the acts stand. */
+.cmh-coming-why {
+  grid-column: 2 / -1;
+  min-width: 0;
+  font-size: var(--text-sm);
 }
 .cmh-rules {
   margin: 0 22px 18px;

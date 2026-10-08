@@ -807,6 +807,37 @@ would reach them by (contracts `reachedOn` on each person's row, counted by `rea
 each channel sent where more than one did (0030), and a run's row in Sent says its split. No migration: every fact was
 already on the wire.
 
+**A run is approved where it waits** (8 October 2026): a playbook's run waiting on a person is a line in Coming up that
+carries its own acts. It says what Today's row says of it ("7 people. Nothing sends until you say so.", contracts
+`todayRunWords`), Approve sends it through the broadcast's own door and says how many and when (the server moves an
+approval outside the sending hours to the next nine o'clock), and Skip asks on the line before it closes the run. What
+a waiting run's row may offer is one reading, contracts `waitingRunOffer`, asked by the business's clock and read by
+Coming up's line and a playbook's card alike: approve it; skip it alone, with the verb's own sentence across the line,
+where an approval would be refused (`runApprovalRefusal`: the run's day has passed, or a visit's run would go a day late;
+or the workspace is paused for billing, `CAMPAIGNS_PAUSED_WORDS`); or open it, for a run that is decided on its sheet
+and never from a row: a reach-out's run (decision D6: its sheet counts and names each first cold email) and a run whose
+playbook the page does not hold. A role that may not approve sees Approve with its reason and no Skip. Each act names
+its run to a screen reader ("Approve this run of Win-back"), a No on the question hands the keyboard back to the Skip
+that asked it, and while one row's press is with the server another row's Yes waits in sight and its question stays
+open. The line's name stays the door to the run's sheet, for who and what. A moment whose playbook has a run waiting
+wears a clock on its node, in the warning's colour, where the check stood. The receipts are one each for the home, the
+card and Sent: `LIFECYCLE_TOAST.approved`, and a skip's by what the server stopped (`runStoppedWords` of the cancel
+door's `was`: "skipped — nothing will send" for a run that waited, "stops after this batch" for one a teammate had
+approved a moment before). Sent's own row still offers Approve on every waiting run, as before this change; the server
+and the run's sheet say the pause and a reach-out's count there.
+
+**Send by stands under To** (8 October 2026): in both composers the rows are To, Send by, Says, When (and Under for a
+playbook). The count under To is counted over the channels ticked, and stood two rows and a whole preview away from the
+switches that change it. Before a message is picked a switch is closed only by what the workspace cannot send on, never
+by a version no message has yet, nor by what an offer may not go by ("Texts carry no offers" over no message). Where the
+workspace can send on nothing at all, the row says so once under its switches ("Nothing can send yet", then each channel
+with its reason, a door to Settings › Connections where a setting mends it: the home's own standing line,
+`channelsStandingParts`), in place of three dimmed switches whose reasons waited for a hover; a channel a playbook keeps
+all the same keeps its promise under the row on a touch screen ("It goes by it once it can."), and neither composer
+says the missing number a second time. A workspace paused for billing is not "nothing can send": each composer says the
+pause where its Send would be. On a touch screen each part of the standing line is a line of its own and a door is a box
+44px tall, on the home and in a composer alike.
+
 ### 14.4 Reach out — cold email, built (nothing sends until a reach-out exists and its secrets are set)
 
 Reach out is cold email to the businesses a workspace's searches found, from its own domains

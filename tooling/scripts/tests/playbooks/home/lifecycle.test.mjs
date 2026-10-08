@@ -324,6 +324,14 @@ test("a paused playbook is paused and not covered; a run waiting on you says so;
     [stage(waiting, "quiet").state, stage(waiting, "quiet").stateWords, stage(waiting, "quiet").tone],
     ["on", "Waiting on you", "warn"],
   );
+  // A moment whose playbook has a run waiting says so on its node too (a clock where the check stood): it is on, and it waits.
+  assert.equal(stage(waiting, "quiet").waits, true);
+  assert.deepEqual(
+    waiting.rail.stages.filter((s) => s.id !== "quiet").map((s) => s.waits),
+    [false, false, false, false],
+    "no other moment waits",
+  );
+  assert.equal(stage(paused, "quiet").waits, false, "a paused playbook waits on nobody");
   const nodeals = home({
     playbooks: playbooks({
       rows: [playbook({ id: "pb-9", name: "Proposal follow-up", trigger: "proposal_waiting", off: "Deals are off." })],
@@ -743,7 +751,9 @@ test("coming up while the workspace is paused (billing) says so where a time sto
     const t = coming(over);
     const win = t.rows.find((r) => r.what === "Win-back");
     assert.deepEqual(win.when, { day: "Paused", at: "for billing" }, `${what}: no "Tomorrow 10:00"`);
-    assert.equal(win.why, "The workspace is paused, so nothing goes until billing resumes", what);
+    assert.equal(win.why, "This workspace is paused, so nothing is sent until billing resumes", what);
+    // The one spelling of the pause: the sentence a waiting run's line and the composers say opens with it.
+    assert.ok(C.CAMPAIGNS_PAUSED_WORDS.startsWith(win.why + "."), what);
     assert.deepEqual(win.pill, { tone: "warn", label: "Workspace paused" }, what);
     assert.deepEqual(win.act, { kind: "open", label: "Open", playbookId: "pb-1" }, "its door is the same");
     // Who will get it is not said: nobody does, until billing resumes.
@@ -889,6 +899,159 @@ test("a scheduled run and a run waiting on you are lines, in time order, and sta
   );
   assert.deepEqual(t.rows[0].act, { kind: "route", label: "Open", route: "broadcasts/run:r-w" });
   assert.deepEqual(t.rows[1].when, { day: "Tue", at: "10:00 AM" });
+});
+
+test("a run waiting on you is approved or skipped where it waits: who gets it, and Skip alone once the verb would refuse it", () => {
+  // The run as the broadcasts surface lists it: its day and its moment are the run's own (the list read's).
+  const waitingRun = (over = {}) =>
+    run({
+      id: "r-w",
+      state: "pending_approval",
+      name: "Win-back · Oct 2",
+      playbook_id: "pb-1",
+      scheduled_for: "2026-10-03T14:00:00Z",
+      recipient_count: 4,
+      started_at: null,
+      finished_at: null,
+      run_for: "2026-10-02",
+      audience: { trigger: "quiet_30" },
+      ...over,
+    });
+  const row = (r) => coming({ broadcasts: broadcasts({ rows: [r] }) }).rows.find((x) => x.id === "run:r-w");
+  const live = row(waitingRun());
+  assert.deepEqual(live.waiting, { runId: "r-w", people: 4, refusal: null });
+  // What Today's row says of it (contracts todayRunWords): one sentence for a waiting run, wherever it is read. It
+  // promises nobody a count the month's allowance may hold part of, as "4 people get it once you approve" did.
+  assert.equal(live.why, "4 people. Nothing sends until you say so.");
+  assert.equal(live.why, C.todayRunWords(waitingRun()).waiting.sentence);
+  assert.deepEqual(live.pill, { tone: "warn", label: "Waiting on you" });
+  assert.equal(row(waitingRun({ recipient_count: 1 })).why, "1 person. Nothing sends until you say so.");
+  // Its day has passed (the board's moment is 2 October in New York): the verb refuses it (contracts runApprovalRefusal, THE
+  // predicate), so the row says the verb's own sentence, with the day in words, and offers no Approve.
+  const gone = row(waitingRun({ run_for: "2026-09-30" }));
+  assert.equal(
+    gone.waiting.refusal,
+    "This run was made for Sep 30 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.",
+  );
+  assert.equal(gone.why, gone.waiting.refusal);
+  // A visit's run made for today, approved after the last sending hour (it is 9:44 PM), would go tomorrow morning: refused too.
+  const visit = row(waitingRun({ audience: { trigger: "visit_tomorrow" } }));
+  assert.match(visit.waiting.refusal, /^This run was made for Oct 2 and that day has passed/);
+  // A reach-out's run in its real shape (core runReachOut: no playbook, its audience says what it is) is decided on its
+  // sheet, which counts and names each first cold email (decision D6: Today opens it and Ask refuses both verbs). Its
+  // line offers neither act, says what Today's row says of it, and its name stays the door to the run.
+  const reachOut = row(
+    waitingRun({ playbook_id: null, run_for: "2026-09-30", audience: { kind: "reach_out" }, recipient_count: 12 }),
+  );
+  assert.equal(reachOut.waiting, null);
+  assert.equal(reachOut.why, "12 businesses. Nothing sends until you say so.");
+  assert.deepEqual(reachOut.act, { kind: "route", label: "Open", route: "broadcasts/run:r-w" });
+  // A run whose playbook the page does not hold (it was deleted): nothing here says what it sends, so it is opened too.
+  const orphan = row(waitingRun({ playbook_id: "pb-gone" }));
+  assert.equal(orphan.waiting, null);
+  assert.equal(orphan.what, "Win-back · Oct 2", "it keeps the name the run has");
+  assert.equal(orphan.act.route, "broadcasts/run:r-w");
+  // A workspace paused for billing: the verb refuses an approval before it looks at the day (402), so the line says the
+  // pause in the composers' sentence and Skip is the act left. Either surface's readiness says it.
+  const open = {
+    whatsapp: { ready: true, why: null },
+    sms: { ready: false, why: "x" },
+    email: { ready: false, why: "y" },
+  };
+  for (const over of [
+    { broadcasts: broadcasts({ rows: [waitingRun()], ready: { ...open, paused: true } }) },
+    { broadcasts: broadcasts({ rows: [waitingRun()] }), playbooks: playbooks({ ready: { ...open, paused: true } }) },
+  ]) {
+    const held = coming(over).rows.find((x) => x.id === "run:r-w");
+    assert.deepEqual(held.waiting, { runId: "r-w", people: 4, refusal: C.CAMPAIGNS_PAUSED_WORDS });
+    assert.equal(held.why, C.CAMPAIGNS_PAUSED_WORDS);
+  }
+  // A late run under a pause says its day: resuming billing would not make it approvable.
+  const both = coming({
+    broadcasts: broadcasts({ rows: [waitingRun({ run_for: "2026-09-30" })], ready: { ...open, paused: true } }),
+  }).rows.find((x) => x.id === "run:r-w");
+  assert.match(both.waiting.refusal, /^This run was made for Sep 30/);
+  // A scheduled run waits on nobody, and a moment's own line never does.
+  const others = coming({ broadcasts: broadcasts({ rows: [waitingRun({ state: "scheduled" })] }) }).rows;
+  assert.deepEqual(
+    others.map((r) => r.waiting),
+    others.map(() => null),
+  );
+  // The words of the two acts and of the question Skip asks are contracts'.
+  const W = C.LIFECYCLE_WORDS.coming.approval;
+  assert.deepEqual(
+    [
+      W.approve,
+      W.approving,
+      W.skip,
+      W.approveOf("Win-back"),
+      W.skipOf("Win-back"),
+      W.question("Win-back"),
+      W.detail,
+      W.yes,
+    ],
+    [
+      "Approve",
+      "Approving…",
+      "Skip",
+      "Approve this run of Win-back",
+      "Skip this run of Win-back",
+      "Skip this run of Win-back?",
+      "Nothing sends, and the run closes.",
+      "Yes, skip it",
+    ],
+  );
+  // And so are the receipts: the server's count and when it really goes; a skip sends nothing.
+  assert.deepEqual(C.LIFECYCLE_TOAST.approved("Win-back", 4, "sending now"), [
+    { b: "Win-back" },
+    " approved — 4 people, sending now",
+  ]);
+  assert.deepEqual(C.LIFECYCLE_TOAST.approved("Win-back", 1, "scheduled for tomorrow 9:00 AM"), [
+    { b: "Win-back" },
+    " approved — 1 person, scheduled for tomorrow 9:00 AM",
+  ]);
+  // A skip says what the server stopped, by what the run was when it did (Sent's own receipt, runStoppedWords): a run
+  // that waited closes unsent; one a teammate approved a moment before is going, and stops after the batch in hand.
+  assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "pending_approval"), [
+    { b: "Win-back" },
+    " skipped — nothing will send",
+  ]);
+  assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "sending"), [{ b: "Win-back" }, " stops after this batch"]);
+  assert.deepEqual(C.LIFECYCLE_TOAST.skipped("Win-back", "scheduled"), [
+    { b: "Win-back" },
+    " canceled — nothing will send",
+  ]);
+  assert.deepEqual(
+    ["sending", "pending_approval", "scheduled", null, undefined].map((was) => C.runStoppedWords(was)),
+    [
+      "stops after this batch",
+      "skipped — nothing will send",
+      "canceled — nothing will send",
+      "canceled — nothing will send",
+      "canceled — nothing will send",
+    ],
+  );
+});
+
+test("what a waiting run's row may offer is one reading: approve, skip alone with the verb's reason, or open it", () => {
+  const days = { today: "2026-10-02", sendsOn: "2026-10-02", say: (d) => d };
+  const own = { playbook_id: "pb-1", run_for: "2026-10-02", audience: { trigger: "quiet_30" } };
+  const here = { paused: false, known: true };
+  assert.deepEqual(C.waitingRunOffer(own, days, here), { kind: "approve" });
+  // The verb's own sentence where it would refuse: the day, or the pause; the day first, which no resume mends.
+  const late = C.waitingRunOffer({ ...own, run_for: "2026-09-30" }, days, here);
+  assert.equal(late.kind, "skip");
+  assert.equal(late.why, C.runApprovalRefusal({ ...own, run_for: "2026-09-30" }, days));
+  assert.deepEqual(C.waitingRunOffer(own, days, { paused: true, known: true }), {
+    kind: "skip",
+    why: C.CAMPAIGNS_PAUSED_WORDS,
+  });
+  assert.equal(C.waitingRunOffer({ ...own, run_for: "2026-09-30" }, days, { paused: true, known: true }).why, late.why);
+  // Decided on its sheet: a reach-out's run whatever else is so, and a run no playbook here answers for.
+  const reachOut = { playbook_id: null, run_for: "2026-09-30", audience: { kind: "reach_out" } };
+  for (const at of [here, { paused: true, known: true }, { paused: false, known: false }])
+    assert.deepEqual(C.waitingRunOffer(reachOut, days, at), { kind: "open" });
+  assert.deepEqual(C.waitingRunOffer(own, days, { paused: false, known: false }), { kind: "open" });
 });
 
 test("coming up is left out before the playbooks are read", () => {

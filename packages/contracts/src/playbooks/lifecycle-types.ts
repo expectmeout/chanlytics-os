@@ -136,6 +136,13 @@ export interface LifecycleRun {
   recipient_count: number;
   playbook_id: string | null;
   counts: { sent: number; replied: number };
+  /**
+   * The day a playbook's run was made for, and what it was made over (its moment, or a reach-out's step): what the
+   * approval's one predicate asks (runApprovalRefusal). Absent on a row read before the page carried them, and the run is
+   * then never said to be late here; the verb still refuses it.
+   */
+  run_for?: string | null;
+  audience?: unknown;
 }
 
 /** Who can hear the workspace, counted over everyone in People once (`reachCountsOf`). */
@@ -261,6 +268,8 @@ export interface LifecycleStage {
   needs: LifecycleNeeds;
   needsWords: string;
   covered: boolean;
+  /** Its playbook is on and a run of it waits for the person's approval: the node says so, where the check stood. */
+  waits: boolean;
   /** "Turn on · 3 tomorrow" on the one off moment that has people waiting, else null. */
   hint: string | null;
   /** What pressing it does; null where it does nothing (the receptionist). */
@@ -328,6 +337,20 @@ export interface LifecycleReachTile {
   } | null;
 }
 
+/** A run waiting on a person, as its line in "Coming up" approves or skips it in place. */
+export interface LifecycleWaiting {
+  runId: string;
+  /** Who gets it once it is approved (the run's own count, made when the run was). */
+  people: number;
+  /**
+   * Why it cannot be approved now, in the verb's own sentence (playbook-approval.ts waitingRunOffer: its day has passed,
+   * a visit's run would go a day late, or the workspace is paused); null where it can. Skip is then the act left. A run
+   * that is decided on its sheet alone (a reach-out's, or one whose playbook is gone) has no `waiting` at all: its line
+   * opens it.
+   */
+  refusal: string | null;
+}
+
 /** A line of "Coming up": a moment's next run, a moment that is off with people waiting, or a run on its way. */
 export interface LifecycleComing {
   id: string;
@@ -337,6 +360,8 @@ export interface LifecycleComing {
   why: string;
   pill: { tone: LifecycleTone; label: string } | null;
   act: LifecycleAct;
+  /** The run this line approves or skips where it stands; null for every line that waits on nobody. */
+  waiting: LifecycleWaiting | null;
   /** The time it is sorted by. */
   atMs: number;
 }

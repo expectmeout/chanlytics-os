@@ -83,7 +83,15 @@ export {
   nextRunLabel,
 } from "./playbook-schedule";
 export type { RunPlan } from "./playbook-schedule";
-export { poolWords, reachLines, runDayPassed, runApprovalRefusal, toApprovalVM } from "./playbook-approval";
+export {
+  poolWords,
+  reachLines,
+  runDayPassed,
+  runApprovalRefusal,
+  toApprovalVM,
+  waitingRunOffer,
+} from "./playbook-approval";
+export type { WaitingRunOffer } from "./playbook-approval";
 export type { ApprovalVM } from "./playbook-approval";
 
 export interface PlaybookDto {

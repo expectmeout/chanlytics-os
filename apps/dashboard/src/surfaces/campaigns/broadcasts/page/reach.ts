@@ -90,11 +90,18 @@ export function bcReachOf({
   const tpl = templates.find((t) => t.id === tplId) || null;
   const purpose = (tpl && tpl.purpose) || "marketing";
   const number = data.number || null;
-  // The channels it goes by: the ones ticked that the workspace can send on and the message has a version for.
-  const channelReady = readyForMessage(cmReadyOf(data.ready), tpl?.message ?? CM_NO_MESSAGE_YET);
+  // The channels it goes by: the ones ticked that the workspace can send on and the message has a version for. Before a
+  // message is picked there is no version to ask after, so only what the workspace cannot send on closes a switch: "This
+  // message has no email version yet" over no message was a reason for nothing (Send by stands above Says, 8 Oct 2026).
+  const ready = cmReadyOf(data.ready);
+  const channelReady = tpl ? readyForMessage(ready, tpl.message ?? CM_NO_MESSAGE_YET) : ready;
   // A broadcast is the business's news, whatever its template's category: by email it waits for the workspace's offers as an
   // offer does (contracts isOfferByEmail, decision D2), so a channel is open to it by what an offer's is.
   const on = cmChannelsOn(channels, channelReady, purpose, "ours");
+  // The switches before a message is picked: the count above is an offer's until then (the smaller of an audience's two
+  // sizes), but a switch closed by "Texts carry no offers" over no message would be a reason for nothing, as a missing
+  // version's was. Only the workspace closes one until a message says what it is.
+  const viaPurpose = tpl ? purpose : "conversational";
   const sizeOf = (a: BcReach["active"]) => bcReadingOf(a, purpose, on).sending;
   const reading = bcReadingOf(active, purpose, on);
   const activeCount = reading.sending;
@@ -117,7 +124,7 @@ export function bcReachOf({
     channelReady,
     on,
     // A broadcast goes now: a channel closed now cannot be ticked.
-    ticks: cmViaTicks(channels, channelReady, { purpose, about: "ours" }, false),
+    ticks: cmViaTicks(channels, channelReady, { purpose: viaPurpose, about: "ours" }, false),
     reading: reading.preview,
   };
 }

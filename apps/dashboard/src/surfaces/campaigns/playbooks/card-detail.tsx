@@ -10,6 +10,8 @@ import { useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
   DELIVERY_RECEIPTS_TIP,
+  LIFECYCLE_TOAST,
+  LIFECYCLE_WORDS,
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
   pipelineRoute,
@@ -28,8 +30,8 @@ import type { MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
-import { bcLateWords, bcWhenWords } from "../broadcasts/when-words";
-
+import { bcRunOffer, bcWhenWords } from "../broadcasts/when-words";
+import { SentenceParts } from "../home/sentence";
 import { MessagePreview } from "../parts/message-preview";
 import { CmPane, useCmPhone } from "../parts/split";
 import { CardVia, cardViaOf, goesBySaid } from "./card-channels";
@@ -123,6 +125,8 @@ function cardRead(p: PlaybookRow, surface: PlaybooksSurface | undefined) {
     reachDoor,
     noNumber,
     named,
+    // A workspace paused for billing: an approval is refused (402), so the card says so where Approve would be.
+    paused: surface?.ready?.paused === true,
     listRoute: cardListRoute(p, trig),
     // The offered message its row is one version of (the surface's own reading, with the channels it holds): what the
     // composer reads for its Send by row.
@@ -202,20 +206,17 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
     act(
       (o) => V.approveRun(waiting.id, o),
       (d: Output<"POST broadcasts/[id]/approve">) => (
-        <>
-          <b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {bcWhenWords(d)}
-        </>
+        <SentenceParts
+          parts={LIFECYCLE_TOAST.approved(p.name, d.recipient_count || waiting.recipient_count, bcWhenWords(d))}
+        />
       ),
     );
   const skip = (waiting: Waiting) => {
     setSkipSure(false);
     return act(
       (o) => V.skipRun(waiting.id, o),
-      () => (
-        <>
-          <b>{p.name}</b> — this run skipped, nothing sent
-        </>
-      ),
+      // What the server stopped, by what the run was when it did (Sent's own receipt, contracts runStoppedWords).
+      (d: Output<"POST broadcasts/[id]/cancel">) => <SentenceParts parts={LIFECYCLE_TOAST.skipped(p.name, d.was)} />,
     );
   };
   const remove = () => {
@@ -501,17 +502,24 @@ function cardHistory(c: CardCtx) {
 
 /** A run waiting on a person: Approve, the card's one filled act, for every role (it says who may), and Skip, which asks. */
 function cardWaitActs(c: CardCtx) {
-  const { p, canAct, busy, skipSure, setSkipSure, waiting, acts } = c;
+  const { p, canAct, busy, skipSure, setSkipSure, waiting, paused, acts } = c;
   if (!waiting) return null;
-  // The run is this playbook's, and its day and moment are the run's own (the list read's): a run whose day has passed is
-  // refused by the verb (bcLateWords), so the button says why and Skip is the act left.
-  const late = bcLateWords({ playbook_id: p.id, run_for: waiting.run_for, audience: { trigger: waiting.trigger } });
+  const W = LIFECYCLE_WORDS.coming.approval;
+  // What the card may offer is the one reading's (contracts waitingRunOffer, by the business's clock: when-words.ts
+  // bcRunOffer), which Coming up's line reads too. The run is this playbook's, and its day and moment are the run's own
+  // (the list read's). Where the verb would refuse an approval now (its day has passed, a visit's run would go a day
+  // late, or the workspace is paused) the button says why instead of answering 409 or 402, and Skip is the act left.
+  const offer = bcRunOffer(
+    { playbook_id: p.id, run_for: waiting.run_for, audience: { trigger: waiting.trigger } },
+    { paused, known: true },
+  );
+  const refusal = offer.kind === "skip" ? offer.why : null;
   if (canAct && skipSure) {
     return (
       <Confirm
-        question={`Skip this run of ${p.name}?`}
-        detail="Nothing sends, and the run closes."
-        yes="Yes, skip it"
+        question={W.question(p.name)}
+        detail={W.detail}
+        yes={W.yes}
         danger
         busy={busy}
         onYes={() => acts.skip(waiting)}
@@ -531,9 +539,9 @@ function cardWaitActs(c: CardCtx) {
         variant="primary"
         size="sm"
         disabled={busy}
-        onClick={() => (late ? undefined : void acts.approve(waiting))}
+        onClick={() => (refusal ? undefined : void acts.approve(waiting))}
         data-testid="pb-approve"
-        {...(!canAct ? gate("approve", "approve a run") : late ? gatedProps(late) : {})}
+        {...(!canAct ? gate("approve", "approve a run") : refusal ? gatedProps(refusal) : {})}
       >
         <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
       </Button>

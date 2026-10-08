@@ -956,6 +956,52 @@ test("a workspace that cannot send on any channel the playbook ticks still saves
   assert.deepEqual(said.at(-1)[1].channels, ["whatsapp"], "the channel it ticks is kept");
 });
 
+test("where the workspace can send on nothing, Send by says so once with a door for each channel a setting mends, and the number's warning is not said twice", () => {
+  const none = contracts.channelsReady({
+    whatsapp: null,
+    textLine: null,
+    email: { mailbox: false, domain: true },
+  });
+  const tree = composingVia({ ready: none, number: { present: false, health: { canSend: false } } });
+  const standing = byTestId(tree, "pb-via-standing");
+  assert.ok(standing, "the row says where the workspace stands");
+  const parts = contracts.channelsStandingParts(none);
+  assert.equal(textOf(standing), parts.map((p) => p.words).join("·"), "contracts' words, part by part");
+  assert.match(textOf(standing), /^Nothing can send yet/);
+  // The link itself: the stub walks a component and what it draws, and each carries the test id.
+  const doors = allByTestId(standing, "pb-via-standing-door").filter((n) => n.type === "a");
+  assert.equal(doors.length, 3);
+  for (const door of doors) assert.match(String(door.props.href), /admin\/integrations$/);
+  // In place of the reasons a thumb reads, which the line has just given: what is left under the row is the promise
+  // to the channel the playbook keeps, without its reason a second time.
+  assert.equal(textOf(byTestId(tree, "pb-via-whys")), "WhatsApp It goes by it once it can.");
+  assert.equal(byTestId(tree, "pb-number"), null, "the number's own warning would be the same thing said twice");
+  assert.equal(viaOf(tree).whatsapp.props.checked, true, "and the playbook still keeps the channel it ticks, waiting");
+  // A workspace paused for billing is not one that can send on nothing: the sheet says the pause where Save is, and
+  // the row keeps what it says of each channel.
+  const paused = composingVia({ ready: { ...ALL_READY, paused: true } });
+  assert.equal(byTestId(paused, "pb-via-standing"), null);
+  // Anything open, or a readiness that was not read: the row is what it was, and the number's warning stands.
+  const some = composingVia({ ready: NO_TEXT_NO_MAIL, number: { present: false, health: { canSend: false } } });
+  assert.equal(byTestId(some, "pb-via-standing"), null);
+  assert.ok(byTestId(some, "pb-number"));
+  assert.equal(byTestId(composingVia({ ready: null }), "pb-via-standing"), null);
+});
+
+test("Send by before a message is picked: a switch is closed by what the workspace cannot send on, never by a version no message has yet", () => {
+  // The moment's own message is not approved and nothing else is offered: the sheet opens on no message.
+  const tree = composingVia({ templates: [] });
+  assert.equal(viaOf(tree).email.props.readOnly, false, "email is open before a message is picked");
+  assert.equal(viaOf(tree).sms.props.readOnly, false);
+  assert.ok(
+    Object.values(reasonsOf(tree)).every((why) => !/version/.test(why)),
+    "no switch says a message it does not have yet lacks a version",
+  );
+  // Once a message is picked its versions are asked after, as before.
+  const picked = composingVia({ templates: [reminderRow(["whatsapp", "email"])] });
+  assert.match(reasonsOf(picked).sms, /no text version/);
+});
+
 test("a channel a playbook ticks that closes later stays ticked, says it waits, and is saved: never dropped by a save", async () => {
   const noMailbox = { ...ALL_READY, email: { ready: false, why: contracts.CHANNEL_WORDS.noMailbox } };
   const mine = playbook({

@@ -64,6 +64,7 @@ export {
   reachLines,
   runDayPassed,
   runApprovalRefusal,
+  waitingRunOffer,
   toApprovalVM,
 } from "./playbooks";
 export {
@@ -126,4 +127,5 @@ export type {
   PlaybookReach,
   RunPlan,
   ApprovalVM,
+  WaitingRunOffer,
 } from "./playbooks";

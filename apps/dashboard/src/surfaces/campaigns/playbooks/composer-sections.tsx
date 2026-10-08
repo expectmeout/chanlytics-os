@@ -25,7 +25,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
-import { CM_VIA_WORDS, cmStandInOf, cmTick } from "../parts/channels";
+import { CM_VIA_WORDS, cmNothingOpen, cmStandInOf, cmTick } from "../parts/channels";
 import { MessagePreview, PreviewStepper } from "../parts/message-preview";
 import { CmLangGlyph } from "../parts/picker";
 import { cmChevron, cmGroups, cmNumbers, cmSearch } from "../parts/picks";
@@ -429,7 +429,12 @@ export function viaSection(x: SectionCtx) {
   return (
     <section className="pb-sec" data-testid="pb-via-sec">
       <span className="pb-sec-k">{CM_VIA_WORDS.label}</span>
-      <CmVia ticks={ticks} onTick={(channel, next) => setChannels(cmTick(kept, channel, next))} testid="pb-via" />
+      <CmVia
+        ticks={ticks}
+        onTick={(channel, next) => setChannels(cmTick(kept, channel, next))}
+        testid="pb-via"
+        standing={cmNothingOpen(x.data.ready)}
+      />
     </section>
   );
 }
