@@ -7,6 +7,7 @@ import {
   PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
   audiencePreview,
+  campaignChannelsOf,
   clockStamp,
   compareTemplates,
   listToken,
@@ -309,6 +310,9 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       trigger: p.trigger,
       trigger_label: triggerOf(p.trigger)?.label ?? p.trigger,
       template: p.template_name,
+      // The channels it goes by (WhatsApp alone for one made before channels): what propose_campaign with action
+      // channels is asked to change, and must be told whole.
+      channels: campaignChannelsOf(p.channels),
       state: p.state,
       policy_class: p.policy_class,
       mode: modeOf(p.policy_class),
@@ -453,7 +457,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the playbooks",
       words:
-        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
       run: listPlaybooksTool,
     }),
     broadcasts: readAction({
@@ -461,7 +465,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the broadcasts",
       words:
-        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
+        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Waiting on you, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
       run: readBroadcasts,
     }),
     broadcast: readAction({

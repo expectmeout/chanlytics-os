@@ -11,3 +11,7 @@ export const plural = (n: number, one: string, many = `${one}s`): string => `${n
 
 /** The first letter upper-cased, the rest as written; an empty string stays empty. */
 export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** Words as a list in a sentence: "a", "a and b", "a, b and c". An empty list is an empty string. */
+export const joinWords = (items: readonly string[]): string =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;

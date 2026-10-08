@@ -3,9 +3,18 @@
  * rail and the strips, lifecycle-tiles.ts to make the tiles). A sentence of the page is here or made from here, never in the
  * page.
  */
-import { CAMPAIGN_ROOMS } from "../shell/campaign-rooms";
+import type { ConsentChannel } from "../consent/consent-channels";
+import { clockHour } from "../shared/clock";
+import { CAMPAIGN_ROOMS, runStoppedWords } from "../shell/campaign-rooms";
+import { joinWords, plural } from "../shared/words";
+import { VERSION_CHANNEL_WORDS } from "../templates/message-versions";
+import { WORKSPACE_PAUSED_FACT } from "../workspace/billing";
 import { SENDING_HOURS_WORDS } from "./playbook-triggers";
 import type { LifecyclePlaybook, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
+
+/** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
+export const channelsGoesByWords = (channels: readonly ConsentChannel[]): string =>
+  joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
 
 export const LIFECYCLE_WORDS = {
   title: CAMPAIGN_ROOMS.home,
@@ -51,6 +60,23 @@ export const LIFECYCLE_WORDS = {
     },
   },
   phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
+  channels: {
+    goesBy: "Goes by",
+    /** A kept channel the workspace cannot send on yet, after its name: "Email · waits". */
+    waits: "waits",
+    /** The marks' line to a screen reader: "Goes by WhatsApp and Email; Text waits; could also go by Email". */
+    marks: (on: readonly string[], waits: readonly string[], could: readonly string[]): string =>
+      [
+        on.length > 0 ? `Goes by ${joinWords(on)}` : waits.length > 0 ? "" : "Goes by nothing yet",
+        waits.length > 0 ? `${joinWords(waits)} ${waits.length === 1 ? "waits" : "wait"}` : "",
+        could.length > 0 ? `could also go by ${joinWords(could)}` : "",
+      ]
+        .filter(Boolean)
+        .join("; "),
+    /** After a change of channels, where a run of the playbook already waits: it was made with the channels it had. */
+    runKeeps: "the run that waits keeps the channels it was made with",
+  },
   // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
   // kit's failed read where the data would be, and its Retry reads `surface` again.
   failed: {
@@ -92,7 +118,10 @@ export const LIFECYCLE_WORDS = {
     opensMessages: "Opens:",
     ownOffers: ["the month's offer", "your notes"],
     asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
-    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    /** The phone's line in the Moments head: who of everyone in People a message can reach now. */
+    phoneHear: (canHear: number, people: number): string => `${canHear} of ${people} can hear you`,
+    /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
+    phoneYes: "Get their yes",
     code: "Show the code",
     copy: "Copy the phrase",
     link: "People",
@@ -105,11 +134,28 @@ export const LIFECYCLE_WORDS = {
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
     waiting: "Waiting on you",
+    /**
+     * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
+     * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you
+     * say so."), which promises nobody the month's allowance holds back.
+     */
+    approval: {
+      approve: "Approve",
+      approving: "Approving…",
+      skip: "Skip",
+      /** The two acts named whole for a screen reader: where two runs wait, "Approve" twice says nothing of which. */
+      approveOf: (name: string): string => `Approve this run of ${name}`,
+      skipOf: (name: string): string => `Skip this run of ${name}`,
+      question: (name: string): string => `Skip this run of ${name}?`,
+      detail: "Nothing sends, and the run closes.",
+      yes: "Yes, skip it",
+    },
     // A running moment's row while the WORKSPACE is paused (billing): no time is promised, since the send door refuses every
     // message of a run until billing resumes. It says so where "Tomorrow 10:00" stood.
     paused: {
       when: { day: "Paused", at: "for billing" },
-      why: "The workspace is paused, so nothing goes until billing resumes",
+      // The fact in its one spelling (workspace/billing.ts), which a waiting run on the line below says too, with its door.
+      why: WORKSPACE_PAUSED_FACT,
       pill: "Workspace paused",
     },
   },
@@ -138,16 +184,40 @@ export const LIFECYCLE_TOAST = {
   ],
   /** The name of a line the page has no row for, where a toast must name it. */
   nameless: "It",
+  /**
+   * A waiting run approved: the server's own count, and when it really goes in the page's clock words ("sending now",
+   * "scheduled for tomorrow 9:00 AM"), since the server may move a late approval to the next sending hour.
+   */
+  approved: (name: string, people: number, when: string): LifecycleSentence => [
+    { b: name },
+    ` approved — ${plural(people, "person", "people")}, ${when}`,
+  ],
+  /**
+   * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts
+   * runStoppedWords, Sent's own receipt). A run that waited closes unsent; one a teammate approved a moment before, and
+   * that is already going, stops after the batch in hand, and the page does not say "nothing will send" of it.
+   */
+  skipped: (name: string, was: string | null | undefined): LifecycleSentence => [
+    { b: name },
+    ` ${runStoppedWords(was)}`,
+  ],
+  /**
+   * A playbook's channels changed, from its drawer or from Ask's card: "Visit reminder goes by WhatsApp and Email now".
+   * `runWaits`: a run of it already waits for approval, and keeps the channels it was made with (core run-playbook
+   * stores them as it enrols), so the sentence says the change is the next run's.
+   */
+  channels: (name: string, channels: readonly ConsentChannel[], runWaits: boolean): LifecycleSentence => [
+    { b: name },
+    ` goes by ${channelsGoesByWords(channels)} now${runWaits ? ` · ${LIFECYCLE_WORDS.channels.runKeeps}` : ""}`,
+  ],
   phraseCopied: "Phrase copied",
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase: string): string => `Couldn't copy, the phrase is: ${phrase}`,
 } as const;
 
-const twoDigits = (n: number) => String(n).padStart(2, "0");
-
-/** A playbook's clock in the fewest words: "daily 10:00", "every 30 days". */
+/** A playbook's clock in the fewest words: "daily 10:00 AM", "every 30 days". The hour is the product's clock's (clockHour). */
 function lifecycleClock(p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days">): string {
-  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${twoDigits(p.run_hour)}:00`;
+  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
 
 /** What a playbook says of itself as a state: on with its clock, a run waiting on the person, or paused. */

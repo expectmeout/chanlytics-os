@@ -96,6 +96,21 @@ const RUN_CHANNEL_WORDS = [
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
 ];
 /**
+ * 8 Oct 2026 (Campaigns, one name per thing): a run waiting on its owner is "Waiting on you" in what the tool answers
+ * (contracts BROADCAST_STATE_LABELS), so the sentence that tells the model which state that is says the same words. It
+ * said the Inbox's "Needs you" over an answer that no longer did. The one phrase, once.
+ */
+const RUN_WAITING_WORDS = ["is Needs you, with waiting_on_you", "is Waiting on you, with waiting_on_you"];
+/**
+ * 8 Oct 2026 (Ask names channels, the review of that day): each playbook the listing gives says the channels it goes by
+ * now, since propose_campaign with action channels asks for all of them, and the model was told to read them from an
+ * answer that did not hold them. The one phrase, once.
+ */
+const PLAYBOOK_CHANNELS_WORDS = [
+  "its message (template), its clock and next run,",
+  "its message (template), the channels it goes by now (channels), its clock and next run,",
+];
+/**
  * 7 Oct 2026 (lane 1, T11): campaigns says a message where it said an approved WhatsApp template, and says what its
  * audiences listing gives of each: the `channels` a version of it can be sent on now. The four sentences that moved, each
  * once (the listing's, the playbooks', the playbooks' starter, the tail's), and nothing else it says. And (the lane's
@@ -348,7 +363,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
   const tool = (role, name) => toApiTools(role, true).find((t) => t.name === name);
   assert.deepEqual(
     ROLES.map((role) => tool(role, "propose_campaign")?.input_schema.properties.action.enum ?? null),
-    [null, ["broadcast", "playbook", "run"], ["broadcast", "playbook", "run"], ["broadcast", "playbook", "run"]],
+    // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches.
+    [
+      null,
+      ["broadcast", "playbook", "run", "channels"],
+      ["broadcast", "playbook", "run", "channels"],
+      ["broadcast", "playbook", "run", "channels"],
+    ],
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
   const words = ({ description: _, ...rest }) => rest;
@@ -364,13 +385,17 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
     // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; (lane 1, T11): a message, where it said
-    // an approved WhatsApp template; nothing else it says moved.
+    // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by;
+    // nothing else it says moved.
     assert.equal(
       tool(role, "campaigns").description,
       MESSAGE_WORDS.reduce(
         (said, [from, to]) => said.replace(from, to),
-        was(role, "campaigns").description.replace(...RUN_CHANNEL_WORDS),
-      ),
+        was(role, "campaigns")
+          .description.replace(...RUN_CHANNEL_WORDS)
+          .replace(...RUN_WAITING_WORDS),
+        // Said over the message words above ("its message (template)"), so after them.
+      ).replace(...PLAYBOOK_CHANNELS_WORDS),
       role,
     );
     assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);
@@ -387,11 +412,14 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       role,
     );
     assert.deepEqual(words(tool(role, "propose_thread_verb")), words(was(role, "propose_thread_verb")), role);
-    // propose_campaign: what it sent before is now's less the run -- the broadcast's and the playbook's own fields and
-    // examples, byte for byte -- and the run's own words stand between the playbook's and the tail.
+    // propose_campaign: what it sent before is now's less the run and less the channels action (8 Oct 2026: its one
+    // field of its own, playbook_id, beside the channels the broadcast and the playbook already take) -- the
+    // broadcast's and the playbook's own fields and examples, byte for byte -- and the run's own words and the channels
+    // action's stand between the playbook's and the tail.
     const before = was(role, "propose_campaign");
     const now = tool(role, "propose_campaign");
-    const { broadcast_id: _b, verb: _v, channels, ...fields } = now.input_schema.properties;
+    const { broadcast_id: _b, verb: _v, playbook_id: playbookId, channels, ...fields } = now.input_schema.properties;
+    assert.deepEqual(shapeOf(playbookId), { type: "string" }, `${role}: playbook_id, the channels action's own field`);
     assert.deepEqual(channels, CHANNELS, `${role}: channels, one optional list of the three, for both actions`);
     assert.equal(now.input_schema.required.includes("channels"), false, `${role}: and never required`);
     assert.deepEqual(
@@ -399,10 +427,11 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       lessRetired(before.input_schema).properties,
     );
     assert.deepEqual(
-      now.input_examples.filter((ex) => ex.action !== "run"),
+      now.input_examples.filter((ex) => ex.action !== "run" && ex.action !== "channels"),
       before.input_examples,
     );
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.run.words} `), role);
+    assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.channels.words} `), role);
   }
 });
 

@@ -277,8 +277,10 @@ export const PAUSED_WORDS =
  * a run, said what would not happen. Today says its own, about the receptionist ("This workspace is paused — the receptionist
  * is not answering anything."); this is the same fact said about what is sent.
  */
-export const CAMPAIGNS_PAUSED_WORDS =
-  "This workspace is paused, so nothing is sent until billing resumes. Resume it from Settings › Billing.";
+/** The fact itself, for a line that carries its own door to Billing (Campaigns' head): the sentence below without its second. */
+export const WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
+
+export const CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings › Billing.`;
 
 export function planBilling(
   before: { mode: BillingMode; status: BillingStatus; tenant_status: string },

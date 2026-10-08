@@ -387,7 +387,7 @@ export function playbookRunReach(
 /**
  * What a playbook will actually DO on its next run.
  *
- * "Running · next run tomorrow 10:00" is a promise, and on a workspace whose
+ * "Running · next run tomorrow 10:00 AM" is a promise, and on a workspace whose
  * list is empty it is one the run cannot keep. The salon had three playbooks,
  * two of them running every day, and every one of them watched a pool of
  * nought -- so two runs a day reached nobody and had been doing so since the

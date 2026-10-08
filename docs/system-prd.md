@@ -715,16 +715,16 @@ Writes are owner-only and a versioned compare-and-swap (`PUT /settings` echoes t
 
 `policies` rows are a class, a mode and limits.
 
-| Class       | Modes                     | Enforced by                                                                                  |
-| ----------- | ------------------------- | -------------------------------------------------------------------------------------------- |
-| `reply`     | auto · veto · ask · never | The edge, on every inbound message                                                           |
-| `booking`   | auto · ask                | Layer two (a booking question under ask escalates `policy_ask`); the visit-reminder playbook |
-| `faq`       | auto · ask                | Layer two (a service or pricing question under ask escalates `policy_ask`)                   |
-| `reengage`  | auto · veto · ask · never | Playbook runs: win-back, save our number, after the visit                                    |
-| `campaign`  | auto · veto · ask · never | Playbook runs: welcome, the month's offer                                                    |
-| `reviews`   | auto · ask · never        | Google: auto answers within the hour; ask drafts; never leaves reviews to people             |
-| `follow_up` | auto · ask · never        | Playbook runs: the proposal follow-up, a row only where deals are on (0006)                  |
-| `money`     | never                     | Locked by the `enforce_money_lock` trigger (proved to hold, 00102)                           |
+| Class       | Modes                     | Enforced by                                                                                |
+| ----------- | ------------------------- | ------------------------------------------------------------------------------------------ |
+| `reply`     | auto · veto · ask · never | The edge, on every inbound message                                                         |
+| `booking`   | auto · ask                | Layer two (a booking question under ask escalates `policy_ask`); the visit playbooks' runs |
+| `faq`       | auto · ask                | Layer two (a service or pricing question under ask escalates `policy_ask`)                 |
+| `reengage`  | auto · veto · ask · never | Playbook runs: win-back, save our number                                                   |
+| `campaign`  | auto · veto · ask · never | Playbook runs: welcome, the month's offer                                                  |
+| `reviews`   | auto · ask · never        | Google: auto answers within the hour; ask drafts; never leaves reviews to people           |
+| `follow_up` | auto · ask · never        | Playbook runs: the proposal follow-up, a row only where deals are on (0006)                |
+| `money`     | never                     | Locked by the `enforce_money_lock` trigger (proved to hold, 00102)                         |
 
 A per-person row (`subject_type 'contact'`) overrides the workspace's reply mode for one customer; the edge reads it on every message and never caches it. The reply row's limits are **the owner's dials** on the Autonomy pane: `max_replies_day`, `pause_hours`, `max_llm_tokens_day` (the day's budget has its handle), `min_confidence`, and the veto delay. Every switch on the pane is one something honours, and the copy says what the dial does.
 
@@ -772,7 +772,7 @@ A standing rule that sends one message, on the channels it holds, to people who 
 | Save our number    | Only ever phoned                                                          | reengage  |
 | The month's offer  | Everyone who said yes, on a cadence                                       | campaign  |
 | Visit reminder     | The day before an appointment on the calendar                             | booking   |
-| After the visit    | The day after a visit, with nothing booked next                           | reengage  |
+| After the visit    | The day after a visit, with nothing booked next                           | booking   |
 | Proposal follow-up | A proposal waiting past the workspace's pace, with its link, nothing back | follow_up |
 
 A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week (a run stopped after it sent still reached whoever it sent to, and a run left waiting past its day reached nobody), longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own. A playbook is made and changed in one sheet beside the page: its moment and who that reaches today, its message as a customer reads it, and its clock as one sentence. Each slot takes only what keeps the message true (contracts `slotChoices`): a starter's first name is each person's own and a visit's time each visit's, the business name and the booking link may be typed over, a slot on a template written elsewhere may take any source (its guess first), and a message with a slot the moment cannot fill is not offered on it. A playbook stored with a slot filled by something it cannot take says so on its card, and the next change puts it right. A visit run is different in three ways (#580): it reminds everyone with a visit, the cap being a fatigue limit for offers (the number's own daily limit is the one ceiling left, and the run's record says when it cut); its words are relative to the moment the send goes, so a run asked for at eleven at night and moved to nine says "today"; and a day's run approved on a later day is refused, and the next sweep reads the calendar again. The proposal
@@ -786,6 +786,101 @@ own. It says so only where its run would send: its WhatsApp version approved whe
 number not flagged where it ticks WhatsApp, the workspace not paused, and a yes to offers where its message is filed as
 marketing. Today's proposals-waiting
 row counts only the ones it will not reach, never naming someone who asked to stop, and Ask lists and proposes it.
+
+**A campaign says where it goes** (8 October 2026, `docs/superpowers/specs/2026-10-08-a-campaign-says-where-it-goes-design.md`):
+Campaigns' home says once, at the rail's head on a desk and in the Moments head on a phone, which channels the workspace can
+send on now and why each closed one is closed (contracts `channelsStandingParts`, from the readiness the playbooks and
+broadcasts reads carry), each closed reason a door to Settings › Connections where a setting mends it; a workspace paused
+for billing says that alone, with its door to Billing. The line is drawn where it is seen: the frame's head, a screen
+reader's under Glass, holds no copy of it. A playbook's channels have one reading (contracts `playbookChannelsRead`: its
+purpose, what its message holds, what the workspace can send on), which the marks, its drawer and its composer all ask.
+Each running moment and each line under the rail carries a mark per channel: on, waits (it keeps the channel and cannot
+go by it yet: no line, no version, offers closed, the workspace paused), or could (it may go by it now and does not tick
+it: what one more tick opens); a moment that is off, or that runs nothing here, carries none. The playbook's drawer draws
+the composer's Send by row as **Goes by**, switched in place: a press sends the channels it keeps, alone
+(`PUT playbooks/[id]` with `{ channels }`), which the server judges against the playbook as it stands and writes alone,
+and the page says so; a press starts from what it keeps, so a channel that waits is never let go by a press on another.
+A new playbook ticks every channel its message can go by (a person is reached once, on their best channel, so a tick
+widens reach and never doubles a message), following the message in view until a switch is pressed; a broadcast keeps the
+first alone. Who can hear you's "Can get your messages" rung is cut by channel, each person once, on the channel a send
+would reach them by (contracts `reachedOn` on each person's row, counted by `reachCountsOf`), What came back says what
+each channel sent where more than one did (0030), and a run's row in Sent says its split. No migration: every fact was
+already on the wire.
+
+**A run is approved where it waits** (8 October 2026): a playbook's run waiting on a person is a line in Coming up that
+carries its own acts. It says what Today's row says of it ("7 people. Nothing sends until you say so.", contracts
+`todayRunWords`), Approve sends it through the broadcast's own door and says how many and when (the server moves an
+approval outside the sending hours to the next nine o'clock), and Skip asks on the line before it closes the run. What
+a waiting run's row may offer is one reading, contracts `waitingRunOffer`, asked by the business's clock and read by
+Coming up's line and a playbook's card alike: approve it; skip it alone, with the verb's own sentence across the line,
+where an approval would be refused (`runApprovalRefusal`: the run's day has passed, or a visit's run would go a day late;
+or the workspace is paused for billing, `CAMPAIGNS_PAUSED_WORDS`); or open it, for a run that is decided on its sheet
+and never from a row: a reach-out's run (decision D6: its sheet counts and names each first cold email) and a run whose
+playbook the page does not hold. A role that may not approve sees Approve with its reason and no Skip. Each act names
+its run to a screen reader ("Approve this run of Win-back"), a No on the question hands the keyboard back to the Skip
+that asked it, and while one row's press is with the server another row's Yes waits in sight and its question stays
+open. The line's name stays the door to the run's sheet, for who and what. A moment whose playbook has a run waiting
+wears a clock on its node, in the warning's colour, where the check stood. The receipts are one each for the home, the
+card and Sent: `LIFECYCLE_TOAST.approved`, and a skip's by what the server stopped (`runStoppedWords` of the cancel
+door's `was`: "skipped — nothing will send" for a run that waited, "stops after this batch" for one a teammate had
+approved a moment before). Sent's own row still offers Approve on every waiting run, as before this change; the server
+and the run's sheet say the pause and a reach-out's count there.
+
+**Send by stands under To** (8 October 2026): in both composers the rows are To, Send by, Says, When (and Under for a
+playbook). The count under To is counted over the channels ticked, and stood two rows and a whole preview away from the
+switches that change it. Before a message is picked a switch is closed only by what the workspace cannot send on, never
+by a version no message has yet, nor by what an offer may not go by ("Texts carry no offers" over no message). Where the
+workspace can send on nothing at all, the row says so once under its switches ("Nothing can send yet", then each channel
+with its reason, a door to Settings › Connections where a setting mends it: the home's own standing line,
+`channelsStandingParts`), in place of three dimmed switches whose reasons waited for a hover; a channel a playbook keeps
+all the same keeps its promise under the row on a touch screen ("It goes by it once it can."), and neither composer
+says the missing number a second time. A workspace paused for billing is not "nothing can send": each composer says the
+pause where its Send would be. On a touch screen each part of the standing line is a line of its own and a door is a box
+44px tall, on the home and in a composer alike.
+
+**One name per thing on Campaigns** (8 October 2026): a playbook's hour is said by the product's clock, as every other
+time is (contracts `clockHour`: "On · daily 9:00 AM", "Daily 6:00 PM · up to 25", "next run tomorrow 10:00 AM"), read by
+its schedule line, its clock in a line, its next run, the rail, Coming up, the composer's hour picker and Sent's week
+strip; it said "09:00" and "18:00" beside a broadcast's "6:00 PM" in one tile. `clockHour` is Campaigns' hour and is
+total (any number is read round the day); the Calendar's hour labels are its own shorter ones ("10 AM", `clockLabel`).
+A running playbook's next run is a fact, `nextRunOf` (its day, its hour, or due within the hour, from its hour and the
+day it last ran for): the card's label and Coming up's line are both said from it, where the line parsed the label's
+words back into a time and a label it could not read dropped the moment from the week. A run waiting on its owner says
+"Waiting on you" on its row in Sent too (`BROADCAST_STATE_LABELS`), on the pill of a playbook or a reach-out that has one
+waiting (`stateOf("playbook", "approval")` reads the same label) and in the sentence that tells Ask which state that is,
+where each said the Inbox's "Needs you". The day-after-a-visit playbook keeps its label, "After the visit": the label is
+also the name a playbook made on that moment was given and keeps, so a new label would say one thing on the moment and
+another on every playbook already made (a rename is a product decision with a migration of the stored names). Today's
+line reads the label instead of spelling it. Not changed here: the sending hours' own words ("9:00–20:59"), which
+core's refusals and Ask's receipts read too, and the Library's order of channels.
+
+**The phone opens on the moments** (8 October 2026): who can hear the workspace is a line in the Moments head on a phone
+("24 of 29 can hear you", the yes to offers beside it, the door to how that yes is got, "Get their yes", where the
+desk's tile has one, and the channels' standing under it), where it was a tile of its own over the moments with a
+figure, a bar and a note that pressed nothing. A read still out, or one that failed, is said in the count's place, at
+the line's own gutter; the channels' standing is the readiness's to say and stands either way. The desk's tile, its
+ladder and its doors to the yes are as they were.
+
+**Ask and a playbook's channels** (8 October 2026): the channels a new playbook goes by until its owner says otherwise
+are one reading in contracts (`playbookChannelsRead` with "new", over `newCampaignChannels` and its one switch,
+`NEW_PLAYBOOK_TICKS_EVERY_CHANNEL`), made by the composer and by Ask. A playbook Ask proposes with no channel named
+goes by what the composer would open it on: every channel a playbook of its kind may go by now for that message (the
+workspace can send on it, the message holds a version there, its purpose is carried there, and by email an offer only
+once offers by email are open), said on the card and committed; where that is WhatsApp alone it says and commits what it
+always did, and a message written for email alone is proposed by email where it was refused in WhatsApp's words. The
+tool's words to the model follow the switch. A broadcast still names its channels. And Ask changes the channels a
+playbook that exists goes by (`propose_campaign`, action `channels`; the card kind `playbook_channels`). The act reads
+the one playbook as far as its channels need (`playbookChannelsRow`: its row, the channels it keeps, whether a run of it
+waits), never the Playbooks page, and judges the channels asked by the check its Approve runs (`PUT playbooks/[id]` with
+`{ channels }` alone: core `checkPlaybookChannels`, against the playbook as it stands). The card carries the channels
+and nothing else of the playbook, so Approve, and Undo, the same PUT with the channels it had, write the channels and
+put nothing of an older copy back; its class is not re-derived. What the card says of each channel is the one reading
+the drawer and the rail make: one it keeps and cannot go by yet waits, with the reason (no line, no version of its
+message there, offers by email not open), its runs holding those people until it can; and where a run of it already
+waits for approval, the card and the receipt say that run keeps the channels it was made with. The receipt is the
+drawer's own sentence (`LIFECYCLE_TOAST.channels`). `campaigns` with action `playbooks` says the channels each playbook
+goes by now, since a change must name them whole. A playbook that already goes by those channels gets no card, and a
+reach-out's step is changed on its own sheet. Not recorded as a decision, as the drawer's change is not.
 
 ### 14.4 Reach out — cold email, built (nothing sends until a reach-out exists and its secrets are set)
 

@@ -17,8 +17,10 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Panel } from "../../kit/panel/panel";
 import { StatePill } from "../../kit/pill/state-pill";
+import { ChannelMarks, ChannelsLine } from "../parts/channels-line";
 import { cmRowPress } from "../parts/head";
 import { HomeFailed } from "./failed";
+import { PhoneReachLine } from "./tiles";
 
 /** What a press on a stage, a line or a button does: the page decides (home-page.tsx), the rail only says which. */
 export interface RailActs {
@@ -31,6 +33,12 @@ export interface RailActs {
 function StateWords({ tone, words, testid }: { tone: "ok" | "warn" | "plain"; words: string; testid?: string }) {
   return <StatePill kind="tone" value={tone} label={words} testid={testid} />;
 }
+
+/**
+ * A moment's node on the line: a clock while a run of its playbook waits for the owner (it is on, and it waits: the
+ * pill beside it says "Waiting on you"), the check once it is covered, else the moment's own glyph.
+ */
+const nodeGlyph = (s: LifecycleStage) => (s.waits ? "clock" : s.covered ? "check" : s.glyph);
 
 /** What a moment says under its name: its state, or the Turn on that makes it one. */
 function momentFoot(s: LifecycleStage, { onAct, gated }: RailActs) {
@@ -61,6 +69,7 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       data-stage={s.id}
       data-state={s.state}
       data-hint={s.hint ? "true" : undefined}
+      data-waits={s.waits ? "true" : undefined}
       data-testid="cmh-stage"
     >
       <span className="cmh-caps">{s.caps}</span>
@@ -70,7 +79,7 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       <span className="cmh-unit">{s.unit}</span>
       <span className="cmh-track" aria-hidden="true">
         <span className="cmh-node">
-          <Icon name={s.covered ? "check" : s.glyph} size={14} />
+          <Icon name={nodeGlyph(s)} size={14} />
         </span>
       </span>
       <div className="cmh-moment" data-state={s.state} role="presentation" onClick={open ? cmRowPress : undefined}>
@@ -82,6 +91,7 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
           <span className="cmh-moment-name">{s.name}</span>
         )}
         {momentFoot(s, acts)}
+        <ChannelMarks marks={s.channels} testid="cmh-chans" />
         <span className="cmh-needs" data-needs={s.needs}>
           <Icon name="shield" size={12} />
           {s.needsWords}
@@ -103,6 +113,7 @@ function StripLine({ l, acts }: { l: LifecycleStrip; acts: RailActs }) {
           {l.name}
         </LinkButton>
         <span className="cmh-dim cmh-strip-more">{l.words}</span>
+        <ChannelMarks marks={l.channels} testid="cmh-strip-chans" />
       </span>
       {l.stateWords ? <StateWords tone={l.tone} words={l.stateWords} /> : null}
       <Button size="sm" onClick={() => acts.onAct(act)} data-testid="cmh-strip-act" {...(resumes ? acts.gated : {})}>
@@ -161,6 +172,9 @@ export function Rail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
       <header className="cmh-block-head">
         <h2 className="cmh-h">{rail.title}</h2>
         {rail.coveredWords ? <span className="cmh-dim">{rail.coveredWords}</span> : null}
+        {/* Where the workspace stands on its channels, at the rail's right on a desk: the frame keeps the head's own line
+            for a screen reader (a tab's list opens on its acts alone), so the page says it where the eye is. */}
+        <ChannelsLine parts={home.head.channels} testid="cmh-channels-rail" />
       </header>
       {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
       <ol className="cmh-rail" data-n={rail.stages.length}>
@@ -188,10 +202,11 @@ function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       data-stage={s.id}
       data-state={s.state}
       data-hint={s.hint ? "true" : undefined}
+      data-waits={s.waits ? "true" : undefined}
       data-testid="cmh-stage"
     >
       <span className="cmh-node" aria-hidden="true">
-        <Icon name={s.covered ? "check" : s.glyph} size={13} />
+        <Icon name={nodeGlyph(s)} size={13} />
       </span>
       <span className="cmh-vwords">
         {open ? (
@@ -203,6 +218,7 @@ function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
         )}
         <span className="cmh-dim">
           {s.caps} · <span className="tabular">{s.people === null ? "—" : s.people}</span> {s.unit}
+          <ChannelMarks marks={s.channels} testid="cmh-chans" />
         </span>
       </span>
       {turnOn ? (
@@ -239,6 +255,9 @@ export function PhoneRail({ home, acts }: { home: LifecycleHome; acts: RailActs 
           <h2 className="cmh-h">{LIFECYCLE_WORDS.phone.moments}</h2>
           {rail.phoneWords ? <span className="cmh-dim">{rail.phoneWords}</span> : null}
         </header>
+        {/* Who can hear you, and where the workspace stands on its channels: a line in the head (8 Oct 2026), so the
+            moments are the first thing on the page. It was a tile of its own over them. */}
+        <PhoneReachLine tile={home.reach} failed={home.failed.reach} channels={home.head.channels} />
         {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
         <ol className="cmh-vrail">
           {rail.stages.map((s) => (

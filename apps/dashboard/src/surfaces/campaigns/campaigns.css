@@ -1939,6 +1939,65 @@ html.legacy-on .bc-run-line .bc-run-link {
   position: absolute;
   inset: -2px -6px -8px;
 }
+/* On a desk a finished run's reasons wrap between one and the next: what it earned, then what each channel sent under
+   it ("6 delivered · 1 reply" over "4 on WhatsApp, 2 by email"). On one line the second was cut by an ellipsis at every
+   desk width (the track is 183px at 1280), so the row did not say what the lane added. The dot stands after a reason,
+   never before the next, so a line does not begin with one. A phone keeps its one line: its row is the press, and the
+   run's report says the rest. */
+@container (min-width: 641px) {
+  .bc-run-reach .cm-reach-why {
+    display: flex;
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  .bc-run-reach .cm-reach-why li {
+    min-width: 0;
+  }
+  .bc-run-reach .cm-reach-why li + li::before {
+    content: none;
+  }
+  .bc-run-reach .cm-reach-why li:not(:last-child)::after {
+    content: "\00B7";
+    margin: 0 6px;
+    color: var(--ink-faint);
+  }
+}
+/* A narrow desk or a tablet (641 to 840px of list): five columns left the name 63px at 820 (the spec of 8 Oct 2026),
+   so the row takes two lines: the name with its state and its acts on the first, when it goes and who it reached on
+   the second, the mark beside the first. Each row is a grid of its own here, so the third track is a fixed 220px (the
+   list's own stop for its acts): as `auto` it was each row's widest words, the rows' columns stood at five different
+   places, and a question asked on a row (Skip?) or a reason by channel took the name's room. A row that is no subgrid
+   inherits no gap, so it names the list's. */
+@container (min-width: 641px) and (max-width: 840px) {
+  .bc-run {
+    display: block;
+  }
+  .bc-run-line {
+    grid-template-columns: 24px minmax(0, 1fr) 220px;
+    grid-template-areas: "mark what acts" ". when reach";
+    column-gap: 14px;
+    row-gap: var(--space-1);
+  }
+  /* The row's first cell, its kind's mark: placed by where it stands, so the page names no primitive of the kit's. */
+  .bc-run-line > :first-child {
+    grid-area: mark;
+    align-self: start;
+  }
+  .bc-run-what {
+    grid-area: what;
+  }
+  /* Under the name's own lines, not centred on a reach that is three lines tall beside it. */
+  .bc-run-when {
+    grid-area: when;
+    align-self: start;
+  }
+  .bc-run-reach {
+    grid-area: reach;
+  }
+  .bc-run-acts {
+    grid-area: acts;
+  }
+}
 /* A phone's list: People's row, on the row tokens. The name with its state; what sent it; when, and who it reached,
    on one line, the bar left to the desk; and only on a run that waits, its acts. The row is the press, so the mark
    of where it goes is the desk's. */
@@ -4046,6 +4105,15 @@ section:has(> .tpl-composer:not(.is-translate)) {
     gap: var(--space-1);
   }
 }
+/* Where the workspace can send on nothing, the row says so once under its switches (parts/send-by.tsx `standing`): the
+   row's whole width, in the quiet size, for a pointer and a thumb alike, since its words are the doors that mend it. */
+.cm-via > .cmh-channels {
+  flex-basis: 100%;
+  margin-top: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
 /* A row's word is one line: "Send by" is the longest of them. */
 .bc-grow-word,
 .pb-grow-word {
@@ -4797,6 +4865,13 @@ div.tpl-slotbox:not([data-lines="1"]) {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
+/* A moment whose run waits for the owner: the node gives up its filled ground and wears the amber, a clock where the
+   check stood ("needs you" is amber on every badge, the badges' rule). */
+:is(.cmh-stage, .cmh-vstage)[data-waits] .cmh-node {
+  border-color: var(--warn);
+  background: var(--bg-raised);
+  color: var(--warn-ink);
+}
 .cmh-moment {
   display: flex;
   flex-direction: column;
@@ -4834,6 +4909,158 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-needs[data-needs="offers"] {
   color: var(--warn-ink);
 }
+/* The channels a campaign goes by (the spec of 8 Oct 2026): one mark per channel after the state, a dot in the channel's
+   own colour (the chart palette Reports draws it in) and its word. A kept channel that waits is a hollow dot with "waits"
+   after it; one it could go by and does not tick is a hollow dot and its word in the quieter ink: what one more tick in the
+   drawer opens. The word is always drawn, on a phone too: as a bare dot, which channel it was stood on a colour alone. */
+.cmh-chans {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.cmh-chan {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cmh-chan::before {
+  content: "";
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--chart-cat-1);
+  border-radius: var(--radius-circle);
+  background: var(--chart-cat-1);
+}
+.cmh-chan[data-channel="email"]::before {
+  border-color: var(--chart-cat-3);
+  background: var(--chart-cat-3);
+}
+.cmh-chan[data-channel="sms"]::before {
+  border-color: var(--chart-cat-4);
+  background: var(--chart-cat-4);
+}
+.cmh-chan:is([data-state="waits"], [data-state="could"])::before {
+  background: transparent;
+}
+.cmh-chan[data-state="could"] {
+  color: var(--ink-faint);
+}
+.cmh-chan[data-state="could"]::before {
+  border-color: var(--ink-faint);
+}
+.cmh-chan-waits {
+  color: var(--warn-ink);
+}
+/* After a line's words on the desk, with the space the words have between them. */
+.cmh-strip-words > .cmh-chans {
+  margin-left: var(--space-2);
+}
+/* On a phone the marks take a line of their own, under the moment's count or the line's words. */
+.cmh[data-phone] .cmh-chans {
+  display: flex;
+  margin: var(--space-1) 0 0;
+}
+/* The head's channel line: under the page's sentence, on a line of its own; each closed channel's words are its door. */
+.cmh-channels {
+  display: block;
+  margin-top: var(--space-1);
+}
+.cmh-channel[data-open="false"] {
+  color: var(--ink-dim);
+}
+.cmh-channel-dot {
+  margin: 0 6px;
+  color: var(--ink-faint);
+}
+/* On the home, and under a composer's Send by switches (a sheet, drawn outside the home's own root). */
+:is(.cmh, .cm-via) .cmh-channel-door {
+  display: inline; /* not the kit's inline-flex: the dot before it stays with its first word when the line wraps */
+  font-size: inherit; /* its line's own size: a door is words of the sentence it stands in */
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 3px;
+}
+/* A door answers the pointer as the kit's quiet words do (its own hover is outranked by the rule above, which this page
+   needs for the size and the wrap): the ink, and an underline in it. */
+:is(.cmh, .cm-via) .cmh-channel-door:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+/* A thumb's door: on a touch screen the door is a box 44px tall that stands on a line of its own once the words before it
+   end, its words wrapping inside it. As 17px words in a wrapped line, three doors were three strips a thumb missed. */
+@media (pointer: coarse) {
+  :is(.cmh, .cm-via) .cmh-channel-door {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    vertical-align: middle;
+  }
+  /* Each part is then a line of its own, and the dots that joined them in a sentence are not drawn: between boxes a
+     line tall a dot stood alone on a line. */
+  :is(.cmh, .cm-via) .cmh-channel {
+    display: block;
+  }
+  :is(.cmh, .cm-via) .cmh-channel-dot {
+    display: none;
+  }
+}
+/* At the rail's head on a desk: pushed to the right of the count, in the quiet size, wrapping in its own box and never
+   into the name or the count, which keep their one line. */
+.cmh-rail-block > .cmh-block-head > :is(.cmh-h, .cmh-dim) {
+  flex: none;
+  white-space: nowrap;
+}
+.cmh-rail-block > .cmh-block-head > .cmh-channels {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  font-size: var(--text-sm);
+  text-align: right;
+}
+.cmh-rail-block > .cmh-block-head > .cmh-channels .cmh-channel {
+  display: inline;
+}
+/* ...and so keeps its dots on a touch screen too, where the parts elsewhere stack and drop them. */
+.cmh-rail-block > .cmh-block-head > .cmh-channels .cmh-channel-dot {
+  display: inline;
+}
+/* A phone's Coming up row: the time at the left, the name and its words beside it at full width, and the state or the act
+   under them, so "A run is waiting for your approval" is one line and not three. */
+.cmh[data-phone] .cmh-coming-line {
+  grid-template-columns: 56px minmax(0, 1fr);
+  row-gap: var(--space-1);
+}
+.cmh[data-phone] .cmh-coming-line > .cmh-what {
+  grid-column: 2;
+}
+.cmh[data-phone] .cmh-coming-line > :nth-child(n + 3) {
+  grid-column: 2;
+  justify-self: start;
+}
+/* The drawer's Goes by row: the word, then the composer's switches (parts/send-by.tsx), under the playbook's sentence. */
+.ob-via {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0 0;
+}
+.ob-via-k {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+/* The ladder's "messages" rung said by channel: one quiet line under its bar, before what the yes opens. */
+.cmh-rung-by {
+  color: var(--ink-dim);
+}
+
 /* A Turn on that carries its hint ("Turn on · 3 tomorrow") is wider than a column of five: it wraps inside the moment's card
    rather than run out of it (the kit's button keeps its words on one line, so the page's placement class lets them wrap). */
 .cmh .cmh-turn-on {
@@ -5068,9 +5295,30 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 .cmh .cmh-what-name {
   align-self: flex-start;
+  /* A name long enough to wrap reads from the line's edge, as its words under it do: a button centres its own. */
+  text-align: start;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   color: var(--ink);
+}
+/* A waiting run's two acts, or the question Skip asks, stand under its words on a desk and a phone alike: the tile is a
+   third of the page, and two buttons beside the state would squeeze the name they act on. */
+.cmh-coming-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  grid-column: 2 / -1;
+  min-width: 0;
+}
+.cmh[data-phone] .cmh-coming-line > .cmh-coming-acts {
+  justify-self: stretch;
+}
+/* Why a waiting run cannot be approved, the verb's whole sentence: across the line under its name, where the acts stand. */
+.cmh-coming-why {
+  grid-column: 2 / -1;
+  min-width: 0;
+  font-size: var(--text-sm);
 }
 .cmh-rules {
   margin: 0 22px 18px;
@@ -5145,32 +5393,49 @@ div.tpl-slotbox:not([data-lines="1"]) {
   font-size: var(--text-sm);
 }
 
-/* The phone: one short tile for who can hear you, the moments down a line, and the other lines as one list. */
+/* The phone: the moments down a line, who can hear you a line in their head, and the other lines as one list. */
 .cmh[data-phone] {
   gap: var(--space-3);
   padding: 0 var(--space-3) 120px;
 }
-.cmh-phone-reach {
+/* Who can hear you, a line in the Moments head (8 Oct 2026; it was a tile of its own over them): the figure in words with
+   the yes to offers at its right, and the channels' standing under it, in the head's own quiet size. */
+.cmh-vrail-reach {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: var(--space-4) 18px;
-}
-.cmh-phone-hear {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0;
-}
-.cmh-phone-hear > .cmh-figure {
-  font-size: var(--text-3xl);
-}
-.cmh-phone-of {
-  font-size: var(--text-base);
+  gap: var(--space-1);
+  padding: var(--space-1) 22px var(--space-2);
+  font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-.cmh-phone-hear > :last-child {
-  margin-left: auto;
+.cmh-vrail-hear {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+.cmh-vrail-reach > .cmh-channels {
+  margin-top: 0;
+}
+/* Its reading and its failed read stand at the line's own gutter: each carries a tile's gutter of its own, which here
+   was a second one inside the first. */
+.cmh-vrail-reach > .route-reading.cmh-reading {
+  padding: 0;
+}
+.cmh-vrail-reach > .cmh-failed {
+  margin: 0;
+}
+/* The door to how the yes to offers is got, under the line that counts it, at the line's edge: a thumb's height to
+   press, and a line's height in the head, so the moments stay the first thing on the screen (its box reaches into the
+   gaps over and under it, where nothing else is pressed). */
+.cmh-vrail-yes {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+  margin-block: calc(var(--space-3) * -1);
 }
 .cmh-vrail {
   margin: 0;

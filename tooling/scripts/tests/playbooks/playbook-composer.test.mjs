@@ -105,8 +105,8 @@ const playbook = (over = {}) => ({
   created_at: new Date(NOW - 30 * 86_400_000).toISOString(),
   triggerLabel: "Win-back",
   triggerHint: "Nothing heard in 30 days",
-  schedule: "daily at 10:00",
-  next: "tomorrow 10:00",
+  schedule: "daily at 10:00 AM",
+  next: "tomorrow 10:00 AM",
   candidates: 12,
   held: 2,
   totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
@@ -196,6 +196,13 @@ playbooks.create = async (body) => {
 playbooks.update = async (id, body) => {
   said.push(["update", id, body]);
   return { ok: true, data: { id, name: body.name || "Win-back" } };
+};
+// The drawer's Goes by row: the channels alone, said the moment the server takes them.
+playbooks.channels = async (id, channels, opts = {}) => {
+  said.push(["channels", id, channels]);
+  const data = { id, name: "Visit reminder", state: "running" };
+  if (opts.onAccepted) opts.onAccepted(data);
+  return { ok: true, data };
 };
 
 const allByTestId = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id);
@@ -693,22 +700,38 @@ const reasonsOf = (tree) =>
     ]),
   );
 
-test("Send by: a switch for each channel after what it says, WhatsApp alone on for a new playbook, and a closed channel is off and says why", () => {
+test("Send by: a switch for each channel after what it says, every open channel on for a new playbook, and a closed channel is off and says why", () => {
   let tree = composingVia();
   assert.ok(byTestId(tree, "pb-via"), "the row is drawn");
   assert.equal(find(byTestId(tree, "pb-via"), (n) => n.props?.role === "group").props["aria-label"], "Send by");
   const via = viaOf(tree);
+  // Every channel the workspace is ready on and the message holds (8 Oct 2026, decision 5): a person is reached once, on
+  // their best channel, so each tick widens who is reached and never doubles a message.
   assert.deepEqual(
     ["whatsapp", "sms", "email"].map((c) => via[c].props.checked),
-    [true, false, false],
-    "WhatsApp alone, as every playbook went",
+    [true, true, true],
+    "every open channel, for a message about their visit",
   );
   assert.deepEqual(
     ["whatsapp", "sms", "email"].map((c) => via[c].props.readOnly),
-    [true, false, false],
-    "the one channel that is on stays on; the others may be turned on",
+    [false, false, false],
+    "none is the last one on: each may be turned off",
   );
-  // A message about their visit goes by text and email too: both open, so only the one that must stay on says anything.
+  // All three open and on: nothing needs saying of any.
+  assert.deepEqual(Object.keys(reasonsOf(tree)), []);
+  // Two turned off: the one left on stays on, and says so.
+  via.sms.props.onCheckedChange(false);
+  viaOf(page()).email.props.onCheckedChange(false);
+  tree = page();
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => [viaOf(tree)[c].props.checked, viaOf(tree)[c].props.readOnly]),
+    [
+      [true, true],
+      [false, false],
+      [false, false],
+    ],
+    "WhatsApp alone, as every playbook went: it stays on, the others may be turned on",
+  );
   assert.deepEqual(Object.keys(reasonsOf(tree)), ["whatsapp"]);
   // The offer: texts carry no offers and offers by email wait for their release.
   tree = composingVia({}, "everyone_monthly");
@@ -777,6 +800,13 @@ test("the reach says who it reaches on which channel as the owner ticks, and who
     textOf(
       find(byTestId(t, "pb-reach"), (n) => n.type === Popover && n.props.label === "Who's held back")?.props.children,
     );
+  // Every open channel is on as it opens (decision 5): the count is the one for that set, the split said after it.
+  assert.equal(textOf(byTestId(tree, "pb-reach-by")), "10 on WhatsApp, 4 by email");
+  assert.ok(reach(tree).startsWith("14of 20"), reach(tree));
+  // WhatsApp alone, as every playbook went: nothing new is said, the reach is what it always was.
+  viaOf(tree).sms.props.onCheckedChange(false);
+  viaOf(page()).email.props.onCheckedChange(false);
+  tree = page();
   assert.equal(byTestId(tree, "pb-reach-by"), null, "WhatsApp alone says nothing new: the reach is what it always was");
   assert.ok(reach(tree).startsWith("10of 20"), reach(tree));
   // Email too: fourteen, ten on WhatsApp and four more by email, six with neither.
@@ -838,7 +868,15 @@ test("the reasons under the reach are contracts' reachLines alone: no address, a
 test("the guardrails say who the run reaches for the channels it goes by, where they are read and not in the tooltip alone", () => {
   let tree = composingVia();
   const who = (t) => textOf(byTestId(t, "pb-guard-who"));
+  // Every open channel on as it opens (decision 5): one line for each way they differ, from the one predicate.
+  assert.equal(
+    who(tree),
+    contracts.consentGuardWords(["whatsapp", "sms", "email"], "conversational", "theirs").join(" "),
+  );
   // WhatsApp alone, a message about their visit: a recorded yes to hearing from you and a phone number.
+  viaOf(tree).sms.props.onCheckedChange(false);
+  viaOf(page()).email.props.onCheckedChange(false);
+  tree = page();
   assert.equal(who(tree), "Only people with a recorded yes to hearing from you and a phone number.");
   assert.ok(
     byTestId(tree, "pb-guard").props["data-tip"].startsWith(who(tree)),
@@ -859,15 +897,18 @@ test("the guardrails say who the run reaches for the channels it goes by, where 
   assert.equal(who(tree), "Only people with a recorded yes to offers and a phone number.");
 });
 
-test("Save sends the channels it goes by: WhatsApp alone by default, the ones ticked when changed, and the ones a playbook has when it is changed", async () => {
+test("Save sends the channels it goes by: every open channel by default, the ones ticked when changed, and the ones a playbook has when it is changed", async () => {
   let tree = composingVia();
   await press(byTestId(tree, "pb-save"));
-  assert.deepEqual(said.at(-1)[1].channels, ["whatsapp"], "a new playbook names WhatsApp, as every one went");
+  assert.deepEqual(
+    said.at(-1)[1].channels,
+    ["whatsapp", "sms", "email"],
+    "a new playbook names every channel the workspace is ready on and its message holds (decision 5), in the page's order",
+  );
   tree = composingVia();
-  viaOf(tree).email.props.onCheckedChange(true);
-  viaOf(page()).sms.props.onCheckedChange(true);
+  viaOf(tree).sms.props.onCheckedChange(false);
   await press(byTestId(page(), "pb-save"));
-  assert.deepEqual(said.at(-1)[1].channels, ["whatsapp", "sms", "email"], "in the page's order");
+  assert.deepEqual(said.at(-1)[1].channels, ["whatsapp", "email"], "the ones ticked when changed");
   // A playbook that goes by WhatsApp and email opens on both, and saves them.
   const mine = playbook({
     id: "pb-visit",
@@ -904,12 +945,61 @@ test("a workspace that cannot send on any channel the playbook ticks still saves
   assert.equal(viaOf(tree).whatsapp.props.checked, true, "WhatsApp stays ticked: it waits for a number");
   assert.equal(
     reasonsOf(tree).whatsapp,
-    `${contracts.CHANNEL_WORDS.noWhatsApp} It goes by it once it can.`,
-    "and says why it waits",
+    `${contracts.CHANNEL_WORDS.noWhatsApp} It goes by it once it can. A campaign goes by at least one channel.`,
+    "and says why it waits, and why it stays",
   );
+  // It is all the playbook keeps: switched off it would keep none, and a save that names none keeps what it had, so the
+  // switch would have said one thing and the playbook another.
+  assert.equal(viaOf(tree).whatsapp.props.readOnly, true, "the one channel it keeps takes no press");
   assert.equal(byTestId(tree, "pb-save").props.disabled, false, "a playbook may be set up before a channel is");
   await press(byTestId(tree, "pb-save"));
   assert.deepEqual(said.at(-1)[1].channels, ["whatsapp"], "the channel it ticks is kept");
+});
+
+test("where the workspace can send on nothing, Send by says so once with a door for each channel a setting mends, and the number's warning is not said twice", () => {
+  const none = contracts.channelsReady({
+    whatsapp: null,
+    textLine: null,
+    email: { mailbox: false, domain: true },
+  });
+  const tree = composingVia({ ready: none, number: { present: false, health: { canSend: false } } });
+  const standing = byTestId(tree, "pb-via-standing");
+  assert.ok(standing, "the row says where the workspace stands");
+  const parts = contracts.channelsStandingParts(none);
+  assert.equal(textOf(standing), parts.map((p) => p.words).join("·"), "contracts' words, part by part");
+  assert.match(textOf(standing), /^Nothing can send yet/);
+  // The link itself: the stub walks a component and what it draws, and each carries the test id.
+  const doors = allByTestId(standing, "pb-via-standing-door").filter((n) => n.type === "a");
+  assert.equal(doors.length, 3);
+  for (const door of doors) assert.match(String(door.props.href), /admin\/integrations$/);
+  // In place of the reasons a thumb reads, which the line has just given: what is left under the row is the promise
+  // to the channel the playbook keeps, without its reason a second time.
+  assert.equal(textOf(byTestId(tree, "pb-via-whys")), "WhatsApp It goes by it once it can.");
+  assert.equal(byTestId(tree, "pb-number"), null, "the number's own warning would be the same thing said twice");
+  assert.equal(viaOf(tree).whatsapp.props.checked, true, "and the playbook still keeps the channel it ticks, waiting");
+  // A workspace paused for billing is not one that can send on nothing: the sheet says the pause where Save is, and
+  // the row keeps what it says of each channel.
+  const paused = composingVia({ ready: { ...ALL_READY, paused: true } });
+  assert.equal(byTestId(paused, "pb-via-standing"), null);
+  // Anything open, or a readiness that was not read: the row is what it was, and the number's warning stands.
+  const some = composingVia({ ready: NO_TEXT_NO_MAIL, number: { present: false, health: { canSend: false } } });
+  assert.equal(byTestId(some, "pb-via-standing"), null);
+  assert.ok(byTestId(some, "pb-number"));
+  assert.equal(byTestId(composingVia({ ready: null }), "pb-via-standing"), null);
+});
+
+test("Send by before a message is picked: a switch is closed by what the workspace cannot send on, never by a version no message has yet", () => {
+  // The moment's own message is not approved and nothing else is offered: the sheet opens on no message.
+  const tree = composingVia({ templates: [] });
+  assert.equal(viaOf(tree).email.props.readOnly, false, "email is open before a message is picked");
+  assert.equal(viaOf(tree).sms.props.readOnly, false);
+  assert.ok(
+    Object.values(reasonsOf(tree)).every((why) => !/version/.test(why)),
+    "no switch says a message it does not have yet lacks a version",
+  );
+  // Once a message is picked its versions are asked after, as before.
+  const picked = composingVia({ templates: [reminderRow(["whatsapp", "email"])] });
+  assert.match(reasonsOf(picked).sms, /no text version/);
 });
 
 test("a channel a playbook ticks that closes later stays ticked, says it waits, and is saved: never dropped by a save", async () => {
@@ -930,6 +1020,126 @@ test("a channel a playbook ticks that closes later stays ticked, says it waits, 
   assert.equal(reasonsOf(tree).email, `${contracts.CHANNEL_WORDS.noMailbox} It goes by it once it can.`);
   await press(byTestId(tree, "pb-save"));
   assert.deepEqual(said.at(-1)[2].channels, ["whatsapp", "email"], "and is saved with the playbook");
+});
+
+/** A visit's reminder that goes by all three, in a workspace whose texting line is not there yet: its text waits. */
+const NO_LINE = { ...ALL_READY, sms: { ready: false, why: contracts.CHANNEL_WORDS.noTextLine } };
+const reminderOnAll = (over = {}) =>
+  playbook({
+    id: "pb-visit",
+    name: "Visit reminder",
+    trigger: "visit_tomorrow",
+    template_id: "tpl-visit_reminder",
+    template_name: "visit_reminder",
+    policy_class: "booking",
+    poolKey: "visit_tomorrow",
+    channels: ["whatsapp", "sms", "email"],
+    candidates: 10,
+    ...over,
+  });
+const checkedOf = (tree) => ["whatsapp", "sms", "email"].map((c) => viaOf(tree)[c].props.checked);
+/** Lets a press that awaits its verb finish. */
+const settled = () => new Promise((done) => setImmediate(done));
+
+test("REGRESSION: a press on one switch never lets go a channel that waits -- it started from what was on, and a playbook lost a channel nobody had switched off", async () => {
+  const tree = composing(viaSurface({ rows: [reminderOnAll()], ready: NO_LINE }), null, "pb-visit");
+  assert.deepEqual(checkedOf(tree), [true, true, true], "the text it keeps is ticked, waiting for a line");
+  assert.equal(viaOf(tree).sms.props.readOnly, false, "and may be let go by its own switch");
+  viaOf(tree).email.props.onCheckedChange(false);
+  assert.deepEqual(checkedOf(page()), [true, true, false], "Email off: the text it keeps is kept");
+  await press(byTestId(page(), "pb-save"));
+  assert.deepEqual(said.at(-1)[2].channels, ["whatsapp", "sms"], "and saved");
+});
+
+test("the drawer's Goes by row: a press sends the channels it keeps, alone; one that waits is never let go; and the page says what it goes by now", async () => {
+  const flashed = [];
+  const draw = (p, over = {}, acts = {}) =>
+    paneOf(p, { ...viaSurface({ rows: [p], ...over }) }, { flash: (t) => flashed.push(t), ...acts });
+  let pane = draw(reminderOnAll(), { ready: NO_LINE });
+  const row = byTestId(pane, "pb-goes-by");
+  assert.equal(
+    find(row, (n) => n.props?.role === "group").props["aria-label"],
+    "Goes by",
+    "named to a screen reader as it is labelled",
+  );
+  assert.deepEqual(checkedOf(pane), [true, true, true]);
+  assert.equal(reasonsOf(pane).sms, `${contracts.CHANNEL_WORDS.noTextLine} It goes by it once it can.`);
+  viaOf(pane).email.props.onCheckedChange(false);
+  await settled();
+  assert.deepEqual(said.at(-1), ["channels", "pb-visit", ["whatsapp", "sms"]], "the channels, and nothing else of it");
+  assert.deepEqual(
+    flashed.at(-1).msg.props.parts,
+    contracts.LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp", "sms"], false),
+    "said in the page's sentence: Visit reminder goes by WhatsApp and Text now",
+  );
+  assert.equal(
+    said.some(([verb]) => verb === "update"),
+    false,
+    "never the playbook whole: a copy of the rest wrote over whatever had been edited since",
+  );
+
+  // A run of it already waits: it was made with the channels the playbook had, and the receipt says so.
+  const waiting = reminderOnAll({
+    channels: ["whatsapp", "email"],
+    totals: {
+      ...playbook().totals,
+      waiting: { id: "b-1", recipient_count: 4, run_for: "2026-10-08", trigger: "visit_tomorrow" },
+    },
+  });
+  pane = draw(waiting);
+  viaOf(pane).email.props.onCheckedChange(false);
+  await settled();
+  assert.deepEqual(said.at(-1), ["channels", "pb-visit", ["whatsapp"]]);
+  assert.deepEqual(
+    flashed.at(-1).msg.props.parts,
+    contracts.LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp"], true),
+  );
+
+  // What was not read is not guessed: without its message (the templates could not be read, or it was deleted) the row
+  // shows what it keeps, says no reason of a message nobody read, and takes no press.
+  for (const templates of [null, []]) {
+    pane = draw(reminderOnAll({ channels: ["whatsapp", "email"] }), { templates });
+    assert.deepEqual(checkedOf(pane), [true, false, true], "what it keeps");
+    assert.deepEqual(reasonsOf(pane), {}, "no reason invented");
+    assert.deepEqual(
+      ["whatsapp", "sms", "email"].map((c) => viaOf(pane)[c].props.readOnly),
+      [true, true, true],
+    );
+  }
+  // A role that may not change it sees the switches still.
+  pane = draw(reminderOnAll({ channels: ["whatsapp", "email"] }), {}, { canAct: false });
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => viaOf(pane)[c].props.readOnly),
+    [true, true, true],
+  );
+});
+
+test("a new playbook's ticks follow the message in view until a switch is pressed, then they are the owner's", () => {
+  // Offers by email can go here; a text never carries one.
+  const ready = contracts.channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: { sms_state: "active", reg_mock: false },
+    email: { mailbox: true, domain: true, offers: { campaigns: true, address: true, paused: null } },
+  });
+  const autumn = withMessage({ ...ownRow(), channels: ["whatsapp", "email"] });
+  const winter = withMessage({
+    ...ownRow({ id: "tpl-own-2", name: "winter_offer", title: "Winter offer" }),
+    channels: ["whatsapp"],
+  });
+  // The win-back's own message is not among the workspace's: nothing is picked, and it stands on WhatsApp alone.
+  let tree = composing(viaSurface({ templates: [autumn, winter], ready }), "quiet_30");
+  assert.ok(faceOf(tree, "pb-template").includes("Pick a message"), faceOf(tree, "pb-template"));
+  assert.deepEqual(checkedOf(tree), [true, false, false]);
+  // The message picked says where it can go: every channel it holds that the workspace can send an offer on.
+  assert.deepEqual(checkedOf(pick("pb-template", "autumn_offer")), [true, false, true], "WhatsApp and email");
+  assert.deepEqual(checkedOf(pick("pb-template", "winter_offer")), [true, false, false], "it holds WhatsApp alone");
+  tree = pick("pb-template", "autumn_offer");
+  assert.deepEqual(checkedOf(tree), [true, false, true], "and back: still the message's");
+  // A press makes them the owner's: another message no longer moves them.
+  viaOf(tree).email.props.onCheckedChange(false);
+  assert.deepEqual(checkedOf(page()), [true, false, false]);
+  pick("pb-template", "winter_offer");
+  assert.deepEqual(checkedOf(pick("pb-template", "autumn_offer")), [true, false, false], "the owner's, kept");
 });
 
 test("the number's warning is said while the playbook goes by WhatsApp, the one channel that has a number, and never to one that goes by email alone", () => {
@@ -985,6 +1195,9 @@ const nextChannel = () =>
 test("the preview steps through the channels the playbook goes by, each as that channel's version -- a playbook names no one, so the walk is its channels, with how many people each carries", () => {
   let tree = composingVia({ templates: [reminderWithVersions()] });
   // WhatsApp alone, as every playbook went: one bubble, nothing said of channels, no walk.
+  viaOf(tree).sms.props.onCheckedChange(false);
+  viaOf(page()).email.props.onCheckedChange(false);
+  tree = page();
   assert.equal(byTestId(tree, "mp-via"), null);
   assert.equal(byTestId(tree, "mp-step"), null);
   viaOf(tree).email.props.onCheckedChange(true);
@@ -1043,7 +1256,8 @@ test("the preview steps through the channels the playbook goes by, each as that 
 
 test("a playbook whose message has no email version in hand says so, and never draws WhatsApp's words under the email's name", () => {
   const tree = composingVia({ templates: [reminderRow()] });
-  viaOf(tree).email.props.onCheckedChange(true);
+  // Email alone: the text and WhatsApp turned off (every open channel is on as it opens, decision 5).
+  viaOf(tree).sms.props.onCheckedChange(false);
   viaOf(page()).whatsapp.props.onCheckedChange(false);
   const now = previewNow(page());
   assert.equal(now.via, null, "no channel is named over words that are not its");
@@ -1057,7 +1271,11 @@ test("The To row is one line -- the count, who it reaches on which channel, Who'
   const line = (t) => find(who(t), (n) => classOf(n) === "cm-who-line");
   const fold = (t) => find(who(t), (n) => n.type === Popover && n.props.label === "Who's held back");
   const meter = (t) => find(who(t), (n) => n.type === Meter);
-  // WhatsApp alone: the count, and a bar of who it reaches against who it leaves out.
+  // WhatsApp alone (the text and the email turned off: every open channel is on as it opens, decision 5): the count, and a
+  // bar of who it reaches against who it leaves out.
+  viaOf(tree).sms.props.onCheckedChange(false);
+  viaOf(page()).email.props.onCheckedChange(false);
+  tree = page();
   assert.ok(textOf(line(tree)).startsWith("10of 20"), textOf(line(tree)));
   assert.equal(byTestId(tree, "pb-reach-by"), null);
   assert.deepEqual(meter(tree).props.parts, [
@@ -1168,11 +1386,13 @@ test("a new playbook on a message with an email version and no WhatsApp row open
   );
 });
 
-test("a message with an approved WhatsApp version opens a new playbook on WhatsApp, as every playbook did", () => {
+test("a message with an approved WhatsApp version and an email beside it opens a new playbook on both, and not on the text it has no version for", () => {
   const rows = [reminderVersion("whatsapp", { id: "tpl-visit_reminder" }), reminderVersion("email")];
   const tree = composingVia({ templates: offeredOf(...rows) });
-  assert.deepEqual(ticksOf(tree), [true, false, false]);
-  assert.equal(viaOf(tree).email.props.readOnly, false, "its email version is a press away");
+  // Every channel the workspace is ready on and the message holds (decision 5): WhatsApp and email; no text version, so not text.
+  assert.deepEqual(ticksOf(tree), [true, false, true]);
+  assert.equal(viaOf(tree).email.props.readOnly, false, "and email may be turned off");
+  assert.equal(viaOf(tree).sms.props.readOnly, true, "the text, with no version, cannot be turned on");
 });
 
 test("a WhatsApp version still in review with an email beside it is offered to a playbook, and WhatsApp's tick says it is being reviewed", () => {

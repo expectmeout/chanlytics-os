@@ -100,6 +100,7 @@ export type { SpanUnits } from "./time";
 export {
   zoneDayKey,
   clockTime,
+  clockHour,
   clockDate,
   clockDateYear,
   clockShort,

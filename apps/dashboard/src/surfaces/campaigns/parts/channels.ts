@@ -8,20 +8,23 @@
  */
 import {
   CONSENT_CHANNELS,
-  DEFAULT_CAMPAIGN_CHANNELS,
   HELD_ON,
   VERSION_CHANNEL_WORDS,
+  WHATSAPP_VERSION_ALONE,
   campaignMessagesOf,
   channelChoices,
   channelNeverCarries,
+  channelsStandingParts,
   heldWords,
   messageHolds,
+  newCampaignChannels,
   previewVersionsOf,
   reachByWords,
   reachSplitWords,
   readyOrWhatsApp,
   type AskedPurpose,
   type CampaignMessage,
+  type ChannelStandingPart,
   type ChannelsReady,
   type ConsentChannel,
   type MessageAbout,
@@ -33,6 +36,9 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import { RPT_CHANNEL_COLORS } from "@/surfaces/reports/series";
 
 /** What the page says of the Send by row, beyond the reasons contracts words (CHANNEL_WORDS, messageWhyNot). */
+/** What a playbook's kept channel that cannot send yet is promised. */
+const ONCE_IT_CAN = "It goes by it once it can.";
+
 export const CM_VIA_WORDS = {
   /** The row's word, and the group's name to a screen reader. */
   label: "Send by",
@@ -41,7 +47,9 @@ export const CM_VIA_WORDS = {
   /** Every ticked channel is closed to it: nobody is reached. */
   nowhere: "None of the channels ticked can carry this message yet.",
   /** A playbook keeps a channel that cannot send yet: its run holds those people until it can. */
-  waits: (why: string): string => `${why} It goes by it once it can.`,
+  waits: (why: string): string => `${why} ${ONCE_IT_CAN}`,
+  /** The same promise without the reason, under a line that has already said every channel's (send-by.tsx). */
+  onceItCan: ONCE_IT_CAN,
 } as const;
 
 /**
@@ -54,29 +62,40 @@ export function cmReadyOf(read: ChannelsReady | null | undefined): ChannelsReady
 }
 
 /**
- * The message in view before one is picked, and for a template stamped before messages were kept: WhatsApp's version alone,
- * approved, as every campaign opened. What the pages hand contracts' readyForMessage where they hold no message.
+ * Where the workspace can send on nothing at all, its standing in parts (contracts channelsStandingParts: "Nothing can send
+ * yet", then each channel with its reason and the door that mends it), which the Send by row says once in place of three
+ * closed switches' reasons. Null where any channel is open, and where the readiness was not read: the page then says what
+ * it always said. Null too for a workspace paused for billing, whose standing is that one fact: each composer says the
+ * pause where its Send would be (CAMPAIGNS_PAUSED_WORDS), and the row keeps its switches' own reasons.
  */
-export const CM_NO_MESSAGE_YET: Pick<CampaignMessage, "versions"> = {
-  versions: {
-    whatsapp: { id: "", status: "approved", hidden: false, blocked: null, reason: null },
-    email: null,
-    sms: null,
-  },
-};
+export function cmNothingOpen(read: ChannelsReady | null | undefined): ChannelStandingPart[] | null {
+  if (!read || read.paused === true || CONSENT_CHANNELS.some((c) => read[c].ready)) return null;
+  return channelsStandingParts(read);
+}
 
 /**
- * The channels a campaign ticks until the owner changes them: the first, in the product's order (WhatsApp, text, email), that
- * the workspace is ready on and the message holds; WhatsApp alone where there is none, or no message in view, as every
- * campaign went before. A workspace with no number composing a message written for email opens on Email.
+ * The message in view before one is picked, and for a template stamped before messages were kept: WhatsApp's version alone,
+ * approved, as every campaign opened (contracts WHATSAPP_VERSION_ALONE, which the home's marks read too). What the pages
+ * hand contracts' readyForMessage where they hold no message.
+ */
+export const CM_NO_MESSAGE_YET: Pick<CampaignMessage, "versions"> = WHATSAPP_VERSION_ALONE;
+
+/**
+ * The channel a broadcast ticks until the owner changes it: the first, in the product's order (WhatsApp, text, email), that
+ * the workspace is ready on and the message holds, since a broadcast goes now on what can send now (contracts
+ * newCampaignChannels). WhatsApp alone where there is none, or no message in view, as every campaign went before. A
+ * workspace with no number composing a message written for email opens on Email. A new playbook's are its own reading's
+ * (contracts playbookChannelsRead, "new": every channel it can go by, decision 5 of the spec of 8 October 2026).
  */
 export function cmDefaultChannels(
   ready: ChannelsReady,
   message: Pick<CampaignMessage, "versions"> | null,
 ): ConsentChannel[] {
   const held = message === null ? null : messageHolds(message);
-  const first = held === null ? undefined : CONSENT_CHANNELS.find((c) => ready[c].ready && held[c]);
-  return first ? [first] : [...DEFAULT_CAMPAIGN_CHANNELS];
+  return newCampaignChannels(
+    "broadcast",
+    held === null ? null : CONSENT_CHANNELS.filter((c) => ready[c].ready && held[c]),
+  );
 }
 
 /**
@@ -182,7 +201,9 @@ export function cmChannelsOn(
  * The row's ticks: every channel, on or off, with the reason one is closed to this message, or must stay on. `message` is
  * what it is (cmChannelsOn's `purpose` and `about`). `keep` is a playbook's: a channel it ticks that cannot send now (no
  * line yet, no version yet) stays ticked, saying so, since its run holds those people until it can; a broadcast goes now,
- * so a channel closed now cannot be ticked.
+ * so a channel closed now cannot be ticked. A campaign goes by at least one channel: the one open channel that is on
+ * stays on, and so does a waiting one where it is all a playbook keeps (turning it off would leave it none, and a save
+ * that names none keeps what it had, so the switch would have said one thing and the playbook another).
  */
 export function cmViaTicks(
   ticks: readonly string[],
@@ -192,16 +213,27 @@ export function cmViaTicks(
 ): CmViaTick[] {
   const { purpose, about } = message;
   const on = cmChannelsOn(ticks, ready, purpose, about);
+  const kept = keep ? cmChannelsKept(ticks, purpose) : on;
   return channelChoices(ready, purpose, about).map((c) => {
     const isOn = on.includes(c.channel);
     const last = isOn && on.length === 1;
-    const waiting = keep && !c.ok && ticks.includes(c.channel) && channelNeverCarries(c.channel, purpose) === null;
+    const waiting = keep && !c.ok && kept.includes(c.channel);
+    const lastKept = waiting && kept.length === 1;
+    const waits = waiting ? CM_VIA_WORDS.waits(c.why ?? "") : null;
     return {
       channel: c.channel,
       word: VERSION_CHANNEL_WORDS[c.channel],
       on: isOn || waiting,
-      why: waiting ? CM_VIA_WORDS.waits(c.why ?? "") : c.ok ? (last ? CM_VIA_WORDS.lastOne : null) : c.why,
-      fixed: waiting ? false : !c.ok || last,
+      why: waits
+        ? lastKept
+          ? `${waits} ${CM_VIA_WORDS.lastOne}`
+          : waits
+        : c.ok
+          ? last
+            ? CM_VIA_WORDS.lastOne
+            : null
+          : c.why,
+      fixed: waiting ? lastKept : !c.ok || last,
       waiting,
     };
   });
@@ -211,7 +243,7 @@ export function cmViaTicks(
  * The channels a playbook keeps: every one it ticks that its kind of message may go by, open now or not (cmViaTicks'
  * `keep`). Its run reaches people on the open ones and holds the rest until theirs opens.
  */
-export function cmChannelsKept(ticks: readonly string[], purpose: AskedPurpose): ConsentChannel[] {
+function cmChannelsKept(ticks: readonly string[], purpose: AskedPurpose): ConsentChannel[] {
   return CONSENT_CHANNELS.filter((c) => ticks.includes(c) && channelNeverCarries(c, purpose) === null);
 }
 

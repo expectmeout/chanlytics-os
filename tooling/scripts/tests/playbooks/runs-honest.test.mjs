@@ -127,8 +127,8 @@ const playbook = (over = {}) => ({
   created_at: iso(-30 * D),
   triggerLabel: "Quiet 30 days",
   triggerHint: "anyone quiet for a month",
-  schedule: "daily at 10:00",
-  next: "tomorrow 10:00",
+  schedule: "daily at 10:00 AM",
+  next: "tomorrow 10:00 AM",
   candidates: 4,
   held: 0,
   // Everyone its moment names, as the route counts them (server/campaigns/playbooks.ts triggerPools); null only when it could not.
@@ -1156,6 +1156,67 @@ test("a playbook's card does not approve a run whose day has passed: the verb wo
     assert.deepEqual(approved, ["b-wait"]);
   } finally {
     playbooks.approveRun = keep;
+  }
+});
+
+test("a playbook's card does not approve a run while the workspace is paused, and its skip says what the server stopped", async () => {
+  const approved = [];
+  const keepApprove = playbooks.approveRun;
+  const keepSkip = playbooks.skipRun;
+  playbooks.approveRun = async (id) => {
+    approved.push(id);
+    return { ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } };
+  };
+  const open = {
+    whatsapp: { ready: true, why: null },
+    sms: { ready: false, why: "x" },
+    email: { ready: false, why: "y" },
+  };
+  const waiting = playbook({
+    totals: {
+      ...playbook().totals,
+      waiting: {
+        id: "b-wait",
+        recipient_count: 3,
+        name: "Win-back · 2026-09-15",
+        run_for: globalThis.window.__clock.dayKey(Date.now()),
+        trigger: "quiet_30",
+      },
+    },
+  });
+  try {
+    // Paused for billing: the approve door answers 402, so the card's Approve presses nothing (it says the pause, as a
+    // late run's says its day), and Skip is the act left. The one reading Coming up's line reads (waitingRunOffer).
+    setSurfaceValue("playbooks", playbooksSurface({ ready: { ...open, paused: true } }));
+    let tree = pane(waiting);
+    press(byTestId(tree, "pb-approve"));
+    await settle();
+    assert.deepEqual(approved, [], "an Approve the server would refuse with 402");
+    assert.ok(byTestId(tree, "pb-skip"), "Skip is still offered");
+    // Not paused: today's run is approved as ever.
+    setSurfaceValue("playbooks", playbooksSurface({ ready: open }));
+    tree = pane(waiting);
+    press(byTestId(tree, "pb-approve"));
+    await settle();
+    assert.deepEqual(approved, ["b-wait"]);
+    // The skip's receipt is the server's answer: a run that waited closes unsent; one a teammate approved a moment
+    // before is going, and the card does not say nothing will send of it.
+    for (const [was, said] of [
+      ["pending_approval", "Win-back skipped — nothing will send"],
+      ["sending", "Win-back stops after this batch"],
+    ]) {
+      playbooks.skipRun = async () => ({ ok: true, data: { was } });
+      toasts.length = 0;
+      tree = pane(waiting);
+      press(byTestId(tree, "pb-skip"));
+      tree = redraw(waiting);
+      await press(byTestId(tree, "pb-skip-yes"));
+      await settle();
+      assert.equal(textOf(toasts.at(-1).msg), said);
+    }
+  } finally {
+    playbooks.approveRun = keepApprove;
+    playbooks.skipRun = keepSkip;
   }
 });
 

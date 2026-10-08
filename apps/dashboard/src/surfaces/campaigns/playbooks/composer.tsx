@@ -32,7 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
-import { CM_VIA_WORDS, cmDefaultChannels, cmReadyOf } from "../parts/channels";
+import { CM_VIA_WORDS, cmNothingOpen } from "../parts/channels";
 import { CmPane } from "../parts/split";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
@@ -101,15 +101,16 @@ function glassRow(word: string, testid: string, body: ReactNode) {
  * What stops a run from sending from the number: a number that cannot send, or none. Said while the playbook goes by
  * WhatsApp, the one channel that has a number; one that goes by email alone never asks.
  */
-function numberWarning({ data, f }: SectionCtx) {
-  if (!data.number || !f.channels.includes("whatsapp")) return null;
+function numberWarning({ data, kept }: SectionCtx) {
+  if (!data.number || !kept.includes("whatsapp")) return null;
   if (data.number.present && !data.number.health.canSend)
     return (
       <p className="pb-warn" data-testid="pb-number">
         {data.number.health.refusal}
       </p>
     );
-  return data.number.present ? null : (
+  // Where nothing can send at all, the Send by row has already said so, WhatsApp's number among its doors.
+  return data.number.present || cmNothingOpen(data.ready) ? null : (
     <p className="pb-warn" data-testid="pb-number">
       No WhatsApp number connected — connect one in Settings › Connections before a run can send.
     </p>
@@ -119,14 +120,16 @@ function numberWarning({ data, f }: SectionCtx) {
 /**
  * The same sections under Glass stand as the canvas's four rows (the compact composer, C2): To, Says, When, and Under,
  * which is the row of Autonomy it runs under and its guardrails, drawn apart from the sentence they follow. A row is its
- * word at the left and a section at the right; what the section holds and its testids are the Classic sheet's.
+ * word at the left and a section at the right; what the section holds and its testids are the Classic sheet's. Send by,
+ * the row the channels added, stands under To (8 Oct 2026): the count under To is counted over the channels ticked, and
+ * stood two rows and a whole preview away from the switches that change it.
  */
 function sheetBodyGlass(x: SectionCtx) {
   return (
     <div className="pb-compose">
       {glassRow("To", "pb-row-to", whoSection(x))}
-      {glassRow("Says", "pb-row-says", messageSection(x))}
       {glassRow(CM_VIA_WORDS.label, "pb-row-via", viaSection(x))}
+      {glassRow("Says", "pb-row-says", messageSection(x))}
       {glassRow("When", "pb-row-when", whenOnly(x))}
       {glassRow("Under", "pb-row-under", underLine(x))}
       {numberWarning(x)}
@@ -163,9 +166,10 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
   const [typed, setTyped] = useState(start.typed);
   const [listId, setListId] = useState(start.listId === undefined ? null : start.listId);
   const [cls, setCls] = useState(start.cls || "campaign");
-  // The channels it goes by, ticked in the Send by row: what the playbook has, or WhatsApp alone, as every playbook went.
-  const [channels, setChannels] = useState<ConsentChannel[]>(
-    start.channels && start.channels.length > 0 ? start.channels : cmDefaultChannels(cmReadyOf(data.ready), null),
+  // The channels it goes by, ticked in the Send by row: what the playbook has, or null, which follows the message in view
+  // until a switch is pressed (composer-model channelsModelOf): every channel it can go by, for whichever message is picked.
+  const [channels, setChannels] = useState<ConsentChannel[] | null>(
+    start.channels && start.channels.length > 0 ? start.channels : null,
   );
   // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
   const held: Fields = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, cls, fills, typed, channels };

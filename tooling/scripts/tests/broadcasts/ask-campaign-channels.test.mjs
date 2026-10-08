@@ -30,10 +30,22 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { buildProposal, newToolContext, runTool } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { PROPOSAL_SPECS, CHANNEL_WORDS, noVersionWords } = await import("@chanlytics/contracts");
+const { buildProposal, newToolContext, runTool, toApiTools } = await import(
+  at("apps/dashboard/src/server/ask/tools/index.ts")
+);
+const {
+  PROPOSAL_SPECS,
+  CHANNEL_WORDS,
+  NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
+  newCampaignChannels,
+  noVersionWords,
+  playbookChannelsRead,
+} = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+// The route a channels card's Approve and Undo call, run here as the app runs it: the card's own call is sent to it.
+const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const playbookRoute = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -342,12 +354,82 @@ test("an empty list is refused in words, a channel named twice is one tick, and 
   assert.equal("channels" in nul.proposal.payload, false);
 });
 
+test("one rule for the channels a new campaign opens on, read by the composer and by Ask: a playbook every channel it may go by now, a broadcast the first alone, WhatsApp alone where there is none", () => {
+  assert.equal(NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, true, "decision 5 of the spec of 8 Oct 2026: the one switch");
+  // The rule itself, over the channels a campaign may go by now for the message in view, in the product's order.
+  assert.deepEqual(newCampaignChannels("playbook", ["whatsapp", "sms", "email"]), ["whatsapp", "sms", "email"]);
+  assert.deepEqual(
+    newCampaignChannels("broadcast", ["whatsapp", "sms", "email"]),
+    ["whatsapp"],
+    "a broadcast goes now",
+  );
+  assert.deepEqual(newCampaignChannels("broadcast", ["sms", "email"]), ["sms"], "the first that is open");
+  // Nothing open, or no message in view: WhatsApp alone, as every campaign went before.
+  assert.deepEqual(newCampaignChannels("playbook", []), ["whatsapp"]);
+  assert.deepEqual(newCampaignChannels("playbook", null), ["whatsapp"]);
+  // What is open is the one reading's (playbookChannelsRead, which Ask's proposal asks with "new" as the composer
+  // does): what the workspace can send on, the versions the message holds, and what its purpose is carried by.
+  const ready = (whatsapp, sms, email) => ({
+    whatsapp: { ready: whatsapp, why: null },
+    sms: { ready: sms, why: null },
+    email: { ready: email, why: null, offers: { ok: true, why: null, paused: null } },
+  });
+  const holds = (whatsapp, sms, email) => {
+    const v = (on) => (on ? { id: "v", status: "approved", hidden: false, blocked: null, reason: null } : null);
+    return { category: "utility", versions: { whatsapp: v(whatsapp), sms: v(sms), email: v(email) } };
+  };
+  const opensOn = (p, message, workspace) => playbookChannelsRead(p, "new", message, workspace).kept;
+  const visit = { trigger: "visit_tomorrow" };
+  const open = ready(true, true, true);
+  assert.deepEqual(opensOn(visit, holds(true, true, true), open), ["whatsapp", "sms", "email"]);
+  assert.deepEqual(
+    opensOn(visit, holds(true, false, true), open),
+    ["whatsapp", "email"],
+    "only what the message holds",
+  );
+  assert.deepEqual(
+    opensOn(visit, holds(true, true, true), ready(true, false, true)),
+    ["whatsapp", "email"],
+    "only what the workspace can send on now",
+  );
+  assert.deepEqual(opensOn(visit, holds(false, false, true), open), ["email"], "written for email alone: email");
+  // An offer: texts carry none, so a new win-back never opens on Text; and by email only once offers by email are open.
+  const winBack = { trigger: "quiet_30" };
+  const offer = { ...holds(true, true, true), category: "marketing" };
+  assert.deepEqual(opensOn(winBack, offer, open), ["whatsapp", "email"]);
+  const closed = { ...open, email: { ready: true, why: null, offers: { ok: false, why: "not yet", paused: null } } };
+  assert.deepEqual(opensOn(winBack, offer, closed), ["whatsapp"], "an offer by email waits for the workspace's offers");
+  assert.deepEqual(
+    opensOn(visit, holds(true, true, true), closed),
+    ["whatsapp", "sms", "email"],
+    "a reminder does not",
+  );
+  // Nothing open at all: WhatsApp alone.
+  assert.deepEqual(opensOn(visit, holds(true, true, true), ready(false, false, false)), ["whatsapp"]);
+  // What the tool tells the model of a playbook that names no channel follows the same switch: it said "every one"
+  // whichever way the switch stood.
+  const told = toApiTools("owner", true).find((x) => x.name === "propose_campaign").description;
+  const unnamedGoesBy = (which) =>
+    told.includes(`when none is named it goes by ${which} the workspace can send on now`);
+  assert.deepEqual([unnamedGoesBy("every one"), unnamedGoesBy("the first one")], [true, false]);
+});
+
 test("a playbook's channels are held to the route's own check: a purpose that never carries one is refused; named, the card says them and commits them", async () => {
   const quiet = { action: "playbook", trigger: "quiet_30", template_id: OFFER, params: [] };
+  // No channel named: it goes by what the composer would tick for a new playbook (contracts newCampaignChannels; the spec
+  // of 8 Oct 2026, decision 5): every channel the workspace can send on now that the message holds and an offer may go
+  // by. Here WhatsApp and email (texts carry no offers), said on the card and committed, where it went by WhatsApp alone.
   const plain = await propose(quiet);
   assert.equal(plain.isError, false, plain.result);
-  assert.equal("channels" in plain.proposal.payload, false, "no channel named: as it always was");
-  assert.equal("channels" in commitBody(plain.proposal), false);
+  assert.deepEqual(plain.proposal.payload.channels, ["whatsapp", "email"]);
+  assert.deepEqual(commitBody(plain.proposal).channels, ["whatsapp", "email"]);
+  assert.match(plain.proposal.summary, / · on WhatsApp and by email/);
+  // Where WhatsApp is all the workspace can send on, it says and commits what a proposal that named none always did.
+  const alone = await propose(quiet, { mailboxes: [] });
+  assert.equal(alone.isError, false, alone.result);
+  assert.equal("channels" in alone.proposal.payload, false, "WhatsApp alone by default: as it always was");
+  assert.equal("channels" in commitBody(alone.proposal), false);
+  assert.doesNotMatch(alone.proposal.summary, /by email/);
   // A win-back is an offer: texts carry none. Offers by email are kept ticked, as a playbook keeps any channel that cannot
   // send yet (the check has no readiness): its run holds those people until the workspace can send them.
   assert.equal(said(await propose({ ...quiet, channels: ["sms"] })), CHANNEL_WORDS.noOffersByText);
@@ -361,6 +443,257 @@ test("a playbook's channels are held to the route's own check: a purpose that ne
   assert.match(wa.proposal.summary, / · on WhatsApp · /);
   // The check's own words, the route's: a playbook's list is held by the one rule that holds the composer's.
   assert.equal(said(await propose({ ...quiet, channels: [] })), "Pick WhatsApp, text or email to send by.");
+});
+
+/* ---------------------- the channels a playbook that exists goes by, changed (8 Oct 2026) ---------------------- */
+
+const VISIT_PB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+/** A playbook as the table holds it: a visit reminder, running, that names no channels and so goes by WhatsApp alone. */
+const playbookRow = (over = {}) => ({
+  id: VISIT_PB,
+  tenant_id: A,
+  kind: "moment",
+  name: "Visit reminder",
+  trigger: "visit_tomorrow",
+  list_id: null,
+  list_key: null,
+  template_id: REMINDER,
+  template_name: "visit_reminder",
+  template_language: "en",
+  params: [],
+  policy_class: "booking",
+  state: "running",
+  run_hour: 9,
+  cap_per_run: 25,
+  gap_days: 90,
+  cadence_days: 30,
+  last_run_for: null,
+  last_run_at: null,
+  created_at: "2026-09-01T00:00:00Z",
+  channels: null,
+  ...over,
+});
+/**
+ * A workspace that holds the playbook, kept in hand: the card's act and the route its Approve calls read and write the
+ * same rows, as they do in the app.
+ */
+const holding = (over = {}) =>
+  tables({ playbooks: [playbookRow()], broadcasts: [], broadcast_recipients: [], decisions: [], ...over });
+/** The tool over those rows, and what it asked the database for. */
+const askOver = (rows) => {
+  let pool = 0;
+  const supabase = fakeDb(rows, {}, { people_list: () => ((pool += 1), PEOPLE) });
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  return {
+    channels: (channels, id = VISIT_PB) =>
+      buildProposal(t, "propose_campaign", { action: "channels", playbook_id: id, channels }),
+    reads: () => [...new Set(supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : q.table)))],
+    pool: () => pool,
+  };
+};
+/** propose_campaign's action channels on that playbook, over a workspace that holds it. */
+const goesBy = (channels, db = {}, id = VISIT_PB) => askOver(holding(db)).channels(channels, id);
+/** A card's commit or its undo, sent as the palette sends it: to the real PUT, over the same rows. */
+const sendTo = async (rows, call) => {
+  assert.equal(call.route, "PUT playbooks/[id]");
+  setRateStore(memoryStore());
+  const supabase = fakeDb(rows, {}, {});
+  const out = await playbookRoute.PUT.run(
+    new Request("http://localhost/api/v1/x", { method: "PUT", body: JSON.stringify(call.body) }),
+    { supabase, userId: USER, email: "ada@example.com", params: call.params },
+  );
+  const written = supabase.seen.filter((s) => s.table === "playbooks" && s.op === "update").map((s) => s.values);
+  return { out, written };
+};
+
+test("the channels a playbook that exists goes by are changed from a card: the channels alone to its own PUT, judged there against the playbook as it stands, and never a card for no change", async () => {
+  const rows = holding();
+  const ask = askOver(rows);
+  const made = await ask.channels(["whatsapp", "email"]);
+  assert.equal(made.isError, false, made.result);
+  const p = made.proposal;
+  assert.deepEqual([p.kind, p.needs, p.title], ["playbook_channels", "operator", "Channels: Visit reminder"]);
+  assert.match(
+    p.summary,
+    /^Goes by WhatsApp and Email, where it went by WhatsApp · each person is still reached once, on the first of them that can reach them$/,
+  );
+  // The card carries the channels and nothing else of the playbook: no copy of it to write back.
+  assert.deepEqual(p.payload, {
+    playbook_id: VISIT_PB,
+    name: "Visit reminder",
+    channels: ["whatsapp", "email"],
+    was: ["whatsapp"],
+    run_waits: false,
+  });
+  // It read the one playbook, its message and what the workspace can send on: never the Playbooks page, which counts
+  // everyone in People against every moment to list them all.
+  assert.equal(ask.pool(), 0, "nobody in People was read");
+  for (const table of ["contacts", "segments", "segment_members", "deals", "events"])
+    assert.ok(!ask.reads().includes(table), `${table} was not read: ${ask.reads().join(", ")}`);
+  assert.ok(ask.reads().includes("playbooks") && ask.reads().includes("broadcasts"), ask.reads().join(", "));
+
+  const spec = PROPOSAL_SPECS.playbook_channels;
+  const call = spec.commit(p, { settings: null });
+  assert.deepEqual(call, {
+    route: "PUT playbooks/[id]",
+    params: { id: VISIT_PB },
+    body: { channels: ["whatsapp", "email"] },
+  });
+  // Somebody changes the playbook in its composer after the card was made and before it is approved. The Approve goes
+  // to the real route: it writes the channels and puts nothing of the older playbook back.
+  const row = rows.playbooks[0];
+  Object.assign(row, { name: "The day before", run_hour: 15, cap_per_run: 40, policy_class: "reengage" });
+  const approved = await sendTo(rows, call);
+  assert.deepEqual(approved.written, [{ channels: ["whatsapp", "email"] }], "the one column, and no other");
+  assert.deepEqual(
+    [row.name, row.run_hour, row.cap_per_run, row.policy_class, row.channels],
+    ["The day before", 15, 40, "reengage", ["whatsapp", "email"]],
+    "the edit stands, its class is not re-derived, and the channels are the card's",
+  );
+  assert.equal(spec.receipt(p, approved.out), "Visit reminder goes by WhatsApp and Email now", "the drawer's sentence");
+  // The undo puts back what it had, by the same door and as narrowly: WhatsApp alone, named.
+  assert.equal(p.undo, "Put it back to WhatsApp");
+  const undo = spec.undo.call(spec.undo.record(p, approved.out, { settings: null }), { settings: null });
+  assert.deepEqual(undo, { route: "PUT playbooks/[id]", params: { id: VISIT_PB }, body: { channels: ["whatsapp"] } });
+  Object.assign(row, { run_hour: 16 });
+  const undone = await sendTo(rows, undo);
+  assert.deepEqual(undone.written, [{ channels: ["whatsapp"] }]);
+  assert.deepEqual([row.name, row.run_hour, row.channels], ["The day before", 16, ["whatsapp"]]);
+
+  // Named in any order, kept in the product's; and an id is one id in either case.
+  assert.deepEqual((await goesBy(["email", "sms", "whatsapp"])).proposal.payload.channels, [
+    "whatsapp",
+    "sms",
+    "email",
+  ]);
+  const shouted = await goesBy(["whatsapp", "email"], {}, VISIT_PB.toUpperCase());
+  assert.equal(shouted.isError, false, shouted.result);
+  assert.equal(shouted.proposal.payload.playbook_id, VISIT_PB);
+  // No change is no card, said in words; so is a list of none, in the check's own.
+  assert.equal(
+    said(await goesBy(["whatsapp"])),
+    "“Visit reminder” already goes by WhatsApp: say so, and change nothing",
+  );
+  assert.equal(said(await goesBy([])), "Pick WhatsApp, text or email to send by.");
+  // One that already names its channels starts from them, and may drop one. A paused playbook is changed the same.
+  const fewer = await goesBy(["email"], {
+    playbooks: [playbookRow({ channels: ["whatsapp", "email"], state: "paused" })],
+  });
+  assert.equal(fewer.isError, false, fewer.result);
+  assert.deepEqual([fewer.proposal.payload.channels, fewer.proposal.payload.was], [["email"], ["whatsapp", "email"]]);
+  assert.match(fewer.proposal.summary, /^Goes by Email, where it went by WhatsApp and Email · /);
+});
+
+test("a playbook's channels are held to what its own class and message may go by; one it keeps and cannot go by yet waits, with the reason; a run that already waits keeps its own", async () => {
+  // A win-back is an offer: texts carry none, in the composers' words, as the PUT would refuse it.
+  const winBack = playbookRow({
+    name: "Win-back",
+    trigger: "quiet_30",
+    template_id: OFFER,
+    template_name: "month_offer",
+    policy_class: "reengage",
+  });
+  assert.equal(said(await goesBy(["whatsapp", "sms"], { playbooks: [winBack] })), CHANNEL_WORDS.noOffersByText);
+  // A playbook on a list sends under the class its row keeps: an offer too, judged by the row and not by its moment.
+  const onList = playbookRow({
+    name: "Regulars",
+    trigger: "saved_list",
+    list_key: "opted_in",
+    template_id: OFFER,
+    template_name: "month_offer",
+    policy_class: "campaign",
+  });
+  assert.equal(said(await goesBy(["whatsapp", "sms"], { playbooks: [onList] })), CHANNEL_WORDS.noOffersByText);
+  const listed = await goesBy(["whatsapp", "email"], { playbooks: [onList] });
+  assert.equal(listed.isError, false, listed.result);
+  assert.deepEqual(listed.proposal.payload.channels, ["whatsapp", "email"]);
+
+  // No mailbox yet: email stays on the playbook and waits, its runs holding those people until it can.
+  const waits = await goesBy(["whatsapp", "email"], { mailboxes: [] });
+  assert.equal(waits.isError, false, waits.result);
+  assert.deepEqual(waits.proposal.payload.channels, ["whatsapp", "email"]);
+  assert.ok(
+    waits.proposal.summary.endsWith(
+      ` · Email waits: ${CHANNEL_WORDS.noMailbox} Its runs hold those people until it can.`,
+    ),
+    waits.proposal.summary,
+  );
+  // Email can send and offers by email are not open yet: an offer's email waits too, where the card said "by Email" as
+  // if it went (the drawer's row and the rail's mark already said it waits: one reading now).
+  await edgeSays(CLOSED_EDGE);
+  const offerWaits = await goesBy(["whatsapp", "email"], { playbooks: [winBack] });
+  assert.equal(offerWaits.isError, false, offerWaits.result);
+  assert.match(offerWaits.proposal.summary, / · Email waits: .+ Its runs hold those people until it can\.$/);
+  // The reminder is no offer: by email it goes, and nothing is said to wait.
+  const reminderGoes = await goesBy(["whatsapp", "email"]);
+  assert.ok(!reminderGoes.proposal.summary.includes("waits"), reminderGoes.proposal.summary);
+  await edgeSays(OPEN_EDGE);
+
+  // A run of it already waits for approval: it was made with the channels the playbook had, and the card, and then the
+  // receipt, say so as the drawer does. A run of another playbook, or one that is not waiting, is nothing to this one.
+  const run = (over = {}) => ({
+    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01",
+    tenant_id: A,
+    playbook_id: VISIT_PB,
+    state: "pending_approval",
+    ...over,
+  });
+  const waiting = await goesBy(["whatsapp", "email"], { broadcasts: [run()] });
+  assert.equal(waiting.proposal.payload.run_waits, true);
+  assert.ok(
+    waiting.proposal.summary.endsWith(" · the run that waits keeps the channels it was made with"),
+    waiting.proposal.summary,
+  );
+  assert.equal(
+    PROPOSAL_SPECS.playbook_channels.receipt(waiting.proposal, {}),
+    "Visit reminder goes by WhatsApp and Email now · the run that waits keeps the channels it was made with",
+  );
+  for (const other of [run({ state: "sent" }), run({ playbook_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb7" })])
+    assert.equal((await goesBy(["whatsapp", "email"], { broadcasts: [other] })).proposal.payload.run_waits, false);
+
+  // An id that is no id, one no playbook of this workspace has, and a reach-out's step (changed on its own sheet):
+  // refused in words, no card.
+  const step = playbookRow({ kind: "reach_out", trigger: "lead_first", name: "Dentists · step 1" });
+  for (const [id, words, db] of [
+    ["the visit reminder", /^playbook_id must be a playbook's id/, {}],
+    ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9", /^no such playbook in this workspace/, {}],
+    [VISIT_PB, /^no such playbook in this workspace/, { playbooks: [step] }],
+  ]) {
+    const no = await goesBy(["whatsapp", "email"], db, id);
+    assert.equal(no.isError, true);
+    assert.equal(no.proposal, null);
+    assert.match(said(no), words);
+  }
+  // A channel the tool does not know never reaches the handler: the schema refuses it, naming the three.
+  const odd = await goesBy(["whatsapp", "fax"]);
+  assert.equal(odd.isError, true);
+  assert.match(odd.result, /whatsapp|sms|email/);
+});
+
+test("campaigns with action playbooks says the channels each playbook goes by now, which a change of them must name whole", async () => {
+  const supabase = fakeDb(
+    holding({
+      playbooks: [
+        playbookRow(),
+        playbookRow({
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+          name: "Reminder by all three",
+          channels: ["email", "whatsapp", "sms"],
+        }),
+      ],
+    }),
+    {},
+    { people_list: () => PEOPLE },
+  );
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const out = await runTool(t, { name: "campaigns", input: { action: "playbooks" } });
+  assert.equal(out.isError, false, out.result);
+  const listed = Object.fromEntries(JSON.parse(out.result).playbooks.map((p) => [p.name, p.channels]));
+  assert.deepEqual(listed, {
+    // One made before channels goes by WhatsApp alone, as its runs read it.
+    "Visit reminder": ["whatsapp"],
+    "Reminder by all three": ["whatsapp", "sms", "email"],
+  });
 });
 
 test("a proposal follow-up by WhatsApp and email: it answers their own request, so email carries it; a channel not ready yet stays on it, and the card says its runs hold those people", async () => {
@@ -632,9 +965,16 @@ test("a message with no WhatsApp row is proposed by the channels it holds on a w
   const waTick = await propose({ ...quiet, channels: ["whatsapp", "email"] }, offer);
   assert.equal(waTick.isError, true);
   assert.ok(said(waTick).startsWith(`${noVersionWords("whatsapp")} Say so: `), said(waTick));
+  // Naming none, it goes by what the composer would tick for it: its email, the one channel that holds it here (8 Oct
+  // 2026). It was refused in WhatsApp's words, with "name channels among email" for the model to ask again.
+  const unnamed = await propose(quiet, offer);
+  assert.equal(unnamed.isError, false, unnamed.result);
+  assert.deepEqual(unnamed.proposal.payload.channels, ["email"]);
+  assert.deepEqual(commitBody(unnamed.proposal).channels, ["email"]);
+  // Where nothing can carry it (no mailbox either), the refusal stands, in WhatsApp's words.
   assert.equal(
-    said(await propose(quiet, offer)),
-    "This message has no WhatsApp version. Say so, and name channels among email",
+    said(await propose(quiet, { ...offer, mailboxes: [] })),
+    "This message has no WhatsApp version. It can go by no other channel yet: say so",
   );
 });
 
@@ -771,9 +1111,21 @@ test("Ask is told what a message is: a name with a version on each channel it is
   );
   assert.equal(
     proposing.split("name the channels its `channels` in action audiences say it holds").length - 1,
-    2,
-    "a broadcast and a playbook are proposed by the channels the listing says a message holds",
+    1,
+    "a broadcast is proposed by the channels the listing says a message holds",
   );
+  // A playbook that names none goes by what the composer would tick for it (8 Oct 2026, decision 5's one rule), and the
+  // model is told so, where it was told WhatsApp alone.
+  assert.ok(
+    proposing.includes(
+      "when none is named it goes by every one the workspace can send on now that the message holds, as a new playbook opens in Campaigns",
+    ),
+    "the playbook's default is said",
+  );
+
+  // And an existing playbook's channels are changed by their own action, which says each person is still reached once.
+  assert.ok(proposing.includes("Action channels takes playbook_id, a playbook that exists,"));
+  assert.ok(proposing.includes("one more channel widens who it reaches and never sends a person two messages"));
   for (const text of [ASK_DEFINITIONS.broadcast, ASK_DEFINITIONS.playbook, listing, proposing])
     assert.ok(!/approved (WhatsApp )?templates?/i.test(text), text.slice(0, 120));
 });

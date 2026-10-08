@@ -10,12 +10,15 @@
  * either, nothing. The toast host is the page's, so a toast outlives the sheet that raised it (a send closes the composer in
  * the same breath, and the toast that offers to stop it must not go with it).
  */
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { LIFECYCLE_TOAST } from "@chanlytics/contracts";
-import type { LifecycleAct, LifecycleHome } from "@chanlytics/contracts";
+import type { LifecycleAct, LifecycleComing, LifecycleHome } from "@chanlytics/contracts";
+import type { Output } from "@/client/api";
 import { canDo, gate, routeDoor, navigate, useLegacyToast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { bcWhenWords } from "../broadcasts/when-words";
 import { playbooks as verbs } from "../playbooks/verbs";
 import { CmDot, CmHead } from "../parts/head";
 import { useCmPhone } from "../parts/split";
@@ -28,12 +31,18 @@ import { NewMessage } from "./new-message";
 import { PhoneRail, Rail } from "./rail";
 import type { RailActs } from "./rail";
 import { SentenceParts } from "./sentence";
-import { ComingBlock, PhoneReach, ReachBlock, ResultsBlock } from "./tiles";
+import { ComingBlock, ReachBlock, ResultsBlock } from "./tiles";
+import type { ComingApproval } from "./tiles";
 import { useHomeData, useHomeNav, useReopenDrafts } from "./use-home";
 
 type Flash = ReturnType<typeof useLegacyToast>[1];
 
-/** The head's line: the page's words with its numbers in the page's emphasis, and a quiet line while offers by email are paused. */
+/**
+ * The head's line: the page's numbers in the page's emphasis, and a quiet line while offers by email are paused. Where
+ * the workspace stands on its channels is drawn where it is seen, at the rail's head (in the Moments head on a phone): the
+ * frame's head is a screen reader's line under Glass, clipped to a point on a desk and gone on a phone, so the channels'
+ * doors drawn in it were links nobody could see and every Tab still landed on.
+ */
 function sentenceOf(home: LifecycleHome): ReactNode {
   const { sentence, pausedLine } = home.head;
   return (
@@ -106,6 +115,66 @@ function useActs(
   return { onAct, onCopy };
 }
 
+/**
+ * A waiting run approved or skipped on its line in Coming up (the broadcast's own doors, playbooks/verbs.ts): one at a
+ * time, each said the moment the server takes it, from what it answered -- how many, and when it really goes, since the
+ * server moves an approval outside the sending hours to the next nine o'clock (broadcasts/when-words.ts). The page
+ * repaints from the re-read behind it; a refusal is the server's own words.
+ */
+function useApproval(flash: Flash, canAct: boolean): ComingApproval {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
+  // A second press before the first has drawn its busy state would be a second request: the ref holds it at once.
+  const working = useRef(false);
+  const answer = async <D,>(
+    runId: string,
+    send: (o: { onAccepted: (d: D) => void }) => Promise<{ ok: true; data: D } | { ok: false; message: string }>,
+    said: (d: D) => ReactNode,
+  ): Promise<void> => {
+    if (working.current) return;
+    working.current = true;
+    setBusy(runId);
+    let done = false;
+    const say = (d: D) => {
+      done = true;
+      flash({ tone: "ok", msg: said(d) });
+    };
+    try {
+      const r = await send({ onAccepted: say });
+      if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
+      else if (!done) say(r.data);
+    } finally {
+      // Whatever the send did, the next press is taken; and the question this press answered closes, never one asked
+      // on another row while this was with the server.
+      working.current = false;
+      setBusy(null);
+      setAsking((open) => (open === runId ? null : open));
+    }
+  };
+  const onApprove = async (row: LifecycleComing): Promise<void> => {
+    const w = row.waiting;
+    if (!w || w.refusal || !canAct) return;
+    await answer(
+      w.runId,
+      (o) => verbs.approveRun(w.runId, o),
+      (d: Output<"POST broadcasts/[id]/approve">) => (
+        <SentenceParts parts={LIFECYCLE_TOAST.approved(row.what, d.recipient_count || w.people, bcWhenWords(d))} />
+      ),
+    );
+  };
+  const onSkip = async (row: LifecycleComing): Promise<void> => {
+    const w = row.waiting;
+    if (!w || !canAct) return;
+    await answer(
+      w.runId,
+      (o) => verbs.skipRun(w.runId, o),
+      // What the server stopped, by what the run was when it did: one a teammate approved a moment before is going.
+      (d: Output<"POST broadcasts/[id]/cancel">) => <SentenceParts parts={LIFECYCLE_TOAST.skipped(row.what, d.was)} />,
+    );
+  };
+  return { busy, asking, onAsk: setAsking, onApprove, onSkip, canAct, gated: gate("approve", "approve a run") };
+}
+
 /** What the composer says once the server took a playbook. */
 const composerDone = (flash: Flash) => (d: { name?: string }, changed: boolean) => {
   const name = d.name ?? LIFECYCLE_TOAST.nameless;
@@ -131,6 +200,7 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
   const canAct = !!canDo("approve");
   useReopenDrafts(address, playbooks);
   const { onAct, onCopy } = useActs(home, nav, flash);
+  const approval = useApproval(flash, canAct);
   if (!playbooks) return null;
   const acts: RailActs & { onCopy: (phrase: string) => void } = {
     onAct,
@@ -149,9 +219,8 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
       <CmHead title="Campaigns" quiet testid="cmh-head" sub={sentenceOf(home)} right={headActs(home, newMessage)} />
       {phone ? (
         <>
-          <PhoneReach tile={home.reach} failed={home.failed.reach} />
           <PhoneRail home={home} acts={acts} />
-          <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} />
+          <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} approval={approval} />
           <ResultsBlock tile={home.results} failed={home.failed} onOpen={navigate} />
         </>
       ) : (
@@ -159,7 +228,7 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
           <Rail home={home} acts={acts} />
           <div className="cmh-grid">
             <ReachBlock tile={home.reach} failed={home.failed.reach} acts={acts} />
-            <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} />
+            <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} approval={approval} />
             <ResultsBlock tile={home.results} failed={home.failed} onOpen={navigate} />
           </div>
         </>

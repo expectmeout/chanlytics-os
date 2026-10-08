@@ -119,6 +119,17 @@ export const BROADCAST_WORDS = {
 } as const;
 
 /**
+ * What stopping a run says after its name, by what the run was when the server stopped it (the cancel door answers
+ * `was`): a run that waited is skipped, one being sent stops after the batch in hand, any other is canceled. One
+ * sentence for Sent's row, a playbook's card and Coming up's line: the last two said "nothing will send" whatever the
+ * server had stopped, and a run a teammate had approved a moment before was already sending.
+ */
+export function runStoppedWords(was: string | null | undefined): string {
+  if (was === "sending") return "stops after this batch";
+  return was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send";
+}
+
+/**
  * Why a yes to offers must be in writing, on a person's page: the carriers' rule, and the paper form that answers it, which is
  * under Get their yes in Sent. The link opens it (GET_YES_ROUTE).
  */

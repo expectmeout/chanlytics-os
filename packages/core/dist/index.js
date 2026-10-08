@@ -3055,6 +3055,19 @@ function refuseMessageNoTickHolds(message, channels) {
   const words = channels.flatMap((c) => messageWhyNot(message, c) ?? []);
   throw new AppError15("conflict", words.join(" "), 409);
 }
+function channelsItMayGoBy(asked2, kept, cls, message) {
+  const channels = parseChannels(asked2, kept);
+  const purpose = enrolPurpose2(cls, message);
+  const never = channels.map((c) => channelNeverCarries2(c, purpose)).find((words) => words !== null);
+  if (never) throw new AppError15("validation", never);
+  refuseMessageNoTickHolds(message, channels);
+  return channels;
+}
+async function checkPlaybookChannels(ports, row, asked2) {
+  const message = await readCampaignMessage(ports, row.template_id ?? "");
+  const cls = row.policy_class ?? triggerOf3(row.trigger)?.cls ?? null;
+  return channelsItMayGoBy(Array.isArray(asked2) ? asked2 : [], row.channels, cls, message);
+}
 async function checkPlaybook(ports, body, existing) {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf3(body.trigger) : null;
@@ -3075,11 +3088,7 @@ async function checkPlaybook(ports, body, existing) {
     proposal: trig.kind === "deal"
   });
   refuseMessageThatDisagrees(cls, message.category);
-  const channels = parseChannels(body?.channels, existing?.channels ?? null);
-  const purpose = enrolPurpose2(cls, message);
-  const never = channels.map((c) => channelNeverCarries2(c, purpose)).find((words) => words !== null);
-  if (never) throw new AppError15("validation", never);
-  refuseMessageNoTickHolds(message, channels);
+  const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
     throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
   return {
@@ -38965,6 +38974,7 @@ export {
   centerOf,
   check,
   checkPlaybook,
+  checkPlaybookChannels,
   checkable,
   cleanPlace,
   collect,

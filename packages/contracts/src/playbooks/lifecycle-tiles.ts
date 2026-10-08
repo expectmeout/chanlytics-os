@@ -5,10 +5,12 @@
  */
 import { zoneMidnight, shiftKey } from "../calendar/day-keys";
 import { purposeOfPlaybook } from "../consent/consent";
+import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../consent/consent-channels";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
-import { clockNear, clockTime, zoneDayKey } from "../shared/clock";
-import { HOUR_MS, MIN_MS } from "../shared/time";
+import { fmtDay } from "../reports/reports";
+import { clockHour, clockNear, clockTime, zoneDayKey } from "../shared/clock";
+import { HOUR_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import type {
   LifecycleAct,
@@ -26,8 +28,11 @@ import type {
   ReachCounts,
 } from "./lifecycle-types";
 import { LIFECYCLE_WORDS } from "./lifecycle-words";
+import { todayRunWords } from "../today/today-runs";
+import { waitingRunOffer } from "./playbook-approval";
 import { DAY_MS } from "./playbook-time";
 import { playbookReach } from "./playbook-reach";
+import { nextOpenMoment, nextRunOf } from "./playbook-schedule";
 import { triggerOf } from "./playbook-triggers";
 
 /** How far ahead "Coming up" looks, and how far back "What came back" does. */
@@ -45,12 +50,20 @@ const outOf = (b: LifecycleInput["broadcasts"]): LifecycleTileRead => (b === und
  * which each row carries): can be sent a message on some channel the workspace can send on now, said yes to messages, said
  * yes to offers. The broadcasts surface keeps it, over the rows it already read; the home only draws it.
  */
-export function reachCountsOf(rows: ReadonlyArray<Pick<PersonRowVM, "saidYes" | "canReceive">>): ReachCounts {
+export function reachCountsOf(
+  rows: ReadonlyArray<Pick<PersonRowVM, "saidYes" | "canReceive"> & Partial<Pick<PersonRowVM, "reachedOn">>>,
+): ReachCounts {
+  // Each person once, on the channel a send would reach them by (reach-any.ts reachedOn), where the rows carry it: a row
+  // from before the channels does not. They add up to `canHear`.
+  const byChannel = Object.fromEntries(
+    CONSENT_CHANNELS.map((c) => [c, rows.filter((r) => r.reachedOn === c).length]),
+  ) as Record<ConsentChannel, number>;
   return {
     people: rows.length,
     canHear: rows.filter((r) => r.canReceive.messages).length,
     saidMessages: rows.filter((r) => r.saidYes.messages).length,
     saidOffers: rows.filter((r) => r.saidYes.offers).length,
+    ...(rows.some((r) => r.reachedOn !== undefined) ? { byChannel } : {}),
   };
 }
 
@@ -60,8 +73,25 @@ function opensOf(stages: readonly LifecycleStage[], needs: "messages" | "offers"
   return `${LIFECYCLE_WORDS.reach.opensMessages} ${[...names, ...more].join(", ")}`;
 }
 
-/** One rung of the ladder: a count, its share of everyone, and what it opens. */
-function rung(id: LifecycleRung["id"], label: string, n: number, people: number, opens: string | null): LifecycleRung {
+/**
+ * One rung of the ladder: a count, its share of everyone, and what it opens. The "messages" rung's meter is drawn in parts,
+ * one per channel that reaches anyone, where the count knows its channels and more than one reaches someone; its words
+ * say the same ("5 on WhatsApp, 3 by email"). Each person is under one channel, the one a send would reach them by, so
+ * the parts are the rung's own bar cut by channel and the numbers add up to its count.
+ */
+function rung(
+  id: LifecycleRung["id"],
+  label: string,
+  n: number,
+  people: number,
+  opens: string | null,
+  by: ReachCounts["byChannel"] = undefined,
+): LifecycleRung {
+  const byWords = countsByChannelWords(by);
+  const parts =
+    byWords && by && people > 0
+      ? CONSENT_CHANNELS.filter((c) => by[c] > 0).map((c) => ({ channel: c, share: by[c] / people }))
+      : null;
   return {
     id,
     label,
@@ -69,7 +99,9 @@ function rung(id: LifecycleRung["id"], label: string, n: number, people: number,
     share: people > 0 ? n / people : 0,
     opens,
     tone: id === "offers" && n === 0 ? "warn" : "plain",
-    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people}`,
+    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people}${byWords ? ` · ${byWords}` : ""}`,
+    parts,
+    byWords,
   };
 }
 
@@ -82,37 +114,36 @@ export function lifecycleReach(input: LifecycleInput, stages: readonly Lifecycle
   const W = LIFECYCLE_WORDS.reach;
   const rungs = [
     rung("people", W.people, reach.people, reach.people, null),
-    rung("messages", W.messages, reach.canHear, reach.people, opensOf(stages, "messages", [])),
+    rung("messages", W.messages, reach.canHear, reach.people, opensOf(stages, "messages", []), reach.byChannel),
     rung("offers", W.offers, reach.saidOffers, reach.people, opensOf(stages, "offers", W.ownOffers)),
   ];
   const door: LifecycleAct = { kind: "route", label: W.code, route: GET_YES_ROUTE };
   const asks = b.number.present && b.optIn.link !== null;
-  const [, messages, offers] = rungs;
+  const [, , offers] = rungs;
   return {
     read: "read",
     rungs,
     yes: asks ? { note: W.asks, code: door, phrase: b.optIn.phrase, copy: W.copy } : null,
     phone: {
-      n: reach.canHear,
-      of: `of ${reach.people} can hear you`,
-      share: messages ? messages.share : 0,
-      meter: messages ? messages.meter : "",
+      words: W.phoneHear(reach.canHear, reach.people),
       offers: { words: `${reach.saidOffers} to offers`, tone: offers ? offers.tone : "plain" },
-      note: asks ? W.phoneAsks : null,
+      yes: asks ? { label: W.phoneYes, route: GET_YES_ROUTE } : null,
     },
   };
 }
 
-/** A next run as the card says it ("today 10:00", "tomorrow 10:00", "today, within the hour"), and when that is. */
-function nextRunOf(next: string, nowMs: number, tz: string): { day: string; at: string; atMs: number } | null {
-  const m = /^(today|tomorrow)(?:, (within the hour)| (\d{2}):(\d{2}))$/.exec(next);
-  if (!m) return null;
+/**
+ * A running moment's next run on Coming up's line: its day and its hour in the tile's words, and the moment the line is
+ * sorted by. Made from the schedule's own rule over the playbook's hour and the day it last ran for (playbook-schedule.ts
+ * nextRunOf, which the card's label is said from too), at the moment the page is read: never from the label's words.
+ */
+function nextRunLine(p: LifecyclePlaybook, nowMs: number, tz: string): { day: string; at: string; atMs: number } {
+  const next = nextRunOf(p, tz, new Date(nowMs));
+  const word = next.day === "tomorrow" ? "Tomorrow" : "Today";
+  if (next.soon) return { day: word, at: "Within the hour", atMs: nowMs };
   const today = zoneDayKey(nowMs, tz);
-  const day = m[1] === "tomorrow" ? shiftKey(today, 1) : today;
-  const word = m[1] === "tomorrow" ? "Tomorrow" : "Today";
-  if (m[2]) return { day: word, at: "Within the hour", atMs: nowMs };
-  const atMs = zoneMidnight(tz, day) + Number(m[3]) * HOUR_MS + Number(m[4]) * MIN_MS;
-  return { day: word, at: `${m[3]}:${m[4]}`, atMs };
+  const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
+  return { day: word, at: clockHour(next.hour), atMs };
 }
 
 /** Who a running moment will reach on its next run, and the reason when it reaches nobody. */
@@ -179,11 +210,11 @@ function momentRow(p: LifecyclePlaybook, nowMs: number, tz: string, workspacePau
       why: words.why,
       pill: { tone: "warn", label: words.pill },
       act: { kind: "open", label: "Open", playbookId: p.id },
+      waiting: null,
       atMs: nowMs,
     };
   }
-  const next = nextRunOf(p.next, nowMs, tz);
-  if (!next) return null;
+  const next = nextRunLine(p, nowMs, tz);
   return {
     id: `moment:${p.id}`,
     kind: "moment",
@@ -192,24 +223,56 @@ function momentRow(p: LifecyclePlaybook, nowMs: number, tz: string, workspacePau
     why: who.why,
     pill: who.pill,
     act: { kind: "open", label: "Open", playbookId: p.id },
+    waiting: null,
     atMs: next.atMs,
   };
 }
 
-/** A run on its way: scheduled, or waiting for the person's approval. */
-function runRow(r: LifecycleRun, name: string, nowMs: number, tz: string): LifecycleComing {
+/** Where a waiting run stands when its line is drawn: the workspace's pause, and whether the page holds its playbook. */
+interface WaitingAt {
+  paused: boolean;
+  known: boolean;
+}
+
+/**
+ * What a waiting run's line may offer (playbook-approval.ts waitingRunOffer, THE reading), asked by the business's
+ * clock as the verb asks it (the business's day now, and the day of the next open sending moment), so the line never
+ * offers an Approve the route then answers 409 or 402, nor a one-tap approval of a reach-out's first cold emails.
+ */
+function offerOf(r: LifecycleRun, nowMs: number, tz: string, at: WaitingAt) {
+  return waitingRunOffer(
+    { playbook_id: r.playbook_id, run_for: r.run_for ?? null, audience: r.audience },
+    {
+      today: zoneDayKey(nowMs, tz),
+      sendsOn: zoneDayKey(nextOpenMoment(tz, new Date(nowMs)).at.getTime(), tz),
+      say: fmtDay,
+    },
+    at,
+  );
+}
+
+/**
+ * A run on its way: scheduled, or waiting for the person's approval. One that waits says what Today's row says of it
+ * ("7 people. Nothing sends until you say so.", or "12 businesses." for a reach-out's), and is approved or skipped on
+ * its own line (`waiting`) where a row may offer that; where the verb would refuse the approval it says the verb's
+ * sentence instead and Skip is the act left; a run decided on its sheet alone keeps its name as the door to it.
+ */
+function runRow(r: LifecycleRun, name: string, nowMs: number, tz: string, at: WaitingAt): LifecycleComing {
   const atMs = Date.parse(r.scheduled_for);
-  const waiting = r.state === "pending_approval";
+  const waits = r.state === "pending_approval";
+  const offer = waits ? offerOf(r, nowMs, tz, at) : null;
+  const refusal = offer?.kind === "skip" ? offer.why : null;
   return {
     id: `run:${r.id}`,
     kind: "run",
     when: { day: clockNear(atMs, tz, nowMs), at: clockTime(atMs, tz) },
     what: name,
-    why: waiting ? "A run is waiting for your approval" : "Scheduled",
-    pill: waiting
+    why: waits ? (refusal ?? todayRunWords(r).waiting.sentence) : "Scheduled",
+    pill: waits
       ? { tone: "warn", label: LIFECYCLE_WORDS.coming.waiting }
       : { tone: "ok", label: plural(r.recipient_count, "person", "people") },
     act: { kind: "route", label: "Open", route: `broadcasts/run:${r.id}` },
+    waiting: offer && offer.kind !== "open" ? { runId: r.id, people: r.recipient_count, refusal } : null,
     atMs,
   };
 }
@@ -251,6 +314,7 @@ function offRows(stages: readonly LifecycleStage[], nowMs: number): LifecycleCom
             why: offWhy(s.id, s.people ?? 0),
             pill: null,
             act: { kind: "turn_on" as const, label: "Turn on", moment: s.act.moment },
+            waiting: null,
             atMs: nowMs + COMING_DAYS * DAY_MS + i,
           },
         ]
@@ -270,16 +334,19 @@ export function lifecycleComing(input: LifecycleInput, stages: readonly Lifecycl
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const nameOf = (id: string | null, fallback: string) => playbooks.rows.find((p) => p.id === id)?.name ?? fallback;
+  const playbookOf = (id: string | null) => playbooks.rows.find((p) => p.id === id);
+  // The workspace's pause, as either surface's readiness says it (the playbooks' own, else the broadcasts').
+  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows
     .filter((r) => (r.state === "scheduled" || r.state === "pending_approval") && Date.parse(r.scheduled_for) <= end)
-    .map((r) => runRow(r, nameOf(r.playbook_id, r.name), nowMs, tz));
+    .map((r) => {
+      const p = playbookOf(r.playbook_id);
+      return runRow(r, p?.name ?? r.name, nowMs, tz, { paused, known: p !== undefined });
+    });
   const covered = new Set(
     broadcasts.rows.filter((r) => runs.some((x) => x.id === `run:${r.id}`) && r.playbook_id).map((r) => r.playbook_id),
   );
-  // The workspace's pause, as either surface's readiness says it (the playbooks' own, else the broadcasts').
-  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
   const moments = playbooks.rows
     .filter((p) => !covered.has(p.id))
     .flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
@@ -330,6 +397,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       funnelLabel: null,
       yes: null,
       readNote: null,
+      byChannel: null,
       runs: [],
       quiet: false,
     };
@@ -347,6 +415,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       funnelLabel: null,
       yes: null,
       readNote: null,
+      byChannel: null,
       runs,
       quiet: false,
     };
@@ -393,6 +462,10 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
         : null,
     yes: `${t.optIns} said yes · ${t.optOuts} asked to stop`,
     readNote,
+    // What went by each channel (0030), where more than one sent: a line under the funnel in the channels' own words.
+    byChannel: countsByChannelWords(
+      b.report.byChannel ? Object.fromEntries(b.report.byChannel.map((c) => [c.channel, c.sent])) : null,
+    ),
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0,
   };

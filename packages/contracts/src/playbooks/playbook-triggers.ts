@@ -51,7 +51,10 @@ export const PLAYBOOK_TRIGGERS = [
     hint: "The day before an appointment on the calendar",
   },
   // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
-  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer. Its label
+  // is also the NAME a playbook made on it was given and keeps (the composer names a new playbook after its moment, and
+  // the name is stored): a new label here would say one thing on the moment and another on every playbook already
+  // made, so a rename is a product decision with a migration of the stored names, never a constant's change alone.
   {
     id: "visited",
     label: "After the visit",

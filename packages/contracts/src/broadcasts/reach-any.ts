@@ -15,7 +15,7 @@
  *     An email about a visit asks no yes at all (consent.ts), so an address alone reaches them there.
  */
 import type { AskedPurpose } from "../consent/consent";
-import { CONSENT_CHANNELS } from "../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import type { PersonRowVM } from "../people/person-row";
 import { CHANNEL_WORDS, type ChannelsReady, type HeldOn, type ReachRow, reachFor } from "./reach-for";
 
@@ -56,6 +56,13 @@ export interface PersonReach {
   canReceive: ByKind<boolean>;
   /** Why not, where not: reachFor's strictest refusal, or no channel the workspace can send this on; null where they can. */
   whyNot: ByKind<HeldOn | null>;
+  /**
+   * The channel a message about their visit would reach them on now, every channel asked at once: reachFor's own pick
+   * (the one they last wrote on, where it can carry it), null where none reaches them. Campaigns' home counts who is
+   * reached by each channel from it ("17 on WhatsApp, 7 by email"): each person once, on the channel a send would go by,
+   * so the channels add up to everyone `canReceive.messages` is true of, and to what a playbook on every channel says.
+   */
+  reachedOn: ConsentChannel | null;
 }
 
 /**
@@ -68,10 +75,12 @@ export function personReachOf(r: ReachRow, ready: ChannelsReady | null): PersonR
   // go"): their own, which by email asks no yes. A broadcast asks its own question of its own people (decision D1).
   const how = { channels: CONSENT_CHANNELS, ready: readyOrWhatsApp(ready), about: "theirs" as const };
   const offers = reachFor(r, "marketing", how).held;
-  const messages = reachFor(r, "conversational", how).held;
+  // One pick answers both: whether a message reaches them, and on which channel it would.
+  const visit = reachFor(r, "conversational", how);
   return {
     saidYes: { offers: answeredYes(r, "marketing"), messages: answeredYes(r, "conversational") },
-    canReceive: { offers: offers === null, messages: messages === null },
-    whyNot: { offers, messages },
+    canReceive: { offers: offers === null, messages: visit.held === null },
+    whyNot: { offers, messages: visit.held },
+    reachedOn: visit.channel,
   };
 }

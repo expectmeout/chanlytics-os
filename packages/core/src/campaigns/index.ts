@@ -28,7 +28,7 @@ export { approveRun } from "./approve";
 export type { ApproveReceipt } from "./approve";
 export { cancelBroadcast } from "./cancel";
 export type { CancelReceipt } from "./cancel";
-export { checkPlaybook } from "./check-playbook";
+export { checkPlaybook, checkPlaybookChannels } from "./check-playbook";
 export type { PlaybookInput, CheckPlaybookPorts } from "./check-playbook";
 export { reachOutRunIdFor, sendIdFor, sendMessageId, handStepIdFor } from "./reach-out-ids";
 export type {

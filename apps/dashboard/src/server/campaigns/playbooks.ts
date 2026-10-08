@@ -39,7 +39,7 @@ import {
   type PlaybookTrigger,
   type RunMessage,
 } from "@chanlytics/contracts";
-import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
+import { checkPlaybook, checkPlaybookChannels, type PlaybookInput } from "@chanlytics/core";
 import {
   followUpTouchesSince,
   listRow,
@@ -691,6 +691,19 @@ export function playbookWriteError(error: { code?: string; message: string }): E
   return error.code === "23505" && error.message.includes("playbooks_one_follow_up")
     ? new AppError("conflict", FOLLOW_UP_ONE, 409)
     : new Error(error.message);
+}
+
+/**
+ * A playbook's channels alone, checked against the playbook as it stands: core's checkPlaybookChannels over this
+ * workspace's rows of its message. `row` is the playbook as the database holds it, never a caller's copy.
+ */
+export function checkPlaybookChannelsInput(
+  ctx: RouteContext,
+  tenantId: string,
+  row: { trigger: string; policy_class: string | null; template_id: string | null; channels: string[] | null },
+  asked: unknown,
+): Promise<ConsentChannel[]> {
+  return checkPlaybookChannels(templateValuePorts(ctx, tenantId), row, asked);
 }
 
 /**

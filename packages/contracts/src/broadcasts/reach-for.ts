@@ -51,6 +51,30 @@ export type ChannelsReady = Record<ConsentChannel, ChannelReady> & {
 /** The channels a campaign ticks when nobody picked any: WhatsApp alone, as every campaign went before. */
 export const DEFAULT_CAMPAIGN_CHANNELS: readonly ConsentChannel[] = ["whatsapp"];
 
+/**
+ * Whether a new playbook opens on every channel it can go by, or on the first alone (decision 5 of the spec of 8 October
+ * 2026, "A campaign says where it goes"): the one switch, read by the composer and by Ask's playbook proposal, so
+ * turning it back is this line. Every channel, because a person is reached once, on their best channel (reachFor): a
+ * tick widens who is reached and never doubles a message.
+ */
+export const NEW_PLAYBOOK_TICKS_EVERY_CHANNEL: boolean = true;
+
+/**
+ * The channels a new campaign goes by until its owner says otherwise. `open` is the channels a campaign of its kind
+ * may go by now for the message in view (channelChoices over readyForMessage: the workspace can send on them, the
+ * message holds a version there, its purpose is carried there), in the product's order; null where no message is in
+ * view. A playbook takes every one of them (NEW_PLAYBOOK_TICKS_EVERY_CHANNEL); a broadcast the first alone, since it goes
+ * now on what can send now. WhatsApp alone where there is none, or no message in view, as every campaign went before.
+ */
+export function newCampaignChannels(
+  kind: "playbook" | "broadcast",
+  open: readonly ConsentChannel[] | null,
+): ConsentChannel[] {
+  const [first] = open ?? [];
+  if (!open || first === undefined) return [...DEFAULT_CAMPAIGN_CHANNELS];
+  return kind === "playbook" && NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? [...open] : [first];
+}
+
 /** The words for a channel that cannot carry a message, or cannot be sent on here, as a tick's hover says them. */
 export const CHANNEL_WORDS = {
   noOffersByText: "Texts carry no offers.",

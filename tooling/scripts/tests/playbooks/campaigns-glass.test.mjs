@@ -92,9 +92,17 @@ test("the head: the page says the surface's title to the frame's head and draws 
   assert.equal(said?.title, "Campaigns", "the surface's name");
   assert.equal(said?.back, null, "the home has no way back above its name");
   assert.ok(said?.sentence, "and the head's line beside it");
+  // Facts alone since 8 Oct 2026: the moments covered and who can hear. Where the workspace stands on its channels is at
+  // the rail's head, where it is seen: this line is a screen reader's under Glass, and a door in it is a link no one sees.
+  assert.ok(textOf(said.sentence).includes("moments are covered"), "the line is the page's own, said to the frame");
   assert.ok(
-    textOf(said.sentence).includes("What goes out on its own as a customer reaches a moment"),
-    "the line is the page's own, said to the frame",
+    !textOf(said.sentence).includes("Sending on WhatsApp"),
+    "the channels' line is not drawn in the frame's head",
+  );
+  assert.equal(
+    find(said.sentence, (n) => n.props?.["data-testid"] === "cmh-channels-door"),
+    null,
+    "and no door of it either",
   );
   // The page's two acts ride to the row of views: the Library, and New message.
   assert.ok(
@@ -138,16 +146,22 @@ test("the head says the month's allowance from half used, quietly: one line afte
   assert.ok(textOf(standingSaid()?.sentence).includes("300 of 500 texts used this month"));
 });
 
-test("the playbook composer: five rows, To, Says, Send by, When and Under, each holding its section", () => {
+test("the playbook composer: five rows, To, Send by, Says, When and Under, each holding its section", () => {
   const glass = composing();
-  const rows = ["pb-row-to", "pb-row-says", "pb-row-via", "pb-row-when", "pb-row-under"].map((id) =>
+  const rows = ["pb-row-to", "pb-row-via", "pb-row-says", "pb-row-when", "pb-row-under"].map((id) =>
     byTestId(glass, id),
   );
   assert.ok(
     rows.every((r) => r),
     "the five rows",
   );
-  assert.deepEqual(rows.map(wordOf), ["To", "Says", "Send by", "When", "Under"]);
+  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When", "Under"]);
+  // In the order they are drawn: Send by stands under To (8 Oct 2026), beside the count its switches change, where it
+  // stood two rows and a whole preview below it.
+  assert.deepEqual(
+    all(glass, (n) => String(n.props?.className || "") === "pb-grow").map((n) => n.props["data-testid"]),
+    ["pb-row-to", "pb-row-via", "pb-row-says", "pb-row-when", "pb-row-under"],
+  );
   assert.ok(within(glass, "pb-row-to", "pb-who"), "To holds who it is for");
   assert.ok(within(glass, "pb-row-says", "pb-message"), "Says holds the message");
   assert.ok(within(glass, "pb-row-via", "pb-via-sec"), "Send by holds the channels it goes by");
@@ -166,7 +180,7 @@ test("the playbook composer: five rows, To, Says, Send by, When and Under, each 
   for (const id of ["pb-save", "pb-cancel"]) assert.ok(byTestId(glass, id), `the foot keeps ${id}`);
 });
 
-test("the broadcast composer: the rows To, Says, Send by, When in one pane", () => {
+test("the broadcast composer: the rows To, Send by, Says, When in one pane", () => {
   const open = () => {
     setSurfaceValue("broadcasts", broadcastsSample(NOW));
     freshTree();
@@ -177,8 +191,8 @@ test("the broadcast composer: the rows To, Says, Send by, When in one pane", () 
   };
   const glass = open();
   const rows = all(glass, (n) => String(n.props?.className || "") === "bc-grow");
-  // Send by is the row between Says and When (One message, every channel, step 3).
-  assert.deepEqual(rows.map(wordOf), ["To", "Says", "Send by", "When"]);
+  // Send by is the row under To (8 Oct 2026; One message, every channel, step 3 drew it between Says and When).
+  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When"]);
   assert.ok(within(glass, "bc-composer", "bc-col-who") && within(glass, "bc-composer", "bc-col-what"));
   assert.ok(within(glass, "bc-composer", "bc-col-when"), "each column keeps its testid");
   assert.ok(within(glass, "bc-composer", "bc-col-via"), "Send by keeps its testid");

@@ -4,6 +4,7 @@
  */
 import {
   PLAYBOOK_REACH_WORDS,
+  clockHour,
   consentGuardWords,
   heldBackWords,
   isWinBack,
@@ -51,7 +52,8 @@ export const pbHours = () => {
   return Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i);
 };
 
-export const pbHour = (h: number) => `${String(h).padStart(2, "0")}:00`;
+/** An hour a run may start at, as the product's clock says a time: "10:00 AM" (contracts clockHour). */
+export const pbHour = (h: number) => clockHour(h);
 
 export const pbPeople = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 

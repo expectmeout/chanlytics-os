@@ -64,6 +64,7 @@ export {
   reachLines,
   runDayPassed,
   runApprovalRefusal,
+  waitingRunOffer,
   toApprovalVM,
 } from "./playbooks";
 export {
@@ -74,13 +75,16 @@ export {
   passesHandoverPause,
 } from "./playbook-purpose";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
+export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbook-channels";
+export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle";
 export { reachCountsOf } from "./lifecycle-tiles";
-export { LIFECYCLE_WORDS, LIFECYCLE_TOAST } from "./lifecycle-words";
+export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords } from "./lifecycle-words";
 export type {
   LifecycleAct,
   LifecycleBroadcasts,
   LifecycleCameBack,
+  LifecycleChannelMark,
   LifecycleComing,
   LifecycleComingTile,
   LifecycleFailed,
@@ -123,4 +127,5 @@ export type {
   PlaybookReach,
   RunPlan,
   ApprovalVM,
+  WaitingRunOffer,
 } from "./playbooks";

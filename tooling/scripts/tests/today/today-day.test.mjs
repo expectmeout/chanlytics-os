@@ -106,8 +106,8 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   const vm = todayDay(
     cal(days),
     [
-      { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00" },
-      { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00" },
+      { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00 AM" },
+      { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00 AM" },
     ],
     { rows: [{ id: "c1", state: "needs_you" }] },
   );
@@ -176,7 +176,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   assert.equal(vm.nextOpening, "Mon 9:30 AM");
   assert.deepEqual(
     vm.reminders,
-    { text: "Visit reminder: 2 people · next run today 10:00", to: "outbound" },
+    { text: "Visit reminder: 2 people · next run today 10:00 AM", to: "outbound" },
     "only the visit playbooks speak here",
   );
 });
@@ -206,12 +206,12 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   );
   // A count the server could not make is left out, never said as "null people".
   const uncounted = todayDay(cal([day("2026-09-06", { today: true })]), [
-    { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: null, next: "today 10:00" },
-    { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 18:00" },
+    { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: null, next: "today 10:00 AM" },
+    { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM" },
   ]);
   assert.equal(
     uncounted.reminders.text,
-    "Visit reminder: next run today 10:00 · After the visit: 1 person · next run today 18:00",
+    "Visit reminder: next run today 10:00 AM · After the visit: 1 person · next run today 6:00 PM",
   );
 });
 

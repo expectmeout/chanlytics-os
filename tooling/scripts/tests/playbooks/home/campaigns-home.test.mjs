@@ -69,6 +69,7 @@ const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/c
 const { ReachOutPane } = await import(`${SRC}/surfaces/campaigns/reach-out/row.tsx`);
 const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
 const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
+const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
@@ -183,8 +184,19 @@ test("the head says the page's line with its numbers in bold, the Library with i
   assert.equal(standingSaid()?.title, "Campaigns", "the page opens on its head, said to the frame");
   const head = headSaid();
   const text = textOf(head);
-  assert.match(text, /What goes out on its own as a customer reaches a moment, and what you send yourself\./);
+  // Facts alone (8 Oct 2026): the lede that explained the page every visit is gone. Where the workspace stands on its
+  // channels is NOT in this line: under Glass the frame's head is a screen reader's, clipped to a point on a desk and
+  // gone on a phone, so a door drawn in it was a link nobody could see and every Tab still landed on. It is drawn where
+  // it is seen, at the rail's head.
+  assert.doesNotMatch(text, /What goes out on its own/);
   assert.match(text, /moments are covered, and 7 of your 29 people can hear from you/);
+  assert.doesNotMatch(text, /Sending on WhatsApp/);
+  assert.equal(byTestId(head, "cmh-channels"), null, "no channel line in the frame's head");
+  assert.equal(byTestId(head, "cmh-channels-door"), null, "and no door there");
+  const rail = byTestId(page(), "cmh-channels-rail");
+  assert.match(textOf(rail), /Sending on WhatsApp/);
+  assert.match(textOf(rail), /Text: No texting line yet/);
+  assert.ok(byTestId(rail, "cmh-channels-rail-door"), "a closed channel is a door, where it is seen");
   assert.ok(byTestId(head, "cmh-library"));
   assert.match(textOf(byTestId(head, "cmh-library")), /Library/);
   assert.ok(byTestId(head, "cmh-new"));
@@ -211,16 +223,45 @@ test("the page draws nothing before the playbooks have landed, and a demo sessio
   assert.equal(allBy(tree, "cmh-stage")[3].props["data-state"], "on", "the sample's win-back is running");
 });
 
-test("the phone draws one short tile for who can hear you, the moments down a line, and the lines as one list", () => {
+test("the phone opens on the moments, who can hear you a line in their head, and the lines under them as one list", () => {
   surfaces();
   globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
   fresh();
   const tree = page();
-  assert.equal(byTestId(tree, "campaigns-home").props["data-phone"], "true");
-  assert.ok(byTestId(tree, "cmh-reach"));
+  const home = byTestId(tree, "campaigns-home");
+  assert.equal(home.props["data-phone"], "true");
   assert.equal(allBy(tree, "cmh-rung").length, 0, "no ladder on a phone: one line");
   assert.ok(byTestId(tree, "cmh-also"), "the lines under the rail are one tile, Also");
-  assert.match(textOf(byTestId(tree, "cmh-reach")), /of 29 can hear you/);
+  // Who can hear you is a line in the Moments head (8 Oct 2026): it was a tile of its own over them, a figure, a bar and a
+  // note that pressed nothing, and the work stood a screen below it.
+  const rail = byTestId(tree, "cmh-rail");
+  const reach = byTestId(rail, "cmh-reach");
+  assert.ok(reach, "the reach is said inside the moments' tile");
+  assert.equal(
+    allBy(tree, "cmh-reach").filter((n) => typeof n.type === "string").length,
+    1,
+    "once: no tile of its own beside it",
+  );
+  assert.match(textOf(reach), /7 of 29 can hear you/);
+  assert.match(textOf(reach), /0 to offers/);
+  assert.equal(all(reach, (n) => n.type === Meter).length, 0, "no bar: the figure says it");
+  assert.ok(byTestId(reach, "cmh-channels"), "and where the workspace stands on its channels, under it");
+  // How the yes to offers is got is a door on the line (the desk's tile has "Show the code"): the tile this line
+  // replaced said the receptionist asks, and opened nothing.
+  const yes = all(reach, (n) => n.type === "a" && n.props?.["data-testid"] === "cmh-phone-yes")[0];
+  assert.ok(yes, "the door is a link");
+  assert.equal(textOf(yes), "Get their yes");
+  assert.match(String(yes.props.href), /broadcasts\/get-yes$/);
+  // The first thing the page draws is the moments: nothing of the page's own stands before their tile.
+  const blocks = all(
+    home,
+    (n) =>
+      typeof n.type === "string" &&
+      String(n.props?.className ?? "")
+        .split(" ")
+        .includes("cmh-block"),
+  );
+  assert.equal(blocks[0].props["data-testid"], "cmh-rail", "the moments are the page's first tile");
   assert.ok(
     byTestId(tree, "cmh-coming") && byTestId(tree, "cmh-results"),
     "what is coming and what came back stand below",
@@ -319,6 +360,284 @@ test("a run in what came back and a line in coming up open their run on the Broa
   assert.ok(run.length > 0);
   pressed(run[0]);
   assert.match(went[0], /^broadcasts\/run:/);
+});
+
+/* ------------------------------- a waiting run, approved or skipped where it waits ------------------------------- */
+
+/**
+ * The sample's runs, its waiting one made for the business's own today (the sample stamps the demo zone's day; said here
+ * too, so a test that changes the day reads as one), with whatever a test changes of it.
+ */
+const waitingRows = (over = {}) =>
+  broadcastsSample(new Date(NOW)).rows.map((r) =>
+    r.state === "pending_approval" ? { ...r, run_for: "2026-10-02", ...over } : r,
+  );
+const waitingLine = (tree) => allBy(tree, "cmh-coming-line").find((l) => l.props["data-kind"] === "run");
+/** One of the playbooks' verbs answered by the test for as long as `during` runs, then put back. */
+async function withVerb(name, answer, during) {
+  const real = verbs[name];
+  const calls = [];
+  verbs[name] = async (id, opts) => {
+    calls.push(id);
+    const r = answer(id);
+    if (r.ok) opts.onAccepted(r.data);
+    return r;
+  };
+  try {
+    await during(calls);
+  } finally {
+    verbs[name] = real;
+  }
+}
+
+test("a run waiting on you is approved on its line in Coming up, through the broadcast's own door, and says how many and when", async () => {
+  surfaces({ broadcasts: { rows: waitingRows() } });
+  fresh();
+  const answer = () => ({ ok: true, data: { recipient_count: 4, scheduled_for: null, moved_from: null } });
+  await withVerb("approveRun", answer, async (calls) => {
+    const line = waitingLine(page());
+    assert.equal(line.props["data-kind"], "run");
+    assert.match(textOf(line), /Welcome/);
+    assert.match(textOf(line), /4 people\. Nothing sends until you say so\./);
+    assert.match(textOf(line), /Waiting on you/);
+    const approve = byTestId(line, "cmh-approve");
+    assert.match(textOf(approve), /Approve/);
+    assert.equal(textOf(byTestId(line, "cmh-skip")).trim(), "Skip");
+    await approve.props.onClick();
+    assert.deepEqual(calls, ["b-sample-2"], "the run's own id, once");
+    assert.equal(toasts.length, 1);
+    assert.equal(toasts[0].tone, "ok");
+    assert.equal(textOf(toasts[0].msg), "Welcome approved — 4 people, sending now");
+    // The name stays the door to the run's sheet, for who and what.
+    pressed(byTestId(line, "cmh-coming-open"));
+    assert.match(went.at(-1), /^broadcasts\/run:b-sample-2$/);
+  });
+});
+
+test("an approval the server refuses is said in the server's words, and the line's acts come back", async () => {
+  surfaces({ broadcasts: { rows: waitingRows() } });
+  fresh();
+  await withVerb(
+    "approveRun",
+    () => ({ ok: false, message: "That run was already approved." }),
+    async () => {
+      await byTestId(waitingLine(page()), "cmh-approve").props.onClick();
+      assert.equal(toasts[0].tone, "danger");
+      assert.equal(textOf(toasts[0].msg), "That run was already approved.");
+      assert.equal(byTestId(waitingLine(page()), "cmh-approve").props.disabled, false, "nothing stays busy");
+    },
+  );
+});
+
+test("Skip asks on the line before it skips; No puts the two acts back, Yes skips and says nothing will send", async () => {
+  surfaces({ broadcasts: { rows: waitingRows() } });
+  fresh();
+  await withVerb(
+    "skipRun",
+    () => ({ ok: true, data: { was: "pending_approval" } }),
+    async (calls) => {
+      pressed(byTestId(waitingLine(page()), "cmh-skip"));
+      let line = waitingLine(page());
+      const question = byTestId(line, "cmh-skip-confirm");
+      assert.ok(question, "the question stands where the acts stood");
+      assert.match(textOf(question), /Skip this run of Welcome\?/);
+      assert.match(textOf(question), /Nothing sends, and the run closes\./);
+      assert.equal(byTestId(line, "cmh-approve"), null);
+      assert.deepEqual(calls, [], "nothing is skipped by the first press");
+      pressed(byTestId(line, "cmh-skip-no"));
+      line = waitingLine(page());
+      assert.ok(byTestId(line, "cmh-approve"), "No puts Approve and Skip back");
+      pressed(byTestId(line, "cmh-skip"));
+      await byTestId(waitingLine(page()), "cmh-skip-yes").props.onClick();
+      assert.deepEqual(calls, ["b-sample-2"]);
+      assert.equal(textOf(toasts[0].msg), "Welcome skipped — nothing will send");
+      assert.ok(byTestId(waitingLine(page()), "cmh-approve"), "the question is gone once it is answered");
+    },
+  );
+});
+
+test("the demo's waiting run is made for the demo's own day: at 9:44 PM in New York it is still today's, and can be approved", () => {
+  const run = broadcastsSample(new Date(NOW)).rows.find((r) => r.state === "pending_approval");
+  assert.equal(run.run_for, "2026-10-02", "the business's day, where the UTC day was already the 3rd");
+  assert.equal(run.name, "Welcome · 2026-10-02");
+  surfaces();
+  fresh();
+  assert.ok(byTestId(waitingLine(page()), "cmh-approve"), "the sample's own run, untouched, is offered its Approve");
+});
+
+test("a run that is decided on its sheet has no acts on its line: a reach-out's, and one whose playbook is gone; its name opens it", () => {
+  // A reach-out's run as core makes it: no playbook, and its audience says what it is (decision D6).
+  surfaces({
+    broadcasts: { rows: waitingRows({ playbook_id: null, audience: { kind: "reach_out" }, recipient_count: 12 }) },
+  });
+  fresh();
+  let line = waitingLine(page());
+  assert.equal(byTestId(line, "cmh-waiting-acts"), null, "no one-tap approval of first cold emails");
+  assert.match(textOf(line), /12 businesses\. Nothing sends until you say so\./);
+  pressed(byTestId(line, "cmh-coming-open"));
+  assert.match(went.at(-1), /^broadcasts\/run:b-sample-2$/);
+  // A playbook deleted while its run waited: the page holds nothing that says what the run sends.
+  surfaces({ broadcasts: { rows: waitingRows({ playbook_id: "pb-gone" }) } });
+  fresh();
+  line = waitingLine(page());
+  assert.equal(byTestId(line, "cmh-waiting-acts"), null);
+  assert.ok(byTestId(line, "cmh-coming-open"), "the name is the door to its sheet");
+});
+
+test("while the workspace is paused a waiting run says the pause and offers Skip alone: the approve door would answer 402", () => {
+  const ready = { ...broadcastsSample(new Date(NOW)).ready, paused: true };
+  surfaces({ broadcasts: { rows: waitingRows(), ready } });
+  fresh();
+  const line = waitingLine(page());
+  assert.ok(textOf(line).includes(contracts.CAMPAIGNS_PAUSED_WORDS), "the composers' own sentence for the pause");
+  assert.equal(byTestId(line, "cmh-approve"), null);
+  assert.equal(textOf(byTestId(line, "cmh-skip")).trim(), "Skip");
+});
+
+test("a skip of a run that was already going says so: the receipt is the server's answer, never a promise that nothing sends", async () => {
+  surfaces({ broadcasts: { rows: waitingRows() } });
+  fresh();
+  await withVerb(
+    "skipRun",
+    () => ({ ok: true, data: { was: "sending" } }),
+    async () => {
+      pressed(byTestId(waitingLine(page()), "cmh-skip"));
+      await byTestId(waitingLine(page()), "cmh-skip-yes").props.onClick();
+      assert.equal(textOf(toasts[0].msg), "Welcome stops after this batch");
+    },
+  );
+});
+
+test("two runs wait: each act names its run, and while one press is with the server the other row's question waits in sight and stays open", async () => {
+  const first = waitingRows().find((r) => r.state === "pending_approval");
+  const second = {
+    ...first,
+    id: "b-second",
+    name: "Win-back · 2026-10-02",
+    playbook_id: "pb-sample-winback",
+    audience: { kind: "playbook", id: "pb-sample-winback", label: "Win-back" },
+    recipient_count: 6,
+  };
+  surfaces({ broadcasts: { rows: [...waitingRows(), second] } });
+  fresh();
+  const lineOf = (name) =>
+    allBy(page(), "cmh-coming-line").find((l) => l.props["data-kind"] === "run" && textOf(l).includes(name));
+  // To a screen reader "Approve" twice says nothing of which: each act carries its run's name.
+  assert.equal(byTestId(lineOf("Welcome"), "cmh-approve").props["aria-label"], "Approve this run of Welcome");
+  assert.equal(byTestId(lineOf("Welcome"), "cmh-skip").props["aria-label"], "Skip this run of Welcome");
+  assert.equal(byTestId(lineOf("Win-back"), "cmh-approve").props["aria-label"], "Approve this run of Win-back");
+  assert.equal(byTestId(lineOf("Win-back"), "cmh-skip").props["aria-label"], "Skip this run of Win-back");
+  // Skip is asked on the second row, then the first row's Approve goes to the server and has not answered yet.
+  pressed(byTestId(lineOf("Win-back"), "cmh-skip"));
+  const real = verbs.approveRun;
+  const calls = [];
+  let release = () => {};
+  verbs.approveRun = (id, opts) =>
+    new Promise((resolve) => {
+      calls.push(id);
+      release = () => {
+        const data = { recipient_count: 4, scheduled_for: null, moved_from: null };
+        opts.onAccepted(data);
+        resolve({ ok: true, data });
+      };
+    });
+  try {
+    const going = byTestId(lineOf("Welcome"), "cmh-approve").props.onClick();
+    assert.match(textOf(byTestId(lineOf("Welcome"), "cmh-approve")), /Approving…/);
+    assert.equal(byTestId(lineOf("Welcome"), "cmh-approve").props["aria-label"], undefined, "its words say it now");
+    // The other row's Yes is not a press that would be dropped unheard: it waits, drawn as waiting.
+    assert.equal(byTestId(lineOf("Win-back"), "cmh-skip-yes").props.disabled, true);
+    release();
+    await going;
+    assert.deepEqual(calls, ["b-sample-2"]);
+    // The first press finishing closes its own business, never the question asked on another row.
+    assert.ok(byTestId(lineOf("Win-back"), "cmh-skip-confirm"), "the second row's question is still there");
+    assert.equal(byTestId(lineOf("Win-back"), "cmh-skip-yes").props.disabled, false, "and can be answered now");
+  } finally {
+    verbs.approveRun = real;
+  }
+});
+
+test("a press that throws leaves nothing busy: the next press is taken", async () => {
+  surfaces({ broadcasts: { rows: waitingRows() } });
+  fresh();
+  const real = verbs.approveRun;
+  verbs.approveRun = async () => {
+    throw new Error("the wire fell over");
+  };
+  try {
+    await assert.rejects(() => byTestId(waitingLine(page()), "cmh-approve").props.onClick(), /the wire fell over/);
+  } finally {
+    verbs.approveRun = real;
+  }
+  assert.equal(byTestId(waitingLine(page()), "cmh-approve").props.disabled, false);
+  await withVerb(
+    "approveRun",
+    () => ({ ok: true, data: { recipient_count: 4, scheduled_for: null, moved_from: null } }),
+    async (calls) => {
+      await byTestId(waitingLine(page()), "cmh-approve").props.onClick();
+      assert.deepEqual(calls, ["b-sample-2"], "the ref that holds a second press was let go");
+    },
+  );
+});
+
+test("a run whose day has passed says the verb's sentence and offers Skip alone; a viewer is told who may approve and has no Skip", () => {
+  // Made for the 30th, read on the 2nd: the approve route would answer 409, so the line never offers it.
+  surfaces({ broadcasts: { rows: waitingRows({ run_for: "2026-09-30" }) } });
+  fresh();
+  const late = waitingLine(page());
+  assert.match(textOf(late), /This run was made for Sep 30 and that day has passed/);
+  assert.equal(byTestId(late, "cmh-approve"), null);
+  assert.equal(textOf(byTestId(late, "cmh-skip")).trim(), "Skip");
+  // A role that may not approve: the button is drawn with the role's sentence, as the drawer draws it, and Skip is not.
+  const realCanDo = globalThis.canDo;
+  const realGate = globalThis.gate;
+  globalThis.canDo = () => false;
+  globalThis.gate = (perm, doing) => ({
+    "aria-disabled": "true",
+    title: "Only an owner or operator can " + doing + ".",
+  });
+  try {
+    surfaces({ broadcasts: { rows: waitingRows() } });
+    fresh();
+    const line = waitingLine(page());
+    const approve = byTestId(line, "cmh-approve");
+    assert.equal(approve.props.title, "Only an owner or operator can approve a run.");
+    assert.equal(byTestId(line, "cmh-skip"), null);
+    // And a late run leaves such a role nothing to press: its words say why it waits.
+    surfaces({ broadcasts: { rows: waitingRows({ run_for: "2026-09-30" }) } });
+    fresh();
+    assert.equal(byTestId(waitingLine(page()), "cmh-waiting-acts"), null);
+  } finally {
+    globalThis.canDo = realCanDo;
+    globalThis.gate = realGate;
+  }
+});
+
+test("a moment whose playbook has a run waiting wears a clock on its node, on a desk and a phone; a covered one keeps its check", () => {
+  const rows = playbooksSample(new Date(NOW)).rows;
+  const winBack = rows.find((p) => p.trigger === "quiet_30");
+  assert.ok(winBack, "the sample has a win-back");
+  const waits = rows.map((p) =>
+    p.id === winBack.id ? { ...p, state: "running", totals: { waiting: { id: "r-9", recipient_count: 4 } } } : p,
+  );
+  const nodeOf = (tree, id) => {
+    const stage = allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === id);
+    // The node's glyph: the kit's Icon, drawn as the real one here, named by its `name`.
+    const node = find(stage, (n) => n.props?.className === "cmh-node");
+    return [stage.props["data-waits"], find(node, (n) => typeof n.props?.name === "string").props.name];
+  };
+  surfaces({ playbooks: { rows: waits } });
+  fresh();
+  assert.deepEqual(nodeOf(page(), "quiet"), ["true", "clock"]);
+  assert.deepEqual(
+    nodeOf(page(), "first_contact"),
+    [undefined, "check"],
+    "the receptionist is covered, and waits on nobody",
+  );
+  globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  fresh();
+  assert.deepEqual(nodeOf(page(), "quiet"), ["true", "clock"], "the phone's rail says it too");
 });
 
 /* ----------------------------------------- the drawer and the composer ----------------------------------------- */
@@ -723,6 +1042,10 @@ test("a broadcasts read that failed is said in each tile made from it, in the se
     const phone = page();
     for (const id of ["cmh-reach-failed", "cmh-coming-failed", "cmh-results-failed"])
       assert.ok(byTestId(phone, id), `${id} on a phone too`);
+    // Where the workspace stands on its channels is the readiness's to say, and the playbooks' read carries it too: the
+    // line stands on a phone though who can hear you could not be read (it was drawn only with the count).
+    assert.ok(byTestId(byTestId(phone, "cmh-reach"), "cmh-channels"), "the channels line, under a reach that failed");
+    assert.equal(byTestId(phone, "cmh-phone-yes"), null, "and no door to a yes the page could not count");
     globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     // Send once could not be drawn from what could not be read: said in the sheet, with its Retry, not a sheet of nothing.
     fresh();

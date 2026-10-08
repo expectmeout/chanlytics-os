@@ -148,8 +148,8 @@ const winback = (over = {}) => ({
   created_at: "2026-08-01T00:00:00Z",
   triggerLabel: "Win-back",
   triggerHint: "Nothing heard in 30 days",
-  schedule: "Daily 10:00 · up to 25 · once per person, again after 90 days",
-  next: "tomorrow 10:00",
+  schedule: "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
+  next: "tomorrow 10:00 AM",
   candidates: 0,
   held: 0,
   named: null,
@@ -372,15 +372,15 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
   assert.equal(runDueNow({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), false);
   assert.equal(
     scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
-    "Daily 10:00 · up to 25 · once per person, again after 90 days",
+    "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
   );
   assert.equal(
     scheduleLine({ trigger: "everyone_monthly", run_hour: 9, cap_per_run: 50, gap_days: 90, cadence_days: 30 }),
-    "Every 30 days at 09:00 · up to 50 a day",
+    "Every 30 days at 9:00 AM · up to 50 a day",
   );
   assert.equal(
     nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now, false),
-    "today 11:00",
+    "today 11:00 AM",
   );
   assert.equal(
     nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
@@ -388,7 +388,7 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
   );
   assert.equal(
     nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now, false),
-    "tomorrow 10:00",
+    "tomorrow 10:00 AM",
   );
   assert.equal(
     nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now, false),
@@ -432,7 +432,7 @@ test("a run that waits for a person is open, never sent by the job, approved thr
     ZONE,
   );
   assert.equal(vm.open, true);
-  assert.equal(vm.stateLabel, "Needs you");
+  assert.equal(vm.stateLabel, "Waiting on you");
   const h = readCode("packages/core/src/messages/broadcast.ts");
   assert.ok(
     h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'),
@@ -579,7 +579,7 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
     /broadcastsOverride,\s*playbooksOverride/.test(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx")),
     "booted with the rest",
   );
-  // "Running · next run tomorrow 10:00" is a promise the run cannot keep when the pool is empty: Coming up says what the next
+  // "Running · next run tomorrow 10:00 AM" is a promise the run cannot keep when the pool is empty: Coming up says what the next
   // run will DO. The view model's words are run in lifecycle.test.mjs ("coming up: ..."); here the page draws them: the
   // running playbook that has nobody to send to wears a "Nobody" pill on its line, one that reaches somebody says how many,
   // and one whose people wait out the week says so, never "nobody".
@@ -845,7 +845,7 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     ["a", "f"],
   );
   // What the card and the sheet say of it.
-  assert.equal(scheduleLine({ ...follow, run_hour: 10 }), "Daily 10:00 · up to 25 · once per proposal");
+  assert.equal(scheduleLine({ ...follow, run_hour: 10 }), "Daily 10:00 AM · up to 25 · once per proposal");
   assert.equal(poolWords("proposal_waiting"), "with a proposal waiting");
   assert.deepEqual(
     reachLines(again.reach, follow).lines.map((l) => l.words),

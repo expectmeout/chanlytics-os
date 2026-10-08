@@ -31,7 +31,7 @@ import type { PersonRowVM } from "../people/person-row";
 import type { ParamSpec } from "../templates/templates";
 import type { AskedPurpose, MessageAbout } from "../consent/consent";
 import { consentGuardWords } from "../consent/consent-asks";
-import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
+import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../consent/consent-channels";
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
 import { answeredYes } from "./reach-any";
@@ -56,6 +56,8 @@ export {
 export type { AudienceKind, Audience, PreviewPerson, AudiencePreview, CampaignHow } from "./broadcast-audience";
 export {
   DEFAULT_CAMPAIGN_CHANNELS,
+  NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
+  newCampaignChannels,
   CHANNEL_WORDS,
   CAMPAIGN_MONTH_ALLOWANCE,
   HELD_ON,
@@ -118,8 +120,13 @@ export const REACH_OUT_SEND_STATES = [
 ] as const;
 export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
 
+/**
+ * A run waiting on its owner says "Waiting on you", as its tab on Sent, its line on Campaigns' home, the drawer and Today
+ * say it (run-report.ts, lifecycle-words.ts). It said "Needs you" on its row's pill alone until 8 Oct 2026, which is the
+ * Inbox's word for a thread a person must answer: a different thing, under one name.
+ */
 export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
-  pending_approval: "Needs you",
+  pending_approval: "Waiting on you",
   scheduled: "Scheduled",
   sending: "Sending",
   sent: "Sent",
@@ -267,9 +274,7 @@ function readShare(c: BroadcastCounts): number | null {
 
 /** What a run sent by each channel, in a line's words ("30 on WhatsApp, 6 by text"), where it went by more than one. */
 export function sentByWords(by: BroadcastCounts["sent_by"]): string | null {
-  if (!by) return null;
-  const went = CONSENT_CHANNELS.filter((c) => by[c] > 0);
-  return went.length > 1 ? went.map((c) => `${by[c]} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ") : null;
+  return countsByChannelWords(by);
 }
 
 export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): BroadcastVM {

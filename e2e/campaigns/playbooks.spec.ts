@@ -52,10 +52,61 @@ test.describe("Campaigns' home on a real workspace", () => {
     await expect(home.getByTestId("cmh-stage")).toHaveCount(body.deals_on ? 5 : 4);
     const text = await home.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
+    // Where the workspace stands on its channels, said once at the rail's head (8 Oct 2026): the channels the readiness
+    // answered, in the product's words, each closed one with its reason; a workspace paused for billing says that
+    // alone. Where this read carries no readiness the page asks the broadcasts' (lifecycle.ts readyOf), so the line may
+    // still be drawn: only its words are held, where the read says what they must be.
+    type Ready = Record<string, { ready: boolean }> & { paused?: boolean };
+    const ready = (await pb.json()).data.ready as Ready | null;
+    const channelsLine = home.getByTestId("cmh-channels-rail");
+    if (ready) {
+      await expect(channelsLine).toBeVisible();
+      const line = await channelsLine.innerText();
+      if (ready.paused) {
+        expect(line).toMatch(/^This workspace is paused/);
+      } else {
+        expect(line).toMatch(/^Sending |^Nothing can send yet/);
+        for (const [channel, word] of [
+          ["whatsapp", "on WhatsApp"],
+          ["sms", "by text"],
+          ["email", "by email"],
+        ] as const) {
+          if (ready[channel]?.ready) expect(line).toContain(word);
+        }
+      }
+    }
+    // The line is drawn where it is seen and nowhere else: the frame's head, a screen reader's under Glass, holds no
+    // copy of it and no door nobody can see.
+    await expect(page.getByTestId("cmh-channels")).toHaveCount(0);
+    // A moment that is on or paused carries a mark per channel its playbook goes by, in the product's order, said to a
+    // screen reader as what it goes by, what waits and what it could go by. One that is off carries none (what Turn on
+    // ticks is the composer's to say), and so does one that runs nothing here, as its drawer draws no Goes by row.
+    const stages = home.getByTestId("cmh-stage");
+    expect(await stages.count(), "the rail draws its moments").toBeGreaterThan(0);
+    for (let i = 0; i < (await stages.count()); i++) {
+      const stage = stages.nth(i);
+      const state = await stage.getAttribute("data-state");
+      const marks = stage.getByTestId("cmh-chans");
+      if (state === "on" || state === "paused") {
+        await expect(marks).toBeVisible();
+        await expect(marks).toHaveAttribute("aria-label", /Goes by |waits?\b/);
+      } else {
+        await expect(marks).toHaveCount(0);
+      }
+    }
     // The three tiles stand once their surfaces have landed: who can hear you, what is coming, what came back.
     await expect(home.getByTestId("cmh-reach")).toBeVisible();
     await expect(home.getByTestId("cmh-coming")).toBeVisible();
     await expect(home.getByTestId("cmh-results")).toBeVisible();
+    // A run waiting on the owner is approved or skipped where it waits (8 Oct 2026): its line in Coming up carries the
+    // acts, Approve unless the verb would refuse it (its day has passed), and then Skip alone. Read here, never pressed:
+    // the workspace keeps no test run, and one that happens to wait is the nightly's own to send or not.
+    const waiting = home.getByTestId("cmh-coming-line").filter({ has: page.getByTestId("cmh-waiting-acts") });
+    for (let i = 0; i < (await waiting.count()); i++) {
+      const line = waiting.nth(i);
+      await expect(line).toHaveAttribute("data-kind", "run");
+      await expect(line.getByTestId("cmh-approve").or(line.getByTestId("cmh-skip")).first()).toBeVisible();
+    }
 
     // New message opens the composer in a sheet from the side, on Send once; Every time a moment comes is the playbook
     // composer: the moments behind its moment, each with who it reaches today; the messages that fit it, or the honest
@@ -83,6 +134,14 @@ test.describe("Campaigns' home on a real workspace", () => {
     await expect(page.locator(".rec-combo-pop")).toBeHidden();
     await expect(composer).toBeVisible();
     await expect(composer.getByTestId("pb-guard")).toBeVisible();
+    // Send by stands under To and over Says (8 Oct 2026): the count under To is counted over the channels ticked.
+    const tops: number[] = [];
+    for (const id of ["pb-row-to", "pb-row-via", "pb-row-says"]) {
+      const box = await composer.getByTestId(id).boundingBox();
+      expect(box, id).not.toBeNull();
+      tops.push(box!.y);
+    }
+    expect(tops, "To, Send by, Says, in that order down the sheet").toEqual([...tops].sort((a, b) => a - b));
     // The messages it may offer are the ones a send by any of WhatsApp, email and text can carry (messagesOffered: what the
     // route answers, by contracts' rules), left with those whose every slot the moment it opened on can fill -- a visit's
     // time on a visit moment, a proposal's link on the follow-up -- which the picker says by its label. None of it assumes
@@ -106,7 +165,11 @@ test.describe("Campaigns' home on a real workspace", () => {
   test("a moment opens in the sheet by its address, and the old Playbooks addresses land on it", async ({ page }) => {
     const res = await apiGet(page, "/api/v1/playbooks");
     expect(res.status()).toBe(200);
-    const playbooks = (await res.json()).data.playbooks as { id: string; name: string }[];
+    const data = (await res.json()).data as {
+      playbooks: { id: string; name: string; trigger: string }[];
+      deals_on?: boolean;
+    };
+    const playbooks = data.playbooks;
     test.skip(playbooks.length === 0, "this workspace has made no playbook");
     const first = playbooks[0];
     // The old route, as a bell row or an email link writes it, moves to the new address as the frame loads.
@@ -118,6 +181,18 @@ test.describe("Campaigns' home on a real workspace", () => {
     const drawer = page.getByTestId("cmh-drawer");
     await expect(drawer).toBeVisible();
     await expect(drawer.getByTestId("pb-detail")).toBeVisible();
+    // Goes by: the channels it goes by, as the composer's Send by row, switched here in place (8 Oct 2026). A switch per
+    // channel, WhatsApp, Text and Email, each read-only where the workspace cannot send on it or the message cannot go by
+    // it, the group named as it is labelled. Nothing is pressed: a press would change the workspace's playbook. A
+    // follow-up where deals are off runs nothing here, and has no row.
+    const via = drawer.getByTestId("pb-goes-by");
+    if (first.trigger === "proposal_waiting" && data.deals_on === false) {
+      await expect(via).toHaveCount(0);
+    } else {
+      await expect(via).toBeVisible();
+      await expect(via.getByRole("switch")).toHaveCount(3);
+      await expect(via.getByRole("group", { name: "Goes by" })).toBeVisible();
+    }
     // Closed, the address is the home's again, and the home is still there.
     await page.keyboard.press("Escape");
     await expect(drawer).toHaveCount(0);

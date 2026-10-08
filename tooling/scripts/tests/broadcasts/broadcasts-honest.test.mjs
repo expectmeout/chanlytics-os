@@ -4336,7 +4336,7 @@ const reasonsOf = (tree) =>
     ]),
   );
 
-test("Send by: a switch for each channel between Says and When, WhatsApp alone on by default, and a channel closed to the message is off and says why", () => {
+test("Send by: a switch for each channel under To, WhatsApp alone on by default, and a channel closed to the message is off and says why", () => {
   let tree = openVia();
   assert.ok(byTestId(tree, "bc-col-via"), "the row is drawn");
   const via = viaOf(tree);
@@ -4355,13 +4355,13 @@ test("Send by: a switch for each channel between Says and When, WhatsApp alone o
     ["whatsapp"],
     "a message about their visit goes by all three: only the last one on says why",
   );
-  // The columns in the order the page reads: who, what, send by, when.
+  // The columns in the order the page reads: who, send by, what, when (Send by under To, 8 Oct 2026).
   const cols = all(tree, (n) =>
     String(n.props?.className || "")
       .split(" ")
       .includes("bc-col"),
   ).map((n) => n.props["data-testid"]);
-  assert.deepEqual(cols, ["bc-col-who", "bc-col-what", "bc-col-via", "bc-col-when"]);
+  assert.deepEqual(cols, ["bc-col-who", "bc-col-via", "bc-col-what", "bc-col-when"]);
   // An offer: texts carry no offers, and offers by email wait for their release.
   setSurfaceValue("broadcasts", viaSurface({ templates: [offerRow()], ready: OFFERS_CLOSED }));
   tree = writing({ initialSegment: null, initialRun: null });
@@ -4394,6 +4394,61 @@ test("Send by: no texting line or mailbox says what is missing, a message with n
   // checked" through the facts themselves, contracts channelsReady).
   assert.equal(reasonsOf(tree).email, contracts.CHANNEL_WORDS.noOffersByEmailYet);
   assert.equal(byTestId(tree, "bc-send").props.disabled, false, "and a send by WhatsApp is the send it was");
+});
+
+test("Send by before a message is picked: a switch is closed by what the workspace cannot send on, never by a version no message has yet", () => {
+  // No message to pick from, so none is picked. Every channel is ready: Email may be ticked, and nothing speaks of a version.
+  setSurfaceValue("broadcasts", viaSurface({ templates: [] }));
+  let tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(viaOf(tree).email.props.readOnly, false, "email is open before a message is picked");
+  assert.equal(reasonsOf(tree).email, undefined);
+  assert.ok(
+    Object.values(reasonsOf(tree)).every((why) => !/version/.test(why)),
+    "no switch says a message it does not have yet lacks a version",
+  );
+  // Nor is Text closed by "Texts carry no offers" over no message: nothing has said it is an offer yet.
+  assert.equal(viaOf(tree).sms.props.readOnly, false, "text is open before a message is picked");
+  assert.equal(reasonsOf(tree).sms, undefined);
+  // What the workspace cannot send on still closes its switch, in the readiness's own words.
+  setSurfaceValue("broadcasts", viaSurface({ templates: [], ready: NO_TEXT_NO_MAIL }));
+  tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(reasonsOf(tree).email, "Set up email in Settings › Connections first.");
+  assert.equal(viaOf(tree).email.props.readOnly, true);
+  // Once a message is picked its versions are asked after, as before.
+  tree = openVia({ templates: [noteRow(["whatsapp", "email"])] });
+  assert.equal(reasonsOf(tree).sms, "This message has no text version yet.");
+});
+
+test("Send by, where the workspace can send on nothing: the row says so once, each channel a door to mend it, in place of the reasons a thumb reads", () => {
+  const nothing = contracts.channelsReady({
+    whatsapp: null,
+    textLine: null,
+    email: { mailbox: false, domain: true, offers: { campaigns: true, address: true, paused: null } },
+  });
+  const tree = openVia({ ready: nothing });
+  const standing = byTestId(tree, "bc-via-standing");
+  assert.ok(standing, "the row says where the workspace stands");
+  const parts = contracts.channelsStandingParts(nothing);
+  assert.equal(parts[0].words, "Nothing can send yet");
+  assert.equal(textOf(standing), parts.map((p) => p.words).join("·"), "contracts' words, part by part");
+  // The link itself: the stub walks a component and what it draws, and each carries the test id.
+  const doors = all(standing, (n) => n.type === "a" && n.props?.["data-testid"] === "bc-via-standing-door");
+  assert.equal(doors.length, 3, "WhatsApp, Text and Email each have the door that mends them");
+  for (const door of doors) assert.match(String(door.props.href), /admin\/integrations$/);
+  assert.equal(byTestId(tree, "bc-via-whys"), null, "the touch reasons give way to the line that carries the doors");
+  // A switch keeps its own reason for a pointer and a screen reader.
+  assert.equal(reasonsOf(tree).sms, "No texting line yet.");
+  // With no number either, the line has said so with its door: the number's line under When is not the same words again.
+  const bare = openVia({ ready: nothing, number: noNumber });
+  assert.ok(byTestId(bare, "bc-via-standing"));
+  assert.equal(byTestId(bare, "bc-number"), null);
+  // A number that is there and cannot send keeps its line: which number, and what is wrong with it.
+  assert.ok(byTestId(tree, "bc-number"));
+  // A workspace paused for billing is not one that can send on nothing: the foot says the pause, and the row is as it was.
+  assert.equal(byTestId(openVia({ ready: { ...ALL_READY, paused: true } }), "bc-via-standing"), null);
+  // Anything open, or a readiness that was not read: the row is what it was.
+  assert.equal(byTestId(openVia({ ready: NO_TEXT_NO_MAIL }), "bc-via-standing"), null);
+  assert.equal(byTestId(openVia({ ready: null }), "bc-via-standing"), null);
 });
 
 test("a paused workspace is said where Send would be, and Send is not offered: the foot says it before anything else, whatever is filled in, and the channels are as they were", () => {

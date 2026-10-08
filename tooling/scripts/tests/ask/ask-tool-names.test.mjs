@@ -717,6 +717,22 @@ function withTheVerbsWords(frozen) {
 }
 
 /**
+ * 8 Oct 2026 (Campaigns, one name per thing): a playbook's hour is said by the product's clock, as every other time is
+ * (contracts clockHour: "Daily 10:00 AM"), where these bytes say a 24-hour one ("Daily 10:00"). The one change to what
+ * the campaigns' tools answer and propose: the schedule line of a playbook. The fixture stays as it was made. Nothing
+ * else is rewritten, because no frozen call holds it: none answers a next run with an hour, nor a run waiting on its
+ * owner (whose state reads "Waiting on you" since that day; the two "Needs you" these bytes hold are a PERSON's
+ * state, in People's answers, which is still its name).
+ */
+function withTheClocksHour(frozen) {
+  const hour = (hh) => {
+    const h = Number(hh);
+    return `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
+  };
+  return frozen.replace(/\b(Daily|daily at|days at) (\d{2}):00\b/g, (_, said, h) => `${said} ${hour(h)}`);
+}
+
+/**
  * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
  * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
  * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
@@ -776,6 +792,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
     if (NAMES[old] === "campaigns.audiences") result = withChannels(result);
     if (NAMES[old].startsWith("propose_campaign.")) result = withTheVerbsWords(result);
+    // 8 Oct 2026: a playbook's hour by the product's clock (withTheClocksHour): the campaigns' own answers and cards,
+    // in their result and in the card they propose.
+    const campaignsOwn = NAMES[old].startsWith("campaigns.") || NAMES[old].startsWith("propose_campaign.");
+    if (campaignsOwn) result = withTheClocksHour(result);
+    const card =
+      campaignsOwn && typeof want.proposal === "string" ? { proposal: withTheClocksHour(want.proposal) } : {};
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -820,7 +842,16 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const readsReach =
       ["search_people", "list_audiences", "propose_broadcast", "propose_playbook"].includes(old) &&
       counted.includes("rpc:people_list");
-    const reachReads = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
+    const reached = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
+    // 8 Oct 2026 (Ask names channels; the spec of that day, decision 5): a playbook proposed with no channel named goes
+    // by what the composer would tick for it (contracts newCampaignChannels), so it asks what the workspace can send on
+    // before its check (act/playbook.ts unnamedChannels, over readers/facts.ts channelsReady: the number's row and the
+    // texting line's, the read the people's pool makes once a turn). A call that goes on to count its people makes no
+    // read more; one the CHECK refuses never got that far, and makes those two. The one change to its reads; the bytes
+    // are unchanged, this workspace's default being WhatsApp alone.
+    const refusedAtTheCheck =
+      old === "propose_playbook" && input.channels === undefined && want.result === '{"error":"List not found."}';
+    const reachReads = refusedAtTheCheck ? [...reached, "tenant_channels.select", "lines.select"] : reached;
     // 6 Oct 2026 (#1431): a person's page reads the decisions recorded about them, not only those on their threads
     // (packages/db personDecisions), so people.get reads `decisions` once even for a person with no thread, or none at all.
     // The one change to its reads; its bytes are unchanged.
@@ -870,7 +901,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const inOrder = (r) => [...r].sort();
     assert.deepEqual(
       { ...got, result: gotResult, reads: inOrder(got.reads) },
-      { ...want, result: wantResult, reads: inOrder(reads) },
+      { ...want, ...card, result: wantResult, reads: inOrder(reads) },
       `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`,
     );
   }

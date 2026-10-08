@@ -3,11 +3,13 @@ import { z } from "zod";
 import {
   CAMPAIGN_ROOMS,
   CONSENT_CHANNELS,
+  DEFAULT_CAMPAIGN_CHANNELS,
   FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_ONE,
   LIST_PLAYBOOK_CLASSES,
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
+  NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_VETO_DELAY_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -17,9 +19,11 @@ import {
   defaultParamSpecs,
   parseListToken,
   parseParamSpec,
+  playbookChannelsRead,
   playbookRunReach,
   proposalChannelsWords,
   purposeOfPlaybook,
+  readyOrWhatsApp,
   saidYesWords,
   scheduleLine,
   slotLabels,
@@ -42,7 +46,7 @@ import { checkPlaybookInput, noFollowUps, proposalFollowUps } from "../../../cam
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
-import { zoneAndSettings } from "../../../readers/facts";
+import { channelsReady, zoneAndSettings } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { templates as templatesReader } from "../../../readers/templates";
 import {
@@ -61,6 +65,13 @@ import {
   type ToolContext,
 } from "../context";
 import { cardSays } from "./says";
+
+/**
+ * What a playbook proposed with no channel named goes by, as the tool's words tell the model: every channel the reading
+ * finds open for it, or the first alone, by the one switch the composer reads (contracts NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
+ * decision 5 of the spec of 8 October 2026). The words said "every one" whichever way the switch stood.
+ */
+const UNNAMED_GOES_BY = NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? "every one" : "the first one";
 
 /** What a run does under each mode, in the card's words. */
 const MODE_WORDS: Record<string, string> = {
@@ -143,23 +154,40 @@ async function heldStarter(
 
 /**
  * The message a playbook proposal goes by, from the id a starter or the model gave: read as the route reads it (tools/context.ts
- * askedMessage), refused where the workspace keeps it out of the composers, and, where the proposal names no channel and the
- * message has no WhatsApp version to go by, refused with what it can go by (whatsappAloneRefusal), or the refusal.
+ * askedMessage), refused where the workspace keeps it out of the composers, or the refusal.
  */
-async function proposedMessage(
-  t: ToolContext,
-  id: string,
-  about: MessageAbout,
-  named: boolean,
-): Promise<AskedMessage | { refusal: string }> {
+async function proposedMessage(t: ToolContext, id: string): Promise<AskedMessage | { refusal: string }> {
   const asked = await askedMessage(t, id);
   if ("refusal" in asked) return asked;
   if (asked.message.hidden)
     return {
       refusal: `that template is one the workspace keeps out of the composers; ${AUDIENCES_CALL} names the ones that may send`,
     };
-  const no = named ? null : await whatsappAloneRefusal(t, asked.message, about);
-  return no ? { refusal: no } : asked;
+  return asked;
+}
+
+/**
+ * The channels a playbook proposal goes by where it names none: what a new playbook opens on in the composer, by the
+ * one reading both make (contracts playbookChannelsRead with "new": every channel a playbook of its kind may go by now
+ * for this message, or the first alone while NEW_PLAYBOOK_TICKS_EVERY_CHANNEL is off), so a playbook Ask proposes goes by
+ * what the page would have ticked (the spec of 8 October 2026, decision 5). `moment` is the playbook as far as that
+ * reading asks: its trigger, and the class it sends under where it is on a list.
+ * Undefined where that is WhatsApp alone: the proposal then says and commits what one that named no channel always did,
+ * and a message with no WhatsApp version to go by is refused with what it can go by (whatsappAloneRefusal).
+ */
+async function unnamedChannels(
+  t: ToolContext,
+  message: CampaignMessage,
+  moment: { trigger: string; policy_class: string },
+  about: MessageAbout,
+): Promise<{ channels: ConsentChannel[] | undefined } | { refusal: string }> {
+  // What the workspace can send on, as the turn already holds it (readers/facts.ts: the people's pool, read below for
+  // the card's count, asks the same once a turn), so the default costs no read of its own. Unread, it is WhatsApp alone.
+  const ready = readyOrWhatsApp((await load(t.rc, channelsReady, undefined)).data);
+  const ticks = playbookChannelsRead(moment, "new", message, ready).kept;
+  if (ticks.join() !== DEFAULT_CAMPAIGN_CHANNELS.join()) return { channels: ticks };
+  const no = await whatsappAloneRefusal(t, message, about);
+  return no ? { refusal: no } : { channels: undefined };
 }
 
 /**
@@ -236,6 +264,39 @@ interface PlaybookProposed {
   channels?: ConsentChannel[];
 }
 
+/**
+ * What a playbook proposal says, and by which channels: its message, read as the route reads it; the values of its
+ * slots; and the channels it goes by, the ones it names or else what the composer would tick for it (unnamedChannels),
+ * asked last, once everything said in words alone has been refused. The class its default is judged by is its moment's,
+ * or, on a list, the one it names (an offer where it names none), as the check reads it. Or the first refusal.
+ */
+async function proposedSaying(
+  t: ToolContext,
+  input: PlaybookProposed,
+  templateId: string,
+  moment: { cls: string; onList: boolean },
+  about: MessageAbout,
+): Promise<
+  { asked: AskedMessage; specs: ParamSpec[]; picked: { channels: ConsentChannel[] | undefined } } | { refusal: string }
+> {
+  const asked = await proposedMessage(t, templateId);
+  if ("refusal" in asked) return asked;
+  const { message } = asked;
+  const values = proposedSpecs(input.params, {
+    name: message.name,
+    language: message.language,
+    variables: asked.variables,
+  });
+  if ("refusal" in values) return values;
+  const cls = moment.onList ? str(input.policy_class, 20) || "campaign" : moment.cls;
+  const picked =
+    input.channels !== undefined
+      ? { channels: input.channels }
+      : await unnamedChannels(t, message, { trigger: input.trigger, policy_class: cls }, about);
+  if ("refusal" in picked) return picked;
+  return { asked, specs: values.specs, picked };
+}
+
 async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
   if (!trig) return refuse(`trigger must be one of ${PROPOSABLE_TRIGGERS.join(", ")}`);
@@ -268,17 +329,10 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
     templateId = own.id;
   }
   const about = messageAboutOfTrigger(trig.id);
-  const asked = await proposedMessage(t, templateId, about, input.channels !== undefined);
-  if ("refusal" in asked) return refuse(asked.refusal);
+  const saying = await proposedSaying(t, input, templateId, { cls: trig.cls, onList: listRef !== null }, about);
+  if ("refusal" in saying) return refuse(saying.refusal);
+  const { asked, specs, picked } = saying;
   const { message } = asked;
-
-  const values = proposedSpecs(input.params, {
-    name: message.name,
-    language: message.language,
-    variables: asked.variables,
-  });
-  if ("refusal" in values) return refuse(values.refusal);
-  const { specs } = values;
 
   let checked;
   try {
@@ -296,9 +350,9 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
         params: specs,
         run_hour: typeof input.run_hour === "number" ? input.run_hour : undefined,
         cap_per_run: typeof input.cap_per_run === "number" ? input.cap_per_run : undefined,
-        // The channels it names, WhatsApp alone when it names none (as a playbook goes by default): the check holds them to
-        // the route's own rule, a tick its purpose never carries refused in the composers' words.
-        channels: input.channels,
+        // The channels it goes by (named, or the composer's own default; WhatsApp alone where that is all there is): the
+        // check holds them to the route's own rule, a tick its purpose never carries refused in the composers' words.
+        channels: picked.channels,
       },
       null,
       zoneAndSettings(t.rc),
@@ -328,8 +382,8 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   const { ids: listIds, label: listLabel } = listed;
   // Who a run reaches now, and who its moment names said the yes it needs: the card said "0 on the list said yes
   // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).
-  // By the channels it names, WhatsApp alone when it names none.
-  const by = { channels: checked.channels, named: input.channels !== undefined };
+  // By the channels it goes by: said and committed whenever they are more than WhatsApp alone by default.
+  const by = { channels: checked.channels, named: picked.channels !== undefined };
   const how = await playbookHow(t, message, by, about);
   const drawn = playbookRunReach(
     pool.rows,
@@ -410,6 +464,8 @@ export const playbookAction = actAction({
   ],
   label: "Preparing a playbook",
   words:
-    "Action playbook takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by visits, no visit in 45 days, where one is: the check refuses the one the workspace cannot read), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is a message from action audiences (the id of any of its versions), or omitted for the trigger's starter when the workspace holds it; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; whatsapp when none is named, so for a message that holds email or text name the channels its `channels` in action audiences say it holds) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can.",
+    "Action playbook takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by visits, no visit in 45 days, where one is: the check refuses the one the workspace cannot read), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is a message from action audiences (the id of any of its versions), or omitted for the trigger's starter when the workspace holds it; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by " +
+    UNNAMED_GOES_BY +
+    " the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can.",
   build: proposePlaybook,
 });

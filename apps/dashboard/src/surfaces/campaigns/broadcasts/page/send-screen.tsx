@@ -29,7 +29,7 @@ import { Picker } from "../../../kit/picker/picker";
 import { UnsavedAsk } from "../../../kit/record/work";
 import { gate, gateTitle, routeDoor } from "../../../legacy-verbs";
 import { MessagePreview, PreviewStepper } from "../../parts/message-preview";
-import { CM_NO_MESSAGE_YET, CM_VIA_WORDS, cmReadyOf, cmTick } from "../../parts/channels";
+import { CM_NO_MESSAGE_YET, CM_VIA_WORDS, cmNothingOpen, cmReadyOf, cmTick } from "../../parts/channels";
 import { CmLangGlyph } from "../../parts/picker";
 import { cmChevron, cmGroups, cmSearch } from "../../parts/picks";
 import { CmVia } from "../../parts/send-by";
@@ -390,11 +390,16 @@ function bcColWhat(v: BcV) {
 // Send by: one switch for each channel the send may go by (parts/send-by.tsx), each closed with its reason where the
 // workspace cannot send on it or the message cannot go by it. What is on is worked out in page/reach.ts; pressing one
 // starts from what is on, so a channel that was only ticked and never open is let go.
-function bcColVia({ ticks, on, setChannels }: BcV) {
+function bcColVia({ ticks, on, setChannels, data }: BcV) {
   return (
     <div className="bc-col bc-col-via" data-testid="bc-col-via">
       <span className="bc-col-label">{CM_VIA_WORDS.label}</span>
-      <CmVia ticks={ticks} onTick={(channel, next) => setChannels(cmTick(on, channel, next))} testid="bc-via" />
+      <CmVia
+        ticks={ticks}
+        onTick={(channel, next) => setChannels(cmTick(on, channel, next))}
+        testid="bc-via"
+        standing={cmNothingOpen(data.ready)}
+      />
     </div>
   );
 }
@@ -403,8 +408,11 @@ function bcColVia({ ticks, on, setChannels }: BcV) {
 // goes by WhatsApp, the only channel that has one, or would but for the number, which is then what says why. Never under a
 // message with no WhatsApp version: the tick stays ticked when the message is changed to one, and the number is nothing to
 // it there.
-function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels, tpl }: BcV) {
+function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels, tpl, data }: BcV) {
   const byWhatsApp = channels.includes("whatsapp") && messageHolds(tpl?.message ?? CM_NO_MESSAGE_YET).whatsapp;
+  // Where nothing can send at all and there is no number, the Send by row has just said so, its door beside it: the
+  // number's line here would be the same sentence a second time.
+  const saidAbove = !!number && !number.present && cmNothingOpen(data.ready) !== null;
   return (
     <div className="bc-col" data-testid="bc-col-when">
       <span className="bc-col-label">When</span>
@@ -415,7 +423,7 @@ function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels, tpl
       >
         {whenAt === null ? bcNowNote() : whenNote.words}
       </div>
-      {number && byWhatsApp && (
+      {number && byWhatsApp && !saidAbove && (
         <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
           <Icon name="chat" size={11} />
           <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : BC_SAYS.noNumber}</span>
@@ -564,9 +572,10 @@ function bcSendPane(v: BcV, body: ReactNode) {
   );
 }
 
-// The questions stand as the canvas's rows (the compact composer, C2): To, Says, Send by, When, one under the other in one
+// The questions stand as the canvas's rows (the compact composer, C2): To, Send by, Says, When, one under the other in one
 // pane, each with its word at the left, and the foot the glass bar. The columns keep their own markup, testids and words;
-// the row's word says what their eyebrows (Who, What, When) said.
+// the row's word says what their eyebrows (Who, What, When) said. Send by stands under To (8 Oct 2026): the count under To
+// is counted over the channels ticked, and stood two rows and a whole preview away from the switches that change it.
 function bcGlassRow(word: string, body: ReactNode) {
   return (
     <div className="bc-grow">
@@ -581,8 +590,8 @@ export function bcComposerGlass(v: BcV) {
     v,
     <div className="bc-grows">
       {bcGlassRow("To", bcColWho(v))}
-      {bcGlassRow("Says", bcColWhat(v))}
       {bcGlassRow(CM_VIA_WORDS.label, bcColVia(v))}
+      {bcGlassRow("Says", bcColWhat(v))}
       {bcGlassRow("When", bcColWhen(v))}
     </div>,
   );

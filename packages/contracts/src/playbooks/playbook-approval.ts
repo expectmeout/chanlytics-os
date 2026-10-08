@@ -282,6 +282,36 @@ export function runApprovalRefusal(
 }
 
 /**
+ * What a waiting run's row may offer outside its sheet (Coming up's line, a playbook's card): approve it, skip it, or
+ * neither.
+ *   approve  Approve, and Skip.
+ *   skip     The verb would refuse an approval now, in `why`, its own sentence: its day has passed or a visit's run
+ *            would go a day late (runApprovalRefusal), or the workspace is paused, which approveRun refuses first
+ *            (CAMPAIGNS_PAUSED_WORDS). Skip asks nothing of the day or the pause, and is the act left.
+ *   open     Decided on its sheet, never from a row: a reach-out's run (decision D6: its sheet counts and names each
+ *            first cold email; Today opens it and Ask refuses both verbs), and a run no playbook the page holds answers
+ *            for (its playbook was deleted: nothing here says what it sends).
+ */
+export type WaitingRunOffer = { kind: "approve" } | { kind: "skip"; why: string } | { kind: "open" };
+
+/**
+ * THE reading of what a waiting run's row offers (WaitingRunOffer), so no row offers an Approve the verb then refuses,
+ * or a one-tap approval the product decided against. `days` are the business's day now and the day of the next open
+ * sending moment, as the verb reads them; `at.paused` the workspace's pause (ChannelsReady.paused); `at.known` whether
+ * its playbook is one the page holds.
+ */
+export function waitingRunOffer(
+  run: { playbook_id: string | null; run_for?: string | null; audience?: unknown },
+  days: ApprovalDays,
+  at: { paused: boolean; known: boolean },
+): WaitingRunOffer {
+  if (isReachOutRun(run.audience) || !at.known) return { kind: "open" };
+  const late = runApprovalRefusal(run, days);
+  if (late) return { kind: "skip", why: late };
+  return at.paused ? { kind: "skip", why: CAMPAIGNS_PAUSED_WORDS } : { kind: "approve" };
+}
+
+/**
  * A playbook's run waiting on a person, as the sheet says it: the canvas's
  * "approving from the sofa". What it reaches, by the rules that made its list;
  * the words as the first person on it reads them; and what approving does,

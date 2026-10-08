@@ -9,18 +9,31 @@
  * channel that is on stays on, dimmed too, since it takes no press. A playbook's channel that waits for a line or a
  * version is neither: it is on and live, its word underlined as a thing with a reason to read. What is on, and why a
  * channel is closed, is parts/channels.ts's.
+ *
+ * Where the workspace can send on nothing at all (`standing`, parts/channels.ts cmNothingOpen), the row says so once under
+ * its switches, on a desk and a phone alike: "Nothing can send yet", then each channel with its reason as the door to
+ * Settings › Connections that mends it. Three dimmed switches whose reasons wait for a hover were a dead end. A channel a
+ * playbook keeps all the same keeps its promise under the row on a touch screen ("It goes by it once it can."), without
+ * the reason the standing line has just given.
  */
 import { useId } from "react";
-import type { ConsentChannel } from "@chanlytics/contracts";
+import type { ChannelStandingPart, ConsentChannel } from "@chanlytics/contracts";
 import { Switch } from "../../kit/switch/switch";
 import { Tooltip } from "../../kit/tooltip/tooltip";
 import { CM_VIA_WORDS, type CmViaTick } from "./channels";
+import { ChannelsLine } from "./channels-line";
 
 interface CmViaProps {
   ticks: readonly CmViaTick[];
   onTick: (channel: ConsentChannel, on: boolean) => void;
   /** The row's test id; each channel's is `<testid>-<channel>`. */
   testid: string;
+  /** The group's name to a screen reader where the row is not "Send by": a playbook's drawer calls it "Goes by". */
+  label?: string;
+  /** A change is being saved: said to a screen reader, where the switches only stop taking a press. */
+  busy?: boolean;
+  /** The workspace's standing where it can send on nothing (cmNothingOpen), said in place of the touch reasons; else null. */
+  standing?: readonly ChannelStandingPart[] | null;
 }
 
 /** One channel: its switch and its word, with the reason it is closed (or stays on) where it has one. */
@@ -60,12 +73,20 @@ function CmViaOne({ tick, onTick, testid }: { tick: CmViaTick; onTick: CmViaProp
 /**
  * The row: a switch for each channel, in the page's order, and under it, on a touch screen alone (campaigns.css), why each
  * channel that has a reason has one. The line is hidden from a screen reader, which already has the same words as each
- * switch's description.
+ * switch's description. Where nothing can send, the standing line takes its place, for every reader: it carries the doors.
  */
-export function CmVia({ ticks, onTick, testid }: CmViaProps) {
-  const reasons = ticks.filter((t) => t.why);
+export function CmVia({ ticks, onTick, testid, label, busy, standing = null }: CmViaProps) {
+  const reasons = standing
+    ? ticks.filter((t) => t.waiting).map((t) => ({ ...t, why: CM_VIA_WORDS.onceItCan }))
+    : ticks.filter((t) => t.why);
   return (
-    <div className="cm-via" role="group" aria-label={CM_VIA_WORDS.label} data-testid={testid}>
+    <div
+      className="cm-via"
+      role="group"
+      aria-label={label ?? CM_VIA_WORDS.label}
+      aria-busy={busy ? true : undefined}
+      data-testid={testid}
+    >
       {ticks.map((t) => (
         <CmViaOne key={t.channel} tick={t} onTick={onTick} testid={`${testid}-${t.channel}`} />
       ))}
@@ -78,6 +99,7 @@ export function CmVia({ ticks, onTick, testid }: CmViaProps) {
           ))}
         </ul>
       ) : null}
+      {standing ? <ChannelsLine parts={standing} testid={`${testid}-standing`} /> : null}
     </div>
   );
 }
