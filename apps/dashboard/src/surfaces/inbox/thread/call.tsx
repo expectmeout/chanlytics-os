@@ -240,7 +240,15 @@ interface CallDraw extends CallWords {
   player: ReturnType<typeof callPlayer>;
 }
 
-/** The recording itself, which only a call with a ready recording has. */
+/**
+ * The recording itself, which only a call with a ready recording has.
+ *
+ * Nothing is asked for until play is pressed (`preload="none"`), as an attachment's audio waits (kit/media/tl-media.tsx).
+ * A thread draws every call it holds, the first thread of the list is drawn hidden on a phone, and a player that read
+ * its recording's length at once asked the route for a signed link, and the ledger for a listen, on every visit: one
+ * person's 42 calls were about 290 requests from an iPhone each time the Inbox was drawn, and a phone switching views
+ * in a hurry froze (8 Oct 2026). The length shown is the call's own until it plays.
+ */
 function callAudio(c: CallDraw) {
   const { call, src, audioRef } = c;
   return (
@@ -249,7 +257,7 @@ function callAudio(c: CallDraw) {
       <audio
         ref={audioRef}
         src={src}
-        preload="metadata"
+        preload="none"
         onPlay={(e) => {
           // One call at a time: this one playing pauses the one that was.
           const target = audioOf(e);

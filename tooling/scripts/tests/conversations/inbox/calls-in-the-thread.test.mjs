@@ -461,7 +461,11 @@ test("the call plays from where it began: the recording is the route's own link,
     "GET calls/[id]/recording|k7",
     "REGRESSION: a link fetched once and signed for five minutes",
   );
-  assert.equal(node.props.preload, "metadata");
+  assert.equal(
+    node.props.preload,
+    "none",
+    "REGRESSION: a card asked for its recording as it was drawn, so a thread of 42 calls was 290 requests a visit (8 Oct 2026)",
+  );
   assert.equal(find(tree, byTestId("tl-listen")), undefined, "nothing floats until you listen");
   const el = audio();
   wire(tree, el);
