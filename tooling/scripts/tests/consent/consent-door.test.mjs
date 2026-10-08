@@ -147,13 +147,15 @@ test("TWO lists, because there are two answers: one for messages, one for offers
   const drawn = (consent, marketing) => {
     const p = personRow({ consent, marketing_consent: marketing });
     const td = offersColumn.cell(p, {});
-    const [span] = td.props.children;
-    return { p, td, word: span.props.children[0], cls: span.props.className };
+    // The cell is the kit's consent pill (8 Oct 2026): its word is the label, its tone the answer.
+    const [pill] = td.props.children;
+    return { p, td, word: pill.props.label, cls: pill.props.className, tone: pill.props.value };
   };
   assert.equal(drawn("opted_in", "unknown").word, "Not asked", "a yes to messages is not a yes to offers");
   assert.equal(drawn("unknown", "opted_in").word, "Yes");
   assert.equal(drawn("opted_in", "opted_out").word, "No");
   assert.match(drawn("unknown", "opted_in").cls, /\bcl-row-offers yes\b/);
+  assert.equal(drawn("unknown", "opted_in").tone, "opted_in", "a yes is the consent pill's quiet green dot");
   const yes = drawn("unknown", "opted_in");
   assert.equal(yes.td.props["data-testid"], "row-offers");
   assert.equal(yes.td.props.title, yes.p.consent.marketingSub, "and its tooltip is that answer's own history");

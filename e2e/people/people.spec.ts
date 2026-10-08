@@ -92,12 +92,14 @@ test.describe("People on a real workspace", () => {
     // a column a member may choose, off by default.
     // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Came from is the Columns
     // menu's to show (canvas P1 keeps it there: with it the table was wider than the pane at 1440).
+    // The next step after State (8 Oct 2026); the receptionist's column waits in the Columns menu, off by default.
     expect(headers).toEqual([
       "person",
       "state",
+      "next step",
       "reach",
       "last contact",
-      cal?.state === "ok" ? "visits" : "receptionist",
+      ...(cal?.state === "ok" ? ["visits"] : []),
       "offers",
     ]);
     // Every Offers cell is one of the three answers.

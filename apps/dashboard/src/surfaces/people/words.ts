@@ -95,6 +95,7 @@ export const PL_PHONE_SORTS: readonly {
 const PL_SORTED_BY: Record<string, string> = {
   name: "name",
   state: "state",
+  next: "next step",
   last: "last contact",
   visits: "visits",
   offers: "offers",
