@@ -325,6 +325,7 @@ export {
   setPlaybookState,
   updatePlaybook,
   removePlaybook,
+  startPlaybook,
 } from "./repositories/control-plane";
 export type {
   TenantConfigRow,
@@ -333,6 +334,7 @@ export type {
   CreateWorkspaceArgs,
   LineForwardingArgs,
   PlaybookPatch,
+  PlaybookToStart,
 } from "./repositories/control-plane";
 export {
   PEOPLE_PAGE,
@@ -374,8 +376,8 @@ export {
 export type { SavedListRow, ListRow, WriteError } from "./repositories/lists";
 export { touchesSince, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
-export { yesesSince } from "./repositories/deals";
-export type { YesRow } from "./repositories/deals";
+export { yesesSince, recordDeal } from "./repositories/deals";
+export type { YesRow, DealMove } from "./repositories/deals";
 export {
   getOwnPartner,
   sessionHoldsPartnerSeat,

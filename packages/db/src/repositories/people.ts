@@ -5,7 +5,7 @@
  * the same function, with its own page size and its own rule for when to name the page arguments. And the names of a
  * few people by their ids, for a read that holds their ids and not their names (Ask's message search).
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import {
   openDealsFromJson,
   type DoubtSeen,
@@ -477,7 +477,7 @@ export async function markContact(
  * transaction. The door's answer with `decision_id` beside it, or the door's refusal with its SQLSTATE, which the
  * caller words (a route's dbRefusal): nothing is thrown here, since a refusal for one person of a batch is an answer.
  */
-export function recordConsent(
+export async function recordConsent(
   db: Db,
   p: {
     contactId: string;
@@ -492,8 +492,8 @@ export function recordConsent(
     via: string | null;
     undoOf: string | null;
   },
-) {
-  return db.rpc("record_consent", {
+): Promise<{ data: Json | null; error: PostgrestError | null }> {
+  const { data, error } = await db.rpc("record_consent", {
     p_contact_id: p.contactId,
     p_purpose: p.purpose,
     p_consent: p.consent,
@@ -504,4 +504,5 @@ export function recordConsent(
     ...(p.via ? { p_via: p.via } : {}),
     ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
   });
+  return { data, error };
 }

@@ -718,8 +718,8 @@ async function markContact(db, contactId, mark) {
     marked_at: stampOf(o.marked_at)
   };
 }
-function recordConsent(db, p) {
-  return db.rpc("record_consent", {
+async function recordConsent(db, p) {
+  const { data, error } = await db.rpc("record_consent", {
     p_contact_id: p.contactId,
     p_purpose: p.purpose,
     p_consent: p.consent,
@@ -730,6 +730,7 @@ function recordConsent(db, p) {
     ...p.via ? { p_via: p.via } : {},
     ...p.undoOf ? { p_undo_of: p.undoOf } : {}
   });
+  return { data, error };
 }
 
 // src/repositories/ingest.ts
@@ -3260,6 +3261,20 @@ async function removePlaybook(db, id) {
   const { error, count: count2 } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
   return { error, count: count2 };
 }
+async function startPlaybook(db, p) {
+  const { data, error } = await db.rpc("start_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook: p.playbook,
+    p_decision: p.decision,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) return { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (typeof made.id !== "string" || typeof made.decision_id !== "string")
+    throw new Error("start_playbook: the door answered without its row and its decision");
+  return { data: { id: made.id, decisionId: made.decision_id }, error: null };
+}
 
 // src/paged.ts
 var MAX_ROWS = 1e3;
@@ -3517,6 +3532,16 @@ async function yesesSince(db, tenantId, since) {
     (from, to) => db.from("deals").select("id, stage, proposed_at, decided_at").eq("tenant_id", tenantId).in("stage", ["won", "ended"]).gte("decided_at", since.toISOString()).order("id").range(from, to)
   );
   return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
+}
+async function recordDeal(db, p) {
+  const { data, error } = await db.rpc("record_deal", {
+    p_contact_id: p.contactId,
+    p_stage: p.stage,
+    p_move: p.move,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
 }
 
 // src/repositories/partner.ts
@@ -4465,6 +4490,7 @@ export {
   recordCarrierOptOut,
   recordCheck,
   recordConsent,
+  recordDeal,
   recordEchoAndPause,
   recordEmailNo,
   recordEmailStatus,
@@ -4542,6 +4568,7 @@ export {
   stampMailboxReceived,
   stampPlaybooksTried,
   stampReachOutStep,
+  startPlaybook,
   stopAllMessages,
   strandedRuns,
   stuckClaims,

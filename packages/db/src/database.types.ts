@@ -6897,6 +6897,18 @@ export type Database = {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      member_decision: {
+        Args: {
+          p_payload?: Json
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_verb: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       member_has_address: {
         Args: { p_address: string; p_tenant_id: string }
         Returns: boolean
@@ -8047,6 +8059,16 @@ export type Database = {
         }
         Returns: Json
       }
+      record_deal: {
+        Args: {
+          p_contact_id: string
+          p_move?: Json
+          p_stage: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       recording_opened: { Args: { p_call_id: string }; Returns: boolean }
       relay_events: { Args: { p_limit?: number }; Returns: number }
       release_conversation_control: {
@@ -8242,6 +8264,16 @@ export type Database = {
           conversation_id: string
           status: string
         }[]
+      }
+      start_playbook: {
+        Args: {
+          p_decision?: Json
+          p_playbook: Json
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
       }
       stop_all_messages: {
         Args: {

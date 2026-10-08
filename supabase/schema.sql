@@ -8201,6 +8201,38 @@ end $$;
 
 
 --
+-- Name: member_decision(uuid, text, uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the decision is theirs.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who the insert policy lets
+  -- write a decision. A stranger learns nothing.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  return public.team_decision(p_tenant_id, v_actor, p_subject_type, p_subject_id, p_verb,
+                              coalesce(p_payload, '{}'::jsonb), p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) IS 'A decision written as the caller''s own (00357): auth.uid(), in a workspace they act in. What the insert policy on decisions lets a member write, as a function, so a door on the member''s own rights can end with it in the same transaction. team_decision writes the row. Returns decision_id and undo_dropped.';
+
+
+--
 -- Name: member_has_address(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -16257,6 +16289,65 @@ COMMENT ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_c
 
 
 --
+-- Name: record_deal(uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_move   jsonb := case when jsonb_typeof(p_move) = 'object' then p_move else '{}'::jsonb end;
+  v_door   jsonb;
+  v_tenant uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- The door, with what the caller named and nothing it did not: a key `p_move` lacks is the null the door's own
+  -- default is, so this calls it as the route did.
+  v_door := public.deal_record(
+    p_contact_id   => p_contact_id,
+    p_stage        => p_stage,
+    p_deal_id      => (v_move ->> 'deal_id')::uuid,
+    p_version      => (v_move ->> 'version')::integer,
+    p_service      => v_move ->> 'service',
+    p_when         => (v_move ->> 'when')::timestamptz,
+    p_amount_cents => (v_move ->> 'amount_cents')::integer,
+    p_per          => v_move ->> 'per',
+    p_note         => v_move ->> 'note',
+    p_evidence     => case when jsonb_typeof(v_move -> 'evidence') = 'object' then v_move -> 'evidence' end,
+    p_proposal_url => v_move ->> 'proposal_url',
+    p_valid_until  => (v_move ->> 'valid_until')::date,
+    p_lost_reason  => v_move ->> 'lost_reason',
+    p_clear        => case when jsonb_typeof(v_move -> 'clear') = 'array'
+                           then array(select jsonb_array_elements_text(v_move -> 'clear')) end
+  );
+  -- Refused (the door wrote nothing and says why), or an answer with no deal in it: the door's own answer, and no
+  -- line for a move that did not happen.
+  if v_door is null or v_door ? 'error' or jsonb_typeof(v_door -> 'deal') is distinct from 'object' then
+    return v_door;
+  end if;
+  -- The door let them past, so the person is one of a workspace they act in.
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id;
+  -- The line the route used to write after the door, with the fields it wrote.
+  return v_door || public.team_decision(
+    v_tenant, v_actor, 'deal', (v_door -> 'deal' ->> 'id')::uuid, 'record_deal',
+    jsonb_build_object('contact_id', p_contact_id, 'stage', p_stage,
+                       'from', v_door -> 'from', 'service', v_door -> 'deal' -> 'service'),
+    p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) IS 'A member records a deal and its line in the ledger together (00357): deal_record with what the caller named (p_move, by the door''s parameter names without the p_), then the record_deal decision as theirs, in one transaction. deal_record''s rules are unchanged and asked there; a move it refuses is answered as it answers it and nothing is recorded. Returns what the door returns with decision_id and undo_dropped.';
+
+
+--
 -- Name: record_workspace_created(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -18633,6 +18724,47 @@ CREATE FUNCTION public.stamp_email_sent(p_tenant_id uuid, p_message_id uuid, p_p
      and m.direction = 'outbound'
   returning m.status, m.conversation_id;
 $$;
+
+
+--
+-- Name: start_playbook(uuid, jsonb, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or jsonb_typeof(p_playbook) is distinct from 'object' then
+    raise exception 'start_playbook: a playbook is named whole' using errcode = '22004';
+  end if;
+  -- On the caller's rights: the table's insert policy judges the row (an acting member, as themselves, a moment, a
+  -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
+  -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment.
+  insert into public.playbooks (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
+                                template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
+                                cadence_days, channels, created_by)
+  select p_tenant_id, r.name, r.trigger, r.list_id, r.list_key, r.template_id, r.template_name,
+         r.template_language, r.params, r.policy_class, 'running', r.run_hour, r.cap_per_run, r.gap_days,
+         r.cadence_days, r.channels, v_actor
+    from jsonb_populate_record(null::public.playbooks, p_playbook) r
+  returning id into v_id;
+  return jsonb_build_object('id', v_id)
+      || public.member_decision(p_tenant_id, 'playbook', v_id, 'start_playbook', p_decision, p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Returns id, decision_id and undo_dropped.';
 
 
 --
@@ -31162,6 +31294,15 @@ GRANT ALL ON FUNCTION public.marketing_consent_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION member_has_address(p_tenant_id uuid, p_address text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32405,6 +32546,15 @@ GRANT ALL ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p
 
 
 --
+-- Name: FUNCTION record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION record_workspace_created(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32743,6 +32893,15 @@ GRANT ALL ON FUNCTION public.stamp_email_left_as(p_tenant_id uuid, p_message_id 
 
 REVOKE ALL ON FUNCTION public.stamp_email_sent(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.stamp_email_sent(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
 
 
 --

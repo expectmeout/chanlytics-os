@@ -34,18 +34,18 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             83   of which over 200 lines: 13
+functions over the limit             82   of which over 200 lines: 13
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                      100   names
 window publishers                   176   sites in 53 files
 copies                               73   of 21 names
-as unknown as                       140
+as unknown as                       138
 as never                             13
 non-null assertions, x!             110
 index reads the compiler lets pass  473   in 126 files
-table names outside packages/db     471
-SQL functions outside packages/db   121   called by .rpc
+table names outside packages/db     470
+SQL functions outside packages/db   120   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
@@ -59,7 +59,7 @@ inline style props                  206   in 55 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     288
 source-text reads in tests          760
-lint warnings                       353   in 152 files, 59 of them exhaustive-deps
+lint warnings                       352   in 151 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      742   the shell included
 workspace route CSS, KB gzipped     148
 workspace pages' own JS, KB        1286   gzipped, beyond the route, summed over 14 pages

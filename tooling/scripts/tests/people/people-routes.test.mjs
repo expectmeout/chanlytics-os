@@ -70,8 +70,48 @@ const both = (harbor, bayside) => [
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
 const inA = `?workspace=${A}`;
+/**
+ * `record_deal` (00357) over a test's own `deal_record`, for a database in memory: the door as the test fakes it,
+ * called with what the move names under the door's own argument names, then the record_deal decision as the caller's,
+ * written to `tables.decisions` with the fields the function writes; the door's answer with the decision's id beside
+ * it. A move the door refuses leaves no decision, as the function's one transaction does.
+ */
+const withDealDoor = (tables, rpcs) =>
+  !rpcs.deal_record
+    ? rpcs
+    : {
+        ...rpcs,
+        record_deal: (a) => {
+          const door = rpcs.deal_record({
+            p_contact_id: a.p_contact_id,
+            p_stage: a.p_stage,
+            ...Object.fromEntries(Object.entries(a.p_move ?? {}).map(([k, v]) => [`p_${k}`, v])),
+          });
+          if (!door || door.error || !door.deal) return door;
+          const decisions = (tables.decisions ??= []);
+          const decision = {
+            id: `decision-${decisions.length + 1}`,
+            tenant_id: (tables.contacts ?? []).find((c) => c.id === a.p_contact_id)?.tenant_id ?? null,
+            subject_type: "deal",
+            subject_id: door.deal.id,
+            verb: "record_deal",
+            actor_type: "user",
+            actor_user_id: USER,
+            payload: {
+              contact_id: a.p_contact_id,
+              stage: a.p_stage,
+              from: door.from ?? null,
+              service: door.deal.service ?? null,
+              ...(a.p_via ? { via: a.p_via } : {}),
+            },
+            undo_of: a.p_undo_of ?? null,
+          };
+          decisions.push(decision);
+          return { ...door, decision_id: decision.id, undo_dropped: false };
+        },
+      };
 const ctxFor = (tables, params = {}, rpcs = {}) => ({
-  supabase: fakeDb(tables, {}, rpcs),
+  supabase: fakeDb(tables, {}, withDealDoor(tables, rpcs)),
   userId: USER,
   email: "ada@example.com",
   params,
@@ -1703,7 +1743,7 @@ test("deal: the door answers the deal the person's People row shows now -- an op
   // Their deals could not be read: the write still answers, with no row to move until People is read again.
   const faulty = {
     ...ctxFor(tables, { id: P2 }, rpcs),
-    supabase: fakeDb(tables, { "deals.select": { message: "statement timeout" } }, rpcs),
+    supabase: fakeDb(tables, { "deals.select": { message: "statement timeout" } }, withDealDoor(tables, rpcs)),
   };
   out = await deal.POST.run(send("POST", { stage: "won", deal_id: D2, version: 2, amount_cents: 70_000 }), faulty);
   assert.deepEqual([out.deal.id, out.current], [D2, null]);
