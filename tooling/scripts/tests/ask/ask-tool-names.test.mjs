@@ -848,7 +848,13 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const readsSeen = THROUGH_THE_HUNDRED.has(old) || (old === "search_people" && !input.list);
     const withSeen = readsSeen ? [...withCalendar, "rpc:contact_seen"] : withCalendar;
     // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: six reads more (withReviewReads).
-    const reads = NAMES[old] === "report" ? withReviewReads(withSeen) : withSeen;
+    // 8 Oct 2026 (a conversation begins from the Inbox): a thread nothing has come to from the person's side is answered
+    // where our own written words last went (server/verbs.ts replyChannelOf, db ourLastWire), never on WhatsApp by default:
+    // one `messages` read more for a reply drafted on such a thread. This workspace's one inbound message names a sender
+    // the reader does not count as the person's own, so the draft that reaches the read makes it. Its bytes are unchanged.
+    const readsOurWire = NAMES[old] === "propose_reply.draft" && withSeen.includes("messages.select");
+    const withOurWire = readsOurWire ? [...withSeen, "messages.select"] : withSeen;
+    const reads = NAMES[old] === "report" ? withReviewReads(withOurWire) : withOurWire;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)

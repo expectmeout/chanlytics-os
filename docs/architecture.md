@@ -572,6 +572,7 @@ apps/dashboard/src/server/
   export/
   leads/
   metrics/
+  new-conversation/
   people/
   platform/
   ports/
@@ -617,6 +618,7 @@ packages/contracts/src/
   leads/
   lines/
   mobile/
+  new-conversation/
   notes/
   people/
   playbooks/
