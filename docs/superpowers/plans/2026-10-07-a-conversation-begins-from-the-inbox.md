@@ -14,7 +14,7 @@
 
 ## Built, 8 October 2026
 
-Ruben approved the plan and the recommended way, and the lane is built in this worktree: the proven change applied, every gate of Task 11 run, the page looked at in the running app, and one independent review. It was committed on 8 October 2026 on his word, on main's `5152b0aa6`, and merged with `4ce0f65a5` before the push (#1492 and then #1493 had landed, and every gate ran again each time); migration 00351 goes to production before the dashboard deploys. What follows is the plan as it stood before the commit: where it says staged, or names `c08d4ff87`, it speaks of that day's worktree.
+Ruben approved the plan and the recommended way, and the lane is built in this worktree: the proven change applied, every gate of Task 11 run, the page looked at in the running app, and one independent review. It was committed on 8 October 2026 on his word, on main's `5152b0aa6`, and merged with `ff53660df` before the push (#1492, #1493 and #1494 had landed, and every gate ran again each time); migration 00351 goes to production before the dashboard deploys. One rule changed on that day: `ixInDialog` no longer leaves every listbox alone, since the Inbox's own rows are options in one (the design's §0.4, its last paragraph), so the `keys.ts` printed below is the first cut and not what merged. What follows is the plan as it stood before the commit: where it says staged, or names `c08d4ff87`, it speaks of that day's worktree.
 
 The look and the review changed the built code in fourteen places (the design's §0.3 says each, with why). A second pass then walked the whole loop as a member would, against how the rest of the product already behaves, and closed ten more (§0.4): the Undo a reply has, the house's own discard question, the keys, the line a first text carries shown before it is sent. The branch was then moved to main's `c08d4ff87` (#1491 had landed) and every gate run again there. Every block of code below is the built tree's, put here again by the script, and Task 12 at the end holds the diffs of the files no earlier task shows. Two of the changes are worth knowing before reading on:
 
@@ -8207,16 +8207,16 @@ index ff488443e..fccd77a99 100644
 
 Run: `T conversations/inbox/inbox-place.test.mjs` (14), `T conversations/inbox/inbox-routes.test.mjs` (13), `T messages/deliver.test.mjs` (64), `T repo/log-events.test.mjs` (5), then Task 11's Steps 1 to 5.
 
-**The bundle, measured before the push (8 October 2026).** The sheet's foot draws the kit's `Confirm` (`kit/confirm/confirm.tsx`), the one import its on-demand chunk gained after the bundle was measured on 7 October. On Ruben's word for one local build, main (`4ce0f65a5`) and the lane merged with it were built on one machine and compared as CI compares them; main's JS equalled CI's own record of that commit to the byte. The import moved no page, and nothing passed the two kilobytes Step 6 warns of. Gzipped bytes:
+**The bundle, measured before the push (8 October 2026).** The sheet's foot draws the kit's `Confirm` (`kit/confirm/confirm.tsx`), the one import its on-demand chunk gained after the bundle was measured on 7 October. On Ruben's word for one local build, main (`ff53660df`) and the lane merged with it were built on one machine and compared as CI compares them; main's JS equalled CI's own record of that commit to the byte. The import moved no page, and nothing passed the two kilobytes Step 6 warns of. Gzipped bytes:
 
 | | main | the lane | change |
 | --- | --- | --- | --- |
-| Route JS | 751,313 | 754,029 | +2,716 |
-| Route CSS | 149,384 | 149,634 | +250 |
-| Inbox | 118,112 | 118,744 | +632 |
-| Conversations | 106,788 | 107,627 | +839 |
+| Route JS | 751,401 | 754,093 | +2,692 |
+| Route CSS | 149,545 | 150,597 | +1,052 |
+| Inbox | 119,240 | 119,845 | +605 |
+| Conversations | 109,486 | 110,321 | +835 |
 | Live | 13,682 | 14,234 | +552 |
-| People | 240,543 | 241,192 | +649 |
+| People | 240,613 | 241,264 | +651 |
 | Sent (broadcasts) | 168,300 | 168,949 | +649 |
 | Campaigns | 200,793 | 202,528 | +1,735 |
 | Templates | 156,945 | 157,317 | +372 |
@@ -8224,7 +8224,7 @@ Run: `T conversations/inbox/inbox-place.test.mjs` (14), `T conversations/inbox/i
 | Calendar | 110,435 | 110,834 | +399 |
 | Settings | 81,862 | 81,244 | -618 |
 
-The budget is raised by exactly that growth (`corepack pnpm check:bundle -- --raise js=2716 css=250 broadcasts=649 calendar=399 campaigns=1735 conversations=839 inbox=632 live=552 people=649 reports=1130 templates=372`), with its row first under "Rises" in `docs/debt.md`. CSS, Calendar and Templates grew under the tolerance and are raised all the same: Calendar already stood 893 over its budget, and unraised it would have passed the 1,024 a page may drift.
+The budget is raised by exactly that growth (`corepack pnpm check:bundle -- --raise js=2692 css=1052 broadcasts=649 calendar=399 campaigns=1735 conversations=835 inbox=605 live=552 people=651 reports=1130 templates=372`), with its row first under "Rises" in `docs/debt.md`. The CSS is the same 1,635 raw bytes of rules that weighed 250 gzipped on 7 October: with #1494 on main, the stylesheet chunk that holds the Inbox's rules (125,164 raw there) passed the size the bundler divides at, and its two files gzip 1,022 more than the one did. Calendar and Templates grew under the tolerance and are raised all the same: Calendar already stood 893 over its budget, and unraised it would have passed the 1,024 a page may drift.
 
 ---
 

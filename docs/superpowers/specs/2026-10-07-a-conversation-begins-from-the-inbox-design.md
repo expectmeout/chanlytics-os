@@ -1,6 +1,6 @@
 # A conversation begins from the Inbox
 
-**Status:** built on 8 October 2026 and committed that day on Ruben's word, and merged with main's `4ce0f65a5`; migration 00351
+**Status:** built on 8 October 2026 and committed that day on Ruben's word, and merged with main's `ff53660df`; migration 00351
 goes to production before the dashboard deploys. What the build's own look and its one review changed is §0.3, and
 what a second pass over the whole loop closed is §0.4. Where the text below says staged, or names an earlier commit,
 it speaks of the worktree as it stood before the commit. The history of the design follows as it was written: it was the fourth pass. Ruben read the first pass and said he
@@ -66,7 +66,7 @@ before it was fixed, and each fix has its test.
 
 | What was built | What was found | So now |
 | --- | --- | --- |
-| The Inbox's shortcuts stand down for a key pressed in a dialog, asked as `aria-modal` | The kit's `Sheet` says `role="dialog"` and no `aria-modal`. In the running app, J pressed on a button of the open sheet walked the list behind it: A would have approved the draft there, and Ctrl with Enter sent the reply box | One statement, `ixInDialog` (`surfaces/inbox/keys.ts`): `aria-modal`, a dialog, an alert dialog, an open menu or list. The page's keys, N and the reply box all ask it. By mutation, the two guard tests fail under the old rule |
+| The Inbox's shortcuts stand down for a key pressed in a dialog, asked as `aria-modal` | The kit's `Sheet` says `role="dialog"` and no `aria-modal`. In the running app, J pressed on a button of the open sheet walked the list behind it: A would have approved the draft there, and Ctrl with Enter sent the reply box | One statement, `ixInDialog` (`surfaces/inbox/keys.ts`): `aria-modal`, a dialog, an alert dialog, an open menu, or anything on one of the kit's pops (the last paragraph of §0.4 says why not every list). The page's keys, N and the reply box all ask it. By mutation, the two guard tests fail under the old rule |
 | A first email to someone the business has dealt with asked nothing (it is about something of theirs) | Someone who pressed Unsubscribe on the business's email got it. The product's own words for that state are "No offers or first emails go to them by email" | `mayMessageFor` takes `begins`; a start by email to them is held as `unsubscribed`, in that sentence, by the rule and by the door alike. A reply to them, and a message about their visit, still go |
 | A first text carried the line that says how to stop when the message was a start, and its length was measured after the helper that adds the line | That helper cuts at 1,600 characters, so a long first text lost the line and was never refused; and someone who phoned (no start) and had never been texted got no line | The line is owed by the first text of ours to reach them (`textReached`, the receptionist's own rule), start or not; a text with no room left for it is refused in words |
 | The send was answered once by the route's key alone | The route lets a key go when its request fails, and a request can fail after the message is queued (the ledger's row, a request that died): a retry then sent twice | The verb is handed the same key and keeps its receipt under it before the job exists, for as long as a key is kept (`replayMs`); the intent is the words written, whichever way the line fell (`leavesAs`) |
@@ -113,11 +113,21 @@ import into the sheet's on-demand chunk is not added unmeasured (§0.1). **A vie
 opens, Send says why their role may not, and the server refuses; a guard at the door would have to know the role
 before the page has it.
 
-Measured before the push, on Ruben's word for one local build: main (`4ce0f65a5`) and the branch were built on one
+Measured before the push, on Ruben's word for one local build: main (`ff53660df`) and the branch were built on one
 machine and compared as CI compares them (main's JS equalled CI's own record to the byte). The kit's `Confirm` in the
 sheet's chunk moved no page: each page grew what it grew on 7 October, none by more than 1,735 bytes gzipped, and the
-route by 2,716 where it was 2,527 (the difference is what §0.3 and this section added to the route). The budget is
-raised by that growth, with its row under "Rises" in `docs/debt.md`.
+route by 2,692 where it was 2,527 (the difference is what §0.3 and this section added to the route). The stylesheets
+are the exception: the same 1,635 raw bytes of rules weighed 250 gzipped until #1494 landed and 1,052 after, because
+the chunk that holds the Inbox's rules then passed the size the bundler divides a stylesheet chunk at, and its two
+files gzip worse than the one did (built again with CI's line endings to be sure: the same). The budget is raised by
+that growth, with its row and its reason under "Rises" in `docs/debt.md`.
+
+Found on the day it merged, before it merged. `ixInDialog` as first written left every `role="listbox"` alone, and the
+Inbox's own rows are options in one: A, D, E and N pressed on a row someone had clicked would have done nothing. The
+rule now names what stands over the page: `aria-modal`, a dialog, an alert dialog, an open menu, and whatever the kit
+stands on a pop (`.pop-place`, where its select's list is). A listbox at rest is the page's. Two tests hold it, and by
+mutation both fail under the first rule. It was not seen in the running app: the preview's five places were held by
+other sessions that hour, so the look owed on production includes a row clicked and then A, E and N pressed.
 
 ## 1. The ask
 
