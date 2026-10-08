@@ -537,3 +537,16 @@ git commit -m "Bank the width and the bundle; the docs say the pass"
 - Spec coverage: Reach in words (T1, T3, T4); Receptionist as the standing pill, off by default (T3); Offers toned with the unsent yes said (T3); Next step column, sortable, soonest first (T3, T4); the row's acts on the kit with the send glyph and the house tip (T3, T4); the width (T4 "Name them", T5). The last contact's two lines (T2, T3, T4) are the width's means, said in the PR.
 - Pins moved: `people-honest` headings/menu/receptionist/reach, `consent-door` offers reader, `e2e/people.spec` headers. Unchanged on purpose: `calendar-people` acts (same test ids and `onClick`), `row-offers` innerTexts (the pill's word).
 - Types: `rowReachWords(p, named)` returns `{ wire, id, may, tip }`; `PersonLastContact.by/when`; `StatePill` props `kind, value, label, className, testid`.
+
+## As built, after the review (8 Oct 2026)
+
+One review round over the whole branch, before the merge. What it changed from the tasks as written:
+
+- **The wire is the one they last wrote on** (Task 1). `rowReachWords` took the row's `replyVia`, which reads WhatsApp for anyone who has written and is not email-only (the strictest window, so a button never offers free text it cannot send). Said as a word, that called a person who only ever texted "WhatsApp" and held them to "Approved messages only". It reads `lastChannel` now (00320), then the first wire they have written on, then the phone; only WhatsApp's wire reads the window. The row's own `replyVia` and its booking-link button still read the conservative wire: a follow-up of its own.
+- **The next step sorts soonest first on its first press** (Task 3). The page's sort handler started `next` ascending on the Pipeline alone, so People's first press was the latest step first; the test had one person with a step and could not see it. It has three people now and reads both presses.
+- **The next step is two lines**, its words over its day in words ("Due today", "Overdue since Mon"), as the cells beside it are: a day that has come is said, never shown by the warn ink alone, and the column is narrower (18ch) than the words and the day side by side.
+- **A no to offers is plain** (Task 3 had the consent pill's amber). Amber says Needs you on every badge (`tone.ts`), and a no asks nothing of the owner; the answer's tone is `words.ts`'s, drawn through the kit's `tone` kind. A yes that cannot be sent says why in contracts' `heldWords`, not in a sentence of the page's own.
+- **Two rules went back into the stylesheet** (Task 4): `.cl-row-channels` and `.cl-row-channel-primary`, which the demo's Lists page still draws.
+- **Name them keeps its room** (Task 4 collapsed it to no width until hover). In a tight table the Person column grew under the pointer as the button opened, and every column beside it moved.
+- **The width, as measured** (Task 5), at 1440 by 900 with the sidebar open, in the e2e workspace: the table fits its pane with no step on any row (0 over; main was 87 over in a workspace of five). With a step on every row it is 56 wider than the pane, 83 with a row named by its number as well, and it scrolls in its own box with Person pinned, as it did before. A window wider than that fits all of it.
+- Main moved under the branch (#1491): merged, the register's numbers regenerated from the merged tree.

@@ -19605,6 +19605,12 @@ stop: {
  * What a People row says of reaching a person (8 Oct 2026): the wire a reply goes out on over the one way to reach them
  * there, a constraint on a reply where there is one, and every wire with the Replies row's sentence as the cell's tip.
  * It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then the number.
+ *
+ * The wire is the one they last wrote on (`lastChannel`, 00320), which is where a reply to them goes; a row read
+ * before that was kept says the first wire they have written on, and someone who only ever called, the phone. It is
+ * not the row's own `replyVia`, which reads WhatsApp for anyone who has written and is not email-only (the strictest
+ * window, so a button never offers free text it cannot send): said as a word, that called a person who only ever
+ * texted "WhatsApp" and held them to a window a text does not have.
  */
 interface RowReachWords {
     /** "WhatsApp", "Text" or "Email" (REPLY_VIA); "Phone" for someone who only ever called; null with no wire at all. */
@@ -19622,7 +19628,9 @@ declare function rowReachWords(p: {
     phone: string | null;
     email: string | null;
     channels: readonly string[];
-    replyVia: "WhatsApp" | "Text" | "Email" | null;
+    /** The channel of the last message they wrote themselves, where the row knows it. */
+    lastChannel: "whatsapp" | "sms" | "email" | null;
+    /** WhatsApp's window as the row has it: read only where the wire is WhatsApp, since no other wire has one. */
     replyWindow: {
         open: boolean;
         hoursLeft: number;

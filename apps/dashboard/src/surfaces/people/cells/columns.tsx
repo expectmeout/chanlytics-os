@@ -4,13 +4,13 @@
  * page knows (`x`: bookingLink, attention, onOpen, drop, listsOf, shows). Person is pinned and always shown; on a desktop
  * a member shows or hides any other with the Columns menu, and the choice rides with their view (views.people.columns); a
  * phone's cards draw what they draw by default whatever the choice (plDrawnColumns). With a calendar connected the
- * outcome takes the column the receptionist's state held; the receptionist stays a column a member can show, and while
- * it is hidden its word sits beside the state (and it is hidden by default: Ruben, 8 Oct 2026). Offers is the fact
- * that gates every campaign. The next step is a column after State (0007). First contact waits in the Columns menu; the
- * last column is the row's own actions, the kit's quiet buttons, shown on hover and on the keyboard's row. Every cell is
- * one of the kit's shapes: a state is the pill's dot and word, a fact two quiet lines, an act a button.
+ * visit is a column; the receptionist's standing is a column a member can show, off by default (Ruben, 8 Oct 2026), and
+ * while it is hidden its word sits beside the state. Offers is the fact that gates every campaign. The next step is a
+ * column after State (0007). First contact waits in the Columns menu; the last column is the row's own actions, the
+ * kit's quiet buttons, shown on hover and on the keyboard's row. Every cell is one of the kit's shapes: a state is the
+ * pill's dot and word, a fact two quiet lines, an act a button.
  */
-import { rowReachWords, type PersonRowVM, type SeenReading } from "@chanlytics/contracts";
+import { heldWords, rowReachWords, type PersonRowVM, type SeenReading } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { unreadHere } from "../../seen";
 import { Button } from "../../kit/button/button";
@@ -195,25 +195,26 @@ function attentionWordsOf(p: PersonRowVM, attention: PeopleCellCtx["attention"])
 }
 
 /**
- * The Offers cell reads the OFFERS answer as the consent pill (contracts tone.ts: a yes the quiet green dot, a no amber,
- * not asked plain), its tooltip that answer's own history. A yes nobody can be sent (reach-any.ts canReceive: no channel
- * the workspace sends on carries an offer to them now) keeps its word and loses its green, and the tip says why.
+ * The Offers cell reads the OFFERS answer as the kit's pill, in the tone words.ts gives it (a yes the quiet green dot;
+ * a no and not asked plain), its tooltip that answer's own history. A yes that cannot be sent now (reach-any.ts
+ * canReceive: no number, or no channel the workspace sends an offer on) keeps its word and loses its green, and the tip
+ * adds why in the send's own words (contracts heldWords), so the column never promises an audience a send would not reach.
  */
 const plOffersCell = (p: PersonRowVM) => {
-  const offers = offersOf(p.consent.marketing);
-  const unsent = p.consent.marketing === "opted_in" && !p.canReceive.offers;
+  const [word, cls, tone] = offersOf(p.consent.marketing);
+  const held = p.consent.marketing === "opted_in" && !p.canReceive.offers ? p.whyNot.offers : null;
   return (
     <td
       key="offers"
       className="shrink cl-offers-cell"
-      title={unsent ? `${p.consent.marketingSub} · no channel can carry an offer to them now` : p.consent.marketingSub}
+      title={held ? `${p.consent.marketingSub} · ${heldWords(held, "marketing")}` : p.consent.marketingSub}
       data-testid="row-offers"
     >
       <StatePill
-        kind="consent"
-        value={unsent ? "unknown" : p.consent.marketing}
-        label={offers[0]}
-        className={`cl-row-offers ${offers[1]}${unsent ? " unsent" : ""}`}
+        kind="tone"
+        value={held ? "plain" : tone}
+        label={word}
+        className={`cl-row-offers ${cls}${held ? " unsent" : ""}`}
       />
     </td>
   );
@@ -312,8 +313,9 @@ export const PL_COLUMNS: PeopleColumn[] = [
     cell: (p, x) => plNameCell(p, plUnread(p) ? { ...x, unread: true } : x),
   },
   { key: "state", label: "State", sortable: true, cell: plStateCell },
-  // Their next step (0007, amended): the words, then the day as a chip says it, in the warn ink once it has come. The
-  // Pipeline's row said it; People's did not, and it is the one fact on the row that is the owner's to do.
+  // Their next step (0007, amended): the words over its day ("Due today", "Overdue since Mon"), the day in the warn ink
+  // once it has come and said in words, never by the colour alone. The Pipeline's row said it; People's did not, and
+  // it is the one fact on the row that is the owner's to do. The whole of a step cut short is its tip.
   {
     key: "next",
     label: "Next step",
@@ -333,7 +335,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
         {p.nextStep ? (
           <span className="cl-row-next">
             <span className="cl-row-next-words">{p.nextStep.words}</span>
-            <span className="cl-row-next-when">{p.nextStep.day.near}</span>
+            <span className="cl-row-next-when">{p.nextStep.day.words}</span>
           </span>
         ) : null}
       </td>

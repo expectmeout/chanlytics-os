@@ -919,7 +919,7 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
     phone: "+1 (786) 555-0181",
     email: null,
     channels: ["whatsapp", "voice"],
-    replyVia: "WhatsApp",
+    lastChannel: "whatsapp",
     replyWindow: { open: true, hoursLeft: 9 },
     emailSuppressed: false,
     stopped: false,
@@ -941,7 +941,7 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   const byNumber = rowReachWords({ ...base, name: "+1 (786) 555-0181" }, false);
   assert.deepEqual([byNumber.wire, byNumber.id], ["WhatsApp", null]);
   // By email: the address is the identifier, even beside a number, and a stopped address says so.
-  const mail = { ...base, email: "zoe@example.com", replyVia: "Email", replyWindow: null, channelWords: "Email" };
+  const mail = { ...base, email: "zoe@example.com", lastChannel: "email", replyWindow: null, channelWords: "Email" };
   assert.deepEqual(rowReachWords(mail, true), {
     wire: "Email",
     id: "zoe@example.com",
@@ -950,7 +950,7 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   });
   assert.equal(rowReachWords({ ...mail, emailSuppressed: true }, true).may, "Stopped accepting mail");
   // Only ever phoned: the wire is the phone, and no window to speak of.
-  const phoned = { ...base, channels: ["voice"], replyVia: null, replyWindow: null, channelWords: "Phone" };
+  const phoned = { ...base, channels: ["voice"], lastChannel: null, replyWindow: null, channelWords: "Phone" };
   assert.deepEqual(rowReachWords(phoned, true), { wire: "Phone", id: "+1 (786) 555-0181", may: null, tip: "Phone" });
   // Nothing at all (added by hand, never wrote): the identifier alone.
   const quiet = { ...phoned, channels: [], channelWords: "" };
@@ -958,6 +958,36 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
   // Opted out: the State says it; the row's reach says only the wire and the number.
   const stopped = rowReachWords({ ...base, stopped: true }, true);
   assert.deepEqual([stopped.may, stopped.tip], [null, "WhatsApp · Phone"]);
+  // REGRESSION (the review of 8 Oct 2026): the wire is the one they last wrote on. The row's own reply wire reads
+  // WhatsApp for anyone who has written and is not email-only, so a person who only ever texted was said to be on
+  // WhatsApp, held to approved messages by a window a text does not have.
+  const texted = { ...base, channels: ["sms"], lastChannel: "sms", channelWords: "Text" };
+  assert.deepEqual(rowReachWords({ ...texted, replyWindow: { open: false, hoursLeft: 0 } }, true), {
+    wire: "Text",
+    id: "+1 (786) 555-0181",
+    may: null,
+    tip: "Text · Any time, by text",
+  });
+  // On two wires, the last one written on is the one a reply goes out on: WhatsApp's shut window is not a text's.
+  const both = { ...base, channels: ["whatsapp", "sms"], channelWords: "WhatsApp · Text" };
+  const shut = { open: false, hoursLeft: 0 };
+  assert.equal(rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).wire, "Text");
+  assert.equal(rowReachWords({ ...both, lastChannel: "sms", replyWindow: shut }, true).may, null);
+  assert.equal(
+    rowReachWords({ ...both, lastChannel: "whatsapp", replyWindow: shut }, true).may,
+    "Approved messages only",
+  );
+  // A row read before the channel was kept (00320) says the first wire they have written on, WhatsApp before a text.
+  assert.equal(rowReachWords({ ...both, lastChannel: null }, true).wire, "WhatsApp");
+  assert.equal(rowReachWords({ ...texted, lastChannel: null }, true).wire, "Text");
+  // And through the row itself, as People draws it: a texter's row reads Text, with nothing held.
+  const row7 = toPersonRowVM(
+    row({ channels: [], has_chat: true, message_channels: ["sms"], last_inbound_channel: "sms", call_count: 0 }),
+    ZONE,
+    NOW,
+  );
+  const said = rowReachWords(row7, true);
+  assert.deepEqual([said.wire, said.may], ["Text", null], "a texter's row never says WhatsApp");
 });
 
 test("a person's proposal is their deal's (0008): the deal's link while it is out, their own with no open deal, a client's none", () => {

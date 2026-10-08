@@ -5,7 +5,7 @@
  * the page and the deal sheet read it.
  */
 import { optOutWords } from "../consent/consent";
-import { PERSON_CHANNEL_WORDS } from "./person-words";
+import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 
 /**
  * What a person's page says of an address that stopped accepting mail (a permanent bounce, a complaint or the provider's
@@ -158,11 +158,19 @@ export function repliesWords(
 /** What a reply may be, in a row's few words: the one constraint worth a line under the identifier (repliesWords is the page's sentence). */
 const EMAIL_STOPPED_SHORT = "Stopped accepting mail";
 const APPROVED_ONLY_SHORT = "Approved messages only";
+/** The wires a person writes on, in the order a row names them (person-row.ts channelsOf): WhatsApp, a text, email. */
+const WRITTEN_WIRES = ["whatsapp", "sms", "email"] as const;
 
 /**
  * What a People row says of reaching a person (8 Oct 2026): the wire a reply goes out on over the one way to reach them
  * there, a constraint on a reply where there is one, and every wire with the Replies row's sentence as the cell's tip.
  * It said the channels as a strip of glyphs, where WhatsApp and a text share one, and then the number.
+ *
+ * The wire is the one they last wrote on (`lastChannel`, 00320), which is where a reply to them goes; a row read
+ * before that was kept says the first wire they have written on, and someone who only ever called, the phone. It is
+ * not the row's own `replyVia`, which reads WhatsApp for anyone who has written and is not email-only (the strictest
+ * window, so a button never offers free text it cannot send): said as a word, that called a person who only ever
+ * texted "WhatsApp" and held them to a window a text does not have.
  */
 export interface RowReachWords {
   /** "WhatsApp", "Text" or "Email" (REPLY_VIA); "Phone" for someone who only ever called; null with no wire at all. */
@@ -182,7 +190,9 @@ export function rowReachWords(
     phone: string | null;
     email: string | null;
     channels: readonly string[];
-    replyVia: "WhatsApp" | "Text" | "Email" | null;
+    /** The channel of the last message they wrote themselves, where the row knows it. */
+    lastChannel: "whatsapp" | "sms" | "email" | null;
+    /** WhatsApp's window as the row has it: read only where the wire is WhatsApp, since no other wire has one. */
     replyWindow: { open: boolean; hoursLeft: number } | null;
     emailSuppressed: boolean;
     stopped: boolean;
@@ -190,18 +200,21 @@ export function rowReachWords(
   },
   named: boolean,
 ): RowReachWords {
-  const wire = p.replyVia ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
-  const id = !named ? null : wire === "Email" ? p.email || p.phone : p.phone || p.email;
+  const wrote = p.lastChannel ?? WRITTEN_WIRES.find((c) => p.channels.includes(c)) ?? null;
+  const via = wrote ? REPLY_VIA[wrote] : null;
+  const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
+  const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
+  const window = via === "WhatsApp" ? p.replyWindow : null;
   const may = p.stopped
     ? null
-    : wire === "Email" && p.emailSuppressed
+    : via === "Email" && p.emailSuppressed
       ? EMAIL_STOPPED_SHORT
-      : wire === "WhatsApp" && p.replyWindow && !p.replyWindow.open
+      : window && !window.open
         ? APPROVED_ONLY_SHORT
         : null;
   const replies = p.stopped
     ? null
-    : repliesWords(p.replyVia, p.replyWindow, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
+    : repliesWords(via, window, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
   return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" · ") };
 }
 

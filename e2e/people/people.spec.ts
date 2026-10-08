@@ -87,7 +87,7 @@ test.describe("People on a real workspace", () => {
       .filter(Boolean);
     const cal = ((await (await apiGet(page, "/api/v1/contacts")).json()).data as { calendar?: { state: string } })
       .calendar;
-    // With a calendar connected the outcome takes the receptionist's column; the checkbox and the actions columns have no words.
+    // With a calendar connected Visits is a column; the checkbox and the actions columns have no words.
     // How to reach them is Reach, the column after State (it was a line of five facts under every name); First contact is
     // a column a member may choose, off by default.
     // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Came from is the Columns

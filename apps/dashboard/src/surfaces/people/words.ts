@@ -28,14 +28,19 @@ export const PL_TAB_LABEL: Record<string, string> = {
 export const PL_PHONE_QUERY = "(max-width: 900px)";
 export const plPhoneNow = (): boolean => !!(window.matchMedia && window.matchMedia(PL_PHONE_QUERY).matches);
 
-/** The "Offers" column and the CSV read the OFFERS answer, never the conversational consent. */
-const NOT_ASKED: readonly [string, string] = ["Not asked", "unasked"];
-const PL_OFFERS: Record<string, readonly [string, string]> = {
-  opted_in: ["Yes", "yes"],
-  opted_out: ["No", "no"],
+/**
+ * The "Offers" column and the CSV read the OFFERS answer, never the conversational consent: its word, the cell's
+ * class, and the tone its dot wears. A yes is the quiet green of what is open; a no and not asked are plain, since
+ * neither asks anything of the owner and amber says Needs you wherever it is drawn (contracts tone.ts).
+ */
+type OffersSaid = readonly [word: string, cls: string, tone: "ok" | "plain"];
+const NOT_ASKED: OffersSaid = ["Not asked", "unasked", "plain"];
+const PL_OFFERS: Record<string, OffersSaid> = {
+  opted_in: ["Yes", "yes", "ok"],
+  opted_out: ["No", "no", "plain"],
   unknown: NOT_ASKED,
 };
-export const offersOf = (marketing: string): readonly [string, string] => PL_OFFERS[marketing] ?? NOT_ASKED;
+export const offersOf = (marketing: string): OffersSaid => PL_OFFERS[marketing] ?? NOT_ASKED;
 
 /**
  * A selection as a CSV, in its own fixed columns, whatever the Columns menu shows: one cell as contracts spell it

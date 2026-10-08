@@ -900,6 +900,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A strip of channel glyphs (people/cells/channel-glyph.tsx): the demo's Lists page draws it; People's rows say the
+   wire in words (8 Oct 2026). */
+.cl-row-channels {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--ink-faint);
+}
+.cl-row-channel-primary {
+  color: var(--ink-muted);
+}
+
 .cl-row-pkg {
   display: inline-flex;
   align-items: baseline;
@@ -2174,17 +2185,16 @@
    it was a strip of glyphs, where WhatsApp and a text shared one, and then the number. */
 .cl-row-reach { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; }
 .cl-row-reach-id, .cl-row-reach-may { font-size: var(--text-xs); color: var(--ink-dim); }
-/* The next step (0007): the words, then the day as a chip says it, in the warn ink once it has come. */
-.cl-row-next { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; max-width: 22ch; }
-.cl-row-next-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); color: var(--ink); }
-.cl-row-next-when { flex: none; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+/* The next step (0007): its words over its day ("Due today", "Overdue since Mon"), two lines as the cells beside it
+   are, the words cut with an ellipsis so the column stays narrow (their whole is the cell's tip), and the day in the
+   warn ink once it has come: said in words too, so never by the colour alone. */
+.cl-row-next { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 18ch; }
+.cl-row-next-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); color: var(--ink); }
+.cl-row-next-when { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
 .cl-next-cell[data-due]:not([data-due="ahead"]) .cl-row-next-when { color: var(--warn-ink); font-weight: var(--weight-medium); }
 /* The last contact: when, over who, so the column the table is sorted by reads by its time. */
 .cl-row-last { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
 .cl-row-last-by { font-size: var(--text-xs); color: var(--ink-dim); }
-/* Name them takes no room until a pointer or the keyboard reaches it: at opacity 0 it still widened the Person column. */
-.cl-row-name-them { max-width: 0; overflow: hidden; }
-.cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { max-width: none; }
 .cl-row-words { max-width: 52ch; margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }

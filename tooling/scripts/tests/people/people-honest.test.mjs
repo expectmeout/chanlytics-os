@@ -2827,25 +2827,42 @@ const menuItems = (tree) =>
 const flipColumn = (tree, key) => columnsMenu(tree).props.groups[0].toggles.onToggle(key);
 
 test("the next step is a column after State: its words and its day, the day marked once it has come, a row with none quiet, and the soonest first under the heading", async () => {
-  const today = new Date(NOW).toLocaleDateString("en-CA", { timeZone: ZONE });
+  const dayKey = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: ZONE });
+  const today = dayKey(NOW);
   await freshPage({
     people: [
-      person(1, { step_id: "s1", step_body: "Call about the quote", step_due_on: today, step_for_me: true }),
+      // The later step first in the rows as they arrive, so only the sort can put the sooner one over it.
+      person(1, { step_id: "s1", step_body: "Send the photos", step_due_on: dayKey(NOW + 3 * D) }),
       person(2),
+      person(3, { step_id: "s3", step_body: "Call about the quote", step_due_on: today, step_for_me: true }),
     ],
   });
   const tree = draw();
-  const cell = byTestId(rowOf(tree, "p1"), "row-next-step");
+  const cell = byTestId(rowOf(tree, "p3"), "row-next-step");
   assert.match(textOf(cell), /Call about the quote/, "the step's own words");
-  assert.match(textOf(cell), /today/, "and its day as a chip says it");
+  assert.match(textOf(cell), /Due today/, "and its day in words, so a day that has come is not said by a colour alone");
   assert.equal(cell.props["data-due"], "today", "marked for the stylesheet once the day has come");
-  assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-next-step")).trim(), "", "nothing where there is no step");
-  sortByHeading(tree, "Next step");
-  const sorted = draw();
-  const order = all(sorted, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).map(
-    (tr) => tr.props.id,
+  assert.equal(
+    byTestId(rowOf(tree, "p1"), "row-next-step").props["data-due"],
+    "ahead",
+    "a day ahead is not marked due",
   );
-  assert.equal(order[0], "person-p1", "the soonest step first; a row with none last");
+  assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-next-step")).trim(), "", "nothing where there is no step");
+  const order = (t) =>
+    all(t, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).map((tr) => tr.props.id);
+  sortByHeading(tree, "Next step");
+  const first = draw();
+  assert.deepEqual(
+    order(first),
+    ["person-p3", "person-p1", "person-p2"],
+    "REGRESSION: the first press is the soonest step first (it was the latest), and a row with none is last",
+  );
+  sortByHeading(first, "Next step");
+  assert.deepEqual(
+    order(draw()),
+    ["person-p1", "person-p3", "person-p2"],
+    "pressed again, the latest first, and a row with none still last",
+  );
 });
 
 test("the Columns menu is the kit's switches: it shows and hides columns, and Person always shows", async () => {

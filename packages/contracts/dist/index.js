@@ -19798,11 +19798,15 @@ function repliesWords(via, window, stop) {
 }
 var EMAIL_STOPPED_SHORT = "Stopped accepting mail";
 var APPROVED_ONLY_SHORT = "Approved messages only";
+var WRITTEN_WIRES = ["whatsapp", "sms", "email"];
 function rowReachWords(p, named) {
-  const wire = p.replyVia ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
-  const id = !named ? null : wire === "Email" ? p.email || p.phone : p.phone || p.email;
-  const may = p.stopped ? null : wire === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : wire === "WhatsApp" && p.replyWindow && !p.replyWindow.open ? APPROVED_ONLY_SHORT : null;
-  const replies = p.stopped ? null : repliesWords(p.replyVia, p.replyWindow, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
+  const wrote = p.lastChannel ?? WRITTEN_WIRES.find((c) => p.channels.includes(c)) ?? null;
+  const via = wrote ? REPLY_VIA[wrote] : null;
+  const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
+  const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
+  const window = via === "WhatsApp" ? p.replyWindow : null;
+  const may = p.stopped ? null : via === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : window && !window.open ? APPROVED_ONLY_SHORT : null;
+  const replies = p.stopped ? null : repliesWords(via, window, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
   return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" \xB7 ") };
 }
 function mayReach(p) {

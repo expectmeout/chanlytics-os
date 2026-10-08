@@ -251,12 +251,13 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
   const onSort = (key: string) => {
     viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order and its next step the
-    // soonest first (Leads' stage column is a rank of its own, most first); any other number, most first.
+    // A name starts at A, the soonest visit and the soonest next step first (People's column and the Pipeline's), and
+    // the Pipeline's Stage in its own order (Leads' stage column is a rank of its own, most first); any other number,
+    // most first.
     else {
       setSortBy(key);
       setSortDir(
-        key === "name" || key === "visits" || (args.scope === "pipeline" && (key === "stage" || key === "next"))
+        key === "name" || key === "visits" || key === "next" || (args.scope === "pipeline" && key === "stage")
           ? "asc"
           : "desc",
       );
