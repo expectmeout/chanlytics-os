@@ -1122,6 +1122,23 @@ The day's numbers are in the back office ("Each workspace's day", `platform_metr
 before); the health sweep pages `answer_rate_zero` when a workspace's customers wrote all day and nobody answered. Who
 played a call's recording is a decision (`open_recording`, one per member per call per hour) on Settings, Activity.
 
+## Answer WhatsApp after the acknowledgement
+
+A WhatsApp message is answered inside Meta's request, under the function's sixty seconds. A workspace named in the
+edge's `WHATSAPP_ANSWERS_AS_JOBS` (workspace ids, comma-separated, or `all`) takes the road a text takes instead:
+the webhook records the message, schedules its answer as an `inbound_answer` job and answers 200, and the job answers
+it (`apps/edge/lib/whatsapp/answer-later.ts`). Unset is the default, and changes nothing.
+
+To try it: name one workspace on the edge's production environment and redeploy the edge (an environment variable is
+read by a new deployment). Write to that workspace's number. In the logs, `wa_inbound` then `wa_answer_taken_up`
+under one request id, and the reply's own lines after it; in the ledger, one `inbound_answer` row for the message,
+`done`. To go back: remove the workspace from the variable and redeploy. A message recorded before the change is
+still answered by its job.
+
+What to watch while it is on: `wa_answer_unscheduled` (the job could not be written: the message is the deadman
+sweep's to hand to a person, within a quarter of an hour), and a reply's lateness on the heartbeat's line
+(`reply_late_ms`), which pages past a minute.
+
 ## Read the jobs ledger
 
 Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's

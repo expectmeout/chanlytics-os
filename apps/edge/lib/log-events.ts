@@ -526,6 +526,8 @@ export const LOG_EVENTS = [
   "voice_session_refused",
   "voice_speech_refused",
   "voice_speech_spoken",
+  "wa_answer_taken_up",
+  "wa_answer_unscheduled",
   "wa_connect_channel_read_failed",
   "wa_connect_channel_write_failed",
   "wa_connect_credentials_failed",
