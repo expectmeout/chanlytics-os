@@ -46,7 +46,6 @@
   "apps/dashboard/src/surfaces/campaigns/reach-out/sheet.tsx": 2,
   "apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx": 1,
   "apps/dashboard/src/surfaces/inbox/pages/hold-all.ts": 4,
-  "apps/dashboard/src/surfaces/inbox/pages/inbox-list.tsx": 3,
   "apps/dashboard/src/surfaces/inbox/pages/inbox-page.tsx": 1,
   "apps/dashboard/src/surfaces/inbox/thread/call.tsx": 4,
   "apps/dashboard/src/surfaces/inbox/thread/composer.tsx": 2,

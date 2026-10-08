@@ -2,10 +2,11 @@
  * Chanlytics — Conversations (moved from pages/conversations.jsx, decision 0015, step 3).
  * The raw communication layer: every call, chat, and email, newest first. A row opens the one thread (thread-pane.tsx)
  * -- a call opens its thread at the call -- and a call no thread holds opens alone, in the thread's own frame.
- * The rules of which tab a row is in and of the address are cv-rules.ts.
+ * The rules of which tab a row is in and of the address are cv-rules.ts. Rows are picked for an act over several as
+ * the Inbox's are, by the same parts (pick.tsx): the box over the face, the select-all, the bar, the keys.
  */
 import { mmss } from "@chanlytics/contracts";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
@@ -25,8 +26,20 @@ import {
   cvWhoseRow,
   inChannel,
 } from "../cv-rules";
+import { useCvPick, type CvPick } from "./conversations-pick";
+import { pickAll, pickBox, pickKeys } from "./pick";
 import { seePerson, unreadHere, useSeeOpen, useSeen } from "../../seen";
-import { appNavigate, canNavigate, currentRoute, demoSession, liveCallEnded, navigate, tabMemory } from "../shell";
+import {
+  appNavigate,
+  canNavigate,
+  currentRoute,
+  demoSession,
+  liveCallEnded,
+  navigate,
+  tabMemory,
+  useToast,
+  type Flash,
+} from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
 import { ixSwipeBack } from "../thread/thread";
@@ -142,15 +155,37 @@ const cvEnded = (c: ConversationRow | null | undefined): boolean =>
 /** Whether a person's row is new to the reader now: the last read's word, over what this tab did since (surfaces/seen.ts). */
 const cvUnread = (c: ConversationRow): boolean => unreadHere(cvWhoseRow(c), cvSeenOf(c));
 
-const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; onSelect: (id: string) => void }) => {
+/**
+ * What the list hands a row beside the row itself. The rows are a listbox, as the Inbox's are (list-rows.tsx): one
+ * tab stop, Enter opens, Space picks. `pick` is null for a row nothing a pick does applies to, which wears no box.
+ */
+interface CvRowProps {
+  c: ConversationRow;
+  active: boolean;
+  onSelect: (id: string) => void;
+  /** Whether it is picked, and the press that picks it or lets it go. */
+  pick: { picked: boolean; onToggle: () => void } | null;
+  tabStop: boolean;
+  onKey: (e: KeyboardEvent<HTMLDivElement>) => void;
+}
+
+const CvRow = ({ c, active, onSelect, pick, tabStop, onKey }: CvRowProps) => {
   const lead = cvLeadOf(c);
   const dec = cvDecision(lead);
   const endedLive = cvEnded(lead);
   const calls = cvCallsWords(c);
+  const picked = !!pick?.picked;
   return (
-    <button
-      className={`cv-row ${active ? "active" : ""} ${c.live && !cvEnded(c) ? "is-live" : ""} ${cvUnread(c) ? "unread" : ""}`}
+    <div
+      className={`cv-row ${active ? "active" : ""} ${c.live && !cvEnded(c) ? "is-live" : ""} ${cvUnread(c) ? "unread" : ""} ${pick ? "can-pick" : ""} ${picked ? "selected" : ""}`}
+      role="option"
+      // Selected is a word for a row that can be: one nothing a pick does applies to says neither.
+      aria-selected={pick ? picked : undefined}
+      aria-current={active ? "true" : undefined}
+      tabIndex={tabStop ? 0 : -1}
+      data-row-id={c.id}
       onClick={() => onSelect(c.id)}
+      onKeyDown={onKey}
     >
       <span className="cv-row-avatar">
         {c.initials.slice(0, 2)}
@@ -177,7 +212,9 @@ const CvRow = ({ c, active, onSelect }: { c: ConversationRow; active: boolean; o
           </span>
         )}
       </span>
-    </button>
+      {/* The mouse's box, over the face (inbox.css): last, so the face stays the row's first part. */}
+      {pick && pickBox(pick)}
+    </div>
   );
 };
 
@@ -348,12 +385,31 @@ function listPane(p: {
   openRow: (id: string) => void;
   /** The rows' ref: they swap in with a rise as the channel changes (kit/motion). */
   swap: ReturnType<typeof useSwapMotion<HTMLDivElement>>;
+  /** The pick (pick.tsx): the rows chosen for an act over several, the bar over them, and the question an archive asks. */
+  pick: CvPick;
 }) {
-  const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, swap } = p;
+  const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, swap, pick } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
+  // Each row on screen as a pick reads it, worked out once and kept by the row's id: null for one that wears no box.
+  const picks = new Map(rows.map((c) => [c.id, pick.of(c)]));
+  const canPick = [...picks.values()].flatMap((x) => x?.id ?? []);
+  // One tab stop: the open row's, or the first when none of these is open.
+  const tabStopId = selectedRow && rows.some((c) => c.id === selectedRow.id) ? selectedRow.id : rows[0]?.id;
+  const onKey = pickKeys({
+    rows,
+    onOpen: openRow,
+    // Space on a row picks it by the name its pick is held under, where it can be picked.
+    onToggle: (rowId) => {
+      const picked = picks.get(rowId);
+      if (picked) pick.toggle(picked.id);
+    },
+    attr: "data-row-id",
+  });
   return (
-    <aside className="cv-list">
+    <aside className={`cv-list ${pick.selected.length > 0 ? "picking" : ""}`}>
       <div className="cv-list-head">
+        {canPick.length > 0 &&
+          pickAll({ ids: canPick, selected: pick.selected, onToggle: pick.toggle, onClear: pick.clear })}
         <div className="cl-search-wrap">
           <Icon name="search" size={13} />
           <input
@@ -386,10 +442,30 @@ function listPane(p: {
           }))}
         />
       </div>
-      <div className="cv-rows" ref={swap}>
-        {rows.map((c) => (
-          <CvRow key={c.id} c={c} active={selectedRow?.id === c.id} onSelect={openRow} />
-        ))}
+      {pick.bar && <div className="ix-list-head">{pick.bar}</div>}
+      {pick.ask}
+      {/* A listbox while it holds rows, as the Inbox's is; with none, what it says instead is no option of one. */}
+      <div
+        className="cv-rows"
+        ref={swap}
+        role={rows.length > 0 ? "listbox" : undefined}
+        aria-label={rows.length > 0 ? "Conversations" : undefined}
+        aria-multiselectable={rows.length > 0 || undefined}
+      >
+        {rows.map((c, i) => {
+          const picked = picks.get(c.id) ?? null;
+          return (
+            <CvRow
+              key={c.id}
+              c={c}
+              active={selectedRow?.id === c.id}
+              onSelect={openRow}
+              pick={picked && { picked: pick.selected.includes(picked.id), onToggle: () => pick.toggle(picked.id) }}
+              tabStop={c.id === tabStopId}
+              onKey={(e) => onKey(e, i)}
+            />
+          );
+        })}
         {rows.length === 0 &&
           (CONVERSATIONS.length === 0 ? (
             // A workspace with none yet is not a filter with no match. On a phone the list is the screen and no reading pane
@@ -420,8 +496,8 @@ function listPane(p: {
 }
 
 /** The row open: its thread, the call alone, or where it is answered. */
-function openedRow(p: { selected: ConversationRow; closeRow: () => void }) {
-  const { selected, closeRow } = p;
+function openedRow(p: { selected: ConversationRow; closeRow: () => void; flash: (flash: Flash) => void }) {
+  const { selected, closeRow, flash } = p;
   const opens = cvOpens(selected);
   if (opens === "thread") {
     return (
@@ -431,6 +507,8 @@ function openedRow(p: { selected: ConversationRow; closeRow: () => void }) {
         focusMessageId={selected.callId ? selected.messageId : null}
         onBack={closeRow}
         onOpenClient={(id) => navigate(ROUTES.client(String(id)))}
+        // One stack of toasts on the page: the thread's own acts and the pick's say theirs in it.
+        flash={flash}
       />
     );
   }
@@ -471,8 +549,9 @@ function readingPane(p: {
   selected: ConversationRow | undefined;
   closeRow: () => void;
   query: string;
+  flash: (flash: Flash) => void;
 }) {
-  const { data, requestedMissing, selected, closeRow, query } = p;
+  const { data, requestedMissing, selected, closeRow, query, flash } = p;
   const { CONVERSATIONS } = data;
   // A link's notice sits in the reading pane: as a child of this
   // two-column grid it took the second cell and pushed the pane under
@@ -492,7 +571,7 @@ function readingPane(p: {
       />
     );
   }
-  if (selected) return openedRow({ selected, closeRow });
+  if (selected) return openedRow({ selected, closeRow, flash });
   if (CONVERSATIONS.length === 0) return noneYet("cv-none-pane");
   return (
     <EmptyState
@@ -612,10 +691,29 @@ export const ConversationsPage = ({
       ),
     [CONVERSATIONS, CV_CHANNELS],
   );
+  // The tab's people, whole: who a pick is held against, whatever the box's words show of them.
+  const everyone = useMemo(
+    () => cvOnePerPerson(CONVERSATIONS.filter((c) => inChannel(c, channel))),
+    [CONVERSATIONS, channel],
+  );
+  const [toastNode, flash] = useToast();
+  const pick = useCvPick({ everyone, channel, unread: cvUnread, flash });
   return (
     <div className="conversations" data-takeover={phoneOpen || undefined}>
-      {listPane({ data, rows: visible, query, setQuery, channel, counts, selectedRow, openRow: openByHand, swap })}
-      {readingPane({ data, requestedMissing, selected, closeRow, query })}
+      {listPane({
+        data,
+        rows: visible,
+        query,
+        setQuery,
+        channel,
+        counts,
+        selectedRow,
+        openRow: openByHand,
+        swap,
+        pick,
+      })}
+      {readingPane({ data, requestedMissing, selected, closeRow, query, flash })}
+      {toastNode}
     </div>
   );
 };

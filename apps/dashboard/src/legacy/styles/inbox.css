@@ -40,7 +40,8 @@
 .ix-search-row {
   display: flex;
 }
-.ix-search-row .ix-checkall { flex: none; align-self: center; justify-content: center; width: 14px; }
+.ix-search-row .ix-checkall,
+.cv-list-head > .ix-checkall { flex: none; align-self: center; justify-content: center; width: 14px; }
 .ix-search-wrap {
   flex: 1;
   display: flex;
@@ -144,8 +145,8 @@
 }
 
 .ix-bulk { display: flex; align-items: center; justify-content: space-between; flex: 1; gap: 12px; }
-.ix-bulk-count { font-size: 11.5px; color: var(--ink); font-weight: 500; }
-.ix-bulk-actions { display: flex; gap: 4px; }
+.ix-bulk-count { font-size: 11.5px; color: var(--ink); font-weight: 500; white-space: nowrap; }
+.ix-bulk-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .ix-bulk-actions .btn-sm { font-size: var(--text-xs); padding: 3px 8px; height: 24px; }
 
 /* Threads list */
@@ -2659,7 +2660,10 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     outline: none;
     box-shadow: var(--focus-ring);
   }
-  .ix-list .ix-thread > .ix-thread-check {
+  /* Conversations' row is picked by the same box (pages/pick.tsx), which stands last in it: its face stays its
+     first part, and a row nothing can be done to wears none (.can-pick). */
+  .ix-list .ix-thread > .ix-thread-check,
+  .cv-list .cv-row > .ix-thread-check {
     position: absolute;
     left: 20px;
     top: 20px;
@@ -2668,22 +2672,30 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   }
   .ix-thread:hover > .ix-thread-check,
   .ix-thread:focus-visible > .ix-thread-check,
-  .ix-thread.selected > .ix-thread-check {
+  .ix-thread.selected > .ix-thread-check,
+  .cv-row:hover > .ix-thread-check,
+  .cv-row:focus-visible > .ix-thread-check,
+  .cv-row.selected > .ix-thread-check {
     opacity: 1;
   }
   .ix-thread.active:not(.selected, :hover, :focus-visible) > .ix-thread-check {
     opacity: 0;
   }
   .ix-thread:hover > :nth-child(2),
-  .ix-thread.selected > :nth-child(2) {
+  .ix-thread.selected > :nth-child(2),
+  .cv-row.can-pick:hover > :first-child,
+  .cv-row.selected > :first-child {
     color: transparent;
   }
   /* The face is the box while a pointer is on the row or it is picked: its badge stands down with its letters. */
   .ix-thread:hover > :nth-child(2) > .ix-thread-wire,
-  .ix-thread.selected > :nth-child(2) > .ix-thread-wire {
+  .ix-thread.selected > :nth-child(2) > .ix-thread-wire,
+  .cv-row.can-pick:hover > :first-child > .cv-row-wire,
+  .cv-row.selected > :first-child > .cv-row-wire {
     opacity: 0;
   }
-  .ix-list > :nth-child(2) > .ix-checkall {
+  .ix-list > :nth-child(2) > .ix-checkall,
+  .cv-list > :first-child > .ix-checkall {
     width: 0;
     margin: 0;
     overflow: hidden;
@@ -2691,7 +2703,9 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     transition: opacity 120ms;
   }
   .ix-list.picking > :nth-child(2) > .ix-checkall,
-  .ix-list > :nth-child(2) > .ix-checkall:focus-within {
+  .ix-list > :nth-child(2) > .ix-checkall:focus-within,
+  .cv-list.picking > :first-child > .ix-checkall,
+  .cv-list > :first-child > .ix-checkall:focus-within {
     width: auto;
     margin-right: 10px;
     opacity: 1;

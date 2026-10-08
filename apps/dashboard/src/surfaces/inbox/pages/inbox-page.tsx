@@ -373,6 +373,7 @@ const inboxPage = (
     bulkApproveSafe,
     bulkSnooze,
     bulkArchive,
+    bulkMark,
     bulkBusy,
     stake,
     vetoRemaining,
@@ -408,6 +409,7 @@ const inboxPage = (
         onBulkApprove={bulkApproveSafe}
         onBulkSnooze={bulkSnooze}
         onBulkArchive={bulkArchive}
+        bulkMark={bulkMark}
         bulkBusy={bulkBusy}
         stake={stake}
         density={density}
