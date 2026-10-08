@@ -211,38 +211,18 @@ function figuresRow(
   );
 }
 
-/** A quiet day's proof: the lines are up and listening, with the way to what to do next. */
-function quietProofBeat(quiet: NonNullable<TodayVM["quiet"]>, nav: Nav) {
-  const { launchpad } = quiet;
-  return (
-    <div className="brief-beat" data-testid="brief-quiet-proof">
-      <span className="mark brief-beat-glyph">
-        <Icon name="check" size={13} />
-      </span>
-      <span className="brief-beat-text">
-        {quiet.proof
-          .filter((pr) => pr.label !== "Checked")
-          .map((pr) => `${pr.label}: ${pr.value}`)
-          .join(" · ")}
-      </span>
-      {launchpad && (
-        <button className="brief-chip brief-door" onClick={() => nav(launchpad.to)}>
-          {launchpad.label}
-        </button>
-      )}
-    </div>
-  );
-}
-
 /**
- * The lines that are not numbers. thread.spec reads a failed reply here by this testid and .brief-beat. The card draws
- * them under its figures in Classic; in Glass the brief beside the queue draws them (brief-pane.tsx), once.
+ * The lines that are not numbers, under the brief's summary (brief-pane.tsx): only what a summary cannot carry as a
+ * sentence, which is a line with a door (a reply that failed, a review that landed, a run that went out) or a read
+ * that failed. thread.spec reads a failed reply here by this testid and .brief-beat. The quiet day's list of lines
+ * and their numbers and the receipts of what was replied stood here too: under a summary they were three more blocks
+ * of text in three sizes (Ruben, 7 Oct 2026), the summary says "all caught up" itself, and the follow-up is there for
+ * the rest.
  */
 export function recapBeats(vm: TodayVM, nav: Nav) {
-  const { recap, quiet } = vm;
+  const { recap } = vm;
   return (
     <div className="brief-beats tc-beats" data-testid="today-recap">
-      {quiet && (vm.standing.chips.length > 0 || quiet.launchpad) && quietProofBeat(quiet, nav)}
       <ReviewLine nav={nav} />
       {/* Everything the figures do not carry, crucially a reply that failed to deliver: the one line that must never be quiet. */}
       {(recap ? recap.sentences : [])
@@ -272,19 +252,6 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
           testid="brief-calls-failed"
         />
       )}
-      {(recap ? recap.receipts : []).map((r, i) => (
-        <div key={i} className="brief-beat" data-testid="brief-receipt">
-          <span className="mark brief-beat-glyph">
-            <Icon name="check" size={13} />
-          </span>
-          <span className="brief-beat-text">
-            {r.at}: {r.text}
-          </span>
-          <button className="brief-chip brief-door" onClick={() => nav(r.to)}>
-            Open <Icon name={doorGlyph()} size={10} />
-          </button>
-        </div>
-      ))}
     </div>
   );
 }

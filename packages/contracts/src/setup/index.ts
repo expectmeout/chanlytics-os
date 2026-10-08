@@ -118,3 +118,27 @@ export { firstRunLiveOf, youAreLiveEmail, FIRST_RUN_LIVE_WORDS } from "./first-r
 export type { FirstRunLiveVM, FirstRunLiveInput, YouAreLiveInput } from "./first-run-live";
 export { serviceSuggestionsOf, checkChipsOf, SERVICE_SUGGESTION_TYPES } from "./check-chips";
 export type { CheckChipVM, CheckChipSetVM, CheckChipsVM } from "./check-chips";
+export {
+  CALENDAR_SETTING_ROUTE,
+  bookingEmailsHeldWords,
+  bookingEmailsStep,
+  calendarSourceOf,
+  calendarSourceFacts,
+  forwardStillAsked,
+  BOOKS_WITH_CALENDAR,
+  BOOKS_BY_HAND,
+  BOOKING_TOOL_WORDS,
+  booksWithOptions,
+  booksWithOf,
+  booksWithName,
+  calendarLinkShown,
+  calendarLinkNote,
+  BOOKED_NEEDS_A_LINK,
+} from "./calendar-source";
+export type {
+  BookingEmailsFacts,
+  BookingEmailsStep,
+  CalendarSourceFacts,
+  CalendarSourceState,
+  CalendarSourceVM,
+} from "./calendar-source";

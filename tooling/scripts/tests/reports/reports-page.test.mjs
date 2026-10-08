@@ -314,7 +314,7 @@ test("the strip's figures: five counts, each named by its metric, the period bef
     "booked",
     "Booked",
     "—",
-    "no calendar to read",
+    "no calendar link",
   ]);
   assert.deepEqual(figures({ booking: { calendar: "unavailable", days: 7, asked: 4, booked: 0 } })[3], [
     "booked",
@@ -591,9 +591,10 @@ test("asked, then booked: the share as a meter beside the view model's words, th
     "of the people who wrote or called in the last 7 days have an appointment on the calendar.",
   );
   const none = card(page({ booking: { calendar: "none", days: 7, asked: 0, booked: 0 } }), "chart-booking");
-  assert.ok(textOf(none).includes("Connect your calendar under Settings › Business to see who booked."));
+  assert.ok(textOf(none).includes("Add a calendar link under Settings › Business to see who booked."));
   press(find(none, (n) => n.type === "button"));
-  assert.deepEqual(went, ["admin/workspace"]);
+  // The Business row that holds the link, opened (contracts CALENDAR_SETTING_ROUTE): it went to the top of the tab.
+  assert.deepEqual(went, ["admin/workspace/calendar"]);
   const unread = card(page({ booking: { calendar: "unavailable", days: 7, asked: 4, booked: 0 } }), "chart-booking");
   assert.ok(
     textOf(unread).includes("Couldn't read your calendar"),

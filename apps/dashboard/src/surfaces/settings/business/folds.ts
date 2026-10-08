@@ -28,12 +28,18 @@ import {
   BT_LIMITS,
   BT_PATHS_OF,
   BT_RULES,
+  btCalendarDraft,
+  btCalendarPart,
+  btCalendarProblems,
   btFoldNamed,
   btLines,
   btMinutes,
   btRefusalOf,
   btRuleNumber,
+  btPut,
   btRuleRefusal,
+  btWhole,
+  btWriteCalendar,
   type ClosureRow,
   type DayDraft,
   type DraftOf,
@@ -104,8 +110,7 @@ import { fallbackDefaults, instructionsDraft, receptionistDefaults, unknownDetai
  *   notes               note-<i>, notes (too many)
  *   extra_instructions  extra_instructions
  *   fallbacks           greeting, error, non_text: the draft's own keys
- *   calendar            ical_url
- *   bookings            tool
+ *   calendar            ical_url, with
  *   receptionist        name, number, link (the number's sentence is the create card's own check, which knows the line)
  * The old form's sentences are word for word, which the settings tests pin; where one was JSX only for its fragment or
  * its braces, it is a plain string here. The rest are new: the save's schema (contracts BusinessProfileSchema) refuses
@@ -182,9 +187,7 @@ const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config)
   // The three messages sent in the business's name when the receptionist cannot answer (S5): the workspace's own, or,
   // for one set up before them, the product's wording, which names the details rather than copying them in.
   fallbacks: (p, brain) => ({ ...(brain.fallbacks || fallbackDefaults()) }),
-  calendar: (p, brain, config) => (config.calendar && config.calendar.ical_url) || "",
-  // The booking tool the owner named (00345), "" for none yet.
-  bookings: (p, brain, config) => ({ tool: (config.bookings && config.bookings.tool) || "" }),
+  calendar: (p, brain, config) => btCalendarDraft(config),
   // The name, the number it gives out as the Who you are row holds it (the line it answers, `own`, unless a different
   // number is typed), and the booking link: the old form's create path.
   receptionist: (p, brain) => ({
@@ -208,10 +211,6 @@ function btDraftOf(fold: string, stored: Config | null | undefined): unknown {
 // A key, written from a draft: only what was filled in. An empty string is not a fact, and storing it would have the
 // composed prompt state an address of nothing, so an emptied field DELETES its key rather than storing "" (the old
 // form's `put`).
-const btPut = (o: Record<string, unknown>, key: string, value: unknown) => {
-  if (value === undefined) delete o[key];
-  else o[key] = value;
-};
 // The same, for a key of the profile. A profile is made only to hold a value, so a fold that empties a field of a
 // brain with no profile writes nothing at all.
 const btPutProfile = (next: Config, key: string, value: unknown) => {
@@ -222,18 +221,6 @@ const btPutProfile = (next: Config, key: string, value: unknown) => {
   if (!next.brain) next.brain = {};
   if (!next.brain.profile) next.brain.profile = {};
   next.brain.profile[key] = value;
-};
-// A draft the page built with a part missing is said, naming the part: written as it stood, a missing switch was stored
-// as off, the opposite of the schema's "absent means on", and a missing message as "", which the save refuses.
-const btWhole = (fold: string, draft: unknown, parts: string[], kind: "boolean" | "string") => {
-  const held = (draft || {}) as Record<string, unknown>;
-  parts.forEach((key) => {
-    if (typeof held[key] !== kind) {
-      throw new TypeError(
-        `The ${fold} fold's draft needs ${JSON.stringify(key)} as a ${kind}; it holds ${JSON.stringify(held[key])}.`,
-      );
-    }
-  });
 };
 const btProfileOf = (next: Config): Profile => (next.brain && next.brain.profile) || {};
 
@@ -409,26 +396,7 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
     });
     next.brain.fallbacks = messages;
   },
-  // A top-level section, read by the edge. The address is written onto what the section holds, and an emptied one
-  // removes it, and the section with it once nothing else is in it.
-  calendar: (next, draft) => {
-    const feed = trimmed(draft);
-    const section = { ...(next.calendar || {}) };
-    btPut(section, "ical_url", feed || undefined);
-    if (Object.keys(section).length) next.calendar = section;
-    else delete next.calendar;
-  },
-  // A top-level section of its own (00345), never a key of the calendar's: a calendar section with a tool and no
-  // address is one a build from before this could not read, and its whole config with it. The tool is written onto
-  // what the section holds, and none removes it, and the section with it once nothing else is in it.
-  bookings: (next, draft) => {
-    btWhole("bookings", draft, ["tool"], "string");
-    const tool = trimmed((draft as Record<string, string>).tool);
-    const section = { ...(next.bookings || {}) };
-    btPut(section, "tool", tool || undefined);
-    if (Object.keys(section).length) next.bookings = section;
-    else delete next.bookings;
-  },
+  calendar: btWriteCalendar,
   receptionist: btWriteReceptionist,
 };
 
@@ -599,14 +567,7 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
     return n > BT_LIMITS.instructions ? { extra_instructions: btRefusalOf("instructions", n) } : {};
   },
   fallbacks: btFallbacksProblems,
-  calendar: (draft): Problems => {
-    const feed = trimmed(draft);
-    return feed && !/^(https?|webcal):\/\/\S+$/i.test(feed)
-      ? { ical_url: "The calendar feed needs to be a full address, starting with https:// or webcal://" }
-      : {};
-  },
-  // A tool is picked from the list, never typed: nothing to refuse.
-  bookings: (): Problems => ({}),
+  calendar: btCalendarProblems,
   // The name and the booking link by the Who you are rows' own checks (save.tsx CHECK_OF), the old create
   // path's sentences. The number's check needs the line the workspace answers on, which no draft holds: the create
   // card asks the row's check with it (BtFold's `check`).
@@ -673,8 +634,7 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
   if (fold === "services" || fold === "closures" || fold === "notes") return btListField(fold, path, draft);
   if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);
   if (fold === "fallbacks") return String(path[2]);
-  if (fold === "calendar") return "ical_url";
-  if (fold === "bookings") return "tool";
+  if (fold === "calendar") return path[0] === "bookings" ? "with" : "ical_url";
   // The three boxes the create card draws; the product's own prompt and messages have none, and a refusal of them is
   // said once, as a refusal elsewhere is.
   if (fold === "receptionist") {
@@ -696,7 +656,7 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
 const btSchemaProblems = (fold: string, base: Config | null | undefined, draft: unknown): Problems => {
   btFoldNamed(fold);
   const next = btSaveFold(fold, base, draft);
-  const issues = BUSINESS_TAB.saveIssues(fold === "calendar" ? { calendar: next.calendar } : { brain: next.brain });
+  const issues = BUSINESS_TAB.saveIssues(fold === "calendar" ? btCalendarPart(next) : { brain: next.brain });
   const found: Problems = {};
   issues.forEach((issue) => {
     const key = btFieldOf(fold, issue.path, draft);

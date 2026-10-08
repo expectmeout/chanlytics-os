@@ -33,23 +33,35 @@ export const BOOKING_TOOL_IDS = [
 ] as const;
 export type BookingTool = (typeof BOOKING_TOOL_IDS)[number];
 /**
+ * The calendar a tool gives an owner to read, beside its emails: a link of its `own`; the owner's own calendar, which it
+ * `writes` appointments into (Google, Outlook, iCloud), whose address is then the one to paste; or `none`. Verified
+ * against each tool's help centre, 6 October 2026 (docs/2026-10-06-chanlytics-calendar-wiring.md, section 5); a tool
+ * not verified says null, and the page then asks without claiming either.
+ */
+export type BookingToolCalendar = "own" | "writes" | "none";
+/**
  * The tools whose notices the intake recognises by their sender, in the words the product says them: one row per id
  * above, in its order (the compiler holds each row to an id; booking-notice.test.mjs holds the list to every id).
  */
 const BOOKING_TOOLS = [
-  { tool: "booksy", name: "Booksy", domains: ["booksy.com"] },
-  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"] },
-  { tool: "fresha", name: "Fresha", domains: ["fresha.com"] },
-  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"] },
-  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"] },
-  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"] },
-  { tool: "calendly", name: "Calendly", domains: ["calendly.com"] },
-  { tool: "setmore", name: "Setmore", domains: ["setmore.com"] },
-  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"] },
-  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"] },
-  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"] },
-  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"] },
-] as const satisfies ReadonlyArray<{ tool: BookingTool; name: string; domains: readonly string[] }>;
+  { tool: "booksy", name: "Booksy", domains: ["booksy.com"], calendar: "none" },
+  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"], calendar: "own" },
+  { tool: "fresha", name: "Fresha", domains: ["fresha.com"], calendar: "own" },
+  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"], calendar: "writes" },
+  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"], calendar: "writes" },
+  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"], calendar: "own" },
+  { tool: "calendly", name: "Calendly", domains: ["calendly.com"], calendar: "writes" },
+  { tool: "setmore", name: "Setmore", domains: ["setmore.com"], calendar: null },
+  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"], calendar: null },
+  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"], calendar: null },
+  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"], calendar: null },
+  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"], calendar: null },
+] as const satisfies ReadonlyArray<{
+  tool: BookingTool;
+  name: string;
+  domains: readonly string[];
+  calendar: BookingToolCalendar | null;
+}>;
 /** Whether a stored or typed value names a tool of the list: the card's picker and the steps read it through this. */
 export const isBookingTool = (v: unknown): v is BookingTool => BOOKING_TOOLS.some((t) => t.tool === v);
 
@@ -57,6 +69,11 @@ export const isBookingTool = (v: unknown): v is BookingTool => BOOKING_TOOLS.som
 export function bookingToolName(tool: string | null | undefined): string | null {
   if (!tool) return null;
   return BOOKING_TOOLS.find((t) => t.tool === tool)?.name ?? tool;
+}
+
+/** The calendar a tool gives an owner to read (BookingToolCalendar); null for one not verified, or not a tool of the list. */
+export function bookingToolCalendar(tool: string | null | undefined): BookingToolCalendar | null {
+  return BOOKING_TOOLS.find((t) => t.tool === tool)?.calendar ?? null;
 }
 
 /** The tool whose domain the address is on (or a subdomain of), or null. */

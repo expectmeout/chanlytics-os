@@ -37,6 +37,7 @@ import {
   offeringHorizon,
   BOOKING_DEFAULTS,
   isNoticeHold,
+  suggestLocalPart,
   type AppointmentLike,
   type BusyBlock,
   type CalendarFeedDto,
@@ -192,7 +193,7 @@ async function recordOverSpan(
   tz: string,
   from: string,
   to: string,
-  tool: string | null,
+  by: { tool: string | null; name: string | null },
 ): Promise<{ rows: AppointmentLike[]; notices: Omit<CalendarNoticesDto, "count"> }> {
   const spanFrom = new Date(zoneMidnight(tz, from)).toISOString();
   const spanTo = new Date(zoneMidnight(tz, shiftKey(to, 1))).toISOString();
@@ -205,18 +206,36 @@ async function recordOverSpan(
     failed(e);
     return [];
   });
+  return { rows, notices: await noticesHealth(ctx, tenantId, by, true) };
+}
+
+/**
+ * The notices' health line alone: the tool, the address its emails go to, the latest that became a visit, how many are
+ * held, and Gmail's pending confirmation. With `listed`, the held ones as the card lists them; without, their count
+ * only, which is all Setup's and Connections' row says (the whole of what a feed-only read asks of the record).
+ */
+async function noticesHealth(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  by: { tool: string | null; name: string | null },
+  listed: boolean,
+): Promise<Omit<CalendarNoticesDto, "count">> {
+  const { tool } = by;
   const latest = await appointmentNoticesOf(ctx.supabase, tenantId).catch(() => ({
     tool: null,
     last_at: null,
     held: 0,
   }));
-  const held = latest.held ? await heldNoticesOf(ctx.supabase, tenantId).catch(() => []) : [];
+  const held = listed && latest.held ? await heldNoticesOf(ctx.supabase, tenantId).catch(() => []) : [];
   // The workspace's address, as the tool is to send to, and Gmail's pending confirmation of a forward here (00345).
   const mailbox = await mailboxOfTenant(ctx.supabase, tenantId).catch(() => null);
   const domain = emailDomain();
+  const local = suggestLocalPart(by.name);
   const notices: Omit<CalendarNoticesDto, "count"> = {
     tool: tool ?? latest.tool,
     address: mailbox && domain ? hostedAddress(mailbox.local_part, domain) : null,
+    // Where it has none: the one its name would give, which the fold offers in one press (mailbox.ts suggestLocalPart).
+    suggested: !mailbox && domain && local ? hostedAddress(local, domain) : null,
     last_at: latest.last_at,
     held: latest.held,
     held_list: held.flatMap((n) =>
@@ -243,7 +262,7 @@ async function recordOverSpan(
           }
         : null,
   };
-  return { rows, notices };
+  return notices;
 }
 
 /** The week before anything is read: the settings' own facts, and a feed that says why it is not read yet. */
@@ -274,6 +293,7 @@ function weekBeforeReading(
       problem: lostCalendar ? feedProblemWords("settings") : null,
       stale: false,
       dropped: 0,
+      by_hand: !!cfg?.bookings?.by_hand,
     },
     hours: profile?.hours ?? null,
     closures: profile?.closures ?? [],
@@ -326,10 +346,15 @@ export async function calendarSources(
   const to = shiftKey(span.from, span.days - 1);
 
   const base = weekBeforeReading(timezone, span, to, cfg, url, lostCalendar);
-  // A caller that asks only whether the feed reads (`feedOnly`: Setup's row) is read nothing of the record.
-  const { rows, notices } = opts.feedOnly
-    ? NO_RECORD
-    : await recordOverSpan(ctx, tenantId, timezone, span.from, to, cfg?.bookings?.tool ?? null);
+  // A caller that asks only where the calendar stands (`feedOnly`: Setup's row) is read no visit of the record, and
+  // the notices' health only where the owner named a tool: without one no email was ever read as a booking, so there
+  // is nothing to ask, and a workspace that never set this up costs Setup no query.
+  const named = { tool: cfg?.bookings?.tool ?? null, name: cfg?.brain?.business_name ?? null };
+  const { rows, notices } = !opts.feedOnly
+    ? await recordOverSpan(ctx, tenantId, timezone, span.from, to, named)
+    : named.tool
+      ? { rows: NO_RECORD.rows, notices: await noticesHealth(ctx, tenantId, named, false) }
+      : NO_RECORD;
   base.feed.notices = { ...notices, count: rows.length };
 
   // What the board needs of the address and the settings, and not them: the calendar's name, the business's own.

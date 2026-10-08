@@ -173,7 +173,9 @@ test("REGRESSION (S19): nothing names the Business tab 'Workspace' -- Setup's ro
   assert.equal(row(vms[0], "facts").verb.label, "Start in Business");
   assert.equal(row(vms[1], "facts").verb.label, "Finish in Business");
   assert.equal(row(vms[2], "facts").verb.label, "Edit in Business");
-  assert.match(row(vms[4], "calendar").sentence, /Check the address in Settings › Business\.$/);
+  // The calendar's row names no tab now: its press opens the Business row itself, which the bell says the same way.
+  assert.equal(row(vms[4], "calendar").verb.to, "admin/workspace/calendar");
+  assert.equal(verbForRoute("admin/workspace/calendar"), "Open Business");
   assert.equal(verbForRoute("admin/workspace"), "Open Business", "and the bell's verb for that page");
 });
 

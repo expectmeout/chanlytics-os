@@ -198,7 +198,7 @@ function DemoBusiness() {
   );
 }
 
-export function PaneWorkspace({ flash }: { flash: Flash }) {
+export function PaneWorkspace({ flash, row = null }: { flash: Flash; row?: string | null }) {
   // Drawn again whenever the settings surface is read again: after a save, a conflict's re-read, a Retry. Only Autonomy
   // and Notifications listened, so this card kept the values from before a save until something else happened to
   // repaint it (D7).
@@ -245,7 +245,7 @@ export function PaneWorkspace({ flash }: { flash: Flash }) {
   if (real) {
     return (
       <>
-        <BusinessTab flash={flash} />
+        <BusinessTab flash={flash} open={row} />
         <WorkspaceData />
       </>
     );
