@@ -3,7 +3,7 @@
  * receptionist would offer, the board (hours down, days across), the month's counts and the agenda's rows. Each draws what
  * it is handed, and reads nothing itself: the days are the page's frames (types.ts), and the words are the view model's.
  */
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { CalendarBlockVM, CalendarServiceVM, CalendarVM, CalendarWindowVM } from "@chanlytics/contracts";
 import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
@@ -11,10 +11,17 @@ import { EmptyState } from "../kit/empty/empty";
 import { calendar } from "./verbs";
 import { crPhone } from "./board-dom";
 import type { CalendarFrame } from "./types";
-import { CR_HOUR_PX } from "./words";
+import { fitHourPx } from "./words";
 
 type Hours = CalendarVM["hours"];
 type Fit = (w: CalendarWindowVM) => boolean;
+
+/**
+ * A length down the board, in hours, as the stylesheet's hour draws it (calendar.css `--cal-hour`: a desk's 64px, or
+ * what fits a phone's room, which CrBoard sets). Every block, window, band, tick and the now line is placed in these, so
+ * the one value moves them all.
+ */
+const ofHours = (hours: number): string => `calc(${hours} * var(--cal-hour))`;
 
 /**
  * Where a block stands against the clock, on today's column and list only: past, now, next (the first still to come), else
@@ -47,8 +54,8 @@ function CrBlock({
   dayLong: string;
   phase: string;
 }) {
-  const y = (Math.max(hours.start, b.t) - hours.start) * CR_HOUR_PX;
-  const h = Math.max(22, (Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t)) * CR_HOUR_PX - 2);
+  const from = Math.max(hours.start, b.t) - hours.start;
+  const span = Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t);
   // Overlapping blocks take lanes side by side; a block alone keeps the column.
   const laned: CSSProperties =
     b.lanes > 1
@@ -61,7 +68,7 @@ function CrBlock({
   return (
     <button
       className="cal-appt feed"
-      style={{ top: y, height: h, ...laned }}
+      style={{ top: ofHours(from), height: `max(22px, ${ofHours(span)} - 2px)`, ...laned }}
       onClick={() => onOpen(b)}
       title={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}`}
       aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}`}
@@ -85,12 +92,12 @@ function CrBlock({
 
 /** A window the receptionist would offer: dashed, quiet, under the blocks. */
 function CrWindow({ w, hours }: { w: CalendarWindowVM; hours: Hours }) {
-  const y = (Math.max(hours.start, w.t) - hours.start) * CR_HOUR_PX;
-  const h = Math.max(18, (Math.min(hours.end, w.t + w.dur / 60) - Math.max(hours.start, w.t)) * CR_HOUR_PX - 2);
+  const from = Math.max(hours.start, w.t) - hours.start;
+  const span = Math.min(hours.end, w.t + w.dur / 60) - Math.max(hours.start, w.t);
   return (
     <div
       className="cal-open"
-      style={{ top: y, height: h }}
+      style={{ top: ofHours(from), height: `max(18px, ${ofHours(span)} - 2px)` }}
       title={`Open · ${w.label} — the receptionist would offer this`}
       data-testid="cal-window"
     >
@@ -156,22 +163,20 @@ function dayColumn(p: {
   now: number | null;
   wide: boolean;
   fit: Fit;
-  gridH: number;
   onOpen: (b: CalendarBlockVM) => void;
 }) {
-  const { d, hours, now, wide, fit, gridH, onOpen } = p;
+  const { d, hours, now, wide, fit, onOpen } = p;
   return (
     <div
       key={d.key}
       className={`cal-col ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`}
-      style={{ height: gridH }}
       data-testid="cal-col"
     >
       {d.bands.map((b, i) => (
         <div
           key={i}
           className={`cal-unavail ${b.from <= hours.start && b.to >= hours.end ? "full" : ""}`}
-          style={{ top: (b.from - hours.start) * CR_HOUR_PX, height: (b.to - b.from) * CR_HOUR_PX }}
+          style={{ top: ofHours(b.from - hours.start), height: ofHours(b.to - b.from) }}
         >
           {b.label && <span>{b.label}</span>}
         </div>
@@ -191,7 +196,7 @@ function dayColumn(p: {
         />
       ))}
       {d.today && now !== null && now >= hours.start && now <= hours.end && (
-        <div className="cal-nowline" style={{ top: (now - hours.start) * CR_HOUR_PX }}>
+        <div className="cal-nowline" style={{ top: ofHours(now - hours.start) }}>
           <span className="cal-nowdot" />
         </div>
       )}
@@ -217,35 +222,48 @@ export function CrBoard({
   onDay: (key: string) => void;
   onOpen: (b: CalendarBlockVM) => void;
 }) {
-  const gridH = (hours.end - hours.start) * CR_HOUR_PX;
+  const span = hours.end - hours.start;
   const ticks: number[] = [];
   for (let h = hours.start; h < hours.end; h++) ticks.push(h);
   const scroller = useRef<HTMLDivElement>(null);
-  const firstKey = frames.at(0)?.key;
-  const todayKey = frames.find((d) => d.today)?.key;
-  // A week is wider than a phone: it opens with today's column beside the hours, and any other week at its first day.
-  useEffect(() => {
+  // On a phone the board takes the room the page leaves and the day's hours share it: the hour's height is what fits them
+  // there (words.ts fitHourPx, floored where a half-hour block would lose its line), set on the grid before the first
+  // paint and again as the room changes (a notice arriving over the board, the rules sheet opening, the phone turning). A
+  // desk keeps the stylesheet's 64px and scrolls the days. Measured on the scroller, less what the day heads take.
+  useLayoutEffect(() => {
     const el = scroller.current;
-    if (!el || wide || !crPhone()) return;
-    const head = el.querySelector<HTMLElement>(".cal-dayhead.today");
-    const hoursWidth = el.querySelector<HTMLElement>(".cal-gutter")?.offsetWidth ?? 0;
-    el.scrollLeft = head
-      ? Math.max(0, head.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft - hoursWidth)
-      : 0;
-  }, [firstKey, todayKey, wide]);
+    const grid = el?.firstElementChild as HTMLElement | null | undefined;
+    if (!el || !grid) return undefined;
+    const fit = () => {
+      if (!crPhone()) {
+        grid.style.removeProperty("--cal-hour");
+        return;
+      }
+      const box = getComputedStyle(el);
+      const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
+      const room = el.clientHeight - heads - parseFloat(box.paddingTop) - parseFloat(box.paddingBottom);
+      grid.style.setProperty("--cal-hour", `${fitHourPx(room, span)}px`);
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const watch = new ResizeObserver(fit);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [span]);
   return (
     <div className="cal-scroll" ref={scroller}>
-      <div className={`cal-grid ${wide ? "cal-grid-day" : ""}`}>
+      {/* How many hours tall the board is, for the stylesheet: the gutter and every column are that many of --cal-hour. */}
+      <div className={`cal-grid ${wide ? "cal-grid-day" : ""}`} style={{ "--cal-hours": span } as CSSProperties}>
         <div className="cal-corner" />
         {frames.map((d) => dayHead({ d, wide, onDay, onOpen }))}
-        <div className="cal-gutter" style={{ height: gridH }}>
+        <div className="cal-gutter">
           {ticks.map((h) => (
-            <span key={h} className="cal-hour tabular" style={{ top: (h - hours.start) * CR_HOUR_PX }}>
+            <span key={h} className="cal-hour tabular" style={{ top: ofHours(h - hours.start) }}>
               {calendar.clockLabel(h)}
             </span>
           ))}
         </div>
-        {frames.map((d) => dayColumn({ d, hours, now, wide, fit, gridH, onOpen }))}
+        {frames.map((d) => dayColumn({ d, hours, now, wide, fit, onOpen }))}
       </div>
     </div>
   );
