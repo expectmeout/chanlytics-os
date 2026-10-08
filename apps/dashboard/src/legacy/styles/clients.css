@@ -2185,6 +2185,9 @@
    accepting mail; it was a strip of glyphs, where WhatsApp and a text shared one, and then the number. */
 .cl-row-reach { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; }
 .cl-row-reach-id, .cl-row-reach-may { font-size: var(--text-xs); color: var(--ink-dim); }
+/* A long address ends in an ellipsis so the column stays narrow, and its whole is the cell's tip (columns.tsx
+   plReachCell). A number is never cut: it wears .tabular, and the tip does not say it again. */
+.cl-row-reach-id:not(.tabular) { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
 /* The next step (0007): its words over its day ("Due today", "Overdue since Mon"), two lines as the cells beside it
    are, the words cut with an ellipsis so the column stays narrow (their whole is the cell's tip), and the day in the
    warn ink once it has come: said in words too, so never by the colour alone. Named for the step, never "next":

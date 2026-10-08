@@ -285,8 +285,10 @@ const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
  */
 const plReachCell = (p: PersonRowVM) => {
   const words = rowReachWords(p, !plIsNumber(p.name) && !plIsAddress(p));
+  // A long address is cut with an ellipsis so the column stays narrow (a number never is): its whole rides in the tip.
+  const tip = [words.tip, words.id !== null && words.id === p.email ? words.id : null].filter(Boolean).join(" · ");
   return (
-    <td key="reach" className="shrink cl-reach-cell" title={words.tip || undefined} data-testid="row-reach">
+    <td key="reach" className="shrink cl-reach-cell" title={tip || undefined} data-testid="row-reach">
       {words.wire || words.id ? (
         <span className="cl-row-reach">
           {words.wire && <span className="cl-row-reach-wire">{words.wire}</span>}

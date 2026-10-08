@@ -2878,6 +2878,27 @@ test("the next step is a column after State: its words and its day, the day mark
   );
 });
 
+test("Reach says the address where a reply goes by email, and its whole is in the tip, since the stylesheet may cut a long one", async () => {
+  const address = "maria.fernandez@studio-example.com";
+  await freshPage({
+    people: [
+      // A number and an address on file, and the last thing they wrote was an email: the reply goes there.
+      person(1, { email: address, message_channels: ["whatsapp", "email"], last_inbound_channel: "email" }),
+      person(2),
+    ],
+  });
+  const tree = draw();
+  const reach = byTestId(rowOf(tree, "p1"), "row-reach");
+  assert.match(textOf(reach), /Email/, "the wire they last wrote on");
+  assert.ok(textOf(reach).includes(address), "over the address, not the number");
+  assert.ok(String(reach.props.title).endsWith(address), "and the address whole in the tip");
+  assert.doesNotMatch(
+    String(byTestId(rowOf(tree, "p2"), "row-reach").props.title),
+    /786/,
+    "a number is never cut, so the tip does not say it again",
+  );
+});
+
 test("the Columns menu is the kit's switches: it shows and hides columns, and Person always shows", async () => {
   await freshPage({
     people: [person(1, { came_from: "whatsapp" }), person(2)],
