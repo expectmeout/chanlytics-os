@@ -167,11 +167,18 @@ const WRITTEN_WIRES = ["whatsapp", "sms", "email"] as const;
  * the number. WhatsApp's window is the tip's to say and never a line: shut is the ordinary state of a WhatsApp thread
  * (a day after they last wrote), so a line for it stood on nearly every row.
  *
- * The wire is the one they last wrote on (`lastChannel`, 00320), which is where a reply to them goes; a row read
- * before that was kept says the first wire they have written on, and someone who only ever called, the phone. It is
- * not the row's own `replyVia`, which reads WhatsApp for anyone who has written and is not email-only (the strictest
- * window, so a button never offers free text it cannot send): said as a word, that called a person who only ever
- * texted "WhatsApp" and held them to a window a text does not have.
+ * The wire is the one they last wrote on (`lastChannel`, 00320), which is where a reply to them goes and what the
+ * row's own `replyVia` says too (person-row.ts replyChannelOfRow, since 8 Oct 2026; it read WhatsApp for anyone who had
+ * written and was not email-only, which called a person who only ever texted "WhatsApp"). Where the row does not say
+ * where they last wrote, the word is the first wire words have travelled between them, in the order a row names its
+ * wires (WhatsApp, a text, email), and for someone who only ever called, the phone.
+ *
+ * What a reply may be is the row's own answer, `replyVia` with its window: the sentence the booking-link button on the
+ * same row and the Replies row on their page are written from, so the three cannot disagree. For someone who has
+ * written nothing themselves that is WhatsApp's rule, whatever wire our words went by: a row does not hold which wire
+ * our own words last went by, which is where the reply route answers such a thread (the dashboard's replyChannelOf),
+ * so it says the strictest, as replyChannelOfRow does, and their page says it exactly; the tip said "Any time, by
+ * text" of them while the button beside it said only an approved message could go.
  */
 export interface RowReachWords {
   /** "WhatsApp", "Text" or "Email" (REPLY_VIA); "Phone" for someone who only ever called; null with no wire at all. */
@@ -193,7 +200,8 @@ export function rowReachWords(
     channels: readonly string[];
     /** The channel of the last message they wrote themselves, where the row knows it. */
     lastChannel: "whatsapp" | "sms" | "email" | null;
-    /** WhatsApp's window as the row has it: read only where the wire is WhatsApp, since no other wire has one. */
+    /** The wire a reply to them goes out on and its window, as the row answers both (rowReplyOf). */
+    replyVia: "WhatsApp" | "Text" | "Email" | null;
     replyWindow: { open: boolean; hoursLeft: number } | null;
     emailSuppressed: boolean;
     stopped: boolean;
@@ -205,11 +213,10 @@ export function rowReachWords(
   const via = wrote ? REPLY_VIA[wrote] : null;
   const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
   const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
-  const window = via === "WhatsApp" ? p.replyWindow : null;
-  const may = !p.stopped && via === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
+  const may = !p.stopped && p.replyVia === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
   const replies = p.stopped
     ? null
-    : repliesWords(via, window, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
+    : repliesWords(p.replyVia, p.replyWindow, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
   return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" · ") };
 }
 

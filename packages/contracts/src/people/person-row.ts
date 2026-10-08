@@ -83,15 +83,22 @@ function channelsOf(r: PersonRowDto): PersonChannel[] {
 /**
  * The wire a reply to this row's person goes out on, as far as a ROW can say.
  *
- * A row knows which wires they have written on and not which one was last, so
- * this is exact for the one case that matters most -- a person reached only by
- * email, whose reply can never be held by WhatsApp's window -- and otherwise
- * reads WhatsApp's window, the strictest there is: a row that cannot tell may
- * say a reply is held when it is not, and never the reverse. The profile, which
- * has every message, answers it exactly (replyChannelOfThreads).
+ * Where they last wrote is the wire (`last_inbound_channel`, 00320: people_list's twin of lastWroteOn), by the reply
+ * route's own rule (the dashboard's replyChannelOf) and their page's (replyChannelOfThreads). The row did not read it:
+ * anyone who had written and was not email-only read WhatsApp, so a person who had only ever texted was held to a
+ * window a text does not have, and their row's booking-link button said only an approved message could reach them
+ * (found on production, 8 Oct 2026).
+ *
+ * A row that does not say where they last wrote (they have written nothing themselves, or it was read before the
+ * column was kept) knows only which wires words have travelled. That is exact for a person reached only by email,
+ * whose reply can never be held by WhatsApp's window, and otherwise it reads WhatsApp's window, the strictest there
+ * is: a row that cannot tell may say a reply is held when it is not, and never the reverse. The profile, which has
+ * every message, answers it exactly (replyChannelOfThreads).
  */
 function replyChannelOfRow(r: PersonRowDto): "whatsapp" | "sms" | "email" | null {
   if (!r.has_chat) return null;
+  const last = lastChannelOf(r.last_inbound_channel);
+  if (last) return last;
   const wrote = r.message_channels;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";

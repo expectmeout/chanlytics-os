@@ -2534,6 +2534,11 @@ var REPLY_VIA = {
   sms: "Text",
   email: "Email"
 };
+var REPLY_WIRE = {
+  WhatsApp: "whatsapp",
+  Text: "sms",
+  Email: "email"
+};
 var PERSON_CHANNEL_WORDS = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -19938,9 +19943,8 @@ function rowReachWords(p, named) {
   const via = wrote ? REPLY_VIA[wrote] : null;
   const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
   const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
-  const window = via === "WhatsApp" ? p.replyWindow : null;
-  const may = !p.stopped && via === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
-  const replies = p.stopped ? null : repliesWords(via, window, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
+  const may = !p.stopped && p.replyVia === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
+  const replies = p.stopped ? null : repliesWords(p.replyVia, p.replyWindow, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
   return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" \xB7 ") };
 }
 function mayReach(p) {
@@ -23469,6 +23473,8 @@ function channelsOf2(r2) {
 }
 function replyChannelOfRow(r2) {
   if (!r2.has_chat) return null;
+  const last = lastChannelOf(r2.last_inbound_channel);
+  if (last) return last;
   const wrote = r2.message_channels;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";
@@ -24427,7 +24433,8 @@ function firstChannelOf(d, base) {
   return base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : firstWritten ? REPLY_VIA[writtenChannelOf(firstWritten.channel)] : "WhatsApp";
 }
 function replyOf(d, row2, base, now, nowMs) {
-  const via = replyChannelOfThreads(d.conversations) ?? ourWireOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
+  const rowVia = base.replyVia ? REPLY_WIRE[base.replyVia] : null;
+  const via = replyChannelOfThreads(d.conversations) ?? (base.lastChannel ? rowVia : null) ?? ourWireOfThreads(d.conversations) ?? rowVia;
   const exactWindow = via ? replyWindow(via, row2.latest_wa_inbound_at, now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0;
