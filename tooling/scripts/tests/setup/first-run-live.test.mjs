@@ -105,7 +105,6 @@ test("Live (canvas R9): the four lines, the greeting word for word, and Finish's
             carrier: "verizon",
             mode: "always",
             destination_e164: null,
-            test_from: null,
             test_until: null,
             verified_at: null,
           },

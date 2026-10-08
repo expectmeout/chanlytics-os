@@ -1032,7 +1032,6 @@ const forwardedRow = (carrier) => ({
     carrier,
     mode: "unanswered",
     destination_e164: VOICE_LINE,
-    test_from: null,
     test_until: null,
     verified_at: null,
   },
@@ -1116,11 +1115,7 @@ test("your phone: the line answers, and Show me what to dial saves the forwardin
   const go = byTestId(tree, "fr-phone-go");
   assert.equal(textOf(go), "Show me what to dial");
   await go.props.onClick();
-  assert.deepEqual(
-    saved,
-    [{ number: "+13055550100", carrier: "other", mode: "unanswered", test_from: "" }],
-    "a landline's codes",
-  );
+  assert.deepEqual(saved, [{ number: "+13055550100", carrier: "other", mode: "unanswered" }], "a landline's codes");
 });
 
 test("your phone (canvas R5, P5): the code from the forwarding saved, its help, changing the answers, and on to Try it", async () => {
@@ -1204,7 +1199,7 @@ test("your phone: asked again with the answers lost, the questions are about the
   choose(tree, "company", "Verizon");
   tree = mount();
   await byTestId(tree, "fr-phone-go").props.onClick();
-  assert.deepEqual(saved, [{ number: "+13055550177", carrier: "verizon", mode: "unanswered", test_from: "" }]);
+  assert.deepEqual(saved, [{ number: "+13055550177", carrier: "verizon", mode: "unanswered" }]);
   globalThis.window.__tabMemory.keepDraft("first-run-phone", {
     way: "keep",
     number: null,

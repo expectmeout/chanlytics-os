@@ -141,7 +141,6 @@ export interface ForwardingFacts {
   carrier?: string | null;
   mode?: string | null;
   destination_e164?: string | null;
-  test_from?: string | null;
   test_started_at?: string | null;
   test_until?: string | null;
   verified_at?: string | null;
@@ -154,9 +153,15 @@ export const isForwardingMode = (v: unknown): v is ForwardingMode =>
 
 /**
  * The verification rule: an inbound call that started inside the test
- * window, on the receptionist's line, from the phone the owner said they
- * would call from when they said one. A minute of clock slack at the start:
+ * window, on the receptionist's line. A minute of clock slack at the start:
  * the owner's phone and ours do not agree to the second.
+ *
+ * It names no phone the call must come from. The form asked one, optionally,
+ * until 8 Oct 2026, and the rule held a call to it: nobody on production ever
+ * named one, and one named could refuse a test that worked (a carrier or an
+ * office system that shows the kept number as the caller of what it
+ * forwards). A `test_from` an older save left in a line's facts is not read.
+ * What says more than the window is the carrier's own headers (forwardingProof).
  */
 export function forwardingMatch(
   facts: ForwardingFacts,
@@ -170,8 +175,6 @@ export function forwardingMatch(
   if (started < from - MIN_MS || started > until) return false;
   const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
   if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
-  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
-  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
   return true;
 }
 

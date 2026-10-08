@@ -111,7 +111,7 @@ async function forward(k: PhoneActs): Promise<void> {
     return;
   }
   k.setBusy(true);
-  const r = await setupVerbs.forwarding.set({ number: ph.forwardFrom, carrier, mode: "unanswered", test_from: "" });
+  const r = await setupVerbs.forwarding.set({ number: ph.forwardFrom, carrier, mode: "unanswered" });
   if (!r.ok) {
     k.setBusy(false);
     k.flash(refusalToast(r, W.notForwarded));

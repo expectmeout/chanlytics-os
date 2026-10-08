@@ -319,7 +319,6 @@ const forwardedLine = (carrier, state = "instructed") =>
       carrier,
       mode: "unanswered",
       destination_e164: VOICE,
-      test_from: null,
       test_until: null,
       verified_at: state === "verified" ? "2026-09-24T14:00:00Z" : null,
     },

@@ -655,7 +655,7 @@ test("(C3) a test of \"keep my number\" is proven as the call arrives: the carri
       carrier: "tmobile",
       mode: "unanswered",
       destination_e164: LINE,
-      test_from: w.CALLER,
+      test_from: null,
       test_started_at: ago(5 * 60_000),
       test_until: new Date(Date.now() + 25 * 60_000).toISOString(),
     },

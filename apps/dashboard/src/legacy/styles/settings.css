@@ -466,11 +466,19 @@
   /* A row that wants something says it across the row: its button stands beside its name, in the state's place, and its
      sentence and notes run under both (7 Oct: beside the button they were a column two words wide, and the WhatsApp row
      stood 700px tall with its button halfway down it). */
-  .set-conn > .set-int-row[data-offers="primary"] { row-gap: 3px; }
+  /* Such a row lays its own columns here, so its name has what its own button leaves. Sharing the group's, every name
+     had what the group's longest button left: 108px for a name and its press beside "Connect your calendar", and
+     "Phone line" stood on two lines beside "Get a line", "Google Business Profile" on three (seen on production,
+     8 Oct 2026). The buttons still end on one edge, the card's. */
+  .set-conn > .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; row-gap: 3px; }
   .set-conn > .set-int-row[data-offers="primary"] > .set-team-body { display: contents; }
   .set-conn > .set-int-row[data-offers="primary"] > :first-child { grid-row: 1; align-self: center; }
   .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; grid-row: 1; }
-  .set-conn > .set-int-row[data-offers="primary"] .set-team-name { grid-column: 2; grid-row: 1; white-space: normal; }
+  .set-conn > .set-int-row[data-offers="primary"] .set-int-head { grid-column: 2; grid-row: 1; }
+  .set-conn > .set-int-row[data-offers="primary"] .set-team-name { white-space: normal; }
+  /* The press beside a name is a finger's 44px here around a 13px glyph (mobile.css): its box reaches 8px over the
+     name's end and 8px toward the row's button, so the name is not charged for the room a thumb needs. */
+  .set-int-head > :nth-child(2) { margin-inline: -8px; }
   .set-conn > .set-int-row[data-offers="primary"] :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
   .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); }
   .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
@@ -518,6 +526,9 @@
    says more about it; what that press opens is the row's own notes (.set-int-notes), in place under the name. */
 .set-int-head { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .set-int-head > :first-child { min-width: 0; }
+/* The press keeps its size: it is the name that gives way, by wrapping. Left to shrink with it, the press stood 25px
+   wide beside a long name on a phone. */
+.set-int-head > :nth-child(2) { flex: none; }
 .set-int-soon { padding: 0 10px; font-size: var(--set-hint); color: var(--ink-dim); }
 
 /* ---- What a plan costs ---------------------------------------------------

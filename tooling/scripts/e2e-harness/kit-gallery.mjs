@@ -1344,6 +1344,14 @@ export const FAMILIES = [
         html: recField("Booking link", "https://example.com/book", "Sent instead of booking a visit itself."),
       },
       {
+        // The browser's own select in the box (kit.css, select.rec-input): for a form that can import no part of the kit.
+        id: "rec-field-native-select",
+        html:
+          `<div class="rec-field"><label><span class="rec-field-label">Carrier</span>` +
+          `<select class="rec-input"><option>Verizon</option><option>AT&amp;T</option>` +
+          `<option>Another carrier or a landline</option></select></label></div>`,
+      },
+      {
         id: "rec-field-unit",
         html:
           `<div class="rec-field"><label><span class="rec-field-label">Least notice</span>` +

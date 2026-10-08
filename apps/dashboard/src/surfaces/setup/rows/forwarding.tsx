@@ -4,20 +4,25 @@
  * verified, and the page repaints.
  *
  * The form is the kit's look all the way through (Ruben, 7 Oct 2026: it stood on a black panel, in boxes and chips of
- * its own): the two numbers are fields, the carrier a select of the five (two of the names are long, and as chips they
+ * its own): the number is a field, the carrier a select of the five (two of the names are long, and as chips they
  * wrapped over two lines), which calls a choice of two on the kit's track, and its acts the kit's buttons. Two columns
  * where there is room, one on a phone (settings.css, .setup-fw-form), on the look's inset surface (.setup-chooser).
  *
+ * It asks no phone to test from (Ruben, 8 Oct 2026). The field was optional, the first run never asked it, and no line
+ * on production ever carried one; and a phone named could fail a test that worked, where a carrier or an office system
+ * shows the kept number as the caller of a call it forwards. What proves a test is a call inside the window and, where
+ * the carrier says so, its headers naming the kept number (contracts forwardingMatch, edge lib/voice/forwarding.ts).
+ *
  * All of it is written in the kit's classes, and the file imports no part of the kit: a field is a label that holds
- * its box, the carrier the browser's own select in that box (whose open list wears the theme: tokens.css
- * color-scheme), the choice two radios with a radio group's keys (modeChoice), the acts buttons as the rows beside it
- * write them. Both Today (the workspace route) and the first run's page load this file, so a module it
- * imports moves to the chunk those two share, and the pages that were sharing it download it again. Each of these
- * was built and measured against main's own build (8 Oct 2026, gzipped): the kit's Field, Select and Segmented added
- * 71 KB to the route; fetched on demand instead, they split again the chunks the pages share, about 540 bytes on
- * each of Inbox, People, Templates and Sent; the house menu copied a chunk for People, Campaigns, Templates and Sent,
- * 13 to 20 KB each; and the record kit's own field, which the first run's files import, left the route's chunk and
- * People downloaded the record kit twice, 6.5 KB.
+ * its box, the carrier the browser's own select in that box (drawn as the box in every engine, with the kit's chevron:
+ * kit.css select.rec-input; its open list wears the theme: tokens.css color-scheme), the choice two radios with a radio
+ * group's keys (modeChoice), the acts buttons as the rows beside it write them. Both Today (the workspace route) and
+ * the first run's page load this file, so a module it imports moves to the chunk those two share, and the pages that
+ * were sharing it download it again. Each of these was built and measured against main's own build (8 Oct 2026,
+ * gzipped): the kit's Field, Select and Segmented added 71 KB to the route; fetched on demand instead, they split
+ * again the chunks the pages share, about 540 bytes on each of Inbox, People, Templates and Sent; the house menu
+ * copied a chunk for People, Campaigns, Templates and Sent, 13 to 20 KB each; and the record kit's own field, which
+ * the first run's files import, left the route's chunk and People downloaded the record kit twice, 6.5 KB.
  */
 import { useState, type KeyboardEvent } from "react";
 import { isCarrier, isForwardingMode, type Carrier, type LineDto } from "@chanlytics/contracts";
@@ -152,13 +157,12 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
   const [number, setNumber] = useState(fw && fw.e164 ? fw.e164 : "");
   const [carrier, setCarrier] = useState(f && f.carrier ? f.carrier : "verizon");
   const [mode, setMode] = useState(f && f.mode ? f.mode : "unanswered");
-  const [testFrom, setTestFrom] = useState(f && f.test_from ? f.test_from : "");
   const [busy, setBusy] = useState(false);
   const owner = canDo("team");
   const save = async () => {
     if (!owner) return;
     setBusy(true);
-    const r = await setupVerbs.forwarding.set({ number, carrier, mode, test_from: testFrom });
+    const r = await setupVerbs.forwarding.set({ number, carrier, mode });
     setBusy(false);
     flash({
       tone: r.ok ? "ok" : "danger",
@@ -230,20 +234,6 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
           </label>
         </div>
         {modeChoice(mode, setMode)}
-        <div className="rec-field">
-          <label>
-            <span className="rec-field-label">The phone you&rsquo;ll test from (optional)</span>
-            <input
-              className="rec-input"
-              type="tel"
-              inputMode="tel"
-              placeholder="Your mobile"
-              value={testFrom}
-              onChange={(e) => setTestFrom(e.target.value)}
-              data-testid="setup-fw-from"
-            />
-          </label>
-        </div>
         <div className="setup-fw-actions">
           <button
             type="button"

@@ -86,12 +86,7 @@ interface SetupApi {
   };
   /** Keep the number you have: save the carrier and the mode, then open the test window. Owners only; the route says so. */
   forwarding: {
-    set(o: {
-      number: string;
-      carrier: string;
-      mode: string;
-      test_from: string;
-    }): Promise<{ ok: boolean; message: string }>;
+    set(o: { number: string; carrier: string; mode: string }): Promise<{ ok: boolean; message: string }>;
     test(lineId: string): Promise<{ ok: boolean; message: string }>;
   };
 }

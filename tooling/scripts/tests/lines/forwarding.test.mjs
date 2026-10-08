@@ -97,12 +97,11 @@ test("the codes: every carrier and mode dials the receptionist's line; each card
   assert.ok(isCarrier("att") && !isCarrier("sprint") && isForwardingMode("always") && !isForwardingMode("busy"));
 });
 
-test("the verification rule: inside the window, on the receptionist's line, from the phone the owner named", () => {
+test("the verification rule: inside the window, on the receptionist's line, from whatever phone", () => {
   const facts = {
     carrier: "verizon",
     mode: "unanswered",
     destination_e164: DEST,
-    test_from: null,
     test_started_at: "2026-09-07T15:00:00Z",
     test_until: "2026-09-07T15:30:00Z",
   };
@@ -131,21 +130,18 @@ test("the verification rule: inside the window, on the receptionist's line, from
     true,
     "no to_number from the provider: the tenant's line is assumed",
   );
-  assert.equal(forwardingMatch({ ...facts, test_from: "+12125550142" }, call()), true);
-  assert.equal(
-    forwardingMatch({ ...facts, test_from: "(212) 555-0142" }, call()),
-    true,
-    "the owner typed it their way",
-  );
+  // No phone is named (8 Oct 2026): the form stopped asking one, and one an older save left in the facts is not read,
+  // so no line keeps a narrowing its owner can no longer see or clear.
+  assert.equal(forwardingMatch(facts, call({ fromE164: null })), true, "a withheld caller id is still a call");
   assert.equal(
     forwardingMatch({ ...facts, test_from: "+12125550142" }, call({ fromE164: "+12125550000" })),
-    false,
-    "a customer's call inside the window is not the proof",
+    true,
+    "REGRESSION: a phone named before the field went no longer refuses a call from another",
   );
   assert.equal(
     forwardingMatch({ ...facts, test_from: "+12125550142" }, call({ fromE164: null })),
-    false,
-    "withheld caller id cannot be the named phone",
+    true,
+    "nor one whose caller id is withheld",
   );
   assert.equal(forwardingMatch({ carrier: "verizon" }, call()), false, "no window, no proof");
   assert.equal(forwardingTestOpen(facts, Date.parse("2026-09-07T15:10:00Z")), true);
@@ -194,7 +190,6 @@ const fwLine = (over = {}, facts = {}) => ({
     carrier: "verizon",
     mode: "unanswered",
     destination_e164: VOICE,
-    test_from: null,
     test_until: null,
     verified_at: null,
     ...facts,

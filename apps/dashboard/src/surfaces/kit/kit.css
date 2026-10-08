@@ -2461,6 +2461,36 @@ textarea.rec-input {
   text-align: start;
   cursor: pointer;
 }
+/* A native select in the record kit's box, for a form that can import no part of the kit (surfaces/setup/rows/
+   forwarding.tsx says why): the browser's own control, so a phone draws its own picker, drawn as the box in every
+   engine. Left to itself Safari paints its own chrome over the box's fill and edge, and each engine an arrow of its
+   own; the chevron here is the kit's, two strokes in the dim ink, where the kit's Select draws the Icon's. */
+select.rec-input {
+  appearance: none;
+  padding-right: 30px;
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent calc(50% - 0.8px),
+      var(--ink-dim) calc(50% - 0.8px),
+      var(--ink-dim) calc(50% + 0.8px),
+      transparent calc(50% + 0.8px)
+    ),
+    linear-gradient(
+      -45deg,
+      transparent calc(50% - 0.8px),
+      var(--ink-dim) calc(50% - 0.8px),
+      var(--ink-dim) calc(50% + 0.8px),
+      transparent calc(50% + 0.8px)
+    );
+  background-position:
+    right 17px top 54%,
+    right 12px top 54%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
 /* The kit's picker (surfaces/kit/picker/): the same list, richer. Its options in groups under a heading in the small
    capitals' ink; an option's glyph before its words and a line under them; a search at the list's top over a hairline;
    what is said when nothing matches; and a line under the list for what is not offered. */

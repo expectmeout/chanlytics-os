@@ -206,7 +206,7 @@ test("call_started on a known agent: the normalised call reaches ingest_call, th
       carrier: "verizon",
       mode: "unanswered",
       destination_e164: LINE,
-      test_from: CALLER,
+      test_from: null,
       test_started_at: iso(NOW - 5 * 60_000),
       test_until: iso(NOW + 25 * 60_000),
     },

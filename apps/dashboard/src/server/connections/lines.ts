@@ -24,7 +24,6 @@ function forwardingOf(kind: string, facts: unknown): LineDto["forwarding"] {
     carrier: str("carrier") ?? "other",
     mode: str("mode") ?? "unanswered",
     destination_e164: str("destination_e164"),
-    test_from: str("test_from"),
     test_until: str("test_until"),
     verified_at: str("verified_at"),
   };

@@ -971,7 +971,8 @@ test("lines: searching, retrying and forwarding are the owner's; each body is ju
   assert.equal(doors.length, 0);
   assert.deepEqual(
     await forwarding.POST.run(
-      send("POST", { number: "+1 (305) 555-0100", carrier: "verizon", mode: "unanswered" }, inB),
+      // A page loaded before 8 Oct 2026 still names a phone to test from: it is not read, and not judged.
+      send("POST", { number: "+1 (305) 555-0100", carrier: "verizon", mode: "unanswered", test_from: "555" }, inB),
       ctxFor(tables, {}, rpcs),
     ),
     { line_id: L1 },
