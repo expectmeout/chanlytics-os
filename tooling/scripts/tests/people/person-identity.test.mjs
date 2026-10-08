@@ -253,3 +253,39 @@ test("the profile answers the reply wire from the messages, where a row can only
     "while their FIRST contact was WhatsApp, and says so",
   );
 });
+
+test("REGRESSION: where the page holds nothing they wrote, it takes the row's wire as the row says it, a text included", () => {
+  // The row says where they last wrote (00320). The page's fallback to it knew two words, Email and everything else,
+  // so a texter whose own words were not among the messages the page read was put on WhatsApp, behind its window.
+  const ours = { ...msg("o1", "human", "2026-09-17T12:00:00Z", "see you then"), channel: "sms" };
+  const page = (rowOver) =>
+    toPersonVM(
+      {
+        row: { ...ROW, phone_e164: "+17865550181", latest_wa_inbound_at: null, ...rowOver },
+        identities: [],
+        conversations: [{ ...dto(), messages: [ours] }],
+        calls: [],
+        escalations: [],
+        decisions: [],
+        receptionist_mode: null,
+        workspace_reply_mode: "auto",
+      },
+      TZ,
+      NOW,
+    );
+  const texter = page({ message_channels: ["sms"], channels: ["sms"], last_inbound_channel: "sms" });
+  assert.equal(texter.replyVia, "Text", 'was "WhatsApp"');
+  assert.equal(texter.replyWindow.open, true, "a text has no window");
+  assert.deepEqual(
+    texter.about.find((a) => a.k === "Replies"),
+    { k: "Replies", v: "Any time, by text" },
+  );
+  assert.equal(texter.bookingLinkAction.ready, true);
+  // The other two words are unchanged.
+  assert.equal(
+    page({ message_channels: ["email"], channels: ["email"], last_inbound_channel: "email" }).replyVia,
+    "Email",
+  );
+  const wa = page({ message_channels: ["whatsapp"], channels: ["whatsapp"], last_inbound_channel: "whatsapp" });
+  assert.deepEqual([wa.replyVia, wa.replyWindow.open], ["WhatsApp", false]);
+});
