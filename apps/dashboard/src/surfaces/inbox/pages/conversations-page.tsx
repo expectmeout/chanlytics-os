@@ -390,9 +390,9 @@ function listPane(p: {
 }) {
   const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, swap, pick } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
-  // Each row on screen as a pick reads it, worked out once: null for one that wears no box.
-  const picks = rows.map((c) => pick.of(c));
-  const canPick = picks.flatMap((x) => x?.id ?? []);
+  // Each row on screen as a pick reads it, worked out once and kept by the row's id: null for one that wears no box.
+  const picks = new Map(rows.map((c) => [c.id, pick.of(c)]));
+  const canPick = [...picks.values()].flatMap((x) => x?.id ?? []);
   // One tab stop: the open row's, or the first when none of these is open.
   const tabStopId = selectedRow && rows.some((c) => c.id === selectedRow.id) ? selectedRow.id : rows[0]?.id;
   const onKey = pickKeys({
@@ -400,7 +400,7 @@ function listPane(p: {
     onOpen: openRow,
     // Space on a row picks it by the name its pick is held under, where it can be picked.
     onToggle: (rowId) => {
-      const picked = picks[rows.findIndex((c) => c.id === rowId)];
+      const picked = picks.get(rowId);
       if (picked) pick.toggle(picked.id);
     },
     attr: "data-row-id",
@@ -453,7 +453,7 @@ function listPane(p: {
         aria-multiselectable={rows.length > 0 || undefined}
       >
         {rows.map((c, i) => {
-          const picked = picks[i];
+          const picked = picks.get(c.id) ?? null;
           return (
             <CvRow
               key={c.id}
