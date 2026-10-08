@@ -95,7 +95,7 @@ function optionsGroups(p: BarProps): MenuGroup[] {
         onSelect: toggleAbout,
       },
       {
-        label: "Calendar settings",
+        label: "Edit in Settings",
         hint: "Settings › Business",
         glyph: crGlyph("settings"),
         onSelect: () => navigate(routeTo.admin("workspace")),
@@ -196,20 +196,22 @@ export function calendarHead(p: BarProps) {
               data-testid="cal-service"
             />
           )}
+          {/* The cog says its word on a desk, where the capsules beside it say theirs (Ruben, 8 Oct 2026: a bare cog at the
+              bar's end); a phone keeps the glass circle, and the word for a screen reader (calendar.css, the phone block). */}
           <Menu
             align="end"
-            label="Calendar options"
+            label="Calendar settings"
             groups={optionsGroups(p)}
             trigger={
               <Button
                 variant="quiet"
-                iconOnly
                 className="cal-options"
-                title="Calendar options"
-                aria-label="Calendar options"
+                title="Calendar settings"
+                aria-label="Calendar settings"
                 data-testid="cal-options"
               >
                 <Icon name="cog" size={16} />
+                <span className="cal-options-word">Settings</span>
               </Button>
             }
           />
@@ -236,9 +238,12 @@ export function consultNote(p: Pick<CardProps, "vm" | "service">) {
       <div className="cal-feed-card" data-testid="cal-consult-note">
         <Icon name="shield" size={14} />
         <span>
-          <b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the
-          consultation and {vm.bookingLink ? "sends the booking link" : "takes their details"}. The open times here are
-          for a consultation{service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.
+          <b>{service.name} needs a consultation first.</b>{" "}
+          <span className="cal-feed-more">
+            The receptionist does not offer times for it; it offers the consultation and{" "}
+            {vm.bookingLink ? "sends the booking link" : "takes their details"}. The open times here are for a
+            consultation{service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.
+          </span>
         </span>
       </div>
     )
@@ -256,7 +261,11 @@ function feedDoorOf(feed: CalendarVM["feed"]): { words: string; quiet: boolean }
   return { words: "Add a calendar", quiet: true };
 }
 
-/** A calendar that is not connected, or could not be read: what it means for the receptionist, and the way to fix it. */
+/**
+ * A calendar that is not connected, or could not be read: what it means for the receptionist, and the way to fix it. On a
+ * phone the card is its bold line and its door (calendar.css hides `cal-feed-more`): the rest is a desk's paragraph, and
+ * a count of emails that need a look stays, since it is a decision.
+ */
 export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
   const { vm, refreshing, refreshNow } = p;
   const door = feedDoorOf(vm.feed);
@@ -267,37 +276,52 @@ export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">)
         {vm.feed.state === "none" && vm.feed.notices.lastAgo ? (
           // Bookings arrive by email and no calendar reads: the board draws what was emailed, and says what it cannot.
           <span data-testid="cal-feed-notices">
-            <b>Bookings arrive by email{vm.feed.notices.tool ? ` from ${vm.feed.notices.tool}` : ""}.</b> With no
-            calendar connected, this board shows those bookings and your hours, and the receptionist{" "}
-            {vm.bookingLink ? "sends the booking link but " : ""}never names an open time.
+            <b>Bookings arrive by email{vm.feed.notices.tool ? ` from ${vm.feed.notices.tool}` : ""}.</b>{" "}
+            <span className="cal-feed-more">
+              With no calendar connected, this board shows those bookings and your hours, and the receptionist{" "}
+              {vm.bookingLink ? "sends the booking link but " : ""}never names an open time.
+            </span>
             {vm.feed.notices.held
               ? ` ${vm.feed.notices.held} booking ${vm.feed.notices.held === 1 ? "email needs" : "emails need"} a look.`
               : ""}
           </span>
         ) : vm.feed.state === "none" ? (
           <span>
-            <b>No calendar connected.</b> Paste your calendar&apos;s private iCal address under Settings › Business:
-            Google, Apple, Outlook, or the feed your booking tool offers. Until then the receptionist{" "}
-            {vm.bookingLink ? "sends the booking link but " : ""}never names an open time, and this board shows only
-            your hours and closures. Booking emails from your tool can fill the board too.
+            <b>No calendar connected.</b>{" "}
+            <span className="cal-feed-more">
+              Paste your calendar&apos;s private iCal address under Settings › Business: Google, Apple, Outlook, or the
+              feed your booking tool offers. Until then the receptionist{" "}
+              {vm.bookingLink ? "sends the booking link but " : ""}never names an open time, and this board shows only
+              your hours and closures. Booking emails from your tool can fill the board too.
+            </span>
           </span>
         ) : (
           <span>
-            <b>Your calendar could not be read.</b> {vm.feed.problem || CR_FEED_WORDS.unavailable}
-            {vm.feed.problem
-              ? ` Until it reads, the receptionist ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.`
-              : ""}
+            <b>Your calendar could not be read.</b>{" "}
+            <span className="cal-feed-more">
+              {vm.feed.problem || CR_FEED_WORDS.unavailable}
+              {vm.feed.problem
+                ? ` Until it reads, the receptionist ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.`
+                : ""}
+            </span>
           </span>
         )}
         {/* A calendar that can't be read: its only way back was Settings (C2). */}
         {vm.feed.state === "unavailable" && (
-          <Button size="sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-retry">
+          <Button
+            size="sm"
+            className="cal-feed-door"
+            onClick={refreshNow}
+            disabled={refreshing}
+            data-testid="cal-feed-retry"
+          >
             {refreshing ? "Retrying…" : "Retry"}
           </Button>
         )}
         <Button
           variant={door.quiet ? "quiet" : "primary"}
           size="sm"
+          className="cal-feed-door"
           onClick={() => navigate(routeTo.admin("workspace"))}
           data-testid="cal-feed-door"
         >
@@ -317,13 +341,27 @@ export function staleCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">
       <div className="cal-feed-card" data-testid="cal-feed-stale">
         <Icon name="calendar" size={14} />
         <span>
-          <b>Showing the last good read.</b> {vm.feed.problem || CR_FEED_WORDS.stale} The receptionist is using this
-          read too; it tries again every few minutes.
+          <b>Showing the last good read.</b>{" "}
+          <span className="cal-feed-more">
+            {vm.feed.problem || CR_FEED_WORDS.stale} The receptionist is using this read too; it tries again every few
+            minutes.
+          </span>
         </span>
-        <Button size="sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-stale-retry">
+        <Button
+          size="sm"
+          className="cal-feed-door"
+          onClick={refreshNow}
+          disabled={refreshing}
+          data-testid="cal-feed-stale-retry"
+        >
           {refreshing ? "Retrying…" : "Retry"}
         </Button>
-        <Button variant="quiet" size="sm" onClick={() => navigate(routeTo.admin("workspace"))}>
+        <Button
+          variant="quiet"
+          size="sm"
+          className="cal-feed-door"
+          onClick={() => navigate(routeTo.admin("workspace"))}
+        >
           Check the address
         </Button>
       </div>
@@ -529,16 +567,24 @@ export function calendarFoot(p: FootProps) {
     <div className="cal-foot">
       <div className="cal-foot-row">
         <div className="cal-legend" data-testid="cal-legend">
+          {/* On a phone each is its one word and the zone waits for the sheet (calendar.css hides the tails): the
+              legend and Hours and rules share one row under a board that fits the screen. */}
           <span>
-            <i className="cal-legend-swatch taken" /> Taken, from your calendar or your booking tool
+            <i className="cal-legend-swatch taken" /> Taken
+            <span className="cal-legend-tail">, from your calendar or your booking tool</span>
           </span>
           <span>
-            <i className="cal-legend-swatch open" /> Open — the receptionist would offer it
-            {service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}, through{" "}
-            {vm.offer.label}
+            <i className="cal-legend-swatch open" /> Open
+            <span className="cal-legend-tail">
+              {" "}
+              — the receptionist would offer it
+              {service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}, through{" "}
+              {vm.offer.label}
+            </span>
           </span>
           <span>
-            <i className="cal-legend-swatch closed" /> Outside your hours, or closed
+            <i className="cal-legend-swatch closed" /> Closed
+            <span className="cal-legend-tail">, or outside your hours</span>
           </span>
           <span className="cal-legend-rules">Times are {vm.zoneCity} time</span>
         </div>

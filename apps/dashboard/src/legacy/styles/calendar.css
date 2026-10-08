@@ -87,6 +87,9 @@
 .cal-hour:first-child { transform: translateY(2px); }
 
 /* Day columns */
+/* The board is the day's hours tall, each an --cal-hour (blocks.tsx says how many as --cal-hours on the grid), and the
+   hour lines fall where the hours do. */
+.cal-gutter, .cal-col { height: calc(var(--cal-hours, 1) * var(--cal-hour)); }
 .cal-col {
   position: relative;
   border-left: 1px solid var(--line);
@@ -94,9 +97,9 @@
     repeating-linear-gradient(
       to bottom,
       transparent 0,
-      transparent 63px,
-      var(--line) 63px,
-      var(--line) 64px
+      transparent calc(var(--cal-hour) - 1px),
+      var(--line) calc(var(--cal-hour) - 1px),
+      var(--line) var(--cal-hour)
     );
 }
 .cal-col.today { background-color: oklch(from var(--accent) l c h / 0.025); }
@@ -551,8 +554,10 @@
 /* ---- The calendar first ----
    One bar of controls and one line of counts over the board, and the hours, the rules and the calendar's source one tap
    away under it. A title the top bar already says, a paragraph, three stat cards and five rows of controls came first,
-   and on a phone the first day sat below the fold. One gutter for the whole page, narrowed on a small screen. */
-.calendar { --cal-gutter: 28px; }
+   and on a phone the first day sat below the fold. One gutter for the whole page, narrowed on a small screen.
+   An hour on the board is 64px on a desk; a phone's grid sets its own, what fits the day in the room the page leaves
+   (blocks.tsx CrBoard, words.ts fitHourPx), and every length down the board is hours of it. */
+.calendar { --cal-gutter: 28px; --cal-hour: 64px; }
 /* One bar over the board, and nothing under it but the board: the counts line is gone (calendar-real.jsx), so the head
    is the bar alone, 12px above and 8px below it. */
 .cal-head { display: flex; flex-direction: column; gap: var(--space-2); flex-shrink: 0; padding: var(--space-3) var(--cal-gutter) var(--space-2); }
@@ -808,16 +813,19 @@
 
 /* ---- The options button, at the bar's end ----
    One menu holds what the calendar offers its owner (the booking link, a read now, the hours and rules, its settings):
-   a glass circle the height of the capsules beside it. */
+   on a desk a glass capsule the height of the ones beside it, the cog with its word (Ruben, 8 Oct 2026: the bare cog
+   said nothing where the views and the service picker say their words); a phone keeps the circle (the phone block). */
 .main-scroll > .calendar .cal-options {
   flex: none;
-  width: var(--control-h-lg);
+  gap: var(--space-2);
   height: var(--control-h-lg);
-  padding: 0;
+  padding: 0 var(--space-4) 0 var(--space-3);
   border: 0;
-  border-radius: var(--radius-circle);
+  border-radius: var(--radius-full);
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   color: var(--ink-muted);
 }
 .main-scroll > .calendar .cal-options[aria-expanded="true"] {
@@ -947,7 +955,13 @@
   color: var(--primary-ink);
 }
 
-/* ---- A phone ---- */
+/* ---- A phone ----
+   The page holds still (Ruben, 8 Oct 2026: it could be held and swiped around, and nothing fit the screen): the bar,
+   then a notice as one line, then the board in the room that is left, then the legend's three words with Hours and
+   rules beside them, and nothing under the tab bar to scroll to. The week's seven days share the width as the month's
+   do, the day heads stacked and the blocks lozenges whose words wait for Day view; the hours share the board's height
+   (blocks.tsx sets --cal-hour to what fits), so a day scrolls inside its pane only when its hours cannot fit at the
+   floor. The agenda is the one list and scrolls inside the body; the pane itself moves only for the rules sheet. */
 @media (max-width: 720px) {
   /* The views stand under the name with the options button beside them; then the range and the steps; then the first
      day. The views are the bar's first (board-parts.tsx), so the range's row is put after the options'. A view is the
@@ -962,19 +976,130 @@
     height: var(--control-h-lg);
     padding: 0 10px;
   }
+  /* The options are the glass circle: the cog's word is a desk's, and a screen reader has the button's name. */
   .main-scroll > .calendar .cal-options {
     width: 44px;
     height: 44px;
+    padding: 0;
+    border-radius: var(--radius-circle);
   }
-  .main-scroll > .calendar :is(.cal-pane, .cal-scroll) {
+  .main-scroll > .calendar .cal-options-word {
+    display: none;
+  }
+  /* The pane is the column the page leaves (mobile.css): it never pulls, the body takes the room between the notices
+     and the foot, and a scroll inside it (the agenda's list, a day too tall for its floor) never reaches the page. */
+  .main-scroll > .calendar .cal-pane {
+    overscroll-behavior-y: none;
+  }
+  .main-scroll > .calendar .cal-body {
+    overscroll-behavior: contain;
+  }
+  .main-scroll > .calendar .cal-scroll {
+    padding: 0;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+  .main-scroll > .calendar :is(.cal-pane, .cal-body, .cal-scroll) {
     scrollbar-width: none;
   }
-  /* The hours stick to the pane's own edge: a gutter inside the scroller's padding left a strip of the days beside them. */
-  .main-scroll > .calendar .cal-scroll {
-    padding-inline: 0;
+  /* The steps, a week's day heads and Hours and rules keep the size they are drawn at (the touch floor made the steps' row
+     48, each head 57 and the foot 56), with the thumb's 44 as an invisible margin where a neighbour leaves the room: the
+     board gets the forty pixels, which is what a nine-hour day needs to fit. */
+  .main-scroll > .calendar .cal-steps > *,
+  .main-scroll > .calendar .cal-foot-row > [aria-controls="cal-about"] {
+    position: relative;
+    min-height: var(--control-h-md);
   }
-  /* The hours, the corner and the day heads stand over the days as they scroll across, so they take the pane's solid, not clear glass. */
+  .main-scroll > .calendar .cal-foot-row > [aria-controls="cal-about"] {
+    height: var(--control-h-md);
+  }
+  .main-scroll > .calendar .cal-steps > *::after,
+  .main-scroll > .calendar .cal-foot-row > [aria-controls="cal-about"]::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+  .main-scroll > .calendar .cal-foot {
+    padding-top: var(--space-2);
+  }
+  /* A notice over the board is one line with its door beside it, not a paragraph: the rest of its words are a desk's
+     (board-parts.tsx cal-feed-more), and the door keeps its size with the thumb's 44 as an invisible margin. */
+  .main-scroll > .calendar .cal-pane > :is([data-testid^="cal-feed"], [data-testid="cal-consult-note"]) {
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  }
+  .main-scroll > .calendar .cal-pane > :is([data-testid^="cal-feed"], [data-testid="cal-consult-note"]) > .icon {
+    display: none;
+  }
+  .main-scroll > .calendar .cal-feed-more {
+    display: none;
+  }
+  .main-scroll > .calendar .cal-feed-door {
+    position: relative;
+    height: var(--control-h-md);
+    min-height: var(--control-h-md);
+  }
+  .main-scroll > .calendar .cal-feed-door::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+  /* The week: seven days across the pane under a 40px gutter of hours, the heads stacked, the blocks lozenges with the
+     name alone; a closure or an all-day event waits for Day view, where the head has the room to say it (the column's
+     band says closed here). */
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) {
+    grid-template-columns: var(--space-10) repeat(7, minmax(0, 1fr));
+    min-width: 0;
+  }
+  .main-scroll > .calendar .cal-grid.cal-grid-day {
+    grid-template-columns: var(--space-10) minmax(0, 1fr);
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-dayhead {
+    padding: var(--space-2) 0 var(--space-1);
+    justify-content: center;
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-dayhead-open {
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    min-height: 0;
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-dayhead > :not(:first-child) {
+    display: none;
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-appt.feed {
+    padding: 2px var(--space-1);
+    border-radius: var(--radius-sm);
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-appt-who {
+    font-size: var(--text-xs);
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) :is(.cal-appt-service, .cal-open-label, .cal-unavail > span) {
+    display: none;
+  }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-open {
+    padding: 0;
+    border-radius: var(--radius-sm);
+  }
+  /* The hours, the corner and the day heads take the pane's solid, not clear glass: a blur redrawn under a scroll is the
+     one cost the board's motion could not spare. */
   .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
     background: var(--surface-pane-solid);
+  }
+  /* The month fills the room the page leaves, its six rows sharing it, as a phone's own calendar does. */
+  .main-scroll > .calendar .cal-body > .cal-month {
+    flex: 1 1 auto;
+  }
+  .main-scroll > .calendar .cal-month-row {
+    flex: 1 1 0;
+  }
+  /* The foot is one row: the legend's three words, and Hours and rules at the right. The zone is the sheet's word. */
+  .main-scroll > .calendar .cal-legend {
+    flex: 1 1 0;
+    gap: var(--space-1) var(--space-3);
+  }
+  .main-scroll > .calendar :is(.cal-legend-tail, .cal-legend-rules) {
+    display: none;
   }
 }
