@@ -3,18 +3,23 @@
  * that has it, then a test window -- a call to the kept number that reaches the receptionist inside it marks the row
  * verified, and the page repaints.
  *
- * The form is the kit's all the way through (Ruben, 7 Oct 2026: it stood on a black panel, in boxes and chips of its
- * own): the two numbers are Fields, the carrier a Select (five names, two of them long, wrapped over two lines as
- * chips), which calls a Segmented choice of two, and its acts Buttons. Two columns where there is room, one on a phone
- * (settings.css, .setup-fw-form), on the look's inset surface (.setup-chooser).
+ * The form is the kit's look all the way through (Ruben, 7 Oct 2026: it stood on a black panel, in boxes and chips of
+ * its own): the two numbers are fields, the carrier a select of the five (two of the names are long, and as chips they
+ * wrapped over two lines), which calls a choice of two on the kit's track, and its acts the kit's buttons. Two columns
+ * where there is room, one on a phone (settings.css, .setup-fw-form), on the look's inset surface (.setup-chooser).
+ *
+ * All of it is written in the kit's classes, and the file imports no part of the kit: a field is a label that holds
+ * its box, the carrier the browser's own select in that box, the choice two radios, the acts buttons as the rows
+ * beside it write them. Both Today (the workspace route) and the first run's page load this file, so a module it
+ * imports moves to the chunk those two share, and the pages that were sharing it download it again. Each of these
+ * was built and measured against main's own build (8 Oct 2026, gzipped): the kit's Field, Select and Segmented added
+ * 71 KB to the route; fetched on demand instead, they split again the chunks the pages share, about 540 bytes on
+ * each of Inbox, People, Templates and Sent; the house menu copied a chunk for People, Campaigns, Templates and Sent,
+ * 13 to 20 KB each; and the record kit's own field, which the first run's files import, left the route's chunk and
+ * People downloaded the record kit twice, 6.5 KB.
  */
 import { useState } from "react";
 import { isCarrier, isForwardingMode, type Carrier, type LineDto } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
-import { Field } from "../../kit/field/field";
-import { Icon } from "../../kit/icon/icon";
-import { Segmented } from "../../kit/segmented/segmented";
-import { Select } from "../../kit/select/select";
 import { canDo, gate, type LegacyFlash } from "../../legacy-verbs";
 import { FORWARDING_WORDS, setupVerbs, type SetupSurface } from "../surface";
 
@@ -70,15 +75,16 @@ function codeCard(
             The window is open — call {W.display(fw.e164)} from another phone. This page updates by itself.
           </span>
         ) : (
-          <Button
-            size="sm"
+          <button
+            type="button"
+            className="btn btn-sm"
             onClick={o.test}
             disabled={o.busy}
             data-testid="setup-fw-test"
             {...gate("team", "test forwarding")}
           >
             Test it
-          </Button>
+          </button>
         )}
         {fw.forwarding_state !== "verified" && codes.off.code && (
           <span className="setup-fw-off">
@@ -143,63 +149,84 @@ export const ForwardingCard = ({ S, flash, onDone }: ForwardingProps) => {
         <p className="setup-fw-note">Your receptionist needs a line first — get a new number from the row above.</p>
       )}
       <div className="setup-fw-form">
-        <Field
-          label="The number you keep"
-          type="tel"
-          inputMode="tel"
-          placeholder="(305) 555-0100"
-          value={number}
-          onValueChange={setNumber}
-          data-testid="setup-fw-number"
-        />
-        <Field
-          label="Carrier"
-          control={
-            <Select
+        <div className="rec-field">
+          <label>
+            <span className="rec-field-label">The number you keep</span>
+            <input
+              className="rec-input"
+              type="tel"
+              inputMode="tel"
+              placeholder="(305) 555-0100"
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+              data-testid="setup-fw-number"
+            />
+          </label>
+        </div>
+        {/* One of five: the browser's own select (a phone draws its picker), in the kit's box, named by its label. */}
+        <div className="rec-field">
+          <label>
+            <span className="rec-field-label">Carrier</span>
+            <select
+              className="rec-input"
               value={carrier}
-              onValueChange={setCarrier}
-              options={W.carriers.map((c) => ({ value: c, label: W.carrierWords[c] ?? c }))}
-              chevron={<Icon name="chevron-down" size={12} />}
+              onChange={(e) => setCarrier(e.target.value)}
               data-testid="setup-fw-carrier"
+            >
+              {W.carriers.map((c) => (
+                <option key={c} value={c}>
+                  {W.carrierWords[c] ?? c}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="rec-field setup-fw-wide">
+          <span className="rec-field-label">Which calls</span>
+          <div className="rec-seg" role="radiogroup" aria-label="Which calls">
+            {W.modes.map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                className="rec-seg-btn"
+                onClick={() => setMode(m)}
+                data-testid={`setup-fw-mode-${m}`}
+              >
+                {W.modeWords[m] ?? m}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="rec-field">
+          <label>
+            <span className="rec-field-label">The phone you&rsquo;ll test from (optional)</span>
+            <input
+              className="rec-input"
+              type="tel"
+              inputMode="tel"
+              placeholder="Your mobile"
+              value={testFrom}
+              onChange={(e) => setTestFrom(e.target.value)}
+              data-testid="setup-fw-from"
             />
-          }
-        />
-        <Field
-          className="setup-fw-wide"
-          label="Which calls"
-          control={
-            <Segmented
-              label="Which calls"
-              value={mode}
-              onValueChange={setMode}
-              options={W.modes.map((m) => ({ value: m, label: W.modeWords[m] ?? m, testid: `setup-fw-mode-${m}` }))}
-            />
-          }
-        />
-        <Field
-          label="The phone you'll test from"
-          hint="Optional."
-          type="tel"
-          inputMode="tel"
-          placeholder="Your mobile"
-          value={testFrom}
-          onValueChange={setTestFrom}
-          data-testid="setup-fw-from"
-        />
+          </label>
+        </div>
         <div className="setup-fw-actions">
-          <Button
-            variant="primary"
-            size="sm"
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
             onClick={() => void save()}
             disabled={busy || !dest}
             data-testid="setup-fw-save"
             {...gate("team", "set up forwarding")}
           >
             {fw ? "Save changes" : "Save and show the code"}
-          </Button>
-          <Button variant="quiet" size="sm" onClick={onDone}>
+          </button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onDone}>
             Close
-          </Button>
+          </button>
         </div>
       </div>
       {codes &&

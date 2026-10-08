@@ -188,8 +188,6 @@ Object.assign(globalThis.React, {
       },
     ];
   },
-  // The kit's controls name their parts with it (a segmented control's options, a field's hint).
-  useId: () => `id-${frames.key()}`,
   // An effect runs once per component, on its first mount, as React runs it on arrival.
   useEffect: (fn) => {
     const k = frames.key();
@@ -205,10 +203,7 @@ useStubHooks(globalThis.React);
 // same object, so a test that sets `window.__setup.x` for a while reaches the rows. Setup's value is the seam's.
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { SetupRows, loadForwardingCard } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
-// The forwarding card is fetched when a row first opens it (rows.tsx loadForwardingCard): in hand here, as in a tab
-// that has opened it once, so a row that opens it draws it at once.
-await loadForwardingCard();
+const { SetupRows } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
 Object.assign(setupVerbs, {
   later: async (ids, on) => {
     calls.later.push([ids, on]);
@@ -547,23 +542,33 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   await keepRow.cta.onClick();
   tree = mount();
   assert.ok(byTestId(tree, "setup-forwarding"), "the card opens under the row");
-  // The form is the kit's own controls (7 Oct 2026: a field, a select and a segmented control, where the card drew
-  // boxes and rows of buttons of its own). Each hands the form its value, which is what a person choosing does; how
-  // each control behaves under a hand is the kit's to prove (e2e/kit/kit-behaves.spec.ts).
-  byTestId(tree, "setup-fw-number").props.onValueChange("(305) 555-0100");
+  // The form is written in the kit's classes (7 Oct 2026: fields, a select of the carriers and a choice of two on
+  // the kit's track, where the card drew boxes and rows of chips of its own).
+  byTestId(tree, "setup-fw-number").props.onChange({ target: { value: "(305) 555-0100" } });
   tree = mount();
-  byTestId(tree, "setup-fw-carrier").props.onValueChange("att");
-  tree = mount();
-  let modes = null;
-  walk(tree, (n) => {
-    if (!modes && n.props?.label === "Which calls" && typeof n.props.onValueChange === "function") modes = n.props;
-  });
+  const carriers = byTestId(tree, "setup-fw-carrier");
+  assert.equal(carriers.type, "select", "the browser's own select: a phone draws its picker");
+  assert.equal(carriers.props.value, "verizon");
   assert.deepEqual(
-    modes.options.map((o) => o.testid),
-    ["setup-fw-mode-unanswered", "setup-fw-mode-always"],
-    "the two ways a carrier forwards, each named for a test to find",
+    carriers.props.children.map((o) => [o.props.value, textOf(o)]),
+    [
+      ["verizon", "Verizon"],
+      ["att", "AT&T"],
+      ["tmobile", "T-Mobile"],
+      ["other", "Another carrier or a landline"],
+      ["office", "An office phone system"],
+    ],
+    "the five carriers, each by its name",
   );
-  modes.onValueChange("always");
+  carriers.props.onChange({ target: { value: "att" } });
+  tree = mount();
+  assert.equal(byTestId(tree, "setup-fw-carrier").props.value, "att");
+  // Which calls: two radios, the one chosen said so (the kit's track reads aria-checked).
+  const checked = () => ["unanswered", "always"].map((m) => byTestId(tree, `setup-fw-mode-${m}`).props["aria-checked"]);
+  assert.deepEqual(checked(), [true, false]);
+  byTestId(tree, "setup-fw-mode-always").props.onClick();
+  tree = mount();
+  assert.deepEqual(checked(), [false, true]);
   tree = mount();
   await byTestId(tree, "setup-fw-save").props.onClick();
   assert.deepEqual(calls.fwSet, [{ number: "(305) 555-0100", carrier: "att", mode: "always", test_from: "" }]);

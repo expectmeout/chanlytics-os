@@ -1400,9 +1400,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 
 /* The verbs: a row's one act is the primary role's coral capsule, its other the control layer's inset capsule. The setup
-   card's acts are the same two. */
+   card's acts are the same two: each row's own press, reached by its test id. Never "a button in the card's list": a
+   row opens a form under itself (keep your number), and that rule drew the form's choice and its Save as these
+   capsules (8 Oct 2026). */
 .dash-a-v2 .tq .cl-attn-acts > button,
-.dash-a-v2 .today-setup .tq-list button:not([class*="skip"]) {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]) {
   height: 34px;
   border-radius: var(--radius-full);
   padding: 0 15px;
@@ -1410,7 +1412,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-medium);
 }
 .dash-a-v2 .tq .cl-attn-acts > button.primary,
-.dash-a-v2 .today-setup .tq-list button.primary {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]).primary {
   background: var(--primary-fill);
   border: 0;
   color: var(--primary-ink);
@@ -1418,12 +1420,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   box-shadow: var(--primary-depth);
 }
 .dash-a-v2 .tq .cl-attn-acts > button.primary:hover,
-.dash-a-v2 .today-setup .tq-list button.primary:hover {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]).primary:hover {
   background: var(--primary-hover);
   filter: none;
 }
 .dash-a-v2 .tq .cl-attn-acts > button:not(.primary),
-.dash-a-v2 .today-setup .tq-list button:not(.primary, [class*="skip"]) {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]):not(.primary) {
   background: var(--surface-inset-fill);
   border-color: var(--surface-inset-edge);
   color: var(--ink);
@@ -1876,10 +1878,14 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }
   .dash-a-v2 .today-setup [data-testid="today-setup-hide"] { font-size: var(--text-sm); }
   .dash-a-v2 .today-setup .tq-list > * { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-top: 0; }
-  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :first-child { font-size: var(--text-base); font-weight: var(--weight-semibold); }
-  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child { display: block; font-size: var(--text-sm); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .dash-a-v2 .today-setup .tq-list > * > :nth-child(2) > :last-child > :last-child { display: none; }
+  /* The words of the one row that opens the first run, which is the card's own list's child (setup-card.tsx startRow):
+     reached by place from the card, never from any list in it. Setup's optional rows each stand in a holder with the
+     form they open (setup/rows/rows.tsx), and there the second child is that form: these rules stacked its fields,
+     cut its last part to one line and hid its Save (8 Oct 2026). */
+  .dash-a-v2 .today-setup > .tq-list > * > :nth-child(2) { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .dash-a-v2 .today-setup > .tq-list > * > :nth-child(2) > :first-child { font-size: var(--text-base); font-weight: var(--weight-semibold); }
+  .dash-a-v2 .today-setup > .tq-list > * > :nth-child(2) > :last-child { display: block; font-size: var(--text-sm); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-a-v2 .today-setup > .tq-list > * > :nth-child(2) > :last-child > :last-child { display: none; }
 }
 
 /* A phone: the strip's cells are capsules in a row that scrolls, the rest one column. */
