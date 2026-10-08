@@ -912,6 +912,7 @@ async function sendQueued(ports, cmd) {
     );
   const resumes = resumesOf(p);
   const starts = p.starts === true && (msg.sender ?? "human") === "human";
+  if (!await ports.claim(p.message_id)) return;
   let out;
   try {
     out = await ports.deliver({
@@ -942,9 +943,9 @@ async function sendQueued(ports, cmd) {
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e) {
-    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e);
-    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e);
-    else throw e;
+    if (!isWireUnavailableError(e) && !isNotTakenError(e)) throw e;
+    await ports.release(p.message_id);
+    await resendLater(ports, cmd, channel, e);
     return;
   }
   if (out.outcome !== "failed") return;
@@ -2901,7 +2902,8 @@ import {
   runApprovalRefusal
 } from "../../contracts/dist/index.js";
 var approveLog = logger7();
-var STRANDED_WORDS = "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
+var NOT_APPROVED_WORDS = "The send could not be scheduled. The run is still waiting; try again.";
+var MOVED_WORDS = "This run just changed state; look again.";
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError13("conflict", "This run is not waiting for approval.", 409);
@@ -2912,29 +2914,18 @@ async function approveRun(ports, cmd) {
   const late = runApprovalRefusal(b, { today: localDate2(tz, cmd.now), sendsOn: localDate2(tz, open.at) });
   if (late) throw new AppError13("conflict", late, 409);
   const at = open.at;
-  if (!await ports.release(b.id, at)) throw new AppError13("conflict", "This run just changed state; look again.", 409);
-  try {
-    await ports.schedule(b.id, at);
-  } catch (e) {
-    approveLog.error("campaign_step_failed", { step: "schedule", broadcast_id: b.id, error: errField6(e) });
-    const held = await ports.hold(b.id).catch((h) => {
-      approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: errField6(h) });
-      return null;
-    });
-    if (held)
-      throw new AppError13("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
-    if (held === false) approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: "no row" });
-    throw new AppError13("upstream_meta", STRANDED_WORDS, 502);
-  }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
-  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
-    name: b.name,
-    playbook_id: b.playbook_id,
-    recipients: b.recipient_count,
-    approved: true,
-    scheduled_for: scheduledFor,
-    ...movedFrom ? { moved_from: movedFrom } : {}
+  const decision_id = await approvedWhole(ports, b, at, {
+    job: true,
+    decision: {
+      name: b.name,
+      playbook_id: b.playbook_id,
+      recipients: b.recipient_count,
+      approved: true,
+      scheduled_for: scheduledFor,
+      ...movedFrom ? { moved_from: movedFrom } : {}
+    }
   });
   return {
     id: b.id,
@@ -2945,18 +2936,31 @@ async function approveRun(ports, cmd) {
     decision_id
   };
 }
+async function approvedWhole(ports, b, at, o) {
+  let id;
+  try {
+    id = await ports.approve(b.id, at, o);
+  } catch (e) {
+    approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: b.id, error: errField6(e) });
+    throw new AppError13("upstream_meta", NOT_APPROVED_WORDS, 502);
+  }
+  if (!id) throw new AppError13("conflict", MOVED_WORDS, 409);
+  return id;
+}
 async function approveReachOut(ports, b, now) {
   const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
   const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
-  if (!await ports.release(b.id, at)) throw new AppError13("conflict", "This run just changed state; look again.", 409);
   const scheduledFor = at.toISOString();
-  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
-    name: b.name,
-    playbook_id: b.playbook_id,
-    recipients: b.recipient_count,
-    approved: true,
-    reach_out: true,
-    scheduled_for: scheduledFor
+  const decision_id = await approvedWhole(ports, b, at, {
+    job: false,
+    decision: {
+      name: b.name,
+      playbook_id: b.playbook_id,
+      recipients: b.recipient_count,
+      approved: true,
+      reach_out: true,
+      scheduled_for: scheduledFor
+    }
   });
   return {
     id: b.id,

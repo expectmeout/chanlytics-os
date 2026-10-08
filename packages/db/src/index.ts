@@ -275,7 +275,15 @@ export {
   keepIdempotencyReceipt,
 } from "./repositories/idempotency";
 export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
-export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
+export {
+  readJobToRequeue,
+  hasNewerCopy,
+  assembleBroadcast,
+  approveBroadcast,
+  claimQueuedSend,
+  releaseQueuedSend,
+  failQueuedSend,
+} from "./jobs";
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export type { JobToRequeue } from "./jobs";

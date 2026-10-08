@@ -415,8 +415,8 @@
     "depth": 2
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
-    "lines": 162,
-    "branches": 40,
+    "lines": 151,
+    "branches": 37,
     "depth": 2
   }
 }

@@ -353,6 +353,8 @@
     "00348_the_calendar_feed_is_kept_on_the_appointments_record.sql": "a5837d86538d7405cf41784cb40ccfe06860e5cb9fd0062d78efa402a3b743ac",
     "00349_each_member_keeps_what_they_have_seen_of_a_person.sql": "170b0227cd35f4444b7b45976137580e975144356880ac255a2ec640bce4d4e7",
     "00350_the_reviews_on_record_are_read_once_for_a_report.sql": "1012ea6680169f31cebcbf01cbf19fa9f2d8ea9f7647558ecdddd370c56c863c",
-    "00351_a_member_opens_a_conversation.sql": "76aad35c9ed12c9f1679df92f912169249dd20e7abe33c6d46cbde681b603038"
+    "00351_a_member_opens_a_conversation.sql": "76aad35c9ed12c9f1679df92f912169249dd20e7abe33c6d46cbde681b603038",
+    "00352_a_send_is_claimed_before_the_wire.sql": "5640adf3720cac8f52558c561e0380b648a778cba40c190b3deba3f3907704bf",
+    "00353_a_run_is_approved_in_one_transaction.sql": "fecf9e561f560e4c165c21f4b07b16beec37b62e0ea0b9eb646aa1e81ba74c74"
   }
 }

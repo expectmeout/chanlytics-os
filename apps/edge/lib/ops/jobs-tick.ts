@@ -48,6 +48,7 @@ import {
   LEAD_YIELD_AT_MS,
   LEASE_SECONDS,
   RELAY_LIMIT,
+  type ClaimedJob,
 } from "../packages/jobs.js";
 import { relayEvents } from "../packages/db.js";
 import type { SweepTick } from "./sweep-door.js";
@@ -125,7 +126,16 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
                 : (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body),
             ...(email !== undefined ? { email } : {}),
           };
-          return dispatchJob(
+          // The job as its handler holds it. What the handler says of it (that it spoke: ledger markSpoke) is carried
+          // back to the claim once it returns or throws, where the ledger judges a retry from it.
+          const claimed: ClaimedJob = {
+            id: job.id,
+            tenant_id: job.tenant_id,
+            kind: job.kind,
+            payload: (job.payload ?? {}) as Record<string, unknown>,
+            attempts: job.attempts,
+          };
+          const ran = dispatchJob(
             {
               db,
               wire,
@@ -153,14 +163,11 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
                 scheduleJobOnce(db, { tenantId: job.tenant_id, kind, dueAt, payload }),
               deadline,
             },
-            {
-              id: job.id,
-              tenant_id: job.tenant_id,
-              kind: job.kind,
-              payload: (job.payload ?? {}) as Record<string, unknown>,
-              attempts: job.attempts,
-            },
+            claimed,
           );
+          return ran.finally(() => {
+            if (claimed.spoke_at) job.spoke_at = claimed.spoke_at;
+          });
         },
         complete: (job) => completeJob(db, job),
         fail: (job, reason) => failJob(db, job, reason),

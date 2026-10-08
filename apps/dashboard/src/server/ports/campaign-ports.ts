@@ -13,6 +13,7 @@
  */
 import { AppError, parseTenantConfig } from "@chanlytics/contracts";
 import {
+  approveBroadcast,
   assembleBroadcast,
   campaignMonthSent,
   holdRecipients,
@@ -28,9 +29,10 @@ import type {
   TemplateValuesPorts,
 } from "@chanlytics/core";
 import type { RouteContext } from "../with-route";
+import { log, requestId } from "../log";
 import { changed } from "./core-ports";
 import { recordDecision } from "../verbs";
-import { cancelKindFor, schedule } from "../jobs";
+import { cancelKindFor } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
 import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
@@ -151,30 +153,25 @@ export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRun
     timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
     // Under the session's own RLS, as the zone above is: a member reads their own workspace's row.
     paused: () => workspacePaused(ctx.supabase, tenantId),
-    release: (id, at) =>
-      changed(
-        ctx.supabase
-          .from("broadcasts")
-          .update({ state: "scheduled", scheduled_for: at.toISOString() })
-          .eq("id", id)
-          .eq("state", "pending_approval")
-          .select("id"),
-      ),
-    // Only a run still scheduled is put back, and the verb is told whether it was (a forbidden or failed UPDATE does not
-    // raise: it changes no row).
-    hold: (id) =>
-      changed(
-        ctx.supabase
-          .from("broadcasts")
-          .update({ state: "pending_approval" })
-          .eq("id", id)
-          .eq("state", "scheduled")
-          .select("id"),
-      ),
-    schedule: async (id, at) => {
-      await schedule(tenantId, "broadcast_send", at, { broadcast_id: id });
+    // The member's own door, on their own session (00353): the run released, its job written and the approval recorded
+    // as theirs together, so no service-role write and no put-back. The job carries the request it was approved in,
+    // as every job scheduled while a request is served does (jobs schedule.ts).
+    approve: async (id, at, o) => {
+      const request = requestId();
+      const done = await approveBroadcast(ctx.supabase, {
+        tenantId,
+        broadcastId: id,
+        sendAt: at,
+        job: o.job ? (request ? { request_id: request } : {}) : null,
+        decision: o.decision,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      });
+      // The undo named a decision this database does not hold (a card kept from a stale tab): the approval stands
+      // without the link, and the log says which link was refused, as recordDecision's does.
+      if (done?.undoDropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "send_broadcast" });
+      return done?.decisionId ?? null;
     },
-    record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
 }
 

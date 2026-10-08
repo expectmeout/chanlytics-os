@@ -72,6 +72,10 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // A person's own message that begins a conversation (payload.starts, core conversations/begin.ts): a start at the
   // door, and theirs. Only a row a person wrote may say so: the receptionist's own reply travels this path too.
   const starts = p.starts === true && (msg.sender ?? "human") === "human";
+  // The row is this run's before anything reaches a wire. A second job naming the same message (a schedule made
+  // twice, a writer that checked and then wrote beside another) finds it claimed and sends nothing: this job is done,
+  // and the row is the claiming run's to finish, or the ledger's to settle when that run died.
+  if (!(await ports.claim(p.message_id))) return;
   let out: Delivered;
   try {
     out = await ports.deliver({
@@ -108,9 +112,10 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     // number of times; the platform is paged, because a credentials store that does not answer is its condition.
     // A send the provider did not take is handed on the same way, and pages nobody. Any other throw is the door's
     // own, and stays as loud as it was.
-    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e);
-    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e);
-    else throw e;
+    if (!isWireUnavailableError(e) && !isNotTakenError(e)) throw e;
+    // Nothing left, so the claim is given back before the fresh job is asked for: it is that job's to take.
+    await ports.release(p.message_id);
+    await resendLater(ports, cmd, channel, e);
     return;
   }
   if (out.outcome !== "failed") return;

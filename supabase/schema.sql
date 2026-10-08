@@ -390,6 +390,57 @@ COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uui
 
 
 --
+-- Name: approve_broadcast(uuid, uuid, timestamp with time zone, jsonb, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_released uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_send_at is null then
+    raise exception 'approve_broadcast: a run is released for a moment' using errcode = '22004';
+  end if;
+  -- Only a run still waiting, and this workspace's: the row carries the time its job carries (00119). No row is a run
+  -- that moved while the person looked (approved by someone else, skipped, canceled), and nothing else is written.
+  update public.broadcasts
+     set state = 'scheduled', scheduled_for = p_send_at
+   where id = p_broadcast_id and tenant_id = p_tenant_id and state = 'pending_approval'
+  returning id into v_released;
+  if v_released is null then
+    return null;
+  end if;
+  -- The send, on the ledger no session may write: what the caller carries with it (the request it was approved in)
+  -- rides in the payload, and the run it sends is named here, never by the caller.
+  if p_job is not null then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'broadcast_send', p_send_at,
+            (case when jsonb_typeof(p_job) = 'object' then p_job else '{}'::jsonb end)
+              || jsonb_build_object('broadcast_id', p_broadcast_id));
+  end if;
+  return public.team_decision(p_tenant_id, v_actor, 'broadcast', p_broadcast_id, 'send_broadcast',
+                              coalesce(p_decision, '{}'::jsonb), p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): the run released to scheduled for p_send_at, its broadcast_send job written when p_job is given (null for a reach-out''s run, whose sends keep their own times), and the send_broadcast decision recorded as theirs, in one transaction (00353). Returns the decision''s id and whether an undo link was dropped; null when the run was no longer waiting, with nothing written. The rules (the pause, the sending hours, a run approved too late) are core''s approveRun, judged before the call.';
+
+
+--
 -- Name: ask_for_tick(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1219,6 +1270,7 @@ CASE
     END
     ELSE NULL::integer
 END) STORED,
+    spoke_at timestamp with time zone,
     CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
@@ -1243,6 +1295,13 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 --
 
 COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+
+
+--
+-- Name: COLUMN jobs.spoke_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.jobs.spoke_at IS 'When this job put words on a wire (00352): written the moment before the provider is called. A job that spoke is never run again, whatever its kind: a second claim gives up and a throw is not retried, because a second run could reach the person a second time. Null for a job that has not, and for a kind that speaks on every run (outbound_send, broadcast_send), which the ledger never runs twice anyway.';
 
 
 --
@@ -21821,12 +21880,20 @@ CREATE TABLE public.messages (
     status_updated_at timestamp with time zone,
     meta jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sending_at timestamp with time zone,
     CONSTRAINT messages_channel_check CHECK ((channel = ANY (ARRAY['whatsapp'::text, 'voice'::text, 'sms'::text, 'email'::text, 'system'::text]))),
     CONSTRAINT messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text]))),
     CONSTRAINT messages_sender_check CHECK ((sender = ANY (ARRAY['customer'::text, 'ai'::text, 'human'::text, 'system'::text]))),
     CONSTRAINT messages_status_check CHECK ((status = ANY (ARRAY['received'::text, 'queued'::text, 'sent'::text, 'delivered'::text, 'read'::text, 'failed'::text, 'canceled'::text]))),
     CONSTRAINT messages_type_check CHECK ((type = ANY (ARRAY['text'::text, 'template'::text, 'media'::text, 'call_summary'::text, 'note'::text])))
 );
+
+
+--
+-- Name: COLUMN messages.sending_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.messages.sending_at IS 'When the one run that took this queued row to the wire claimed it (00352): set where status = ''queued'' and it is null, so a second job naming the row sends nothing. Cleared only when the provider provably did not take the message. Null on a row no job sent (an inbound message, a direct answer, a broadcast''s).';
 
 
 --
@@ -29611,6 +29678,15 @@ GRANT ALL ON FUNCTION public.appointments_guard() TO service_role;
 
 REVOKE ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
 
 
 --

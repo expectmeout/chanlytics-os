@@ -3066,6 +3066,51 @@ async function assembleBroadcast(db, args) {
   if (error || !data) throw new Error(error?.message ?? "broadcast not created");
   return data;
 }
+var NO_SUCH_COLUMN = /* @__PURE__ */ new Set(["PGRST204", "42703"]);
+async function claimQueuedSend(db, tenantId, messageId) {
+  const { data, error } = await db.from("messages").update({ sending_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", messageId).eq("tenant_id", tenantId).eq("status", "queued").is("sending_at", null).select("id");
+  if (error && NO_SUCH_COLUMN.has(error.code)) return true;
+  if (error) throw new Error(`claim_queued_send: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function releaseQueuedSend(db, tenantId, messageId) {
+  const { error } = await db.from("messages").update({ sending_at: null }).eq("id", messageId).eq("tenant_id", tenantId).eq("status", "queued");
+  if (error && !NO_SUCH_COLUMN.has(error.code)) throw new Error(`release_queued_send: ${error.message}`);
+}
+async function approveBroadcast(db, args) {
+  const { data, error } = await db.rpc("approve_broadcast", {
+    p_tenant_id: args.tenantId,
+    p_broadcast_id: args.broadcastId,
+    p_send_at: args.sendAt.toISOString(),
+    p_job: args.job,
+    p_decision: args.decision,
+    ...args.via ? { p_via: args.via } : {},
+    ...args.undoOf ? { p_undo_of: args.undoOf } : {}
+  });
+  if (error) throw new Error(`approve_broadcast: ${error.message}`);
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string") throw new Error("approve_broadcast: the door answered without its decision");
+  return { decisionId: id, undoDropped: data.undo_dropped === true };
+}
+async function failQueuedSend(db, p) {
+  const { data, error } = await db.from("messages").update({ status: "failed", error: p.error }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("status", "queued").select("conversation_id, sender, channel, meta");
+  if (error) return { row: null, error: error.message };
+  const row = data?.[0];
+  if (!row) return { row: null, error: null };
+  const meta = row.meta !== null && typeof row.meta === "object" && !Array.isArray(row.meta) ? row.meta : null;
+  const email = meta?.email;
+  const request = email !== null && typeof email === "object" && !Array.isArray(email) ? email.request : void 0;
+  return {
+    row: {
+      conversation_id: row.conversation_id,
+      sender: row.sender,
+      channel: row.channel,
+      meta: request === void 0 ? null : { email: { request } }
+    },
+    error: null
+  };
+}
 
 // src/provider-events.ts
 async function keepProviderEvent(db, d) {
@@ -4205,6 +4250,7 @@ export {
   appointmentsBetween,
   appointmentsForClient,
   appointmentsScrub,
+  approveBroadcast,
   archiveConversation,
   archiveList,
   assembleBroadcast,
@@ -4218,6 +4264,7 @@ export {
   claimCallNotification,
   claimControl,
   claimIdempotencyKey,
+  claimQueuedSend,
   claimReplyTell,
   claimReplyTurn,
   claimSends,
@@ -4264,6 +4311,7 @@ export {
   erasureDigests,
   eventOfDelivery,
   everyoneIn,
+  failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
   finishableRuns,
@@ -4415,6 +4463,7 @@ export {
   relayEvents,
   releaseControl,
   releaseIdempotencyKey,
+  releaseQueuedSend,
   releaseUnavailableHolds,
   removePlaybook,
   removeTemplateVersion,

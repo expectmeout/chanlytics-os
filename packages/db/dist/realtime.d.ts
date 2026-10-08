@@ -2750,6 +2750,7 @@ type Database = {
                     last_error: string | null;
                     lease_until: string | null;
                     payload: Json;
+                    spoke_at: string | null;
                     state: string;
                     tenant_id: string;
                     updated_at: string;
@@ -2766,6 +2767,7 @@ type Database = {
                     last_error?: string | null;
                     lease_until?: string | null;
                     payload?: Json;
+                    spoke_at?: string | null;
                     state?: string;
                     tenant_id: string;
                     updated_at?: string;
@@ -2782,6 +2784,7 @@ type Database = {
                     last_error?: string | null;
                     lease_until?: string | null;
                     payload?: Json;
+                    spoke_at?: string | null;
                     state?: string;
                     tenant_id?: string;
                     updated_at?: string;
@@ -3948,6 +3951,7 @@ type Database = {
                     media: Json | null;
                     meta: Json;
                     sender: string;
+                    sending_at: string | null;
                     sent_by: string | null;
                     status: string;
                     status_updated_at: string | null;
@@ -3971,6 +3975,7 @@ type Database = {
                     media?: Json | null;
                     meta?: Json;
                     sender: string;
+                    sending_at?: string | null;
                     sent_by?: string | null;
                     status?: string;
                     status_updated_at?: string | null;
@@ -3994,6 +3999,7 @@ type Database = {
                     media?: Json | null;
                     meta?: Json;
                     sender?: string;
+                    sending_at?: string | null;
                     sent_by?: string | null;
                     status?: string;
                     status_updated_at?: string | null;
@@ -6131,6 +6137,18 @@ type Database = {
                 };
                 Returns: number;
             };
+            approve_broadcast: {
+                Args: {
+                    p_broadcast_id: string;
+                    p_decision: Json;
+                    p_job: Json;
+                    p_send_at: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             ask_for_tick: {
                 Args: never;
                 Returns: boolean;
@@ -6275,6 +6293,7 @@ type Database = {
                     last_error: string | null;
                     lease_until: string | null;
                     payload: Json;
+                    spoke_at: string | null;
                     state: string;
                     tenant_id: string;
                     updated_at: string;

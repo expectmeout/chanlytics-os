@@ -846,6 +846,17 @@ interface SendQueuedPorts {
         name: string;
         language: string;
     } | undefined): Promise<SendPurpose>;
+    /**
+     * The row claimed for this run before anything reaches a wire (db claimQueuedSend, messages.sending_at): false when
+     * another run holds it or it is no longer queued, and this run sends nothing. Two jobs naming one message, however
+     * the second came to be scheduled, are never both answered yes. Throws when it could not be asked.
+     */
+    claim(messageId: string): Promise<boolean>;
+    /**
+     * The claim given back, when the provider provably did not take the message (db releaseQueuedSend): asked before
+     * `retry`, so the fresh job may claim the row. Throws when it could not be written, and no fresh job is asked for.
+     */
+    release(messageId: string): Promise<void>;
     deliver: Door;
     /** The thread flagged for a person, with why; how it landed (jobs upsertEscalation: a hold is told once). */
     escalate(conversationId: string, reason: string, details: string): Promise<"opened" | "changed" | "refreshed" | "failed">;
@@ -2144,16 +2155,16 @@ interface ApproveRunPorts {
     timezone(): Promise<string>;
     /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
     paused(): Promise<boolean>;
-    /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
-    release(broadcastId: string, at: Date): Promise<boolean>;
     /**
-     * scheduled → pending_approval, when the job could not be made: only while it is still scheduled. True iff a row
-     * changed; false, or a throw, is a run that says "scheduled" with nothing to send it (approveRun says so, and the
-     * edge's watchdog marks it not sent once its time has passed: ops/stranded-runs.ts).
+     * The run released for `at` (pending_approval → scheduled, the row carrying the time its job carries: 00119), its
+     * send job written when `job` says so, and the approval recorded as the approver's with `decision` as its payload,
+     * in one transaction (00353 approve_broadcast): the decision's id. Null when the run was no longer waiting, and then
+     * nothing was written. Throws when it failed, and then nothing was written either: the run waits, as it was.
      */
-    hold(broadcastId: string): Promise<boolean>;
-    schedule(broadcastId: string, at: Date): Promise<void>;
-    record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
+    approve(broadcastId: string, at: Date, o: {
+        job: boolean;
+        decision: Json;
+    }): Promise<string | null>;
 }
 interface CancelBroadcastPorts {
     /** The scheduled send withdrawn from the ledger; how many jobs. */
@@ -2319,10 +2330,11 @@ interface ApproveReceipt {
  * A run that was waiting for a person goes out now.
  *
  * Under the ask mode a playbook's run is made as pending_approval: the
- * recipients are enrolled, nothing is scheduled. Approving schedules the
- * send now and records the decision as the approver's; skipping is the
- * cancel. A job the ledger refused leaves the run waiting, as it was. A
- * paused workspace sends nothing, so nothing is approved in it.
+ * recipients are enrolled, nothing is scheduled. Approving releases the run,
+ * schedules its send and records the decision as the approver's, in one
+ * transaction (00353): any of the three that cannot be written leaves the run
+ * waiting, as it was. Skipping is the cancel. A paused workspace sends
+ * nothing, so nothing is approved in it.
  */
 declare function approveRun(ports: ApproveRunPorts, cmd: {
     row: BroadcastRef;

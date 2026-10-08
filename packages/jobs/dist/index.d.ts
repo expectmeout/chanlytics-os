@@ -99,7 +99,11 @@ declare const MAX_RESUMES = 5;
  * is not empty.
  */
 declare const RELAY_LIMIT = 500;
-/** Kinds whose second run could reach a real person a second time. */
+/**
+ * Kinds whose second run could reach a real person a second time, whatever the first got to. A kind that speaks only
+ * at the end of work that is safe to repeat (a text's answer, after the model's turn) is not here: it says so on its
+ * own row the moment before it speaks (markSpoke), and is judged as one of these from then on.
+ */
 declare const SPEAKS_TO_A_PERSON: ReadonlySet<string>;
 declare const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 interface LedgerRow {
@@ -112,6 +116,8 @@ interface LedgerRow {
     attempts: number;
     /** The queue the claim took it from (jobs.lane, 00281): 0 a reply, 1 someone waiting, 2 bulk; null for a kind with none. */
     lane?: number | null;
+    /** When a run of this job put words on a wire (jobs.spoke_at, 00352): set, it is never run again; null or absent, it has not. */
+    spoke_at?: string | null;
 }
 type Verdict = "run" | "give_up";
 /**
@@ -120,11 +126,13 @@ type Verdict = "run" | "give_up";
  * the one case that must not be repeated: the run may have died after the
  * provider accepted the message and before the row recorded it, and a second
  * text to a real person cannot be taken back. Internal work is idempotent and
- * is tried again, up to a cap.
+ * is tried again, up to a cap. A job of any kind whose earlier run said it was
+ * about to speak (spoke_at) is the first case, not the second.
  */
 declare function verdictFor(job: {
     kind: string;
     attempts: number;
+    spoke_at?: string | null;
 }): Verdict;
 /**
  * Kinds tried again after they THROW, and how long each wait is.
@@ -154,14 +162,30 @@ declare const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>>;
 /**
  * How long a job that just threw waits before it is tried again; null when it is failed now. The wait is drawn a little
  * longer at random (contracts jittered), so the jobs one outage failed together are not all claimed again in the same
- * heartbeat; only ever longer, so every wait still outlasts the lease.
+ * heartbeat; only ever longer, so every wait still outlasts the lease. A job that spoke before it threw (spoke_at) is
+ * failed now, as a kind that always speaks is: its words may have left.
  */
 declare function retryWait(job: {
     kind: string;
     attempts: number;
+    spoke_at?: string | null;
 }, random?: () => number): number | null;
 /** The next due job, claimed for this run; null when nothing is due. */
 declare function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null>;
+/**
+ * A job about to put words on a wire says so first (jobs.spoke_at, 00352), on its row and on the claim this run was
+ * handed: from then on it is judged as a kind that always speaks is (verdictFor, retryWait), so a claim after a lease
+ * that ran out gives up and a throw is not retried. The same compare-and-swap as the exits. Throws when this run no
+ * longer holds the row (its lease was taken back, and another run has it: this one must not speak) or the write
+ * failed, and the caller sends nothing: a missed answer beats a second one. Said once: a job that speaks twice in one
+ * run writes it the first time. A database 00352 has not reached keeps no such fact: the job speaks as it did, and
+ * this run still knows it spoke.
+ */
+declare function markSpoke(db: Db, job: {
+    id: string;
+    attempts?: number;
+    spoke_at?: string | null;
+}): Promise<void>;
 /**
  * Both exits compare-and-swap on the state AND the claim. A run whose lease ran
  * out and was taken back must not be able to finish the row out from under the
@@ -481,6 +505,11 @@ interface ClaimedJob {
      * a failed job). Absent in a context that does not say, which reads as a first try.
      */
     attempts?: number;
+    /**
+     * Set by the handler the moment before it puts words on a wire (ledger markSpoke), and read back by the runner once
+     * the handler returns or throws: a job that spoke is never run again.
+     */
+    spoke_at?: string | null;
 }
 
 /**
@@ -621,4 +650,4 @@ interface TickCounts {
 declare function lateFields(lateMs: Record<string, number>): Record<string, number>;
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, CLAIM_SLOTS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RELAY_LIMIT, REPLY_LATE_PAGE_MS, RETRY_WAITS_MS, RUN_INTERRUPTED, type Requeued, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, lateFields, requeueFailedJob, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, CLAIM_SLOTS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RELAY_LIMIT, REPLY_LATE_PAGE_MS, RETRY_WAITS_MS, RUN_INTERRUPTED, type Requeued, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, lateFields, markSpoke, requeueFailedJob, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };
