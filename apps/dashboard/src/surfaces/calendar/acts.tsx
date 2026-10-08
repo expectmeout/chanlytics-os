@@ -7,7 +7,7 @@
 import type { RefObject } from "react";
 import type { StayingPage, useLegacyToast } from "../legacy-verbs";
 import { surfaceValue } from "../surface-values";
-import { OWN_TOUCH } from "../kit/view-tabs/pager";
+import { OWN_TOUCH } from "../kit/view-tabs/own-touch";
 import { flushChange } from "./shell-verbs";
 import { calendar } from "./verbs";
 

@@ -7,12 +7,7 @@
  */
 import { viewDeck } from "../motion/view-deck";
 import { glideDrag, glideHome } from "./glide";
-
-/**
- * What keeps its own touch, and is never a page's: a dialog, a sheet, a menu, a toast, and anything that says it drags
- * (a map's streets, hold-to-talk). The Calendar's days refuse the same list.
- */
-export const OWN_TOUCH = '[role="dialog"], [aria-modal="true"], [role="menu"], .sb-sheet, .pp-toast, [data-own-drag]';
+import { OWN_TOUCH } from "./own-touch";
 
 /** A page to walk, as `touchSwipe` asks for one: whether there is one each side, and the finger's three words. */
 export interface ViewPage {
