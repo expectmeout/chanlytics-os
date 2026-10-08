@@ -722,9 +722,12 @@ test("REGRESSION (A11): Archive is in the open thread's menu, asks first, and sa
 const OVER = {
   true: { says: '[aria-modal="true"]', is: { className: "rec-sheet deal-sheet" } },
   kit: { says: '[role="dialog"]', is: { className: "sheet" } },
-  // An open menu or list keeps its keys too: a letter typed there finds one of its own rows.
+  // An open menu keeps its keys too, and so does a list the kit stands on a pop (its select's): a letter typed there
+  // finds one of its own rows.
   menu: { says: '[role="menu"]', is: { className: "more-menu" } },
-  list: { says: '[role="listbox"]', is: { className: "rec-combo-list" } },
+  list: { says: ".pop-place", is: { className: "pop-place" } },
+  // A row of the Inbox's own list: an option in a listbox at rest, on the page and over nothing.
+  row: { says: '[role="listbox"]', is: { className: "ix-thread-rows" } },
 };
 const keyFrom = (key, { modal = false, prevented = false, ...mods } = {}) => ({
   type: "keydown",
@@ -818,4 +821,9 @@ test("REGRESSION: j, k and the arrows pressed inside a dialog over the Inbox mov
   hear(keyFrom("j"));
   render();
   assert.notEqual(drawn.at(-1), first, "on the page, j still walks the list");
+  // A key pressed on a row of the list is the page's as well: the row is an option in a listbox at rest. A rule that
+  // left every listbox alone took A, D, E and N from whoever had clicked a row.
+  hear(keyFrom("k", { modal: "row" }));
+  render();
+  assert.equal(drawn.at(-1), first, "REGRESSION: a key pressed on a row of the Inbox's own list walks it");
 });

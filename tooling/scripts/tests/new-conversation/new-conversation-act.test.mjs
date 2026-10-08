@@ -131,6 +131,16 @@ test("the frame's host answers N on the Inbox's tabs, and leaves it alone elsewh
   send();
   assert.equal(newConversationAsked().open, false, "a role that may not write");
   globalThis.window.canDo = () => true;
+  // Pressed on a row of the list, N is still the page's: the row is an option in a listbox at rest, which stands over
+  // nothing. The target answers `closest` as a row would: yes to its own listbox, no to anything over the page.
+  closeNewConversation();
+  send({
+    target: {
+      tagName: "DIV",
+      closest: (sel) => (sel.split(",").some((s) => s.trim() === '[role="listbox"]') ? {} : null),
+    },
+  });
+  assert.equal(newConversationAsked().open, true, "REGRESSION: N pressed on a row of the list opens the sheet");
   for (const tab of ["inbox", "inbox/th-1", "conversations", "conversations/chats:c1", "live"]) {
     closeNewConversation();
     at(tab);

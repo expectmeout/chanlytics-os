@@ -23,10 +23,12 @@ const isEditable = (target: EventTarget | null): boolean =>
  * What stands over the page and keeps its own keys. The record kit's sheet and the shell's own say aria-modal; the
  * kit's Sheet and its pops (Base UI) say role="dialog" and hold the page inert without it, so a rule that asked for
  * aria-modal alone let a key pressed on a button of the New conversation sheet walk the list behind it, and would
- * have let A approve a draft there and Ctrl with Enter send the reply box. An open menu or list keeps its keys the
- * same way: a letter typed there finds one of its own rows.
+ * have let A approve a draft there and Ctrl with Enter send the reply box. An open menu keeps its keys the same way,
+ * and so does whatever the kit stands on a pop (`.pop-place`: its select's list, its picker's, its popover): a letter typed
+ * there finds one of its own rows. Never a listbox by its role alone: the Inbox's own rows are options in a listbox at
+ * rest, and A, D, E and N pressed on a row someone clicked are the page's.
  */
-const OVER_THE_PAGE = '[aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
+const OVER_THE_PAGE = '[aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], .pop-place';
 
 /** Whether a key was pressed inside a dialog over the page. THE one statement of it for the Inbox's listeners. */
 export const ixInDialog = (target: unknown): boolean => isCloser(target) && !!target.closest(OVER_THE_PAGE);
