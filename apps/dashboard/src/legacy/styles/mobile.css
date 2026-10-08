@@ -146,6 +146,9 @@
   .today-setup .setup-card-skip { display: none; }
   .today-setup .setup-card-long { display: none; }
   .today-setup .setup-card-short { display: inline; }
+  /* What the row opens takes the card's width: the card's own padding is its gutter. Set in by Setup's page margins
+     too, "Which calls" had 4px to spare on an iPhone and its two choices wrapped on anything narrower. */
+  .today-setup .setup-chooser { margin-left: 0; }
 
   /* ---------- Inbox ---------- */
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }

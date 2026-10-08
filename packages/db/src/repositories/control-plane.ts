@@ -225,7 +225,10 @@ export async function createWorkspaceFn(db: Db, args: CreateWorkspaceArgs) {
   return db.rpc("create_workspace", args).single();
 }
 
-/** What `line_forwarding_set` takes: the workspace, the number kept, its carrier, which calls to forward, and the phone to test from. */
+/**
+ * What `line_forwarding_set` takes: the workspace, the number kept, its carrier and which calls to forward. Its fifth, a
+ * phone to test from, is asked nowhere any more (8 Oct 2026): the door passes null until a migration drops the argument.
+ */
 export type LineForwardingArgs = Database["public"]["Functions"]["line_forwarding_set"]["Args"];
 
 /** Keep the number: the forwarded line's id, or the database's refusal. */

@@ -274,6 +274,13 @@ const byTestId = (tree, id) => {
   });
   return hit;
 };
+const allInputs = (tree) => {
+  const hits = [];
+  walk(tree, (n) => {
+    if (n.type === "input") hits.push(n);
+  });
+  return hits;
+};
 const allByTestId = (tree, id) => {
   const hits = [];
   walk(tree, (n) => {
@@ -563,6 +570,10 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   carriers.props.onChange({ target: { value: "att" } });
   tree = mount();
   assert.equal(byTestId(tree, "setup-fw-carrier").props.value, "att");
+  // The form asks the number, its carrier and which calls, and nothing else: "the phone you'll test from (optional)"
+  // went (Ruben, 8 Oct 2026), and the card is left one text box.
+  assert.equal(byTestId(tree, "setup-fw-from"), null, "no phone to test from is asked");
+  assert.equal(allInputs(byTestId(tree, "setup-forwarding")).length, 1, "one text box: the number you keep");
   // Which calls: two radios, the one chosen said so (the kit's track reads aria-checked).
   const checked = () => ["unanswered", "always"].map((m) => byTestId(tree, `setup-fw-mode-${m}`).props["aria-checked"]);
   assert.deepEqual(checked(), [true, false]);
@@ -625,7 +636,7 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   assert.deepEqual(checked(), [false, true]);
   tree = mount();
   await byTestId(tree, "setup-fw-save").props.onClick();
-  assert.deepEqual(calls.fwSet, [{ number: "(305) 555-0100", carrier: "att", mode: "always", test_from: "" }]);
+  assert.deepEqual(calls.fwSet, [{ number: "(305) 555-0100", carrier: "att", mode: "always" }]);
 
   // Saved: the row carries the forwarded line, and the card shows the carrier's code and the test.
   fresh();
@@ -655,7 +666,6 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
             carrier: "att",
             mode: "always",
             destination_e164: "+13055550101",
-            test_from: null,
             test_started_at: null,
             test_until: null,
             verified_at: null,
