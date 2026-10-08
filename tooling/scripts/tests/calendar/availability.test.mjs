@@ -486,7 +486,6 @@ test("Settings collects the rules and the feed; the feed address is whole only f
   // in business-tab-folds.test.mjs and business-tab-open.test.mjs, so four pins that were here are gone.
   const page = readRaw("apps/dashboard/src/surfaces/settings/business/folds.ts");
   assert.ok(page.includes('btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);'));
-  assert.ok(page.includes('btPut(section, "ical_url", feed || undefined);'));
   // The feed address whole for an owner and masked for anyone else is RUN: through the route in settings-routes.test.mjs
   // ("the settings read") and through its reader in readers.test.mjs, so the two pins on the route's text are gone.
 });

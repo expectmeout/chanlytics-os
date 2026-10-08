@@ -40,6 +40,7 @@ import type { Database } from "@chanlytics/db";
 import { getTenantConfig, mailboxOfTenant, offersEmailReach } from "@chanlytics/db";
 import {
   emailOffersOpen,
+  forwardStillAsked,
   offerPauseOf,
   parseTenantConfig,
   parseTenantConfigResult,
@@ -450,8 +451,29 @@ function templatesSection(templates: SetupReads["templates"]): SetupDto["templat
   };
 }
 
-function calendarSection(calendar: SetupReads["calendar"]): SetupDto["calendar"] {
-  return { state: calendar?.feed.state ?? "none", problem: calendar?.feed.problem ?? null };
+/**
+ * What the calendar is fed by, as the one rule reads it (contracts calendar-source.ts): the link's read, the booking
+ * tool named and where its emails stand, and the owner's word that they book by hand. The row read the link alone.
+ */
+function calendarSection(calendar: SetupReads["calendar"], now: Date): SetupDto["calendar"] {
+  const feed = calendar?.feed;
+  const n = feed?.notices;
+  return {
+    state: feed?.state ?? "none",
+    problem: feed?.problem ?? null,
+    stale: !!feed?.stale,
+    tool: n?.tool ?? null,
+    by_hand: !!feed?.by_hand,
+    emails: n?.tool
+      ? {
+          address: !!n.address,
+          forwarding: forwardStillAsked(n.forwarding?.at, now),
+          last_at: n.last_at,
+          held: n.held,
+        }
+      : null,
+    booking_link: !!calendar?.booking_link,
+  };
 }
 
 function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDto["team"] {
@@ -562,7 +584,7 @@ export async function setupDtoFor(
     channels: channelsSection(read),
     email: read.email,
     templates: templatesSection(read.templates),
-    calendar: calendarSection(read.calendar),
+    calendar: calendarSection(read.calendar, now),
     team: teamSection(read.team, config.cfg),
     consent: consentSection(read),
     requests: requestsFrom(read.requested.data),

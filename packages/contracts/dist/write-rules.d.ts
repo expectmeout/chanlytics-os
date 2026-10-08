@@ -83,20 +83,8 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
         ical_url: z.ZodString;
     }, z.core.$strip>>;
     bookings: z.ZodOptional<z.ZodObject<{
-        tool: z.ZodOptional<z.ZodEnum<{
-            booksy: "booksy";
-            acuity: "acuity";
-            fresha: "fresha";
-            square: "square";
-            vagaro: "vagaro";
-            glossgenius: "glossgenius";
-            calendly: "calendly";
-            setmore: "setmore";
-            mindbody: "mindbody";
-            simplybook: "simplybook";
-            schedulicity: "schedulicity";
-            styleseat: "styleseat";
-        }>>;
+        tool: z.ZodOptional<z.ZodString>;
+        by_hand: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
     features: z.ZodOptional<z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;

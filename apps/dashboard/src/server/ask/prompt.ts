@@ -9,6 +9,7 @@ import {
   POLICY_CLASS_WORDS,
   PLAYBOOK_VETO_DELAY_WORDS,
   answerFromV1,
+  bookingToolName,
   clip as answerClip,
   describeNow,
   guardrailsInForce,
@@ -186,10 +187,23 @@ export interface WorkspaceFacts {
   notes: Array<{ title: string; text: string }>;
   bookingNotes: string[];
   hasCalendar: boolean;
+  /** The booking tool whose emails become appointments, as the product says it; null for none named. */
+  bookingTool: string | null;
+  /** The owner's word that they take bookings themselves. */
+  booksByHand: boolean;
   visionOn: boolean;
   /** The Autonomy rows, "Replies: auto" each, in the matrix's order; empty when the rows could not be read. */
   autonomy: string[];
 }
+
+/** What the calendar is fed by, as the settings alone say it: a link, a booking tool's emails, or the owner's own hands. */
+const calendarFactsOf = (
+  cfg: TenantConfig | null,
+): Pick<WorkspaceFacts, "hasCalendar" | "bookingTool" | "booksByHand"> => ({
+  hasCalendar: !!cfg?.calendar?.ical_url,
+  bookingTool: bookingToolName(cfg?.bookings?.tool),
+  booksByHand: !!cfg?.bookings?.by_hand,
+});
 
 /** The facts the receptionist itself runs on, in a few lines. */
 export function workspaceFacts(
@@ -219,7 +233,7 @@ export function workspaceFacts(
     guardrails,
     notes: (profile?.notes ?? []).slice(0, 10),
     bookingNotes: profile?.booking_rules?.notes ?? [],
-    hasCalendar: !!cfg?.calendar?.ical_url,
+    ...calendarFactsOf(cfg),
     visionOn: !!cfg?.features?.vision,
     autonomy: POLICY_CLASSES.flatMap((cls) => {
       const mode = policies.find((p) => p.class === cls)?.mode;
@@ -249,12 +263,22 @@ export function factsBlock(f: WorkspaceFacts): string {
   if (f.notes.length)
     lines.push(`Notes the receptionist follows: ${f.notes.map((n) => `${n.title}: ${n.text}`).join(" | ")}.`);
   if (f.bookingNotes.length) lines.push(`Booking notes: ${f.bookingNotes.join("; ")}.`);
-  lines.push(
-    f.hasCalendar
-      ? "A calendar feed is connected: openings can be read with calendar with action openings."
-      : "No calendar feed is connected, so openings cannot be read; the business's hours are the only availability fact.",
-  );
+  lines.push(calendarFact(f));
   return lines.join("\n");
+}
+
+/**
+ * Whether openings can be read, and what the calendar is fed by where they cannot. The two sentences a workspace with
+ * neither a tool nor its own word gets are the ones every workspace got; a tool named or "by hand" adds what is true of
+ * it, so Ask does not tell a business whose bookings are on its board that it has no calendar.
+ */
+function calendarFact(f: WorkspaceFacts): string {
+  if (f.hasCalendar) return "A calendar feed is connected: openings can be read with calendar with action openings.";
+  const noOpenings = "openings cannot be read; the business's hours are the only availability fact.";
+  if (f.bookingTool)
+    return `Bookings arrive by email from ${f.bookingTool} and are on the calendar (calendar with action week). No calendar link is connected, so ${noOpenings}`;
+  if (f.booksByHand) return `The business takes bookings by hand and connects no calendar, so ${noOpenings}`;
+  return `No calendar feed is connected, so ${noOpenings}`;
 }
 
 export function definitionsBlock(): string {

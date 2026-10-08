@@ -177,6 +177,8 @@
    LIGHT THEME — warm off-white, ink, six-step neutral
    ============================================================ */
 [data-theme="light"] {
+  /* The browser's own parts wear the theme: a select's open list, a date's picker, a scrollbar no rule styles. */
+  color-scheme: light;
   --mark-plate: oklch(1 0 0);           /* a business's logo sits on this (leads.css, clients.css) */
 
   --shadow-sm: 0 1px 2px 0 oklch(0.2 0.01 260 / 0.04);
@@ -192,6 +194,9 @@
    DARK THEME — true ink, not navy. Quiet, with proper contrast.
    ============================================================ */
 [data-theme="dark"] {
+  /* The browser's own parts wear the theme: a select's open list, a date's picker, a scrollbar no rule styles. Unsaid,
+     they were the device's light ones on a dark page (the forwarding form's list of carriers, 8 Oct 2026). */
+  color-scheme: dark;
   /* A logo is drawn for a light ground: a dark wordmark on a dark plate is not there. Light in both themes, a step
      down from white so it does not glare out of a dark list. */
   --mark-plate: oklch(0.94 0.004 260);

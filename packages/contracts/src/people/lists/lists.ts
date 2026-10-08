@@ -497,7 +497,7 @@ export function listUnknownWords(reason: ListUnknownReason, calendar: ListContex
   switch (reason) {
     case "calendar":
       return calendar === "none"
-        ? "This list reads your calendar. Connect it under Settings › Business to count it."
+        ? "This list reads a calendar link. Add one under Settings › Business to count it."
         : "This list reads your calendar, which can't be read right now.";
     case "consult":
       return "This list exists only where the profile lists a consult-first service under Settings › Business.";

@@ -220,8 +220,34 @@ export function todayQuietDay(f: TodayFacts, proof: string): Omit<NonNullable<To
 
 type TodayHeadline = Pick<TodayVM["standing"], "headline" | "detail" | "tone">;
 
-/** The headline ladder: first match wins. `needsRows` are Ask's rows, oldest wait first, for the one name it says. */
-export function todayHeadline(f: TodayFacts, alert: string | null, needsRows: TodayNeedsRowVM[]): TodayHeadline {
+/**
+ * What the queue holds besides the people who asked for a person, as sentences: a reply window closing, a call worth a
+ * listen, a search waiting on an answer. One spelling, said by the head (calmHeadline) and by the brief
+ * (today-brief-words.ts); the brief names a closing window's person itself, so it passes no windows.
+ */
+export function todayAlsoWaiting(w: { windows?: number; calls: number; searches: number }): string[] {
+  const { windows = 0, calls, searches } = w;
+  return [
+    windows ? (windows === 1 ? "One reply window is closing." : `${windows} reply windows are closing.`) : "",
+    calls ? (calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`) : "",
+    searches
+      ? searches === 1
+        ? "A search is waiting on your answer."
+        : `${searches} searches are waiting on your answer.`
+      : "",
+  ].filter(Boolean);
+}
+
+/**
+ * The headline ladder: first match wins. `needsRows` are Ask's rows, oldest wait first, for the one name it says.
+ * `also` is what the queue holds besides them (todayAlsoWaiting), for the last rung.
+ */
+export function todayHeadline(
+  f: TodayFacts,
+  alert: string | null,
+  needsRows: TodayNeedsRowVM[],
+  also: readonly string[],
+): TodayHeadline {
   const { needsYouCount, oldest } = f;
   if (alert) return { headline: "Check your connection before anything else.", detail: null, tone: "alert" };
   if (needsYouCount > 1) {
@@ -239,11 +265,16 @@ export function todayHeadline(f: TodayFacts, alert: string | null, needsRows: To
       tone: "needs",
     };
   }
-  return calmHeadline(f);
+  return calmHeadline(f, also);
 }
 
-/** The last rung of the ladder: nothing needs you, so the day's traffic, and whether the receptionist handled all of it. */
-function calmHeadline({ period, speed }: TodayFacts): TodayHeadline {
+/**
+ * The last rung of the ladder: nobody asked for a person, so the day's traffic, and whether the receptionist handled all
+ * of it. "Nothing needs you" is said only over a queue with nothing in it: with a search waiting on an answer the head
+ * said it above a queue that said "1 Need you" (Ruben, 7 Oct 2026). What still waits is said first, in the queue's own
+ * sentences, then the traffic.
+ */
+function calmHeadline({ period, speed }: TodayFacts, also: readonly string[]): TodayHeadline {
   const bits: string[] = [];
   if (period.messages_in) {
     bits.push(
@@ -258,14 +289,19 @@ function calmHeadline({ period, speed }: TodayFacts): TodayHeadline {
   // "Handled everything" only when the receptionist did: a message you
   // answered yourself, or one nobody answered, is not the receptionist's.
   const allByReceptionist = period.unanswered_in_window === 0 && period.messages_out_you === 0;
-  const headline = bits.length
-    ? allByReceptionist
-      ? `The receptionist handled everything — ${bits.join(" and ")} today. Nothing needs you.`
-      : `${bits.join(" and ")} today. Nothing needs you right now.`
-    : "Nothing needs you.";
+  const headline = also.length
+    ? [...also, ...(bits.length ? [`${bits.join(" and ")} today.`] : [])].join(" ")
+    : bits.length
+      ? allByReceptionist
+        ? `The receptionist handled everything — ${bits.join(" and ")} today. Nothing needs you.`
+        : `${bits.join(" and ")} today. Nothing needs you right now.`
+      : "Nothing needs you.";
+  // "It" only after a headline that named the receptionist ("The receptionist handled everything"); after any other
+  // (what still waits, or the traffic alone) the sentence names it itself.
+  const named = !also.length && bits.length > 0 && allByReceptionist;
   const detail =
     speed !== null && period.messages_in > 0
-      ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.`
+      ? `${named ? "It" : "The receptionist"} answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.`
       : null;
   return { headline, detail, tone: "calm" };
 }

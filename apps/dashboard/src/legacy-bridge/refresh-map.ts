@@ -245,7 +245,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST setup/request": setup,
   "PUT business-record": setup,
   // Making the mailbox adds a line, so the count above the work changes with it, and opens the email channel to a campaign.
-  "POST mailboxes": () => [setupOverride, todayOverride, ...readiness()],
+  // And the Calendar: its read carries the workspace's address, which the Booking tool row offers to make and then
+  // tells the owner to send booking emails to (settings/business/open-bookings.tsx).
+  "POST mailboxes": () => [setupOverride, todayOverride, calendarOverride, ...readiness()],
   // The mailbox's own facts are what email's readiness reads (its offers pause among them), so a save of it re-reads them.
   "PUT mailboxes/[id]": setupAndReadiness,
   // A sending domain added, checked or removed: the Email row's block reads again from Setup.

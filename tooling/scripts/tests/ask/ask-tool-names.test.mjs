@@ -763,7 +763,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 7 Oct 2026: the frozen world's WhatsApp number was a US one, and Meta's pause on marketing messages to US numbers
     // (contracts whatsapp-offers.ts) would now hold every offer these tools count; the world's number is a UK one, and the
     // one place the frozen bytes say the number (workspace.settings) is rewritten to it. The pause itself is ask-turn's to prove.
-    let result = want.result.replaceAll("+19295550100", "+442079460100");
+    // 7 Oct 2026 (the calendar's setup, said once): what Reports says with no calendar link names the link, where it
+    // said "Connect your calendar" to a business whose bookings arrive by email (contracts BOOKED_NEEDS_A_LINK).
+    let result = want.result
+      .replaceAll("+19295550100", "+442079460100")
+      .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
     if (NAMES[old] === "report") result = withReviews(withCampaigns(withHold(result)));

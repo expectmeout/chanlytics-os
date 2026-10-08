@@ -79,15 +79,15 @@ const copyTo = (tree, flash, words) => {
 /** The card's summary is the composer's own run-collapsing, joined. Never a second implementation. */
 const summaryOf = (hours) => hoursLines(hours).join(" · ");
 
-test("When you're open draws five rows in the spec's order, under a line contracts wrote", () => {
+test("When you're open draws four rows in the spec's order, under a line contracts wrote", () => {
   const card = byTestId(drawTab(), "rec-card-open");
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Hours",
     "Timezone",
     "Days you're closed",
-    "Calendar it reads",
-    // The booking tool and the address its emails go to (00345), beside the calendar it reads.
-    "Where your bookings come from",
+    // What the business books with: its calendar link and its tool's booking emails, one row (7 Oct 2026). It was
+    // "Calendar it reads" and "Where your bookings come from", each sending the owner to the other.
+    "Booking tool",
   ]);
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "When you're open");
   assert.equal(
@@ -946,13 +946,13 @@ const readOk = (over = {}) => ({
   ...over,
 });
 
-test("the calendar row says where it reads and when, and keeps the address, the count and the source in its fold", () => {
+test("the booking tool row says where its calendar link reads and when, and keeps the address, the count and the source in its fold", () => {
   W.__CALENDAR = calendarRead(readOk());
   try {
     const tree = drawTab({ profile: marisa });
     const row = byTestId(tree, "rec-row-calendar");
     assert.equal(
-      find(row, (n) => /Check the address/i.test(textOf(n))),
+      find(row, (n) => /Check the (address|link)/i.test(textOf(n))),
       null,
       "a row that can say it needs no button",
     );
@@ -974,13 +974,21 @@ test("the calendar row says where it reads and when, and keeps the address, the 
       all(row, (n) => n.type === "button").map((b) => b.props["data-testid"]),
       ["rec-row-act-calendar"],
     );
-    // Opened, the fold holds the address whole, and the whole of what the last read found.
+    // Opened, the fold holds the address whole, and the whole of what the last read found, with the door to the board.
     openFold(tree, "calendar");
     const open = redrawTab();
-    const box = find(foldOf(open, "calendar"), (n) => classes(n).includes("rec-input"));
-    assert.equal(box.props.value, "https://app.chanlytics.com/api/v1/calendar/filler.ics", "the address, whole");
-    assert.equal(textOf(byTestId(open, "rec-calendar-whole")), W.__CALENDAR.vm.feed.detail);
+    assert.equal(
+      linkBox(open).props.value,
+      "https://app.chanlytics.com/api/v1/calendar/filler.ics",
+      "the address, whole",
+    );
+    assert.equal(linkBox(open).props["aria-label"], "Calendar link", "named by the part's head, heard on the box");
+    const whole = byTestId(open, "rec-calendar-whole");
+    assert.equal(textOf(find(whole, (n) => n.type === "span")), W.__CALENDAR.vm.feed.detail);
     assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
+    went.length = 0;
+    press(byTestId(whole, "rec-calendar-open"));
+    assert.deepEqual(went, ["calendar"]);
     // A read that failed says in the fold what it tried and when, which the row at rest leaves to the reason.
     W.__CALENDAR = calendarRead(
       readOk({
@@ -999,7 +1007,12 @@ test("the calendar row says where it reads and when, and keeps the address, the 
   }
 });
 
-test("the bookings row states the tool, and under it one mark with the next thing to do; nothing named, it says Not set up", () => {
+/** The fold's picker, as the page hands it its value: what a person choosing an option does (the kit proves the rest). */
+const pickBooksWith = (tree, value) => find(tree, (n) => n.props?.testid === "bto-bookings-tool").props.onChange(value);
+/** The calendar link's box in the open fold. */
+const linkBox = (tree) => find(foldOf(tree, "calendar"), (n) => n.type === "input" && n.props?.id === "bt-calendar");
+
+test("the booking tool row states what the owner books with, and under it one mark with the next thing to do; nothing said, it says Not set up", () => {
   const nothing = { state: "none", present: false, read_at: null, events: 0 };
   const notices = (over = {}) => ({
     tool: "booksy",
@@ -1012,18 +1025,20 @@ test("the bookings row states the tool, and under it one mark with the next thin
     ...over,
   });
   const lineOf = (row) => byTestId(row, "bt-bookings-read");
+  const booksy = { calendar: undefined, bookings: { tool: "booksy" } };
   try {
-    // Nothing named and nothing arrived: an empty row with its hint, and no line under it.
+    // Nothing said and nothing arrived: an empty row with its hint, and no line under it.
     W.__CALENDAR = calendarRead(readOk(nothing));
-    let row = byTestId(drawTab(), "rec-row-bookings");
+    let row = byTestId(drawTab({ config: { calendar: undefined } }), "rec-row-calendar");
     assert.equal(row.props["data-empty"], "true");
     assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-empty"))), "Not set up");
-    assert.match(textOf(row), /Booking emails from your tool become appointments on the board\./);
+    assert.match(textOf(row), /What you book with\. It fills your calendar and tells the receptionist what is taken\./);
     assert.equal(lineOf(row), null);
+    assert.equal(byTestId(row, "rec-calendar-read"), null, "and no read is stated of a link there is not");
     // A tool named: the row states it as the product says it, and the line says it waits for the first email. The
-    // mark's own word is its accessible name and its tip, as the calendar row's mark carries the Calendar page's.
+    // mark's own word is its accessible name and its tip, as the calendar link's mark carries the Calendar page's.
     W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: notices() }));
-    row = byTestId(drawTab({ config: { bookings: { tool: "booksy" } } }), "rec-row-bookings");
+    row = byTestId(drawTab({ config: booksy }), "rec-row-calendar");
     assert.equal(row.props["data-empty"], "false");
     assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Booksy");
     assert.equal(textOf(lineOf(row)), "Waiting for the first booking email");
@@ -1032,10 +1047,10 @@ test("the bookings row states the tool, and under it one mark with the next thin
     assert.equal(mark.props["aria-label"], "Waiting");
     assert.equal(mark.props["data-tip"], "Waiting");
     assert.equal(textOf(mark), "", "a mark, not a word on the row");
-    assert.doesNotMatch(textOf(row), /Booking emails from your tool/, "a row that has its fact states it and stops");
+    assert.doesNotMatch(textOf(row), /What you book with\./, "a row that has its fact states it and stops");
     // Held for a look before any has become a visit: the row says so, never that it is still waiting for the first.
     W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: notices({ held: 1 }) }));
-    row = byTestId(drawTab({ config: { bookings: { tool: "booksy" } } }), "rec-row-bookings");
+    row = byTestId(drawTab({ config: booksy }), "rec-row-calendar");
     assert.equal(textOf(lineOf(row)), "1 booking email to look at");
     assert.equal(lineOf(row).props["data-tone"], "warn");
     // Emails arriving, two held for a look: one mark in the warn tone, and the count, never a list on the row.
@@ -1059,21 +1074,30 @@ test("the bookings row states the tool, and under it one mark with the next thin
         }),
       }),
     );
-    row = byTestId(drawTab({ config: { bookings: { tool: "booksy" } } }), "rec-row-bookings");
+    row = byTestId(drawTab({ config: booksy }), "rec-row-calendar");
     assert.equal(textOf(lineOf(row)), "Last booking email 2h ago · 2 to look at");
     assert.equal(lineOf(row).props["data-tone"], "warn");
     assert.deepEqual(
       all(row, (n) => n.type === "button").map((b) => b.props["data-testid"]),
-      ["rec-row-act-bookings"],
+      ["rec-row-act-calendar"],
       "the row's one act; Read again and Dismiss wait in the fold",
     );
-    // The fold: the tool's picker, the address with Copy, the tool's steps, and the two held emails with their presses.
-    openFold(drawTab({ config: { bookings: { tool: "booksy" } } }), "bookings");
-    const open = foldOf(redrawTab(), "bookings");
-    assert.match(textOf(byTestId(open, "bto-bookings-address")), /Send booking emails to marisa@mail\.example\.com/);
+    // The fold, for a tool known to give no calendar: one sentence in place of the link's box, which waits behind a
+    // press; then the emails' part, with the address and its Copy, the steps folded now that emails arrive, and the
+    // two held emails with their presses.
+    openFold(drawTab({ config: booksy }), "calendar");
+    let open = foldOf(redrawTab(), "calendar");
+    assert.equal(
+      textOf(byTestId(open, "bto-link-note")).replace("I have a calendar link", "").trim(),
+      "Booksy offers no calendar link. The receptionist sends your booking link instead of naming open times.",
+    );
+    assert.equal(byTestId(open, "bto-link"), null, "no box for a link the tool does not give");
+    assert.match(textOf(byTestId(open, "bto-emails")), /^Booking emails/);
+    assert.match(textOf(byTestId(open, "bto-bookings-address")), /Send your booking emails to this address\./);
+    assert.match(textOf(byTestId(open, "bto-bookings-address")), /marisa@mail\.example\.com/);
     assert.equal(textOf(byTestId(open, "bto-bookings-copy")), "Copy");
+    assert.equal(byTestId(open, "bto-bookings-steps").type, "details", "a thing to look up, once emails arrive");
     assert.match(textOf(byTestId(open, "bto-bookings-steps")), /no-reply@booksy\.com/);
-    assert.match(textOf(byTestId(open, "bto-bookings-steps")), /forward any past booking email/);
     assert.match(textOf(byTestId(open, "bto-bookings-held")), /2 booking emails need a look\./);
     // Who a held email came from waits under a pointer, on its subject: the row stays two lines and two presses.
     const heldRows = all(
@@ -1083,7 +1107,187 @@ test("the bookings row states the tool, and under it one mark with the next thin
     assert.equal(heldRows.length, 2);
     assert.equal(find(heldRows[0], (n) => n.props?.title === "no-reply@booksy.com") != null, true);
     assert.doesNotMatch(textOf(heldRows[0]), /no-reply@booksy\.com/);
+    // An owner who keeps a calendar of their own all the same: one press, and the box is there.
+    press(byTestId(open, "bto-link-anyway"));
+    open = foldOf(redrawTab(), "calendar");
+    assert.ok(byTestId(open, "bto-link"));
+    assert.equal(linkBox(redrawTab()).props.value, "");
+    // Before any email: the steps stand open, with the way to see it work at once.
+    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: notices() }));
+    openFold(drawTab({ config: booksy }), "calendar");
+    open = foldOf(redrawTab(), "calendar");
+    assert.equal(byTestId(open, "bto-bookings-steps").type, "div");
+    assert.match(textOf(byTestId(open, "bto-bookings-steps")), /forward any past booking email/);
+    // A tool and a link: the row states both, the tool and where its link is read from.
+    W.__CALENDAR = calendarRead(readOk({ notices: notices({ tool: "square", last_at: twoHoursAgo, count: 3 }) }));
+    row = byTestId(drawTab({ config: { bookings: { tool: "square" } } }), "rec-row-calendar");
+    assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Square · app.chanlytics.com");
+    assert.ok(byTestId(row, "rec-calendar-read") && lineOf(row), "a line for the link's read and one for the emails");
   } finally {
+    delete W.__CALENDAR;
+  }
+});
+
+test("the fold asks what the owner books with and draws only what that answer has: no address yet, a booking link that names its tool, and booking by hand", () => {
+  const nothing = { state: "none", present: false, read_at: null, events: 0 };
+  const sent = saving();
+  try {
+    // No address yet: the one its name gives is offered in one press, and the steps, which name "the address above",
+    // wait for it.
+    W.__CALENDAR = calendarRead(
+      readOk({
+        ...nothing,
+        notices: {
+          tool: "booksy",
+          address: null,
+          suggested: "marisas-beauty-salon@mail.example.com",
+          last_at: null,
+          count: 0,
+          held: 0,
+          held_list: [],
+          forwarding: null,
+        },
+      }),
+    );
+    openFold(drawTab({ config: { calendar: undefined, bookings: { tool: "booksy" } } }), "calendar");
+    let open = foldOf(redrawTab(), "calendar");
+    assert.match(textOf(byTestId(open, "bto-bookings-address")), /Your workspace has no email address yet/);
+    assert.match(textOf(byTestId(open, "bto-bookings-address")), /it cannot be changed later/);
+    assert.equal(textOf(byTestId(open, "bto-bookings-make")), "Use marisas-beauty-salon@mail.example.com");
+    assert.equal(byTestId(open, "bto-bookings-steps"), null);
+    went.length = 0;
+    press(byTestId(open, "bto-bookings-choose"));
+    assert.deepEqual(went, ["admin/integrations"], "and Connections, for an owner who wants another");
+    // Nothing said yet, and a booking link on a platform the product knows: the row and the fold name the tool, so the
+    // owner who gave the link is not asked which tool it is. One press takes it, and Save writes it.
+    W.__CALENDAR = calendarRead(readOk(nothing));
+    const onBooksy = {
+      config: { calendar: undefined },
+      brain: { booking_link: "https://booksy.com/en-us/4471902_bright" },
+    };
+    let tree = drawTab(onBooksy);
+    assert.match(
+      textOf(byTestId(tree, "rec-row-calendar")),
+      /Your booking link is on Booksy\. Set it up to fill your calendar\./,
+    );
+    const stored = written(W.__SETTINGS.config);
+    openFold(tree, "calendar");
+    tree = redrawTab();
+    const guess = byTestId(foldOf(tree, "calendar"), "bto-bookings-guess");
+    assert.match(textOf(guess), /Your booking link is on Booksy\./);
+    assert.equal(byTestId(tree, "bto-link"), null, "nothing of an answer before there is one");
+    press(find(guess, (n) => n.type === "button"));
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "bto-bookings-guess"), null, "taken, it is the answer");
+    assert.ok(byTestId(tree, "bto-emails"));
+    saveFoldOf(tree, "calendar");
+    assert.deepEqual(sent[0].config, { ...without(stored, "calendar"), bookings: { tool: "booksy" } });
+    // By hand: nothing to connect, said once, and neither part drawn. Saved, it is the owner's own word.
+    tree = drawTab({ config: { calendar: undefined } });
+    const before = written(W.__SETTINGS.config);
+    openFold(tree, "calendar");
+    pickBooksWith(redrawTab(), "hand");
+    tree = redrawTab();
+    assert.equal(
+      textOf(byTestId(tree, "bto-link-note")),
+      "Nothing to connect. The receptionist sends your booking link instead of naming open times.",
+    );
+    assert.equal(byTestId(tree, "bto-link"), null);
+    assert.equal(byTestId(tree, "bto-emails"), null);
+    saveFoldOf(tree, "calendar");
+    assert.deepEqual(sent[1].config, { ...without(before, "calendar"), bookings: { by_hand: true } });
+    const row = byTestId(drawTab({ config: { calendar: undefined, bookings: { by_hand: true } } }), "rec-row-calendar");
+    assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Booked by hand");
+  } finally {
+    delete W.__CALENDAR;
+  }
+});
+
+test("REGRESSION (the review of 8 Oct 2026): 'I book by hand' over a calendar link that is kept hides its box, says the link goes, and saves without it -- it kept the link, which outranked the word, and the row said 'Calendar link'", () => {
+  const sent = saving();
+  try {
+    W.__CALENDAR = calendarRead(readOk());
+    let tree = drawTab();
+    const before = written(W.__SETTINGS.config);
+    const kept = before.calendar.ical_url;
+    assert.ok(kept, "the workspace keeps a calendar link");
+    openFold(tree, "calendar");
+    tree = redrawTab();
+    const box = () => find(redrawTab(), (n) => n.props?.id === "bt-calendar");
+    assert.equal(box().props.value, kept, "a calendar with a link draws it in its box");
+    pickBooksWith(tree, "hand");
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "bto-link"), null, "by hand has no box, even over a link that is kept");
+    assert.equal(
+      textOf(byTestId(tree, "bto-link-note")),
+      "Nothing to connect. The receptionist sends your booking link instead of naming open times. Saving this removes your calendar link.",
+    );
+    // Another answer before saving: the address is still in its box, so a change of mind loses nothing.
+    pickBooksWith(tree, "calendar");
+    assert.equal(box().props.value, kept);
+    pickBooksWith(redrawTab(), "hand");
+    tree = redrawTab();
+    saveFoldOf(tree, "calendar");
+    assert.deepEqual(sent[0].config, { ...without(before, "calendar"), bookings: { by_hand: true } });
+    // Saved, the row says the owner's own word, and no line of a calendar's read.
+    const row = byTestId(drawTab({ config: { calendar: undefined, bookings: { by_hand: true } } }), "rec-row-calendar");
+    assert.equal(textOf(byTestId(row, "bt-bookings-tool")), "Booked by hand");
+    // A tool that gives no calendar, its box asked for, then "by hand": the press that asked is not carried over.
+    openFold(drawTab({ config: { calendar: undefined, bookings: { tool: "booksy" } } }), "calendar");
+    tree = redrawTab();
+    press(byTestId(tree, "bto-link-anyway"));
+    assert.ok(byTestId(redrawTab(), "bto-link"), "asked for, the box is drawn");
+    pickBooksWith(redrawTab(), "hand");
+    assert.equal(byTestId(redrawTab(), "bto-link"), null);
+  } finally {
+    delete W.__CALENDAR;
+  }
+});
+
+test("a workspace with no address is given the one its name makes in one press: the route Connections' own form calls, with the business's name; a refusal is said under the press, which is offered again", async () => {
+  const nothing = { state: "none", present: false, read_at: null, events: 0 };
+  const noAddress = {
+    tool: "booksy",
+    address: null,
+    suggested: "marisas-beauty-salon@mail.example.com",
+    last_at: null,
+    count: 0,
+    held: 0,
+    held_list: [],
+    forwarding: null,
+  };
+  // The page's own client makes the request (legacy-bridge/api.ts), over a fetch that answers as the route would.
+  const asked = [];
+  let answer = { status: 409, body: { ok: false, error: { code: "conflict", message: "That address is taken." } } };
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    asked.push({ url: String(url), method: init.method, body: init.body ? JSON.parse(String(init.body)) : null });
+    return new Response(JSON.stringify(answer.body), {
+      status: answer.status,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    W.__CALENDAR = calendarRead(readOk({ ...nothing, notices: noAddress }));
+    openFold(drawTab({ config: { calendar: undefined, bookings: { tool: "booksy" } } }), "calendar");
+    const make = () => byTestId(foldOf(redrawTab(), "calendar"), "bto-bookings-make");
+    assert.equal(textOf(make()), "Use marisas-beauty-salon@mail.example.com");
+    assert.equal(byTestId(foldOf(redrawTab(), "calendar"), "bto-bookings-make-refused"), null);
+    await make().props.onClick();
+    assert.equal(asked.length, 1, "one request, for one press");
+    assert.equal(asked[0].method, "POST");
+    assert.match(asked[0].url, /^\/api\/v1\/mailboxes(\?|$)/);
+    // The part before the @, and the name customers see beside it: the business's own.
+    assert.deepEqual(asked[0].body, { local_part: "marisas-beauty-salon", from_name: "Marisa's Beauty Salon" });
+    // Refused (the address is another workspace's): the door's own sentence, under the press, which is still there.
+    const open = foldOf(redrawTab(), "calendar");
+    assert.equal(textOf(byTestId(open, "bto-bookings-make-refused")), "That address is taken.");
+    assert.equal(byTestId(open, "bto-bookings-make-refused").props.role, "alert");
+    assert.equal(textOf(make()), "Use marisas-beauty-salon@mail.example.com");
+    assert.ok(!make().props.disabled, "and may be pressed again");
+    assert.equal(textOf(byTestId(open, "bto-bookings-choose")), "Choose another");
+  } finally {
+    globalThis.fetch = fetchWas;
     delete W.__CALENDAR;
   }
 });
@@ -1257,7 +1461,7 @@ test("(B1) the check's words: one event, many, the next or none this month -- ev
   for (const g of FEED_GUIDES) assert.ok(g.steps.length >= 2 && g.steps.every((t) => t.endsWith(".")), g.name);
 });
 
-test("with no feed the calendar row is empty and says what the address is for; its fold holds the one box, checked under it, and saves only the address", () => {
+test("a calendar with no tool behind it: the fold holds the link's one box, checked under it, and saves only the address", () => {
   const sent = saving();
   const flashes = [];
   const flash = (f) => flashes.push(f);
@@ -1265,68 +1469,65 @@ test("with no feed the calendar row is empty and says what the address is for; i
   try {
     let tree = drawTab({ flash, config: { calendar: undefined } });
     const stored = written(W.__SETTINGS.config);
-    const row = byTestId(tree, "rec-row-calendar");
-    assert.equal(row.props["data-empty"], "true");
-    assert.match(textOf(row), /Not connected/);
-    assert.match(
-      textOf(row),
-      /Read-only, so it can say which times are open before sending the link\./,
-      "the old form's sentence for what the address is",
-    );
-    assert.equal(byTestId(row, "rec-calendar-read"), null, "and no read is stated of a calendar that is not connected");
     assert.equal(textOf(byTestId(tree, "rec-row-act-calendar")), "Add one");
     openFold(tree, "calendar");
     tree = redrawTab(flash);
+    assert.equal(byTestId(tree, "bto-link"), null, "no box until the owner says what they book with");
+    pickBooksWith(tree, "calendar");
+    tree = redrawTab(flash);
     const fold = foldOf(tree, "calendar");
-    assert.match(textOf(fold), /The private iCal address of the calendar your appointments land in/);
+    assert.ok(textOf(byTestId(fold, "bto-link")).startsWith("Calendar link So the receptionist can offer open times."));
     assert.match(
-      textOf(fold),
-      /It is only ever read\. Nothing is booked from here; the booking link does that, whichever tool is behind it\./,
+      textOf(byTestId(fold, "rec-calendar-note")),
+      /^Paste the private address of the calendar your appointments land in\. It is only ever read\. Nothing is booked from here; your booking link does that\.$/,
     );
     assert.equal(byTestId(tree, "rec-calendar-open"), null, "no door to a calendar that is not connected");
+    assert.equal(byTestId(tree, "bto-emails"), null, "and no emails' part: there is no tool to send them");
     assert.equal(
       find(fold, (n) => classes(n).includes("rec-says")),
       null,
       "the address is in no draft of the brain: it draws no block",
     );
-    const box = () => find(foldOf(tree, "calendar"), (n) => classes(n).includes("rec-input"));
-    box().props.onChange({ target: { value: "calendar.google.com/basic.ics" } });
+    linkBox(tree).props.onChange({ target: { value: "calendar.google.com/basic.ics" } });
     tree = redrawTab(flash);
     saveFoldOf(tree, "calendar");
     tree = redrawTab(flash);
-    assert.equal(box().props["aria-invalid"], true);
+    assert.equal(linkBox(tree).props["aria-invalid"], true);
     assert.match(
       textOf(foldOf(tree, "calendar")),
-      /The calendar feed needs to be a full address, starting with https:\/\/ or webcal:\/\//,
+      /The calendar link needs to be a full address, starting with https:\/\/ or webcal:\/\//,
     );
     assert.equal(sent.length, 0);
-    box().props.onChange({
+    linkBox(tree).props.onChange({
       target: { value: "  https://calendar.google.com/calendar/ical/marisa/private-abc/basic.ics  " },
     });
     tree = redrawTab(flash);
-    assert.equal(box().props["aria-invalid"], undefined, "typing again takes the sentence away");
+    assert.equal(linkBox(tree).props["aria-invalid"], undefined, "typing again takes the sentence away");
     saveFoldOf(tree, "calendar");
     assert.deepEqual(sent[0].config, {
       ...without(stored, "calendar"),
       calendar: { ical_url: "https://calendar.google.com/calendar/ical/marisa/private-abc/basic.ics" },
     });
 
-    // A feed is stored: the fold keeps the door to the Calendar, and an emptied box disconnects it.
+    // A link is stored: where to find one is no longer said, that it is only read still is; and an emptied box
+    // disconnects it.
     tree = drawTab({ flash });
     const held = written(W.__SETTINGS.config);
     openFold(tree, "calendar");
     tree = redrawTab(flash);
-    went.length = 0;
-    press(byTestId(tree, "rec-calendar-open"));
-    assert.deepEqual(went, ["calendar"]);
-    box().props.onChange({ target: { value: "" } });
+    assert.equal(
+      textOf(byTestId(tree, "rec-calendar-note")),
+      "It is only ever read. Nothing is booked from here; your booking link does that.",
+    );
+    linkBox(tree).props.onChange({ target: { value: "" } });
     tree = redrawTab(flash);
     saveFoldOf(tree, "calendar");
     assert.deepEqual(sent[1].config, without(held, "calendar"));
 
     // Anyone but the owner is sent the address masked: shown as it arrives, said to be hidden, and an untouched fold
     // sends nothing, so the mask is never saved over the address.
-    tree = drawTab({ flash, config: { calendar: { ical_url: "https://calendar.google.c…ic.ics" } } });
+    const masked = { calendar: { ical_url: "https://calendar.google.c…ic.ics" } };
+    tree = drawTab({ flash, config: masked });
     assert.equal(
       textOf(find(byTestId(tree, "rec-row-calendar"), (n) => classes(n).includes("bt-feed-where"))),
       "Your calendar",
@@ -1338,54 +1539,16 @@ test("with no feed the calendar row is empty and says what the address is for; i
     saveFoldOf(tree, "calendar");
     tree = redrawTab(flash);
     assert.deepEqual([sent.length, openFolds(tree)], [2, []]);
+    // And the tool beside a masked address still saves: the mask goes back as it came (the route puts the stored
+    // address in its place), judged by nobody on the way.
+    tree = drawTab({ flash, config: masked });
+    const kept = written(W.__SETTINGS.config);
+    openFold(tree, "calendar");
+    pickBooksWith(redrawTab(flash), "square");
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "calendar");
+    assert.deepEqual(sent[2].config, { ...kept, bookings: { tool: "square" } });
   } finally {
-    delete W.__CALENDAR;
-  }
-});
-
-test("a viewer reads when the business is open and is offered no act on any of it", () => {
-  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
-  W.__workspace = { setTimezone: async () => ({ ok: true, tz: "America/Chicago", message: "" }) };
-  W.__CALENDAR = calendarRead(readOk());
-  try {
-    const tree = drawTab({ profile: { ...marisa, closures: [XMAS] } });
-    const card = byTestId(tree, "rec-card-open");
-    assert.deepEqual(
-      all(card, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")),
-      [],
-      "no row offers a change",
-    );
-    assert.match(textOf(card), new RegExp(escape(summaryOf(marisa.hours))));
-    assert.match(textOf(card), /1 ahead · Dec 24 – 26 · Christmas/);
-    // The whole of the last read, on the ROW: where it read from, when, and how many events. A viewer never opens a
-    // fold (below), so the fold is no place to keep it from them -- they read the record, all of it.
-    assert.equal(textOf(byTestId(card, "rec-calendar-read")), W.__CALENDAR.vm.feed.detail);
-    assert.match(W.__CALENDAR.vm.feed.detail, /From Google Calendar · read 4m ago · 12 events/);
-    // A read that failed is the same: what it tried, and when, where an owner would open the fold for it.
-    W.__CALENDAR = calendarRead(
-      readOk({
-        state: "unavailable",
-        read_at: null,
-        events: 0,
-        reason: "http",
-        status: 404,
-        problem: "The calendar answered 404.",
-      }),
-    );
-    const failed = byTestId(drawTab({ profile: { ...marisa, closures: [XMAS] } }), "rec-row-calendar");
-    assert.match(textOf(failed), /tried 4m ago/, "a viewer reads what the last try was, too");
-    assert.match(textOf(failed), /The calendar answered 404\./);
-    W.__CALENDAR = calendarRead(readOk());
-    // Nothing opens an editor for it, whatever asks.
-    for (const id of ["hours", "timezone", "closures", "calendar"]) {
-      W.__recordFolds.request(id);
-      const again = redrawTab();
-      assert.deepEqual([openFolds(again), openRows(again)], [[], []], id);
-      W.__recordFolds.reset();
-    }
-  } finally {
-    delete W.ST_STORE;
-    delete W.__workspace;
     delete W.__CALENDAR;
   }
 });
@@ -1400,12 +1563,12 @@ test("each act of When you're open is gated as a change to the settings, and nam
   W.__workspace = { setTimezone: async () => ({ ok: true, tz: "", message: "" }) };
   try {
     const tree = drawTab();
-    const mine = asked.filter(([, doing]) => /hours|timezone|closed|calendar/.test(doing));
+    const mine = asked.filter(([, doing]) => /hours|timezone|closed|book with/.test(doing));
     assert.deepEqual(mine, [
       ["settings", "change your hours"],
       ["settings", "change the timezone"],
       ["settings", "change the days you are closed"],
-      ["settings", "change the calendar it reads"],
+      ["settings", "change what you book with"],
     ]);
     const heard = (row) => {
       const act = byTestId(tree, `rec-row-act-${row}`);
@@ -1421,7 +1584,7 @@ test("each act of When you're open is gated as a change to the settings, and nam
       "Change your opening hours",
       "Change Timezone",
       "Add one: a day you are closed",
-      "Change the calendar it reads",
+      "Change what you book with",
     ]);
   } finally {
     W.gate = was;

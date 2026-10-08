@@ -7,6 +7,7 @@
 import { ASK_CAPS, type AskMessageVM, type AskProposal } from "./ask";
 import { FOLLOWUP_ECHO, cleanAnswer, navigateLabel, sameQuestion } from "./answer-text";
 import type { AskLanguage } from "./ask-language";
+import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import type { FastCall } from "./ask-fast-paths";
 import {
   ASK_CITATION_KINDS,
@@ -411,6 +412,12 @@ export function callsAnswer(missed: FastCall[], live: FastCall[], language: AskL
 export interface AskOpeningsView {
   state: "ok" | "no_calendar" | "unavailable";
   days: Array<{ key: string; label: string; windows: string[] }>;
+  /**
+   * With no calendar link: what the calendar is fed by instead, where anything is (setup/calendar-source.ts): the
+   * tool whose booking emails arrive, by the name the product says it, or the owner's word that they book by hand.
+   * Null or absent for neither, and on an answer from a route before it.
+   */
+  instead?: { by: "emails"; tool: string } | { by: "hand" } | null;
 }
 
 // The route reads only the day asked about when one was (askIntent's `day`), so an empty answer is that day's.
@@ -432,20 +439,39 @@ const openingsHeadline = (days: AskOpeningsView["days"], es: boolean, asked: boo
     : `The calendar has open times on ${days.length} days.`;
 };
 
+/**
+ * No calendar link to read open times from, said for what the business does have. Bookings that arrive by email are on
+ * the Calendar, and the door goes there: it said "No calendar is connected" to such a business and sent it to
+ * Connections, beside a board that showed its bookings. Otherwise the door is the Business row that connects one
+ * (CALENDAR_SETTING_ROUTE), where it went to Connections, whose own row then sent the owner on to Business.
+ */
+function noCalendarAnswer(instead: NonNullable<AskOpeningsView["instead"]> | null, language: AskLanguage): AskAnswer {
+  const es = language === "es";
+  const said =
+    instead?.by === "emails"
+      ? es
+        ? `Las reservas llegan por correo desde ${instead.tool} y están en el Calendario, pero sin un enlace de calendario no veo horas libres.`
+        : `Bookings arrive by email from ${instead.tool} and are on the Calendar, but without a calendar link I can't see open times.`
+      : instead?.by === "hand"
+        ? es
+          ? "Tomas las reservas tú, así que no hay calendario del que leer horas libres."
+          : "You take bookings yourself, so there is no calendar for me to read open times from."
+        : es
+          ? "No hay calendario conectado, así que no veo horas libres."
+          : "No calendar is connected, so I can't see open times.";
+  const a = structured(said, language);
+  a.say.detail = es ? "El horario está en Ajustes." : "The hours are in Settings.";
+  a.do.open =
+    instead?.by === "emails"
+      ? { to: "calendar", label: es ? "Abrir el Calendario" : "Open the Calendar", now: false }
+      : { to: CALENDAR_SETTING_ROUTE, label: es ? "Conectar un calendario" : "Connect a calendar", now: false };
+  return a;
+}
+
 /** What is open: the days as items, each a door to its day on the Calendar; Do opens the Calendar. */
 export function openingsAnswer(o: AskOpeningsView, language: AskLanguage, day: string | null = null): AskAnswer {
   const es = language === "es";
-  if (o.state === "no_calendar") {
-    const a = structured(
-      es
-        ? "No hay calendario conectado, así que no veo horas libres."
-        : "No calendar is connected, so I can't see open times.",
-      language,
-    );
-    a.say.detail = es ? "El horario está en Ajustes." : "The hours are in Settings.";
-    a.do.open = { to: "admin/integrations", label: es ? "Conectar un calendario" : "Connect a calendar", now: false };
-    return a;
-  }
+  if (o.state === "no_calendar") return noCalendarAnswer(o.instead ?? null, language);
   if (o.state === "unavailable")
     return structured(
       es ? "No se pudo leer el calendario ahora." : "The calendar couldn't be read right now.",
