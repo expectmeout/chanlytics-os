@@ -29,7 +29,7 @@ Worktree `cm-audit`, branch `people/the-table-says-it-once` off `b2271d3a4` (mai
 - Modify: `packages/contracts/src/people/index.ts` only if `person-reach` is not re-exported whole (check: `grep -n "person-reach" packages/contracts/src/people/index.ts`)
 - Test: `tooling/scripts/tests/people/people-vm.test.mjs` (after the test "the Replies row says what a reply may be…")
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 test("a row says how to reach a person in words: the wire a reply goes on over the one identifier, and what a reply may be only where that matters", () => {
@@ -73,12 +73,12 @@ test("a row says how to reach a person in words: the wire a reply goes on over t
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/people/people-vm.test.mjs`
 Expected: the new test fails with `rowReachWords is not a function` (the namespace import holds no such export).
 
-- [ ] **Step 3: Write the helper**
+- [x] **Step 3: Write the helper**
 
 In `person-reach.ts`, after `repliesWords`:
 
@@ -133,12 +133,12 @@ export function rowReachWords(
 }
 ```
 
-- [ ] **Step 4: Run the test to see it pass**
+- [x] **Step 4: Run the test to see it pass**
 
 Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/people/people-vm.test.mjs`
 Expected: PASS (every test in the file). If the import of `rowReachWords` through `@chanlytics/contracts` fails, the suite reads the package's `src` through tsx; check `packages/contracts/src/people/index.ts` exports `person-reach` (`export * from "./person-reach"`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/contracts/src/people/person-reach.ts tooling/scripts/tests/people/people-vm.test.mjs
@@ -151,7 +151,7 @@ git commit -m "Contracts say how a row reaches a person, in words"
 - Modify: `packages/contracts/src/people/person-row-facts.ts` (`PersonLastContact`, `lastContactOf`)
 - Test: `tooling/scripts/tests/people/people-vm.test.mjs` (the test "last contact says who and how long ago…")
 
-- [ ] **Step 1: Extend the existing test**
+- [x] **Step 1: Extend the existing test**
 
 Inside "last contact says who and how long ago, and the newer of message vs call wins", after its first assertions on `label`, add:
 
@@ -166,12 +166,12 @@ Inside "last contact says who and how long ago, and the newer of message vs call
 
 (Use the file's own row builder and clock names; `base`, `TZ`, `NOW` stand for whatever that test already uses.)
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/people/people-vm.test.mjs`
 Expected: FAIL, `by` is undefined.
 
-- [ ] **Step 3: Carry the parts**
+- [x] **Step 3: Carry the parts**
 
 In `person-row-facts.ts`:
 
@@ -207,12 +207,12 @@ and in `lastContactOf` build each return from `by` and `when`:
   return { ts: m, at: r.last_message_at, kind: "message", who, by, when, label: `${by} · ${when}` };
 ```
 
-- [ ] **Step 4: Run the test to see it pass**
+- [x] **Step 4: Run the test to see it pass**
 
 Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/people/people-vm.test.mjs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/contracts/src/people/person-row-facts.ts tooling/scripts/tests/people/people-vm.test.mjs
@@ -228,7 +228,7 @@ git commit -m "The last contact carries when and who as two parts"
 - Delete the import of `ChannelGlyph` from `columns.tsx` (`cells/channel-glyph.tsx` stays: `people-globals.ts` publishes it)
 - Test: `tooling/scripts/tests/people/people-honest.test.mjs`, `tooling/scripts/tests/consent/consent-door.test.mjs`, `tooling/scripts/tests/calendar/calendar-people.test.mjs`, `e2e/people/people.spec.ts`
 
-- [ ] **Step 1: Move the pins to the new shapes (red first)**
+- [x] **Step 1: Move the pins to the new shapes (red first)**
 
 In `people-honest.test.mjs`:
 - every default headings list `["Person", "State", "Reach", "Last contact", "Receptionist", "Offers"]` becomes `["Person", "State", "Next step", "Reach", "Last contact", "Offers"]`; with a calendar `["Person", "State", "Next step", "Reach", "Last contact", "Visits", "Offers"]`; with Came from / Email / Lists shown, the same with those at the end; `sorting(tree)` lists gain `"Next step"` after `"State"`.
@@ -290,7 +290,7 @@ In `e2e/people/people.spec.ts`, the headers:
 Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/people/people-honest.test.mjs tooling/scripts/tests/consent/consent-door.test.mjs`
 Expected: the moved pins FAIL.
 
-- [ ] **Step 2: Draw the cells**
+- [x] **Step 2: Draw the cells**
 
 In `columns.tsx`:
 
@@ -433,17 +433,17 @@ In `shown.ts`'s `sortKeyOf`, before `default`:
 
 In `words.ts`'s `PL_SORTED_BY`: `next: "next step",`.
 
-- [ ] **Step 3: Run the tests to see them pass**
+- [x] **Step 3: Run the tests to see them pass**
 
 Run: `node tooling/scripts/checks/test.mjs tooling/scripts/tests/people/people-honest.test.mjs tooling/scripts/tests/consent/consent-door.test.mjs tooling/scripts/tests/calendar/calendar-people.test.mjs tooling/scripts/tests/people/people-table.test.mjs tooling/scripts/tests/deals/pipeline.test.mjs`
 Expected: PASS. (`calendar-people` presses the acts by their test ids; the kit `Button` keeps `onClick` and `data-testid`.)
 
-- [ ] **Step 4: Typecheck and lint**
+- [x] **Step 4: Typecheck and lint**
 
 Run: `corepack pnpm --filter @chanlytics/dashboard typecheck` and `corepack pnpm lint`
 Expected: clean; the lint's warning count at or under its baseline.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/dashboard/src/surfaces/people tooling/scripts/tests e2e/people/people.spec.ts
@@ -456,11 +456,11 @@ git commit -m "People's cells on the kit: Reach in words, the receptionist's sta
 - Modify: `apps/dashboard/src/legacy/styles/clients.css` (CRLF; the Edit tool)
 - Modify: `apps/dashboard/src/legacy/Chanlytics.html` (`clients.css?v=64` → `?v=65`)
 
-- [ ] **Step 1: Delete the old cells' rules**
+- [x] **Step 1: Delete the old cells' rules**
 
 Delete whole: `.cl-row-agent { … }`, `.cl-row-agent .live-dot`, `.cl-row-agent.approval`, `.cl-row-agent.escalated`, `.cl-row-agent .agent-avatar { … }`, `.cl-row-agent-verb { … }`, `.cl-row-channels { … }`, `.cl-row-channel-primary { … }` (lines 903–936); `.cl-row-offers { font-size: 11.5px; }` and its `.yes/.no/.unasked` lines (1936–1939); `.cl-row-act { … }`, `.cl-row-act:hover { … }` (1944–1945); `.cl-row-act-drop:hover { … }` (2233); `.cl-row-reach { … }` and `.cl-row-reach .tabular` (2215–2216).
 
-- [ ] **Step 2: Write the new lines, with tokens only**
+- [x] **Step 2: Write the new lines, with tokens only**
 
 In the table section (after `.cl-row-fullname`), replacing the deleted Reach rule's place:
 
@@ -486,12 +486,12 @@ In the table section (after `.cl-row-fullname`), replacing the deleted Reach rul
 
 Bump the stylesheet: `clients.css?v=65`.
 
-- [ ] **Step 3: The measures bank the fall**
+- [x] **Step 3: The measures bank the fall**
 
 Run: `UPDATE_BASELINES=1 node tooling/scripts/checks/test.mjs tooling/scripts/tests/styles/style-values.test.mjs tooling/scripts/tests/styles/kit-primitives.test.mjs tooling/scripts/tests/repo/debt-register.test.mjs` (the exact test files: `ls tooling/scripts/tests/styles tooling/scripts/tests/repo | grep -E "style-values|kit-primitives|debt-register"`).
 Expected: the clients.css counts fall (the literal 11.5px/12px/9px sizes and the `agent-avatar` selector are gone), nothing rises. `git diff --stat tooling/scripts/tests/baselines docs/debt.md docs/takeover.md` shows the banked numbers.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/dashboard/src/legacy/styles/clients.css apps/dashboard/src/legacy/Chanlytics.html tooling/scripts/tests/baselines docs/debt.md docs/takeover.md
@@ -504,25 +504,25 @@ git commit -m "Classic's People cells leave the stylesheet; the new lines read t
 - Run: the dev server (`bookings-app` in the session-root launch.json runs `cm-audit` on port 3301; sign in through `people-signin` on `:3396` pointed at 3301, or the pane's existing localhost cookie) — reads only in Ruben's workspace; never toggle a column there (it writes the member's view).
 - Modify: `tooling/scripts/tests/baselines/bundle-budget.json` through `corepack pnpm check:bundle -- --update` after `corepack pnpm --filter @chanlytics/dashboard build`, or a raise with a "Rises" row in `docs/debt.md`.
 
-- [ ] **Step 1: Measure at 1440×900 with the sidebar open**
+- [x] **Step 1: Measure at 1440×900 with the sidebar open**
 
 In the pane's `javascript_tool`: `const s=document.querySelector('.pl-table-scroll'); [s.clientWidth, s.scrollWidth]`.
 Expected: `scrollWidth <= clientWidth` without a calendar (Ruben's workspace). If it is over, narrow `.cl-row-next { max-width }` to 18ch and `.cl-row-words` (Glass block) to 22ch, in that order, and measure again.
 
-- [ ] **Step 2: Shots for the PR**
+- [x] **Step 2: Shots for the PR**
 
 A screenshot at 1440 (dark) of the table at rest and with a row hovered (the acts as the kit's quiet buttons), and the Columns menu open.
 
-- [ ] **Step 3: Build and bank the bundle**
+- [x] **Step 3: Build and bank the bundle**
 
 Run: `corepack pnpm --filter "./packages/*" build`, then `corepack pnpm --filter @chanlytics/dashboard build`, then `corepack pnpm check:bundle`.
 Expected: the CSS falls (bank with `-- --update`); the route JS within its 512 B allowance, else `check:bundle -- --raise js=<bytes>` with a Rises row in `docs/debt.md` naming the column and the kit button. Rebuild contracts' dist after Prettier (`corepack pnpm format`), keep only `packages/contracts/dist`'s real diff, `git checkout -- packages/{core,db,jobs,channels}/dist`.
 
-- [ ] **Step 4: Docs**
+- [x] **Step 4: Docs**
 
 `apps/dashboard/src/legacy/CLAUDE.md`, the People paragraph: one sentence after the parity pass's: "An 8 October 2026 pass draws the cells in the kit's shapes: Reach is the wire over the identifier in words (contracts `rowReachWords`), the receptionist's standing the kit's pill and off by default, Offers the consent pill, the next step a column after State, the last contact's time over its speaker, and the row's acts the kit's quiet buttons."
 
-- [ ] **Step 5: The whole check line, then commit**
+- [x] **Step 5: The whole check line, then commit**
 
 Run: `corepack pnpm -r typecheck`, `corepack pnpm lint`, `node tooling/scripts/checks/changed-tests.mjs origin/main HEAD`, `corepack pnpm check:dead-exports`, `corepack pnpm format:check`.
 Expected: all green. Commit:
