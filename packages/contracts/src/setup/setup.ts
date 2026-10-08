@@ -157,7 +157,6 @@ export interface LineDto {
     carrier: string;
     mode: string;
     destination_e164: string | null;
-    test_from: string | null;
     test_until: string | null;
     verified_at: string | null;
   } | null;

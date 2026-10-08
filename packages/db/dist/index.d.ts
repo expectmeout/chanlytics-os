@@ -9861,9 +9861,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 user_id?: string | null;
             };
             Update: {
-                agrees
-                /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
-                ?: boolean | null;
+                agrees?: boolean | null;
                 cache_read_tokens?: number;
                 cache_write_tokens?: number;
                 confident?: boolean | null;
@@ -18869,9 +18867,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             user_id?: string | null;
         };
         Update: {
-            agrees
-            /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
-            ?: boolean | null;
+            agrees?: boolean | null;
             cache_read_tokens?: number;
             cache_write_tokens?: number;
             confident?: boolean | null;
@@ -24608,9 +24604,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             user_id?: string | null;
         };
         Update: {
-            agrees
-            /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
-            ?: boolean | null;
+            agrees?: boolean | null;
             cache_read_tokens?: number;
             cache_write_tokens?: number;
             confident?: boolean | null;
@@ -30347,9 +30341,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             user_id?: string | null;
         };
         Update: {
-            agrees
-            /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
-            ?: boolean | null;
+            agrees?: boolean | null;
             cache_read_tokens?: number;
             cache_write_tokens?: number;
             confident?: boolean | null;
@@ -38763,7 +38755,10 @@ declare function createWorkspaceFn(db: Db$9, args: CreateWorkspaceArgs): Promise
     status: string;
     timezone: string;
 }>>;
-/** What `line_forwarding_set` takes: the workspace, the number kept, its carrier, which calls to forward, and the phone to test from. */
+/**
+ * What `line_forwarding_set` takes: the workspace, the number kept, its carrier and which calls to forward. Its fifth, a
+ * phone to test from, is asked nowhere any more (8 Oct 2026): the door passes null until a migration drops the argument.
+ */
 type LineForwardingArgs = Database["public"]["Functions"]["line_forwarding_set"]["Args"];
 /** Keep the number: the forwarded line's id, or the database's refusal. */
 declare function lineForwardingSet(db: Db$9, args: LineForwardingArgs): Promise<_supabase_postgrest_js.PostgrestSingleResponse<string>>;

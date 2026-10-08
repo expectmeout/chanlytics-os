@@ -61,7 +61,6 @@ const keptLine = (state = "instructed", facts = {}) => ({
     carrier: "verizon",
     mode: "unanswered",
     destination_e164: VOICE,
-    test_from: null,
     test_until: null,
     verified_at: null,
     ...facts,

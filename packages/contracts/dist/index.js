@@ -28894,8 +28894,6 @@ function forwardingMatch(facts, call, nowMs = Date.now()) {
   if (started < from - MIN_MS || started > until) return false;
   const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
   if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
-  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
-  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
   return true;
 }
 function divertedNumbers(headers) {
