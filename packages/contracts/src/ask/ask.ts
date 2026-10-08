@@ -208,7 +208,7 @@ export interface AskProposalOutcome {
 export const ASK_UNDO_MS = 10 * 60_000;
 
 /** How long a card may be approved after it was made: a day. Past it, it is asked for again and made from what is true then. */
-export const ASK_CARD_FRESH_MS = DAY_MS;
+const ASK_CARD_FRESH_MS = DAY_MS;
 
 /**
  * Whether a card is too old to approve. A card left in a thread was approved days later against the list, the thread

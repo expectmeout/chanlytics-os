@@ -1856,7 +1856,6 @@ test("the switch names workspaces, and only those: unset, or naming another, a m
     deliver(w.change({ messages: [text(w.customer(), `wamid.${w.i}.all`, "hi")] })),
   );
   assert.deepEqual([seen.sent.length, w.tables.jobs.length], [0, 1]);
-  assert.equal(later.answersLater(null), false, "a message no workspace holds is never a job's");
 });
 
 test("an answer job says it is about to speak before Meta is called, on its own row; a job whose number is another workspace's now, or that names no message, fails by name and answers nothing", async () => {

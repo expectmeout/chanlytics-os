@@ -33,7 +33,7 @@ import { realPorts, type InboundPorts } from "./ports.js";
 type Db = SupabaseClient<Database>;
 
 /** Whether this workspace's WhatsApp messages are answered by a job: named in WHATSAPP_ANSWERS_AS_JOBS, or all are. */
-export function answersLater(tenantId: string | null): boolean {
+function answersLater(tenantId: string | null): boolean {
   if (!tenantId) return false;
   const named = (env.WHATSAPP_ANSWERS_AS_JOBS ?? "")
     .split(",")
@@ -123,7 +123,7 @@ function speakingOnce(db: Db, job: ClaimedJob, ports: InboundPorts): InboundPort
  * workspace. Throws when the payload names no message, the number is another workspace's now, or a read failed: the
  * ledger tries again until the job has spoken, and after that the sweep hands the message to a person.
  */
-export async function answerWhatsapp(db: Db, job: ClaimedJob): Promise<void> {
+async function answerWhatsapp(db: Db, job: ClaimedJob): Promise<void> {
   const wa = job.payload.wa as { message?: WaRawMessage; value?: WaChangeValue } | null | undefined;
   const m = wa?.message;
   if (!m?.id || !m.from) throw new Error("inbound_answer: the payload names no WhatsApp message");
