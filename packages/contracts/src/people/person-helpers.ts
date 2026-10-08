@@ -9,7 +9,7 @@ import type { PersonDetailDto } from "./person-dto";
 import type { PersonProposalVM } from "./person-reach";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import type { ConversationDto } from "../conversations/thread-dto";
-import { isFromTheirSide, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
+import { isChatMessage, isFromTheirSide, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
 
 export const MONTH_MS = 30 * DAY_MS;
 
@@ -49,6 +49,23 @@ export function replyChannelOfThreads(
   }
   const latest = own ?? any;
   return latest ? writtenChannelOf(latest.channel) : null;
+}
+
+/**
+ * Where nothing has come from their side: the wire the business's own written words last went by across their
+ * threads, as the Inbox's reply box and the reply route read it (thread-channel.ts answerWireOf, the dashboard's
+ * replyChannelOf), so a person a member wrote to first reads the same wire on their page. Null where it wrote none.
+ */
+export function ourWireOfThreads(conversations: ReadonlyArray<ConversationDto>): "whatsapp" | "sms" | "email" | null {
+  let last: { at: number; channel: string | null | undefined } | null = null;
+  for (const c of conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "outbound" || !isChatMessage(m)) continue;
+      const at = Date.parse(m.channel_ts ?? m.created_at);
+      if (Number.isFinite(at) && (!last || at > last.at)) last = { at, channel: m.channel };
+    }
+  }
+  return last ? writtenChannelOf(last.channel) : null;
 }
 
 /** How a reply goes, in the words the page uses for the wire. */

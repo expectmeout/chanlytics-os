@@ -736,3 +736,52 @@ export async function repliedTo(db: Db, tenantId: string, conversationId: string
   if (error) throw new Error(`repliedTo: ${error.message}`);
   return (data ?? []).length > 0;
 }
+
+/**
+ * Whether a text of ours has ever reached the person on this thread: what decides the line the first text to a number
+ * carries (the rates, STOP and HELP the campaign's filing promises). readThreadState answers it for the receptionist;
+ * this asks the same of the same rows for a conversation a member begins (core conversations/begin.ts).
+ */
+export async function textReached(db: Db, tenantId: string, conversationId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("messages")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .eq("channel", "sms")
+    .in("status", DELIVERED)
+    .limit(1);
+  if (error) throw new Error(`textReached: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/**
+ * A member opens a person's one thread (conversation_open, 00351), as themselves: the thread's id, made when they had
+ * none. The door's refusals are thrown as they came (a person who is not this workspace's, or gone).
+ */
+export async function openConversation(db: Db, tenantId: string, contactId: string): Promise<string> {
+  const { data, error } = await db.rpc("conversation_open", { p_tenant_id: tenantId, p_contact_id: contactId });
+  if (error) throw error;
+  if (typeof data !== "string" || !data) throw new Error("conversation_open: the door answered no thread");
+  return data;
+}
+
+/**
+ * The wire the business's own written words last went by on one thread, or null when it has written none: what a
+ * thread nothing has come to is answered on (contracts answerWireOf says the same of the messages a page holds).
+ */
+export async function ourLastWire(db: Db, tenantId: string, conversationId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("channel")
+    .eq("tenant_id", tenantId)
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .in("type", ["text", "template", "media"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`reading the last outbound: ${error.message}`);
+  return data?.channel ?? null;
+}

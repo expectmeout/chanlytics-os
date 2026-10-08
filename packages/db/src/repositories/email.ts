@@ -332,6 +332,30 @@ export async function lastInboundEmail(
   };
 }
 
+/**
+ * The subject of the newest email the business sent on one thread, or null when it has sent none: what a second email
+ * is filed under when the person has not answered the first (core conversations/reply.ts shapeFirstEmail).
+ */
+export async function lastOutboundEmailSubject(
+  db: Db,
+  tenantId: string,
+  conversationId: string,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("meta")
+    .eq("tenant_id", tenantId)
+    .eq("conversation_id", conversationId)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`email: cannot read the last email sent: ${error.message}`);
+  const subject = (data?.meta as { email?: { subject?: unknown } } | null)?.email?.subject;
+  return typeof subject === "string" && subject.trim() ? subject : null;
+}
+
 /** How many of a thread's latest outbound emails are asked which reach-out email a reply answers. */
 const ANSWERED_LOOKBACK = 50;
 

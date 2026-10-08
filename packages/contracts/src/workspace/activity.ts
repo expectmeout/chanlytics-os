@@ -401,11 +401,16 @@ function runEndWords(kind: "broadcast.sent" | "broadcast.stopped", p: Record<str
   return [base, ...bits].join(" · ");
 }
 
+/** A reply's row says when it began the conversation (core conversations/begin.ts): the first thing they heard there. */
+const replyWords = (p: Record<string, unknown>, base: string): string =>
+  p.starts === true ? "Began a conversation from the dashboard" : base;
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
   ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
   ["import", (p) => importWords(p)],
+  ["reply", replyWords],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
   ["mailbox.offers_paused", offersPausedWords],

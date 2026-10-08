@@ -1746,6 +1746,48 @@ COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s 
 
 
 --
+-- Name: conversation_open(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_conversation uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- This workspace's person, still here: not forgotten, not being forgotten, not folded into another.
+  if not exists (
+    select 1 from public.contacts c
+     where c.id = p_contact_id and c.tenant_id = p_tenant_id
+       and c.erased_at is null and c.erasing_since is null and c.merged_into_contact_id is null
+  ) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  -- Opened, never touched: last_message_at is the message's to stamp, when one lands.
+  insert into public.conversations (tenant_id, contact_id) values (p_tenant_id, p_contact_id)
+  on conflict (tenant_id, contact_id) do nothing;
+  select id into v_conversation from public.conversations
+   where tenant_id = p_tenant_id and contact_id = p_contact_id;
+  return v_conversation;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_open(p_tenant_id uuid, p_contact_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) IS 'A member opens a person''s one thread, as themselves (an owner, an operator, or a partner whose session showed its second factor): the thread''s id, made when they had none and left untouched (no last_message_at: that is the message''s). Refuses a person who is not this workspace''s, or erased, being erased, or merged into another. Writes no message and no event: the reply route queues what follows.';
+
+
+--
 -- Name: create_mailbox(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -29881,6 +29923,15 @@ GRANT ALL ON FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]
 
 REVOKE ALL ON FUNCTION public.contact_stop_ends_offers_yes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contact_stop_ends_offers_yes() TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_open(p_tenant_id uuid, p_contact_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO service_role;
 
 
 --

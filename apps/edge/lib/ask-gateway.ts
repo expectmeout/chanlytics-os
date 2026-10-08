@@ -178,7 +178,14 @@ const EFFORTS: ReadonlySet<string> = new Set(MODEL_EFFORTS);
  * turn is held to, may write next to nothing (ASK_WARM_MAX_TOKENS), and its usage row says `ask_warm`, so what counts
  * Ask's rounds by `purpose: "ask"` (ops/ask-day.mjs, the eval) counts no round of it.
  */
-export const GATEWAY_PURPOSES = ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft"] as const;
+export const GATEWAY_PURPOSES = [
+  "ask",
+  "ask_warm",
+  "lead_draft",
+  "lead_suggest",
+  "list_draft",
+  "person_draft",
+] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** Whether a purpose is Ask's own: its turn, or a turn's warm. */
 const isAsk = (purpose: GatewayPurpose): boolean => purpose === "ask" || purpose === "ask_warm";

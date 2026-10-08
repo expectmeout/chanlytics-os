@@ -26,7 +26,7 @@ import { ago } from "./person-row-facts";
 import { holderOf } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
-import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
+import { addedBy, ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA, REPLY_WIRE } from "./person-words";
 import { replyWindow } from "../config/policy";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
@@ -173,7 +173,16 @@ function replyOf(
   now: Date,
   nowMs: number,
 ): PersonReply | null {
-  const via = replyChannelOfThreads(d.conversations) ?? (base.replyVia ? REPLY_WIRE[base.replyVia] : null);
+  // In the reply route's own order (the dashboard's replyChannelOf): their words among the messages the page holds;
+  // else where the row says they last wrote (00320), which outranks anything of ours; else, nothing having come from
+  // their side, the wire our own words last went by, as the Inbox's box reads it; and with none of those, the
+  // row's own word, which is its strictest guess.
+  const rowVia = base.replyVia ? REPLY_WIRE[base.replyVia] : null;
+  const via =
+    replyChannelOfThreads(d.conversations) ??
+    (base.lastChannel ? rowVia : null) ??
+    ourWireOfThreads(d.conversations) ??
+    rowVia;
   const exactWindow = via ? replyWindow(via, row.latest_wa_inbound_at, now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso

@@ -5,7 +5,7 @@
  * `personActs`. What an act does is its hover, never a sentence beside the label, which wrapped and ran past the menu's edge.
  */
 import type { ReactNode } from "react";
-import { DOUBT_WORDS, MERGE_WORDS, proposalMessage } from "@chanlytics/contracts";
+import { DOUBT_WORDS, MERGE_WORDS, NEW_CONVERSATION_WORDS, proposalMessage } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Menu } from "../../kit/menu/menu";
@@ -17,7 +17,8 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
 import { Picker } from "../../kit/picker/picker";
 import type { PickerGroup } from "../../kit/picker/picker";
-import { navigate } from "../../legacy-verbs";
+import { gate, navigate } from "../../legacy-verbs";
+import { openNewConversation } from "../../inbox/new-conversation/store";
 import { deletePerson, mergePerson, settleDoubt } from "../people-detail";
 import { PersonName } from "./name";
 import { digitsOf } from "./ctx";
@@ -382,6 +383,19 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
       {threadCta && (
         <Button size="lg" variant="primary" onClick={() => navigate(threadCta.to)} data-testid="person-open-thread">
           {threadCta.label}
+        </Button>
+      )}
+      {/* Someone with no thread had no way to be written to from here: the door to begin one (the Inbox's New
+          conversation, opened on them where they stand), which says what can go to them and why not. */}
+      {!threadCta && (
+        <Button
+          size="lg"
+          variant="primary"
+          onClick={() => openNewConversation(p.id)}
+          data-testid="person-start-conversation"
+          {...gate("approve", NEW_CONVERSATION_WORDS.gate)}
+        >
+          {NEW_CONVERSATION_WORDS.personDoor}
         </Button>
       )}
       {/* Words, not three dots: a ⋯ was too quiet to be found, and it held one thing. */}

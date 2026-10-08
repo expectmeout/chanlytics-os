@@ -209,6 +209,26 @@ export async function scrubPersonNotes(
   return data ?? 0;
 }
 
+/**
+ * A member writes a note on a person, as themselves (person_note_add, 0007): the door's answer as it came, {note} or
+ * {error}, with the database's own error beside it, for the caller to read as the notes route reads one (the
+ * dashboard's noteAnswer). The plan a conversation begins with is kept this way (core begin.ts), for the receptionist
+ * to read, never for the team alone.
+ */
+export async function addPersonNote(
+  db: Db,
+  contactId: string,
+  body: string,
+  teamOnly: boolean,
+): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
+  const { data, error } = await db.rpc("person_note_add", {
+    p_contact_id: contactId,
+    p_body: body,
+    p_team_only: teamOnly,
+  });
+  return { data, error };
+}
+
 /** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
 interface MergedPeople {
   contact_id: string;

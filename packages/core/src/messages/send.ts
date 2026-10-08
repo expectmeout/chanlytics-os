@@ -69,6 +69,9 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`,
     );
   const resumes = resumesOf(p);
+  // A person's own message that begins a conversation (payload.starts, core conversations/begin.ts): a start at the
+  // door, and theirs. Only a row a person wrote may say so: the receptionist's own reply travels this path too.
+  const starts = p.starts === true && (msg.sender ?? "human") === "human";
   let out: Delivered;
   try {
     out = await ports.deliver({
@@ -82,7 +85,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       // the metrics report a bot's words as a person's.
       sender: (msg.sender ?? "human") as "ai" | "human" | "system",
       purpose,
-      proactive: p.proactive === true,
+      proactive: p.proactive === true || starts,
       // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs.
       // A campaign's news goes by the broadcast's batch, which says ours (contracts MessageAbout, decision D1).
       about: "theirs",
@@ -94,6 +97,8 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       ...(msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {}),
       ...(msg.leadId ? { leadId: msg.leadId } : {}),
       messageId: p.message_id,
+      // Held as the person's own words: the thread's pause is the one their own message took (deliver kindOf).
+      ...(starts ? { kind: "reply" as const } : {}),
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length,
     });
   } catch (e) {
