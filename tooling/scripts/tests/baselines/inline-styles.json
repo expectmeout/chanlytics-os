@@ -11,7 +11,7 @@
   "apps/dashboard/src/legacy/pages/ask-turn.jsx": 1,
   "apps/dashboard/src/legacy/pages/clients-bits.jsx": 1,
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": 3,
-  "apps/dashboard/src/surfaces/calendar/blocks.tsx": 7,
+  "apps/dashboard/src/surfaces/calendar/blocks.tsx": 6,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/run-sheet.tsx": 2,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/run.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/parts/reach.tsx": 2,
