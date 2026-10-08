@@ -465,8 +465,8 @@
      stood 700px tall with its button halfway down it). */
   .set-conn > .set-int-row[data-offers="primary"] { row-gap: 3px; }
   .set-conn > .set-int-row[data-offers="primary"] > .set-team-body { display: contents; }
-  .set-conn > .set-int-row[data-offers="primary"] > :is(.set-int-tile, .set-int-actions) { grid-row: 1; align-self: center; }
-  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
+  .set-conn > .set-int-row[data-offers="primary"] > :first-child { grid-row: 1; align-self: center; }
+  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; grid-row: 1; }
   .set-conn > .set-int-row[data-offers="primary"] .set-team-name { grid-column: 2; grid-row: 1; white-space: normal; }
   .set-conn > .set-int-row[data-offers="primary"] :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
   .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); }
