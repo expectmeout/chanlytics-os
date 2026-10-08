@@ -20,6 +20,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { ChannelMarks, ChannelsLine } from "../parts/channels-line";
 import { cmRowPress } from "../parts/head";
 import { HomeFailed } from "./failed";
+import { PhoneReachLine } from "./tiles";
 
 /** What a press on a stage, a line or a button does: the page decides (home-page.tsx), the rail only says which. */
 export interface RailActs {
@@ -254,6 +255,9 @@ export function PhoneRail({ home, acts }: { home: LifecycleHome; acts: RailActs 
           <h2 className="cmh-h">{LIFECYCLE_WORDS.phone.moments}</h2>
           {rail.phoneWords ? <span className="cmh-dim">{rail.phoneWords}</span> : null}
         </header>
+        {/* Who can hear you, and where the workspace stands on its channels: a line in the head (8 Oct 2026), so the
+            moments are the first thing on the page. It was a tile of its own over them. */}
+        <PhoneReachLine tile={home.reach} failed={home.failed.reach} channels={home.head.channels} />
         {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
         <ol className="cmh-vrail">
           {rail.stages.map((s) => (

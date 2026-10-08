@@ -31,7 +31,7 @@ import { NewMessage } from "./new-message";
 import { PhoneRail, Rail } from "./rail";
 import type { RailActs } from "./rail";
 import { SentenceParts } from "./sentence";
-import { ComingBlock, PhoneReach, ReachBlock, ResultsBlock } from "./tiles";
+import { ComingBlock, ReachBlock, ResultsBlock } from "./tiles";
 import type { ComingApproval } from "./tiles";
 import { useHomeData, useHomeNav, useReopenDrafts } from "./use-home";
 
@@ -39,7 +39,7 @@ type Flash = ReturnType<typeof useLegacyToast>[1];
 
 /**
  * The head's line: the page's numbers in the page's emphasis, and a quiet line while offers by email are paused. Where
- * the workspace stands on its channels is drawn where it is seen, at the rail's head (and in the phone's reach tile): the
+ * the workspace stands on its channels is drawn where it is seen, at the rail's head (in the Moments head on a phone): the
  * frame's head is a screen reader's line under Glass, clipped to a point on a desk and gone on a phone, so the channels'
  * doors drawn in it were links nobody could see and every Tab still landed on.
  */
@@ -219,7 +219,6 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
       <CmHead title="Campaigns" quiet testid="cmh-head" sub={sentenceOf(home)} right={headActs(home, newMessage)} />
       {phone ? (
         <>
-          <PhoneReach tile={home.reach} failed={home.failed.reach} channels={home.head.channels} />
           <PhoneRail home={home} acts={acts} />
           <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} approval={approval} />
           <ResultsBlock tile={home.results} failed={home.failed} onOpen={navigate} />

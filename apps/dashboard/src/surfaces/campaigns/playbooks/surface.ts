@@ -75,9 +75,9 @@ export interface PlaybookCardVM extends PlaybookDto {
   /** The trigger's words: "Win-back", "Nothing heard in 30 days". */
   triggerLabel: string;
   triggerHint: string;
-  /** "Daily 10:00 · up to 25 · once per person, again after 90 days". */
+  /** "Daily 10:00 AM · up to 25 · once per person, again after 90 days". */
   schedule: string;
-  /** "today 10:00", "tomorrow 10:00" or "paused", by the business's clock. */
+  /** "today 10:00 AM", "tomorrow 10:00 AM" or "paused", by the business's clock. */
   next: string;
   /** How many on the trigger's list a run reaches right now -- a recorded yes and
    *  a number to send to -- clear of the week's breath, before the gap, which
@@ -346,7 +346,7 @@ export const playbooksOverride: SurfaceOverride = {
           triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
-          // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00".
+          // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
           next: nextRunLabel(p, tz, now, pb.ready?.paused === true),
           candidates: reading ? reading.candidates : null,
           held: reading ? reading.held : null,

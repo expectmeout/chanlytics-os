@@ -166,8 +166,8 @@ test("the next run says a paused chain, never, billing and a waiting run as they
     text: "A run waits on you. Nothing more is planned until you answer it.",
     run_id: "b",
   });
-  assert.equal(nextRunWords(chain(), TZ, at).text, "Next run today 09:00.");
-  assert.equal(nextRunWords(chain({}, { last_run_for: "2026-09-28" }), TZ, at).text, "Next run tomorrow 09:00.");
+  assert.equal(nextRunWords(chain(), TZ, at).text, "Next run today 9:00 AM.");
+  assert.equal(nextRunWords(chain({}, { last_run_for: "2026-09-28" }), TZ, at).text, "Next run tomorrow 9:00 AM.");
 });
 
 const RUN = (over = {}) => ({

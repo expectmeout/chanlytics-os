@@ -5,6 +5,7 @@
 import { shiftKey, zoneMidnight } from "../calendar/day-keys";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
+import { clockHour } from "../shared/clock";
 import { dateFormat, HOUR_MS } from "../shared/time";
 
 export type RunPlan =
@@ -92,13 +93,14 @@ export function inLastSendingHour(tz: string, now: Date): boolean {
   return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
 }
 
-const two = (n: number) => String(n).padStart(2, "0");
-
-/** "Daily 10:00 · up to 25 · once per person, again after 90 days". */
+/**
+ * "Daily 10:00 AM · up to 25 · once per person, again after 90 days". The hour is said by the product's clock
+ * (shared/clock.ts clockHour), as a broadcast's time is: it said "10:00" and "18:00" beside "6:00 PM" until 8 Oct 2026.
+ */
 export function scheduleLine(
   p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">,
 ): string {
-  const at = `${two(p.run_hour)}:00`;
+  const at = clockHour(p.run_hour);
   if (triggerOf(p.trigger)?.kind === "visit")
     return `Daily ${at} · ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} · up to ${p.cap_per_run}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} · up to ${p.cap_per_run} a day`;
@@ -108,25 +110,25 @@ export function scheduleLine(
 }
 
 /**
- * A playbook's clock in the fewest words -- "runs daily at 10:00", "runs every
- * 30 days at 10:00" -- for a line under something that names it, where
+ * A playbook's clock in the fewest words -- "runs daily at 10:00 AM", "runs every
+ * 30 days at 10:00 AM" -- for a line under something that names it, where
  * `scheduleLine`'s cap and gap would be a sentence too many.
  */
 // The trigger is compared, never narrowed, so a row read from the table (a plain string) will do.
 export function runsWords(p: { trigger: string; run_hour: number; cadence_days: number }): string {
-  const at = `${two(p.run_hour)}:00`;
+  const at = clockHour(p.run_hour);
   return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at}` : `runs daily at ${at}`;
 }
 
 /**
  * What a running playbook's next run says while the WORKSPACE is paused (billing): no time is promised, since the send door
- * refuses every message of a run until billing resumes (core deliver.ts `paused`), and a card that said "tomorrow 10:00" said
+ * refuses every message of a run until billing resumes (core deliver.ts `paused`), and a card that said "tomorrow 10:00 AM" said
  * what would not happen.
  */
 const NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
 
 /**
- * "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when the playbook is, and
+ * "today 10:00 AM", "today, within the hour" or "tomorrow 10:00 AM", by the business's clock; "paused" when the playbook is, and
  * "after billing resumes" while the workspace is (`workspacePaused`, the readiness the surface reads: contracts
  * ChannelsReady.paused). Required: a caller that does not know says so rather than promise a run.
  */
@@ -138,11 +140,27 @@ export function nextRunLabel(
 ): string {
   if (p.state !== "running") return "paused";
   if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
+  const next = nextRunOf(p, tz, now);
+  return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
+}
+
+/**
+ * When a running playbook next runs, as a fact, by the business's clock: the day it falls on, its hour, and `soon`
+ * where its hour has come and today's run is not made yet (the clock's next tick makes it: "within the hour"). Today at
+ * its hour while that is ahead; today and soon once the hour has come, the sending hours are still open and today's run
+ * has not been made; tomorrow at its hour otherwise. THE rule, which the card's label (nextRunLabel) and Coming up's
+ * line (lifecycle-tiles.ts) are both said from. The line used to parse the label's words back into a time, and a label
+ * it could not read dropped the moment from the week without a trace.
+ */
+export function nextRunOf(
+  p: Pick<PlaybookDto, "run_hour" | "last_run_for">,
+  tz: string,
+  now: Date,
+): { day: "today" | "tomorrow"; hour: number; soon: boolean } {
   const { date, hour } = parts(tz, now);
-  const at = `${two(p.run_hour)}:00`;
   if (p.last_run_for !== date) {
-    if (hour < p.run_hour) return `today ${at}`;
-    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
+    if (hour < p.run_hour) return { day: "today", hour: p.run_hour, soon: false };
+    if (hour <= PLAYBOOK_HOURS.max) return { day: "today", hour: p.run_hour, soon: true };
   }
-  return `tomorrow ${at}`;
+  return { day: "tomorrow", hour: p.run_hour, soon: false };
 }

@@ -511,11 +511,11 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
   const { usedBy } = await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables));
   assert.equal(
     usedBy.winback_offer.playbooks[0].runs,
-    "runs daily at 10:00",
+    "runs daily at 10:00 AM",
     "the clock, worded by the route from the playbook's own columns",
   );
   assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back playbook", "one playbook alone says what it is");
-  assert.equal(C.templateUseNote(usedBy.winback_offer), "runs daily at 10:00");
+  assert.equal(C.templateUseNote(usedBy.winback_offer), "runs daily at 10:00 AM");
   assert.equal(
     usedBy.monthly_offer.playbooks[0].waiting,
     true,
@@ -534,7 +534,7 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
   assert.equal(C.templateUseNote(null), null, "nothing sends it: no line under it");
   assert.equal(
     C.runsWords({ trigger: "everyone_monthly", run_hour: 9, cadence_days: 30 }),
-    "runs every 30 days at 09:00",
+    "runs every 30 days at 9:00 AM",
   );
 });
 

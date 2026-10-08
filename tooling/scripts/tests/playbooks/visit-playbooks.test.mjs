@@ -211,20 +211,20 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
     "booking",
     "the same setting that governs bookings governs their reminders",
   );
-  // 2 Oct 2026: After the visit asks how it went and offers nothing, so it runs under Bookings as the reminder does.
+  // 2 Oct 2026: the visit follow-up asks how it went and offers nothing, so it runs under Bookings as the reminder does.
   assert.equal(triggerOf("visited").cls, "booking");
   assert.equal(PLAYBOOK_CLASS_LABEL.booking, "Bookings");
   assert.equal(
     scheduleLine({ trigger: "visit_tomorrow", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
-    "Daily 10:00 · everyone with a visit tomorrow · up to 25",
+    "Daily 10:00 AM · everyone with a visit tomorrow · up to 25",
   );
   assert.equal(
     scheduleLine({ trigger: "visited", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
-    "Daily 18:00 · everyone who visited yesterday · up to 25",
+    "Daily 6:00 PM · everyone who visited yesterday · up to 25",
   );
   assert.equal(
     scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
-    "Daily 10:00 · up to 25 · once per person, again after 90 days",
+    "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
     "the old lines are the old lines",
   );
 });
@@ -350,7 +350,7 @@ test("after the visit: yesterday's visit with nothing booked next; the gap and t
     "nor does the month's offer hold a reminder",
   );
 
-  // 2 Oct 2026: both visit playbooks are classed `booking`: After the visit asks how it went and offers nothing (it was a
+  // 2 Oct 2026: both visit playbooks are classed `booking`: the visit follow-up asks how it went and offers nothing (it was a
   // re-engagement, and its "book your next visit" made it an offer). So with no message in view the yes it needs is
   // the one about their own visit, as the reminder's is. With the message in view (a playbook made before the change,
   // still sending the marketing thank-you) the stricter of the class and the message holds: only a yes to offers.

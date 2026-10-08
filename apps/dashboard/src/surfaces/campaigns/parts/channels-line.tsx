@@ -1,6 +1,6 @@
 /**
  * Campaigns, the channels (the spec of 8 October 2026, "A campaign says where it goes"): where the workspace stands on its
- * channels, one line at the home's head (and in the phone's reach tile, where the head's line is not drawn) and under a
+ * channels, one line at the home's head (the rail's on a desk, the Moments head on a phone) and under a
  * composer's Send by row where nothing can send at all; and the marks a campaign carries for the channels it goes by, on a
  * moment's card and on a line under the rail. Every word is contracts' (channelsStandingParts, channelMarksOf); this draws
  * it and presses. It stands with the parts because the home and both composers draw it.

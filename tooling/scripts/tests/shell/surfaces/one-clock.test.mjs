@@ -37,6 +37,10 @@ import {
   wallClockAt,
   zoneDayKey,
   zonedInputValue,
+  clockHour,
+  nextRunLabel,
+  runsWords,
+  scheduleLine,
 } from "@chanlytics/contracts";
 
 const at = (iso) => Date.parse(iso);
@@ -80,6 +84,44 @@ test("when a send goes: today, tomorrow, or the date, by the business's day", ()
   );
   assert.equal(clockWhen(at("2026-09-06T14:00:00Z"), NY, now), "tomorrow 10:00 AM");
   assert.equal(clockWhen(at("2026-09-12T14:00:00Z"), NY, now), "Sep 12 · 10:00 AM");
+});
+
+test("a playbook's hour is said as the clock says a time: one clock for a run's hour and a message's minute", () => {
+  assert.deepEqual(
+    [0, 9, 10, 12, 13, 20, 23].map((h) => clockHour(h)),
+    ["12:00 AM", "9:00 AM", "10:00 AM", "12:00 PM", "1:00 PM", "8:00 PM", "11:00 PM"],
+  );
+  // Total: any number is read round the day, a fraction by its hour, and what is not a number at all as the day's
+  // first hour. It printed "NaN:00 PM" (unreachable from the table, whose hour is a checked whole number).
+  assert.deepEqual(
+    [24, 25, -1, 12.9, Number.NaN, Number.POSITIVE_INFINITY].map((h) => clockHour(h)),
+    ["12:00 AM", "1:00 AM", "11:00 PM", "12:00 PM", "12:00 AM", "12:00 AM"],
+  );
+  // The words clockTime says of that hour: a playbook at ten and a broadcast at ten read alike on one page.
+  assert.equal(clockHour(10), clockTime(at("2026-09-06T14:00:00Z"), NY));
+  assert.equal(clockHour(18), clockTime(at("2026-09-06T22:00:00Z"), NY));
+  // A playbook's own words read it: its schedule, its clock in a line, and its next run. They said "18:00" beside a
+  // broadcast's "6:00 PM" in one tile (Campaigns' Coming up, 8 Oct 2026).
+  const p = { trigger: "quiet_30", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  assert.equal(scheduleLine(p), "Daily 6:00 PM · up to 25 · once per person, again after 90 days");
+  assert.equal(
+    scheduleLine({ ...p, trigger: "everyone_monthly", run_hour: 9 }),
+    "Every 30 days at 9:00 AM · up to 25 a day",
+  );
+  assert.equal(runsWords(p), "runs daily at 6:00 PM");
+  const now = new Date("2026-09-05T13:00:00Z"); // 9 AM in New York
+  const running = (run_hour, last_run_for = null) => ({ state: "running", run_hour, last_run_for });
+  assert.equal(nextRunLabel(running(18), NY, now, false), "today 6:00 PM");
+  assert.equal(nextRunLabel(running(9, "2026-09-05"), NY, now, false), "tomorrow 9:00 AM");
+  assert.equal(nextRunLabel(running(9), NY, now, false), "today, within the hour", "an hour reached says no clock");
+});
+
+test("a run waiting on its owner has one name: its own pill's, a playbook's and a reach-out's with one waiting", () => {
+  assert.equal(C.BROADCAST_STATE_LABELS.pending_approval, "Waiting on you");
+  // The kit's pill reads the labels by kind (tone.ts stateOf): a playbook whose run waits says the run's own word,
+  // never the Inbox's "Needs you" for a thread a person must answer.
+  assert.equal(C.stateOf("playbook", "approval").label, C.stateOf("broadcast", "pending_approval").label);
+  assert.equal(C.stateOf("playbook", "approval").label, "Waiting on you");
 });
 
 test("a day on a timeline: today, yesterday, or the date, by the business's day", () => {

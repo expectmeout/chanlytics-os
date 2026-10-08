@@ -247,7 +247,7 @@ export { firstRunTryOf, TRY_QUIET_AFTER_MS, FIRST_RUN_TRY_WORDS } from "./setup/
 export { lineStuckProvisioning, lineRetryRefusal, textingWords, setupLaterOf, setupPhoneWantOf, forwardedLineOf, keptPhoneKind, PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, MOCK_TEXTING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, BROKEN_CONFIG_WORDS, SETUP_REQUEST_KINDS, TRY_SKIPPED, KEEP_ROW, SETUP_LATER_REFUSED } from "./setup/setup";
 export { setupSteps } from "./setup/setup-rows";
 export { utf8Bytes, hexOf } from "./shared/bytes";
-export { zoneDayKey, clockTime, clockDate, clockDateYear, clockShort, clockStamp, clockWhen, localDaysBetween, inLocalWeek, clockNear, clockNearWhen, clockDayLabel, wallClockAt, tomorrowAtIn, zonedInputValue, fromZonedInput, callLength, mmss, durationWords } from "./shared/clock";
+export { zoneDayKey, clockTime, clockHour, clockDate, clockDateYear, clockShort, clockStamp, clockWhen, localDaysBetween, inLocalWeek, clockNear, clockNearWhen, clockDayLabel, wallClockAt, tomorrowAtIn, zonedInputValue, fromZonedInput, callLength, mmss, durationWords } from "./shared/clock";
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./shared/csv";
 export { EDGE_ERROR_CODES } from "./shared/edge-errors";
 export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./shared/email-address";

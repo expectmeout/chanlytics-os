@@ -96,6 +96,12 @@ const RUN_CHANNEL_WORDS = [
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
 ];
 /**
+ * 8 Oct 2026 (Campaigns, one name per thing): a run waiting on its owner is "Waiting on you" in what the tool answers
+ * (contracts BROADCAST_STATE_LABELS), so the sentence that tells the model which state that is says the same words. It
+ * said the Inbox's "Needs you" over an answer that no longer did. The one phrase, once.
+ */
+const RUN_WAITING_WORDS = ["is Needs you, with waiting_on_you", "is Waiting on you, with waiting_on_you"];
+/**
  * 7 Oct 2026 (lane 1, T11): campaigns says a message where it said an approved WhatsApp template, and says what its
  * audiences listing gives of each: the `channels` a version of it can be sent on now. The four sentences that moved, each
  * once (the listing's, the playbooks', the playbooks' starter, the tail's), and nothing else it says. And (the lane's
@@ -369,7 +375,9 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       tool(role, "campaigns").description,
       MESSAGE_WORDS.reduce(
         (said, [from, to]) => said.replace(from, to),
-        was(role, "campaigns").description.replace(...RUN_CHANNEL_WORDS),
+        was(role, "campaigns")
+          .description.replace(...RUN_CHANNEL_WORDS)
+          .replace(...RUN_WAITING_WORDS),
       ),
       role,
     );

@@ -2,7 +2,15 @@
  * Chanlytics, Broadcasts: the ledger of runs, by playbook and by week, and a run's card (moved from
  * legacy/pages/broadcasts-ledger.jsx, decision 0015).
  */
-import { BROADCAST_WORDS, DAY_MS, DELIVERY_RECEIPTS_WORDS, HOUR_MS, mmss, sentByWords } from "@chanlytics/contracts";
+import {
+  BROADCAST_WORDS,
+  DAY_MS,
+  DELIVERY_RECEIPTS_WORDS,
+  HOUR_MS,
+  clockHour,
+  mmss,
+  sentByWords,
+} from "@chanlytics/contracts";
 import type { BroadcastVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -263,9 +271,9 @@ export function BcWeek({ rows, now }: BcWeekProps) {
   const today = c.dayKey(now);
   const days = Array.from({ length: 7 }, (_, i) => c.dayKey(now + i * DAY_MS));
   const blocks = new Map<string, WeekBlock[]>(days.map((d): [string, WeekBlock[]] => [d, []]));
-  // The hour a run goes, by the business's clock: "10:00".
-  const hm = (ms: number) => (c.inputValue(ms).split("T")[1] || "").slice(0, 5);
-  // Runs on the ledger: to come, going out, and today's that went.
+  // Runs on the ledger: to come, going out, and today's that went. The minute a run goes is said by the business's
+  // clock as every other time is ("10:00 AM"), and a playbook's hour beside it the same way (contracts clockHour): the
+  // strip said both on a 24-hour clock.
   for (const r of rows) {
     const at = r.scheduled_for ? Date.parse(r.scheduled_for) : NaN;
     if (!Number.isFinite(at)) continue;
@@ -276,7 +284,7 @@ export function BcWeek({ rows, now }: BcWeekProps) {
       id: r.id,
       name: r.name,
       x,
-      at: hm(at),
+      at: c.time(at),
       tone: BC_WEEK_TONE[r.state] || "info",
       playbook: r.playbook_id || null,
     });
@@ -294,7 +302,7 @@ export function BcWeek({ rows, now }: BcWeekProps) {
         id: `${p.id}:${d}`,
         name: p.name,
         x,
-        at: `${String(p.run_hour).padStart(2, "0")}:00`,
+        at: clockHour(p.run_hour),
         tone: "plain",
         playbook: p.id,
         projected: true,

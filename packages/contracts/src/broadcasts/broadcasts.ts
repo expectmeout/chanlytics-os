@@ -120,8 +120,13 @@ export const REACH_OUT_SEND_STATES = [
 ] as const;
 export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
 
+/**
+ * A run waiting on its owner says "Waiting on you", as its tab on Sent, its line on Campaigns' home, the drawer and Today
+ * say it (run-report.ts, lifecycle-words.ts). It said "Needs you" on its row's pill alone until 8 Oct 2026, which is the
+ * Inbox's word for a thread a person must answer: a different thing, under one name.
+ */
 export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
-  pending_approval: "Needs you",
+  pending_approval: "Waiting on you",
   scheduled: "Scheduled",
   sending: "Sending",
   sent: "Sent",

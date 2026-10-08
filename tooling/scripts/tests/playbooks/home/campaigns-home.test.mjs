@@ -69,6 +69,7 @@ const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/c
 const { ReachOutPane } = await import(`${SRC}/surfaces/campaigns/reach-out/row.tsx`);
 const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
 const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
+const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
@@ -222,16 +223,45 @@ test("the page draws nothing before the playbooks have landed, and a demo sessio
   assert.equal(allBy(tree, "cmh-stage")[3].props["data-state"], "on", "the sample's win-back is running");
 });
 
-test("the phone draws one short tile for who can hear you, the moments down a line, and the lines as one list", () => {
+test("the phone opens on the moments, who can hear you a line in their head, and the lines under them as one list", () => {
   surfaces();
   globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
   fresh();
   const tree = page();
-  assert.equal(byTestId(tree, "campaigns-home").props["data-phone"], "true");
-  assert.ok(byTestId(tree, "cmh-reach"));
+  const home = byTestId(tree, "campaigns-home");
+  assert.equal(home.props["data-phone"], "true");
   assert.equal(allBy(tree, "cmh-rung").length, 0, "no ladder on a phone: one line");
   assert.ok(byTestId(tree, "cmh-also"), "the lines under the rail are one tile, Also");
-  assert.match(textOf(byTestId(tree, "cmh-reach")), /of 29 can hear you/);
+  // Who can hear you is a line in the Moments head (8 Oct 2026): it was a tile of its own over them, a figure, a bar and a
+  // note that pressed nothing, and the work stood a screen below it.
+  const rail = byTestId(tree, "cmh-rail");
+  const reach = byTestId(rail, "cmh-reach");
+  assert.ok(reach, "the reach is said inside the moments' tile");
+  assert.equal(
+    allBy(tree, "cmh-reach").filter((n) => typeof n.type === "string").length,
+    1,
+    "once: no tile of its own beside it",
+  );
+  assert.match(textOf(reach), /7 of 29 can hear you/);
+  assert.match(textOf(reach), /0 to offers/);
+  assert.equal(all(reach, (n) => n.type === Meter).length, 0, "no bar: the figure says it");
+  assert.ok(byTestId(reach, "cmh-channels"), "and where the workspace stands on its channels, under it");
+  // How the yes to offers is got is a door on the line (the desk's tile has "Show the code"): the tile this line
+  // replaced said the receptionist asks, and opened nothing.
+  const yes = all(reach, (n) => n.type === "a" && n.props?.["data-testid"] === "cmh-phone-yes")[0];
+  assert.ok(yes, "the door is a link");
+  assert.equal(textOf(yes), "Get their yes");
+  assert.match(String(yes.props.href), /broadcasts\/get-yes$/);
+  // The first thing the page draws is the moments: nothing of the page's own stands before their tile.
+  const blocks = all(
+    home,
+    (n) =>
+      typeof n.type === "string" &&
+      String(n.props?.className ?? "")
+        .split(" ")
+        .includes("cmh-block"),
+  );
+  assert.equal(blocks[0].props["data-testid"], "cmh-rail", "the moments are the page's first tile");
   assert.ok(
     byTestId(tree, "cmh-coming") && byTestId(tree, "cmh-results"),
     "what is coming and what came back stand below",
@@ -1012,6 +1042,10 @@ test("a broadcasts read that failed is said in each tile made from it, in the se
     const phone = page();
     for (const id of ["cmh-reach-failed", "cmh-coming-failed", "cmh-results-failed"])
       assert.ok(byTestId(phone, id), `${id} on a phone too`);
+    // Where the workspace stands on its channels is the readiness's to say, and the playbooks' read carries it too: the
+    // line stands on a phone though who can hear you could not be read (it was drawn only with the count).
+    assert.ok(byTestId(byTestId(phone, "cmh-reach"), "cmh-channels"), "the channels line, under a reach that failed");
+    assert.equal(byTestId(phone, "cmh-phone-yes"), null, "and no door to a yes the page could not count");
     globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     // Send once could not be drawn from what could not be read: said in the sheet, with its Retry, not a sheet of nothing.
     fresh();

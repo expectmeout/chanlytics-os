@@ -127,8 +127,8 @@ const playbook = (over = {}) => ({
   created_at: iso(-30 * D),
   triggerLabel: "Quiet 30 days",
   triggerHint: "anyone quiet for a month",
-  schedule: "daily at 10:00",
-  next: "tomorrow 10:00",
+  schedule: "daily at 10:00 AM",
+  next: "tomorrow 10:00 AM",
   candidates: 4,
   held: 0,
   // Everyone its moment names, as the route counts them (server/campaigns/playbooks.ts triggerPools); null only when it could not.

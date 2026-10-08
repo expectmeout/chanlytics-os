@@ -4,6 +4,7 @@
  * page.
  */
 import type { ConsentChannel } from "../consent/consent-channels";
+import { clockHour } from "../shared/clock";
 import { CAMPAIGN_ROOMS, runStoppedWords } from "../shell/campaign-rooms";
 import { joinWords, plural } from "../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../templates/message-versions";
@@ -117,7 +118,10 @@ export const LIFECYCLE_WORDS = {
     opensMessages: "Opens:",
     ownOffers: ["the month's offer", "your notes"],
     asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
-    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    /** The phone's line in the Moments head: who of everyone in People a message can reach now. */
+    phoneHear: (canHear: number, people: number): string => `${canHear} of ${people} can hear you`,
+    /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
+    phoneYes: "Get their yes",
     code: "Show the code",
     copy: "Copy the phrase",
     link: "People",
@@ -211,11 +215,9 @@ export const LIFECYCLE_TOAST = {
   copyFailed: (phrase: string): string => `Couldn't copy, the phrase is: ${phrase}`,
 } as const;
 
-const twoDigits = (n: number) => String(n).padStart(2, "0");
-
-/** A playbook's clock in the fewest words: "daily 10:00", "every 30 days". */
+/** A playbook's clock in the fewest words: "daily 10:00 AM", "every 30 days". The hour is the product's clock's (clockHour). */
 function lifecycleClock(p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days">): string {
-  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${twoDigits(p.run_hour)}:00`;
+  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
 
 /** What a playbook says of itself as a state: on with its clock, a run waiting on the person, or paused. */

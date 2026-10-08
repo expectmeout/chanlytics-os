@@ -45,7 +45,7 @@ export interface LifecyclePlaybook {
   cap_per_run?: number | null;
   last_run_for: string | null;
   /**
-   * "today 10:00", "tomorrow 10:00", "today, within the hour" or "paused", by the business's clock; "after billing resumes"
+   * "today 10:00 AM", "tomorrow 10:00 AM", "today, within the hour" or "paused", by the business's clock; "after billing resumes"
    * while the workspace is paused (contracts nextRunLabel).
    */
   next: string;
@@ -262,7 +262,7 @@ export interface LifecycleStage {
   /** on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off). */
   state: "always" | "on" | "paused" | "off" | "not_here";
   stateWords: string;
-  /** The same on a phone, where there is room for less: "Live", the clock alone ("daily 10:00"), or the state's own words. */
+  /** The same on a phone, where there is room for less: "Live", the clock alone ("daily 10:00 AM"), or the state's own words. */
   phoneWords: string;
   tone: LifecycleTone;
   needs: LifecycleNeeds;
@@ -326,14 +326,16 @@ export interface LifecycleReachTile {
   rungs: readonly LifecycleRung[] | null;
   /** The receptionist asks for the yes, and the doors to get it: only where there is a number to ask on. */
   yes: { note: string; code: LifecycleAct; phrase: string; copy: string } | null;
-  /** The phone's one short tile: "7" "of 29 can hear you", the offers pill, a meter and a line; null with the rungs. */
+  /**
+   * The phone's one line, in the Moments head (8 Oct 2026; it was a tile of its own, the canvas's A4, with a bar and a
+   * note): "7 of 29 can hear you", and who said yes to offers beside it, toned where nobody has; null with the rungs.
+   * `yes` is the door to how that yes is got (the desk's "Show the code", in the words its door carries elsewhere),
+   * where the desk's tile has one: the removed tile's sentence said the receptionist asks, and opened nothing.
+   */
   phone: {
-    n: number;
-    of: string;
-    share: number;
-    meter: string;
+    words: string;
     offers: { words: string; tone: LifecycleTone };
-    note: string | null;
+    yes: { label: string; route: string } | null;
   } | null;
 }
 

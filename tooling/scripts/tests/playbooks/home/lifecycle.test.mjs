@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
-/** Friday 2 Oct 2026, 9:44 PM in New York (the board's moment): so "tomorrow 10:00" is Saturday the 3rd. */
+/** Friday 2 Oct 2026, 9:44 PM in New York (the board's moment): so "tomorrow 10:00 AM" is Saturday the 3rd. */
 const NOW = Date.parse("2026-10-03T01:44:00Z");
 const DAY = 86_400_000;
 
@@ -25,7 +25,7 @@ const playbook = (over = {}) => ({
   run_hour: 10,
   cadence_days: 30,
   last_run_for: "2026-09-14",
-  next: "tomorrow 10:00",
+  next: "tomorrow 10:00 AM",
   triggerLabel: "Win-back",
   candidates: 0,
   held: 0,
@@ -189,7 +189,7 @@ test("the receptionist is always on; a running playbook is on with its clock; th
       ["always", "Answers · asks for the yes", true],
       ["off", "Off", false],
       ["off", "Off", false],
-      ["on", "On · daily 10:00", true],
+      ["on", "On · daily 10:00 AM", true],
       ["off", "Off", false],
     ],
   );
@@ -638,8 +638,19 @@ test("who can hear you: In People, can get your messages, said yes to offers, ea
     ["plain", "plain", "warn"],
     "none who said yes to offers is the one rung that asks to be seen",
   );
-  assert.deepEqual([`${t.phone.n} ${t.phone.of}`, t.phone.offers.words], ["7 of 29 can hear you", "0 to offers"]);
-  assert.equal(t.phone.offers.tone, "warn", "none to offers is the phone's one line that asks to be seen");
+  // The phone says it as one line in the Moments head (8 Oct 2026; it was a tile of its own with a bar and a note): the
+  // figure in words, and the yes to offers beside it.
+  // With it, the door to how that yes is got, where the desk's tile has one (the same condition as `yes`): the tile this
+  // line replaced said the receptionist asks, and opened nothing.
+  assert.deepEqual(t.phone, {
+    words: "7 of 29 can hear you",
+    offers: { words: "0 to offers", tone: "warn" },
+    yes: { label: "Get their yes", route: "broadcasts/get-yes" },
+  });
+  assert.equal(C.GET_YES_ROUTE, "broadcasts/get-yes");
+  assert.equal(t.phone.offers.tone, "warn", "none to offers is the phone's one word that asks to be seen");
+  const some = home({ broadcasts: broadcasts({ reach: { ...reach, saidOffers: 3 } }) }).reach;
+  assert.deepEqual(some.phone.offers, { words: "3 to offers", tone: "plain" });
 });
 
 test("the receptionist's note and the doors to the yes are drawn only where there is a number to ask on", () => {
@@ -654,11 +665,11 @@ test("the receptionist's note and the doors to the yes are drawn only where ther
     "the get-yes address the ledger's section answers",
   );
   assert.deepEqual([t.yes.phrase, t.yes.copy], ["YES OFFERS", "Copy the phrase"]);
-  assert.match(t.phone.note, /asks for the yes to offers/);
   const none = home({
     broadcasts: broadcasts({ number: { present: false }, optIn: { phrase: "YES OFFERS", link: null } }),
   }).reach;
-  assert.deepEqual([none.yes, none.phone.note], [null, null]);
+  assert.equal(none.yes, null);
+  assert.equal(none.phone.yes, null, "nor the phone's door: with no number there is no code to show");
   assert.equal(none.rungs.length, 3, "the ladder stands without a number");
 });
 
@@ -725,7 +736,7 @@ test("coming up: a running moment's next run with who will get it, and an off mo
   assert.deepEqual(
     t.rows.map((r) => [r.kind, r.what, r.when, r.pill]),
     [
-      ["moment", "Win-back", { day: "Tomorrow", at: "10:00" }, { tone: "warn", label: "Nobody" }],
+      ["moment", "Win-back", { day: "Tomorrow", at: "10:00 AM" }, { tone: "warn", label: "Nobody" }],
       ["off", "Visit reminder", { day: "Every", at: "day" }, null],
     ],
     "the visit reminder has 3 waiting and is off; how did it go has none and is not a line",
@@ -770,7 +781,7 @@ test("coming up while the workspace is paused (billing) says so where a time sto
     { playbooks: playbooks({ ready: { ...ready, paused: false } }) },
     { playbooks: playbooks({ ready: null }), broadcasts: broadcasts({ ready: null }) },
   ])
-    assert.deepEqual(coming(over).rows[0].when, { day: "Tomorrow", at: "10:00" });
+    assert.deepEqual(coming(over).rows[0].when, { day: "Tomorrow", at: "10:00 AM" });
   // The card's own label, from the surface, is the one the rows are made from: a pause leaves it unparseable as a time, and the
   // row says paused all the same.
   const labelled = coming({
@@ -838,21 +849,59 @@ test("a moment that reaches people says how many, and who waits out the week; a 
   assert.equal(nobodyOn.rows[0].why, "Nobody is on it yet");
 });
 
-test("a paused or archived playbook has no next run; today's run says today", () => {
+test("a paused or archived playbook has no next run; a running one's is made from its hour and the day it last ran for, never from its label's words", () => {
+  /** Friday 2 Oct 2026, 11:00 AM in New York: the sending hours are open. */
+  const MORNING = Date.parse("2026-10-02T15:00:00Z");
+  const sends = { candidates: 1, held: 0, named: { pool: 1, saidYes: 1 } };
   const rows = [
     playbook({ id: "a", state: "paused", next: "paused" }),
     playbook({ id: "b", trigger: "saved_list", listArchived: true }),
-    playbook({ id: "c", next: "today 20:00", candidates: 1, held: 0, named: { pool: 1, saidYes: 1 } }),
+    playbook({ id: "c", run_hour: 20, last_run_for: "2026-10-01", next: "today 8:00 PM", ...sends }),
   ];
-  const t = coming({ playbooks: playbooks({ rows }) });
+  const t = coming({ nowMs: MORNING, playbooks: playbooks({ rows }) });
   assert.deepEqual(
-    t.rows.filter((r) => r.kind === "moment").map((r) => [r.id, r.when]),
-    [["moment:c", { day: "Today", at: "20:00" }]],
+    t.rows.filter((r) => r.kind === "moment").map((r) => [r.id, r.when, r.atMs]),
+    [["moment:c", { day: "Today", at: "8:00 PM" }, Date.parse("2026-10-03T00:00:00Z")]],
   );
-  const within = coming({
-    playbooks: playbooks({ rows: [playbook({ next: "today, within the hour", candidates: 2, held: 0 })] }),
-  });
-  assert.deepEqual(within.rows[0].when, { day: "Today", at: "Within the hour" });
+  // The line is the schedule's own rule at the moment the page is read (contracts nextRunOf, which the card's label is
+  // said from too): its day, its hour by the product's clock, and the instant it is sorted by.
+  const line = (p, nowMs = MORNING) =>
+    coming({ nowMs, playbooks: playbooks({ rows: [playbook({ ...sends, ...p })] }) }).rows.find(
+      (r) => r.kind === "moment",
+    );
+  const cases = [
+    // Its hour is ahead today.
+    [{ run_hour: 20, last_run_for: "2026-10-01" }, MORNING, { day: "Today", at: "8:00 PM" }, "2026-10-03T00:00:00Z"],
+    // Its hour has come and today's run is not made: the clock's next tick makes it.
+    [{ run_hour: 10, last_run_for: "2026-10-01" }, MORNING, { day: "Today", at: "Within the hour" }, null],
+    // Today's run is made: tomorrow at its hour. Noon is noon.
+    [{ run_hour: 9, last_run_for: "2026-10-02" }, MORNING, { day: "Tomorrow", at: "9:00 AM" }, "2026-10-03T13:00:00Z"],
+    [
+      { run_hour: 12, last_run_for: "2026-10-02" },
+      MORNING,
+      { day: "Tomorrow", at: "12:00 PM" },
+      "2026-10-03T16:00:00Z",
+    ],
+    // Past the last sending hour (9:44 PM) with today's run never made: tomorrow, not "within the hour".
+    [{ run_hour: 10, last_run_for: "2026-09-14" }, NOW, { day: "Tomorrow", at: "10:00 AM" }, "2026-10-03T14:00:00Z"],
+  ];
+  for (const [p, nowMs, when, at] of cases) {
+    const row = line(p, nowMs);
+    assert.deepEqual(row.when, when, JSON.stringify(p));
+    assert.equal(row.atMs, at === null ? nowMs : Date.parse(at), JSON.stringify(p));
+    // One rule with the card's label: the same day and the same hour, in the same clock's words.
+    const label = C.nextRunLabel({ state: "running", ...p }, ZONE, new Date(nowMs), false);
+    const said = when.at === "Within the hour" ? "today, within the hour" : `${when.day.toLowerCase()} ${when.at}`;
+    assert.equal(label, said);
+  }
+  // The label's words are not read: one the line could not have parsed (an older spelling, another language, a label a
+  // later change words differently) used to drop the moment from the week without a trace.
+  for (const next of ["today 20:00", "mañana a las 10", "", "soon"])
+    assert.deepEqual(
+      line({ run_hour: 20, last_run_for: "2026-10-01", next }).when,
+      { day: "Today", at: "8:00 PM" },
+      `whatever the label says: "${next}"`,
+    );
 });
 
 test("a scheduled run and a run waiting on you are lines, in time order, and stand for their playbook's own line", () => {

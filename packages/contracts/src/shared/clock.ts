@@ -9,6 +9,7 @@
  * says how long ago; this says when.
  *
  *   clockTime      "3:10 PM"
+ *   clockHour      "10:00 AM" · "6:00 PM"                        a playbook's hour, which is already the business's
  *   clockDate      "Sep 6" · "Dec 31, 2025" (another year says its year)
  *   clockDateYear  "Sep 6, 2026"                                 a record
  *   clockShort     today "3:10 PM", else "Sep 6"                 a list row
@@ -126,6 +127,18 @@ export function zoneDayKey(atMs: number, tz: string): string {
 /** "3:10 PM", by the business's clock. */
 export function clockTime(atMs: number, tz: string): string {
   return formatsFor(tz).time.format(new Date(atMs));
+}
+
+/**
+ * A whole hour of the day in the words clockTime says a time in: "10:00 AM", "6:00 PM". For an hour that is already the
+ * business's own (a playbook's `run_hour`), so no zone is asked: a run at ten and a broadcast at ten read alike, where
+ * the playbooks said "10:00" and "18:00" beside every other time on the page. Not the Calendar's hour labels, which
+ * are its own shorter ones ("10 AM", calendar-words.ts clockLabel). Total: any whole number is read round the day, and
+ * a value that is not a number at all is read as the day's first hour, never printed as "NaN:00 PM".
+ */
+export function clockHour(hour: number): string {
+  const h = Number.isFinite(hour) ? ((Math.floor(hour) % 24) + 24) % 24 : 0;
+  return `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
 }
 
 /** "Sep 6" by the business's calendar, with the year when that is not this year there. */

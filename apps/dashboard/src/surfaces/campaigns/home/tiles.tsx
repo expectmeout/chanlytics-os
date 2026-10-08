@@ -2,8 +2,8 @@
  * Campaigns' home, the three tiles under the rail (canvas A): who can hear you, what is coming in the next seven days, and what
  * came back. Each draws its part of the view model (contracts campaignsHomeOf) and nothing it was not told: a tile whose read
  * is still out says it is reading (after the standard beat), one whose read failed is the kit's failed read with its Retry, a
- * number that could not be counted is not drawn, and a zero is a zero. The phone draws the first as one short tile (A4) and
- * the other two the same as the desk.
+ * number that could not be counted is not drawn, and a zero is a zero. The phone says the first as a line in its Moments
+ * head (PhoneReachLine, which the rail draws) and draws the other two the same as the desk.
  */
 import { useEffect, useRef } from "react";
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
@@ -163,37 +163,32 @@ function Yes({ yes, acts }: { yes: NonNullable<LifecycleReachTile["yes"]>; acts:
 }
 
 /**
- * The phone's one short tile: how many can hear you, the offers pill, a meter and a line; its read, where there is none
- * yet. The head's channel line is drawn here on a phone, where the frame draws no sentence under the page's name.
+ * The phone's line in the Moments head: how many can hear you and the offers pill, the door to how that yes is got
+ * (where the desk's tile has one), and where the workspace stands on its channels, which is the readiness's to say and
+ * so is drawn whether or not the reach has been read. Its read, where there is none yet, at the line's own gutter.
  */
-export function PhoneReach({
+export function PhoneReachLine({
   tile,
   failed,
   channels,
 }: ReachProps & { channels: readonly ChannelStandingPart[] | null }) {
   const phone = tile.phone;
   return (
-    <Panel
-      as="section"
-      size="flush"
-      className="cmh-block cmh-phone-reach"
-      aria-label={LIFECYCLE_WORDS.reach.title}
-      data-testid="cmh-reach"
-    >
+    <div className="cmh-vrail-reach" role="group" aria-label={LIFECYCLE_WORDS.reach.title} data-testid="cmh-reach">
       <TileRead read={tile.read} failed={failed} testid="cmh-reach" />
       {phone ? (
-        <>
-          <p className="cmh-phone-hear">
-            <span className="cmh-figure tabular">{phone.n}</span>
-            <span className="cmh-phone-of">{phone.of}</span>
-            <StatePill kind="tone" value={phone.offers.tone} label={phone.offers.words} />
-          </p>
-          <Bar share={phone.share} label={phone.meter} />
-          <ChannelsLine parts={channels} testid="cmh-channels" />
-          {phone.note ? <span className="cmh-dim">{phone.note}</span> : null}
-        </>
+        <p className="cmh-vrail-hear">
+          <span>{phone.words}</span>
+          <StatePill kind="tone" value={phone.offers.tone} label={phone.offers.words} />
+        </p>
       ) : null}
-    </Panel>
+      {phone?.yes ? (
+        <LinkButton className="cmh-vrail-yes" {...routeDoor(phone.yes.route)} data-testid="cmh-phone-yes">
+          {phone.yes.label}
+        </LinkButton>
+      ) : null}
+      <ChannelsLine parts={channels} testid="cmh-channels" />
+    </div>
   );
 }
 

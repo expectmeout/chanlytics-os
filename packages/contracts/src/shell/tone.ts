@@ -231,7 +231,9 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
   mode: PERSON_MODE_WORDS,
   broadcast: BROADCAST_STATE_LABELS,
-  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  // A playbook (or a reach-out) with a run waiting on its owner says what the run's own pill says: one name for it,
+  // read from the run's label. It said the Inbox's "Needs you" here after the run's label had stopped saying so.
+  playbook: { running: "Running", paused: "Paused", approval: BROADCAST_STATE_LABELS.pending_approval },
   template: {
     approved: "Approved",
     pending: "In review",

@@ -125,7 +125,7 @@ const playbook = (over = {}) => ({
   run_hour: 9,
   cadence_days: 30,
   last_run_for: "2026-10-01",
-  next: "tomorrow 09:00",
+  next: "tomorrow 9:00 AM",
   triggerLabel: "Visit reminder",
   candidates: 3,
   held: 0,

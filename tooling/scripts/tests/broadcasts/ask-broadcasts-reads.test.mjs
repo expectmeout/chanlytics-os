@@ -174,7 +174,7 @@ const rowOf = (b) => {
   };
 };
 
-test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, each as toBroadcastVM says it: a playbook's run waiting for a person said as such (Needs you, waiting_on_you), a failed one with why; whether older ones exist; each broadcast a row in the read set, opened at its run", async () => {
+test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, each as toBroadcastVM says it: a playbook's run waiting for a person said as such (Waiting on you, waiting_on_you), a failed one with why; whether older ones exist; each broadcast a row in the read set, opened at its run", async () => {
   const { out, isError, tc } = await ask({ action: "broadcasts" });
   assert.equal(isError, false, JSON.stringify(out));
   const page = await load(rcIn(), broadcastsReader, undefined);
@@ -182,7 +182,7 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
   const waiting = out.broadcasts.find((b) => b.broadcast_id === BC2);
   assert.deepEqual(
     [waiting.state, waiting.waiting_on_you, waiting.by, waiting.audience],
-    ["Needs you", true, "a playbook", "Quiet 30 days"],
+    ["Waiting on you", true, "a playbook", "Quiet 30 days"],
   );
   assert.ok(out.broadcasts.find((b) => b.broadcast_id === BC3).why_it_failed, "a failed run says why");
   // A run that went by WhatsApp and text says each, and its read is a share of WhatsApp's one (0030).

@@ -313,6 +313,16 @@ test.describe("Phone shell on a real workspace", () => {
     const tops = await stages.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
     expect(tops, "the moments stand one under another").toEqual([...tops].sort((a, b) => a - b));
     expect(new Set(tops.map(Math.round)).size, "no two moments on one line").toBe(tops.length);
+    // Who can hear you is a line in the moments' head (8 Oct 2026; it was a tile of its own over them), so the moments
+    // are the first tile on the page: nothing of the page's own stands above their tile.
+    const rail = home.getByTestId("cmh-rail");
+    await expect(rail.getByTestId("cmh-reach")).toBeVisible();
+    await expect(home.getByTestId("cmh-reach")).toHaveCount(1);
+    const railTop = (await rail.boundingBox())?.y ?? 0;
+    for (const id of ["cmh-also", "cmh-coming", "cmh-results"]) {
+      const box = await home.getByTestId(id).first().boundingBox();
+      if (box) expect(box.y, `${id} stands under the moments`).toBeGreaterThan(railTop);
+    }
     // The marks a moment goes by (8 Oct 2026): on a phone each keeps its word beside its dot (a dot alone said which
     // channel by its colour), inside the screen, and the whole still says itself to a screen reader. Which moments
     // carry marks is playbooks.spec's, against the API.

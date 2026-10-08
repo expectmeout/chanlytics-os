@@ -5010,10 +5010,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
     display: none;
   }
 }
-.cmh-phone-reach .cmh-channels {
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
-}
 /* At the rail's head on a desk: pushed to the right of the count, in the quiet size, wrapping in its own box and never
    into the name or the count, which keep their one line. */
 .cmh-rail-block > .cmh-block-head > :is(.cmh-h, .cmh-dim) {
@@ -5397,32 +5393,49 @@ div.tpl-slotbox:not([data-lines="1"]) {
   font-size: var(--text-sm);
 }
 
-/* The phone: one short tile for who can hear you, the moments down a line, and the other lines as one list. */
+/* The phone: the moments down a line, who can hear you a line in their head, and the other lines as one list. */
 .cmh[data-phone] {
   gap: var(--space-3);
   padding: 0 var(--space-3) 120px;
 }
-.cmh-phone-reach {
+/* Who can hear you, a line in the Moments head (8 Oct 2026; it was a tile of its own over them): the figure in words with
+   the yes to offers at its right, and the channels' standing under it, in the head's own quiet size. */
+.cmh-vrail-reach {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: var(--space-4) 18px;
-}
-.cmh-phone-hear {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0;
-}
-.cmh-phone-hear > .cmh-figure {
-  font-size: var(--text-3xl);
-}
-.cmh-phone-of {
-  font-size: var(--text-base);
+  gap: var(--space-1);
+  padding: var(--space-1) 22px var(--space-2);
+  font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-.cmh-phone-hear > :last-child {
-  margin-left: auto;
+.cmh-vrail-hear {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+.cmh-vrail-reach > .cmh-channels {
+  margin-top: 0;
+}
+/* Its reading and its failed read stand at the line's own gutter: each carries a tile's gutter of its own, which here
+   was a second one inside the first. */
+.cmh-vrail-reach > .route-reading.cmh-reading {
+  padding: 0;
+}
+.cmh-vrail-reach > .cmh-failed {
+  margin: 0;
+}
+/* The door to how the yes to offers is got, under the line that counts it, at the line's edge: a thumb's height to
+   press, and a line's height in the head, so the moments stay the first thing on the screen (its box reaches into the
+   gaps over and under it, where nothing else is pressed). */
+.cmh-vrail-yes {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+  margin-block: calc(var(--space-3) * -1);
 }
 .cmh-vrail {
   margin: 0;

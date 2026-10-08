@@ -9,8 +9,8 @@ import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../
 import { GET_YES_ROUTE } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 import { fmtDay } from "../reports/reports";
-import { clockNear, clockTime, zoneDayKey } from "../shared/clock";
-import { HOUR_MS, MIN_MS } from "../shared/time";
+import { clockHour, clockNear, clockTime, zoneDayKey } from "../shared/clock";
+import { HOUR_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import type {
   LifecycleAct,
@@ -32,7 +32,7 @@ import { todayRunWords } from "../today/today-runs";
 import { waitingRunOffer } from "./playbook-approval";
 import { DAY_MS } from "./playbook-time";
 import { playbookReach } from "./playbook-reach";
-import { nextOpenMoment } from "./playbook-schedule";
+import { nextOpenMoment, nextRunOf } from "./playbook-schedule";
 import { triggerOf } from "./playbook-triggers";
 
 /** How far ahead "Coming up" looks, and how far back "What came back" does. */
@@ -119,32 +119,31 @@ export function lifecycleReach(input: LifecycleInput, stages: readonly Lifecycle
   ];
   const door: LifecycleAct = { kind: "route", label: W.code, route: GET_YES_ROUTE };
   const asks = b.number.present && b.optIn.link !== null;
-  const [, messages, offers] = rungs;
+  const [, , offers] = rungs;
   return {
     read: "read",
     rungs,
     yes: asks ? { note: W.asks, code: door, phrase: b.optIn.phrase, copy: W.copy } : null,
     phone: {
-      n: reach.canHear,
-      of: `of ${reach.people} can hear you`,
-      share: messages ? messages.share : 0,
-      meter: messages ? messages.meter : "",
+      words: W.phoneHear(reach.canHear, reach.people),
       offers: { words: `${reach.saidOffers} to offers`, tone: offers ? offers.tone : "plain" },
-      note: asks ? W.phoneAsks : null,
+      yes: asks ? { label: W.phoneYes, route: GET_YES_ROUTE } : null,
     },
   };
 }
 
-/** A next run as the card says it ("today 10:00", "tomorrow 10:00", "today, within the hour"), and when that is. */
-function nextRunOf(next: string, nowMs: number, tz: string): { day: string; at: string; atMs: number } | null {
-  const m = /^(today|tomorrow)(?:, (within the hour)| (\d{2}):(\d{2}))$/.exec(next);
-  if (!m) return null;
+/**
+ * A running moment's next run on Coming up's line: its day and its hour in the tile's words, and the moment the line is
+ * sorted by. Made from the schedule's own rule over the playbook's hour and the day it last ran for (playbook-schedule.ts
+ * nextRunOf, which the card's label is said from too), at the moment the page is read: never from the label's words.
+ */
+function nextRunLine(p: LifecyclePlaybook, nowMs: number, tz: string): { day: string; at: string; atMs: number } {
+  const next = nextRunOf(p, tz, new Date(nowMs));
+  const word = next.day === "tomorrow" ? "Tomorrow" : "Today";
+  if (next.soon) return { day: word, at: "Within the hour", atMs: nowMs };
   const today = zoneDayKey(nowMs, tz);
-  const day = m[1] === "tomorrow" ? shiftKey(today, 1) : today;
-  const word = m[1] === "tomorrow" ? "Tomorrow" : "Today";
-  if (m[2]) return { day: word, at: "Within the hour", atMs: nowMs };
-  const atMs = zoneMidnight(tz, day) + Number(m[3]) * HOUR_MS + Number(m[4]) * MIN_MS;
-  return { day: word, at: `${m[3]}:${m[4]}`, atMs };
+  const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
+  return { day: word, at: clockHour(next.hour), atMs };
 }
 
 /** Who a running moment will reach on its next run, and the reason when it reaches nobody. */
@@ -215,8 +214,7 @@ function momentRow(p: LifecyclePlaybook, nowMs: number, tz: string, workspacePau
       atMs: nowMs,
     };
   }
-  const next = nextRunOf(p.next, nowMs, tz);
-  if (!next) return null;
+  const next = nextRunLine(p, nowMs, tz);
   return {
     id: `moment:${p.id}`,
     kind: "moment",

@@ -3,6 +3,7 @@
  * visit playbooks' line. Its foot line is today-period.ts's.
  */
 import { clockLabel } from "../calendar/calendar-words";
+import { triggerOf } from "../playbooks/playbook-triggers";
 
 /* ------------------------------ the day ---------------------------------- */
 
@@ -216,8 +217,9 @@ export function todayDay(
             text: visit
               .map(
                 (p) =>
+                  // The playbook's kind in its moment's own label (playbook-triggers.ts), never spelled again here.
                   // A count that could not be read is left out, never said as "null people".
-                  `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next run ${p.next}`,
+                  `${triggerOf(p.trigger)?.label ?? p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next run ${p.next}`,
               )
               .join(" · "),
             to: "outbound",

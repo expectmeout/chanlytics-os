@@ -295,7 +295,10 @@ var PLAYBOOK_TRIGGERS = [
     hint: "The day before an appointment on the calendar"
   },
   // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
-  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer.
+  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer. Its label
+  // is also the NAME a playbook made on it was given and keeps (the composer names a new playbook after its moment, and
+  // the name is stored): a new label here would say one thing on the moment and another on every playbook already
+  // made, so a rename is a product decision with a migration of the stored names, never a constant's change alone.
   {
     id: "visited",
     label: "After the visit",
@@ -1895,6 +1898,10 @@ function zoneDayKey(atMs, tz) {
 }
 function clockTime(atMs, tz) {
   return formatsFor(tz).time.format(new Date(atMs));
+}
+function clockHour(hour) {
+  const h = Number.isFinite(hour) ? (Math.floor(hour) % 24 + 24) % 24 : 0;
+  return `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
 }
 function clockDate(atMs, tz, nowMs) {
   const f = formatsFor(tz);
@@ -13224,7 +13231,7 @@ var REACH_OUT_SEND_STATES = [
   "handed"
 ];
 var BROADCAST_STATE_LABELS = {
-  pending_approval: "Needs you",
+  pending_approval: "Waiting on you",
   scheduled: "Scheduled",
   sending: "Sending",
   sent: "Sent",
@@ -20679,7 +20686,9 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
   mode: PERSON_MODE_WORDS,
   broadcast: BROADCAST_STATE_LABELS,
-  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  // A playbook (or a reach-out) with a run waiting on its owner says what the run's own pill says: one name for it,
+  // read from the run's label. It said the Inbox's "Needs you" here after the run's label had stopped saying so.
+  playbook: { running: "Running", paused: "Paused", approval: BROADCAST_STATE_LABELS.pending_approval },
   template: {
     approved: "Approved",
     pending: "In review",
@@ -20831,9 +20840,8 @@ function runDueNow(p, tz, now) {
 function inLastSendingHour(tz, now) {
   return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
 }
-var two2 = (n) => String(n).padStart(2, "0");
 function scheduleLine(p) {
-  const at3 = `${two2(p.run_hour)}:00`;
+  const at3 = clockHour(p.run_hour);
   if (triggerOf(p.trigger)?.kind === "visit")
     return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at3} \xB7 up to ${p.cap_per_run} a day`;
@@ -20841,20 +20849,23 @@ function scheduleLine(p) {
   return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
 }
 function runsWords(p) {
-  const at3 = `${two2(p.run_hour)}:00`;
+  const at3 = clockHour(p.run_hour);
   return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at3}` : `runs daily at ${at3}`;
 }
 var NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
 function nextRunLabel(p, tz, now, workspacePaused) {
   if (p.state !== "running") return "paused";
   if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
+  const next = nextRunOf(p, tz, now);
+  return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
+}
+function nextRunOf(p, tz, now) {
   const { date, hour } = parts(tz, now);
-  const at3 = `${two2(p.run_hour)}:00`;
   if (p.last_run_for !== date) {
-    if (hour < p.run_hour) return `today ${at3}`;
-    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
+    if (hour < p.run_hour) return { day: "today", hour: p.run_hour, soon: false };
+    if (hour <= PLAYBOOK_HOURS.max) return { day: "today", hour: p.run_hour, soon: true };
   }
-  return `tomorrow ${at3}`;
+  return { day: "tomorrow", hour: p.run_hour, soon: false };
 }
 
 // src/playbooks/playbook-follow-ups.ts
@@ -26882,7 +26893,10 @@ var LIFECYCLE_WORDS = {
     opensMessages: "Opens:",
     ownOffers: ["the month's offer", "your notes"],
     asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
-    phoneAsks: "Your receptionist asks for the yes to offers, once a person, in a conversation they started.",
+    /** The phone's line in the Moments head: who of everyone in People a message can reach now. */
+    phoneHear: (canHear, people) => `${canHear} of ${people} can hear you`,
+    /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
+    phoneYes: "Get their yes",
     code: "Show the code",
     copy: "Copy the phrase",
     link: "People"
@@ -26972,9 +26986,8 @@ var LIFECYCLE_TOAST = {
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase) => `Couldn't copy, the phrase is: ${phrase}`
 };
-var twoDigits = (n) => String(n).padStart(2, "0");
 function lifecycleClock(p) {
-  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${twoDigits(p.run_hour)}:00`;
+  return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
 function lifecycleStateOf(p) {
   const stated = (words3, tone, paused = false, short = words3) => ({
@@ -27067,30 +27080,25 @@ function lifecycleReach(input, stages) {
   ];
   const door = { kind: "route", label: W.code, route: GET_YES_ROUTE };
   const asks = b.number.present && b.optIn.link !== null;
-  const [, messages, offers] = rungs;
+  const [, , offers] = rungs;
   return {
     read: "read",
     rungs,
     yes: asks ? { note: W.asks, code: door, phrase: b.optIn.phrase, copy: W.copy } : null,
     phone: {
-      n: reach.canHear,
-      of: `of ${reach.people} can hear you`,
-      share: messages ? messages.share : 0,
-      meter: messages ? messages.meter : "",
+      words: W.phoneHear(reach.canHear, reach.people),
       offers: { words: `${reach.saidOffers} to offers`, tone: offers ? offers.tone : "plain" },
-      note: asks ? W.phoneAsks : null
+      yes: asks ? { label: W.phoneYes, route: GET_YES_ROUTE } : null
     }
   };
 }
-function nextRunOf(next, nowMs, tz) {
-  const m = /^(today|tomorrow)(?:, (within the hour)| (\d{2}):(\d{2}))$/.exec(next);
-  if (!m) return null;
+function nextRunLine(p, nowMs, tz) {
+  const next = nextRunOf(p, tz, new Date(nowMs));
+  const word = next.day === "tomorrow" ? "Tomorrow" : "Today";
+  if (next.soon) return { day: word, at: "Within the hour", atMs: nowMs };
   const today = zoneDayKey(nowMs, tz);
-  const day = m[1] === "tomorrow" ? shiftKey(today, 1) : today;
-  const word = m[1] === "tomorrow" ? "Tomorrow" : "Today";
-  if (m[2]) return { day: word, at: "Within the hour", atMs: nowMs };
-  const atMs = zoneMidnight(tz, day) + Number(m[3]) * HOUR_MS + Number(m[4]) * MIN_MS;
-  return { day: word, at: `${m[3]}:${m[4]}`, atMs };
+  const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
+  return { day: word, at: clockHour(next.hour), atMs };
 }
 function whoWill(p) {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
@@ -27141,8 +27149,7 @@ function momentRow(p, nowMs, tz, workspacePaused) {
       atMs: nowMs
     };
   }
-  const next = nextRunOf(p.next, nowMs, tz);
-  if (!next) return null;
+  const next = nextRunLine(p, nowMs, tz);
   return {
     id: `moment:${p.id}`,
     kind: "moment",
@@ -34223,8 +34230,9 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     } : {
       text: visit.map(
         (p) => (
+          // The playbook's kind in its moment's own label (playbook-triggers.ts), never spelled again here.
           // A count that could not be read is left out, never said as "null people".
-          `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`
+          `${triggerOf(p.trigger)?.label ?? p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`
         )
       ).join(" \xB7 "),
       to: "outbound"
@@ -38024,6 +38032,7 @@ export {
   clockDate,
   clockDateYear,
   clockDayLabel,
+  clockHour,
   clockInZone,
   clockLabel,
   clockNear,
