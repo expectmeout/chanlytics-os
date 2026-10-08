@@ -259,7 +259,9 @@ globalThis.window.__chrome = { state: stateOf };
 const S = "../../../../apps/dashboard/src/surfaces";
 const { calendar } = await import(`${S}/calendar/verbs.ts`);
 const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
-const { CALENDAR_PAGE, CR_HOUR_MIN_PX, CR_WARM_MS, fitHourPx } = await import(`${S}/calendar/words.ts`);
+const { CALENDAR_PAGE, CR_WARM_MS, fitHourPx } = await import(`${S}/calendar/words.ts`);
+// The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
+const CR_HOUR_MIN_PX = fitHourPx(0, 1);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const realVerbs = { ...calendar };
 globalThis.window.__calendar = calendar;

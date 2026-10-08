@@ -10,7 +10,7 @@ import { DAY_MS, MIN_MS, type CalendarView } from "@chanlytics/contracts";
  * page leaves among the day's hours (blocks.tsx CrBoard), and under this a half-hour block (22px at the least) would cover
  * more than a sliver of the one after it. Nine hours fit a 375px phone at it; a longer day scrolls inside its pane.
  */
-export const CR_HOUR_MIN_PX = 40;
+const CR_HOUR_MIN_PX = 40;
 
 /**
  * The hour's height that fits `hours` of the day in `room` px of board, never under the floor: a phone's board holds
