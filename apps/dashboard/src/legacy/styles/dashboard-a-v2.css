@@ -1179,6 +1179,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    these) keep a column at the prose measure; the card is as wide as the queue. */
 .today-setup { display: grid; gap: 8px; padding: 14px 18px 4px; }
 .today-setup .setup-rows { padding: 0; max-width: none; }
+/* What a row opens under itself starts where the row's words do here too, after the dot's column and its gap, and ends
+   where the row's acts do. Setup's own margins are its page's (a tile and a 24px gutter, settings.css), which the card
+   does not have: the form stood 48px inside the words. */
+.today-setup .setup-chooser { margin-left: 26px; margin-right: 0; }
 .setup-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .setup-card-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--text-base); font-weight: 500; color: var(--ink); }
 .setup-card-left { font-size: var(--text-sm); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }

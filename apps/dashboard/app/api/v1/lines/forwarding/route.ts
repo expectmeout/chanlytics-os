@@ -2,7 +2,7 @@ import { write, workspace } from "@/server/route";
 import { setLineForwarding } from "@/server/connections/forwarding";
 
 /**
- * POST /api/v1/lines/forwarding — {number, carrier, mode, test_from?}: keep
+ * POST /api/v1/lines/forwarding — {number, carrier, mode}: keep
  * the number you have and forward its calls to the receptionist's line.
  * Owners only. The RPC keeps one forwarded row per workspace, instructed
  * until a test call proves it. The body is the route's own to read:

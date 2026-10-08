@@ -38720,7 +38720,10 @@ declare function createWorkspaceFn(db: Db$9, args: CreateWorkspaceArgs): Promise
     status: string;
     timezone: string;
 }>>;
-/** What `line_forwarding_set` takes: the workspace, the number kept, its carrier, which calls to forward, and the phone to test from. */
+/**
+ * What `line_forwarding_set` takes: the workspace, the number kept, its carrier and which calls to forward. Its fifth, a
+ * phone to test from, is asked nowhere any more (8 Oct 2026): the door passes null until a migration drops the argument.
+ */
 type LineForwardingArgs = Database["public"]["Functions"]["line_forwarding_set"]["Args"];
 /** Keep the number: the forwarded line's id, or the database's refusal. */
 declare function lineForwardingSet(db: Db$9, args: LineForwardingArgs): Promise<_supabase_postgrest_js.PostgrestSingleResponse<string>>;
