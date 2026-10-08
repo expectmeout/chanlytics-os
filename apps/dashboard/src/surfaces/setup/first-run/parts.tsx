@@ -1,7 +1,7 @@
 /**
  * The first run's frame parts (moved from legacy/pages/first-run.jsx, decision 0015): Live's summary (canvas R9, P8), the
  * rail of four steps across the top, and the owner's receptionist so far, beside the step on a desktop and under the strip
- * on a phone.
+ * on a phone. Each is the kit's own: a pane, a quiet button, a face (by their classes: page.tsx says why), a state's pill.
  */
 import type { FirstRunLiveVM, FirstRunVM, ReceptionistCardVM } from "@chanlytics/contracts";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
@@ -28,25 +28,24 @@ export const FrLive = ({ lv, config, brain, canEdit, owner, leave }: LiveProps) 
   const CanCard = businessPart("BtCanCard");
   return (
     <div className="fr-line-step" data-testid="fr-live">
-      <dl className="fr-live-summary" data-testid="fr-live-summary">
-        {lv.summary.map((r) => (
-          <div key={r.key} className="fr-live-row" data-testid={`fr-live-${r.key}`}>
-            <dt className="fr-line-label">{r.label}</dt>
-            <dd className="fr-live-value">
-              {r.value}
-              {r.change && canEdit ? (
-                <>
-                  {" "}
-                  <button type="button" className="fr-find-link" onClick={() => r.change && leave(r.change.to)}>
+      <div className="panel panel-flush fr-summary">
+        <dl className="fr-summary-rows" data-testid="fr-live-summary">
+          {lv.summary.map((r) => (
+            <div key={r.key} className="fr-summary-row" data-testid={`fr-live-${r.key}`}>
+              <dt className="fr-label">{r.label}</dt>
+              <dd className="fr-summary-value">
+                <span>{r.value}</span>
+                {r.change && canEdit ? (
+                  <button type="button" className="link-btn" onClick={() => r.change && leave(r.change.to)}>
                     {r.change.label}
                   </button>
-                </>
-              ) : null}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <p className="fr-code-off" data-testid="fr-live-greeting">
+                ) : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <p className="fr-quiet" data-testid="fr-live-greeting">
         {lv.greeting}
       </p>
       {brain && CanCard ? (
@@ -56,13 +55,16 @@ export const FrLive = ({ lv, config, brain, canEdit, owner, leave }: LiveProps) 
   );
 };
 
-/** The four steps across the top: a step done or on screen opens in place; a step not reached is only its name. */
+/**
+ * The four steps across the top: a step done or reached opens in place; a step not reached is only its name. The step on
+ * screen is the strong one (first-run.css, `aria-current`), wherever the workspace stands.
+ */
 export const FrRail = ({ fr, go, label }: { fr: FirstRunVM; go: (to: string) => void; label: string }) => (
   <ol className="fr-rail" aria-label={label}>
     {fr.steps.map((s) => {
       const body = (
         <>
-          <span className="fr-rail-mark" aria-hidden="true">
+          <span className="fr-rail-n" aria-hidden="true">
             {s.state === "done" ? <Icon name="check" size={10} /> : s.number}
           </span>
           <span className="fr-rail-name">{s.name}</span>
@@ -76,9 +78,14 @@ export const FrRail = ({ fr, go, label }: { fr: FirstRunVM; go: (to: string) => 
           aria-current={s.key === fr.shown.key ? "step" : undefined}
         >
           {s.state === "ahead" ? (
-            <span className="fr-rail-btn">{body}</span>
+            <span className="fr-rail-ahead">{body}</span>
           ) : (
-            <button type="button" className="fr-rail-btn" onClick={() => go(s.to)} data-testid={`fr-rail-${s.key}`}>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => go(s.to)}
+              data-testid={`fr-rail-${s.key}`}
+            >
               {body}
             </button>
           )}
@@ -90,30 +97,30 @@ export const FrRail = ({ fr, go, label }: { fr: FirstRunVM; go: (to: string) => 
 
 /** The owner's receptionist, so far: beside the step on a desktop; under the strip, once opened, on a phone. */
 export const FrCard = ({ card, open }: { card: ReceptionistCardVM; open: boolean }) => (
-  <aside className="fr-card" data-open={open ? "true" : undefined} aria-label={card.caption} data-testid="fr-card">
-    <div className="fr-card-cap">{card.caption}</div>
-    <div className="fr-card-box">
-      <div className="fr-card-head">
-        <span className="fr-card-av" aria-hidden="true">
-          {card.initials}
+  <aside className="fr-rcp" data-open={open ? "true" : undefined} aria-label={card.caption} data-testid="fr-card">
+    <div className="fr-rcp-cap">{card.caption}</div>
+    <div className="panel fr-rcp-pane">
+      <div className="fr-rcp-head">
+        <span className="face" aria-hidden="true">
+          <span>{card.initials}</span>
         </span>
-        <div className="fr-card-who">
+        <div className="fr-rcp-who">
           <b>{card.name}</b>
           <StatePill kind="setup" value={card.status.state} label={card.status.words} testid="fr-card-status" />
         </div>
       </div>
-      <p className="fr-card-greet">
-        <span className="fr-card-k">{card.greetingLabel}</span>“{card.greeting}”
+      <p className="fr-rcp-greet">
+        <span className="fr-label">{card.greetingLabel}</span>“{card.greeting}”
       </p>
-      <dl className="fr-card-rows">
+      <dl className="fr-rcp-rows">
         {card.rows.map((r) => (
-          <div key={r.key} className="fr-card-row" data-testid={`fr-card-${r.key}`}>
-            <dt className="fr-card-k">{r.label}</dt>
-            <dd className={r.value ? "fr-card-v" : "fr-card-v is-empty"}>{r.value || "—"}</dd>
+          <div key={r.key} className="fr-rcp-row" data-testid={`fr-card-${r.key}`}>
+            <dt className="fr-label">{r.label}</dt>
+            <dd className={r.value ? "fr-rcp-v" : "fr-rcp-v fr-rcp-none"}>{r.value || "—"}</dd>
           </div>
         ))}
       </dl>
     </div>
-    <p className="fr-card-foot">{card.foot}</p>
+    <p className="fr-rcp-foot">{card.foot}</p>
   </aside>
 );

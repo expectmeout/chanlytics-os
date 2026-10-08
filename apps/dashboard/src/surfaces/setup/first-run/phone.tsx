@@ -2,21 +2,33 @@
  * Your phone (canvas R3, V4, V5, P3; contracts first-run-phone.ts; moved from legacy/pages/first-run.jsx, decision 0015):
  * how calls reach the receptionist -- keep the number customers know, a new one, or move it here -- and the trial with the
  * plan's own price, then the number on its way. `ph` is the step as contracts say it over Setup and the owner's `choice`,
- * which the page holds and keeps in the tab (memory.ts).
+ * which the page holds and keeps in the tab (memory.ts), or reads from their saved view where the tab holds none.
  *
  * The button, where a card is still to be given, goes to Stripe (checkout returns to the first run); once the workspace
- * may spend, the buy goes on by itself, once (phone-acts.tsx).
+ * may spend, the buy goes on by itself, once (phone-acts.tsx). Every control is the kit's: the three ways and the numbers
+ * to pick are its choice of a few, the boxes its field, the plan and the code its panes.
  */
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { formatPhoneDisplay, type FirstRunPhoneCodeVM, type FirstRunPhoneVM } from "@chanlytics/contracts";
-import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { RecordToggleGroup } from "../../kit/record/field";
+import { RecordField, RecordToggleGroup } from "../../kit/record/field";
 import { gate, type LegacyFlash } from "../../legacy-verbs";
 import type { LineChoice } from "../surface";
+import { markedLabel } from "./find";
 import { PHONE_SENT_MS, type KeptPhoneChoice } from "./memory";
-import { answer, buy, findNumbers, press, withMe, PHONE_GATES, type PhoneActs, type PhoneWords } from "./phone-acts";
+import {
+  answer,
+  buy,
+  copyCode,
+  findNumbers,
+  press,
+  putOff,
+  withMe,
+  PHONE_GATES,
+  type PhoneActs,
+  type PhoneWords,
+} from "./phone-acts";
 
 interface PhoneProps {
   ph: FirstRunPhoneVM;
@@ -30,7 +42,11 @@ interface PhoneProps {
   ownFoot: boolean;
 }
 
-/** The step's foot, drawn here whenever the step's button is this one's (FirstRun draws no other then). */
+/**
+ * The step's foot, drawn here whenever the step's button is this one's (FirstRun draws no other then). On a phone the
+ * foot is held at the screen's edge and the plan's pane may be under it, so what the press starts charging is said in
+ * the foot too, beside the button: the price is never out of sight of the press that starts it.
+ */
 function phoneFoot(o: { ph: FirstRunPhoneVM; k: PhoneActs; back: string | null; backLabel: string }): ReactNode {
   const { ph, k, back, backLabel } = o;
   const cta = ph.cta;
@@ -40,7 +56,7 @@ function phoneFoot(o: { ph: FirstRunPhoneVM; k: PhoneActs; back: string | null; 
   return (
     <div className="fr-foot">
       {back ? (
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => k.go(back)} data-testid="fr-back">
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => k.go(back)} data-testid="fr-back">
           {backLabel}
         </button>
       ) : (
@@ -51,9 +67,15 @@ function phoneFoot(o: { ph: FirstRunPhoneVM; k: PhoneActs; back: string | null; 
           {cta.held}
         </span>
       ) : null}
+      {ph.plan && !cta.held ? (
+        <span className="fr-price" data-testid="fr-phone-price">
+          {ph.plan.offer}
+        </span>
+      ) : null}
       <button
         type="button"
-        className="fr-onward"
+        className="btn btn-lg btn-primary fr-go"
+
         onClick={() => void press(k)}
         aria-disabled={cta.held ? true : undefined}
         aria-describedby={cta.held ? "fr-phone-held" : undefined}
@@ -78,10 +100,10 @@ function phoneQuestions(ph: FirstRunPhoneVM, k: PhoneActs): ReactNode {
   if (q.company) asked.push(["company", q.company]);
   if (!asked.length) return null;
   return (
-    <div className="fr-line-questions" data-testid="fr-phone-questions">
+    <div className="panel fr-pane" data-testid="fr-phone-questions">
       {asked.map(([key, one]) => (
-        <div key={key} className="fr-line-question" data-testid={`fr-q-${key}`}>
-          <span className="fr-line-label" id={`fr-q-${key}-label`}>
+        <div key={key} className="fr-question" data-testid={`fr-q-${key}`}>
+          <span className="fr-label" id={`fr-q-${key}-label`}>
             {one.label}
           </span>
           <RecordToggleGroup<string>
@@ -99,15 +121,30 @@ function phoneQuestions(ph: FirstRunPhoneVM, k: PhoneActs): ReactNode {
           />
         </div>
       ))}
-      {ph.keepCode ? (
-        <button
-          type="button"
-          className="fr-find-link fr-line-keep"
-          onClick={() => answer(k, { redo: false })}
-          data-testid="fr-phone-keep"
-        >
-          {ph.keepCode}
-        </button>
+      {ph.keepCode || ph.putOff ? (
+        <div className="fr-links">
+          {ph.keepCode ? (
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => answer(k, { redo: false })}
+              data-testid="fr-phone-keep"
+            >
+              {ph.keepCode}
+            </button>
+          ) : null}
+          {ph.putOff ? (
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => void putOff(k)}
+              data-testid="fr-phone-put-off"
+              {...gate("settings", "put the forwarding off")}
+            >
+              {ph.putOff}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -123,50 +160,62 @@ function codeStage(o: {
 }) {
   const { code: c, k, help, setHelp, foot } = o;
   // A code with * or # is a tap only where the phone dials one from a link: Android's dialer takes it; an iPhone's refuses
-  // it, and a desk has nothing to dial with, so the code is words to dial there.
+  // it, and a desk has nothing to dial with, so there the code is words to dial, and a press to copy them.
   const tapDials = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent || "");
   return (
     <div className="fr-line-step" data-testid="fr-phone" data-stage="code">
       {c.verified ? (
-        <p className="fr-line-started" data-testid="fr-phone-verified">
+        <p className="fr-proof" data-testid="fr-phone-verified">
           <Icon name="check" size={12} />
           {c.verified}
         </p>
       ) : null}
-      <div className="fr-code" data-testid="fr-phone-code">
-        <span className="fr-line-label">{c.label}</span>
-        <span className="fr-code-dial tabular" data-testid="fr-phone-dial">
-          {c.dial}
-        </span>
-        <ol className="fr-code-steps">
+      <div className="panel fr-pane" data-testid="fr-phone-code">
+        <span className="fr-label">{c.label}</span>
+        <div className="fr-dial-row">
+          <span className="fr-dial tabular" data-testid="fr-phone-dial">
+            {c.dial}
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => void copyCode(k, c.dial)}
+            data-testid="fr-phone-copy"
+          >
+            <Icon name="copy" size={12} />
+            {k.W.copy}
+          </button>
+          {c.tap && tapDials ? (
+            <a className="btn btn-sm fr-tap" href={c.tel} data-testid="fr-phone-tap">
+              <Icon name="phone" size={12} />
+              {c.tap}
+            </a>
+          ) : null}
+        </div>
+        <ol className="fr-steps">
           {c.steps.map((t) => (
             <li key={t}>{t}</li>
           ))}
         </ol>
       </div>
-      <p className="fr-code-warn" data-testid="fr-phone-warn">
-        <span className="fr-code-dot" aria-hidden="true" />
+      <p className="fr-warn" data-testid="fr-phone-warn">
+        <span className="fr-warn-dot" aria-hidden="true" />
         {c.warn}
       </p>
-      <p className="fr-code-off">{c.off}</p>
-      {/* Outlined: the step's one coral button is Done, the press after the tap. */}
-      {c.tap && tapDials ? (
-        <a className="btn fr-code-tap" href={c.tel} data-testid="fr-phone-tap">
-          {c.tap}
-        </a>
-      ) : null}
+      <p className="fr-quiet">{c.off}</p>
       {c.withMe ? (
-        <div className="fr-code-with" data-testid="fr-phone-with-me">
+        <div className="fr-with" data-testid="fr-phone-with-me">
           {c.withMe.asked ? (
-            <p className="fr-code-off" data-testid="fr-phone-with-me-asked">
+            <p className="fr-quiet" data-testid="fr-phone-with-me-asked">
               {c.withMe.asked}
             </p>
           ) : (
             <>
-              <p className="fr-code-off">{c.withMe.sentence}</p>
+              <p className="fr-quiet">{c.withMe.sentence}</p>
               <button
                 type="button"
                 className="btn btn-sm"
+
                 onClick={() => void withMe(k)}
                 aria-busy={k.busy || undefined}
                 data-testid="fr-phone-with-me-go"
@@ -178,11 +227,11 @@ function codeStage(o: {
           )}
         </div>
       ) : null}
-      <div className="fr-code-links">
+      <div className="fr-links">
         {c.help.notes.length ? (
           <button
             type="button"
-            className="fr-find-link"
+            className="link-btn"
             aria-expanded={help}
             onClick={() => setHelp((v) => !v)}
             data-testid="fr-phone-help"
@@ -193,7 +242,7 @@ function codeStage(o: {
         {c.change ? (
           <button
             type="button"
-            className="fr-find-link"
+            className="link-btn"
             onClick={() => answer(k, { redo: true })}
             data-testid="fr-phone-change"
             {...gate("disconnect", "set up forwarding")}
@@ -203,7 +252,7 @@ function codeStage(o: {
         ) : null}
       </div>
       {help ? (
-        <ul className="fr-code-notes" data-testid="fr-phone-notes">
+        <ul className="fr-notes" data-testid="fr-phone-notes">
           {c.help.notes.map((t) => (
             <li key={t}>{t}</li>
           ))}
@@ -219,10 +268,10 @@ function statusStage(ph: FirstRunPhoneVM, questions: ReactNode, foot: ReactNode)
   return (
     <div className="fr-line-step" data-testid="fr-phone" data-stage={ph.stage}>
       {ph.status ? (
-        <div className="fr-line-status" role="status" data-testid="fr-phone-status">
+        <div className="panel fr-pane fr-status" role="status" data-testid="fr-phone-status">
           <StatePill kind="setup" value={ph.status.state} label={ph.status.words} />
-          <span className="fr-line-sentence">{ph.status.sentence}</span>
-          <span className="fr-line-detail">{ph.status.detail}</span>
+          <span className="fr-sentence">{ph.status.sentence}</span>
+          <span className="fr-detail">{ph.status.detail}</span>
         </div>
       ) : null}
       {questions}
@@ -243,35 +292,31 @@ function newNumber(o: {
   const { W, k, setArea, areaProblem, numbers, change } = o;
   const c = k.c;
   return (
-    <div className="fr-line-new">
+    <div className="fr-new">
       <form
-        className="fr-find-search"
+        className="fr-find-form fr-area"
         onSubmit={(e) => {
           e.preventDefault();
           void findNumbers(k);
         }}
       >
-        <label className="fr-line-label" htmlFor="fr-phone-area">
-          {W.areaLabel}
-        </label>
-        <input
+        <RecordField
           id="fr-phone-area"
-          className="fr-find-input fr-line-area"
+          label={W.areaLabel}
           inputMode="numeric"
           maxLength={3}
           placeholder={W.areaPlaceholder}
           value={k.area}
-          onChange={(e) => {
-            setArea(e.target.value.replace(/\D/g, "").slice(0, 3));
+          onChange={(words) => {
+            setArea(words.replace(/\D/g, "").slice(0, 3));
             k.setAreaProblem(null);
           }}
-          aria-invalid={areaProblem ? true : undefined}
-          aria-describedby={areaProblem ? "fr-phone-area-problem" : undefined}
-          data-testid="fr-phone-area"
+          problem={areaProblem}
+          testid="fr-phone-area"
         />
         <button
+          className="btn"
           type="submit"
-          className="btn btn-sm"
           disabled={k.busy}
           data-testid="fr-phone-find"
           {...gate("disconnect", "find a number")}
@@ -279,25 +324,22 @@ function newNumber(o: {
           {k.busy ? W.finding : W.find}
         </button>
       </form>
-      <FieldError id="fr-phone-area-problem" message={areaProblem} testid="fr-phone-area-problem" />
       {numbers && numbers.length ? (
-        <div className="fr-find-hits" role="radiogroup" aria-label={W.pickLabel} data-testid="fr-phone-numbers">
-          {numbers.map((n) => (
-            <label key={n.e164} className="fr-find-hit" data-testid="fr-phone-number">
-              <input
-                type="radio"
-                name="fr-phone-pick"
-                value={n.e164}
-                checked={!!c.pick && c.pick.e164 === n.e164}
-                onChange={() => change({ pick: { e164: n.e164, friendly: n.friendly } })}
-              />
-              <span className="fr-find-body">
-                <span className="fr-find-name tabular">{formatPhoneDisplay(n.e164) || n.friendly}</span>
-                <span className="fr-find-where">{[n.locality, n.region].filter(Boolean).join(", ") || W.local}</span>
-              </span>
-            </label>
-          ))}
-        </div>
+        <RecordToggleGroup<string>
+          id="fr-phone-pick"
+          label={W.pickLabel}
+          value={c.pick ? c.pick.e164 : null}
+          options={numbers.map((n) => ({
+            value: n.e164,
+            label: formatPhoneDisplay(n.e164) || n.friendly,
+            hint: [n.locality, n.region].filter(Boolean).join(", ") || W.local,
+          }))}
+          onChange={(e164) => {
+            const n = numbers.find((x) => x.e164 === e164);
+            if (n) change({ pick: { e164: n.e164, friendly: n.friendly } });
+          }}
+          testid="fr-phone-numbers"
+        />
       ) : null}
     </div>
   );
@@ -315,50 +357,38 @@ function keptNumber(o: {
   const { W, ph, c, change, boxLeft, leftBox } = o;
   const shown = c.number !== null ? c.number : ph.box;
   return (
-    <label className="fr-line-field">
-      <span className="fr-line-label">{W.numberLabel}</span>
-      <input
-        className="fr-find-input"
-        inputMode="tel"
-        autoComplete="tel"
-        placeholder={W.numberPlaceholder}
-        value={shown}
-        onChange={(e) => change({ number: e.target.value })}
-        onBlur={leftBox}
-        aria-invalid={boxLeft && ph.boxProblem ? true : undefined}
-        aria-describedby={boxLeft && ph.boxProblem ? "fr-phone-number-problem" : undefined}
-        data-testid="fr-phone-number-box"
-      />
-      <FieldError
-        id="fr-phone-number-problem"
-        message={boxLeft ? ph.boxProblem : null}
-        testid="fr-phone-number-problem"
-      />
-    </label>
+    <RecordField
+      id="fr-phone-number"
+      label={W.numberLabel}
+      inputMode="tel"
+      autoComplete="tel"
+      placeholder={W.numberPlaceholder}
+      value={shown}
+      onChange={(words) => change({ number: words })}
+      onBlur={leftBox}
+      problem={boxLeft ? ph.boxProblem : null}
+      testid="fr-phone-number-box"
+    />
   );
 }
 
-/** The ways calls reach the receptionist, as a radiogroup of cards. */
+/** The ways calls reach the receptionist, as one choice: each way and what it means, the one most take marked. */
 function phoneWays(ph: FirstRunPhoneVM, busy: boolean, change: (p: Partial<KeptPhoneChoice>) => void) {
   return (
-    <div className="fr-find-hits" role="radiogroup" aria-label={ph.heading}>
-      {ph.ways.map((w) => (
-        <label key={w.key} className="fr-find-hit" data-testid={`fr-way-${w.key}`}>
-          <input
-            type="radio"
-            name="fr-way"
-            value={w.key}
-            checked={ph.way === w.key}
-            onChange={() => change({ way: w.key })}
-            disabled={busy}
-          />
-          <span className="fr-find-body">
-            <span className="fr-find-name">{w.title}</span>
-            <span className="fr-find-where">{w.sentence}</span>
-          </span>
-          {w.recommended ? <span className="pill pill-ok fr-find-best">{w.recommended}</span> : null}
-        </label>
-      ))}
+    <div className="fr-stack">
+      <RecordToggleGroup<FirstRunPhoneVM["way"]>
+        id="fr-way"
+        label={ph.heading}
+        value={ph.way}
+        options={ph.ways.map((w) => ({
+          value: w.key,
+          label: markedLabel(w.title, w.recommended),
+          hint: w.sentence,
+        }))}
+        onChange={(way) => change({ way })}
+        readOnly={busy}
+        testid="fr-ways"
+      />
     </div>
   );
 }
@@ -429,14 +459,16 @@ export const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, 
   if (ph.stage !== "choose") return statusStage(ph, questions, foot);
   return (
     <div className="fr-line-step" data-testid="fr-phone" data-stage="choose">
-      {phoneWays(ph, busy, change)}
-      {ph.way === "new"
-        ? newNumber({ W, k, setArea, areaProblem, numbers, change })
-        : keptNumber({ W, ph, c, change, boxLeft, leftBox: () => setBoxLeft(true) })}
+      <div className="panel fr-pane">
+        {phoneWays(ph, busy, change)}
+        {ph.way === "new"
+          ? newNumber({ W, k, setArea, areaProblem, numbers, change })
+          : keptNumber({ W, ph, c, change, boxLeft, leftBox: () => setBoxLeft(true) })}
+      </div>
       {ph.plan ? (
-        <div className="fr-trial" data-testid="fr-plan">
-          <span className="fr-trial-offer">{ph.plan.offer}</span>
-          <span className="fr-trial-note">{ph.plan.note}</span>
+        <div className="panel fr-plan" data-testid="fr-plan">
+          <span className="fr-plan-offer">{ph.plan.offer}</span>
+          <span className="fr-detail">{ph.plan.note}</span>
         </div>
       ) : null}
       {foot}

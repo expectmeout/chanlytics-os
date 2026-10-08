@@ -10,7 +10,7 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import { lineCredentialFailure } from "../lines/line-failure";
-import { formatPhoneDisplay } from "../shared/phone";
+import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import type { FactConflict } from "../config/facts";
 import { agoWords, MIN_MS } from "../shared/time";
 import type { SetupGoogleFacts } from "../google/google";
@@ -249,6 +249,8 @@ export const LINE_STEP_WORDS: Record<string, string> = {
 export interface SetupInputs extends SetupDto {
   /** Row ids this member put off: their saved Setup view (setupLaterOf), the same on every device. */
   later: string[];
+  /** The number this member said they keep or move (setupPhoneWantOf), from the same view; absent reads as none. */
+  want?: SetupPhoneWant | null;
 }
 
 export type SetupState = "not_started" | "waiting_you" | "waiting_them" | "ready";
@@ -304,6 +306,11 @@ export interface SetupVM {
    * and Today's "Try it" row stays until a call comes in.
    */
   trySkipped: boolean;
+  /**
+   * The member chose to keep or move a number (their saved view's `phone`), and no forwarding is saved for one yet,
+   * nor has "The number you already have" been put off: the first run's phone step is not done, whatever answers.
+   */
+  forwardingOwed: boolean;
   /**
    * What the first run's Check reads (first-run.ts): whether the receptionist is set up (none yet, set up, or a
    * config the parser refused, whose repair only Chanlytics can make), whether a Google listing is on record, and the
@@ -562,6 +569,27 @@ export function setupLaterOf(view: unknown): string[] {
 }
 
 /**
+ * The number the owner said they keep, or are moving here, on the first run's phone step: the way and the number,
+ * E.164. Kept in their saved Setup view beside the rows they put off (`memberships.views.setup.phone`), because the
+ * choice was the tab's alone: a reload, another tab or a return from checkout lost it, the step read as done the
+ * moment the receptionist's own number answered, and the forwarding the owner chose was never asked for.
+ */
+export interface SetupPhoneWant {
+  way: "keep" | "move";
+  number: string;
+}
+
+/** The owner's kept or moved number as their saved Setup view holds it; null for none, and for anything hand-edited. */
+export function setupPhoneWantOf(view: unknown): SetupPhoneWant | null {
+  const phone = view && typeof view === "object" ? (view as { phone?: unknown }).phone : null;
+  if (!phone || typeof phone !== "object") return null;
+  const { way, number } = phone as { way?: unknown; number?: unknown };
+  if ((way !== "keep" && way !== "move") || typeof number !== "string") return null;
+  const e164 = normalizePhone(number);
+  return e164 ? { way, number: e164 } : null;
+}
+
+/**
  * The number the business keeps and forwards, while its forwarding is saved (instructed or proven): the line customers
  * call, which Try it asks the owner to call. The one test, for Setup's row and the first run's step.
  */
@@ -569,11 +597,34 @@ export function forwardedLineOf(lines: SetupDto["lines"] | null | undefined): Li
   return lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
 }
 
+/** The carriers whose forwarding codes are a mobile's (forwarding.ts): a number kept with one rings a mobile. */
+const MOBILE_CARRIERS: readonly string[] = ["verizon", "att", "tmobile"];
+
+/**
+ * Which phone rings at a number kept, as far as its saved forwarding says, for the test call's words: `mobile` where
+ * the codes saved are a mobile company's; `office` for an office phone system, which is never the owner's cell;
+ * `unknown` otherwise (a landline, or a mobile with another company); null without a kept number. A phone cannot call
+ * itself: only an office system's owner is told to call "from your cell", and a mobile's is given nothing to press
+ * that would dial itself. The one test, for Setup's Try it row and the first run's step.
+ */
+export function keptPhoneKind(line: LineDto | null | undefined): "mobile" | "office" | "unknown" | null {
+  if (!line) return null;
+  const carrier = line.forwarding?.carrier ?? null;
+  if (carrier === "office") return "office";
+  return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
+}
+
 /**
  * What skipping the first run's test call puts off (the member's own, as a row put off is): not the `try` row itself,
  * which Today keeps showing until a call comes in, but the first run's wait for it.
  */
 export const TRY_SKIPPED = "try-skipped";
+
+/**
+ * Setup's row for the number the business keeps and forwards ("The number you already have"): putting it off is how
+ * an owner who chose to keep a number says its forwarding can wait, and the first run's phone step lets them go on.
+ */
+export const KEEP_ROW = "keep";
 
 /** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
 export const SETUP_LATER_REFUSED = {

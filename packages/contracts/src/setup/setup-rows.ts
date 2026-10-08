@@ -23,8 +23,10 @@ import {
   activationWords,
   rowContextOf,
   BROKEN_CONFIG_WORDS,
+  KEEP_ROW,
   SETUP_STATE_WORDS,
   TRY_SKIPPED,
+  forwardedLineOf,
   type SetupInputs,
   type SetupRowBuilder,
   type SetupRowContext,
@@ -565,6 +567,22 @@ const SETUP_ROWS: readonly SetupRowBuilder[] = [
   googleRow,
 ];
 
+/** What the first run's Check reads beside the rows (SetupVM.check): the receptionist's state and Google's facts. */
+const checkFactsOf = (i: SetupInputs): SetupVM["check"] => ({
+  receptionist: i.business.receptionist,
+  listed: !!i.google?.listing,
+  unsure: i.google?.unsure ?? [],
+  type: i.google?.type ?? null,
+  bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink),
+});
+
+/**
+ * A number the member chose to keep or move, with no forwarding saved for one yet, and "The number you already have"
+ * not put off: the first run's phone step still owes its forwarding (first-run.ts stepDone).
+ */
+const forwardingOwedOf = (i: SetupInputs, later: ReadonlySet<string>): boolean =>
+  !!i.want && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
+
 /**
  * The fold over SETUP_ROWS: the rows drawn, each with its state's words and whether this member put it off; the
  * readiness they add up to; the first open verb; and what the first run's Check reads beside them.
@@ -619,12 +637,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
-    check: {
-      receptionist: i.business.receptionist,
-      listed: !!i.google?.listing,
-      unsure: i.google?.unsure ?? [],
-      type: i.google?.type ?? null,
-      bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink),
-    },
+    forwardingOwed: forwardingOwedOf(i, later),
+    check: checkFactsOf(i),
   };
 }

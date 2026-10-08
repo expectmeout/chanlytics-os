@@ -158,6 +158,12 @@ export interface FirstRunPhoneVM {
   saved: { carrier: Carrier } | null;
   /** Asked again: the way back to the code without saving. */
   keepCode: string | null;
+  /**
+   * The questions' way past them, before any forwarding is saved: Setup's own "Later" on the number kept, said for this
+   * step. The owner chose to keep a number, so the step waits for its forwarding; this is how they say it can wait.
+   * Absent wherever nothing is asked, and once a code is saved.
+   */
+  putOff?: string | null;
   /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
   status: { state: SetupState; words: string; sentence: string; detail: string } | null;
 }
@@ -255,6 +261,13 @@ export const FIRST_RUN_PHONE_WORDS = {
   help: "The code didn't work",
   change: "Change the answers",
   keepCode: "Keep what I have",
+  /** The forwarding put off from the questions: what the link says, and what the page says once it is. */
+  putOff: "Set up forwarding later",
+  putOffSaid: "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+  /** The code, or the number to forward to, copied for the phone it is typed on. */
+  copy: "Copy",
+  copied: "Copied",
+  notCopied: "Not copied. Select the code and copy it yourself.",
   /** An office phone system (canvas V6): the number to forward to, and a person to do it with. */
   officeHeading: "Forward missed calls in your phone system",
   officeLead: "Office phone systems set this in their own settings, under “forwarding” or “when no one answers”.",
@@ -629,6 +642,8 @@ function askStageOf(
     forwardFrom: asked.forwardFrom,
     saved: asked.saved,
     keepCode: asked.keepCode,
+    // Asked again after a code was saved, the way back is Keep what I have: there is nothing left to put off.
+    putOff: asked.saved ? null : W.putOff,
   };
 }
 

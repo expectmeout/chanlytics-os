@@ -238,7 +238,7 @@ export { firstRunLiveOf, youAreLiveEmail, FIRST_RUN_LIVE_WORDS } from "./setup/f
 export { forwardingCarrierOf, areaCodeOf, firstRunPhoneOf, PHONE_WAYS, PHONE_RINGS, FIRST_RUN_PHONE_WORDS } from "./setup/first-run-phone";
 export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./setup/first-run-route";
 export { firstRunTryOf, TRY_QUIET_AFTER_MS, FIRST_RUN_TRY_WORDS } from "./setup/first-run-try";
-export { lineStuckProvisioning, lineRetryRefusal, textingWords, setupLaterOf, forwardedLineOf, PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, MOCK_TEXTING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, BROKEN_CONFIG_WORDS, SETUP_REQUEST_KINDS, TRY_SKIPPED, SETUP_LATER_REFUSED } from "./setup/setup";
+export { lineStuckProvisioning, lineRetryRefusal, textingWords, setupLaterOf, setupPhoneWantOf, forwardedLineOf, keptPhoneKind, PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, MOCK_TEXTING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, BROKEN_CONFIG_WORDS, SETUP_REQUEST_KINDS, TRY_SKIPPED, KEEP_ROW, SETUP_LATER_REFUSED } from "./setup/setup";
 export { setupSteps } from "./setup/setup-rows";
 export { utf8Bytes, hexOf } from "./shared/bytes";
 export { zoneDayKey, clockTime, clockDate, clockDateYear, clockShort, clockStamp, clockWhen, localDaysBetween, inLocalWeek, clockNear, clockNearWhen, clockDayLabel, wallClockAt, tomorrowAtIn, zonedInputValue, fromZonedInput, callLength, mmss, durationWords } from "./shared/clock";

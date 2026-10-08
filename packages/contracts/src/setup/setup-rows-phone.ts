@@ -18,6 +18,7 @@ import { capabilityStatus } from "./capabilities";
 import {
   activationWords,
   forwardedLineOf,
+  keptPhoneKind,
   lineStuckProvisioning,
   LINE_STEP_WORDS,
   type SetupInputs,
@@ -376,7 +377,8 @@ export function tryRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | n
     sentence: voice.lastInboundAt
       ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.`
       : fwTry
-        ? `Call ${through} from your cell and don't pick up.`
+        ? // A phone cannot call itself: only an office phone system's owner is sure to hold another phone, their cell.
+          `Call ${through} from ${keptPhoneKind(fwTry) === "office" ? "your cell" : "another phone"} and don't pick up.`
         : `Call ${through} from your cell.`,
     details: [],
     // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.

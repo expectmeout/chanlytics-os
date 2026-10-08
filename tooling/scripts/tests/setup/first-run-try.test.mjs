@@ -107,13 +107,28 @@ test("published for the page", () => {
 test("listening (canvas R6): a kept number is called and not picked up, with its route and the test window's minutes", () => {
   const vm = tryOf(forwarded("instructed", { test_until: new Date(NOW + 24 * 60_000).toISOString() }));
   assert.equal(vm.stage, "listen");
-  assert.equal(vm.heading, "Call your number from your cell. Don't pick up.");
-  assert.deepEqual([vm.number, vm.forwarded], ["+1 (305) 555-0100", true]);
+  // The number kept rings a mobile (its forwarding is a mobile company's): that phone cannot call itself, so the owner
+  // is told another phone, and given nothing to press that would dial it from the phone in their hand.
+  assert.equal(vm.heading, "Call your number from another phone. Don't pick up.");
+  assert.match(vm.lead, /^A phone can't call itself, so use a second one or ask someone to call\./);
+  assert.deepEqual([vm.number, vm.forwarded, vm.dial], ["+1 (305) 555-0100", true, null]);
   assert.deepEqual(vm.listening, {
     sentence: "Listening for your call",
     detail: "This page changes the moment it picks up. Open for 24 more minutes.",
-    route: "Your cell calls +1 (305) 555-0100 → nobody picks up → your receptionist answers",
+    route: "Another phone calls +1 (305) 555-0100 → nobody picks up → your receptionist answers",
   });
+  // An office phone system is never the owner's cell: "from your cell" is right, and the number is a press.
+  const office = tryOf(forwarded("instructed", { carrier: "office" }));
+  assert.equal(office.heading, "Call your number from your cell. Don't pick up.");
+  assert.equal(
+    office.listening.route,
+    "Your cell calls +1 (305) 555-0100 → nobody picks up → your receptionist answers",
+  );
+  assert.deepEqual(office.dial, { label: "Call +1 (305) 555-0100", tel: "tel:+13055550100" });
+  // A landline, or a mobile with another company (the saved codes cannot tell): another phone, and the press stays.
+  const other = tryOf(forwarded("instructed", { carrier: "other" }));
+  assert.equal(other.heading, "Call your number from another phone. Don't pick up.");
+  assert.deepEqual(other.dial, { label: "Call +1 (305) 555-0100", tel: "tel:+13055550100" });
   assert.equal(vm.help, "Ask Chanlytics for help", "a person can set a kept number's forwarding up with them");
   assert.equal(vm.openTest, null, "a window is open: nothing to open");
   assert.equal(tryOf(forwarded("instructed")).openTest, "fw-1", "no window yet: the page opens one");
@@ -129,6 +144,7 @@ test("listening (canvas R6): a kept number is called and not picked up, with its
       null,
     ],
   );
+  assert.deepEqual(own.dial, { label: "Call +1 (305) 555-0142", tel: "tel:+13055550142" }, "its own number, a press");
 });
 
 test("nothing came through (canvas V7): after three minutes, the causes of a missed call", () => {

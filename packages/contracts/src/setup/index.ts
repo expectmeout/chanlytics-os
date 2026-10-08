@@ -4,7 +4,9 @@ export {
   lineRetryRefusal,
   textingWords,
   setupLaterOf,
+  setupPhoneWantOf,
   forwardedLineOf,
+  keptPhoneKind,
   PROVISIONING_DEADLINE_MS,
   lineCredentialFailure,
   LINE_CREDENTIALS_SENTENCE,
@@ -18,6 +20,7 @@ export {
   BROKEN_CONFIG_WORDS,
   SETUP_REQUEST_KINDS,
   TRY_SKIPPED,
+  KEEP_ROW,
   SETUP_LATER_REFUSED,
 } from "./setup";
 /** The fold over the rows' table lives with the table (setup-rows.ts); the name is the one the page has always read. */
@@ -31,6 +34,7 @@ export type {
   SetupRowVM,
   SetupVM,
   SetupRequestKind,
+  SetupPhoneWant,
 } from "./setup";
 export { capabilityStatus, CAPABILITY_KINDS } from "./capabilities";
 export type {

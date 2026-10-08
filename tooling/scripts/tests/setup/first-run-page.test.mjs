@@ -243,7 +243,33 @@ const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
   if (typeof n === "string" || typeof n === "number") return String(n);
   if (Array.isArray(n)) return n.map(textOf).join("");
-  return textOf(n.props?.children) + (n.rendered ? textOf(n.rendered) : "");
+  // A component's words are what it drew (the kit's button draws its children inside its own element): never both.
+  if (n.rendered !== undefined) return textOf(n.rendered);
+  return textOf(n.props?.children);
+};
+/** The options of one of the kit's choices (the record kit's group, by its test id): its radios, as drawn. */
+const optionsOf = (tree, id) => {
+  const out = [];
+  walk(byTestId(tree, id), (n) => {
+    if (n.type === "button" && n.props.role === "radio") out.push(n);
+  });
+  return out;
+};
+/** The box of one of the kit's fields (by the field's test id): the input it drew. */
+const boxOf = (tree, id) => {
+  let hit = null;
+  walk(byTestId(tree, id), (n) => {
+    if (!hit && n.type === "input") hit = n;
+  });
+  return hit;
+};
+/** An element by its id: what a field says is wrong with it is named by the field's (`rec-<id>-problem`). */
+const byId = (tree, id) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.props?.id === id && typeof n.type === "string") hit = n;
+  });
+  return hit;
 };
 
 test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets the receptionist up, and nothing answers yet", () => {
@@ -282,16 +308,19 @@ test("a step already reached opens in place from the rail, and its onward goes o
   );
   assert.equal(textOf(byTestId(tree, "fr-onward")), "Looks right", "a step done: its one coral button");
   assert.equal(byTestId(tree, "fr-held"), null, "nothing holds it");
+  went.length = 0;
   byTestId(tree, "fr-onward").props.onClick();
-  assert.equal(replaced.at(-1), "start");
+  assert.equal(went.at(-1), "start/phone", "on to where the workspace is, as a new entry named for its step");
   byTestId(tree, "fr-rail-phone").props.onClick();
-  assert.equal(replaced.at(-1), "start", "the current step is the bare address");
+  assert.equal(went.at(-1), "start/phone", "the rail's step too: an entry the browser's Back returns to");
+  assert.equal(went.length, 2, "each a pushed entry, so Back walks the steps taken");
   param = null;
   fresh();
   const phone = mount();
   assert.equal(textOf(byTestId(phone, "fr-heading")), "Your phone");
   byTestId(phone, "fr-back").props.onClick();
-  assert.equal(replaced.at(-1), "start/business", "Back opens the step before, replaced so the browser's Back leaves");
+  assert.equal(replaced.at(-1), "start/phone", "the bare address being left is named for its step first");
+  assert.equal(went.at(-1), "start/business", "then Back opens the step before, as a new entry");
 });
 
 test("answering: Live, with what is left, and Finish goes to Today", async () => {
@@ -396,19 +425,13 @@ test("Find: the business step opens on what Google has for the name on record, t
   assert.deepEqual(asked.find, [null], "with the name on record, no words of the owner's");
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Is this Harbor Moving?", "the name typed at sign-up");
   assert.equal(byTestId(tree, "fr-rows"), null, "Find draws in place of the step's rows");
-  const hits = [];
-  walk(tree, (n) => {
-    if (n.props?.["data-testid"] === "fr-find-hit") hits.push(n);
-  });
+  // The candidates are the kit's choice of a few: an option each, its name (the best match marked) over its line.
+  const hits = optionsOf(tree, "fr-find-hits");
   assert.equal(hits.length, 2);
-  assert.match(textOf(hits[0]), /Harbor Moving.*Moving company · 1 Main St, Brooklyn, NY 11201.*Best match/);
+  assert.equal(textOf(hits[0]), "Harbor MovingBest matchMoving company · 1 Main St, Brooklyn, NY 11201");
   assert.match(textOf(hits[1]), /No address on Google/);
-  const radios = [];
-  walk(tree, (n) => {
-    if (n.type === "input" && n.props.type === "radio") radios.push(n);
-  });
   assert.deepEqual(
-    radios.map((r) => r.props.checked),
+    hits.map((r) => r.props["aria-checked"]),
     [true, false],
   );
 });
@@ -416,11 +439,7 @@ test("Find: the business step opens on what Google has for the name on record, t
 test("Find: another one checked, Yes links it, and the page says so, since Find is gone once it is linked", async () => {
   const asked = googleSays([found([HARBOR, WAREHOUSE])]);
   const { tree } = await findOn();
-  const radios = [];
-  walk(tree, (n) => {
-    if (n.type === "input" && n.props.type === "radio") radios.push(n);
-  });
-  radios[1].props.onChange();
+  optionsOf(tree, "fr-find-hits")[1].props.onClick();
   const again = mount();
   const before = flashes.length;
   await byTestId(again, "fr-find-yes").props.onClick();
@@ -511,14 +530,14 @@ test("Find: nothing found says so, with the search and the way out, and no Yes",
 test("Find: the owner's own words are searched from three letters on", async () => {
   const asked = googleSays([found([]), found([HARBOR], "harbor moving brooklyn")]);
   const { tree } = await findOn();
-  byTestId(tree, "fr-find-words").props.onChange({ target: { value: "ha" } });
+  boxOf(tree, "fr-find-words").props.onChange({ target: { value: "ha" } });
   let form = null;
   walk(mount(), (n) => {
     if (!form && n.type === "form") form = n;
   });
   form.props.onSubmit({ preventDefault() {} });
   assert.deepEqual(asked.find, [null], "two letters are not sent");
-  byTestId(mount(), "fr-find-words").props.onChange({ target: { value: "  harbor   moving brooklyn " } });
+  boxOf(mount(), "fr-find-words").props.onChange({ target: { value: "  harbor   moving brooklyn " } });
   walk(mount(), (n) => {
     if (n.type === "form") form = n;
   });
@@ -594,7 +613,7 @@ test("Find it asks for Find by name, even after not on Google; not on Google aga
   const tree = mount();
   assert.ok(byTestId(tree, "fr-find"), "start/find: Find, whatever was said before");
   await byTestId(tree, "fr-find-not").props.onClick();
-  assert.equal(replaced.at(-1), "start", "and the step's own address after, replaced");
+  assert.equal(replaced.at(-1), "start/business", "and the step's own address after, replaced: the same step");
 });
 
 test("Find on a phone: the best match alone until the owner asks for more, and the pages they agree to", async () => {
@@ -684,7 +703,9 @@ const phoneWorld = ({
   };
   return { asked };
 };
-const radioIn = (label) => label.props.children.find((k) => k && k.type === "input");
+/** The three ways, in the order the step draws them. */
+const WAYS = ["keep", "new", "move"];
+const wayOf = (tree, way) => optionsOf(tree, "fr-ways")[WAYS.indexOf(way)];
 
 test("your phone (canvas R3): keeping the listing's number first, the plan the number starts at Stripe's price, and the button goes to Stripe and back to this step", async () => {
   const { asked } = phoneWorld();
@@ -694,9 +715,11 @@ test("your phone (canvas R3): keeping the listing's number first, the plan the n
   const tree = mount();
   assert.equal(textOf(byTestId(tree, "fr-heading")), "How should calls reach your receptionist?");
   assert.equal(byTestId(tree, "fr-rows"), null, "the step's own screen, not Setup's rows");
-  assert.equal(radioIn(byTestId(tree, "fr-way-keep")).props.checked, true, "keeping is the default");
-  assert.match(textOf(byTestId(tree, "fr-way-keep")), /^Keep \+1 \(305\) 555-0100/);
-  assert.equal(byTestId(tree, "fr-phone-number-box").props.value, "+1 (305) 555-0100", "from the listing");
+  assert.equal(wayOf(tree, "keep").props["aria-checked"], true, "keeping is the default");
+  assert.match(textOf(wayOf(tree, "keep")), /^Keep \+1 \(305\) 555-0100Recommended/);
+  assert.equal(boxOf(tree, "fr-phone-number-box").props.value, "+1 (305) 555-0100", "from the listing");
+  // What the press starts charging is said in the foot too: on a phone the plan's pane may be under it.
+  assert.equal(textOf(byTestId(tree, "fr-phone-price")), "$49.00 a month, starting today");
   // A number is a cost on our account whether or not a trial pays: it starts the plan, and the step says so.
   assert.equal(
     textOf(byTestId(tree, "fr-plan")),
@@ -720,25 +743,27 @@ test("(D) your phone: what is wrong is said on the field it is about -- the area
   flashes.length = 0;
   let tree = mount();
   // The number kept: something typed that is not a US number with its area code.
-  const box = () => byTestId(tree, "fr-phone-number-box");
+  const box = () => boxOf(tree, "fr-phone-number-box");
+  const NUMBER_PROBLEM = "rec-fr-phone-number-problem";
+  const AREA_PROBLEM = "rec-fr-phone-area-problem";
   box().props.onChange({ target: { value: "12" } });
   tree = mount();
-  assert.equal(byTestId(tree, "fr-phone-number-problem"), null, "not at the first keystroke");
+  assert.equal(byId(tree, NUMBER_PROBLEM), null, "not at the first keystroke");
   assert.equal(box().props["aria-invalid"], undefined);
   box().props.onBlur();
   tree = mount();
   const us = FIRST_RUN_HELPERS.phoneWords.held.us;
-  assert.equal(textOf(byTestId(tree, "fr-phone-number-problem")), us, "left: said under the box");
-  assert.deepEqual([box().props["aria-invalid"], box().props["aria-describedby"]], [true, "fr-phone-number-problem"]);
+  assert.equal(textOf(byId(tree, NUMBER_PROBLEM)), us, "left: said under the box");
+  assert.deepEqual([box().props["aria-invalid"], box().props["aria-describedby"]], [true, NUMBER_PROBLEM]);
   assert.equal(textOf(byTestId(tree, "fr-phone-held")), us, "and beside the button, the same words");
   box().props.onChange({ target: { value: "(305) 555-0177" } });
   tree = mount();
-  assert.equal(byTestId(tree, "fr-phone-number-problem"), null, "a number it can forward says nothing");
+  assert.equal(byId(tree, NUMBER_PROBLEM), null, "a number it can forward says nothing");
 
   // A new number: the area code, checked as Find is pressed.
-  radioIn(byTestId(tree, "fr-way-new")).props.onChange();
+  wayOf(tree, "new").props.onClick();
   tree = mount();
-  byTestId(tree, "fr-phone-area").props.onChange({ target: { value: "30" } });
+  boxOf(tree, "fr-phone-area").props.onChange({ target: { value: "30" } });
   tree = mount();
   let form = null;
   walk(tree, (n) => {
@@ -746,15 +771,15 @@ test("(D) your phone: what is wrong is said on the field it is about -- the area
   });
   await form.props.onSubmit({ preventDefault() {} });
   tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-phone-area-problem")), FIRST_RUN_HELPERS.phoneWords.threeDigits);
+  assert.equal(textOf(byId(tree, AREA_PROBLEM)), FIRST_RUN_HELPERS.phoneWords.threeDigits);
   assert.deepEqual(
-    [byTestId(tree, "fr-phone-area").props["aria-invalid"], byTestId(tree, "fr-phone-area").props["aria-describedby"]],
-    [true, "fr-phone-area-problem"],
+    [boxOf(tree, "fr-phone-area").props["aria-invalid"], boxOf(tree, "fr-phone-area").props["aria-describedby"]],
+    [true, AREA_PROBLEM],
   );
   assert.deepEqual(flashes, [], "nothing said in a toast");
-  byTestId(tree, "fr-phone-area").props.onChange({ target: { value: "305" } });
+  boxOf(tree, "fr-phone-area").props.onChange({ target: { value: "305" } });
   tree = mount();
-  assert.equal(byTestId(tree, "fr-phone-area-problem"), null, "typing again takes it away");
+  assert.equal(byId(tree, AREA_PROBLEM), null, "typing again takes it away");
 });
 
 test("your phone on a free trial: the trial covers no number, so the button starts the plan now -- then the buy; a start Stripe refuses is said, and nothing is bought", async () => {
@@ -791,6 +816,8 @@ test("your phone on a free trial: the trial covers no number, so the button star
   fresh();
   tree = mount();
   await byTestId(tree, "fr-phone-go").props.onClick();
+  // The press says the number kept to the member's saved view first, then asks Stripe: a turn more than it took.
+  await tick();
   assert.equal(draftOf("first-run-phone").pending, false);
   assert.equal(textOf(flashes.at(-1).msg), "Your plan started, but the charge did not go through.");
   assert.deepEqual(refused.asked.buy, []);
@@ -844,17 +871,17 @@ test("your phone: a new number is picked from its area code; moving one buys a l
   param = "phone";
   fresh();
   let tree = mount();
-  radioIn(byTestId(tree, "fr-way-new")).props.onChange();
+  wayOf(tree, "new").props.onClick();
   tree = mount();
   assert.equal(textOf(byTestId(tree, "fr-phone-held")), "Pick a number first.");
-  assert.equal(byTestId(tree, "fr-phone-area").props.value, "305", "the listing's area code");
+  assert.equal(boxOf(tree, "fr-phone-area").props.value, "305", "the listing's area code");
   let form = null;
   walk(tree, (n) => {
     if (!form && n.type === "form") form = n;
   });
   await form.props.onSubmit({ preventDefault() {} });
   tree = mount();
-  radioIn(byTestId(tree, "fr-phone-number")).props.onChange();
+  optionsOf(tree, "fr-phone-numbers")[0].props.onClick();
   tree = mount();
   const go = byTestId(tree, "fr-phone-go");
   assert.equal(textOf(go), "Get +1 (305) 555-0142", "no trial to start: the button buys, named for the result");
@@ -1144,7 +1171,7 @@ test("your phone (canvas R5, P5): the code from the forwarding saved, its help, 
   const done = byTestId(tree, "fr-phone-go");
   assert.equal(textOf(done), "Done, let's try it");
   await done.props.onClick();
-  assert.equal(replaced.at(-1), "start", "on to where the workspace is: Try it");
+  assert.equal(went.at(-1), "start/try", "on to where the workspace is, Try it, as a new entry");
   byTestId(tree, "fr-phone-change").props.onClick();
   tree = mount();
   assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask", "the answers asked again");
@@ -1241,6 +1268,182 @@ test("your phone (canvas V6): an office phone system is shown the number, and Do
 });
 
 /* ---- PR 5a: Try it ---- */
+test("a number kept is the member's own choice, on any tab: the step is drawn from their saved view, asks its forwarding, and Set up forwarding later puts it off by name", async () => {
+  // A tab with nothing kept: the choice was made somewhere else (a reload, another device, checkout's way back).
+  phoneWorld();
+  const want = { way: "keep", number: "+13055550100" };
+  const line = answeringLine();
+  const owed = { ...surface(line), want, vm: setupSteps({ ...line, later: [], want }, NOW) };
+  setSetup(owed);
+  param = null;
+  fresh();
+  const tree = mount();
+  // The receptionist's own number answers: before the choice was kept with the member, the first run went on to Try it
+  // from here, and the forwarding the owner chose was never asked for.
+  assert.equal(byTestId(tree, "first-run").props["data-step"], "phone", "not done: its forwarding is owed");
+  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask");
+  assert.match(textOf(byTestId(tree, "fr-q-rings")), /^Which phone rings when customers call \+1 \(305\) 555-0100\?/);
+  const off = byTestId(tree, "fr-phone-put-off");
+  assert.equal(textOf(off), "Set up forwarding later");
+  const later = [];
+  const was = globalThis.window.__setup.later;
+  globalThis.window.__setup.later = async (id, on) => {
+    later.push([id, on]);
+    // Setup's own verb shows a row put off at once (surface.ts): the page goes on from what it published.
+    setSetup({ ...owed, later: [id], vm: setupSteps({ ...line, later: [id], want }, NOW) });
+    return { ok: true, message: "" };
+  };
+  try {
+    flashes.length = 0;
+    await off.props.onClick();
+    await tick();
+    assert.deepEqual(later, [["keep", true]], "Setup's own Later, on the number kept");
+    assert.equal(
+      textOf(flashes.at(-1).msg),
+      "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+    );
+    assert.equal(went.at(-1), "start/try", "and the first run goes on");
+  } finally {
+    globalThis.window.__setup.later = was;
+  }
+});
+
+test("the number kept is said to the member's saved view BEFORE checkout leaves the page, and a new number takes it back", async () => {
+  const { asked } = phoneWorld();
+  const order = [];
+  const wasWant = setupVerbs.want;
+  const checkout = billingVerbs.checkout;
+  setupVerbs.want = async (w) => {
+    order.push(["want", w]);
+    return { ok: true, message: "" };
+  };
+  billingVerbs.checkout = async (back) => {
+    order.push(["checkout", back]);
+    return checkout(back);
+  };
+  try {
+    setSetup(surface(phoneReady()));
+    param = "phone";
+    fresh();
+    let tree = mount();
+    await byTestId(tree, "fr-phone-go").props.onClick();
+    await tick();
+    assert.deepEqual(
+      order,
+      [
+        ["want", { way: "keep", number: "+13055550100" }],
+        ["checkout", "start"],
+      ],
+      "kept first: a save still out when checkout leaves would be dropped with the page",
+    );
+    assert.deepEqual(asked.checkout, ["start"]);
+    // A new number forwards nothing: the choice is taken back.
+    phoneWorld();
+    order.length = 0;
+    setSetup(surface(phoneReady({ status: "active" })));
+    fresh();
+    tree = mount();
+    wayOf(tree, "new").props.onClick();
+    tree = mount();
+    let form = null;
+    walk(tree, (n) => {
+      if (!form && n.type === "form") form = n;
+    });
+    await form.props.onSubmit({ preventDefault() {} });
+    tree = mount();
+    optionsOf(tree, "fr-phone-numbers")[0].props.onClick();
+    tree = mount();
+    await byTestId(tree, "fr-phone-go").props.onClick();
+    await tick();
+    assert.deepEqual(order, [["want", null]]);
+  } finally {
+    setupVerbs.want = wasWant;
+  }
+});
+
+test("the code is a press to copy, for the phone it is typed on; a browser that will not copy says so", async () => {
+  phoneWorld();
+  forwardingSays();
+  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
+    way: "keep",
+    number: null,
+    pick: null,
+    pending: false,
+    rings: "mobile",
+    company: "tmobile",
+  });
+  setSetup(surface(answeringLine([forwardedRow("tmobile")])));
+  param = "phone";
+  fresh();
+  const tree = mount();
+  const copy = byTestId(tree, "fr-phone-copy");
+  assert.equal(textOf(copy), "Copy");
+  const nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const copied = [];
+  try {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { userAgent: "", clipboard: { writeText: async (text) => void copied.push(text) } },
+    });
+    flashes.length = 0;
+    await copy.props.onClick();
+    await tick();
+    assert.deepEqual(copied, ["**004*+13055550142#"], "the code as it is dialled");
+    assert.equal(textOf(flashes.at(-1).msg), "Copied");
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { userAgent: "" } });
+    await copy.props.onClick();
+    await tick();
+    assert.equal(textOf(flashes.at(-1).msg), "Not copied. Select the code and copy it yourself.");
+  } finally {
+    if (nav) Object.defineProperty(globalThis, "navigator", nav);
+    else delete globalThis.navigator;
+  }
+});
+
+test("a step that waits looks again at its own pace: the number on its way asks Setup, quietly, and a step with nothing to wait for asks nothing", () => {
+  phoneWorld();
+  const looked = [];
+  const wasPeek = setupVerbs.peek;
+  setupVerbs.peek = async () => void looked.push("setup");
+  try {
+    // Choosing: nothing is on its way, so nothing is looked for.
+    setSetup(surface(phoneReady({ status: "active" })));
+    param = "phone";
+    heldTicks.length = 0;
+    fresh();
+    mount();
+    assert.equal(heldTicks.filter((t) => t.ms === 6000).length, 0, "no look while the owner is choosing");
+    // The number is on its way: the live feed says when it lands, and the page looks too, in case it did not.
+    const provisioning = answeringLine();
+    provisioning.channels = {
+      ...provisioning.channels,
+      voice: { present: false, active: false, number: null, lastInboundAt: null },
+    };
+    provisioning.lines = {
+      ...provisioning.lines,
+      rows: [
+        {
+          ...provisioning.lines.rows[0],
+          voice_state: "provisioning",
+          step: "number",
+          state_since: new Date().toISOString(),
+        },
+      ],
+    };
+    setSetup(surface(provisioning));
+    heldTicks.length = 0;
+    fresh();
+    const tree = mount();
+    assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "getting");
+    const look = heldTicks.find((t) => t.ms === 6000);
+    assert.ok(look, "a look every six seconds while the step waits");
+    look.fn();
+    assert.deepEqual(looked, ["setup"], "Setup's quiet look: one that fails changes nothing on screen");
+  } finally {
+    setupVerbs.peek = wasPeek;
+  }
+});
+
 const untried = {
   ...withFacts,
   channels: { ...blank.channels, voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null } },
@@ -1300,13 +1503,25 @@ test("Try it (canvas R6): calls answered and none yet, the step listens for the 
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Call your receptionist from your cell.");
   assert.equal(byTestId(tree, "fr-try").props["data-stage"], "listen");
   assert.equal(textOf(byTestId(tree, "fr-try-number")), "+1 (305) 555-0123");
+  // The number is a press that dials it (a phone's foot draws it; a desk has nothing to dial with).
+  const dial = byTestId(tree, "fr-try-dial");
+  assert.equal(textOf(dial), "Call +1 (305) 555-0123");
+  assert.equal(dial.props.href, "tel:+13055550123");
   await byTestId(tree, "fr-try-skip-go").props.onClick();
   tree = mount();
   assert.match(textOf(byTestId(tree, "fr-try-nudge")), /^Most owners call once/);
   assert.deepEqual(asked.later, [], "one nudge first");
+  // Setup's own verb shows a row put off at once (surface.ts): the stand-in does the same, so the page goes on from it.
+  const sayLater = globalThis.window.__setup.later;
+  globalThis.window.__setup.later = async (id, on) => {
+    setSetup({ ...surface(untried), later: [id], vm: setupSteps({ ...untried, later: [id] }, NOW) });
+    return sayLater(id, on);
+  };
   await byTestId(tree, "fr-try-skip-go").props.onClick();
+  await tick();
   assert.deepEqual(asked.later, [["try-skipped", true]], "then the wait is put off for this member");
-  assert.equal(replaced.at(-1), "start");
+  assert.equal(replaced.at(-1), "start/try", "the bare address being left is named for its step");
+  assert.equal(went.at(-1), "start/live", "and the first run goes on to Live, a new entry");
 });
 
 test("Try it (canvas R7, R8): it picked up with the words, then the call and the transfer saved through the Business tab's saver", async () => {
@@ -1327,18 +1542,16 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
   assert.equal(textOf(byTestId(tree, "fr-heading")), "That's your receptionist.");
   assert.equal(textOf(byTestId(tree, "fr-try-meta")), "0:48 · from +1 (786) 555-0199 · 2:59 PM");
   // Arrow keys move the choice and change it: shown at once, saved once they settle, the last one only.
-  const choose = (key) =>
-    byTestId(mount(), `fr-try-transfer-${key}`)
-      .props.children.find((k) => k && k.type === "input")
-      .props.onChange();
+  // Where a caller goes is the kit's choice of a few: the phone they called from first, a message last.
+  const transfer = (tree0, key) => {
+    const options = optionsOf(tree0, "fr-try-transfer");
+    return key === "caller" ? options[0] : options.at(-1);
+  };
+  const choose = (key) => transfer(mount(), key).props.onClick();
   choose("message");
   choose("caller");
   tree = mount();
-  assert.equal(
-    byTestId(tree, "fr-try-transfer-caller").props.children.find((k) => k && k.type === "input").props.checked,
-    true,
-    "shown at once",
-  );
+  assert.equal(transfer(tree, "caller").props["aria-checked"], true, "shown at once");
   assert.equal(asked.saves.length, 0, "nothing sent while the keys still move");
   await new Promise((r) => setTimeout(r, 650));
   assert.equal(asked.saves.length, 1, "one save, of the last choice");
@@ -1347,16 +1560,17 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
   assert.equal(brain.profile.handoff_number, "+17865550199", "the phone they called from");
   byTestId(tree, "fr-try-inbox").props.onClick();
   assert.equal(went.at(-1), "conversations/cv-c1", "the call itself, in the Inbox");
+  // The call reached the receptionist, and Setup has read it: the step is done, and Continue goes on to Live.
+  setSetup(surface(answering));
   byTestId(tree, "fr-try-go").props.onClick();
-  assert.equal(replaced.at(-1), "start", "on to Live");
+  assert.equal(went.at(-1), "start/live", "on to Live, a new entry");
+  setSetup(surface(untried));
   // The settings read not in yet: the saver would send nothing, so the page says so rather than showing a choice.
   globalThis.window.__businessTabSave.saver.base = () => null;
   flashes.length = 0;
   fresh();
   tree = mount();
-  byTestId(tree, "fr-try-transfer-caller")
-    .props.children.find((k) => k && k.type === "input")
-    .props.onChange();
+  transfer(tree, "caller").props.onClick();
   assert.equal(asked.saves.length, 1, "nothing sent");
   assert.equal(textOf(flashes.at(-1).msg), "Your settings are still being read. Try again in a moment.");
   setLive(undefined);
@@ -1399,7 +1613,7 @@ test("Live (canvas R9): the four lines and the greeting, and Finish switches cal
     const tree = mount();
     assert.equal(
       textOf(byTestId(tree, "fr-live-emails")),
-      "Emails you atowner@example.com, when someone needs you Change",
+      "Emails you atowner@example.com, when someone needs youChange",
     );
     assert.match(
       textOf(byTestId(tree, "fr-live-greeting")),
