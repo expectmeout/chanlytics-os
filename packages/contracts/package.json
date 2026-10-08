@@ -20,7 +20,7 @@
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

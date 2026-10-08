@@ -1,3 +1,9 @@
+# Every text file is LF in the repository and in every checkout, whatever core.autocrlf says. A package's declaration
+# build places a doc comment by character offset, so a CRLF checkout built a dist that CI's Linux build did not, and the
+# dist-drift guard failed on files nobody edited (tooling/scripts/lf-sources.mjs covers a checkout older than this line).
+# The byte-for-byte folders below opt out; a later line wins.
+* text=auto eol=lf
+
 # MapLibre's worker, vendored byte for byte (maplibre-worker-vendored.test.mjs compares it with the package): no line-ending conversion.
 apps/dashboard/public/maplibre/* -text
 

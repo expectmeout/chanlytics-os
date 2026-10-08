@@ -18,7 +18,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --no-splitting && tsup src/realtime.ts --format esm --no-splitting",
+    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup src/index.ts --format esm --no-splitting && tsup src/realtime.ts --format esm --no-splitting",
     "typecheck": "tsc --noEmit",
     "gen:types": "node ../../tooling/scripts/gen/db-types.mjs"
   },
