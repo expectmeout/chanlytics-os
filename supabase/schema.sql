@@ -24479,6 +24479,13 @@ CREATE INDEX broadcast_recipients_message ON public.broadcast_recipients USING b
 
 
 --
+-- Name: broadcast_recipients_person; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX broadcast_recipients_person ON public.broadcast_recipients USING btree (tenant_id, contact_id);
+
+
+--
 -- Name: broadcast_recipients_queued; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -30413,7 +30420,7 @@ GRANT ALL ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_per
 -- Name: TABLE contacts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.contacts TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.contacts TO authenticated;
 GRANT ALL ON TABLE public.contacts TO service_role;
 
 
@@ -33009,7 +33016,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
 -- Name: TABLE ask_messages; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_messages TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.ask_messages TO authenticated;
 GRANT ALL ON TABLE public.ask_messages TO service_role;
 
 
@@ -33052,7 +33059,7 @@ GRANT INSERT(content),UPDATE(content) ON TABLE public.ask_messages TO authentica
 -- Name: TABLE ask_threads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_threads TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.ask_threads TO authenticated;
 GRANT ALL ON TABLE public.ask_threads TO service_role;
 
 
@@ -33208,7 +33215,7 @@ GRANT UPDATE(first_audio_ms) ON TABLE public.ask_voice_sessions TO authenticated
 -- Name: TABLE billing_accounts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.billing_accounts TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_accounts TO authenticated;
 GRANT ALL ON TABLE public.billing_accounts TO service_role;
 
 
@@ -33230,7 +33237,7 @@ GRANT ALL ON TABLE public.billing_events TO service_role;
 -- Name: TABLE broadcast_recipients; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.broadcast_recipients TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.broadcast_recipients TO authenticated;
 GRANT ALL ON TABLE public.broadcast_recipients TO service_role;
 
 
@@ -33266,7 +33273,7 @@ GRANT INSERT(facts) ON TABLE public.broadcast_recipients TO authenticated;
 -- Name: TABLE broadcasts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcasts TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.broadcasts TO authenticated;
 GRANT ALL ON TABLE public.broadcasts TO service_role;
 
 
@@ -33365,7 +33372,7 @@ GRANT INSERT(run_for) ON TABLE public.broadcasts TO authenticated;
 -- Name: TABLE business_records; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.business_records TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.business_records TO authenticated;
 GRANT ALL ON TABLE public.business_records TO service_role;
 
 
@@ -33373,7 +33380,7 @@ GRANT ALL ON TABLE public.business_records TO service_role;
 -- Name: TABLE calls; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.calls TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.calls TO authenticated;
 GRANT ALL ON TABLE public.calls TO service_role;
 
 
@@ -33381,7 +33388,7 @@ GRANT ALL ON TABLE public.calls TO service_role;
 -- Name: TABLE capability_activations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.capability_activations TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.capability_activations TO authenticated;
 GRANT ALL ON TABLE public.capability_activations TO service_role;
 
 
@@ -33431,7 +33438,7 @@ GRANT INSERT(note) ON TABLE public.capability_activations TO authenticated;
 -- Name: TABLE contact_identities; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.contact_identities TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.contact_identities TO authenticated;
 GRANT ALL ON TABLE public.contact_identities TO service_role;
 
 
@@ -33455,7 +33462,7 @@ GRANT ALL ON TABLE public.contact_reads TO service_role;
 -- Name: TABLE conversations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.conversations TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.conversations TO authenticated;
 GRANT ALL ON TABLE public.conversations TO service_role;
 
 
@@ -33498,7 +33505,7 @@ GRANT UPDATE(last_message_at) ON TABLE public.conversations TO authenticated;
 -- Name: TABLE deals; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.deals TO authenticated;
+GRANT SELECT ON TABLE public.deals TO authenticated;
 GRANT ALL ON TABLE public.deals TO service_role;
 
 
@@ -33506,7 +33513,7 @@ GRANT ALL ON TABLE public.deals TO service_role;
 -- Name: TABLE decisions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.decisions TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.decisions TO authenticated;
 GRANT ALL ON TABLE public.decisions TO service_role;
 
 
@@ -33577,7 +33584,7 @@ GRANT ALL ON TABLE public.erasure_keying TO service_role;
 -- Name: TABLE escalations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.escalations TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.escalations TO authenticated;
 GRANT ALL ON TABLE public.escalations TO service_role;
 
 
@@ -33627,7 +33634,7 @@ GRANT ALL ON TABLE public.event_subscriptions TO service_role;
 -- Name: TABLE events; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.events TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.events TO authenticated;
 GRANT ALL ON TABLE public.events TO service_role;
 
 
@@ -33642,7 +33649,7 @@ GRANT ALL ON TABLE public.events_default TO service_role;
 -- Name: TABLE google_connections; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_connections TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_connections TO authenticated;
 GRANT ALL ON TABLE public.google_connections TO service_role;
 
 
@@ -33650,7 +33657,7 @@ GRANT ALL ON TABLE public.google_connections TO service_role;
 -- Name: TABLE google_listing_days; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_listing_days TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_listing_days TO authenticated;
 GRANT ALL ON TABLE public.google_listing_days TO service_role;
 
 
@@ -33658,7 +33665,7 @@ GRANT ALL ON TABLE public.google_listing_days TO service_role;
 -- Name: TABLE google_listings; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_listings TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_listings TO authenticated;
 GRANT ALL ON TABLE public.google_listings TO service_role;
 
 
@@ -33666,7 +33673,7 @@ GRANT ALL ON TABLE public.google_listings TO service_role;
 -- Name: TABLE google_reviews; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_reviews TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_reviews TO authenticated;
 GRANT ALL ON TABLE public.google_reviews TO service_role;
 
 
@@ -33674,7 +33681,7 @@ GRANT ALL ON TABLE public.google_reviews TO service_role;
 -- Name: TABLE idempotency_keys; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.idempotency_keys TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.idempotency_keys TO authenticated;
 GRANT ALL ON TABLE public.idempotency_keys TO service_role;
 
 
@@ -33724,7 +33731,7 @@ GRANT INSERT(created_at) ON TABLE public.idempotency_keys TO authenticated;
 -- Name: TABLE invitations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.invitations TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.invitations TO authenticated;
 GRANT ALL ON TABLE public.invitations TO service_role;
 
 
@@ -33753,7 +33760,7 @@ GRANT ALL ON TABLE public.lead_niche_priors TO service_role;
 -- Name: TABLE lead_operations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_operations TO authenticated;
+GRANT SELECT ON TABLE public.lead_operations TO authenticated;
 GRANT ALL ON TABLE public.lead_operations TO service_role;
 
 
@@ -33761,7 +33768,7 @@ GRANT ALL ON TABLE public.lead_operations TO service_role;
 -- Name: TABLE lead_places; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_places TO authenticated;
+GRANT SELECT ON TABLE public.lead_places TO authenticated;
 GRANT ALL ON TABLE public.lead_places TO service_role;
 
 
@@ -33776,7 +33783,7 @@ GRANT ALL ON TABLE public.lead_platform TO service_role;
 -- Name: TABLE lead_preferences; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_preferences TO authenticated;
+GRANT SELECT ON TABLE public.lead_preferences TO authenticated;
 GRANT ALL ON TABLE public.lead_preferences TO service_role;
 
 
@@ -33784,7 +33791,7 @@ GRANT ALL ON TABLE public.lead_preferences TO service_role;
 -- Name: TABLE lead_rounds; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_rounds TO authenticated;
+GRANT SELECT ON TABLE public.lead_rounds TO authenticated;
 GRANT ALL ON TABLE public.lead_rounds TO service_role;
 
 
@@ -33792,7 +33799,7 @@ GRANT ALL ON TABLE public.lead_rounds TO service_role;
 -- Name: TABLE lead_runs; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_runs TO authenticated;
+GRANT SELECT ON TABLE public.lead_runs TO authenticated;
 GRANT ALL ON TABLE public.lead_runs TO service_role;
 
 
@@ -33800,7 +33807,7 @@ GRANT ALL ON TABLE public.lead_runs TO service_role;
 -- Name: TABLE lead_search_members; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_search_members TO authenticated;
+GRANT SELECT ON TABLE public.lead_search_members TO authenticated;
 GRANT ALL ON TABLE public.lead_search_members TO service_role;
 
 
@@ -33808,7 +33815,7 @@ GRANT ALL ON TABLE public.lead_search_members TO service_role;
 -- Name: TABLE lead_searches; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_searches TO authenticated;
+GRANT SELECT ON TABLE public.lead_searches TO authenticated;
 GRANT ALL ON TABLE public.lead_searches TO service_role;
 
 
@@ -33816,7 +33823,7 @@ GRANT ALL ON TABLE public.lead_searches TO service_role;
 -- Name: TABLE leads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.leads TO authenticated;
+GRANT SELECT ON TABLE public.leads TO authenticated;
 GRANT ALL ON TABLE public.leads TO service_role;
 
 
@@ -33824,7 +33831,7 @@ GRANT ALL ON TABLE public.leads TO service_role;
 -- Name: TABLE lead_searches_view; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.lead_searches_view TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lead_searches_view TO authenticated;
 GRANT ALL ON TABLE public.lead_searches_view TO service_role;
 
 
@@ -33832,7 +33839,7 @@ GRANT ALL ON TABLE public.lead_searches_view TO service_role;
 -- Name: TABLE lead_suggestions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_suggestions TO authenticated;
+GRANT SELECT ON TABLE public.lead_suggestions TO authenticated;
 GRANT ALL ON TABLE public.lead_suggestions TO service_role;
 
 
@@ -33840,7 +33847,7 @@ GRANT ALL ON TABLE public.lead_suggestions TO service_role;
 -- Name: TABLE lead_suppressions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_suppressions TO authenticated;
+GRANT SELECT ON TABLE public.lead_suppressions TO authenticated;
 GRANT ALL ON TABLE public.lead_suppressions TO service_role;
 
 
@@ -33848,7 +33855,7 @@ GRANT ALL ON TABLE public.lead_suppressions TO service_role;
 -- Name: TABLE lines; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.lines TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lines TO authenticated;
 GRANT ALL ON TABLE public.lines TO service_role;
 
 
@@ -33856,7 +33863,7 @@ GRANT ALL ON TABLE public.lines TO service_role;
 -- Name: TABLE mailboxes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.mailboxes TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailboxes TO authenticated;
 GRANT ALL ON TABLE public.mailboxes TO service_role;
 
 
@@ -33864,7 +33871,7 @@ GRANT ALL ON TABLE public.mailboxes TO service_role;
 -- Name: TABLE memberships; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.memberships TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.memberships TO authenticated;
 GRANT ALL ON TABLE public.memberships TO service_role;
 
 
@@ -33872,7 +33879,7 @@ GRANT ALL ON TABLE public.memberships TO service_role;
 -- Name: TABLE messages; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.messages TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.messages TO authenticated;
 GRANT ALL ON TABLE public.messages TO service_role;
 
 
@@ -33992,7 +33999,7 @@ GRANT INSERT(meta) ON TABLE public.messages TO authenticated;
 -- Name: TABLE notification_marks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.notification_marks TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_marks TO authenticated;
 GRANT ALL ON TABLE public.notification_marks TO service_role;
 
 
@@ -34000,7 +34007,7 @@ GRANT ALL ON TABLE public.notification_marks TO service_role;
 -- Name: TABLE notification_reads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.notification_reads TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_reads TO authenticated;
 GRANT ALL ON TABLE public.notification_reads TO service_role;
 
 
@@ -34008,7 +34015,7 @@ GRANT ALL ON TABLE public.notification_reads TO service_role;
 -- Name: TABLE notifications; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.notifications TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO authenticated;
 GRANT ALL ON TABLE public.notifications TO service_role;
 
 
@@ -34093,7 +34100,7 @@ GRANT SELECT ON TABLE public.person_moments TO authenticated;
 -- Name: TABLE person_notes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.person_notes TO authenticated;
+GRANT SELECT ON TABLE public.person_notes TO authenticated;
 GRANT ALL ON TABLE public.person_notes TO service_role;
 
 
@@ -34115,7 +34122,7 @@ GRANT ALL ON TABLE public.platform_metrics TO service_role;
 -- Name: TABLE playbooks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.playbooks TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.playbooks TO authenticated;
 GRANT ALL ON TABLE public.playbooks TO service_role;
 
 
@@ -34242,7 +34249,7 @@ GRANT INSERT(channels),UPDATE(channels) ON TABLE public.playbooks TO authenticat
 -- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.policies TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
 GRANT ALL ON TABLE public.policies TO service_role;
 
 
@@ -34292,7 +34299,7 @@ GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
 -- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.profiles TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.profiles TO authenticated;
 GRANT ALL ON TABLE public.profiles TO service_role;
 
 
@@ -34307,7 +34314,7 @@ GRANT ALL ON TABLE public.provider_events TO service_role;
 -- Name: TABLE push_devices; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.push_devices TO authenticated;
+GRANT SELECT ON TABLE public.push_devices TO authenticated;
 GRANT ALL ON TABLE public.push_devices TO service_role;
 
 
@@ -34344,7 +34351,7 @@ GRANT ALL ON TABLE public.reply_turns TO service_role;
 -- Name: TABLE segment_members; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.segment_members TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.segment_members TO authenticated;
 GRANT ALL ON TABLE public.segment_members TO service_role;
 
 
@@ -34380,7 +34387,7 @@ GRANT INSERT(added_by) ON TABLE public.segment_members TO authenticated;
 -- Name: TABLE segments; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.segments TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.segments TO authenticated;
 GRANT ALL ON TABLE public.segments TO service_role;
 
 
@@ -34431,7 +34438,7 @@ GRANT SELECT ON TABLE public.sending_domain_days TO authenticated;
 -- Name: TABLE sending_domains; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.sending_domains TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sending_domains TO authenticated;
 GRANT ALL ON TABLE public.sending_domains TO service_role;
 
 
@@ -34446,7 +34453,7 @@ GRANT ALL ON TABLE public.sweep_status TO service_role;
 -- Name: TABLE templates; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.templates TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.templates TO authenticated;
 GRANT ALL ON TABLE public.templates TO service_role;
 
 
@@ -34454,7 +34461,7 @@ GRANT ALL ON TABLE public.templates TO service_role;
 -- Name: TABLE tenant_channels; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.tenant_channels TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenant_channels TO authenticated;
 GRANT ALL ON TABLE public.tenant_channels TO service_role;
 
 
@@ -34462,7 +34469,7 @@ GRANT ALL ON TABLE public.tenant_channels TO service_role;
 -- Name: TABLE tenant_config; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.tenant_config TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.tenant_config TO authenticated;
 GRANT ALL ON TABLE public.tenant_config TO service_role;
 
 
@@ -34491,7 +34498,7 @@ GRANT UPDATE(updated_by) ON TABLE public.tenant_config TO authenticated;
 -- Name: TABLE tenants; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.tenants TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.tenants TO authenticated;
 GRANT ALL ON TABLE public.tenants TO service_role;
 
 

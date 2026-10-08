@@ -355,6 +355,8 @@
     "00350_the_reviews_on_record_are_read_once_for_a_report.sql": "1012ea6680169f31cebcbf01cbf19fa9f2d8ea9f7647558ecdddd370c56c863c",
     "00351_a_member_opens_a_conversation.sql": "76aad35c9ed12c9f1679df92f912169249dd20e7abe33c6d46cbde681b603038",
     "00352_a_send_is_claimed_before_the_wire.sql": "5640adf3720cac8f52558c561e0380b648a778cba40c190b3deba3f3907704bf",
-    "00353_a_run_is_approved_in_one_transaction.sql": "fecf9e561f560e4c165c21f4b07b16beec37b62e0ea0b9eb646aa1e81ba74c74"
+    "00353_a_run_is_approved_in_one_transaction.sql": "fecf9e561f560e4c165c21f4b07b16beec37b62e0ea0b9eb646aa1e81ba74c74",
+    "00354_a_member_holds_no_right_a_member_never_uses.sql": "772383b5c5d45f901b69e1f6fd8da47130741f79f43b73e5d8a649c259a965ae",
+    "00355_a_person_s_runs_are_found_by_the_person.sql": "892acd500027cf6794355a6ee82b1a8f9b75191364c33ba058bd7c3fed821599"
   }
 }
