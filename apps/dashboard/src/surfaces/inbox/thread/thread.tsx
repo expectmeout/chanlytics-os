@@ -25,6 +25,7 @@ import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, 
 import { Composer, type OnSend } from "./composer";
 import { ThreadHeader } from "./header";
 import { ThreadBar, ThreadStatus, type Stale, type StatusProps } from "./status";
+import { useEarlierAsScrolled } from "./earlier";
 import { TimelineEntry } from "./timeline";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
@@ -221,10 +222,22 @@ const run = (a: TlEntry | undefined, b: TlEntry | undefined) =>
   (a.agentName || "") === (b.agentName || "") &&
   !!a.byYou === !!b.byYou;
 
-/** The conversation, entry by entry. */
-function timelineRows(p: Held, thread: Thread, newestSaid: number, seenAt: number) {
+/** What the rows are drawn by: the newest thing said, where the thread stood when it opened, and where its drawing starts. */
+interface RowsAt {
+  newestSaid: number;
+  seenAt: number;
+  /** The first entry drawn (earlier.ts): the ones before it are drawn as the mark before it is scrolled near. */
+  from: number;
+  moreRef: RefObject<HTMLDivElement | null>;
+}
+
+/** The conversation, entry by entry: all of it, or from `from` with the mark of what waits before it. */
+function timelineRows(p: Held, thread: Thread, at: RowsAt) {
   const { channelLabels, focusMessageId } = p;
-  return thread.timeline.map((entry, i) => {
+  const { newestSaid, seenAt, from, moreRef } = at;
+  const rows = thread.timeline.slice(from).map((entry, k) => {
+    // Its place in the whole thread, which its key and its neighbours are read by.
+    const i = from + k;
     // A real thread says a bubble's time once for a run of messages from one side in the same minute, and who
     // sent ours and what became of it on the run's last: every bubble had "WhatsApp · 4:24 PM" over it and
     // "by WhatsApp Receptionist · Read" under it, 79–127px apiece on a phone.
@@ -245,16 +258,19 @@ function timelineRows(p: Held, thread: Thread, newestSaid: number, seenAt: numbe
       />
     );
   });
+  // A thread drawn whole is its rows and nothing else, as it always was.
+  if (from <= 0) return rows;
+  return [<div key="ix-earlier" className="ix-timeline-more" ref={moreRef} aria-hidden="true" />, ...rows];
 }
 
 /** The pane's scroller: what a seeded thread's cards say over its story, then the story. */
 function scrollBody(
   p: Held,
   thread: Thread,
-  extra: { scrollRef: RefObject<HTMLDivElement | null>; statusProps: StatusProps; newestSaid: number; seenAt: number },
+  extra: { scrollRef: RefObject<HTMLDivElement | null>; statusProps: StatusProps; rowsAt: RowsAt },
 ) {
   const { onVerdict, onDecide, planParam, onPlanParam } = p;
-  const { scrollRef, statusProps, newestSaid, seenAt } = extra;
+  const { scrollRef, statusProps, rowsAt } = extra;
   const decided = statusProps.decided;
   return (
     <div className="ix-th-scroll" ref={scrollRef}>
@@ -273,7 +289,7 @@ function scrollBody(
 
       <NarrativeSummary thread={thread} />
 
-      <div className="ix-timeline">{timelineRows(p, thread, newestSaid, seenAt)}</div>
+      <div className="ix-timeline">{timelineRows(p, thread, rowsAt)}</div>
     </div>
   );
 }
@@ -348,6 +364,8 @@ export const InboxThread = (props: InboxThreadProps) => {
     const el = scrollRef.current;
     if (real && el && stuckRef.current) el.scrollTop = el.scrollHeight;
   }, [real, entries]);
+  // A long thread is drawn from its newest entries, and the ones before as its top is scrolled near (earlier.ts).
+  const earlier = useEarlierAsScrolled(thread, focusMessageId, scrollRef);
   if (!thread) return <InboxEmpty />;
 
   const decided = !!thread.resolution;
@@ -390,7 +408,7 @@ export const InboxThread = (props: InboxThreadProps) => {
         </div>
       )}
 
-      {scrollBody(held, thread, { scrollRef, statusProps, newestSaid, seenAt })}
+      {scrollBody(held, thread, { scrollRef, statusProps, rowsAt: { newestSaid, seenAt, ...earlier } })}
       {thread.real && (
         <div className="ix-th-status" data-testid="ix-th-status">
           <ThreadStatus {...statusProps} />
