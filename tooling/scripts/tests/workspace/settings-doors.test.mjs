@@ -184,10 +184,6 @@ const { PaneBillingReal } = await import("../../../../apps/dashboard/src/surface
 // test stubs by assigning onto it.
 const SETTINGS = "../../../../apps/dashboard/src/surfaces/settings/connections";
 const { PaneIntegrationsReal } = await import(`${SETTINGS}/pane.tsx`);
-// What the press beside a row's name opens is fetched when the press is first reached (row.tsx loadRowAbout): in hand
-// here, as in a tab that has reached one, so a row's notes are drawn where a test reads them.
-const { loadRowAbout } = await import(`${SETTINGS}/row.tsx`);
-await loadRowAbout();
 const { BusinessRecordForm } = await import(`${SETTINGS}/record-form.tsx`);
 const { businessRecord } = await import(`${SETTINGS}/record.ts`);
 const { sendingDomains } = await import(`${SETTINGS}/domains.ts`);
@@ -810,6 +806,14 @@ const setupWithLine = () => ({
   },
 });
 /** What a row says under its sentence, one string a note (the words, not the link after them). */
+/**
+ * Press the quiet press beside a row's name, and draw again: what the row says besides (what Meta will ask, what it costs)
+ * opens in place under its name. What happened or waits is on the row without it.
+ */
+const openAbout = (kind) => {
+  press(byTestId(settle(Connections), `connection-${kind}-why`));
+  return settle(Connections);
+};
 const noteTexts = (tree, kind) =>
   all(byTestId(tree, `connection-${kind}`), (n) => n.props?.["data-testid"] === "connection-note-text").map(textOf);
 /** The links its notes carry: each one's words, where it goes, and how it opens. */
@@ -862,6 +866,16 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     render(Connections);
     await flush();
     let tree = settle(Connections);
+    // What happened is on the row, always, in the row's own hint style: the sign-up an earlier page left open.
+    assert.equal(noteTexts(tree, "whatsapp").length, 1);
+    const box = byTestId(tree, "connection-whatsapp-notes");
+    assert.match(String(box.props.className), /\bset-int-notes\b/, "each note a line of its own");
+    // What Meta will ask and what it costs wait behind the quiet press beside the row's name (7 Oct 2026: "all extra
+    // info should be on a need to know"), where they stood under every name, four lines to a row. They open in place.
+    assert.equal(byTestId(tree, "connection-whatsapp-about"), null, "shut until asked");
+    assert.equal(byTestId(tree, "connection-whatsapp-why").props["aria-expanded"], false);
+    tree = openAbout("whatsapp");
+    assert.equal(byTestId(tree, "connection-whatsapp-why").props["aria-expanded"], true);
     const notes = noteTexts(tree, "whatsapp");
     assert.equal(notes.length, 4, "the one it left behind, and the three the owner meets before and in Meta's window");
     assert.match(notes[0], /^A WhatsApp sign-up was started here and did not come back to Chanlytics/);
@@ -869,11 +883,6 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     assert.match(notes[2], /^Meta texts a code to the number.* Keep this page open until Meta's window closes\.$/);
     assert.deepEqual(notes.slice(3), COST, "what WhatsApp costs and the card Meta asks for, last");
     assert.deepEqual(noteLinks(tree, "whatsapp"), [PRICES], "one link, to Meta's own prices, which opens in a new tab");
-    // Behind the quiet press beside the row's name (7 Oct 2026: "all extra info should be on a need to know"), where
-    // they stood under every name, four lines to a row: one column of plain sentences, named for the row.
-    const about = find(byTestId(tree, "connection-whatsapp"), (n) => n.props?.className === "set-int-about");
-    assert.equal(about.props.label, "About WhatsApp Business");
-    assert.equal(byTestId(tree, "connection-whatsapp-notes"), null);
     press(byTestId(tree, "connect-whatsapp-btn"));
     tree = settle(Connections);
     assert.equal(
@@ -936,6 +945,9 @@ test("Meta's SDK is fetched ahead only where the row offers Connect to someone w
     assert.equal(byTestId(tree, "connect-whatsapp-btn").props.disabled, false);
     assert.equal(prepared.length, 1, "drawing again fetches nothing again");
     // What it came to stays on the row, first and in full: the toast that says it is one line on a phone, and gone in seconds.
+    // On the row itself, with no press: what Meta will ask is behind the row's quiet press, and this is not.
+    assert.deepEqual(noteTexts(tree, "whatsapp"), [blocked]);
+    tree = openAbout("whatsapp");
     assert.deepEqual(noteTexts(tree, "whatsapp").slice(0, 2), [
       blocked,
       "Meta asks you to sign in with Facebook and choose or create your business.",
@@ -1152,11 +1164,14 @@ test("the WhatsApp row draws what Meta holds: a number whose account has no paym
     ],
     "the row's one act: Meta's own page for this business and this account, in a new tab",
   );
-  assert.deepEqual(noteTexts(tree, "whatsapp"), [
+  // What Meta holds, to act on "when you need more", is behind the row's quiet press: the row says the one thing to do.
+  assert.deepEqual(noteTexts(tree, "whatsapp"), []);
+  const opened = openAbout("whatsapp");
+  assert.deepEqual(noteTexts(opened, "whatsapp"), [
     "Not verified with Meta: customers see your number instead of your name, and you can start conversations with up to 250 people a day. Verify when you need more.",
   ]);
   assert.deepEqual(
-    noteLinks(tree, "whatsapp"),
+    noteLinks(opened, "whatsapp"),
     [
       [
         "Verify in Meta",

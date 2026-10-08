@@ -512,11 +512,9 @@
 
 /* A row's own act is the kit's button as the kit draws it (row.tsx rowActs says which kind): the tinted pill this
    page painted over the primary is gone (Ruben, 7 Oct 2026). A connection's name stands beside the quiet press that
-   says more about it; what that press opens is a narrow column of plain sentences. */
+   says more about it; what that press opens is the row's own notes (.set-int-notes), in place under the name. */
 .set-int-head { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .set-int-head > :first-child { min-width: 0; }
-.set-int-about { display: grid; gap: 8px; width: min(340px, calc(100vw - 32px)); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); text-wrap: pretty; }
-.set-int-about p { margin: 0; }
 .set-int-soon { padding: 0 10px; font-size: var(--set-hint); color: var(--ink-dim); }
 
 /* ---- What a plan costs ---------------------------------------------------

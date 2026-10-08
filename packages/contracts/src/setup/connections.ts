@@ -380,7 +380,7 @@ const SIGNUP_LEFT_OPEN_NOTE =
 /** The left-open note, while the mark is under an hour old (a mark in the future, or one that is no time, is no sign-up anyone is waiting on). */
 function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number): ConnectionNote[] {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
-  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE }] : [];
+  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
 
 /**

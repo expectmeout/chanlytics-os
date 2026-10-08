@@ -12067,6 +12067,12 @@ interface ConnectionNote {
         label: string;
         href: string;
     };
+    /**
+     * About something that happened or waits on the owner (a sign-up that could not go on, a code just sent, a name Meta
+     * declined): the row says it itself, always. A note without it is explanation (what Meta will ask, what WhatsApp
+     * costs), which the row keeps behind the press beside its name.
+     */
+    live?: true;
 }
 
 /**

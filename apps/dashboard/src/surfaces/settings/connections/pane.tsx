@@ -101,7 +101,9 @@ function rowsOf(
   );
   const said = asked.signupSaid;
   if (!said) return rows;
-  return rows.map((r) => (r.verb?.to === "verb:whatsapp-connect" ? { ...r, notes: [{ text: said }, ...r.notes] } : r));
+  // What the sign-up came to is on the row, first and in full, never behind the row's press (ConnectionNote.live).
+  const came = { text: said, live: true as const };
+  return rows.map((r) => (r.verb?.to === "verb:whatsapp-connect" ? { ...r, notes: [came, ...r.notes] } : r));
 }
 
 /** What a row's own verb does: Meta's sign-up, Google's consent, a read of Google, an ask, a scroll, the email form. */

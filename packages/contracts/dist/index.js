@@ -23073,7 +23073,7 @@ function standingNotes(s, o) {
   if (!s) return [];
   const out = [];
   const name = nameWords(s.name_status, s.name);
-  if (name) out.push({ text: name });
+  if (name) out.push({ text: name, live: true });
   const verification = verificationNote(s, o.limitSaid);
   if (verification) out.push(verification);
   return out;
@@ -23121,10 +23121,12 @@ function codeNotes(codes, nowMs) {
   const said = codes.filter((c) => !Number.isNaN(Date.parse(c.at)));
   if (said.length === 0) return [];
   return [
+    // What the owner is waiting for: on the row, never behind a press (ConnectionNote.live).
     ...said.map((c) => ({
-      text: `${c.from ? `Code from ${c.from}` : "A code"}: ${c.code} \xB7 ${agoWords(Date.parse(c.at), nowMs)}`
+      text: `${c.from ? `Code from ${c.from}` : "A code"}: ${c.code} \xB7 ${agoWords(Date.parse(c.at), nowMs)}`,
+      live: true
     })),
-    { text: FOOT }
+    { text: FOOT, live: true }
   ];
 }
 
@@ -30763,7 +30765,7 @@ var SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
 var SIGNUP_LEFT_OPEN_NOTE = "A WhatsApp sign-up was started here and did not come back to Chanlytics \u2014 if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
 function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
-  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE }] : [];
+  return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
 function tryItNotes(wa) {
   const digits2 = waMeDigits(wa.number);
