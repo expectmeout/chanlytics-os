@@ -9,13 +9,11 @@
  * visit's reminder, on a list -- is not offered at all.
  */
 import {
-  CONSENT_CHANNELS,
-  DEFAULT_CAMPAIGN_CHANNELS,
   CAMPAIGNS_PAUSED_WORDS,
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
-  enrolPurpose,
-  messageAboutOfTrigger,
+  campaignChannelsOf,
+  playbookChannelsRead,
   playbookName,
   poolWords,
   reachLines,
@@ -25,16 +23,7 @@ import type { ConsentChannel, PlaybookTrigger, ReachSplit, TemplateGroup } from 
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { policyStore } from "../../legacy-verbs";
-import {
-  CM_NO_MESSAGE_YET,
-  cmChannelsKept,
-  cmChannelsOn,
-  cmDefaultChannels,
-  cmOfferedBy,
-  cmReachBy,
-  cmReadyOf,
-  cmViaTicks,
-} from "../parts/channels";
+import { CM_NO_MESSAGE_YET, cmOfferedBy, cmReachBy, cmReadyOf, cmViaTicks } from "../parts/channels";
 import { starters } from "../templates/verbs";
 import { namedOf, readingFor } from "./surface";
 import type { PlaybookCardVM, PlaybookNamed, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
@@ -54,8 +43,12 @@ export interface Fields {
   cls: string;
   fills: Record<string, string[]>;
   typed: Record<string, string[]>;
-  /** The channels ticked in the Send by row. A draft kept before the row was drawn has none: WhatsApp alone. */
-  channels: ConsentChannel[];
+  /**
+   * The channels ticked in the Send by row. Null follows: nobody has pressed a switch yet, and the playbook goes by the
+   * ones a new playbook opens on for the message in view (contracts playbookChannelsRead, "new"), so picking another
+   * message, or moving to another moment, ticks what that one can go by. A press makes them the owner's, and they stay.
+   */
+  channels: ConsentChannel[] | null;
 }
 
 /** The templates a composer may offer, and one sentence for the ones it may not (contracts sendableTemplates). */
@@ -115,32 +108,15 @@ function openedList(editing: PlaybookCardVM | null, data: PlaybooksSurface): str
  *
  * A playbook being changed is on the offered message of its name and language, whichever version its stored `template_id`
  * names (a WhatsApp version added since moves the message's anchor: composerOffered's `id`), and keeps its stored ticks. A
- * new one opens on the first channel the workspace is ready on and the moment's own message holds, WhatsApp alone where
- * there is none (parts/channels.ts cmDefaultChannels).
+ * new one names no channels yet (`channels` null): its ticks follow the message in view until a switch is pressed
+ * (channelsModelOf), so it opens on every channel its moment's own message can go by, and on WhatsApp alone where the
+ * moment has no message of its own until one is picked.
  */
 export function composerOpened(
   editing: PlaybookCardVM | null,
   initialTrigger: string | null,
   data: PlaybooksSurface,
 ): Fields {
-  const opened = composerFields(editing, initialTrigger, data);
-  if (editing) return opened;
-  const input = {
-    data,
-    editing,
-    offered: composerOffered(data.templates),
-    templatesAll: null,
-    f: opened,
-    busy: false,
-    error: null,
-  };
-  const own = composerMessage(input, momentOf(input)).tpl;
-  const mine = own && data.templates ? data.templates.find((t) => t.id === own.id) : undefined;
-  return { ...opened, channels: cmDefaultChannels(cmReadyOf(data.ready), mine?.message ?? null) };
-}
-
-/** What the sheet holds as it opens, before a new playbook's ticks follow its message (composerOpened). */
-function composerFields(editing: PlaybookCardVM | null, initialTrigger: string | null, data: PlaybooksSurface): Fields {
   const triggers = data.triggers || PB_NONE;
   const params = editing && Array.isArray(editing.params) ? editing.params : null;
   const message = editing
@@ -161,11 +137,8 @@ function composerFields(editing: PlaybookCardVM | null, initialTrigger: string |
     cls: editing && editing.trigger === "saved_list" && editing.policy_class === "reengage" ? "reengage" : "campaign",
     fills: editing && params ? { [tplId]: params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
     typed: editing && params ? { [tplId]: params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
-    // A playbook made before channels goes by WhatsApp alone.
-    channels:
-      editing && editing.channels && editing.channels.length > 0
-        ? CONSENT_CHANNELS.filter((c) => (editing.channels ?? []).includes(c))
-        : cmDefaultChannels(cmReadyOf(data.ready), null),
+    // What the playbook has (one made before channels goes by WhatsApp alone); a new one's follow its message.
+    channels: editing ? campaignChannelsOf(editing.channels) : null,
   };
 }
 
@@ -299,28 +272,34 @@ function reachReading(input: ModelIn, mo: Moment, on: readonly ConsentChannel[])
 }
 
 /**
- * What the Send by row says and which channels it leaves on (parts/channels.ts): the channels it ticks that the workspace
- * can send on and its message has a version for. The kind of message is its moment's class, or its message's category
- * where that is stricter (contracts enrolPurpose), as its run reads it.
+ * What the Send by row says and which channels it leaves on: the one reading of a playbook's channels (contracts
+ * playbookChannelsRead, which its drawer and the home's marks read too), over the sheet's fields as the playbook they
+ * will be. The kind of message is its moment's class, or its message's category where that is stricter, as its run reads
+ * it. Until a switch is pressed the ticks are a new playbook's (`f.channels` null): every channel the message in view can
+ * go by, WhatsApp alone before one is picked.
  */
 function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }: Message) {
-  const purpose = enrolPurpose(onList ? f.cls : trig ? trig.cls : null, tpl ? { category: tpl.category } : null);
   const mine = tpl && data.templates ? data.templates.find((t) => t.id === tpl.id) : undefined;
-  const channelReady = readyForMessage(cmReadyOf(data.ready), mine?.message ?? CM_NO_MESSAGE_YET);
-  const ticked = f.channels || DEFAULT_CAMPAIGN_CHANNELS;
-  // What the moment's message is about: a visit's or a proposal's is theirs, any other moment's the business's news, which by
-  // email waits for the workspace's offers as an offer does (contracts isOfferByEmail, decision D2).
-  const about = messageAboutOfTrigger(trig ? trig.id : null);
+  // Before a message is picked the row reads as WhatsApp's version alone, as every campaign opened.
+  const workspace = cmReadyOf(data.ready);
+  const read = playbookChannelsRead(
+    { trigger: trig ? trig.id : null, policy_class: onList ? f.cls : null },
+    f.channels ?? "new",
+    tpl ? { category: tpl.category, versions: (mine?.message ?? CM_NO_MESSAGE_YET).versions } : null,
+    tpl ? workspace : readyForMessage(workspace, CM_NO_MESSAGE_YET),
+  );
+  const { purpose, about } = read;
   return {
     // What the run is for (enrolPurpose): the one reading the sections ask, so the month's allowance is said by it too.
     purpose,
     // The message's email and text versions as words, for the preview (parts/preview-by.ts).
     versions: mine ? mine.versions : undefined,
-    channelReady,
-    on: cmChannelsOn(ticked, channelReady, purpose, about),
-    // A playbook keeps a ticked channel that cannot send yet: its run holds those people until it can.
-    kept: cmChannelsKept(ticked, purpose),
-    ticks: cmViaTicks(ticked, channelReady, { purpose, about }, true),
+    channelReady: read.ready,
+    on: read.on,
+    // A playbook keeps a ticked channel that cannot send yet: its run holds those people until it can. What a save sends,
+    // and what a press on one switch starts from.
+    kept: read.kept,
+    ticks: cmViaTicks(read.ticked, read.ready, { purpose, about }, true),
   };
 }
 

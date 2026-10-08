@@ -47,6 +47,12 @@ type Accepted<
 export const playbooks = {
   create: (body: PlaybookBody) => api()("POST playbooks", { body }),
   update: (id: string, body: PlaybookBody) => api()("PUT playbooks/[id]", { params: { id }, body }),
+  /**
+   * The channels it goes by, changed alone (the drawer's Goes by row): the server judges them against the playbook as it
+   * stands and writes nothing else, so no copy of the rest of it travels from the page.
+   */
+  channels: (id: string, channels: ConsentChannel[], opts: Accepted<"PUT playbooks/[id]"> = {}) =>
+    api()("PUT playbooks/[id]", { params: { id }, body: { channels }, onAccepted: opts.onAccepted }),
   pause: (id: string, opts: Accepted<"PUT playbooks/[id]"> = {}) =>
     api()("PUT playbooks/[id]", { params: { id }, body: { state: "paused" }, onAccepted: opts.onAccepted }),
   resume: (id: string, opts: Accepted<"PUT playbooks/[id]"> = {}) =>

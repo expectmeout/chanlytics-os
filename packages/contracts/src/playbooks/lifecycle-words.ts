@@ -3,9 +3,16 @@
  * rail and the strips, lifecycle-tiles.ts to make the tiles). A sentence of the page is here or made from here, never in the
  * page.
  */
+import type { ConsentChannel } from "../consent/consent-channels";
 import { CAMPAIGN_ROOMS } from "../shell/campaign-rooms";
+import { joinWords } from "../shared/words";
+import { VERSION_CHANNEL_WORDS } from "../templates/message-versions";
 import { SENDING_HOURS_WORDS } from "./playbook-triggers";
 import type { LifecyclePlaybook, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
+
+/** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
+const channelsGoesByWords = (channels: readonly ConsentChannel[]): string =>
+  joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
 
 export const LIFECYCLE_WORDS = {
   title: CAMPAIGN_ROOMS.home,
@@ -51,6 +58,23 @@ export const LIFECYCLE_WORDS = {
     },
   },
   phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
+  channels: {
+    goesBy: "Goes by",
+    /** A kept channel the workspace cannot send on yet, after its name: "Email · waits". */
+    waits: "waits",
+    /** The marks' line to a screen reader: "Goes by WhatsApp and Email; Text waits; could also go by Email". */
+    marks: (on: readonly string[], waits: readonly string[], could: readonly string[]): string =>
+      [
+        on.length > 0 ? `Goes by ${joinWords(on)}` : waits.length > 0 ? "" : "Goes by nothing yet",
+        waits.length > 0 ? `${joinWords(waits)} ${waits.length === 1 ? "waits" : "wait"}` : "",
+        could.length > 0 ? `could also go by ${joinWords(could)}` : "",
+      ]
+        .filter(Boolean)
+        .join("; "),
+    /** After a change of channels, where a run of the playbook already waits: it was made with the channels it had. */
+    runKeeps: "the run that waits keeps the channels it was made with",
+  },
   // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
   // kit's failed read where the data would be, and its Retry reads `surface` again.
   failed: {
@@ -138,6 +162,15 @@ export const LIFECYCLE_TOAST = {
   ],
   /** The name of a line the page has no row for, where a toast must name it. */
   nameless: "It",
+  /**
+   * A playbook's channels changed, from its drawer or from Ask's card: "Visit reminder goes by WhatsApp and Email now".
+   * `runWaits`: a run of it already waits for approval, and keeps the channels it was made with (core run-playbook
+   * stores them as it enrols), so the sentence says the change is the next run's.
+   */
+  channels: (name: string, channels: readonly ConsentChannel[], runWaits: boolean): LifecycleSentence => [
+    { b: name },
+    ` goes by ${channelsGoesByWords(channels)} now${runWaits ? ` · ${LIFECYCLE_WORDS.channels.runKeeps}` : ""}`,
+  ],
   phraseCopied: "Phrase copied",
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase: string): string => `Couldn't copy, the phrase is: ${phrase}`,

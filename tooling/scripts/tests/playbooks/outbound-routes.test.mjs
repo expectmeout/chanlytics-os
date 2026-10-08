@@ -1312,6 +1312,82 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
   }
 });
 
+test("a playbook's channels alone: judged against the playbook as it stands and written alone, so a caller's copy of the rest can put nothing back", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    playbooks: [
+      pb(K1, B, {
+        name: "Visit reminder",
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        template_id: T1,
+        template_name: "visit_reminder",
+        run_hour: 14,
+        cap_per_run: 5,
+        channels: ["whatsapp"],
+      }),
+      // A playbook stored under the class its moment had when it was made: a channel change leaves its class as it is.
+      pb(K2, B, {
+        name: "The month's offer",
+        trigger: "everyone_monthly",
+        policy_class: "campaign",
+        template_id: T4,
+        template_name: "month_offer",
+      }),
+      pb(K9, A, { name: "Harbor's", template_id: T9 }),
+    ],
+    templates: [
+      tpl(T1, B, { name: "visit_reminder", category: "utility" }),
+      tpl("77777777-7777-4777-8777-777777777776", B, { channel: "email", name: "visit_reminder" }),
+      tpl("77777777-7777-4777-8777-777777777777", B, { channel: "sms", name: "visit_reminder" }),
+      tpl(T4, B, { name: "month_offer", category: "marketing" }),
+      tpl("77777777-7777-4777-8777-777777777778", B, { channel: "email", name: "month_offer", category: "marketing" }),
+      tpl(T9, A),
+    ],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    decisions: [],
+  };
+  const rowOf = (id) => tables.playbooks.find((p) => p.id === id);
+  const before = { ...rowOf(K1) };
+  let ctx = ctxFor(tables, { id: K1 });
+  const out = await playbook.PUT.run(send("PUT", { channels: ["email", "whatsapp"] }), ctx);
+  assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running" });
+  assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "in the product's order");
+  assert.deepEqual({ ...rowOf(K1), channels: null }, { ...before, channels: null }, "nothing else of it moved");
+  const written = ctx.supabase.seen.filter((s) => s.table === "playbooks" && s.op === "update").map((s) => s.values);
+  assert.deepEqual(written, [{ channels: ["whatsapp", "email"] }], "the one column, and no other");
+  // The same channels again: nothing is written.
+  ctx = ctxFor(tables, { id: K1 });
+  await playbook.PUT.run(send("PUT", { channels: ["whatsapp", "email"] }), ctx);
+  assert.equal(writes(ctx), 0);
+  // Judged as a save judges them, by its own class and message: a text carries no offer, and a tick is of the three.
+  await refused(
+    playbook.PUT.run(send("PUT", { channels: ["whatsapp", "sms"] }), ctxFor(tables, { id: K2 })),
+    "validation",
+    400,
+    "Texts carry no offers.",
+  );
+  for (const channels of [[], ["fax"], ["email", "fax"], null, "email"]) {
+    await refused(
+      playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })),
+      "validation",
+      400,
+      "Pick WhatsApp, text or email to send by.",
+    );
+  }
+  assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "a refusal writes nothing");
+  // A channel named twice is one channel.
+  ctx = ctxFor(tables, { id: K1 });
+  await playbook.PUT.run(send("PUT", { channels: ["email", "whatsapp", "email"] }), ctx);
+  assert.equal(writes(ctx), 0, "the same two it has");
+  // By email an offer waits for the workspace's offers: kept, never refused (its run holds those people until it can).
+  await playbook.PUT.run(send("PUT", { channels: ["whatsapp", "email"] }), ctxFor(tables, { id: K2 }));
+  assert.deepEqual(rowOf(K2).channels, ["whatsapp", "email"]);
+  assert.equal(rowOf(K2).policy_class, "campaign", "its class is its own: a change of channels re-derives nothing");
+  // The row is found under row security, and the role judged where it lives: another workspace's is a viewer's here.
+  await refused(playbook.PUT.run(send("PUT", { channels: ["email"] }), ctxFor(tables, { id: K9 })), "forbidden", 403);
+});
+
 test("a playbook ticks channels: made with them, kept by an edit that names none, held to what its message may be on them; made before, it goes by WhatsApp alone", async () => {
   const reminder = tpl(T1, B, { name: "visit_reminder", category: "utility" });
   const tables = {

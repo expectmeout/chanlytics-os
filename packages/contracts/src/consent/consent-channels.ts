@@ -80,6 +80,17 @@ export function coveredChannels(channels: readonly string[] | null | undefined):
   return channels == null ? ["whatsapp"] : CONSENT_CHANNELS.filter((c) => channels.includes(c));
 }
 
+/**
+ * A count for each channel in a line's words ("30 on WhatsApp, 6 by text"), where more than one channel has any; null
+ * otherwise, since a line that names one channel says nothing its number did not. What a run sent by each channel
+ * (broadcasts.ts sentByWords), what a period sent, and who a message reaches by each.
+ */
+export function countsByChannelWords(by: Partial<Record<ConsentChannel, number>> | null | undefined): string | null {
+  if (!by) return null;
+  const went = CONSENT_CHANNELS.filter((c) => (by[c] ?? 0) > 0);
+  return went.length > 1 ? went.map((c) => `${by[c]} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ") : null;
+}
+
 /** The channels in a sentence: "on WhatsApp", "on WhatsApp and by text", "on WhatsApp, by text and by email". */
 export function channelsWords(channels: readonly ConsentChannel[]): string {
   const words = channels.map((c) => CONSENT_CHANNEL_WORDS[c]);

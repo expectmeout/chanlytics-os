@@ -2,7 +2,7 @@
  * Chanlytics, Broadcasts: the ledger of runs, by playbook and by week, and a run's card (moved from
  * legacy/pages/broadcasts-ledger.jsx, decision 0015).
  */
-import { BROADCAST_WORDS, DAY_MS, DELIVERY_RECEIPTS_WORDS, HOUR_MS, mmss } from "@chanlytics/contracts";
+import { BROADCAST_WORDS, DAY_MS, DELIVERY_RECEIPTS_WORDS, HOUR_MS, mmss, sentByWords } from "@chanlytics/contracts";
 import type { BroadcastVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -388,6 +388,11 @@ function bcRunReach(row: BroadcastVM) {
               t: `${row.counts.delivered || 0} delivered · ${row.counts.replied || 0} ${row.counts.replied === 1 ? "reply" : "replies"}`,
               tone: "plain",
             },
+          // What went by each channel, where more than one did (0030; the spec of 8 Oct 2026): "4 on WhatsApp, 2 by email".
+          (() => {
+            const by = sentByWords(row.counts.sent_by);
+            return by ? { t: by, tone: "plain" as const } : null;
+          })(),
         ].filter((r): r is BcReason => !!r)
       : [];
   return { will, pool, held, finished, reasons };

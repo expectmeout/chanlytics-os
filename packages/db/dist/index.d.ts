@@ -9861,7 +9861,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 user_id?: string | null;
             };
             Update: {
-                agrees?: boolean | null;
+                agrees
+                /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
+                ?: boolean | null;
                 cache_read_tokens?: number;
                 cache_write_tokens?: number;
                 confident?: boolean | null;
@@ -18867,7 +18869,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             user_id?: string | null;
         };
         Update: {
-            agrees?: boolean | null;
+            agrees
+            /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
+            ?: boolean | null;
             cache_read_tokens?: number;
             cache_write_tokens?: number;
             confident?: boolean | null;
@@ -24604,7 +24608,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             user_id?: string | null;
         };
         Update: {
-            agrees?: boolean | null;
+            agrees
+            /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
+            ?: boolean | null;
             cache_read_tokens?: number;
             cache_write_tokens?: number;
             confident?: boolean | null;
@@ -30341,7 +30347,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             user_id?: string | null;
         };
         Update: {
-            agrees?: boolean | null;
+            agrees
+            /** The verbs whose statements are filtered by the workspace, and the ones whose rows are stamped with it. */
+            ?: boolean | null;
             cache_read_tokens?: number;
             cache_write_tokens?: number;
             confident?: boolean | null;

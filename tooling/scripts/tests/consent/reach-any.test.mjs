@@ -25,6 +25,7 @@ import {
   noNumberWords,
   peopleListAction,
   personReachOf,
+  reachCountsOf,
   readyOrWhatsApp,
   savedListAction,
 } from "@chanlytics/contracts";
@@ -207,6 +208,36 @@ test("the rows' facts are one derivation: reachability, the answer given, and wh
       assert.equal(row.saidYes.messages, answeredYes(row, "conversational"));
     }
   }
+});
+
+test("the channel a message would reach them on is the send's own pick, so who can hear, by channel, adds up: each person once", () => {
+  const everything = ready({ text: true, email: true });
+  // A number and an address: one person, reached once, on WhatsApp (the first channel that reaches them).
+  const both = personRow({ email: "ana@example.com" }, { ready: everything });
+  assert.equal(both.reachedOn, "whatsapp");
+  // They last wrote by email: reached there, as a send would reach them (reachFor's order).
+  const wroteByMail = personRow({ email: "ana@example.com", last_inbound_channel: "email" }, { ready: everything });
+  assert.equal(wroteByMail.reachedOn, "email");
+  const mailOnly = personRow(emailOnly(), { ready: everything });
+  assert.equal(mailOnly.reachedOn, "email");
+  const textOnly = personRow(TEXT_YES, { ready: everything });
+  assert.equal(textOnly.reachedOn, "sms");
+  // No channel reaches them: none is named, and no message can be received.
+  const none = personRow(emailOnly(), { ready: ready() });
+  assert.deepEqual([none.reachedOn, none.canReceive.messages], [null, false]);
+  // What Campaigns' home counts on: a person is under a channel exactly where a message can be received, and under one.
+  const rows = [both, wroteByMail, mailOnly, textOnly, none];
+  for (const r of rows) assert.equal(r.reachedOn !== null, r.canReceive.messages);
+  const counts = reachCountsOf(rows);
+  assert.deepEqual([counts.canHear, counts.byChannel], [4, { whatsapp: 1, sms: 1, email: 2 }]);
+  // Where the workspace has no mailbox, WhatsApp still reaches the one with a number, and nothing the one without.
+  assert.deepEqual(
+    [
+      personRow({ email: "ana@example.com" }, { ready: ready() }).reachedOn,
+      personRow(emailOnly(), { ready: ready() }).reachedOn,
+    ],
+    ["whatsapp", null],
+  );
 });
 
 test("People's lists count the rows' facts: who can be sent an offer moves with what the workspace can send on, and who said yes does not", () => {

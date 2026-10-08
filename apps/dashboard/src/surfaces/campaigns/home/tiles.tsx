@@ -7,12 +7,14 @@
  */
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type {
+  ChannelStandingPart,
   LifecycleComing,
   LifecycleComingTile,
   LifecycleFailed,
   LifecycleFailedRead,
   LifecycleReachTile,
   LifecycleResultsTile,
+  LifecycleRung,
   LifecycleTileRead,
 } from "@chanlytics/contracts";
 import { routeDoor } from "../../legacy-verbs";
@@ -22,6 +24,8 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
+import { cmChannelColour } from "../parts/channels";
+import { ChannelsLine } from "./channels-line";
 import { HomeFailed, HomeReading } from "./failed";
 import type { RailActs } from "./rail";
 
@@ -40,6 +44,28 @@ function Bar({ share, label, tone }: { share: number; label: string; tone?: "ok"
         { share: 1 - part, color: "var(--line-strong)" },
       ]}
       aria-label={label}
+    />
+  );
+}
+
+/**
+ * A rung's bar: one part in the ink, or, where the count knows its channels and more than one reaches someone, a part per
+ * channel in the channel's own colour (the chart palette Reports draws it in), the parts together being the rung's share;
+ * the rest of everyone in the hairline's colour.
+ */
+function RungBar({ r }: { r: LifecycleRung }) {
+  if (!r.parts) return <Bar share={r.share} label={r.meter} />;
+  const shown = r.parts.reduce((sum, p) => sum + p.share, 0);
+  return (
+    <Meter
+      size="sm"
+      className="cmh-bar"
+      parts={[
+        ...r.parts.map((p) => ({ share: p.share, color: cmChannelColour(p.channel) })),
+        { share: Math.max(0, 1 - shown), color: "var(--line-strong)" },
+      ]}
+      aria-label={r.meter}
+      data-testid="cmh-rung-bar"
     />
   );
 }
@@ -101,7 +127,12 @@ export function ReachBlock({ tile, failed, acts }: ReachProps & { acts: ReachAct
             <li key={r.id} className="cmh-rung" data-rung={r.id} data-tone={r.tone} data-testid="cmh-rung">
               <span className="cmh-rung-k">{r.label}</span>
               <span className="cmh-rung-v tabular">{r.n}</span>
-              <Bar share={r.share} label={r.meter} />
+              <RungBar r={r} />
+              {r.byWords ? (
+                <span className="cmh-dim cmh-rung-w cmh-rung-by" data-testid="cmh-rung-by">
+                  {r.byWords}
+                </span>
+              ) : null}
               {r.opens ? <span className="cmh-dim cmh-rung-w">{r.opens}</span> : null}
             </li>
           ))}
@@ -129,8 +160,15 @@ function Yes({ yes, acts }: { yes: NonNullable<LifecycleReachTile["yes"]>; acts:
   );
 }
 
-/** The phone's one short tile: how many can hear you, the offers pill, a meter and a line; its read, where there is none yet. */
-export function PhoneReach({ tile, failed }: ReachProps) {
+/**
+ * The phone's one short tile: how many can hear you, the offers pill, a meter and a line; its read, where there is none
+ * yet. The head's channel line is drawn here on a phone, where the frame draws no sentence under the page's name.
+ */
+export function PhoneReach({
+  tile,
+  failed,
+  channels,
+}: ReachProps & { channels: readonly ChannelStandingPart[] | null }) {
   const phone = tile.phone;
   return (
     <Panel
@@ -149,6 +187,7 @@ export function PhoneReach({ tile, failed }: ReachProps) {
             <StatePill kind="tone" value={phone.offers.tone} label={phone.offers.words} />
           </p>
           <Bar share={phone.share} label={phone.meter} />
+          <ChannelsLine parts={channels} testid="cmh-channels" />
           {phone.note ? <span className="cmh-dim">{phone.note}</span> : null}
         </>
       ) : null}
@@ -264,6 +303,11 @@ export function ResultsBlock({ tile, failed, onOpen }: ResultsProps) {
         <HomeFailed failed={failed.report} testid="cmh-report-failed" />
       ) : null}
       <Funnel tile={tile} />
+      {tile.byChannel ? (
+        <p className="cmh-yes-line" data-testid="cmh-by-channel">
+          {tile.byChannel}
+        </p>
+      ) : null}
       {tile.readNote ? (
         <p className="cmh-yes-line" data-testid="cmh-read-note">
           {tile.readNote}

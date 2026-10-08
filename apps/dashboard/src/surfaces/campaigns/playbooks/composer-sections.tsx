@@ -67,7 +67,7 @@ export interface SectionCtx extends Model {
   setCadence: Dispatch<SetStateAction<number>>;
   setListId: Dispatch<SetStateAction<string | null>>;
   setCls: Dispatch<SetStateAction<string>>;
-  setChannels: Dispatch<SetStateAction<ConsentChannel[]>>;
+  setChannels: Dispatch<SetStateAction<ConsentChannel[] | null>>;
   setFills: Dispatch<SetStateAction<Fields["fills"]>>;
   setTyped: Dispatch<SetStateAction<Fields["typed"]>>;
   /** Which step of the preview's walk is in view (the channels it goes by, in the page's order), and the press that moves it. */
@@ -420,15 +420,16 @@ export function messageSection(x: SectionCtx) {
 
 /**
  * Send by: a switch for each channel it may go by (parts/send-by.tsx), each closed with its reason where the workspace
- * cannot send on it or the message cannot go by it. What is on is worked out in the model; pressing one starts from what is
- * on, so a channel that was only ticked and never open is let go.
+ * cannot send on it or the message cannot go by it. What it keeps is worked out in the model; pressing one starts from what
+ * it keeps, so a channel kept and waiting (no line yet, no version yet) is not let go by a press on another: it was, and a
+ * playbook lost a channel nobody had switched off.
  */
 export function viaSection(x: SectionCtx) {
-  const { ticks, on, setChannels } = x;
+  const { ticks, kept, setChannels } = x;
   return (
     <section className="pb-sec" data-testid="pb-via-sec">
       <span className="pb-sec-k">{CM_VIA_WORDS.label}</span>
-      <CmVia ticks={ticks} onTick={(channel, next) => setChannels(cmTick(on, channel, next))} testid="pb-via" />
+      <CmVia ticks={ticks} onTick={(channel, next) => setChannels(cmTick(kept, channel, next))} testid="pb-via" />
     </section>
   );
 }

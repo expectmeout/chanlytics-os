@@ -5,6 +5,7 @@
  */
 import { zoneMidnight, shiftKey } from "../calendar/day-keys";
 import { purposeOfPlaybook } from "../consent/consent";
+import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../consent/consent-channels";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 import { clockNear, clockTime, zoneDayKey } from "../shared/clock";
@@ -45,12 +46,20 @@ const outOf = (b: LifecycleInput["broadcasts"]): LifecycleTileRead => (b === und
  * which each row carries): can be sent a message on some channel the workspace can send on now, said yes to messages, said
  * yes to offers. The broadcasts surface keeps it, over the rows it already read; the home only draws it.
  */
-export function reachCountsOf(rows: ReadonlyArray<Pick<PersonRowVM, "saidYes" | "canReceive">>): ReachCounts {
+export function reachCountsOf(
+  rows: ReadonlyArray<Pick<PersonRowVM, "saidYes" | "canReceive"> & Partial<Pick<PersonRowVM, "reachedOn">>>,
+): ReachCounts {
+  // Each person once, on the channel a send would reach them by (reach-any.ts reachedOn), where the rows carry it: a row
+  // from before the channels does not. They add up to `canHear`.
+  const byChannel = Object.fromEntries(
+    CONSENT_CHANNELS.map((c) => [c, rows.filter((r) => r.reachedOn === c).length]),
+  ) as Record<ConsentChannel, number>;
   return {
     people: rows.length,
     canHear: rows.filter((r) => r.canReceive.messages).length,
     saidMessages: rows.filter((r) => r.saidYes.messages).length,
     saidOffers: rows.filter((r) => r.saidYes.offers).length,
+    ...(rows.some((r) => r.reachedOn !== undefined) ? { byChannel } : {}),
   };
 }
 
@@ -60,8 +69,25 @@ function opensOf(stages: readonly LifecycleStage[], needs: "messages" | "offers"
   return `${LIFECYCLE_WORDS.reach.opensMessages} ${[...names, ...more].join(", ")}`;
 }
 
-/** One rung of the ladder: a count, its share of everyone, and what it opens. */
-function rung(id: LifecycleRung["id"], label: string, n: number, people: number, opens: string | null): LifecycleRung {
+/**
+ * One rung of the ladder: a count, its share of everyone, and what it opens. The "messages" rung's meter is drawn in parts,
+ * one per channel that reaches anyone, where the count knows its channels and more than one reaches someone; its words
+ * say the same ("5 on WhatsApp, 3 by email"). Each person is under one channel, the one a send would reach them by, so
+ * the parts are the rung's own bar cut by channel and the numbers add up to its count.
+ */
+function rung(
+  id: LifecycleRung["id"],
+  label: string,
+  n: number,
+  people: number,
+  opens: string | null,
+  by: ReachCounts["byChannel"] = undefined,
+): LifecycleRung {
+  const byWords = countsByChannelWords(by);
+  const parts =
+    byWords && by && people > 0
+      ? CONSENT_CHANNELS.filter((c) => by[c] > 0).map((c) => ({ channel: c, share: by[c] / people }))
+      : null;
   return {
     id,
     label,
@@ -69,7 +95,9 @@ function rung(id: LifecycleRung["id"], label: string, n: number, people: number,
     share: people > 0 ? n / people : 0,
     opens,
     tone: id === "offers" && n === 0 ? "warn" : "plain",
-    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people}`,
+    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people}${byWords ? ` · ${byWords}` : ""}`,
+    parts,
+    byWords,
   };
 }
 
@@ -82,7 +110,7 @@ export function lifecycleReach(input: LifecycleInput, stages: readonly Lifecycle
   const W = LIFECYCLE_WORDS.reach;
   const rungs = [
     rung("people", W.people, reach.people, reach.people, null),
-    rung("messages", W.messages, reach.canHear, reach.people, opensOf(stages, "messages", [])),
+    rung("messages", W.messages, reach.canHear, reach.people, opensOf(stages, "messages", []), reach.byChannel),
     rung("offers", W.offers, reach.saidOffers, reach.people, opensOf(stages, "offers", W.ownOffers)),
   ];
   const door: LifecycleAct = { kind: "route", label: W.code, route: GET_YES_ROUTE };
@@ -330,6 +358,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       funnelLabel: null,
       yes: null,
       readNote: null,
+      byChannel: null,
       runs: [],
       quiet: false,
     };
@@ -347,6 +376,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       funnelLabel: null,
       yes: null,
       readNote: null,
+      byChannel: null,
       runs,
       quiet: false,
     };
@@ -393,6 +423,10 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
         : null,
     yes: `${t.optIns} said yes · ${t.optOuts} asked to stop`,
     readNote,
+    // What went by each channel (0030), where more than one sent: a line under the funnel in the channels' own words.
+    byChannel: countsByChannelWords(
+      b.report.byChannel ? Object.fromEntries(b.report.byChannel.map((c) => [c.channel, c.sent])) : null,
+    ),
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0,
   };

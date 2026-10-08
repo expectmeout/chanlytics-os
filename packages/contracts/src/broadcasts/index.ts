@@ -39,6 +39,8 @@ export {
   audiencePreview,
   audienceTrigger,
   DEFAULT_CAMPAIGN_CHANNELS,
+  NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
+  newCampaignChannels,
   CHANNEL_WORDS,
   CAMPAIGN_MONTH_ALLOWANCE,
   HELD_ON,
@@ -133,6 +135,8 @@ export {
 export type { PreviewVersions, PreviewOn, ReachBarPart } from "./preview-by-channel";
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./reach-any";
 export type { PersonReach } from "./reach-any";
+export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./channels-standing";
+export type { ChannelStandingPart } from "./channels-standing";
 export {
   OFFERS_BY_EMAIL_WORDS,
   OFFERS_PAUSED_WORDS,

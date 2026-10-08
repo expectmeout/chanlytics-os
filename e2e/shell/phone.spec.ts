@@ -313,6 +313,20 @@ test.describe("Phone shell on a real workspace", () => {
     const tops = await stages.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
     expect(tops, "the moments stand one under another").toEqual([...tops].sort((a, b) => a - b));
     expect(new Set(tops.map(Math.round)).size, "no two moments on one line").toBe(tops.length);
+    // The marks a moment goes by (8 Oct 2026): on a phone each keeps its word beside its dot (a dot alone said which
+    // channel by its colour), inside the screen, and the whole still says itself to a screen reader. Which moments
+    // carry marks is playbooks.spec's, against the API.
+    const width = page.viewportSize()?.width ?? 0;
+    const marks = stages.getByTestId("cmh-chans");
+    for (let i = 0; i < (await marks.count()); i++) {
+      const m = marks.nth(i);
+      await expect(m).toHaveAttribute("aria-label", /Goes by |waits?\b/);
+      await expect(m.locator(".cmh-chan").first()).toBeVisible();
+      for (const word of await m.locator(".cmh-chan-word").all()) await expect(word).toBeVisible();
+      const box = await m.boundingBox();
+      expect(box, "the marks are drawn").not.toBeNull();
+      expect(box!.x + box!.width, "the marks stay inside the screen").toBeLessThanOrEqual(width);
+    }
     await controlsInsideTheScreen(page, home);
     await page.getByTestId("cmh-new").click();
     await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));

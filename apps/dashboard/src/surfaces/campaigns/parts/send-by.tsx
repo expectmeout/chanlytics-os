@@ -21,6 +21,10 @@ interface CmViaProps {
   onTick: (channel: ConsentChannel, on: boolean) => void;
   /** The row's test id; each channel's is `<testid>-<channel>`. */
   testid: string;
+  /** The group's name to a screen reader where the row is not "Send by": a playbook's drawer calls it "Goes by". */
+  label?: string;
+  /** A change is being saved: said to a screen reader, where the switches only stop taking a press. */
+  busy?: boolean;
 }
 
 /** One channel: its switch and its word, with the reason it is closed (or stays on) where it has one. */
@@ -62,10 +66,16 @@ function CmViaOne({ tick, onTick, testid }: { tick: CmViaTick; onTick: CmViaProp
  * channel that has a reason has one. The line is hidden from a screen reader, which already has the same words as each
  * switch's description.
  */
-export function CmVia({ ticks, onTick, testid }: CmViaProps) {
+export function CmVia({ ticks, onTick, testid, label, busy }: CmViaProps) {
   const reasons = ticks.filter((t) => t.why);
   return (
-    <div className="cm-via" role="group" aria-label={CM_VIA_WORDS.label} data-testid={testid}>
+    <div
+      className="cm-via"
+      role="group"
+      aria-label={label ?? CM_VIA_WORDS.label}
+      aria-busy={busy ? true : undefined}
+      data-testid={testid}
+    >
       {ticks.map((t) => (
         <CmViaOne key={t.channel} tick={t} onTick={onTick} testid={`${testid}-${t.channel}`} />
       ))}

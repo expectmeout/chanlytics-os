@@ -15,6 +15,7 @@ import {
   pipelineRoute,
   poolWords,
 } from "@chanlytics/contracts";
+import type { ConsentChannel } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
 import { canRestoreList, gate, gatedProps, navigate, restoreList } from "../../legacy-verbs";
@@ -28,8 +29,10 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
 import { bcLateWords, bcWhenWords } from "../broadcasts/when-words";
+
 import { MessagePreview } from "../parts/message-preview";
 import { CmPane, useCmPhone } from "../parts/split";
+import { CardVia, cardViaOf, goesBySaid } from "./card-channels";
 import type { PlaybookCardVM, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
 import { playbooks as V } from "./verbs";
 import {
@@ -121,6 +124,13 @@ function cardRead(p: PlaybookRow, surface: PlaybooksSurface | undefined) {
     noNumber,
     named,
     listRoute: cardListRoute(p, trig),
+    // The offered message its row is one version of (the surface's own reading, with the channels it holds): what the
+    // composer reads for its Send by row.
+    via: cardViaOf(
+      p,
+      surface,
+      Array.isArray(templates) && message ? (templates.find((t) => t.id === message.template.id) ?? null) : null,
+    ),
   };
 }
 
@@ -219,7 +229,17 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
       ),
     );
   };
-  return { act, toggle, runNow, approve, skip, remove };
+  // One channel switched in the drawer: the channels it keeps now are sent, alone (verbs.ts `channels`). The server
+  // judges them against the playbook as it stands and writes nothing else, and the page says so the moment it takes
+  // them. A run that already waits keeps the channels it was made with, and the receipt says that too.
+  const channels = (next: readonly ConsentChannel[]) => {
+    if (next.length === 0) return Promise.resolve();
+    return act(
+      (o) => V.channels(p.id, [...next], o),
+      () => goesBySaid(p.name, next, !!p.totals.waiting),
+    );
+  };
+  return { act, toggle, runNow, approve, skip, remove, channels };
 }
 
 /** Everything the card's sections read. */
@@ -369,12 +389,14 @@ function cardSentence(c: CardCtx) {
   );
 }
 
-/** The sentence, what is wrong with the message, and what the runs earned. */
+/** The sentence, the channels it goes by, what is wrong with the message, and what the runs earned. */
 function cardFacts(c: CardCtx) {
-  const { p, canAct, onEdit, templateGone, wrongSlot } = c;
+  const { p, canAct, busy, via, acts, onEdit, templateGone, wrongSlot } = c;
   return (
     <div className="ob-facts">
       {cardSentence(c)}
+      {/* Goes by (card-channels.tsx): the composer's Send by row, switched here in place. */}
+      <CardVia p={p} canAct={canAct} busy={busy} via={via} onChannels={(next) => void acts.channels(next)} />
       {templateGone && (
         <p className="bc-excl-hint warn" data-testid="pb-template-gone">
           {MESSAGE_GONE_WORDS.card}

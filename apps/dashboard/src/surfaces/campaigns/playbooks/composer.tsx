@@ -32,7 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
-import { CM_VIA_WORDS, cmDefaultChannels, cmReadyOf } from "../parts/channels";
+import { CM_VIA_WORDS } from "../parts/channels";
 import { CmPane } from "../parts/split";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
@@ -101,8 +101,8 @@ function glassRow(word: string, testid: string, body: ReactNode) {
  * What stops a run from sending from the number: a number that cannot send, or none. Said while the playbook goes by
  * WhatsApp, the one channel that has a number; one that goes by email alone never asks.
  */
-function numberWarning({ data, f }: SectionCtx) {
-  if (!data.number || !f.channels.includes("whatsapp")) return null;
+function numberWarning({ data, kept }: SectionCtx) {
+  if (!data.number || !kept.includes("whatsapp")) return null;
   if (data.number.present && !data.number.health.canSend)
     return (
       <p className="pb-warn" data-testid="pb-number">
@@ -163,9 +163,10 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
   const [typed, setTyped] = useState(start.typed);
   const [listId, setListId] = useState(start.listId === undefined ? null : start.listId);
   const [cls, setCls] = useState(start.cls || "campaign");
-  // The channels it goes by, ticked in the Send by row: what the playbook has, or WhatsApp alone, as every playbook went.
-  const [channels, setChannels] = useState<ConsentChannel[]>(
-    start.channels && start.channels.length > 0 ? start.channels : cmDefaultChannels(cmReadyOf(data.ready), null),
+  // The channels it goes by, ticked in the Send by row: what the playbook has, or null, which follows the message in view
+  // until a switch is pressed (composer-model channelsModelOf): every channel it can go by, for whichever message is picked.
+  const [channels, setChannels] = useState<ConsentChannel[] | null>(
+    start.channels && start.channels.length > 0 ? start.channels : null,
   );
   // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
   const held: Fields = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, cls, fills, typed, channels };

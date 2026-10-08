@@ -425,7 +425,8 @@ async function loadPlaybook(ctx: RouteContext, id: string) {
   const playbookId = requireUuid(id, "playbook");
   const { data, error } = await ctx.supabase
     .from("playbooks")
-    .select("id, tenant_id, name, state, trigger")
+    // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
+    .select("id, tenant_id, name, state, trigger, policy_class, template_id")
     .eq("id", playbookId)
     .maybeSingle();
   if (error) throw new Error(error.message);

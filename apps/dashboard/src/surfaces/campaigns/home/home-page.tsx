@@ -22,6 +22,7 @@ import { useCmPhone } from "../parts/split";
 import type { PlaybookCardVM } from "../playbooks/surface";
 import { ReachOutSheet } from "../reach-out/sheet";
 import { composeRoute, momentRoute, parseHome } from "./address";
+
 import { MomentDrawer } from "./drawer";
 import { NewMessageLabel } from "./new-label";
 import { NewMessage } from "./new-message";
@@ -33,7 +34,12 @@ import { useHomeData, useHomeNav, useReopenDrafts } from "./use-home";
 
 type Flash = ReturnType<typeof useLegacyToast>[1];
 
-/** The head's line: the page's words with its numbers in the page's emphasis, and a quiet line while offers by email are paused. */
+/**
+ * The head's line: the page's numbers in the page's emphasis, and a quiet line while offers by email are paused. Where
+ * the workspace stands on its channels is drawn where it is seen, at the rail's head (and in the phone's reach tile): the
+ * frame's head is a screen reader's line under Glass, clipped to a point on a desk and gone on a phone, so the channels'
+ * doors drawn in it were links nobody could see and every Tab still landed on.
+ */
 function sentenceOf(home: LifecycleHome): ReactNode {
   const { sentence, pausedLine } = home.head;
   return (
@@ -149,7 +155,7 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
       <CmHead title="Campaigns" quiet testid="cmh-head" sub={sentenceOf(home)} right={headActs(home, newMessage)} />
       {phone ? (
         <>
-          <PhoneReach tile={home.reach} failed={home.failed.reach} />
+          <PhoneReach tile={home.reach} failed={home.failed.reach} channels={home.head.channels} />
           <PhoneRail home={home} acts={acts} />
           <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} />
           <ResultsBlock tile={home.results} failed={home.failed} onOpen={navigate} />

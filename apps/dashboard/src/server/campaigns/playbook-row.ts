@@ -1,6 +1,7 @@
 /**
  * One playbook, changed or removed (app/api/v1/playbooks/:id): { state } pauses or resumes it (the ledger records
- * which); any other field re-checks the whole playbook the way a new one is checked and rewrites it
+ * which); { channels } changes the channels it goes by, judged against the playbook as it stands, and writes nothing
+ * else; any other body re-checks the whole playbook the way a new one is checked and rewrites it
  * (campaigns/playbooks.ts); the rule can go, its runs staying as broadcasts with their numbers, recorded as a pause
  * with `deleted`. Never a reach-out's step: its sends would go with it (R16). The playbook is the row (playbookScope),
  * found under RLS, and the route declares who may and how often.
@@ -15,7 +16,12 @@ import {
 import { removePlaybook, setPlaybookState, updatePlaybook, type Json } from "@chanlytics/db";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision, type playbookScope } from "@/server/verbs";
-import { checkPlaybookInput, playbookWriteError, refuseOnArchivedList } from "@/server/campaigns/playbooks";
+import {
+  checkPlaybookChannelsInput,
+  checkPlaybookInput,
+  playbookWriteError,
+  refuseOnArchivedList,
+} from "@/server/campaigns/playbooks";
 import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
 import type { RouteContext } from "@/server/with-route";
 
@@ -49,9 +55,19 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
 
   // A reach-out step is edited on its own sheet (Part 4); here it may only be paused or resumed, above.
   if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
-  // An edit that names no channels keeps the ones it has: the check reads them, and the column is written only when
-  // they change (a database 00298 has not reached has none to read or write).
+  // The channels it ticks now: an edit that names none keeps them, and the column is written only when they change (a
+  // database 00298 has not reached has none to read or write).
   const kept = await keptChannels(ctx, id);
+  // { channels } alone (the drawer's Goes by row, Ask's card): the channels it goes by change and nothing else is read
+  // from the caller or written, so a copy of the playbook taken before somebody edited it can put nothing back.
+  if (body && Object.keys(body).length === 1 && "channels" in body) {
+    const channels = await checkPlaybookChannelsInput(ctx, p.tenant_id, { ...p, channels: kept }, body.channels);
+    if (channelsChanged(channels, kept)) {
+      const { error } = await updatePlaybook(ctx.supabase, id, { channels });
+      if (error) throw playbookWriteError(error);
+    }
+    return { id, name: p.name, state: p.state };
+  }
   const v = await checkPlaybookInput(ctx, p.tenant_id, body, { ...p, channels: kept });
   const { error } = await updatePlaybook(ctx.supabase, id, {
     name: v.name,

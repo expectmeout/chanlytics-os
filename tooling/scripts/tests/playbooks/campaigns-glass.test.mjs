@@ -92,9 +92,17 @@ test("the head: the page says the surface's title to the frame's head and draws 
   assert.equal(said?.title, "Campaigns", "the surface's name");
   assert.equal(said?.back, null, "the home has no way back above its name");
   assert.ok(said?.sentence, "and the head's line beside it");
+  // Facts alone since 8 Oct 2026: the moments covered and who can hear. Where the workspace stands on its channels is at
+  // the rail's head, where it is seen: this line is a screen reader's under Glass, and a door in it is a link no one sees.
+  assert.ok(textOf(said.sentence).includes("moments are covered"), "the line is the page's own, said to the frame");
   assert.ok(
-    textOf(said.sentence).includes("What goes out on its own as a customer reaches a moment"),
-    "the line is the page's own, said to the frame",
+    !textOf(said.sentence).includes("Sending on WhatsApp"),
+    "the channels' line is not drawn in the frame's head",
+  );
+  assert.equal(
+    find(said.sentence, (n) => n.props?.["data-testid"] === "cmh-channels-door"),
+    null,
+    "and no door of it either",
   );
   // The page's two acts ride to the row of views: the Library, and New message.
   assert.ok(

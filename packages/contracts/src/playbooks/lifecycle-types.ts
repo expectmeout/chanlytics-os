@@ -7,9 +7,12 @@
  * A surface that has not landed yet is `undefined` and its sections say nothing; one that could not be read is `null`
  * and its sections say so. A number that is not known is `null`, never a zero it did not count.
  */
+import type { ChannelStandingPart } from "../broadcasts/channels-standing";
 import type { ChannelsReady } from "../broadcasts/reach-for";
+import type { ConsentChannel } from "../consent/consent-channels";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { CampaignMessage } from "../templates/campaign-message";
+import type { ChannelStand } from "./playbook-channels";
 
 /** One moment's count as the playbooks surface keeps it (`pools`), less what the home does not read. */
 export interface LifecyclePool {
@@ -55,6 +58,39 @@ export interface LifecyclePlaybook {
   off: string | null;
   listArchived?: boolean;
   totals: { waiting: { id: string; recipient_count: number } | null };
+  /** The channels it goes by (the row's `channels`): WhatsApp alone where it names none, as one made before them. */
+  channels?: readonly string[] | null;
+  /**
+   * What its channels are read by (playbook-channels.ts playbookChannelsRead): the class a playbook on a list sends
+   * under, and the message it sends by its name and language (the surface's `templates` hold its versions). Absent on a
+   * card drawn without them, and its marks then say only what it ticks.
+   */
+  policy_class?: string | null;
+  template_name?: string | null;
+  template_language?: string | null;
+}
+
+/** A message the playbooks surface offers, as far as the home reads it: which channels its versions hold. */
+export interface LifecycleMessage {
+  name: string;
+  language: string;
+  category?: string | null;
+  /** Absent on a row stamped before messages were kept, which reads as WhatsApp's version alone. */
+  message?: Pick<CampaignMessage, "versions">;
+}
+
+/** A channel a campaign goes by, as a mark on its card. */
+export interface LifecycleChannelMark {
+  channel: ConsentChannel;
+  /** The channel's name on a page (VERSION_CHANNEL_WORDS): WhatsApp, Text, Email. */
+  word: string;
+  /**
+   * How it stands for this campaign (playbook-channels.ts ChannelStand, the reading its drawer's row shows): on, it
+   * goes by it now; waits, it keeps it and cannot go by it yet (no line, no version, offers closed, the workspace
+   * paused: a run holds those people until it can); could, it may go by it now and does not tick it (what one more tick
+   * opens); off, neither, and the page draws nothing for it.
+   */
+  state: ChannelStand;
 }
 
 /** A moment the surface offers, with its own count and who it names. */
@@ -79,6 +115,12 @@ export interface LifecyclePlaybooks {
    * (`paused`): the Coming-up rows say so instead of a time. The broadcasts surface carries the same readiness.
    */
   ready?: ChannelsReady | null;
+  /**
+   * The messages a playbook may send, with the versions each holds: what a playbook's marks read its message from.
+   * Null where the templates could not be read, absent on a surface drawn without them: a mark then says nothing of what
+   * one more tick would open.
+   */
+  templates?: readonly LifecycleMessage[] | null;
 }
 
 /** A run as the broadcasts surface lists it. */
@@ -105,6 +147,11 @@ export interface ReachCounts {
   saidMessages: number;
   /** Said yes to offers. */
   saidOffers: number;
+  /**
+   * `canHear` by channel: each person once, under the channel a send would reach them by (reach-any.ts `reachedOn`), so
+   * the three add up to it. Absent from a count made before the channels were, and then said nowhere.
+   */
+  byChannel?: Record<ConsentChannel, number>;
 }
 
 /** What the campaign report read over the last days says: the totals the page's funnel is drawn from. */
@@ -120,6 +167,8 @@ export interface LifecycleReport {
     /** The sends a read is a share of: WhatsApp's own (0030); absent, every send, as it always was. */
     readOf?: number;
   };
+  /** What each channel sent in the period, the most first (0030); absent from a database before the channels were counted. */
+  byChannel?: readonly { channel: ConsentChannel; sent: number }[];
 }
 
 /** The broadcasts surface, as the home reads it. */
@@ -216,6 +265,12 @@ export interface LifecycleStage {
   hint: string | null;
   /** What pressing it does; null where it does nothing (the receptionist). */
   act: LifecycleAct | null;
+  /**
+   * The channels its playbook goes by, one mark each in the product's order; none for the receptionist (it answers on
+   * whatever a person wrote on), none for a moment that is off (what Turn on ticks is the composer's to say) and none
+   * for a playbook that runs nothing here, as its drawer draws no Goes by row.
+   */
+  channels: readonly LifecycleChannelMark[];
 }
 
 /** A quiet line under the rail: a playbook or a campaign that is not one of the five moments. */
@@ -231,6 +286,8 @@ export interface LifecycleStrip {
   open: LifecycleAct;
   /** The act at its right. */
   act: LifecycleAct;
+  /** The channels it goes by, as a stage's; none for the call's text (the phone agent's own) and for a line that is off. */
+  channels: readonly LifecycleChannelMark[];
 }
 
 /** A rung of the ladder of who can hear the workspace. */
@@ -243,8 +300,15 @@ export interface LifecycleRung {
   /** "Opens: visit reminder, how did it go", or null on the first rung. */
   opens: string | null;
   tone: LifecycleTone;
-  /** What the meter says to a screen reader: "Can get your messages: 7 of 29". */
+  /** What the meter says to a screen reader: "Can get your messages: 7 of 29 · 5 on WhatsApp, 3 by email". */
   meter: string;
+  /**
+   * The meter in parts, one per channel that reaches anyone, each its share of everyone (the "messages" rung, where the
+   * count knows its channels and more than one reaches someone); null for one part in the ink.
+   */
+  parts: readonly { channel: ConsentChannel; share: number }[] | null;
+  /** "5 on WhatsApp, 3 by email", under the rung where the parts are drawn; null otherwise. */
+  byWords: string | null;
 }
 
 export interface LifecycleReachTile {
@@ -323,6 +387,8 @@ export interface LifecycleResultsTile {
   yes: string | null;
   /** What the funnel's read is, where a text or an email went too (0030); null where WhatsApp alone sent. */
   readNote: string | null;
+  /** "84 on WhatsApp, 48 by email": what went by each channel, where more than one sent; null otherwise. */
+  byChannel: string | null;
   runs: readonly LifecycleCameBack[];
   /** Nothing went out and nobody answered: said once instead of four bars. */
   quiet: boolean;
@@ -362,6 +428,11 @@ export interface LifecycleHead {
   newMessage: string;
   /** A quiet line under the sentence while the workspace's offers by email are paused, else null. */
   pausedLine: string | null;
+  /**
+   * Where the workspace stands on its channels (channels-standing.ts): the open ones as one clause, then each closed one
+   * with its reason and, where a setting mends it, its door. Null where the readiness could not be read: nothing is said.
+   */
+  channels: readonly ChannelStandingPart[] | null;
 }
 
 export interface LifecycleHome {

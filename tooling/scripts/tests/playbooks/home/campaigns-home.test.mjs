@@ -183,8 +183,19 @@ test("the head says the page's line with its numbers in bold, the Library with i
   assert.equal(standingSaid()?.title, "Campaigns", "the page opens on its head, said to the frame");
   const head = headSaid();
   const text = textOf(head);
-  assert.match(text, /What goes out on its own as a customer reaches a moment, and what you send yourself\./);
+  // Facts alone (8 Oct 2026): the lede that explained the page every visit is gone. Where the workspace stands on its
+  // channels is NOT in this line: under Glass the frame's head is a screen reader's, clipped to a point on a desk and
+  // gone on a phone, so a door drawn in it was a link nobody could see and every Tab still landed on. It is drawn where
+  // it is seen, at the rail's head.
+  assert.doesNotMatch(text, /What goes out on its own/);
   assert.match(text, /moments are covered, and 7 of your 29 people can hear from you/);
+  assert.doesNotMatch(text, /Sending on WhatsApp/);
+  assert.equal(byTestId(head, "cmh-channels"), null, "no channel line in the frame's head");
+  assert.equal(byTestId(head, "cmh-channels-door"), null, "and no door there");
+  const rail = byTestId(page(), "cmh-channels-rail");
+  assert.match(textOf(rail), /Sending on WhatsApp/);
+  assert.match(textOf(rail), /Text: No texting line yet/);
+  assert.ok(byTestId(rail, "cmh-channels-rail-door"), "a closed channel is a door, where it is seen");
   assert.ok(byTestId(head, "cmh-library"));
   assert.match(textOf(byTestId(head, "cmh-library")), /Library/);
   assert.ok(byTestId(head, "cmh-new"));

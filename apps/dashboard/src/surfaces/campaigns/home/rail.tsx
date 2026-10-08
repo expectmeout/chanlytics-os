@@ -18,6 +18,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Panel } from "../../kit/panel/panel";
 import { StatePill } from "../../kit/pill/state-pill";
 import { cmRowPress } from "../parts/head";
+import { ChannelMarks, ChannelsLine } from "./channels-line";
 import { HomeFailed } from "./failed";
 
 /** What a press on a stage, a line or a button does: the page decides (home-page.tsx), the rail only says which. */
@@ -82,6 +83,7 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
           <span className="cmh-moment-name">{s.name}</span>
         )}
         {momentFoot(s, acts)}
+        <ChannelMarks marks={s.channels} testid="cmh-chans" />
         <span className="cmh-needs" data-needs={s.needs}>
           <Icon name="shield" size={12} />
           {s.needsWords}
@@ -103,6 +105,7 @@ function StripLine({ l, acts }: { l: LifecycleStrip; acts: RailActs }) {
           {l.name}
         </LinkButton>
         <span className="cmh-dim cmh-strip-more">{l.words}</span>
+        <ChannelMarks marks={l.channels} testid="cmh-strip-chans" />
       </span>
       {l.stateWords ? <StateWords tone={l.tone} words={l.stateWords} /> : null}
       <Button size="sm" onClick={() => acts.onAct(act)} data-testid="cmh-strip-act" {...(resumes ? acts.gated : {})}>
@@ -161,6 +164,9 @@ export function Rail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
       <header className="cmh-block-head">
         <h2 className="cmh-h">{rail.title}</h2>
         {rail.coveredWords ? <span className="cmh-dim">{rail.coveredWords}</span> : null}
+        {/* Where the workspace stands on its channels, at the rail's right on a desk: the frame keeps the head's own line
+            for a screen reader (a tab's list opens on its acts alone), so the page says it where the eye is. */}
+        <ChannelsLine parts={home.head.channels} testid="cmh-channels-rail" />
       </header>
       {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
       <ol className="cmh-rail" data-n={rail.stages.length}>
@@ -203,6 +209,7 @@ function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
         )}
         <span className="cmh-dim">
           {s.caps} · <span className="tabular">{s.people === null ? "—" : s.people}</span> {s.unit}
+          <ChannelMarks marks={s.channels} testid="cmh-chans" />
         </span>
       </span>
       {turnOn ? (

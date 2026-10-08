@@ -223,7 +223,7 @@ test("first contact is covered only where there is a line for the receptionist t
     "1 of 5 moments covered",
     "only the win-back covers: the receptionist has no line",
   );
-  assert.deepEqual(bare.head.sentence.slice(1, 3), [{ b: "1 of 5" }, " moments are covered"]);
+  assert.deepEqual(bare.head.sentence.slice(0, 2), [{ b: "1 of 5" }, " moments are covered"]);
   // Any one channel that can send is a line: a texting line, or a mailbox.
   for (const channel of ["sms", "email"]) {
     const line = home({
@@ -499,8 +499,9 @@ test("a reach-out is a line: on, waiting on you, or paused with Resume", () => {
 test("the head: the page's line with the moments covered and who can hear, and the Library with its count", () => {
   const h = home();
   assert.equal(h.head.title, "Campaigns");
+  // Facts alone: what the lede explained every visit ("What goes out on its own as a customer reaches a moment, and what
+  // you send yourself"), the rail shows (8 Oct 2026).
   assert.deepEqual(h.head.sentence, [
-    "What goes out on its own as a customer reaches a moment, and what you send yourself. ",
     { b: "2 of 5" },
     " moments are covered",
     ", and ",

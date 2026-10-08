@@ -6,8 +6,9 @@ import { changePlaybook, deletePlaybook } from "@/server/campaigns/playbook-row"
  * One playbook.
  *
  * PUT    /api/v1/playbooks/:id — { state } pauses or resumes (the ledger
- *        records which); any other field re-checks the whole playbook the
- *        way a new one is checked and rewrites it.
+ *        records which); { channels } changes the channels it goes by and
+ *        writes nothing else; any other body re-checks the whole playbook
+ *        the way a new one is checked and rewrites it.
  * DELETE /api/v1/playbooks/:id — the rule goes; its runs stay as broadcasts
  *        with their numbers. Recorded as a pause with `deleted`. Never a
  *        reach-out's step: its sends would go with it (R16); a chain is

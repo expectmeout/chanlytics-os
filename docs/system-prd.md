@@ -787,6 +787,26 @@ number not flagged where it ticks WhatsApp, the workspace not paused, and a yes 
 marketing. Today's proposals-waiting
 row counts only the ones it will not reach, never naming someone who asked to stop, and Ask lists and proposes it.
 
+**A campaign says where it goes** (8 October 2026, `docs/superpowers/specs/2026-10-08-a-campaign-says-where-it-goes-design.md`):
+Campaigns' home says once, at the rail's head on a desk and in the phone's reach tile, which channels the workspace can
+send on now and why each closed one is closed (contracts `channelsStandingParts`, from the readiness the playbooks and
+broadcasts reads carry), each closed reason a door to Settings › Connections where a setting mends it; a workspace paused
+for billing says that alone, with its door to Billing. The line is drawn where it is seen: the frame's head, a screen
+reader's under Glass, holds no copy of it. A playbook's channels have one reading (contracts `playbookChannelsRead`: its
+purpose, what its message holds, what the workspace can send on), which the marks, its drawer and its composer all ask.
+Each running moment and each line under the rail carries a mark per channel: on, waits (it keeps the channel and cannot
+go by it yet: no line, no version, offers closed, the workspace paused), or could (it may go by it now and does not tick
+it: what one more tick opens); a moment that is off, or that runs nothing here, carries none. The playbook's drawer draws
+the composer's Send by row as **Goes by**, switched in place: a press sends the channels it keeps, alone
+(`PUT playbooks/[id]` with `{ channels }`), which the server judges against the playbook as it stands and writes alone,
+and the page says so; a press starts from what it keeps, so a channel that waits is never let go by a press on another.
+A new playbook ticks every channel its message can go by (a person is reached once, on their best channel, so a tick
+widens reach and never doubles a message), following the message in view until a switch is pressed; a broadcast keeps the
+first alone. Who can hear you's "Can get your messages" rung is cut by channel, each person once, on the channel a send
+would reach them by (contracts `reachedOn` on each person's row, counted by `reachCountsOf`), What came back says what
+each channel sent where more than one did (0030), and a run's row in Sent says its split. No migration: every fact was
+already on the wire.
+
 ### 14.4 Reach out — cold email, built (nothing sends until a reach-out exists and its secrets are set)
 
 Reach out is cold email to the businesses a workspace's searches found, from its own domains

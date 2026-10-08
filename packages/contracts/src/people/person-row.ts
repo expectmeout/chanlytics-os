@@ -224,6 +224,8 @@ export interface PersonRowVM {
   canReceive: PersonReach["canReceive"];
   /** Why they cannot, where they cannot (the strictest refusal reachFor gave, or no channel to send it on); null where they can. */
   whyNot: PersonReach["whyNot"];
+  /** The channel a message about their visit would reach them on now (reach-any.ts): Campaigns' home counts each person once by it. */
+  reachedOn: PersonReach["reachedOn"];
   /** Asked to stop, or on the do-not-contact list (consent.ts isOptedOutContact). */
   stopped: boolean;
   /** Their next step's day has come (steps.ts stepIsDue). */
@@ -348,7 +350,7 @@ function rowReachOf(
   r: PersonRowDto,
   consent: PersonConsent,
   ready: ChannelsReady | null,
-): Pick<PersonRowVM, "lastChannel" | "emailSuppressed" | "saidYes" | "canReceive" | "whyNot"> {
+): Pick<PersonRowVM, "lastChannel" | "emailSuppressed" | "saidYes" | "canReceive" | "whyNot" | "reachedOn"> {
   const facts = { lastChannel: lastChannelOf(r.last_inbound_channel), emailSuppressed: isEmailStopped(r) };
   return { ...facts, ...personReachOf({ consent, phone: r.phone_e164, email: r.email ?? null, ...facts }, ready) };
 }

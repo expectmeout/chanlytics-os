@@ -29,7 +29,7 @@ import {
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { parseChannels } from "./message-channels";
-import { templateValues } from "./template-values";
+import { readCampaignMessage, templateValues } from "./template-values";
 import type { TemplateValuesPorts } from "./ports";
 
 /** Everything a playbook names, checked. */
@@ -152,6 +152,44 @@ function refuseMessageNoTickHolds(message: CampaignMessage, channels: readonly C
 }
 
 /**
+ * Which of WhatsApp, text and email a playbook may go by, judged the one way a save and a change of its channels alone
+ * both ask it. A tick its purpose never carries (texts carry no offers) is refused here, not at send. One the workspace
+ * is not ready on now is not (offers by email before the campaigns domain is set up, among them): a run holds the people
+ * it cannot reach there until it can, and never fails the playbook for it. `kept` is what it already ticks, which a
+ * save that names none keeps.
+ */
+function channelsItMayGoBy(
+  asked: unknown,
+  kept: readonly string[] | null,
+  cls: string | null,
+  message: CampaignMessage,
+): ConsentChannel[] {
+  const channels = parseChannels(asked, kept);
+  const purpose = enrolPurpose(cls, message);
+  const never = channels.map((c) => channelNeverCarries(c, purpose)).find((words) => words !== null);
+  if (never) throw new AppError("validation", never);
+  refuseMessageNoTickHolds(message, channels);
+  return channels;
+}
+
+/**
+ * A playbook's channels alone, changed (the review of 8 October 2026): what the Goes by row of its drawer and Ask's card
+ * ask for. They are judged against the playbook as it stands, its own class and its own message read from its row, the
+ * way a save judges them (channelsItMayGoBy), and nothing else of it is taken from the caller, so nothing else can be
+ * written back. A whole playbook re-sent to change one tick wrote a caller's copy of every other field over whatever
+ * had been edited since, and re-derived its class. `asked` must be a list: this door exists to name them.
+ */
+export async function checkPlaybookChannels(
+  ports: Pick<TemplateValuesPorts, "message">,
+  row: { trigger: string; policy_class: string | null; template_id: string | null; channels: string[] | null },
+  asked: unknown,
+): Promise<ConsentChannel[]> {
+  const message = await readCampaignMessage(ports, row.template_id ?? "");
+  const cls = row.policy_class ?? triggerOf(row.trigger)?.cls ?? null;
+  return channelsItMayGoBy(Array.isArray(asked) ? asked : [], row.channels, cls, message);
+}
+
+/**
  * Everything a playbook names, checked the way a broadcast is: the trigger,
  * then the message and its values through the one judgement, then the
  * whole numbers. A playbook can never name a message a broadcast could not
@@ -186,14 +224,7 @@ export async function checkPlaybook(
     proposal: trig.kind === "deal",
   });
   refuseMessageThatDisagrees(cls, message.category);
-  // Which of WhatsApp, text and email it may go by: a tick this purpose never carries (texts carry no offers) is refused
-  // here, not at send. One the workspace is not ready on now is not (offers by email before the campaigns domain is set
-  // up, among them): a run holds the people it cannot reach there until it can, and never fails the playbook for it.
-  const channels = parseChannels(body?.channels, existing?.channels ?? null);
-  const purpose = enrolPurpose(cls, message);
-  const never = channels.map((c) => channelNeverCarries(c, purpose)).find((words) => words !== null);
-  if (never) throw new AppError("validation", never);
-  refuseMessageNoTickHolds(message, channels);
+  const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
   // A follow-up carries the proposal it follows (0006): with no slot filled by its link it is a bare "just checking
   // in", which is a person's to write.
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
