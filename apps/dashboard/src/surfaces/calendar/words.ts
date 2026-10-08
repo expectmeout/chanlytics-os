@@ -5,8 +5,19 @@
  */
 import { DAY_MS, MIN_MS, type CalendarView } from "@chanlytics/contracts";
 
-/** How tall an hour is on the board, in px. */
-export const CR_HOUR_PX = 64;
+/**
+ * The least an hour may be on the board, in px. A desk draws 64 (calendar.css `--cal-hour`); a phone shares the room the
+ * page leaves among the day's hours (blocks.tsx CrBoard), and under this a half-hour block (22px at the least) would cover
+ * more than a sliver of the one after it. Nine hours fit a 375px phone at it; a longer day scrolls inside its pane.
+ */
+const CR_HOUR_MIN_PX = 40;
+
+/**
+ * The hour's height that fits `hours` of the day in `room` px of board, never under the floor: a phone's board holds
+ * still where the day fits, and scrolls inside its pane where it cannot. Whole pixels, so the hour lines stay crisp.
+ */
+export const fitHourPx = (room: number, hours: number): number =>
+  Math.max(CR_HOUR_MIN_PX, Math.floor(Math.max(0, room) / Math.max(1, hours)));
 
 export const CR_VIEWS: ReadonlyArray<readonly [CalendarView, string]> = [
   ["week", "Week"],

@@ -357,22 +357,12 @@
   .cal-month-taken, .cal-month-open, .cal-month-closed, .cal-month-none { font-size: 9.5px; }
   .cal-month-allday { display: none; }
   .cal-agenda-day { padding: 10px 12px; }
-  /* The agenda's rows are the shared agenda row (components.css .ag-*), which is one column of time and one
-     of words at every width; these squeezed a three-column row the Calendar no longer draws. */
-  .cal-grid { grid-template-columns: 44px repeat(7, minmax(96px, 1fr)); min-width: 716px; }
-  .cal-grid.cal-grid-day { grid-template-columns: 44px minmax(0, 1fr); min-width: 0; }
-  .cal-corner, .cal-gutter { position: sticky; left: 0; z-index: 4; background: var(--bg); }
-  /* A week scrolled sideways settles on a day's edge rather than across two (C4). */
-  .cal-scroll { scroll-snap-type: x proximity; scroll-padding-left: 44px; }
-  .cal-dayhead, .cal-col { scroll-snap-align: start; }
-  /* On a phone the whole Calendar scrolls as one page: the agenda and the month at their own height, a week in a box
-     three quarters of the screen tall with its day heads at the top. */
-  .cal-body { flex: none; min-height: 0; overflow: visible; }
-  /* The bar stands over the days, as every page's strip does: only the days scroll and pull, and scrolling them never
-     takes the range, the steps and the views off the screen (25 Sep). */
+  /* The Calendar on a phone holds still under its bar (8 Oct 2026): the pane is the column the page leaves, and the
+     board takes the room in it (calendar.css, the phone block: the week's seven days across the pane, the hours
+     sharing the height). The bar stands over it, as every page's strip does, and a scroll inside it (the agenda's list,
+     a day too tall for its floor) never takes the range, the steps and the views off the screen (25 Sep). */
   .calendar { overflow-y: hidden; }
   .cal-pane { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
-  .cal-scroll { max-height: 75vh; max-height: 75dvh; }
   /* The head on a phone: the range and the steps on one row, the views on the next, the counts as one muted line under
      them, and then the first day. The steps keep the right edge, so a thumb finds them wherever the range's words
      end. The service picker is a desk's tool (open times long enough for a service); a phone's glance is the day. A
@@ -387,15 +377,7 @@
   .cal-views { flex: none; }
   .cal-views > * { flex: none; }
   .cal-tools .cal-service { display: none; }
-  /* A notice over the board on a phone: its words take the width and its buttons go under them, where they read as
-     a column a few words wide beside the buttons. */
-  .cal-feed-card { flex-wrap: wrap; align-items: flex-start; row-gap: 10px; }
-  .cal-feed-card > .icon { margin-top: 3px; }
-  .cal-feed-card > span { flex: 1 1 calc(100% - 24px); }
-  .cal-feed-card > .btn:first-of-type { margin-left: 24px; }
-  /* The foot on a phone: the legend takes the width, and the toggle its own line under it. */
-  .cal-legend { flex-basis: 100%; }
-  .cal-about-toggle { margin-left: -8px; }
+  /* The notices over the board and the foot on a phone are calendar.css's phone block (8 Oct 2026): one line each. */
 
   /* A person's page shows the person first. The way back is the top bar's, as a phone's own back is: its crumb says
      ‹ People. The arrow stood in a column of its own beside the avatar, so every line under the name began 102px in
@@ -637,11 +619,6 @@
   .bc-page > .cm-list::after {
     content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none;
   }
-}
-/* The Calendar's days are a scroller only on a phone (above, .cal-pane); wider, the box is display: contents. */
-@media (max-width: 720px) and (pointer: coarse) {
-  .cal-pane { position: relative; }
-  .cal-pane::after { content: ""; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none; }
 }
 
 /* ---- A thumb's press area where the look is smaller (25 Sep) --------------------------------------------------------
