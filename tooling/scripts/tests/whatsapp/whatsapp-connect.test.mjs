@@ -151,8 +151,7 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   assert.ok(src.includes('api()("POST channels/whatsapp/connect"'));
   assert.ok(!src.includes("access_token"), "no credential passes through the browser");
   // The pane imports the flow's object (`waConnect`); nothing publishes it on the window, so the app installs nothing.
-  assert.ok(src.includes("export const waConnect = { config: signupConfig, start: () => startSignup() };"));
-  assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "start"]);
+  assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "prepare", "start"]);
   assert.ok(!src.includes("installWhatsAppConnect"));
   assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installWhatsAppConnect"));
 });
@@ -437,4 +436,201 @@ test("a sign-up leaves a mark in the tab's sessionStorage while Meta's window is
     if (realWindow === undefined) delete globalThis.window;
     else globalThis.window = realWindow;
   }
+});
+
+/** Meta's door as a deployment answers it where a number can be connected (made-up ids). */
+const DOOR = {
+  app_id: "100000000000001",
+  config_id: "200000000000002",
+  graph_version: "v25.0",
+  ready: true,
+  reason: null,
+  canConnect: true,
+};
+const SIGNUP_MARK = "chanlytics.whatsapp.signup";
+const turn = () => new Promise((resolve) => setImmediate(resolve));
+/** What a sign-up came to, or "still waiting" where it has not answered in half a second: one that hangs is a failure, not a test that never ends. */
+const within = (running) =>
+  Promise.race([running, new Promise((resolve) => setTimeout(() => resolve("still waiting"), 500))]);
+
+/**
+ * A browser as the sign-up meets it: Meta's door answered over fetch, Meta's SDK arriving a turn after its script tag is added (or
+ * refused: `sdk` false), and the window the SDK asks the browser for when a sign-up begins, which the browser gives or refuses
+ * (`opens`). `standalone` is an iPhone's word for a page opened from the home screen.
+ */
+function browser({ opens = true, sdk = true, standalone = false } = {}) {
+  const b = {
+    opens,
+    sdk,
+    fetched: [],
+    scripts: [],
+    asked: [],
+    inits: [],
+    logins: [],
+    listeners: new Set(),
+    held: new Map(),
+  };
+  const fb = {
+    init: (o) => b.inits.push(o),
+    login: (cb, opts) => {
+      b.logins.push({ cb, opts });
+      b.win.open("https://www.facebook.com/dialog/oauth", "_blank");
+    },
+  };
+  b.win = {
+    navigator: { standalone },
+    location: { pathname: "/w/harbor", search: "", hash: "" },
+    sessionStorage: {
+      getItem: (k) => b.held.get(k) ?? null,
+      setItem: (k, v) => void b.held.set(k, String(v)),
+      removeItem: (k) => void b.held.delete(k),
+    },
+    fetch: async (url) => {
+      b.fetched.push(String(url));
+      return new Response(JSON.stringify({ ok: true, data: DOOR }), { status: 200 });
+    },
+    document: {
+      createElement: () => ({}),
+      head: {
+        appendChild: (script) => {
+          b.scripts.push(script);
+          setImmediate(() => {
+            if (!b.sdk) return script.onerror();
+            b.win.FB = fb;
+            b.win.fbAsyncInit();
+          });
+        },
+      },
+    },
+    open: (...args) => {
+      b.asked.push(args);
+      return b.opens ? { closed: false } : null;
+    },
+    addEventListener: (_type, fn) => b.listeners.add(fn),
+    removeEventListener: (_type, fn) => b.listeners.delete(fn),
+    setTimeout: (fn) => setTimeout(fn, 0),
+  };
+  return b;
+}
+
+/** The flow, with `b` as the tab it runs in. */
+async function inBrowser(b, run) {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
+  );
+  const realWindow = globalThis.window;
+  globalThis.window = b.win;
+  try {
+    await run(mod);
+  } finally {
+    if (realWindow === undefined) delete globalThis.window;
+    else globalThis.window = realWindow;
+  }
+}
+
+/** Meta's window closing with nothing done: the SDK's callback, with no code. */
+const closeUnfinished = (b) => b.logins[b.logins.length - 1].cb({ authResponse: null });
+
+test("Connections fetches Meta's SDK ahead, so a press asks for Meta's window inside the press, where a phone allows one; a press that comes first fetches what it needs and still asks", async () => {
+  // 7 October: on a phone, Connect WhatsApp did nothing. The press asked Meta's door, then fetched Meta's SDK, and only then asked
+  // the browser for Meta's window: two waits after the press, and a phone's browser gives a page a window only inside one.
+  const ahead = browser();
+  await inBrowser(ahead, async (mod) => {
+    mod.waConnect.prepare(DOOR);
+    await turn();
+    await turn();
+    assert.equal(ahead.scripts.length, 1, "Meta's SDK is fetched as Connections opens on a door that is ready");
+    assert.deepEqual(ahead.inits, [{ appId: DOOR.app_id, version: "v25.0", xfbml: false, cookie: false }]);
+    assert.deepEqual(ahead.logins, [], "and nothing is asked of Meta until the press");
+    assert.deepEqual(ahead.fetched, [], "the door's answer is the one Connections already holds");
+
+    const running = mod.waConnect.start();
+    // Nothing is awaited between the press and these lines: what they see happened inside the press.
+    assert.equal(ahead.logins.length, 1, "the sign-up is asked for inside the press");
+    assert.equal(ahead.asked.length, 1, "and so is Meta's window");
+    assert.deepEqual(ahead.fetched, [], "with nothing fetched on the way");
+    assert.equal(ahead.logins[0].opts.config_id, DOOR.config_id);
+    assert.equal(ahead.held.has(SIGNUP_MARK), true, "the mark is made as before");
+    closeUnfinished(ahead);
+    assert.equal((await within(running)).reason, "cancelled");
+    assert.equal(ahead.listeners.size, 0);
+    assert.equal(ahead.held.has(SIGNUP_MARK), false);
+  });
+
+  const first = browser();
+  await inBrowser(first, async (mod) => {
+    const running = mod.waConnect.start();
+    assert.deepEqual(first.logins, [], "nothing in hand: the door and the SDK are fetched first");
+    for (let i = 0; i < 6 && !first.logins.length; i++) await turn();
+    assert.equal(first.fetched.length, 1);
+    assert.equal(first.scripts.length, 1);
+    assert.equal(first.logins.length, 1, "and the window is asked for once they are in");
+    closeUnfinished(first);
+    assert.equal((await within(running)).reason, "cancelled");
+  });
+});
+
+test("a window the browser refuses is said at once and the sign-up ends, so the row is not left waiting on a window that never opened; the next press has everything in hand", async () => {
+  // Meta's SDK says nothing when the browser refuses its window: the sign-up used to wait for an answer that could not come, the
+  // button stayed dimmed, and the page said nothing until it was loaded again.
+  const b = browser({ opens: false });
+  await inBrowser(b, async (mod) => {
+    const refused = await within(mod.waConnect.start());
+    assert.notEqual(refused, "still waiting", "a refused window ends the sign-up");
+    assert.deepEqual([refused.ok, refused.reason], [false, "blocked"]);
+    assert.equal(
+      refused.message,
+      "Meta's window was blocked. Press Connect WhatsApp again; if it still does not open, allow pop-ups for Chanlytics.",
+    );
+    assert.equal(b.asked.length, 1);
+    assert.equal(b.listeners.size, 0, "nobody is left listening for Meta's window");
+    assert.equal(b.held.has(SIGNUP_MARK), false, "and no mark says a sign-up is open");
+
+    // The first press fetched the door and the SDK: the second asks for the window inside the press, where the browser gives it.
+    b.opens = true;
+    const running = mod.waConnect.start();
+    assert.equal(b.logins.length, 2, "asked inside the second press");
+    assert.equal(b.fetched.length, 1, "with nothing fetched again");
+    closeUnfinished(b);
+    assert.equal((await within(running)).reason, "cancelled");
+  });
+});
+
+test("an app on an iPhone's home screen is sent to the browser: the window it would open could never answer this page, so nothing is asked of Meta there", async () => {
+  // A page opened from the home screen opens another site in a sheet of its own that cannot reach the page behind it: Meta would
+  // finish the sign-up there and the number would never arrive (a sign-up that does not come back, as on 6 October).
+  const b = browser({ standalone: true });
+  await inBrowser(b, async (mod) => {
+    mod.waConnect.prepare(DOOR);
+    await turn();
+    assert.deepEqual(b.scripts, [], "Meta's SDK is not fetched where its window cannot be used");
+    const said = await within(mod.waConnect.start());
+    assert.deepEqual([said.ok, said.reason], [false, "home_screen"]);
+    assert.equal(
+      said.message,
+      "Open Chanlytics in Safari to connect WhatsApp. Meta's sign-up needs a browser tab, and an app on the home screen has none.",
+    );
+    assert.deepEqual([b.logins, b.asked, b.fetched, b.scripts], [[], [], [], []], "nothing was asked of anyone");
+    assert.equal(b.held.has(SIGNUP_MARK), false);
+  });
+});
+
+test("Meta's SDK that could not be fetched is said, and fetched again by the next press", async () => {
+  const b = browser({ sdk: false });
+  await inBrowser(b, async (mod) => {
+    mod.waConnect.prepare(DOOR);
+    await turn();
+    await turn();
+    assert.equal(b.scripts.length, 1);
+    const failed = await within(mod.waConnect.start());
+    assert.deepEqual([failed.ok, failed.reason], [false, "sdk"]);
+    assert.equal(b.scripts.length, 2, "the press fetched it again rather than repeat the old failure");
+    b.sdk = true;
+    const running = mod.waConnect.start();
+    for (let i = 0; i < 6 && !b.logins.length; i++) await turn();
+    assert.equal(b.scripts.length, 3);
+    assert.equal(b.logins.length, 1, "once Meta's SDK arrives the sign-up goes on");
+    closeUnfinished(b);
+    assert.equal((await within(running)).reason, "cancelled");
+  });
 });

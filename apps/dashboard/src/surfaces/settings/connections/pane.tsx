@@ -26,12 +26,12 @@ import type { SetupSurface } from "../../setup/surface";
 import { SendingDomains } from "./domains-block";
 import { EmailSetupForm } from "./email-setup";
 import { GoogleChoose } from "./google-choose";
-import { useLineCodes, useStandingCheck } from "./live";
+import { useLineCodes, useSignupAhead, useStandingCheck } from "./live";
 import { BusinessRecordForm } from "./record-form";
 import { ConnectionRow, type Arm } from "./row";
-import { signupLeftOpenAt, waConnect } from "./whatsapp";
+import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 
-type WaConfig = { ready: boolean; reason: string | null } | null | undefined;
+type WaConfig = SignupDoor | null | undefined;
 
 /** What the browser came back from Google with, said once. */
 function googleNote(): string | null {
@@ -63,21 +63,29 @@ function useWhatsAppConfig(): WaConfig {
   return waCfg;
 }
 
-/** What the open page asked beside the reads it holds: Meta's door, the codes sent to the line, and a sign-up an earlier page left behind. */
+/**
+ * What the open page asked beside the reads it holds: Meta's door, the codes sent to the line, a sign-up an earlier page left
+ * behind, and what the last sign-up this page ran came to when it did not connect and was not the owner's own closing of it.
+ */
 interface Asked {
   whatsapp: WaConfig;
   codes: LineCodeDto[];
   signupLeftOpenAt: string | null;
+  signupSaid: string | null;
 }
 
-/** The rows, as contracts compute them from the reads the page already holds. */
+/**
+ * The rows, as contracts compute them from the reads the page already holds. A sign-up that could not go on is said first under
+ * the row that offers it, in full and until Connect is pressed again: the toast that says it is one line on a phone, and gone in
+ * seconds.
+ */
 function rowsOf(
   channels: Parameters<typeof connectionRows>[0]["channels"] | undefined,
   asked: Asked,
   S: SetupSurface | null | undefined,
   G: GoogleSurface | undefined,
 ): Row[] {
-  return connectionRows(
+  const rows = connectionRows(
     {
       channels: channels || [],
       whatsapp: asked.whatsapp,
@@ -91,6 +99,9 @@ function rowsOf(
     },
     Date.now(),
   );
+  const said = asked.signupSaid;
+  if (!said) return rows;
+  return rows.map((r) => (r.verb?.to === "verb:whatsapp-connect" ? { ...r, notes: [{ text: said }, ...r.notes] } : r));
 }
 
 /** What a row's own verb does: Meta's sign-up, Google's consent, a read of Google, an ask, a scroll, the email form. */
@@ -103,6 +114,7 @@ async function runVerb(
     toggleEmail: () => void;
     setSignup: (open: boolean) => void;
     forgetLeftOpen: () => void;
+    setSignupSaid: (said: string | null) => void;
   },
 ): Promise<void> {
   const verb = r.verb;
@@ -113,10 +125,12 @@ async function runVerb(
       // Meta's window is open from here to the end of the sign-up: the page asks for the codes sent to the line while it is, and a
       // sign-up an earlier page left behind is no longer what this row has to say.
       k.forgetLeftOpen();
+      k.setSignupSaid(null);
       k.setSignup(true);
       const res = await waConnect.start();
       k.setSignup(false);
       k.setBusy(false);
+      if (!res.ok && res.reason !== "cancelled") k.setSignupSaid(res.message);
       k.flash({
         tone: res.ok ? "ok" : "danger",
         msg: res.ok ? (
@@ -231,6 +245,7 @@ export const PaneIntegrationsReal = () => {
   // never finished, read once as this page opens: nothing a later press of Connect should bring back.
   const [signup, setSignup] = useState(false);
   const [leftOpenAt, setLeftOpenAt] = useState<string | null>(() => signupLeftOpenAt());
+  const [signupSaid, setSignupSaid] = useState<string | null>(null);
   const [toastNode, flash] = useLegacyToast();
   const channels = read ? read.channels : undefined;
   // The workspace's own line: what a registration is filed for, and where a code Meta texts arrives.
@@ -239,6 +254,7 @@ export const PaneIntegrationsReal = () => {
   // while Meta's window is open), and what Meta holds when the kept answer is missing or has gone stale.
   const codes = useLineCodes(!!ownLine, signup);
   useStandingCheck(channels);
+  useSignupAhead(waCfg, channels);
 
   if (channels === null) {
     return (
@@ -252,7 +268,7 @@ export const PaneIntegrationsReal = () => {
     );
   }
 
-  const rows = rowsOf(channels, { whatsapp: waCfg, codes, signupLeftOpenAt: leftOpenAt }, S, G);
+  const rows = rowsOf(channels, { whatsapp: waCfg, codes, signupLeftOpenAt: leftOpenAt, signupSaid }, S, G);
   const run = (r: Row) => {
     if (busy) return;
     void runVerb(r, {
@@ -262,6 +278,7 @@ export const PaneIntegrationsReal = () => {
       toggleEmail: () => setEmailOpen((o) => !o),
       setSignup,
       forgetLeftOpen: () => setLeftOpenAt(null),
+      setSignupSaid,
     });
   };
   const confirm = async (what: "remove" | "disconnect") => {
@@ -289,7 +306,15 @@ export const PaneIntegrationsReal = () => {
   const email: SetupDto["email"] | null = S ? (S.dto.email ?? null) : null;
   const row = (r: Row) => (
     <Fragment key={r.kind}>
-      <ConnectionRow r={r} run={run} busy={busy} arm={arm} setArm={setArm} confirm={(w) => void confirm(w)} />
+      <ConnectionRow
+        r={r}
+        run={run}
+        busy={busy}
+        signup={signup}
+        arm={arm}
+        setArm={setArm}
+        confirm={(w) => void confirm(w)}
+      />
       {r.body === "google_choose" && (
         <GoogleChoose
           busy={busy}

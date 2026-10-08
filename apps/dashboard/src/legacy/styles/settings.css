@@ -460,6 +460,15 @@
   .set-conn > .set-int-row[data-state="later"] .set-team-mail { display: none; }
   .set-conn > .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
   .set-conn > .set-int-row[data-offers="primary"] > .pill { display: none; }
+  /* A row that wants something says it across the row: its button stands beside its name, in the state's place, and its
+     sentence and notes run under both (7 Oct: beside the button they were a column two words wide, and the WhatsApp row
+     stood 700px tall with its button halfway down it). */
+  .set-conn > .set-int-row[data-offers="primary"] { row-gap: 3px; }
+  .set-conn > .set-int-row[data-offers="primary"] > .set-team-body { display: contents; }
+  .set-conn > .set-int-row[data-offers="primary"] > :is(.set-int-tile, .set-int-actions) { grid-row: 1; align-self: center; }
+  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
+  .set-conn > .set-int-row[data-offers="primary"] .set-team-name { grid-column: 2; grid-row: 1; white-space: normal; }
+  .set-conn > .set-int-row[data-offers="primary"] :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
   .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); }
   .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
   .set-conn > .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }

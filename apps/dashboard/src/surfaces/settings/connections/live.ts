@@ -15,7 +15,7 @@ import {
   type LineCodeDto,
 } from "@chanlytics/contracts";
 import { canDo } from "../../legacy-verbs";
-import { lineCodes, waStanding } from "./whatsapp";
+import { lineCodes, waConnect, waStanding, type SignupDoor } from "./whatsapp";
 
 /** One read of the codes, painted if the page that asked still wants it; a read that fails changes nothing: the page keeps what it has. */
 function askCodes(paint: (codes: LineCodeDto[]) => void): void {
@@ -62,4 +62,19 @@ export function useStandingCheck(channels: ChannelVM[] | null | undefined): void
     asked.current = true;
     waStanding.check().catch(() => {});
   }, [due]);
+}
+
+/**
+ * Meta's SDK, fetched once the WhatsApp row offers Connect to a member who may press it (the server's `canConnect`), so the
+ * press itself asks for Meta's window: a phone's browser gives a page one only inside a press. A number already connected, a door
+ * that is not ready and a member who may not connect fetch nothing of Meta's.
+ */
+export function useSignupAhead(
+  door: Partial<SignupDoor> | null | undefined,
+  channels: ChannelVM[] | null | undefined,
+): void {
+  const offered = !!door && !!door.ready && door.canConnect === true && !!channels && !channelFor(channels, "whatsapp");
+  useEffect(() => {
+    if (offered) waConnect.prepare(door);
+  }, [offered, door]);
 }
