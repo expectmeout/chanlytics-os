@@ -66,7 +66,7 @@ const useNotices = (): Notices | null => {
  * read from. A calendar with no tool behind it is named by that place alone. Only the host of a link is ever stated:
  * the rest of a private address is a secret (open-calendar.tsx btoFeedHost).
  */
-export const BtoBooksWith = ({ withWhat, feed }: { withWhat: string; feed: string }) => {
+const BtoBooksWith = ({ withWhat, feed }: { withWhat: string; feed: string }) => {
   const name = booksWithName(withWhat);
   const host = feed ? btoFeedHost(feed) : "";
   const words =
@@ -86,7 +86,7 @@ export const BtoBooksWith = ({ withWhat, feed }: { withWhat: string; feed: strin
  * word (Working, Needs you, Waiting) in its accessible name and under a pointer, as the calendar link's mark does;
  * the colour rides with that word, never alone. Nothing before a tool is named or an email arrived.
  */
-export const BtoBookingsRead = () => {
+const BtoBookingsRead = () => {
   const n = useNotices();
   if (!n || !n.row) return null;
   return (
@@ -397,13 +397,7 @@ const BtoEmailsPart = ({ tool, name }: { tool: string; name: string }) => {
  * platform the product knows, the tool is offered by name (contracts bookingToolOfLink): the owner said where
  * customers book, and is not asked which tool that is.
  */
-export const BtoSourceBody = ({
-  f,
-  stored,
-  offers,
-  bookingLink,
-  name,
-}: PartProps & { bookingLink: string; name: string }) => {
+const BtoSourceBody = ({ f, stored, offers, bookingLink, name }: PartProps & { bookingLink: string; name: string }) => {
   const d = f.draft;
   const guess = d.with ? null : bookingToolOfLink(bookingLink);
   const pick = (v: string) => f.update((x) => ({ ...x, with: v }), ["with"]);
