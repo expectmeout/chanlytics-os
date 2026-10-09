@@ -259,7 +259,7 @@ lint warnings                       352   in 151 files, 59 of them exhaustive-de
 workspace route JS, KB gzipped      749   the shell included
 workspace route CSS, KB gzipped     148
 workspace pages' own JS, KB        1297   gzipped, beyond the route, summed over 14 pages
-trees the lint's limits hold         51   16 of them with max-params waiting
+trees the lint's limits hold         52   16 of them with max-params waiting
 ```
 
 <!-- measured:end -->

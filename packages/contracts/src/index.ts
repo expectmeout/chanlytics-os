@@ -11,6 +11,7 @@ export * from "./conversations";
 export * from "./deals";
 export * from "./email";
 export * from "./google";
+export * from "./journey";
 export * from "./leads";
 export * from "./lines";
 export * from "./mobile";

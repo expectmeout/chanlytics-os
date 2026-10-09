@@ -22976,6 +22976,156 @@ function sendingDomainsFootWords(count2, max) {
   return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
 }
 
+// src/journey/appointment-word.ts
+var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
+function isAppointmentWord(value) {
+  return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
+}
+function appointmentWordOf(o) {
+  if (isAppointmentWord(o.stored)) return o.stored;
+  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
+}
+var FORMS = {
+  appointment: {
+    a: "an appointment",
+    has: "has an appointment",
+    have: "have an appointment",
+    had: "had an appointment"
+  },
+  visit: { a: "a visit", has: "visits", have: "visit", had: "visited" },
+  // trade-word: the word's own forms, said once
+  meeting: { a: "a meeting", has: "has a meeting", have: "have a meeting", had: "had a meeting" },
+  session: { a: "a session", has: "has a session", have: "have a session", had: "had a session" },
+  lesson: { a: "a lesson", has: "has a lesson", have: "have a lesson", had: "had a lesson" }
+};
+function appointmentWords(word) {
+  const f = FORMS[word];
+  const Title = capitalize(word);
+  const many = `${word}s`;
+  const people = (n) => plural(n, "person", "people");
+  return {
+    word,
+    one: word,
+    many,
+    a: f.a,
+    Title,
+    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
+    after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
+    lapsedHint: `No ${word} in 45 days, and nothing booked`,
+    tomorrowWho: `everyone with ${f.a} tomorrow`,
+    yesterdayWho: `everyone who ${f.had} yesterday`,
+    withTomorrow: `with ${f.a} tomorrow`,
+    whoYesterday: `who ${f.had} yesterday`,
+    eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
+    eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
+    offTomorrow: (n) => `Off \xB7 ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
+    offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
+    startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
+    byMany: `by ${many}`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`
+  };
+}
+
+// src/journey/journey.ts
+var JOURNEY_STAGE_IDS = ["first_contact", "before", "after", "proposal", "quiet"];
+var HOLDS = {
+  first_contact: ["new_week", "phoned_only"],
+  before: ["visit_tomorrow"],
+  after: ["visited"],
+  proposal: ["proposal_waiting"],
+  quiet: ["quiet_30", "lapsed"]
+};
+function journeyStageOf(trigger) {
+  return JOURNEY_STAGE_IDS.find((id) => HOLDS[id].includes(trigger)) ?? null;
+}
+function journeyOf(s) {
+  const W = appointmentWords(s.word);
+  const unmet = s.calendarOn ? null : "calendar";
+  const winBack = s.calendarOn ? "lapsed" : "quiet_30";
+  const every = { day: "Every", at: "day" };
+  const stages = [
+    {
+      id: "first_contact",
+      kind: "receptionist",
+      caps: "First contact",
+      name: "Your receptionist",
+      glyph: "chat",
+      unit: "this week",
+      trigger: null,
+      holds: HOLDS.first_contact,
+      poolKey: "new_week",
+      unmet: null,
+      one: false,
+      off: null
+    },
+    {
+      id: "before",
+      kind: "moment",
+      caps: W.before.caps,
+      name: W.before.name,
+      glyph: "bell",
+      unit: "people",
+      trigger: "visit_tomorrow",
+      holds: HOLDS.before,
+      poolKey: "visit_tomorrow",
+      unmet,
+      one: false,
+      off: { hint: "tomorrow", when: every, why: W.offTomorrow }
+    },
+    {
+      id: "after",
+      kind: "moment",
+      caps: W.after.caps,
+      name: "How did it go",
+      glyph: "check",
+      unit: "yesterday",
+      trigger: "visited",
+      holds: HOLDS.after,
+      poolKey: "visited",
+      unmet,
+      one: false,
+      off: { hint: "yesterday", when: { day: "The day", at: "after" }, why: W.offYesterday }
+    },
+    {
+      id: "proposal",
+      kind: "moment",
+      caps: "Proposal waiting",
+      name: "Proposal follow-up",
+      glyph: "deal",
+      unit: "waiting",
+      trigger: "proposal_waiting",
+      holds: HOLDS.proposal,
+      poolKey: "proposal_waiting",
+      unmet: null,
+      one: true,
+      off: {
+        hint: "waiting",
+        when: { day: "When one", at: "waits" },
+        why: (n) => `Off \xB7 ${plural(n, "proposal")} waiting`
+      }
+    },
+    {
+      id: "quiet",
+      kind: "moment",
+      caps: "Quiet or lapsed",
+      name: "Win-back",
+      glyph: "refresh",
+      unit: "people",
+      trigger: winBack,
+      holds: HOLDS.quiet,
+      poolKey: winBack,
+      unmet: null,
+      one: false,
+      off: {
+        hint: "quiet",
+        when: every,
+        why: (n) => `Off \xB7 ${plural(n, "person", "people")} ${n === 1 ? "has" : "have"} gone quiet`
+      }
+    }
+  ];
+  return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
+}
+
 // src/leads/search/plan-schema.ts
 import { z as z10 } from "zod";
 var words2 = (min, max) => z10.string().transform((s) => stripUnsafe(s).trim()).pipe(z10.string().min(min).max(max));
@@ -37775,6 +37925,7 @@ export {
   ANGLE_WORDS_MAX,
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
+  APPOINTMENT_WORDS,
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK_ANSWER_CAPS,
@@ -38050,6 +38201,7 @@ export {
   InviteCodeSchema,
   JOB_KINDS,
   JOB_STATES,
+  JOURNEY_STAGE_IDS,
   JUDGE_FACT_KEYS,
   JUDGE_OUTPUT_SCHEMA,
   KEEP_ROW,
@@ -38674,6 +38826,8 @@ export {
   appointmentKeyOf,
   appointmentKeysOf,
   appointmentTitle,
+  appointmentWordOf,
+  appointmentWords,
   approvalWordsOf,
   approvedWordsFor,
   areaCodeOf,
@@ -39103,6 +39257,7 @@ export {
   isActivityFamily,
   isActivityMoney,
   isActivityNoise,
+  isAppointmentWord,
   isAutomatedSend,
   isBaselinePrompt,
   isBookingTool,
@@ -39176,6 +39331,8 @@ export {
   itemOfAppointment,
   jittered,
   jobNewsWords,
+  journeyOf,
+  journeyStageOf,
   judgeAsked,
   judgeDomain,
   judgeOpId,
