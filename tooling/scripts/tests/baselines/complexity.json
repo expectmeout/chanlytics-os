@@ -190,9 +190,9 @@
     "depth": 3
   },
   "apps/edge/lib/reach-out/clock.ts::reachOutClock#1": {
-    "lines": 152,
-    "branches": 56,
-    "depth": 5
+    "lines": 130,
+    "branches": 48,
+    "depth": 4
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
     "lines": 122,

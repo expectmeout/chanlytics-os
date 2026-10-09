@@ -300,6 +300,85 @@ test(
   },
 );
 
+/** A claimed send's email, written queued, that its job has claimed (sending_at, 00352): on its way to the lead now. */
+async function onItsWay(sendId) {
+  const mid = await sendMessageId(sendId, 0);
+  ok(
+    await db.from("messages").insert({
+      id: mid,
+      tenant_id: A,
+      conversation_id: thread,
+      channel: "email",
+      direction: "outbound",
+      sender: "ai",
+      type: "text",
+      body: "Saw your shop on the map.",
+      status: "queued",
+      sending_at: iso(Date.now() - MIN),
+    }),
+  );
+  return mid;
+}
+/** The email's job has its answer: it left. */
+const left = async (mid) => ok(await db.from("messages").update({ status: "sent" }).eq("id", mid));
+const sendNow = async (id) => ok(await db.from("reach_out_sends").select("state, message_id").eq("id", id).single());
+
+test(
+  "a canceled run's email its job has begun to send is not withdrawn: the send goes on as its email's, and is sent",
+  { skip },
+  async () => {
+    const r = await run("sending", "2026-09-08");
+    const [id] = await planned(r, await leads(1), Date.now() - MIN);
+    ok(
+      await db
+        .from("reach_out_sends")
+        .update({ state: "claimed", claimed_at: iso(Date.now() - 11 * MIN) })
+        .eq("id", id),
+    );
+    const mid = await onItsWay(id);
+    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", r));
+    await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
+    const m = ok(await db.from("messages").select("status, error").eq("id", mid).single());
+    assert.deepEqual([m.status, m.error], ["queued", null], "not called back under the job sending it");
+    await left(mid);
+    await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
+    assert.deepEqual(await sendNow(id), { state: "sent", message_id: mid }, "the lead was written to, and says so");
+  },
+);
+
+test(
+  "a claim the close finds, its email on its way, is not skipped run_canceled: it goes on as its email's, as unstick adopts one",
+  { skip },
+  async () => {
+    const r = await run("sending", "2026-09-09");
+    // A hundred claims older than this one fill the unstick's page (STUCK_PAGE): this one is the close's to find.
+    const older = await planned(r, await leads(100), Date.now() - MIN);
+    ok(
+      await db
+        .from("reach_out_sends")
+        .update({ state: "claimed", claimed_at: iso(Date.now() - 30 * MIN) })
+        .in("id", older),
+    );
+    const [id] = await planned(r, await leads(1), Date.now() - MIN);
+    ok(
+      await db
+        .from("reach_out_sends")
+        .update({ state: "claimed", claimed_at: iso(Date.now() - 11 * MIN) })
+        .eq("id", id),
+    );
+    const mid = await onItsWay(id);
+    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", r));
+    await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
+    const m = ok(await db.from("messages").select("status, error").eq("id", mid).single());
+    assert.deepEqual([m.status, m.error], ["queued", null], "not called back under the job sending it");
+    assert.deepEqual(await sendNow(id), { state: "queued", message_id: mid }, "the send is its email's");
+    assert.deepEqual(await states(older), { skipped: 100 }, "the claims that wrote nothing are skipped, run_canceled");
+    await left(mid);
+    await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
+    assert.deepEqual(await sendNow(id), { state: "sent", message_id: mid });
+  },
+);
+
 test(
   "three hundred stale sends of one step are planned again in one tick: their leads are read a hundred at a time",
   { skip },
