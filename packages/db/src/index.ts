@@ -45,8 +45,6 @@ export {
   keepMessageCost,
   recordEchoAndPause,
   pauseConversation,
-  claimReplyTurn,
-  holdsReplyTurn,
 } from "./repositories/ingest";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
@@ -287,7 +285,7 @@ export {
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export type { JobToRequeue } from "./jobs";
-export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
+export { claimControl, releaseControl, CALL_CONTROL_S, claimReplyTurn, holdsReplyTurn } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
 export {
   templatesFor,
