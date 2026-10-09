@@ -146,19 +146,25 @@ interface LeadsLoaded {
   next: { key: string; id: string } | null;
   offered: LeadRowDto[];
   suggestions: LeadSuggestionsDto | null;
-  /** When this view was last asked for, page one and the searches: a held view read since the last change is fresh. */
+  /** When this view was last asked for, page one and the searches: a held view is fresh for a while without a change. */
   readAt: number;
+  /** How many changes Leads had had when this view was last asked for: one asked since the last change is fresh. */
+  asOfChange: number;
 }
 let leadsLoaded: LeadsLoaded | null = null;
 /**
- * When Leads last changed, as this tab knows it: Realtime on its tables or a write's re-read, both through the surface's
- * `apply`. A view held from before it is read again behind its paint; one read since paints with nothing read.
+ * How many times Leads has changed, as this tab knows it: Realtime on its tables or a write's re-read, both through the
+ * surface's `apply`. A view held from before the last one is read again behind its paint; one asked since paints with
+ * nothing read. A count, never the time of the change set against the time of the read: a read and a change inside one
+ * millisecond are equal on a clock, and the view held from before the change then passed for fresh until it was two
+ * minutes old (the suite failed for it on a fast machine, 9 Oct 2026).
  */
-let changedAt = 0;
+let leadsChangeCount = 0;
 /** How long a held view is fresh without a change: a change Realtime missed (a dropped feed) is not kept past it. */
 const LEADS_HELD_FRESH_MS = 2 * MIN_MS;
 /** Whether a held view must be read again behind its paint. */
-const staleView = (l: LeadsLoaded): boolean => l.readAt < changedAt || Date.now() - l.readAt > LEADS_HELD_FRESH_MS;
+const staleView = (l: LeadsLoaded): boolean =>
+  l.asOfChange < leadsChangeCount || Date.now() - l.readAt > LEADS_HELD_FRESH_MS;
 let view: LeadsView = DEFAULT_VIEW;
 /**
  * The views this tab has read, by their key (the workspace and the whole view), the last eight: a rail pick used to
@@ -245,6 +251,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
   const key = viewKey(v);
   // As it is asked: a change while the answer is on its way leaves the view older than the change.
   const readAt = Date.now();
+  const asOfChange = leadsChangeCount;
   const [searches, page, tz] = await Promise.all([
     leadRead<LeadSearchesAnswer>("GET lead-searches"),
     leadsPage(v),
@@ -267,6 +274,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     offered: [],
     suggestions,
     readAt,
+    asOfChange,
   };
 }
 
@@ -345,9 +353,11 @@ async function refreshView(): Promise<void> {
   if (!L) return readView(view);
   const key = L.key;
   const readAt = Date.now();
+  const asOfChange = leadsChangeCount;
   const [searches, page] = await Promise.all([leadRead<LeadSearchesAnswer>("GET lead-searches"), leadsPage(L.view)]);
   if (!leadsLoaded || leadsLoaded.key !== key) return; // the view moved while this was out
   L.readAt = readAt;
+  L.asOfChange = asOfChange;
   const fresh = new Map(page.rows.map((r) => [r.id, r]));
   const loaded = new Set(L.rows.map((r) => r.id));
   const rows = L.rows.map((r) => fresh.get(r.id) ?? r);
@@ -384,7 +394,7 @@ export const leadsOverride: SurfaceOverride = {
   apply: async () => {
     // Realtime on Leads' tables, a write's re-read, a reconnect: Leads changed, so every view held from before is read
     // again when it is shown (staleView). The view on screen is read here.
-    changedAt = Date.now();
+    leadsChangeCount += 1;
     try {
       if (!leadsLoaded) view = leadsBootView(routeOnScreen(), surfaceValue("leads"));
       await (leadsLoaded ? refreshView() : readView(view));
@@ -442,6 +452,7 @@ export async function leadsTakeOffered(): Promise<void> {
     next: fresh.next,
     offered: [],
     readAt: fresh.readAt,
+    asOfChange: fresh.asOfChange,
   });
   publishLeads();
   window.dispatchEvent(new CustomEvent("surface:leads"));
