@@ -1,8 +1,9 @@
 /**
  * What the kit's Popover takes, proved where the compiler reads it (popover.tsx): the page's control that opens it,
- * its name, what it holds, the panel's padding it takes, the side and edge of its control it hangs from, and whether it
- * opens as it is first drawn. A popover
- * with no name, a padding or a surface the panel's pop does not have, and a side it does not hang from stop compiling.
+ * its name, what it holds, the panel's padding it takes, the side and edge of its control it hangs from, whether it
+ * opens as it is first drawn, and, where a page holds it, whether it is open and what hears it change. A popover with
+ * no name, held open by a page that does not hear it close, a padding or a surface the panel's pop does not have, and a
+ * side it does not hang from stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -35,6 +36,7 @@ function _popoverTakes(trigger: ReactElement, div: RefObject<HTMLDivElement | nu
     children: "Three services",
   });
   Popover({ trigger, label: "Period", defaultOpen: true, children: "Last 30 days" });
+  Popover({ trigger, label: "Period", open: false, onOpenChange: (open: boolean) => void open, children: "30 days" });
 
   // @ts-expect-error a popover is a dialog, and names itself to a screen reader
   Popover({ trigger, children: "Open today until six." });
@@ -42,7 +44,7 @@ function _popoverTakes(trigger: ReactElement, div: RefObject<HTMLDivElement | nu
   Popover({ trigger, label: "Hours", size: "lg", children: "Open today until six." });
   // @ts-expect-error it hangs over or under its control
   Popover({ trigger, label: "Hours", side: "left", children: "Open today until six." });
-  // @ts-expect-error its control opens and closes it: a page opens it once, as it is first drawn, and holds no open of its own
+  // @ts-expect-error a page that holds it open hears it close too (its control, Escape, a press outside): open alone is stuck
   Popover({ trigger, label: "Hours", open: true, children: "Open today until six." });
   // @ts-expect-error it is the panel's pop, and takes no other surface
   Popover({ trigger, label: "Hours", variant: "inset", children: "Open today until six." });

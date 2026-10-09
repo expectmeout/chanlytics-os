@@ -301,14 +301,30 @@ test("a request names a first and a last day together, or a period, never both a
 });
 
 test("the month a member picks days on says how to pick, then the first day pressed, then the days the band covers", () => {
-  assert.equal(reportPickWords(null, SEP), "Press a first day, then a last. 90 days at most.");
+  assert.equal(reportPickWords(null, SEP, null), "Press a first day, then a last. 90 days at most.");
   assert.equal(
-    reportPickWords("2026-09-01", { from: "2026-09-01", to: "2026-09-01" }),
+    reportPickWords("2026-09-01", { from: "2026-09-01", to: "2026-09-01" }, null),
     "From Sep 1. Press the last day, or this one again for the day alone.",
   );
   assert.equal(
-    reportPickWords("2026-09-12", { from: "2026-09-01", to: "2026-09-12" }),
+    reportPickWords("2026-09-12", { from: "2026-09-01", to: "2026-09-12" }, null),
     "Sep 1 – Sep 12, 12 days. Press to choose.",
     "the last day reached is before the first pressed: the band is still said in order",
+  );
+});
+
+test("a day the month could not choose is said, and why, until a press chooses", () => {
+  assert.equal(
+    reportPickWords(null, SEP, { day: "2026-10-08", why: "to-come" }),
+    "Oct 8 is still to come. Press today or a day before.",
+  );
+  assert.equal(
+    reportPickWords("2026-06-01", { from: "2026-06-01", to: "2026-06-01" }, { day: "2026-09-20", why: "too-far" }),
+    "Sep 20 is more than 90 days from Jun 1. Press a nearer day.",
+  );
+  assert.equal(
+    reportPickWords(null, SEP, null),
+    "Press a first day, then a last. 90 days at most.",
+    "none refused: the words are the month's own",
   );
 });

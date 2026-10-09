@@ -2338,6 +2338,27 @@ textarea.rec-input {
   place-items: center;
   min-height: 36px;
 }
+/* A press anywhere on a cell is its day's (range-press.ts, 10 Oct 2026): the button fills the cell, so no room between
+   two days is dead, and the round inside it is what the hover, the lozenge and the keyboard's ring are drawn on. A
+   double tap is two taps, never a zoom, and a drag across the days selects none of their numbers. */
+.date-pick-month .date-pick-grid {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.date-pick-month .date-pick-day {
+  justify-self: stretch;
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  min-height: 36px;
+  border-radius: 0;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.date-pick-month .date-pick-day:focus-visible .date-pick-num {
+  box-shadow: var(--focus-ring);
+}
 .date-pick-cell[data-in] {
   background: var(--line);
 }

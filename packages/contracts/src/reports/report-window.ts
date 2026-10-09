@@ -115,9 +115,18 @@ export function reportWindowOf(range: ReportRange, today: string): ReportWindowV
 
 /**
  * What the month a member picks days on says under itself (the kit's DayRangePicker `hint`): how to pick, then the
- * first day pressed, then the days the band covers and how many they are, while the last is still to be pressed.
+ * first day pressed, then the days the band covers and how many they are, while the last is still to be pressed. A day
+ * the month could not choose (`refused`: one to come, or too far from the first day) is said, and why, until a press
+ * chooses.
  */
-export function reportPickWords(first: string | null, band: ReportDays): string {
+export function reportPickWords(
+  first: string | null,
+  band: ReportDays,
+  refused: { day: string; why: "to-come" | "too-far" } | null,
+): string {
+  if (refused?.why === "to-come") return `${fmtDay(refused.day)} is still to come. Press today or a day before.`;
+  if (refused && first !== null)
+    return `${fmtDay(refused.day)} is more than ${REPORT_MOST_DAYS} days from ${fmtDay(first)}. Press a nearer day.`;
   if (first === null) return `Press a first day, then a last. ${REPORT_MOST_DAYS} days at most.`;
   const days = reportDaysCount(band);
   if (days === 1) return `From ${fmtDay(first)}. Press the last day, or this one again for the day alone.`;

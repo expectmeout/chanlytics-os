@@ -191,7 +191,9 @@ test.describe("Reports on a real workspace", () => {
     await page.getByTestId("reports-period-open").click();
     await page.getByTestId("period-7d").click();
     await reviewsRead;
+    await page.getByTestId("reports-period-open").click();
     await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     expect(documents, "a pick of another period is never a page request").toEqual([]);
     await page.goto(`/w/${slug}/reports/overview`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
@@ -221,7 +223,10 @@ test.describe("Reports on a real workspace", () => {
     await page.getByTestId("period-7d").click();
     const seen = await req;
     expect(seen.url()).toContain("workspace=");
+    await expect(page.getByTestId("period-7d"), "a press of a period closes the popover").toBeHidden();
+    await page.getByTestId("reports-period-open").click();
     await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     await expect(report.getByTestId("reports-hero")).toBeVisible();
   });
 
@@ -255,11 +260,14 @@ test.describe("Reports on a real workspace", () => {
     await read;
     await expect.poll(() => routeOf(page.url())).toMatch(days);
     await expect(open, "the capsule says the days").toHaveText(/^\S+ 10 – 12$/);
+    await expect(range, "a pick closes the popover").toBeHidden();
+    await expect(page.locator(".rpt-failed"), "they were read").toHaveCount(0);
+    await open.click();
     await expect(range.getByRole("radio", { checked: true }), "and none of the four periods is these days").toHaveCount(
       0,
     );
-    await expect(page.locator(".rpt-failed"), "they were read").toHaveCount(0);
     await page.keyboard.press("Escape");
+    await expect(range).toBeHidden();
 
     // Another lens is the same days there, and Back walks the ranges a member looked at: the lens before, then the period.
     const peopleOverDays = /^reports\/people:\d{4}-\d{2}-10~\d{4}-\d{2}-12$/;
@@ -287,11 +295,15 @@ test.describe("Reports on a real workspace", () => {
     await page.getByTestId("period-yesterday").click();
     await expect.poll(() => routeOf(page.url())).toMatch(/^reports\/people:(\d{4}-\d{2}-\d{2})~\1$/);
     await expect(open).toHaveText("Yesterday");
+    await expect(range, "a press of a shortcut closes the popover too").toBeHidden();
+    await open.click();
     await expect(page.getByTestId("period-yesterday")).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("period-30d").click();
     await expect.poll(() => routeOf(page.url())).toBe("reports/people");
-    await expect(page.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
     await expect(open).toHaveText("30 days");
+    await expect(range, "and a press of a period").toBeHidden();
+    await open.click();
+    await expect(page.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
   });
 
   test("asked, then booked: the share from the calendar, the calendar's own sentence, or a read that failed", async ({
