@@ -671,6 +671,40 @@ test("a START answered by its job, taken in again with the yes its door wrote on
   );
 });
 
+test("a YES OFFERS answered after the person took back their yes to offers is held by that no: nothing confirmed, nobody told they said yes", async () => {
+  // Its yes was written when the door kept it (00360); the person then said no more offers, and the answer's job, run
+  // late, takes the message in again. The door would refuse the confirmation (no_marketing_consent), and a person used
+  // to be told the customer said yes and was never confirmed, when the customer's last word was no.
+  const offers = (marketingConsent) => ({
+    leads: {
+      read: async () => ({ name: null }),
+      personReplyMode: async () => null,
+      offersAnswer: async () => ({ marketingConsent, marketingConsentSource: null }),
+    },
+  });
+  const yes = text("YES OFFERS", "wamid.o1");
+  const takenBack = world(consentOnRecord());
+  await takenBack.record(yes);
+  await takenBack.run(yes, offers("opted_out"), true);
+  assert.deepEqual(takenBack.seen.sent, [], "no confirmation of a yes the person since took back");
+  assert.equal(takenBack.seen.escalations.length, 0, "and nobody is asked to send it by hand");
+  // The same answer while the yes stands is confirmed in the program's words, as a new YES OFFERS is.
+  const stands = world(consentOnRecord());
+  await stands.record(yes);
+  await stands.run(yes, offers("opted_in"), true);
+  assert.deepEqual(
+    stands.seen.sent.map((m) => m.body),
+    [optInConfirmation("Harbor Nails", "marketing")],
+  );
+  // A YES OFFERS taken in once is confirmed whatever an earlier answer said: it is the person's newest word.
+  const fresh = world(consentOnRecord());
+  await fresh.run(text("YES OFFERS", "wamid.o2"), offers("opted_out"));
+  assert.deepEqual(
+    fresh.seen.sent.map((m) => m.body),
+    [optInConfirmation("Harbor Nails", "marketing")],
+  );
+});
+
 test("a START does not bring back a yes to offers a STOP ended: WhatsApp says how to get them again, a text says the filed words alone", async () => {
   // A STOP ends the yes to offers (00323), and a START is a yes to messages about their visit and nothing more. The
   // person is told once, after the filed words, on WhatsApp alone: the texting line's confirmation is the campaign's

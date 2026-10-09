@@ -49,6 +49,23 @@ async function offersNoteFor(at: Answering): Promise<string | null> {
 }
 
 /**
+ * Whether the person took back their yes to offers since this message's own YES OFFERS was kept: asked only of a message
+ * taken in again (a WhatsApp answer's job, a redelivery). Its yes was written when it was first kept (00360), so a
+ * record that says no now is the person's later word, and it stands. A read that fails is not a no.
+ */
+async function offersTakenBack(at: Answering): Promise<boolean> {
+  const { db, tenantId, ing, ports, L } = at;
+  if (ing?.is_new !== false || !db || !tenantId || !ing.contact_id) return false;
+  try {
+    const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
+    return answer?.marketingConsent === "opted_out";
+  } catch (e) {
+    L.warn("lead_context_unavailable", { error: errField(e) });
+    return false;
+  }
+}
+
+/**
  * A message too old to answer automatically: a person's, whatever it is. Asked before anything may be said about it,
  * the acknowledgement of a message the receptionist will not read included (./unreadable.ts): that gate ran first, so an
  * hours-old voice note or sticker Meta sent again after an outage got the canned "a member of the team will take a
@@ -110,6 +127,14 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
   // like any other words, not confirmed as a subscription on this number.
   if (n.optIn || (n.optInMarketing && channel === "whatsapp")) {
     const purpose: SendPurpose = n.optInMarketing ? "marketing" : "conversational";
+    // A YES OFFERS taken in again after the person said no more offers is held by that no, as a START taken in again
+    // after a STOP is (resolveConsent): the door would refuse the confirmation, and a person would be told the customer
+    // said yes and was never confirmed, when the customer's last word was no.
+    if (n.optInMarketing && (await offersTakenBack(at))) {
+      L.info("wa_opt_in_confirmed", { purpose, channel, sent: false, why: "offers_taken_back" });
+      await processedAfter(sink, null, "none");
+      return;
+    }
     const filed = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
     // The yes to offers a STOP ended does not come back with a START: said here, on WhatsApp alone.
     const offers = n.optInMarketing ? null : await offersNoteFor(at);
