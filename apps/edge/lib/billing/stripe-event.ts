@@ -208,39 +208,45 @@ async function onSubscription(event: SubscriptionEvent, d: Delivery): Promise<An
     d.L.warn("stripe_event_unrouted", { type: event.type, subscription: sub.id });
     return () => d.done(json(200, { ok: true, unrouted: true }));
   }
-  // Not the subscription this workspace is on. Stripe retries for days
-  // and does not promise order, so a late word about a subscription the
-  // workspace has already left — cancelled, then replaced through
-  // Checkout — used to be written over the live one: the row took the
-  // dead id and the paused status, the receptionist went quiet on a
-  // paying customer, and Refresh then followed the dead id and did it
-  // again. A reading that would keep the receptionist ON is a genuine
-  // replacement and is applied; a dead one about a subscription we no
-  // longer hold can never be right.
-  if (
-    row.stripe_subscription_id &&
-    row.stripe_subscription_id !== sub.id &&
-    !receptionistOn(subscriptionFacts(sub).status)
-  ) {
-    const unapplied = await answerIfRowStands(event, d, row.stripe_subscription_id);
-    if (unapplied) return unapplied;
-  }
   // The event's copy has no expanded card; the row keeps the card from
   // the last full read (sync) when this one has none. A read that fails
   // is a 500, never the event's stale copy applied as if it were fresh;
   // it runs under the guard's budget too, so a slow Stripe is a 500
   // Stripe retries, not a kill inside the function's thirty seconds.
   const full = await d.s.subscriptions.retrieve(sub.id, { expand: ["default_payment_method"] }, STRIPE_READ_OPTIONS);
+  const unapplied = await answerIfSuperseded(d, row.stripe_subscription_id, full);
+  if (unapplied) return unapplied;
   const r = await applySubscription(d.db, row, full, event.type);
   return () => d.done(json(200, { ok: true, status: r.status, switched: r.switched }));
+}
+
+/**
+ * Not the subscription this workspace is on. Stripe retries for days and does not promise order, so a late word about
+ * a subscription the workspace has already left (cancelled, then replaced through Checkout) used to be written over the
+ * live one: the row took the dead id and the paused status, the receptionist went quiet on a paying customer, and
+ * Refresh then followed the dead id and did it again. A reading that would keep the receptionist ON is a genuine
+ * replacement and is applied; a dead one about a subscription we no longer hold can never be right.
+ *
+ * Judged on the reading the row would be written from (`fresh`, read from Stripe now), never on the event's own copy.
+ * The copy is the subscription as it stood when the event was made: a late `updated` about the old subscription, sent
+ * while it was still active, passed a guard that read the copy, and the fresh read then wrote "canceled" over the live
+ * one all the same. A finished Checkout is judged the same way, since a late completion of an old session names the
+ * subscription that session made, long since ended. Null when the reading is to be applied.
+ */
+async function answerIfSuperseded(
+  d: Delivery,
+  namedByRow: string | null,
+  fresh: Stripe.Subscription,
+): Promise<Answer | null> {
+  if (!namedByRow || namedByRow === fresh.id || receptionistOn(subscriptionFacts(fresh).status)) return null;
+  return answerIfRowStands(d, fresh.id, namedByRow);
 }
 
 /**
  * A dead reading about a subscription other than the one the row names: the answer when the row stands (the event is
  * superseded) or Stripe cannot be read (503), and null when the row is the stale one and the event is to be applied.
  */
-async function answerIfRowStands(event: SubscriptionEvent, d: Delivery, namedByRow: string): Promise<Answer | null> {
-  const sub = event.data.object;
+async function answerIfRowStands(d: Delivery, subscription: string, namedByRow: string): Promise<Answer | null> {
   // The row is the reason to skip, so the row has to be worth trusting,
   // and it is not always: applySubscription writes under a compare-and-
   // set and DOES NOT WRITE when it loses (billing_apply_raced), which
@@ -260,8 +266,8 @@ async function answerIfRowStands(event: SubscriptionEvent, d: Delivery, namedByR
     // written; the claim goes back; the 503 has Stripe deliver the
     // event again, and the read is tried again then.
     d.L.warn("stripe_read_failed", {
-      type: event.type,
-      subscription: sub.id,
+      type: d.event.type,
+      subscription,
       named_by_row: namedByRow,
       error: current.why.message,
       stripe_type: current.why.type,
@@ -272,12 +278,12 @@ async function answerIfRowStands(event: SubscriptionEvent, d: Delivery, namedByR
   }
   const rowStillLive = current.read === "found" && receptionistOn(subscriptionFacts(current.value).status);
   if (rowStillLive) {
-    d.L.warn("stripe_event_superseded", { type: event.type, subscription: sub.id, current: namedByRow });
+    d.L.warn("stripe_event_superseded", { type: d.event.type, subscription, current: namedByRow });
     return () => d.done(json(200, { ok: true, superseded: true }));
   }
   d.L.warn("stripe_event_stale_row", {
-    type: event.type,
-    subscription: sub.id,
+    type: d.event.type,
+    subscription,
     named_by_row: namedByRow,
     row_status: current.read === "found" ? subscriptionFacts(current.value).status : "gone",
   });
@@ -295,6 +301,8 @@ async function onCheckoutCompleted(event: EventOf<"checkout.session.completed">,
     return () => d.done(json(200, { ok: true, unrouted: true }));
   }
   const sub = await d.s.subscriptions.retrieve(subId, { expand: ["default_payment_method"] }, STRIPE_READ_OPTIONS);
+  const unapplied = await answerIfSuperseded(d, row.stripe_subscription_id, sub);
+  if (unapplied) return unapplied;
   const r = await applySubscription(d.db, row, sub, event.type);
   return () => d.done(json(200, { ok: true, status: r.status }));
 }
@@ -364,13 +372,19 @@ async function onDispute(
 
 async function onCustomerDeleted(event: EventOf<"customer.deleted">, d: Delivery): Promise<Answer> {
   // The ids the row kept point at nothing now: forgotten, so the portal
-  // does not trip on them and Checkout starts a fresh customer.
+  // does not trip on them and Checkout starts a fresh customer. Only when
+  // the customer deleted is the one the row names: routed by its metadata,
+  // a customer the workspace had already left (or a second one made by
+  // hand in Stripe) used to wipe the customer and the plan it is billed
+  // through. Another customer's deletion changes nothing, and says so.
   const c = event.data.object;
   const row = await tenantOf(d.db, c.metadata, c.id);
   const dup = await d.keep(row?.tenant_id ?? null);
   if (dup) return dup;
-  if (row) await forgetCustomer(d.db, row);
-  return () => d.done(json(200, { ok: true, forgotten: !!row }));
+  const forgotten = row ? await forgetCustomer(d.db, row, c.id) : false;
+  if (row && !forgotten)
+    d.L.warn("stripe_event_superseded", { type: event.type, customer: c.id, current: row.stripe_customer_id });
+  return () => d.done(json(200, { ok: true, forgotten }));
 }
 
 async function onIgnored(event: Stripe.Event, d: Delivery): Promise<Answer> {

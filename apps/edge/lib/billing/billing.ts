@@ -557,13 +557,13 @@ export async function startPlanNowFor(
 const DELETED_CUSTOMER = "customer.deleted";
 
 /**
- * Stripe deleted the customer: the ids the row kept point at nothing, so the
- * portal would refuse and Checkout would reuse a customer that is gone. The
- * row says nothing is on record, and Checkout may start again with a fresh
- * customer. The workspace's own status is not touched here: the
- * subscription's own deleted event, which Stripe sends first, decided it.
+ * Stripe deleted the customer: the ids the row kept point at nothing, so the portal would refuse and Checkout would
+ * reuse a customer that is gone. The row says nothing is on record, and Checkout may start again with a fresh customer.
+ * Only the row's own customer is forgotten (false, and nothing written, for any other): one routed here by its metadata
+ * may be a customer the workspace has left. The workspace's own status is not touched here: the subscription's own
+ * deleted event, which Stripe sends first, decided it.
  */
-export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
+export async function forgetCustomer(db: Db, row: BillingRow, customerId: string): Promise<boolean> {
   const up = await db
     .from("billing_accounts")
     .update({
@@ -578,13 +578,14 @@ export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
       card_brand: null,
       card_last4: null,
     })
-    .eq("tenant_id", row.tenant_id);
+    .eq("tenant_id", row.tenant_id)
+    .eq("stripe_customer_id", customerId)
+    .select("tenant_id");
   if (up.error) throw new Error(up.error.message);
-  // The reason is built outside the call: the event-kinds lint reads every
-  // dotted literal inside an emitEvent to its closing paren, and Stripe's own
-  // event names look exactly like ours.
+  if (!up.data?.length) return false;
   const why = { source: DELETED_CUSTOMER, status: "none" };
   await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, why).catch(() => {});
+  return true;
 }
 
 /**
