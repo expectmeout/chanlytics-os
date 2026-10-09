@@ -63,6 +63,20 @@ test("pausing a thread withdraws the receptionist's queued drafts on it, keeps t
   );
 });
 
+test("a draft its send job has already claimed is on its way: the pause leaves it to say what became of it", async () => {
+  const t = {
+    conversations: [{ id: "c1", tenant_id: T, state: "open", paused_until: null }],
+    messages: [row("waiting"), row("on-its-way", { sending_at: "2026-09-10T10:00:00.000Z" })],
+  };
+  assert.equal(await pauseConversation(fakeDb(t), T, "c1", "2026-09-10T11:00:00.000Z"), true);
+  assert.deepEqual(
+    Object.fromEntries(t.messages.map((m) => [m.id, m.status])),
+    { waiting: "canceled", "on-its-way": "queued" },
+    "REGRESSION: a draft whose send was in flight was marked canceled, and the person got words the row said never left",
+  );
+  assert.equal(t.messages[1].error, undefined);
+});
+
 test("a pause that landed on no row withdraws nothing", async () => {
   const t = { conversations: [], messages: [row("stale")] };
   assert.equal(await pauseConversation(fakeDb(t), T, "c1", "2026-09-10T11:00:00.000Z"), false);

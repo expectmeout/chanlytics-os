@@ -755,15 +755,19 @@ export async function pauseConversation(
   // handoff queued in this breath, which the caller names. A draft written
   // before the pause must not land after it: the door (packages/core deliver)
   // waives the pause for a queued row on exactly this promise. The job that
-  // would send a withdrawn row finds it canceled and does nothing. A failure
-  // here is logged, never fatal: the pause itself landed.
+  // would send a withdrawn row finds it canceled and does nothing. A draft its
+  // job has already claimed (sending_at, 00352) is on its way and is left to
+  // say what became of it: withdrawn then, it reached the person under a row
+  // that said canceled for ever. A failure here is logged, never fatal: the
+  // pause itself landed.
   let withdraw = db
     .from("messages")
     .update({ status: "canceled", error: { reason: "superseded_by_human" } })
     .eq("conversation_id", conversationId)
     .eq("tenant_id", tenantId)
     .eq("sender", "ai")
-    .eq("status", "queued");
+    .eq("status", "queued")
+    .is("sending_at", null);
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
   if (wErr)

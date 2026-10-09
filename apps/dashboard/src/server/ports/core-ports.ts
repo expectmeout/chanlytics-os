@@ -100,9 +100,18 @@ export function escalationPorts(ctx: RouteContext): EscalationPorts {
 
 export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
   return {
+    // Queued and not yet claimed: a row its send job has claimed (sending_at, 00352) is on its way to the person, and
+    // stays queued only until the provider answers. Called back then, the person got the words under a row that said
+    // canceled for ever. Zero rows is the verb's "too late".
     cancelQueued: (id) =>
       changed(
-        ctx.supabase.from("messages").update({ status: "canceled" }).eq("id", id).eq("status", "queued").select("id"),
+        ctx.supabase
+          .from("messages")
+          .update({ status: "canceled" })
+          .eq("id", id)
+          .is("sending_at", null)
+          .eq("status", "queued")
+          .select("id"),
       ),
     cancelJob: (tenantId, id) => cancelKindFor(tenantId, "outbound_send", "message_id", id),
     record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),

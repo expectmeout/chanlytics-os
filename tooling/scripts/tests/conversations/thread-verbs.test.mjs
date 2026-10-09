@@ -155,6 +155,63 @@ test("an escalation and a queued send are each judged in their own workspace", a
   assert.deepEqual(wrote(supabase), []);
 });
 
+test("a send its job has already claimed is too late to call back, and the row is left to say what became of it", async () => {
+  // Claimed (sending_at, 00352) and still queued: the provider has not answered yet, and the words are on their way.
+  const msg = {
+    id: MSG,
+    tenant_id: T,
+    conversation_id: CONV,
+    status: "queued",
+    sending_at: new Date().toISOString(),
+  };
+  const tables = { memberships: memberAs("owner"), messages: [msg] };
+  const { ctx } = ctxFor(tables, MSG);
+  await assert.rejects(cancelSend.run(post(), ctx), (e) => {
+    assert.equal(e.code, "conflict", e.message);
+    assert.match(e.message, /^Too late/);
+    return true;
+  });
+  assert.equal(
+    tables.messages[0].status,
+    "queued",
+    "REGRESSION: the call-back won a row whose send was in flight, and the person got words the row said never left",
+  );
+});
+
+test("a reply withdraws the receptionist's held drafts no job has claimed, and counts only those", async () => {
+  const { cancelPendingAiReply } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/verbs.ts")).href
+  );
+  const draft = (id, over = {}) => ({
+    id,
+    tenant_id: T,
+    conversation_id: CONV,
+    direction: "outbound",
+    sender: "ai",
+    status: "queued",
+    ...over,
+  });
+  const tables = {
+    messages: [
+      draft("waiting"),
+      draft("on-its-way", { sending_at: new Date().toISOString() }),
+      draft("a-colleague-s", { sender: "human" }),
+    ],
+  };
+  const withdrawnJobs = [];
+  const n = await cancelPendingAiReply({ supabase: fakeDb(tables) }, { id: CONV, tenant_id: T }, async (_t, _k, id) => {
+    withdrawnJobs.push(id);
+    return 1;
+  });
+  assert.equal(n, 1, "the operator is told their reply replaced one draft: the one that was still waiting");
+  assert.deepEqual(Object.fromEntries(tables.messages.map((m) => [m.id, m.status])), {
+    waiting: "canceled",
+    "on-its-way": "queued",
+    "a-colleague-s": "queued",
+  });
+  assert.deepEqual(withdrawnJobs, ["waiting"], "and only its send is withdrawn");
+});
+
 test("the verbs share one bucket: a script flipping threads is refused at once", async () => {
   const tables = { memberships: memberAs("viewer"), conversations: [thread()] };
   // A viewer spends nothing, however many times they try.

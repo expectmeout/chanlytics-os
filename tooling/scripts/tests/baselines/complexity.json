@@ -210,8 +210,8 @@
     "depth": 2
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
-    "lines": 164,
-    "branches": 42,
+    "lines": 144,
+    "branches": 35,
     "depth": 1
   },
   "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
