@@ -57,7 +57,8 @@ export function returnQueryOf(pathname: string | null | undefined): string {
 /**
  * What the sign-in page carries on to where it lands (the home, or the second step first): the workspace its address
  * names, checked again since anyone can write a link to /login, and its fragment, the route. The rest of its query is
- * the sign-in page's own (`email`, `error`).
+ * the sign-in page's own (`email`, `error`). Google's callback reads the same from the landing it planned, when the
+ * second step comes first (oauth-callback.ts landingAfter), and the second step's page from its own address.
  */
 export function signInReturnOf(address: { search?: string | null; hash?: string | null }): string {
   const named = returnWorkspace(new URLSearchParams(address.search ?? "").get(RETURN_WORKSPACE));

@@ -29,6 +29,8 @@ const {
 } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { onOnePage, routeHasPage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 const { signInReturnOf: signInReturn } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
+const { callbackPlan, landingAfter } = await importSrc("apps/dashboard/src/server/auth/oauth-callback.ts");
+const { googleCallbackUrl } = await import("@chanlytics/contracts");
 
 test("a path names its workspace under /w/, by slug or id, decoded; anything else names none", () => {
   assert.equal(pathWorkspace("/w/acme"), "acme");
@@ -299,6 +301,27 @@ test("REGRESSION: a member of two workspaces signed out on a deep link into the 
   // The sign-in page reads it again from its own address, since anyone can write a link to /login.
   assert.equal(signInReturn({ search: "?w=%2F%2Fevil.example&email=a%40example.com", hash: "#/inbox" }), "#/inbox");
   assert.equal(signInReturn({ search: "?email=a%40example.com&w=bayside", hash: "" }), "?w=bayside");
+});
+
+test("REGRESSION: Google's sign-in on an account with a second factor lands in the link's workspace and route too -- the second step went on to the home of the one used last", () => {
+  // /w/bayside/inbox/th-1, signed out: the way to /login, Google's `next` as the sign-in page builds it, the callback's
+  // plan and its landing for a session that owes its code, the second step's way in, and the home, run in turn.
+  const site = "https://app.example.com";
+  const login = new URL(signInHref({ pathname: "/w/bayside/inbox/th-1", hash: "" }), site);
+  const google = new URL(googleCallbackUrl(site, "/" + signInReturn({ search: login.search, hash: login.hash })));
+  const plan = callbackPlan({ code: "abc", next: google.searchParams.get("next"), error: null });
+  assert.equal(plan.to, "/?w=bayside#/inbox/th-1", "the callback's plan carries both");
+  const verify = new URL(landingAfter(plan.to, { currentLevel: "aal1", nextLevel: "aal2" }), site);
+  assert.equal(verify.pathname, "/verify", "the code first, as before");
+  assert.equal(
+    verify.search + verify.hash,
+    "?w=bayside#/inbox/th-1",
+    "REGRESSION: /verify alone, with neither the workspace nor the route",
+  );
+  // The second step's page goes in with what its own address carries (verify/page.tsx `inside`), as the email's does.
+  const inside = "/" + signInReturn({ search: verify.search, hash: verify.hash });
+  assert.equal(inside, "/?w=bayside#/inbox/th-1");
+  assert.equal(homeHref("acme", null, inside.slice(1)), "/w/bayside/inbox/th-1", "the link's thread, in its workspace");
 });
 
 test("this address in another workspace: the same route under its slug, and the query that came with it", () => {
