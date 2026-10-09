@@ -27053,7 +27053,7 @@ ALTER TABLE ONLY public.ask_messages
 --
 
 ALTER TABLE ONLY public.ask_messages
-    ADD CONSTRAINT ask_messages_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT ask_messages_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27093,7 +27093,7 @@ ALTER TABLE ONLY public.ask_voice_sessions
 --
 
 ALTER TABLE ONLY public.ask_voice_sessions
-    ADD CONSTRAINT ask_voice_sessions_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT ask_voice_sessions_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27125,7 +27125,7 @@ ALTER TABLE ONLY public.billing_events
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT broadcast_recipients_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27133,7 +27133,7 @@ ALTER TABLE ONLY public.broadcast_recipients
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT broadcast_recipients_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27141,7 +27141,7 @@ ALTER TABLE ONLY public.broadcast_recipients
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
+    ADD CONSTRAINT broadcast_recipients_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
 
 
 --
@@ -27165,7 +27165,7 @@ ALTER TABLE ONLY public.broadcasts
 --
 
 ALTER TABLE ONLY public.broadcasts
-    ADD CONSTRAINT broadcasts_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id) NOT VALID;
+    ADD CONSTRAINT broadcasts_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id);
 
 
 --
@@ -27173,7 +27173,7 @@ ALTER TABLE ONLY public.broadcasts
 --
 
 ALTER TABLE ONLY public.broadcasts
-    ADD CONSTRAINT broadcasts_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT broadcasts_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id);
 
 
 --
@@ -27197,7 +27197,7 @@ ALTER TABLE ONLY public.business_records
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_channel_id_same_workspace FOREIGN KEY (tenant_id, channel_id) REFERENCES public.tenant_channels(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT calls_channel_id_same_workspace FOREIGN KEY (tenant_id, channel_id) REFERENCES public.tenant_channels(tenant_id, id);
 
 
 --
@@ -27205,7 +27205,7 @@ ALTER TABLE ONLY public.calls
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT calls_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -27213,7 +27213,7 @@ ALTER TABLE ONLY public.calls
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id) NOT VALID;
+    ADD CONSTRAINT calls_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id);
 
 
 --
@@ -27221,7 +27221,7 @@ ALTER TABLE ONLY public.calls
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
+    ADD CONSTRAINT calls_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
 
 
 --
@@ -27253,7 +27253,7 @@ ALTER TABLE ONLY public.capability_activations
 --
 
 ALTER TABLE ONLY public.contact_identities
-    ADD CONSTRAINT contact_identities_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT contact_identities_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27309,7 +27309,7 @@ ALTER TABLE ONLY public.contact_reads
 --
 
 ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_merged_into_contact_id_same_workspace FOREIGN KEY (tenant_id, merged_into_contact_id) REFERENCES public.contacts(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT contacts_merged_into_contact_id_same_workspace FOREIGN KEY (tenant_id, merged_into_contact_id) REFERENCES public.contacts(tenant_id, id);
 
 
 --
@@ -27333,7 +27333,7 @@ ALTER TABLE ONLY public.conversations
 --
 
 ALTER TABLE ONLY public.conversations
-    ADD CONSTRAINT conversations_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT conversations_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27357,7 +27357,7 @@ ALTER TABLE ONLY public.conversations
 --
 
 ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT deals_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27373,7 +27373,7 @@ ALTER TABLE ONLY public.deals
 --
 
 ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id) NOT VALID;
+    ADD CONSTRAINT deals_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id);
 
 
 --
@@ -27405,7 +27405,7 @@ ALTER TABLE ONLY public.decisions
 --
 
 ALTER TABLE ONLY public.decisions
-    ADD CONSTRAINT decisions_undo_of_same_workspace FOREIGN KEY (tenant_id, undo_of) REFERENCES public.decisions(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT decisions_undo_of_same_workspace FOREIGN KEY (tenant_id, undo_of) REFERENCES public.decisions(tenant_id, id);
 
 
 --
@@ -27413,7 +27413,7 @@ ALTER TABLE ONLY public.decisions
 --
 
 ALTER TABLE ONLY public.escalations
-    ADD CONSTRAINT escalations_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT escalations_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27525,7 +27525,7 @@ ALTER TABLE ONLY public.lead_counters
 --
 
 ALTER TABLE ONLY public.lead_judgments
-    ADD CONSTRAINT lead_judgments_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_judgments_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27541,7 +27541,7 @@ ALTER TABLE ONLY public.lead_judgments
 --
 
 ALTER TABLE ONLY public.lead_operations
-    ADD CONSTRAINT lead_operations_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_operations_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27557,7 +27557,7 @@ ALTER TABLE ONLY public.lead_operations
 --
 
 ALTER TABLE ONLY public.lead_places
-    ADD CONSTRAINT lead_places_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_places_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27573,7 +27573,7 @@ ALTER TABLE ONLY public.lead_places
 --
 
 ALTER TABLE ONLY public.lead_preferences
-    ADD CONSTRAINT lead_preferences_from_lead_id_same_workspace FOREIGN KEY (tenant_id, from_lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (from_lead_id) NOT VALID;
+    ADD CONSTRAINT lead_preferences_from_lead_id_same_workspace FOREIGN KEY (tenant_id, from_lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (from_lead_id);
 
 
 --
@@ -27589,7 +27589,7 @@ ALTER TABLE ONLY public.lead_preferences
 --
 
 ALTER TABLE ONLY public.lead_rounds
-    ADD CONSTRAINT lead_rounds_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_rounds_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27605,7 +27605,7 @@ ALTER TABLE ONLY public.lead_rounds
 --
 
 ALTER TABLE ONLY public.lead_runs
-    ADD CONSTRAINT lead_runs_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_runs_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27621,7 +27621,7 @@ ALTER TABLE ONLY public.lead_runs
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_search_members_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27629,7 +27629,7 @@ ALTER TABLE ONLY public.lead_search_members
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE SET NULL (round_id) NOT VALID;
+    ADD CONSTRAINT lead_search_members_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE SET NULL (round_id);
 
 
 --
@@ -27637,7 +27637,7 @@ ALTER TABLE ONLY public.lead_search_members
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_search_members_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27669,7 +27669,7 @@ ALTER TABLE ONLY public.lead_searches
 --
 
 ALTER TABLE ONLY public.lead_searches
-    ADD CONSTRAINT lead_searches_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE SET NULL (thread_id) NOT VALID;
+    ADD CONSTRAINT lead_searches_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE SET NULL (thread_id);
 
 
 --
@@ -27693,7 +27693,7 @@ ALTER TABLE ONLY public.lead_suppressions
 --
 
 ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT leads_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -27741,7 +27741,7 @@ ALTER TABLE ONLY public.memberships
 --
 
 ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT messages_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id);
 
 
 --
@@ -27749,7 +27749,7 @@ ALTER TABLE ONLY public.messages
 --
 
 ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT messages_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27957,7 +27957,7 @@ ALTER TABLE ONLY public.person_doubts
 --
 
 ALTER TABLE ONLY public.person_moments
-    ADD CONSTRAINT person_moments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT person_moments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27981,7 +27981,7 @@ ALTER TABLE ONLY public.person_notes
 --
 
 ALTER TABLE ONLY public.person_notes
-    ADD CONSTRAINT person_notes_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT person_notes_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27989,7 +27989,7 @@ ALTER TABLE ONLY public.person_notes
 --
 
 ALTER TABLE ONLY public.person_notes
-    ADD CONSTRAINT person_notes_deal_id_same_workspace FOREIGN KEY (tenant_id, deal_id) REFERENCES public.deals(tenant_id, id) ON DELETE SET NULL (deal_id) NOT VALID;
+    ADD CONSTRAINT person_notes_deal_id_same_workspace FOREIGN KEY (tenant_id, deal_id) REFERENCES public.deals(tenant_id, id) ON DELETE SET NULL (deal_id);
 
 
 --
@@ -28061,7 +28061,7 @@ ALTER TABLE ONLY public.playbooks
 --
 
 ALTER TABLE ONLY public.playbooks
-    ADD CONSTRAINT playbooks_list_id_same_workspace FOREIGN KEY (tenant_id, list_id) REFERENCES public.segments(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT playbooks_list_id_same_workspace FOREIGN KEY (tenant_id, list_id) REFERENCES public.segments(tenant_id, id);
 
 
 --
@@ -28077,7 +28077,7 @@ ALTER TABLE ONLY public.playbooks
 --
 
 ALTER TABLE ONLY public.playbooks
-    ADD CONSTRAINT playbooks_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT playbooks_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id);
 
 
 --
@@ -28133,7 +28133,7 @@ ALTER TABLE ONLY public.reach_out_check_spend
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_answered_message_id_same_workspace FOREIGN KEY (tenant_id, answered_message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (answered_message_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_answered_message_id_same_workspace FOREIGN KEY (tenant_id, answered_message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (answered_message_id);
 
 
 --
@@ -28141,7 +28141,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -28149,7 +28149,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_replies_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28157,7 +28157,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_lead_contact_id_same_workspace FOREIGN KEY (tenant_id, lead_contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (lead_contact_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_lead_contact_id_same_workspace FOREIGN KEY (tenant_id, lead_contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (lead_contact_id);
 
 
 --
@@ -28165,7 +28165,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id);
 
 
 --
@@ -28173,7 +28173,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_replies_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28181,7 +28181,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_send_id_same_workspace FOREIGN KEY (tenant_id, send_id) REFERENCES public.reach_out_sends(tenant_id, id) ON DELETE SET NULL (send_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_send_id_same_workspace FOREIGN KEY (tenant_id, send_id) REFERENCES public.reach_out_sends(tenant_id, id) ON DELETE SET NULL (send_id);
 
 
 --
@@ -28205,7 +28205,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_sends_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28213,7 +28213,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -28221,7 +28221,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_domain_id_same_workspace FOREIGN KEY (tenant_id, domain_id) REFERENCES public.sending_domains(tenant_id, id) ON DELETE SET NULL (domain_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_domain_id_same_workspace FOREIGN KEY (tenant_id, domain_id) REFERENCES public.sending_domains(tenant_id, id) ON DELETE SET NULL (domain_id);
 
 
 --
@@ -28229,7 +28229,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_sends_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28237,7 +28237,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
 
 
 --
@@ -28245,7 +28245,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id);
 
 
 --
@@ -28253,7 +28253,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_root_id_same_workspace FOREIGN KEY (tenant_id, root_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_sends_root_id_same_workspace FOREIGN KEY (tenant_id, root_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28293,7 +28293,7 @@ ALTER TABLE ONLY public.segment_members
 --
 
 ALTER TABLE ONLY public.segment_members
-    ADD CONSTRAINT segment_members_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT segment_members_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28301,7 +28301,7 @@ ALTER TABLE ONLY public.segment_members
 --
 
 ALTER TABLE ONLY public.segment_members
-    ADD CONSTRAINT segment_members_segment_id_same_workspace FOREIGN KEY (tenant_id, segment_id) REFERENCES public.segments(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT segment_members_segment_id_same_workspace FOREIGN KEY (tenant_id, segment_id) REFERENCES public.segments(tenant_id, id) ON DELETE CASCADE;
 
 
 --

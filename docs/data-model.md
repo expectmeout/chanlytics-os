@@ -252,7 +252,7 @@ Foreign keys:
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete cascade
 - `user_id` → `auth.users` (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -323,7 +323,7 @@ One row per voice conversation of Ask: whose it is, its thread, the member's acc
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete cascade
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -426,8 +426,8 @@ Foreign keys:
 
 Foreign keys:
 
-- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade not valid
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -626,7 +626,7 @@ Foreign keys:
 
 Foreign keys:
 
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -764,7 +764,7 @@ Foreign keys:
 Foreign keys:
 
 - `assignee_user_id` → `auth.users` (`id`), on delete set null
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `control_by` → `auth.users` (`id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -808,7 +808,7 @@ One engagement a person is deciding on or has taken (0004): proposed (a proposal
 
 Foreign keys:
 
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `created_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
@@ -883,7 +883,7 @@ When the stored erasure digests were re-keyed (00263 erasure_rekey): null until 
 
 Foreign keys:
 
-- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
 - `resolved_by_user_id` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -1247,7 +1247,7 @@ The judge's answer for one batch, kept by operation id (sha256 of run:offset:bat
 
 Foreign keys:
 
-- `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### lead_niche_priors
@@ -1290,7 +1290,7 @@ Every undo-able act: what it changed, from what, by whom, when. lead_undo takes 
 
 Foreign keys:
 
-- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1317,7 +1317,7 @@ A duplicate listing (the same name, address and phone) folded into the lead alre
 
 Foreign keys:
 
-- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1410,7 +1410,7 @@ The unit of execution and of money: the probe (seq 1), each top-up and each Find
 
 Foreign keys:
 
-- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1452,7 +1452,7 @@ One provider execution: a discover run per term, a check run per batch of addres
 
 Foreign keys:
 
-- `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1490,9 +1490,9 @@ One lead in one search, with that search's judgment ({answer, reasons, shares}),
 
 Foreign keys:
 
-- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1802,7 +1802,7 @@ Foreign keys:
 Foreign keys:
 
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`)
-- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
 - `sent_by` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -2160,7 +2160,7 @@ Each person's moments, kept as their messages and calls are written (0021): when
 
 Foreign keys:
 
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -2201,7 +2201,7 @@ A person's notes (0007), one row each: the words, who wrote them (a member, or t
 Foreign keys:
 
 - `author_user_id` → `auth.users` (`id`), on delete set null
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `deal_id` → [`deals`](#deals) (`tenant_id`, `id`), on delete set null
 - `done_by` → `auth.users` (`id`), on delete set null
 - `for_user_id` → `auth.users` (`id`), on delete set null
@@ -2496,10 +2496,10 @@ Foreign keys:
 
 - `tenant_id`, `answered_message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `lead_contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `send_id` → [`reach_out_sends`](#reach_out_sends) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 - `undone_by` → `auth.users` (`id`), on delete set null
@@ -2550,13 +2550,13 @@ Reach out: one lead in one step's run. Planned (a time and a domain), claimed un
 
 Foreign keys:
 
-- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `domain_id` → [`sending_domains`](#sending_domains) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `root_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `root_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -2600,8 +2600,8 @@ Foreign keys:
 Foreign keys:
 
 - `added_by` → `auth.users` (`id`), on delete set null
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
-- `tenant_id`, `segment_id` → [`segments`](#segments) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `segment_id` → [`segments`](#segments) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
