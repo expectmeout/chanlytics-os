@@ -978,9 +978,8 @@
     height: var(--control-h-lg);
     padding: 0 10px;
   }
-  /* The options are the glass circle: the cog's word is a desk's, and a screen reader has the button's name. The cog
-     stands in the circle's middle: with the word gone and no padding, it stood against the circle's left edge (Ruben,
-     9 Oct 2026). */
+  /* The options are the glass circle, and a screen reader has the button's name. The cog stands in the circle's middle:
+     with the word gone and no padding, it stood against the circle's left edge (Ruben, 9 Oct 2026). */
   .main-scroll > .calendar .cal-options {
     justify-content: center;
     width: 44px;
@@ -990,6 +989,24 @@
   }
   .main-scroll > .calendar .cal-options-word {
     display: none;
+  }
+  /* Where the bar has the room the cog says its word, as it does on a desk (Ruben, 9 Oct 2026: "if the mobile view
+     allows it"). The room is the bar's own, beside the views, not a guess from the screen's width: a button wider
+     than the room left would wrap under the views and take a row of its own. The bar is the container; the width
+     below is the views (247), the bar's gap (12) and the capsule with its word (105), so a 390px phone has it and a
+     385px one keeps the circle. */
+  .main-scroll > .calendar .cal-bar {
+    container: cal-bar / inline-size;
+  }
+  @container cal-bar (min-width: 364px) {
+    .main-scroll > .calendar .cal-options {
+      width: auto;
+      padding: 0 var(--space-4) 0 var(--space-3);
+      border-radius: var(--radius-full);
+    }
+    .main-scroll > .calendar .cal-options-word {
+      display: inline;
+    }
   }
   /* The pane is the column the page leaves (mobile.css): it never pulls, the body takes the room between the notices
      and the foot, and a scroll inside it (the agenda's list, a day too tall for its floor) never reaches the page. */
