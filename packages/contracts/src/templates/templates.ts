@@ -10,7 +10,7 @@
  */
 import { clockDate } from "../shared/clock";
 import { agoWords } from "../shared/time";
-import { recordOrNull } from "../shared/unknown";
+import { isCount, recordOrNull } from "../shared/unknown";
 import { WHATSAPP_LANGUAGES } from "./template-languages";
 
 /**
@@ -543,8 +543,9 @@ export function templateSends(src: TemplateSendSource): Record<string, TemplateS
 }
 
 /**
- * template_sends' answer (00362), by message name: storage's `last_at` read into memory's `lastAt`. Null when it is not
- * that shape, which the reader says as a read that failed, never as a message nothing sent.
+ * template_sends' answer (00362), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
+ * number (isCount). Null when it is not that shape, which the reader says as a read that failed, never as a message
+ * nothing sent.
  */
 export function templateSendsOf(answer: unknown): Record<string, TemplateSends> | null {
   const byName = recordOrNull(answer);
@@ -552,7 +553,7 @@ export function templateSendsOf(answer: unknown): Record<string, TemplateSends> 
   const out: Record<string, TemplateSends> = {};
   for (const [name, raw] of Object.entries(byName)) {
     const s = recordOrNull(raw);
-    if (!s || typeof s.count !== "number" || !(s.last_at === null || typeof s.last_at === "string")) return null;
+    if (!s || !isCount(s.count) || !(s.last_at === null || typeof s.last_at === "string")) return null;
     out[name] = { count: s.count, lastAt: s.last_at };
   }
   return out;

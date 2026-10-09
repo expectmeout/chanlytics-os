@@ -23,7 +23,7 @@
  * exactly the rows most likely to matter.
  */
 import { MIN_MS } from "../shared/time";
-import { finiteOrNull, recordOrNull } from "../shared/unknown";
+import { isCount, recordOrNull } from "../shared/unknown";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-titles";
 import { clockDate, clockWhen } from "../shared/clock";
@@ -226,8 +226,8 @@ const RUN_COUNTED = ["queued", "sent", "skipped", "failed", "delivered", "read",
 
 /**
  * run_counts' answer (00362), by run id, read into Sent's counts in the order the page has always written them (a run
- * nobody is on is absent, and the caller says it as zeros). Null when the answer is not that shape: a read that failed,
- * never a run with nothing in it.
+ * nobody is on is absent, and the caller says it as zeros), each count a whole number (isCount). Null when the answer is
+ * not that shape: a read that failed, never a run with nothing in it.
  */
 export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | null {
   const byRun = recordOrNull(answer);
@@ -239,14 +239,12 @@ export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | 
     if (!c || !by) return null;
     const counts: BroadcastCounts = { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
     for (const k of RUN_COUNTED) {
-      const n = finiteOrNull(c[k]);
-      if (n === null) return null;
+      const n = c[k];
+      if (!isCount(n)) return null;
       counts[k] = n;
     }
-    const whatsapp = finiteOrNull(by.whatsapp);
-    const sms = finiteOrNull(by.sms);
-    const email = finiteOrNull(by.email);
-    if (whatsapp === null || sms === null || email === null) return null;
+    const { whatsapp, sms, email } = by;
+    if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
     out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
   }
   return out;

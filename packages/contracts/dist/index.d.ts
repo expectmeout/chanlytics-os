@@ -5707,8 +5707,9 @@ interface TemplateSendSource {
 /** One entry per template name that has gone out. A name absent from the map never has. */
 declare function templateSends(src: TemplateSendSource): Record<string, TemplateSends>;
 /**
- * template_sends' answer (00362), by message name: storage's `last_at` read into memory's `lastAt`. Null when it is not
- * that shape, which the reader says as a read that failed, never as a message nothing sent.
+ * template_sends' answer (00362), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
+ * number (isCount). Null when it is not that shape, which the reader says as a read that failed, never as a message
+ * nothing sent.
  */
 declare function templateSendsOf(answer: unknown): Record<string, TemplateSends> | null;
 interface TemplateSentWords {
@@ -11347,8 +11348,8 @@ interface BroadcastCounts {
 }
 /**
  * run_counts' answer (00362), by run id, read into Sent's counts in the order the page has always written them (a run
- * nobody is on is absent, and the caller says it as zeros). Null when the answer is not that shape: a read that failed,
- * never a run with nothing in it.
+ * nobody is on is absent, and the caller says it as zeros), each count a whole number (isCount). Null when the answer is
+ * not that shape: a read that failed, never a run with nothing in it.
  */
 declare function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | null;
 interface BroadcastDto {

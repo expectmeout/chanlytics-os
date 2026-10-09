@@ -60,9 +60,9 @@ export async function reachOutReport(
 /**
  * A counts door's answer where the database may not have the function yet: its one jsonb object, keyed by a
  * playbook's, a run's or a chain's id or a message's name (an empty object: nothing counted), or "missing" on a
- * database before its
- * migration (isMissingDoor), where the dashboard reads the old way for one release so either deploy order works. Any
- * other failure throws, an answer that is no object among them: "we could not read" is never "none", nor "missing".
+ * database before its migration (isMissingDoor), where the dashboard reads the old way for one release so either
+ * deploy order works. Any other failure throws, an answer that is no object among them: "we could not read" is never
+ * "none", nor "missing".
  */
 function answerOrMissing(
   name: string,

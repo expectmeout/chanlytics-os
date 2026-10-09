@@ -14857,7 +14857,7 @@ function templateSendsOf(answer) {
   const out = {};
   for (const [name, raw] of Object.entries(byName)) {
     const s = recordOrNull(raw);
-    if (!s || typeof s.count !== "number" || !(s.last_at === null || typeof s.last_at === "string")) return null;
+    if (!s || !isCount(s.count) || !(s.last_at === null || typeof s.last_at === "string")) return null;
     out[name] = { count: s.count, lastAt: s.last_at };
   }
   return out;
@@ -16410,14 +16410,12 @@ function runCountsOf(answer) {
     if (!c || !by) return null;
     const counts = { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
     for (const k of RUN_COUNTED) {
-      const n = finiteOrNull(c[k]);
-      if (n === null) return null;
+      const n = c[k];
+      if (!isCount(n)) return null;
       counts[k] = n;
     }
-    const whatsapp = finiteOrNull(by.whatsapp);
-    const sms = finiteOrNull(by.sms);
-    const email = finiteOrNull(by.email);
-    if (whatsapp === null || sms === null || email === null) return null;
+    const { whatsapp, sms, email } = by;
+    if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
     out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
   }
   return out;
@@ -24490,7 +24488,7 @@ function parseTodayWidgetSnapshot(v) {
   const text = (x) => typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null;
   const headline = text(s.headline);
   const at3 = typeof s.at === "string" && !Number.isNaN(Date.parse(s.at)) ? s.at : null;
-  const waiting = typeof s.waiting === "number" && Number.isInteger(s.waiting) && s.waiting >= 0 ? s.waiting : null;
+  const waiting = isCount(s.waiting) ? s.waiting : null;
   if (headline === null || at3 === null || waiting === null || !Array.isArray(s.figures)) return null;
   const figures = [];
   for (const f of s.figures.slice(0, FIGURES_MAX)) {
