@@ -30,9 +30,14 @@
  * sendFailureWords), and every later send to the person is refused before the carrier is asked. The log says what the
  * report came to (`carrier_stop`: recorded, already_stopped, newer_answer, no_person, not_our_text).
  *
- * Twilio retries a status callback it could not deliver, so a database that
- * is down is a 503 and the word comes again; anything it should not retry is
- * a 2xx with nothing in it.
+ * Twilio does NOT send a status callback again for an answer it got: its own retry is for a connection that never
+ * opened, never for a 5xx (inbound-text.ts says the same of a text). This said the opposite, so a database that would
+ * not take the report answered 503 and waited for a word that never came: the row stayed `sent`, and a reply the
+ * carrier refused was never flagged. The report is recovered here instead: the delivery is kept in the intake ledger
+ * before the verdict, and when the record fails the platform is paged with the key that replays it once the database
+ * is well (api/admin/intake/replay, which proves the signature again and knocks on this door). The 503 is what
+ * happened; anything Twilio should not retry is a 2xx with nothing in it. A line or account that could not be read
+ * is a 503 before anything is proven or kept, and is the log's alone.
  */
 import { text } from "../http.js";
 import { pg } from "../pg.js";
@@ -41,10 +46,40 @@ import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignatur
 import { recordLateCarrierOptOut, recordStatusByExternalId, type LateCarrierStop } from "../packages/db.js";
 import { flagLateFailure } from "../receptionist/late-failure.js";
 import { lineByNumber, lineAccount } from "./sms.js";
+import { pageOperator, type PageOutcome } from "../ops/page-operator.js";
 import { logger } from "../log.js";
 import { phoneTail } from "../packages/contracts.js";
 
 const empty = (status: number) => text(status, "", { "content-type": "text/plain" });
+
+/**
+ * A carrier's report the database would not take, told to the platform (ops/page-operator.ts), under the workspace's
+ * own key: `sms_status_unrecorded:<tenant_id>`, so a database that refuses every report pages a few times a day, not
+ * once a text. Names the delivery's replay key and never a number or the words. Never throws: a page that could not
+ * go is its outcome, said on the door's line.
+ */
+async function pageLostReport(
+  db: NonNullable<ReturnType<typeof pg>>,
+  tenantId: string,
+  f: { replay: string; kept: boolean; status: string; error: string },
+): Promise<PageOutcome> {
+  return pageOperator(
+    { db },
+    `sms_status_unrecorded:${tenantId}`,
+    `A text's delivery report could not be recorded in workspace ${tenantId.slice(0, 8)}`,
+    [
+      `Twilio reported "${f.status}" for a text and the database would not take it: ${f.error}`,
+      "Twilio does not send a status callback again, so until it is replayed the text reads as sent, and a reply the carrier refused is not flagged for the owner.",
+      "",
+      `Workspace: ${tenantId}`,
+      f.kept
+        ? `Replay it once the database is well: POST /api/admin/intake/replay {"provider":"twilio","provider_event_id":"${f.replay}"}. Any others are on the log as sms_status_record_failed, each with its key.`
+        : `It could not be kept in the intake ledger either (${f.replay}): read the message's status in Twilio's console.`,
+      "",
+      "This page comes at most once in six hours for the workspace.",
+    ].join("\n"),
+  ).catch((): PageOutcome => "failed");
+}
 
 export async function receiveSmsStatus(request: Request): Promise<Response> {
   const raw = await request.text();
@@ -81,10 +116,12 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
     }
   }
 
-  // Kept under Twilio's id and the status it carried, before the verdict (decision 0032, 00336).
-  await keepDelivery(db, {
+  // Kept under Twilio's id and the status it carried, before the verdict (decision 0032, 00336): the key a report the
+  // database would not take is replayed by.
+  const replay = `${s.messageSid}:${s.status}`;
+  const kept = await keepDelivery(db, {
     provider: "twilio",
-    id: `${s.messageSid}:${s.status}`,
+    id: replay,
     door: "/api/sms-status",
     url: request.url,
     tenantId: line.tenant_id,
@@ -109,7 +146,10 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
     if (stopped)
       carrierStop = await recordLateCarrierOptOut(db, { tenantId: line.tenant_id, externalId: s.messageSid });
   } catch (e) {
-    L.error("sms_status_record_failed", { error: e instanceof Error ? e.message : String(e) });
+    const error = e instanceof Error ? e.message : String(e);
+    // Twilio will not send it again, so a person replays it: the line names every one, the page the first.
+    const paged = await pageLostReport(db, line.tenant_id, { replay, kept, status: s.status, error });
+    L.error("sms_status_record_failed", { error, replay, kept, paged });
     return empty(503);
   }
   L.info("sms_status", {
