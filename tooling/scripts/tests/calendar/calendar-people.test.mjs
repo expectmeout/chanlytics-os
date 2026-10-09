@@ -1566,18 +1566,11 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   assert.ok(mig.split("not public.is_acting_member(v_tenant)").length === 3, "owner or operator, both doors");
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts");
   assert.ok(route.includes('rate: "person_edit",') && route.includes('role: "operator",'));
-  // The route is its handle's declaration (who may, how often); the handle sends each field it was given through
-  // that field's own door (src/server/people/person-details.ts).
-  const handle = readCode("apps/dashboard/src/server/people/person-details.ts");
+  // The route is its handle's declaration (who may, how often). That the handle sends a name and notes through their
+  // two doors, and refuses an empty change in the schema's words, is driven through the route itself
+  // (people/people-routes.test.mjs, "details: an operator where the person lives"): this file read the route's source
+  // for both until #1507 moved the calls into src/server/people/person-details.ts.
   assert.ok(route.includes("setPersonDetails"), "the route runs the one handle");
-  assert.ok(
-    /rpc\("set_person_name", \{\s*p_contact_id: id,\s*p_name: name,?\s*\}\)/.test(handle) &&
-      /rpc\("set_person_notes", \{\s*p_contact_id: id,\s*p_notes: notes,?\s*\}\)/.test(handle),
-  );
-  assert.ok(
-    handle.includes('"Send a name, notes, an email address or a proposal link."'),
-    "the schema refuses in the same words",
-  );
   // The profile reads the owner's notes and their proposal link off the person's own row: the two columns people_list
   // does not carry. None written is none. Run.
   const noted = await profileOf({
