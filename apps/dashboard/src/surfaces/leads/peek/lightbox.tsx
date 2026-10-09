@@ -6,8 +6,7 @@
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { keepTouch, onAPhone } from "../../kit/touch";
-import { leaving, touchSwipe } from "../../legacy-verbs";
+import { keepTouch, leaving, onAPhone, touchSwipe } from "../../legacy-verbs";
 
 interface LightboxProps {
   vm: LeadPeekVM;

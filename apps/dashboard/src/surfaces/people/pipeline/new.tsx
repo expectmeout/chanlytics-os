@@ -18,7 +18,7 @@ import { Icon } from "../../kit/icon/icon";
 import type { FocusOn } from "../../kit/record/focus";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn } from "../../kit/touch";
+import { focusAsDrawn } from "../../legacy-verbs";
 import { JOB_CANCEL } from "../sheets/phone-sheet";
 import { plFace, plMatcher } from "../words";
 import { P } from "./pipe";

@@ -1,5 +1,5 @@
 /**
- * What the kit knows of a finger (surfaces/kit/touch.ts; Ruben, 8 October 2026): a touch screen is the pointer a person
+ * What the app knows of a finger (surfaces/legacy-verbs.ts; Ruben, 8 October 2026): a touch screen is the pointer a person
  * mostly uses, never a width, and there no text field takes focus as it is drawn; the kit's phone is its one width;
  * and a gesture's handlers can keep a touch to themselves, so a pull on what is drawn on the body is not read again
  * by whatever drew it.
@@ -11,7 +11,7 @@ import { importSrc } from "../_source.mjs";
 
 installLegacyReact();
 const { focusAsDrawn, keepTouch, onAPhone, onTouchScreen } = await importSrc(
-  "apps/dashboard/src/surfaces/kit/touch.ts",
+  "apps/dashboard/src/surfaces/legacy-verbs.ts",
 );
 
 /** A window that answers these queries with yes, and every other with no. */

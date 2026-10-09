@@ -110,11 +110,10 @@ token it reads moves what it feeds.
 A new primitive takes the same steps under a short name in the house's style that no stylesheet uses yet, as a family
 of its own in the gallery, with its component and type test in a folder of its own beside the others (`kit/button/`),
 which the index names it from. The kit's root holds only what its families share: the index, the stylesheet, the
-registry (`classes.json`), `variants.ts` with its type test, `press.tsx`, and four small things more than one family calls:
-`chosen.ts` (the one chosen state), `download.ts` (a file the browser saves), `touch.ts` (what the kit knows of a finger: a
-touch screen, where no field takes focus as it is drawn, and a pull that keeps its touch) and `kit-globals.ts` (the
-components the shell's pages still draw, under the names they read), so no folder of it comes near the 20 modules a
-folder may hold (the tree-shape measure).
+registry (`classes.json`), `variants.ts` with its type test, `press.tsx`, and three small things more than one family calls:
+`chosen.ts` (the one chosen state), `download.ts` (a file the browser saves) and `kit-globals.ts` (the components the shell's
+pages still draw, under the names they read), so no folder of it comes near the 20 modules a folder may hold (the tree-shape
+measure).
 
 ## Add a value
 

@@ -24,7 +24,7 @@ import type { ReactNode } from "react";
 import type { PersonVM } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
-import { focusAsDrawn } from "../../kit/touch";
+import { focusAsDrawn } from "../../legacy-verbs";
 
 /** A way an answer may have been given. */
 interface Source {

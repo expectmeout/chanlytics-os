@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn } from "../../kit/touch";
+import { focusAsDrawn } from "../../legacy-verbs";
 import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../sheets/phone-sheet";
 import { PL_MODES, PL_SOURCE_GLYPH, plModeWord } from "../words";
 import { addToListMenu } from "./bar-menu";

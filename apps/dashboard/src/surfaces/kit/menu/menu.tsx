@@ -14,7 +14,7 @@
  * Under 900px it is the phone's action sheet: the same menu, from the bottom edge over the page (kit.css), on a layer
  * that a press outside closes it through, and a pull down from its top lets it go, following the finger, as the Sheet's
  * does (data-bits touchSwipe; Ruben, 8 October 2026: it drew the sheet's handle and did not answer a pull). The touch
- * stays the menu's own (touch.ts keepTouch): opened from inside a sheet or an open thread, its pull moved that too.
+ * stays the menu's own (legacy-verbs keepTouch): opened from inside a sheet or an open thread, its pull moved that too.
  *
  * It draws what the gallery's Menu family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout, and comes last; the
@@ -23,8 +23,7 @@
 import { Menu as BaseMenu } from "@base-ui/react/menu";
 import type { ReactElement, ReactNode, Ref } from "react";
 import { Fragment, useState } from "react";
-import { touchSwipe } from "../../legacy-verbs";
-import { keepTouch, onAPhone } from "../touch";
+import { keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
 import { cx, variants } from "../variants";
 
 /** The room between the control and the menu, as the house's menu leaves it (kit.css, .more-menu's top). */

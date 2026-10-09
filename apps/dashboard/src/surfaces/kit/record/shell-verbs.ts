@@ -60,6 +60,14 @@ export function mediaQuery(query: string): MediaQueryList | null {
   return typeof window.matchMedia === "function" ? window.matchMedia(query) : null;
 }
 
+/**
+ * Whether the pointer a person mostly uses is a finger: the house's one test for a touch screen (legacy-verbs
+ * `onTouchScreen` says what it is and why), asked through the kit's own verb for a query.
+ */
+export function onTouchScreen(): boolean {
+  return !!mediaQuery("(pointer: coarse)")?.matches;
+}
+
 /** What the person has selected on the page, if the browser can say. */
 export function pageSelection(): Selection | null {
   return typeof window.getSelection === "function" ? window.getSelection() : null;

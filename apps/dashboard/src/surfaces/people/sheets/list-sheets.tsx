@@ -9,7 +9,7 @@
 import { FieldError } from "../../kit/field-error/field-error";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn } from "../../kit/touch";
+import { focusAsDrawn } from "../../legacy-verbs";
 import type { ListRule } from "@chanlytics/contracts";
 import { RuleEditor } from "../lists/rule-editor";
 import { SaveModes } from "../lists/save-shown";

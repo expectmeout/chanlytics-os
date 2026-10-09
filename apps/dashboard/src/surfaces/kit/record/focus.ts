@@ -36,8 +36,7 @@ import type { FocusEvent, KeyboardEvent, RefObject } from "react";
 import { can, pick } from "./dom";
 import { recFolds } from "./registry";
 import type { FoldId } from "./registry";
-import { listen, mediaQuery, tabStops, unlisten } from "./shell-verbs";
-import { onTouchScreen } from "../touch";
+import { listen, mediaQuery, onTouchScreen, tabStops, unlisten } from "./shell-verbs";
 
 /** The element a gesture is drawn in, held by a ref. */
 type Box = RefObject<HTMLElement | null>;

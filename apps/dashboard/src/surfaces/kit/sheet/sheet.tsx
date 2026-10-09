@@ -28,8 +28,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import type { ReactElement, ReactNode, Ref, RefObject } from "react";
 import { useCallback, useRef } from "react";
-import { touchSwipe } from "../../legacy-verbs";
-import { onAPhone } from "../touch";
+import { onAPhone, touchSwipe } from "../../legacy-verbs";
 import { cx } from "../variants";
 
 /** A step inside a job: the way back to the one it came from, named for a screen reader, its glyph drawn. */

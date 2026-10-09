@@ -2073,7 +2073,7 @@ test("a fold open when the window crosses the phone's width is drawn again in th
 
 test("on a touch screen a fold drawn as a sheet opens on the sheet itself, and its first field waits for a tap", () => {
   // Ruben, 8 October 2026: a sheet that put a person in its first field as it rose raised the keyboard over what
-  // they had not read yet, and the phone moved the page to the field. A touch screen is the pointer (kit/touch.ts),
+  // they had not read yet, and the phone moved the page to the field. A touch screen is the pointer (legacy-verbs.ts),
   // never the width: the sheet takes focus itself there, as RecordSheet does, and Tab and a tap go on from it. A fold
   // under its row is what a press asked to type in, and keeps its first field; so does every frame under a mouse.
   const width = atWidth(true);

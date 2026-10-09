@@ -156,7 +156,7 @@ briefed at the top of an inbound call. Every system already in place is used bef
   Changed on 8 October 2026 (Ruben, after it was live: a bare plus said nothing of what it makes): the Inbox's act
   says its words through `ActWords`, and the frame draws an act that does as a 36px capsule with its mark and its
   first word, "+ New". The circle stays for an act that does not. On a touch screen the sheet opens with no field in
-  focus (`surfaces/kit/touch.ts`).
+  focus (`focusAsDrawn`, `surfaces/legacy-verbs.ts`).
 - "N drafts about to send · Hold all" is fixed at the right end of that row on a desk (`components.css:2111-2117`;
   `legacy/styles/inbox.css:1790`), drawn by the page (`surfaces/inbox/pages/inbox-page.tsx:293-348`).
 

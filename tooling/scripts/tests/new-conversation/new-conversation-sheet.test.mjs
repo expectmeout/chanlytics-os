@@ -423,7 +423,7 @@ test("the pick: who is found, each a press; nobody; never 'no one' while nobody 
 
 test("on a touch screen no field of the pick takes focus as it is drawn; a mouse and keys keep it ready", () => {
   // Ruben, 8 October 2026: the sheet opened with its search in focus, so a phone raised its keyboard over a sheet
-  // nobody had read yet and moved the page to the field. A touch screen is the pointer (kit/touch.ts), never a width.
+  // nobody had read yet and moved the page to the field. A touch screen is the pointer (legacy-verbs.ts), never a width.
   const adding = (open) => ({ open, name: "", phone: "", busy: false, error: null });
   const stateOf = (open) => ({
     pick: { q: "", setQ() {}, add: adding(open), setAdd() {}, rows: [], reading: false },
