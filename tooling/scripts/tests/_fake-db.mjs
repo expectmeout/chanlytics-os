@@ -467,12 +467,13 @@ const refusal = (code, message) => Object.assign(new Error(message), { code });
 const living = (c) => c.erased_at == null && c.merged_into_contact_id == null;
 const inWorkspace = (tables, tenantId) => (tables.contacts ?? []).filter((c) => c.tenant_id === tenantId);
 
-/** The door's reading of its arguments, refused with its own codes and words: the number as 00342 restates normalizePhone. */
+/** The door's reading of its arguments, refused with its own codes and words: the number as 00366 restates normalizePhone. */
 function resolveArgs(a) {
   const word = (v) => String(v ?? "").trim();
   const channel = word(a.p_channel) || null;
   const external = word(a.p_external) || null;
   const digits = String(a.p_phone ?? "").replace(/\D/g, "");
+  const plus = String(a.p_phone ?? "").trim().startsWith("+");
   const email = word(a.p_email).toLowerCase() || null;
   const name = word(a.p_name).replace(/\s+/g, " ").slice(0, 80) || null;
   const assurance = word(a.p_assurance) || "observed";
@@ -482,7 +483,7 @@ function resolveArgs(a) {
   const phone =
     digits === ""
       ? null
-      : digits.length === 10
+      : digits.length === 10 && !plus
         ? `+1${digits}`
         : digits.length >= 8 && digits.length <= 15
           ? `+${digits}`
