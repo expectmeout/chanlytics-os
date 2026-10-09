@@ -271,3 +271,22 @@ test(
     );
   },
 );
+
+test("every foreign key is the database's word for every row: none is left not valid (00358)", { skip }, () => {
+  // 00279, 00289 and 00306 added their keys NOT VALID (no row already there was read) and left validating them for
+  // when production was known to hold no row that breaks one; it was read on 9 October 2026, and 00358 validates
+  // them. A key added not valid after this is validated by a migration that follows it: on a database with a row
+  // that breaks it, that migration fails and names the key, which is the point.
+  const [counted] = query(
+    "select count(*)::int as keys, (count(*) filter (where conname like '%_same_workspace'))::int as twins from pg_constraint where contype = 'f' and connamespace = 'public'::regnamespace",
+  );
+  assert.ok(counted.keys > 100 && counted.twins > 40, `the catalog was read: ${JSON.stringify(counted)}`);
+  const left = query(
+    "select c.conrelid::regclass::text as child, c.conname as key from pg_constraint c where c.contype = 'f' and not c.convalidated and c.connamespace = 'public'::regnamespace order by 1, 2",
+  );
+  assert.deepEqual(
+    left,
+    [],
+    "a key that is not valid: validate it in a migration of its own (alter table <child> validate constraint <key>)",
+  );
+});
