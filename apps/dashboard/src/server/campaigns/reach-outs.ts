@@ -363,7 +363,7 @@ async function runDomainsOf(ctx: RouteContext, tenantId: string, rows: SendRow[]
 }
 
 /** A run's sends counted as its approval sheet says them (R21): checked and due today, later, still being checked. */
-function runCountsOf(rows: SendRow[], tz: string) {
+function approvalCountsOf(rows: SendRow[], tz: string) {
   const today = localDate(tz, new Date());
   const planned = rows
     .filter((s) => s.state === "planned")
@@ -406,7 +406,7 @@ export async function reachOutRunOf(
   const at = steps.findIndex((s) => s.id === run.playbook_id);
   const stepN = at < 0 ? null : at;
   const step = stepN === null ? null : steps[stepN];
-  const c = runCountsOf(rows, facts.timezone);
+  const c = approvalCountsOf(rows, facts.timezone);
   const [first, domains] = await Promise.all([
     firstEmailOf(ctx, tenantId, { lead: c.checked[0], step, first: stepN === 0, signedBy: root.signed_by }),
     runDomainsOf(ctx, tenantId, rows),

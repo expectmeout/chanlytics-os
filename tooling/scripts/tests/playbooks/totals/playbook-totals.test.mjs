@@ -8,6 +8,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isPlaybookTotalsDto, runCountsOf, templateSendsOf } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 test("isPlaybookTotalsDto takes playbook_totals' answer -- by playbook id, each with its last run, the run that waits or null, and its history -- and nothing else", () => {
   const row = {
@@ -284,5 +286,62 @@ test("the fake database's twins count harbor as the SQL does: each run, each mom
     (await db.rpc("playbook_totals", { p_tenant_id: "elsewhere" })).data,
     {},
     "another workspace's are not this one's",
+  );
+});
+
+/* ---- the dashboard over the fake database: the database's count, else the fold ---- */
+
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
+
+/** A function a database before 00362 does not have: PostgREST's PGRST202, which packages/db reads as "missing". */
+const gone = (name) => () => {
+  throw Object.assign(new Error(`Could not find the function public.${name}`), { code: "PGRST202" });
+};
+/** Harbor as a database before 00362 answers it: the dashboard reads the old way, for one release. */
+const before00362 = (tables) =>
+  fakeDb(
+    tables,
+    {},
+    {
+      run_counts: gone("run_counts"),
+      playbook_totals: gone("playbook_totals"),
+      template_sends: gone("template_sends"),
+    },
+  );
+
+test("Sent and a run's sheet say what run_counts says, read in one call for the fifty, and the same bytes the fold says on a database before it", async () => {
+  const sql = fakeDb(harbor());
+  const listed = await Bc.listBroadcasts({ supabase: sql }, T);
+  assert.deepEqual(
+    sql.seen.filter((q) => q.rpc).map((q) => q.rpc),
+    ["run_counts"],
+    "one call for the fifty",
+  );
+  assert.equal(
+    sql.seen.some((q) => q.table === "broadcast_recipients"),
+    false,
+    "no person read to count them",
+  );
+  const folded = await Bc.listBroadcasts({ supabase: before00362(harbor()) }, T);
+  assert.equal(JSON.stringify(listed), JSON.stringify(folded), "byte for byte");
+  assert.deepEqual(listed.broadcasts.find((b) => b.id === "b0").counts, counts(0, 2, 1, 0, 2, 1, 1, 1, 0, 1));
+  assert.deepEqual(
+    listed.broadcasts.find((b) => b.id === "b2").counts,
+    counts(0, 0, 0, 2, 1, 0, 1, 0, 0, 0),
+    "a failed person with a message, answered",
+  );
+  assert.equal(
+    JSON.stringify(await Bc.listRuns({ supabase: fakeDb(harbor()) }, T)),
+    JSON.stringify(await Bc.listRuns({ supabase: before00362(harbor()) }, T)),
+  );
+  const sheet = await Bc.getBroadcast({ supabase: fakeDb(harbor()) }, T, "b2");
+  assert.deepEqual(sheet.broadcast.counts, counts(0, 0, 0, 2, 1, 0, 1, 0, 0, 0));
+  assert.deepEqual(
+    (await Bc.getBroadcast({ supabase: before00362(harbor()) }, T, "b2")).broadcast.counts,
+    sheet.broadcast.counts,
   );
 });
