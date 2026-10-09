@@ -2521,8 +2521,10 @@ test("a broadcast's email through the real door (decision D1): the run's news is
       "visit_tomorrow",
     ],
     ["their visit, but they said STOP", customer({ consent: "opted_out" }), VISIT, held("opted_out"), "visit_tomorrow"],
-    // The moment, not the row, says it: a monthly offer's moment is the business's news though the row kept a visit.
-    ["news on a monthly moment, a visit kept", addressAlone(), VISIT, held("not_opted_in"), "everyone_monthly"],
+    // The moment, not the row, says it: a monthly offer's moment is the business's news though the row kept a visit. It
+    // is an offer's moment, so the door asks the stricter purpose its enrolment asked (enrolPurpose), and what it lacks
+    // is a yes to offers: held as no_marketing_consent, never sent.
+    ["news on a monthly moment, a visit kept", addressAlone(), VISIT, held("no_marketing_consent"), "everyone_monthly"],
   ];
   for (const [what, who, facts, marks, trigger] of cases) {
     const out = await broadcastBatchByEmail({ who, facts, trigger });
