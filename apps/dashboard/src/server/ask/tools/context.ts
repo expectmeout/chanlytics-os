@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import {
   AppError,
@@ -365,8 +366,13 @@ export function approvalWords(kind: ProposalKindAboveOperator): string {
     : "Only an owner can approve it: for anyone else, say so and that an owner can ask";
 }
 
-let seq = 0;
-const nextId = () => `p-${Date.now().toString(36)}-${(seq++ % 1000).toString(36)}`;
+/**
+ * A card's id, which is also the key its write is kept under (route.ts onceForKey, `card:<id>`, with no hash of the
+ * request): two cards must never share one, or the second's Approve is answered with the first's receipt and changes
+ * nothing. It was the millisecond and a counter each server instance started at zero, so two instances proposing in
+ * one millisecond for one workspace minted the same id.
+ */
+const nextId = () => `p-${randomUUID()}`;
 
 export const refuse = (why: string): ProposalOutcome => ({
   proposal: null,
@@ -380,9 +386,16 @@ export const refuse = (why: string): ProposalOutcome => ({
  * either (D7). A builder whose kind needs more than an operator refuses a member below it first, in its route's words
  * (`roleAtLeast`, `proposalBelowNeeds`).
  */
-export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo">): ProposalOutcome => {
+export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at">): ProposalOutcome => {
   const spec = PROPOSAL_SPECS[p.kind];
-  const proposal: AskProposal = { id: nextId(), ...p, needs: spec.needs, undo: spec.undo?.label(p) ?? null };
+  const proposal: AskProposal = {
+    id: nextId(),
+    ...p,
+    needs: spec.needs,
+    undo: spec.undo?.label(p) ?? null,
+    // When it was made: a card is approved while it is fresh (contracts askCardLapsed), never days on.
+    made_at: new Date().toISOString(),
+  };
   return {
     proposal,
     isError: false,

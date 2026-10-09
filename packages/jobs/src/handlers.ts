@@ -52,6 +52,8 @@ import {
   memberHasAddress,
   keepForwardingConfirmation,
   getTenantConfig,
+  claimQueuedSend,
+  releaseQueuedSend,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -98,6 +100,8 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
+      claim: (id) => claimQueuedSend(ctx.db, job.tenant_id, id),
+      release: (id) => releaseQueuedSend(ctx.db, job.tenant_id, id),
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) =>
         upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),

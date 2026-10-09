@@ -271,16 +271,13 @@ export interface ApproveRunPorts {
   timezone(): Promise<string>;
   /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
   paused(): Promise<boolean>;
-  /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
-  release(broadcastId: string, at: Date): Promise<boolean>;
   /**
-   * scheduled → pending_approval, when the job could not be made: only while it is still scheduled. True iff a row
-   * changed; false, or a throw, is a run that says "scheduled" with nothing to send it (approveRun says so, and the
-   * edge's watchdog marks it not sent once its time has passed: ops/stranded-runs.ts).
+   * The run released for `at` (pending_approval → scheduled, the row carrying the time its job carries: 00119), its
+   * send job written when `job` says so, and the approval recorded as the approver's with `decision` as its payload,
+   * in one transaction (00353 approve_broadcast): the decision's id. Null when the run was no longer waiting, and then
+   * nothing was written. Throws when it failed, and then nothing was written either: the run waits, as it was.
    */
-  hold(broadcastId: string): Promise<boolean>;
-  schedule(broadcastId: string, at: Date): Promise<void>;
-  record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
+  approve(broadcastId: string, at: Date, o: { job: boolean; decision: Json }): Promise<string | null>;
 }
 
 export interface CancelBroadcastPorts {

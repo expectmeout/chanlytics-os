@@ -204,6 +204,18 @@ shows no delivery state yet), 0002's reads and the reminder as a job on a due ro
 clocks retire), the verbs that set a field of `contacts`'s twenty-two, 0036 step 3 with 0035's conformance, the targets
 of invariant 12 with Ruben's alarms, then Phase 3's notes.
 
+**8 October 2026**, from the architecture review of that day (local, not yet on main when written). Invariant 4, a
+send to a person at most once, gains the two cases it did not hold: a queued message is claimed on its own row before
+the wire (`messages.sending_at`, 00352: two jobs naming one message are never both answered yes), and a job that said
+it was about to speak is never run again (`jobs.spoke_at`, 00352: a text's answer was repeated when its runner died
+between the provider's yes and the reply's row). A run that waited is approved through one door, its release, its
+job and its decision together (`approve_broadcast`, 00353), which is invariant 1's shape for one more record. And
+Phase 3's first step is built behind a switch: a WhatsApp message of a workspace the edge names
+(`WHATSAPP_ANSWERS_AS_JOBS`) is recorded, its answer scheduled as the same `inbound_answer` job a text's is, and
+acknowledged (`apps/edge/lib/whatsapp/answer-later.ts`). Unset, which is the default, the webhook answers inside
+Meta's request as its reviewed contract says; the switch is how the road is tried on one workspace's traffic before
+that contract is changed for all.
+
 ## Tests
 
 The invariants' holds, each a baseline under `tooling/scripts/tests/baselines/` that may only fall, in

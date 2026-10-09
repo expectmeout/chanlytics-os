@@ -3,12 +3,8 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import {
-  CONVERSATION_OPT_IN_PATTERN,
-  MARKETING_OPT_IN_PATTERN,
-  OPT_OUT_PATTERN,
-  REFERRAL_ID_MAX,
-} from "@chanlytics/contracts";
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, REFERRAL_ID_MAX } from "@chanlytics/contracts";
+import { asksToStop } from "./stop-request";
 import { answerObject, providerFetch, type SendOutcome } from "./provider-fetch";
 import { errField, logger } from "./log/logger";
 
@@ -260,7 +256,7 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,
     media: mediaRefOf(mediaSrc),
-    optOut: isText && matches(OPT_OUT_PATTERN),
+    optOut: isText && consentText.some((s) => asksToStop(s, "whatsapp")),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
     // appointment question; YES OFFERS answers the offers question and nothing
     // else. It used to answer both -- "texting OFFERS is also a way back in from

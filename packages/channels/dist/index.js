@@ -730,12 +730,58 @@ async function askSystemOne(key, ask, deps = {}) {
 }
 
 // src/whatsapp.ts
-import {
-  CONVERSATION_OPT_IN_PATTERN,
-  MARKETING_OPT_IN_PATTERN,
-  OPT_OUT_PATTERN,
-  REFERRAL_ID_MAX
-} from "../../contracts/dist/index.js";
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, REFERRAL_ID_MAX } from "../../contracts/dist/index.js";
+
+// src/stop-request.ts
+import { OPT_OUT_PATTERN, SMS_OPT_OUT_PATTERN } from "../../contracts/dist/index.js";
+var LEADING = /^(?:please|pls|plz|por favor|porfa|porfavor|hey|hi|hello|hola|ok|okay|ya) /;
+var TRAILING = / (?:please|pls|plz|por favor|porfa|porfavor|thanks|thank you|thx|gracias|now|ya)$/;
+function plain(words) {
+  let s = words.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[‘’`´]/g, "'").replace(/[^a-z0-9' ]+/g, " ").replace(/ +/g, " ").trim();
+  for (let before = ""; before !== s; ) {
+    before = s;
+    s = s.replace(LEADING, "").replace(TRAILING, "");
+  }
+  return s;
+}
+var NOT = "(?:do not|don't|dont)";
+var AGAIN = "(?: (?:again|anymore|any more|ever again))?";
+var TEXTS = "(?:messages|texts|sms)";
+var ENGLISH = [
+  "stop (?:it|this|that)",
+  `stop (?:texting|messaging|contacting|calling|emailing|writing|writing to|bothering|spamming)(?: (?:me|us))?${AGAIN}`,
+  `stop sending(?: (?:me|us))?(?: (?:${TEXTS}|these|this|these ${TEXTS}|your ${TEXTS}|anything))?${AGAIN}`,
+  `${NOT} (?:text|message|contact|call|write|write to|email|bother|spam) (?:me|us)${AGAIN}`,
+  `${NOT} send (?:me|us) (?:${TEXTS}|anything|any ${TEXTS}|more ${TEXTS}|any more ${TEXTS})${AGAIN}`,
+  "(?:remove|delete) (?:me|my number|my phone number|my info|my information)(?: from (?:your|this|the) (?:list|lists|database|system|contacts|mailing list))?",
+  "take (?:me|my number) off(?: (?:of )?(?:your|this|the) (?:list|lists|database|system|contacts|mailing list))?",
+  "(?:i (?:want|wish|would like|'d like) to )?(?:opt out|opt me out|unsubscribe me|unsubscribe)",
+  `no more (?:${TEXTS}|contact)`,
+  "leave me alone",
+  `i ${NOT} want (?:any more |anymore |more |these |your |any )?${TEXTS}(?: (?:anymore|any more|from you))?`,
+  `i ${NOT} want to (?:receive|get) (?:any more |anymore |more |these |your |any )?${TEXTS}(?: (?:anymore|any more|from you))?`,
+  `i ${NOT} want to be (?:texted|contacted|messaged)${AGAIN}`
+];
+var MENSAJES = "(?:mensajes|textos)";
+var SPANISH = [
+  `(?:ya )?no (?:me|nos) (?:escribas|escriban|escriba|mandes|manden|mande|envies|envien|envie|llames|llamen|llame|contactes|contacten|contacte|molestes|molesten|moleste|textees|texteen)(?: mas)?(?: ${MENSAJES})?`,
+  `(?:deja|dejen|deje|para|paren|pare) de (?:escribirme|escribirnos|mandarme ${MENSAJES}|mandar ${MENSAJES}|enviarme ${MENSAJES}|enviar ${MENSAJES}|molestarme|molestar|contactarme|llamarme|textearme)`,
+  `no quiero (?:recibir )?(?:mas |sus |tus |estos )?${MENSAJES}(?: de ustedes)?`,
+  "no quiero que me (?:escriban|escribas|contacten|llamen|molesten)(?: mas)?",
+  "(?:dame|denme|deme|darme|quiero darme|me quiero dar|quiero que me den|favor de darme) de baja",
+  `no mas ${MENSAJES}`,
+  "(?:borra|borren|borre|elimina|eliminen|elimine|quita|quiten|quite|saca|saquen|saque) (?:mi numero|mi telefono|mis datos)(?: de (?:su|la|tu|esta) lista)?",
+  "(?:borrame|borrenme|eliminame|eliminenme|quitame|quitenme|sacame|saquenme)(?: de (?:su|la|tu|esta) lista)?",
+  "cancel(?:a|ar|en) (?:mi |la )?suscripcion"
+];
+var SENTENCE = new RegExp(`^(?:${[...ENGLISH, ...SPANISH].join("|")})$`);
+function asksToStop(words, wire) {
+  if (!words) return false;
+  if ((wire === "sms" ? SMS_OPT_OUT_PATTERN : OPT_OUT_PATTERN).test(words)) return true;
+  return SENTENCE.test(plain(words));
+}
+
+// src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
 var UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
 var REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
@@ -806,7 +852,7 @@ function normalizeInbound(m, value) {
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1e3).toISOString() : null,
     media: mediaRefOf(mediaSrc),
-    optOut: isText && matches(OPT_OUT_PATTERN),
+    optOut: isText && consentText.some((s) => asksToStop(s, "whatsapp")),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
     // appointment question; YES OFFERS answers the offers question and nothing
     // else. It used to answer both -- "texting OFFERS is also a way back in from
@@ -2532,12 +2578,7 @@ async function channelStep(run) {
 }
 
 // src/lines/sms.ts
-import {
-  LINE_CODES_MAX,
-  LINE_CODES_WITHIN_MS,
-  SMS_OPT_OUT_PATTERN,
-  utf8Bytes
-} from "../../contracts/dist/index.js";
+import { LINE_CODES_MAX, LINE_CODES_WITHIN_MS, utf8Bytes } from "../../contracts/dist/index.js";
 function smsInboundFrom(form2) {
   const messageSid = form2.MessageSid || form2.SmsSid || "";
   const from = form2.From || "";
@@ -2582,7 +2623,7 @@ function carrierConsent(s) {
   return null;
 }
 function smsKeywordConsent(body) {
-  if (!body || !SMS_OPT_OUT_PATTERN.test(body)) return null;
+  if (!asksToStop(body, "sms")) return null;
   return { optOut: true, optIn: false };
 }
 function mergeConsent(a, b) {

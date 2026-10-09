@@ -46,10 +46,10 @@ export function optOutWords(who: string): string {
 }
 
 /**
- * Whether a customer's message asks to stop, put to a second model in shadow (decision 0023). The keyword door
- * (OPT_OUT_PATTERN) reads STOP, BAJA, ALTO and UNSUBSCRIBE alone; a message that reached the receptionist was read as
- * no such request, so the primary's answer to this question is always "false", and the shadow's yes is a stop the
- * keywords let through.
+ * Whether a customer's message asks to stop, put to a second model in shadow (decision 0023). The wires' own reading
+ * (channels asksToStop) takes a keyword alone (OPT_OUT_PATTERN: STOP, BAJA, ALTO, UNSUBSCRIBE) or a whole message that
+ * is the request as a sentence; a message that reached the receptionist was read as no such request, so the primary's
+ * answer to this question is always "false", and the shadow's yes is a stop that reading let through.
  */
 export function stopRequestQuestion(): SystemOneQuestion {
   return { type: "noul", instructions: `Has the customer ${ASKED_TO_STOP}?` };

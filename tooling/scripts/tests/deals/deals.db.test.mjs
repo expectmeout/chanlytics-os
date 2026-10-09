@@ -520,3 +520,142 @@ test("the people read carries the newest open or current deal; an erasure blanks
   assert.equal(after_.valid_until, "2026-12-01", "and the day, the business's own fact");
   assert.equal(after_.version, 2);
 });
+
+// 00357: the member's one call. A person of its own, since the test before it erased the one the others share.
+test(
+  "record_deal: a deal and its line in the ledger are one write, as the member's; a move the door refuses writes no line",
+  { skip },
+  async () => {
+    const person = ok(
+      await w.admin
+        .from("contacts")
+        .insert({ tenant_id: w.tenant, phone_e164: "+15125550179", display_name: "Fixture Deal Whole" })
+        .select("id")
+        .single(),
+    ).id;
+    const me = (await w.operator.auth.getUser()).data.user.id;
+    const lines = async () =>
+      ok(
+        await w.admin
+          .from("decisions")
+          .select("id, subject_type, subject_id, actor_type, actor_user_id, payload, undo_of")
+          .eq("tenant_id", w.tenant)
+          .eq("verb", "record_deal")
+          .order("created_at"),
+      );
+    assert.equal((await lines()).length, 0, "the door alone writes no line: every test above called it");
+
+    // A new engagement, with everything a sheet may name, said from Ask.
+    const first = ok(
+      await w.operator.rpc("record_deal", {
+        p_contact_id: person,
+        p_stage: "proposed",
+        p_move: {
+          service: "Whole",
+          amount_cents: 120000,
+          per: "month",
+          note: "Sent by email",
+          evidence: { form: "paper" },
+          proposal_url: "https://docs.example.com/p/whole",
+          valid_until: "2026-12-01",
+        },
+        p_via: "ask",
+      }),
+    );
+    assert.ok(first.deal, JSON.stringify(first));
+    assert.deepEqual(
+      [first.deal.stage, first.deal.version, first.deal.service, first.from ?? null, first.undo_dropped],
+      ["proposed", 1, "Whole", null, false],
+    );
+    const kept = ok(
+      await w.admin
+        .from("deals")
+        .select("amount_cents, per, note, evidence, proposal_url, valid_until")
+        .eq("id", first.deal.id)
+        .single(),
+    );
+    assert.deepEqual(
+      kept,
+      {
+        amount_cents: 120000,
+        per: "month",
+        note: "Sent by email",
+        evidence: { form: "paper" },
+        proposal_url: "https://docs.example.com/p/whole",
+        valid_until: "2026-12-01",
+      },
+      "the door was called with everything the move named",
+    );
+    const one = await lines();
+    assert.deepEqual(one, [
+      {
+        id: first.decision_id,
+        subject_type: "deal",
+        subject_id: first.deal.id,
+        actor_type: "user",
+        actor_user_id: me,
+        payload: { contact_id: person, stage: "proposed", from: null, service: "Whole", via: "ask" },
+        undo_of: null,
+      },
+    ]);
+
+    // A move of it, naming the line it follows: where it came from is on its own line.
+    const passed = ok(
+      await w.operator.rpc("record_deal", {
+        p_contact_id: person,
+        p_stage: "lost",
+        p_move: { deal_id: first.deal.id, version: 1, lost_reason: "timing" },
+        p_undo_of: first.decision_id,
+      }),
+    );
+    assert.deepEqual([passed.deal?.stage, passed.from, passed.undo_dropped], ["lost", "proposed", false]);
+    const two = await lines();
+    assert.equal(two.length, 2);
+    assert.deepEqual(
+      [two[1].id, two[1].payload, two[1].undo_of],
+      [
+        passed.decision_id,
+        { contact_id: person, stage: "lost", from: "proposed", service: "Whole" },
+        first.decision_id,
+      ],
+    );
+
+    // What the door refuses is answered as it answers it, and nothing is recorded: the version the page saw is old, a
+    // viewer reads only, another workspace's member sees no person.
+    const stale = ok(
+      await w.operator.rpc("record_deal", {
+        p_contact_id: person,
+        p_stage: "proposed",
+        p_move: { deal_id: first.deal.id, version: 1 },
+      }),
+    );
+    assert.equal(typeof stale.error, "string", JSON.stringify(stale));
+    assert.equal(stale.decision_id, undefined);
+    for (const [who, client] of [
+      ["a viewer", w.viewer],
+      ["another workspace's member", w.stranger],
+    ]) {
+      const refused = ok(await client.rpc("record_deal", { p_contact_id: person, p_stage: "proposed" }));
+      assert.deepEqual(refused, { error: "not_found" }, who);
+    }
+    assert.equal((await lines()).length, 2, "no line for a move that did not happen");
+
+    // An undo link nobody holds is dropped and said, and the move is kept (team_decision's rule).
+    const other = ok(
+      await w.operator.rpc("record_deal", {
+        p_contact_id: person,
+        p_stage: "proposed",
+        p_move: { service: "Another" },
+        p_undo_of: "00000000-0000-4000-8000-000000000357",
+      }),
+    );
+    assert.deepEqual([other.deal?.stage, other.undo_dropped], ["proposed", true]);
+    assert.equal((await lines())[2].undo_of, null);
+
+    // Nobody signed in is nobody's decision.
+    const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    const out = await anon.rpc("record_deal", { p_contact_id: person, p_stage: "proposed" });
+    assert.ok(out.error, "a caller nobody signed in as is refused");
+    assert.equal((await lines()).length, 3);
+  },
+);

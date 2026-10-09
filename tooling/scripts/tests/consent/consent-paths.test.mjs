@@ -42,6 +42,7 @@ import {
   mayReceive,
 } from "../../../../packages/contracts/src/index.ts";
 import { fakeDb } from "../_fake-db.mjs";
+import { consentDoor } from "./_person-row.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -102,8 +103,9 @@ const doors = () => {
   };
 };
 
+// Each answer goes through record_consent (00356), which calls the door the case fakes and writes the decision.
 const ctxFor = (t, rpcs, params = {}) => ({
-  supabase: fakeDb(t, {}, rpcs),
+  supabase: fakeDb(t, {}, consentDoor(t, rpcs, USER)),
   userId: USER,
   email: "ada@example.com",
   params,
@@ -207,6 +209,32 @@ test("the same routes still record what is theirs to record: a no, and a reset",
       ["set_marketing_consent", "opted_out"],
     ],
     "each answer reached its own door",
+  );
+  // The offers door is handed the workspace the person was read from under RLS, never one from the body; the visit
+  // door takes none (it reads the person's own).
+  assert.deepEqual(
+    handed.map(([, a]) => a.p_tenant_id ?? null),
+    [null, A, A],
+  );
+  // And each answer's line in the person's history was written with it, as the member's: what it was, how it was
+  // said, the purpose only for offers, the batch only for an answer recorded for many (00356 record_consent).
+  assert.deepEqual(
+    t.decisions.map((d) => [d.verb, d.actor_user_id, d.subject_id, d.payload]),
+    [
+      ["consent_change", USER, P1, { consent: "opted_out", source: "phone", note: null, previous: "unknown" }],
+      [
+        "consent_change",
+        USER,
+        P1,
+        { consent: "unknown", source: "operator", note: null, previous: "unknown", purpose: "marketing" },
+      ],
+      [
+        "consent_change",
+        USER,
+        P1,
+        { consent: "opted_out", source: "phone", note: null, previous: "unknown", purpose: "marketing", batch: 1 },
+      ],
+    ],
   );
 });
 

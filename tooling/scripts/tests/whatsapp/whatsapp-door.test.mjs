@@ -50,6 +50,7 @@ for (const k of [
   "ANTHROPIC_API_KEY",
   "WHATSAPP_ACCESS_TOKEN",
   "WHATSAPP_TEST_ALLOWLIST",
+  "WHATSAPP_ANSWERS_AS_JOBS",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
 ])
@@ -1774,4 +1775,152 @@ test("the delivery is kept as it came under the body's digest, with no workspace
     ["meta", true, "/api/whatsapp", DOOR, null, true, ["x-hub-signature-256"], raw],
     "Meta names no delivery and a batch may span workspaces: the body's digest is the key, and the workspace is none",
   );
+});
+
+/* ------------------------------- answered after the acknowledgement (0031, Phase 3) */
+
+const later = await import(at("apps/edge/lib/whatsapp/answer-later.ts"));
+const { realPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
+
+test("a workspace the edge names has its WhatsApp message recorded, its answer scheduled as a job and acknowledged: nothing is answered in the door, and the job answers it on the workspace's own wire", async () => {
+  const w = world();
+  w.tables.jobs = [];
+  const db = w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  const m = text(from, `wamid.${w.i}.later`, "do you have Saturday morning?");
+  const contacts = [{ wa_id: from, profile: { name: "Dana" } }];
+  await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: `someone-else, ${w.T.toUpperCase()}` }, async () => {
+    assert.deepEqual(await answer(await deliver(w.change({ contacts, messages: [m] }))), [200, { ok: true }]);
+  });
+  assert.deepEqual(seen.ingested, [{ tenantId: w.T, body: "do you have Saturday morning?" }], "recorded in the door");
+  assert.deepEqual(seen.sent, [], "and nothing answered there: Meta has its 200 before the model is asked anything");
+  assert.equal(w.tables.jobs.length, 1, "one job, for the one message");
+  const [job] = w.tables.jobs;
+  assert.deepEqual(
+    [job.tenant_id, job.kind, job.dedupe_key],
+    [w.T, "inbound_answer", "inbound_answer:m-in"],
+    "the text's kind and key: once per message, in the reply lane",
+  );
+  // The request the door served rides with it, as with every job scheduled while one is served: the job runs under it,
+  // so the knock, the answer and the send are one search in the log.
+  const { request_id: asked, ...carried } = job.payload;
+  assert.match(asked, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(
+    carried,
+    {
+      // The message as Meta sent it, and the two facts of its envelope the normaliser reads; no other message of the
+      // batch, no status, nothing else of the change.
+      wa: {
+        message: m,
+        value: { metadata: { display_phone_number: w.LINE.slice(1), phone_number_id: w.PHONE_ID }, contacts },
+      },
+      // Named, so an erasure cancels a job still waiting and scrubs one finished.
+      message_id: "m-in",
+      conversation_id: "conv-1",
+      contact_id: "k-1",
+    },
+    "what its job needs to take it up again",
+  );
+
+  // The job's half, as the tick hands it over: the routing read again, the receptionist run with the same world.
+  seen.ingested.length = 0;
+  await later.answerInboundJob(db, { id: "job-1", tenant_id: w.T, kind: job.kind, payload: job.payload, attempts: 1 });
+  assert.deepEqual(seen.ingested, [{ tenantId: w.T, body: "do you have Saturday morning?" }], "taken up again");
+  assert.deepEqual(
+    seen.sent,
+    [{ tenantId: w.T, to: from, body: GREETING, meta: { ack: true, fallback: "no_model" } }],
+    "answered by its job, as the door would have answered it",
+  );
+  assert.deepEqual(seen.wires.at(-1), { phoneId: w.PHONE_ID, accessToken: `token-${w.T}` }, "on its own number");
+});
+
+test("the switch names workspaces, and only those: unset, or naming another, a message is answered in the door as before and no job is written; all names every workspace", async () => {
+  for (const named of [undefined, "", "bbbbbbbb-0000-4000-8000-000000000000"]) {
+    const w = world();
+    w.tables.jobs = [];
+    w.open();
+    const seen = receptionist();
+    const from = w.customer();
+    await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: named }, () =>
+      deliver(w.change({ messages: [text(from, `wamid.${w.i}.door`, "hi")] })),
+    );
+    assert.equal(seen.sent.length, 1, `${named}: answered in Meta's request`);
+    assert.deepEqual(w.tables.jobs, [], `${named}: no job`);
+  }
+  const w = world();
+  w.tables.jobs = [];
+  w.open();
+  const seen = receptionist();
+  await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: "ALL" }, () =>
+    deliver(w.change({ messages: [text(w.customer(), `wamid.${w.i}.all`, "hi")] })),
+  );
+  assert.deepEqual([seen.sent.length, w.tables.jobs.length], [0, 1]);
+});
+
+test("an answer job says it is about to speak before Meta is called, on its own row; a job whose number is another workspace's now, or that names no message, fails by name and answers nothing", async () => {
+  const w = world();
+  w.tables.jobs = [
+    { id: "job-9", tenant_id: w.T, kind: "inbound_answer", state: "fired", attempts: 1, spoke_at: null },
+  ];
+  const db = w.open();
+  const seen = receptionist();
+  // The same world, with a sink that puts the words on the wire it was handed, as the real one does: what the wire
+  // sees when it is called is what the job's row held at that moment.
+  const base = realPorts();
+  const atTheWire = [];
+  setInboundPorts({
+    ...base,
+    sender: () => async () => {
+      atTheWire.push(w.tables.jobs[0].spoke_at);
+      return { ok: true, wamid: "wamid.out", status: 200 };
+    },
+    persist: {
+      ...base.persist,
+      sink: (...args) => ({
+        ...base.persist.sink(...args),
+        deliver: async (to, body) => {
+          const sent = await args[5].whatsapp(to, { body });
+          return { outcome: sent.ok ? "sent" : "failed", messageId: "m-out", externalId: sent.wamid };
+        },
+      }),
+    },
+  });
+  const from = w.customer();
+  const payload = {
+    wa: {
+      message: text(from, `wamid.${w.i}.spoke`, "hello?"),
+      value: { metadata: { phone_number_id: w.PHONE_ID } },
+    },
+    message_id: "m-in",
+  };
+  const claimed = { id: "job-9", tenant_id: w.T, kind: "inbound_answer", payload, attempts: 1 };
+  await later.answerInboundJob(db, claimed);
+  assert.equal(atTheWire.length, 1, "one reply left");
+  assert.ok(atTheWire[0], "and the row already said the job spoke when the wire was called");
+  assert.equal(claimed.spoke_at, w.tables.jobs[0].spoke_at, "the claim the runner judges a retry from says so too");
+
+  // Refused by name, before anything is read as a message or said.
+  seen.sent.length = 0;
+  const job = (over) => ({ id: "job-x", tenant_id: w.T, kind: "inbound_answer", attempts: 1, payload, ...over });
+  await assert.rejects(
+    later.answerInboundJob(db, job({ tenant_id: "cccccccc-0000-4000-8000-000000000000" })),
+    /another workspace's now/,
+  );
+  await assert.rejects(
+    later.answerInboundJob(db, job({ payload: { wa: { message: { id: "", from } } } })),
+    /names no WhatsApp message/,
+  );
+  await assert.rejects(
+    later.answerInboundJob(db, job({ payload: { wa: { message: payload.wa.message, value: {} } } })),
+    /which number was written to/,
+  );
+  await assert.rejects(
+    later.answerInboundJob(
+      db,
+      job({ payload: { wa: { ...payload.wa, value: { metadata: { phone_number_id: w.stranger } } } } }),
+    ),
+    /could not be read, or is not active/,
+  );
+  assert.equal(atTheWire.length, 1, "nothing more was said");
 });

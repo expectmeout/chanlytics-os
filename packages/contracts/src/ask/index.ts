@@ -23,6 +23,7 @@ export {
   ASK_CAPS,
   ASK_THREAD_VERBS,
   ASK_UNDO_MS,
+  askCardLapsed,
   ASK_SURFACES,
   ASK_SCOPE_KINDS,
 } from "./ask";

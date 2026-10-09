@@ -22,6 +22,7 @@ import {
   STOP_ENDED_OFFERS_SOURCE,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { consentDoor } from "./_person-row.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -365,7 +366,24 @@ const tables = (role = "operator") => ({
 });
 const send = (body) =>
   new Request(`http://localhost/api/v1/x?workspace=${A}`, { method: "PUT", body: JSON.stringify(body) });
-const ctxFor = (t, rpcs) => ({ supabase: fakeDb(t, {}, rpcs), userId: USER, email: "ada@example.com", params: {} });
+/** Run with the console quiet: a database fault is logged (db_failed), which is not what a case reads. */
+async function silently(run) {
+  const real = console.error;
+  console.error = () => {};
+  try {
+    return await run();
+  } finally {
+    console.error = real;
+  }
+}
+
+// Each answer goes through record_consent (00356), which calls the door the case fakes and writes the decision.
+const ctxFor = (t, rpcs) => ({
+  supabase: fakeDb(t, {}, consentDoor(t, rpcs, USER)),
+  userId: USER,
+  email: "ada@example.com",
+  params: {},
+});
 async function refused(p, code, status, words) {
   await assert.rejects(p, (e) => {
     assert.equal(e.code, code, e.message);
@@ -438,7 +456,8 @@ test("a spoken yes to OFFERS is refused before any row is touched; a no is honou
   const rpcs = {
     set_marketing_consent: (a) => {
       door.push(a);
-      if (a.p_contact_id === P2) throw new Error("that person has been erased");
+      // As the door refuses it: its own words, under the code a refusal of its own carries (P0002).
+      if (a.p_contact_id === P2) throw Object.assign(new Error("This person was deleted."), { code: "P0002" });
       return { marketing_consent: a.p_consent };
     },
   };
@@ -450,7 +469,7 @@ test("a spoken yes to OFFERS is refused before any row is touched; a no is honou
   );
   assert.equal(door.length, 0, "nothing reached the door");
   const no = await offers.PUT.run(send({ ids: [P1, P2], consent: "opted_out", source: "phone" }), ctxFor(t, rpcs));
-  assert.deepEqual(no, { done: 1, failed: [{ id: P2, message: "that person has been erased" }], skipped: [] });
+  assert.deepEqual(no, { done: 1, failed: [{ id: P2, message: "This person was deleted." }], skipped: [] });
   assert.deepEqual(
     door.map((a) => [a.p_tenant_id, a.p_contact_id, a.p_consent, a.p_source]),
     [
@@ -469,6 +488,25 @@ test("a spoken yes to OFFERS is refused before any row is touched; a no is honou
     ctxFor(tables(), rpcs),
   );
   assert.deepEqual(yes, { done: 1, failed: [], skipped: [] }, "a written yes goes through");
+
+  // A failure that is the database's own, not a door's refusal (a timeout, a lost connection), is never a person's to
+  // read: it is said in words that are, the others are still recorded, and nothing is written for the one it failed.
+  const t2 = tables();
+  const faulty = {
+    set_marketing_consent: (a) => {
+      if (a.p_contact_id === P1) throw new Error('canceling statement due to statement timeout on relation "contacts"');
+      return { marketing_consent: a.p_consent };
+    },
+  };
+  const out = await silently(() =>
+    offers.PUT.run(send({ ids: [P1, P2], consent: "opted_out", source: "phone" }), ctxFor(t2, faulty)),
+  );
+  assert.deepEqual(out, { done: 1, failed: [{ id: P1, message: "Something went wrong." }], skipped: [] });
+  assert.deepEqual(
+    t2.decisions.map((d) => d.subject_id),
+    [P2],
+    "the one it failed for has no line; the other's is whole",
+  );
 });
 
 test("the batch is judged before it is walked: a source that is not one of the four, an empty list, more than fifty, a viewer, a tab that named no workspace", async () => {

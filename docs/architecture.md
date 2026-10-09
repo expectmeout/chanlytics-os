@@ -281,7 +281,10 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   reads their workspace's (`GET usage` rolls the month up for an owner), the health sweep pages on its failures
   (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00274).
 - **One injection policy** (`contracts/ai/fence.ts`): someone else's words reach a model only inside a fence they cannot
-  close, and every system prompt shown such words carries one rule line.
+  close, and every system prompt shown such words carries one rule line. Ask fences where data becomes something the
+  model reads: a tool's result (`server/ask/round.ts`), a read made ahead of the question
+  (`server/ask/cross-page.ts`) and the page's own rows (`server/ask/context.ts`); the tools themselves answer plain
+  JSON.
 - **A second port, in shadow** (`packages/channels/src/models/typesafe.ts`; decision 0023): TypeSafe's Jev is asked the
   receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary while
   `TYPESAFE_SHADOW=1` and its key are set. Its answers are compared with the primary's and kept in the same ledger

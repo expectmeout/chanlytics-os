@@ -18,7 +18,10 @@
  * pure decisions packages/core/src/inbound/steps.ts.
  *
  * Contract (frozen during Meta App Review): process-then-200 in-invocation
- * under maxDuration 60; Meta retries + dedupe make replays safe.
+ * under maxDuration 60; Meta retries + dedupe make replays safe. A workspace
+ * the edge names in WHATSAPP_ANSWERS_AS_JOBS takes the other road instead
+ * (record, schedule the answer, 200: lib/whatsapp/answer-later.ts); unset,
+ * which is the default, nothing here changes.
  *
  * THE MEMORY IS POSTGRES, and there is no other. History, the pause and the
  * rate cap are the same rows the dashboard reads and writes, and the dedupe
@@ -44,7 +47,7 @@ import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import type { WaChangeValue } from "../packages/channels.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { handleInbound } from "./inbound.js";
+import { answerHereOrLater } from "./answer-later.js";
 import { recordReceipts } from "./receipts.js";
 import { pgSafe, IngestFailed } from "./persist.js";
 import { alertUnroutable } from "./alerts.js";
@@ -186,7 +189,7 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
             // never handled at all. The message itself is already persisted by
             // then, so it stays visible for reconciliation.
             try {
-              await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
+              await answerHereOrLater(m, v, tenantId, routedChannel, isEnvDefault);
             } catch (e) {
               if (e instanceof IngestFailed) unrecorded += 1;
               L.error("wa_inbound_failed", { id: m.id, error: errField(e) });

@@ -1140,7 +1140,8 @@ test("the turn as the model was sent it rides on the answer's row, at content.ra
         {
           type: "tool_result",
           tool_use_id: "t-card",
-          content: JSON.stringify({ proposed: true, id: CARD.id }),
+          // As the model is sent it: the tool's own JSON, inside its fence (round.ts resultBlocks).
+          content: `<record>\n${JSON.stringify({ proposed: true, id: CARD.id })}\n</record>`,
           is_error: false,
         },
       ],

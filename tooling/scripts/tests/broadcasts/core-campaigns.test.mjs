@@ -52,6 +52,7 @@ const WRITES = new Set([
   "record",
   "release",
   "hold",
+  "approve",
   "withdraw",
   "cancel",
 ]);
@@ -184,6 +185,8 @@ function fakes(over = {}) {
     record: "d1",
     release: true,
     hold: true,
+    // A run approved whole (00353 approve_broadcast): the decision's id, or null when the run was no longer waiting.
+    approve: "d1",
     withdraw: 1,
     cancel: true,
     dealsOn: false,
@@ -1164,7 +1167,7 @@ test("approve: a paused workspace approves nothing: refused in the pause's words
   assert.equal((await approveRun(fakes().ports, { row: waiting, now: NOW })).state, "scheduled");
 });
 
-test("approve: a run not waiting is refused; one that changed under the approver says so; a job the ledger refused leaves it waiting; else the send now and the approver's decision", async () => {
+test("approve: a run not waiting is refused; one that changed under the approver says so; a door that failed leaves it waiting; else the run released, its job and the approver's decision in one write", async () => {
   const row = {
     id: "b1",
     tenant_id: "t1",
@@ -1179,59 +1182,48 @@ test("approve: a run not waiting is refused; one that changed under the approver
     409,
     "This run is not waiting for approval.",
   );
-  const moved = fakes({ release: false });
+  // The door answers null when the run moved while the person looked (approved by someone else, skipped): nothing was
+  // written, and the approver is told to look again.
+  const moved = fakes({ approve: null });
   await refused(
     approveRun(moved.ports, { row, now: NOW }),
     "conflict",
     409,
     "This run just changed state; look again.",
   );
-  assert.deepEqual(moved.ops(), ["release"]);
-  const noJob = fakes({ schedule: new Error("schedule_job: no row") });
-  const stuck = await refusedLoudly(approveRun(noJob.ports, { row, now: NOW }));
+  assert.deepEqual(moved.ops(), ["approve"]);
+  // The release, the job and the decision are one transaction (00353), so a door that failed left the run waiting: the
+  // words say so, and they are true. There is no put-back to fail and no run left "scheduled" with nothing to send it.
+  const failed = fakes({ approve: new Error("approve_broadcast: violates check constraint jobs_kind_check") });
+  const stuck = await refusedLoudly(approveRun(failed.ports, { row, now: NOW }));
   assert.equal(stuck.e.code, "upstream_meta");
   assert.equal(stuck.e.status, 502);
   assert.equal(stuck.e.message, "The send could not be scheduled. The run is still waiting; try again.");
-  assert.deepEqual(noJob.ops(), ["release", "schedule", "hold"]);
-  // What the job ledger said is the log's, never the response's.
+  assert.deepEqual(failed.ops(), ["approve"], "one write asked for, and nothing after it");
+  // What the database said is the log's, never the response's.
   assert.equal(stuck.e.details, undefined);
-  assert.ok(!stuck.wire.includes("schedule_job"), `the response says ${stuck.wire}`);
+  assert.ok(!stuck.wire.includes("approve_broadcast"), `the response says ${stuck.wire}`);
   assert.deepEqual(
     stuck.said.map((l) => [l.event, l.step, l.broadcast_id, l.error]),
-    [["campaign_step_failed", "schedule", "b1", "Error: schedule_job: no row"]],
+    [["campaign_step_failed", "approve", "b1", "Error: approve_broadcast: violates check constraint jobs_kind_check"]],
   );
-  // The put-back is believed only when it changed the row (wiring review P2 8): one that changed nothing, or threw, leaves
-  // a run that reads "scheduled" with nothing to send it, and "still waiting; try again" over it was untrue.
-  const STRANDED =
-    "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
-  for (const [hold, logged] of [
-    [false, "no row"],
-    [new Error("rls: no update"), "Error: rls: no update"],
-  ]) {
-    const stranded = fakes({ schedule: new Error("schedule_job: no row"), hold });
-    const told = await refusedLoudly(approveRun(stranded.ports, { row, now: NOW }));
-    assert.equal(told.e.message, STRANDED, String(hold));
-    assert.equal(told.e.status, 502);
-    assert.deepEqual(
-      told.said.map((l) => [l.event, l.step, l.error]),
-      [
-        ["campaign_step_failed", "schedule", "Error: schedule_job: no row"],
-        ["campaign_step_failed", "hold", logged],
-      ],
-      "both steps that failed are in the log, once each",
-    );
-  }
   const f = fakes();
   const r = await approveRun(f.ports, { row, now: NOW });
   assert.deepEqual(f.log, [
-    ["release", "b1", NOW],
-    ["schedule", "b1", NOW],
     [
-      "record",
-      "broadcast",
+      "approve",
       "b1",
-      "send_broadcast",
-      { name: row.name, playbook_id: "p1", recipients: 3, approved: true, scheduled_for: NOW.toISOString() },
+      NOW,
+      {
+        job: true,
+        decision: {
+          name: row.name,
+          playbook_id: "p1",
+          recipients: 3,
+          approved: true,
+          scheduled_for: NOW.toISOString(),
+        },
+      },
     ],
   ]);
   assert.deepEqual(r, {
@@ -1295,10 +1287,10 @@ test("never at 3 AM: a send asked for outside nine to twenty by the business's c
     },
     now: night,
   });
-  assert.deepEqual(a.of("schedule")[0], ["schedule", "b1", nine]);
+  assert.deepEqual(a.of("approve")[0].slice(0, 3), ["approve", "b1", nine]);
+  assert.equal(a.of("approve")[0][3].decision.moved_from, night.toISOString(), "the ledger keeps the move");
   assert.equal(ap.scheduled_for, nine.toISOString());
   assert.equal(ap.moved_from, night.toISOString());
-  assert.equal(a.of("record")[0][4].moved_from, night.toISOString());
 });
 
 test("cancel: scheduled withdraws the job; sending stops at the next batch; waiting is skipped; anything ended says how; a row that changed under them says so; each on the ledger", async () => {
@@ -1720,11 +1712,12 @@ test("approve: a reach-out's run is released now with no broadcast job, on its o
     [r.state, r.scheduled_for, r.moved_from, r.decision_id],
     ["scheduled", NOW.toISOString(), null, "d1"],
   );
-  assert.deepEqual(f.ops(), ["release", "record"], "no broadcast job: it would find nobody and end the run as sent");
-  assert.equal(f.of("release")[0][2].toISOString(), NOW.toISOString(), "from the moment it is approved");
-  assert.equal(f.of("record")[0][4].reach_out, true);
+  assert.deepEqual(f.ops(), ["approve"]);
+  assert.equal(f.of("approve")[0][3].job, false, "no broadcast job: it would find nobody and end the run as sent");
+  assert.equal(f.of("approve")[0][2].toISOString(), NOW.toISOString(), "from the moment it is approved");
+  assert.equal(f.of("approve")[0][3].decision.reach_out, true);
   await refused(
-    approveRun(fakes({ release: false }).ports, { row: run, now: NOW }),
+    approveRun(fakes({ approve: null }).ports, { row: run, now: NOW }),
     "conflict",
     409,
     "This run just changed state",
@@ -1747,7 +1740,7 @@ test("approve: a reach-out's run keeps when its first email goes, and says now o
   const f = fakes();
   const r = await approveRun(f.ports, { row: run(ahead), now: NOW });
   assert.equal(r.scheduled_for, ahead, "Monday's first email, not now");
-  assert.equal(f.of("release")[0][2].toISOString(), ahead);
+  assert.equal(f.of("approve")[0][2].toISOString(), ahead);
   const past = fakes();
   const stale = new Date(NOW.getTime() - 3_600_000).toISOString();
   assert.equal((await approveRun(past.ports, { row: run(stale), now: NOW })).scheduled_for, NOW.toISOString());

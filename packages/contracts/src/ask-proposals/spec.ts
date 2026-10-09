@@ -85,6 +85,9 @@ export interface ProposalSpecAboveOperator extends ProposalSpec {
 export const PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
   noUndo: "This one has no undo.",
+  /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
+  lapsed:
+    "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
 } as const;
 
 /* ------------------------------------------------------------ shared by the families */
@@ -98,6 +101,16 @@ export const rec = (v: unknown): Record<string, unknown> =>
 export const decisionOf = (data: unknown): string | null => {
   const id = rec(data).decision_id;
   return typeof id === "string" && id ? id : null;
+};
+/**
+ * What a field held when the commit's route wrote it (its answer's `was`), or undefined when the route answered none
+ * for that field. An undo puts back what was there at the commit, never what the card read when it was proposed: a
+ * teammate's edit between the two was overwritten by an undo of a card that never saw it. Undefined is an older
+ * route's answer, and the card's own reading stands in for it.
+ */
+export const wasIn = (data: unknown, k: string): unknown => {
+  const was = rec(rec(data).was);
+  return Object.prototype.hasOwnProperty.call(was, k) ? was[k] : undefined;
 };
 /** A payload id that names something, or null: a route with a hole in it is no route. */
 export const idIn = (pl: Record<string, unknown> | undefined, k: string): string | null =>

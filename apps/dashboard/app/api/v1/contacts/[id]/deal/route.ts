@@ -9,13 +9,10 @@ import {
   isRealDate,
   normalizeLink,
   whyNotALink,
-  type DealDto,
 } from "@chanlytics/contracts";
 import { write } from "@/server/route";
-import { contactScope, recordDecision } from "@/server/verbs";
-import { currentDealOf } from "@/server/people/deals";
-import { log } from "@/server/log";
-import { dbRefusal } from "@/server/with-route";
+import { contactScope } from "@/server/verbs";
+import { currentDealOf, recordDealMove } from "@/server/people/deals";
 
 const Body = z
   .object({
@@ -54,8 +51,9 @@ const Body = z
  *
  * One route for a new engagement (no deal_id: it starts proposed) and for a
  * move (deal_id and the version the page saw). The SQL door decides and
- * writes the stage's event; this records the decision, as the consent route
- * does. The receptionist never calls it.
+ * writes the stage's event, and the decision is recorded in the same
+ * transaction (recordDealMove, 00357), as the consent routes' is. The
+ * receptionist never calls it.
  *
  * A proposal's link, its valid-until day, a reason for passing and the fields
  * a person emptied (0008) each reach the door only when the body names them,
@@ -79,43 +77,20 @@ export const POST = write({
     const typed = input.proposal_url?.trim() ?? "";
     const url = typed ? normalizeLink(typed) : null;
     if (typed && !url) throw new AppError("validation", whyNotALink(typed) ?? DEAL_REFUSALS.bad_link);
-    const { data, error } = await ctx.supabase.rpc("deal_record", {
-      p_contact_id: contact.id,
-      p_stage: input.stage,
-      ...(input.deal_id ? { p_deal_id: input.deal_id } : {}),
-      ...(input.version !== undefined ? { p_version: input.version } : {}),
-      ...(input.service ? { p_service: input.service } : {}),
-      ...(input.when ? { p_when: new Date(input.when).toISOString() } : {}),
-      ...(input.amount_cents !== undefined ? { p_amount_cents: input.amount_cents } : {}),
-      ...(input.per ? { p_per: input.per } : {}),
-      ...(input.note ? { p_note: input.note } : {}),
-      ...(evidence ? { p_evidence: evidence } : {}),
-      ...(url ? { p_proposal_url: url } : {}),
-      ...(input.valid_until ? { p_valid_until: input.valid_until } : {}),
-      ...(input.lost_reason ? { p_lost_reason: input.lost_reason } : {}),
-      ...(input.clear?.length ? { p_clear: input.clear } : {}),
+    const recorded = await recordDealMove(ctx, contact.id, input.stage, {
+      ...(input.deal_id ? { deal_id: input.deal_id } : {}),
+      ...(input.version !== undefined ? { version: input.version } : {}),
+      ...(input.service ? { service: input.service } : {}),
+      ...(input.when ? { when: new Date(input.when).toISOString() } : {}),
+      ...(input.amount_cents !== undefined ? { amount_cents: input.amount_cents } : {}),
+      ...(input.per ? { per: input.per } : {}),
+      ...(input.note ? { note: input.note } : {}),
+      ...(evidence ? { evidence } : {}),
+      ...(url ? { proposal_url: url } : {}),
+      ...(input.valid_until ? { valid_until: input.valid_until } : {}),
+      ...(input.lost_reason ? { lost_reason: input.lost_reason } : {}),
+      ...(input.clear?.length ? { clear: input.clear } : {}),
     });
-    if (error) throw dbRefusal(error);
-    const r = (data ?? {}) as { error?: string; deal?: DealDto; from?: string | null };
-    if (r.error || !r.deal) {
-      // A key the sentences lack, or no deal and no error: an answer this route does not know. Logged raw before
-      // the generic sentence, so a new refusal is found in the log rather than by its blandness.
-      if (!(r.error && DEAL_REFUSALS[r.error])) {
-        log.error("deal_door_unknown_answer", { contact: contact.id, error: r.error ?? null, deal: !!r.deal });
-      }
-      throw new AppError("validation", DEAL_REFUSALS[r.error ?? ""] ?? "Could not record this.");
-    }
-    const decision_id = await recordDecision(ctx, contact.tenant_id, "deal", r.deal.id, "record_deal", {
-      contact_id: contact.id,
-      stage: input.stage,
-      from: r.from ?? null,
-      service: r.deal.service ?? null,
-    });
-    return {
-      deal: r.deal,
-      from: r.from ?? null,
-      decision_id,
-      current: await currentDealOf(ctx, contact.tenant_id, contact.id),
-    };
+    return { ...recorded, current: await currentDealOf(ctx, contact.tenant_id, contact.id) };
   },
 });

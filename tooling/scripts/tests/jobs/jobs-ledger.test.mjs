@@ -13,6 +13,7 @@ import {
   completeJob,
   failJob,
   deferJob,
+  markSpoke,
   CLAIM_FOR_MS,
   YIELD_AT_MS,
   LEASE_SECONDS,
@@ -39,6 +40,40 @@ test("work that speaks to a person is never run a second time", () => {
   for (const kind of SPEAKS_TO_A_PERSON) {
     assert.equal(verdictFor({ kind, attempts: 2 }), "give_up", kind);
   }
+});
+
+test("a job that said it was about to speak is judged as a kind that always speaks: no second run, no retry after a throw", async () => {
+  // A text's answer is safe to repeat until it reaches the wire, and not after: a runner killed between the provider's
+  // yes and the reply's row came back with no reply naming the message, and texted the person again. The job says so
+  // on its own row the moment before it speaks (jobs.spoke_at, 00352), and the ledger reads it from the claim.
+  const spoke = { kind: "inbound_answer", spoke_at: "2026-10-08T12:00:00Z" };
+  assert.equal(verdictFor({ kind: "inbound_answer", attempts: 2 }), "run", "until it speaks, it is tried again");
+  assert.equal(verdictFor({ ...spoke, attempts: 2 }), "give_up", "a lease that ran out after it spoke");
+  assert.equal(verdictFor({ ...spoke, attempts: 1 }), "run", "a first claim is a first run, whatever the row says");
+  assert.ok(
+    retryWait({ kind: "inbound_answer", attempts: 1 }, () => 0) > 0,
+    "a throw before it spoke waits and tries again",
+  );
+  assert.equal(retryWait({ ...spoke, attempts: 1 }), null, "a throw after it spoke is failed now");
+
+  const jobs = [{ id: "j1", state: "fired", attempts: 1, spoke_at: null }];
+  const db = fakeDb({ jobs });
+  // A run that no longer holds the row (its lease was taken back) must not speak: the mark throws, nothing is sent.
+  const stale = { id: "j1", attempts: 2 };
+  await assert.rejects(markSpoke(db, stale), /no longer holds the job/);
+  assert.equal(jobs[0].spoke_at, null);
+  assert.equal(stale.spoke_at, undefined, "and the claim it holds does not say it spoke");
+  // The run that holds it: on the row, for a claim after this run dies, and on the claim, for a throw within it.
+  const mine = { id: "j1", attempts: 1 };
+  await markSpoke(db, mine);
+  assert.ok(jobs[0].spoke_at, "written before the provider is called");
+  assert.equal(mine.spoke_at, jobs[0].spoke_at);
+  assert.equal(retryWait({ kind: "inbound_answer", ...mine }), null);
+  // Said once: a job that speaks twice in one run writes it the first time.
+  const first = jobs[0].spoke_at;
+  jobs[0].state = "done";
+  await markSpoke(db, mine);
+  assert.equal(jobs[0].spoke_at, first);
 });
 
 test("internal work is tried again up to the cap, then given up", () => {

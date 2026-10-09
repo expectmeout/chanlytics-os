@@ -17,8 +17,8 @@ const Body = z.object({
  *
  * The visit answer for many people at once: a yes given at the desk by a whole
  * class, say. One request where the page used to send one per person, through
- * the door each would go through alone (set_contact_consent, a decision per
- * person; server/people/consent.ts), held to the workspace the tab named. Operator or
+ * the door each would go through alone (record_consent, 00356: the answer and its
+ * history line together; server/people/consent.ts), held to the workspace the tab named. Operator or
  * owner, and one take of the consent bucket for the batch rather than fifty.
  */
 export const PUT = write({
