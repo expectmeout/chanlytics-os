@@ -12,6 +12,7 @@ import {
   bookingToolName,
   clip as answerClip,
   describeNow,
+  fenceActed,
   fencedInline,
   guardrailsInForce,
   hoursRuns,
@@ -523,6 +524,11 @@ const LINE_CAPS = {
  * most `n` characters, a longer one ending on a whole word with an ellipsis.
  */
 const linePart = (s: string | null | undefined, n: number): string => answerClip(s, n);
+/**
+ * A card's title as history replays it. A title is the product's own words around a name someone else chose ("Reply
+ * to Rosa"), so it keeps its length; only a title the fence would act on is made a safe name, as a row's label is.
+ */
+const historyName = (title: string): string | null => (fenceActed(title) ? promptSafeName(title) : title);
 /** What the person did with a card, as a rebuilt line says it: theirs, and never "done". */
 const DID_WORD: Record<AskProposalOutcome["state"], string> = {
   done: "approved",
@@ -551,7 +557,9 @@ export function answerLine(m: AskMessageVM, max: number): string {
   const a = m.answer ?? answerFromV1(m);
   const cards = m.proposals
     .slice(0, LINE_CAPS.cards)
-    .map((p) => [oneLine(p.id), p.kind, linePart(p.title, LINE_CAPS.title), outcomeWords(p.outcome)].join(" · "));
+    .map((p) =>
+      [oneLine(p.id), p.kind, linePart(historyName(p.title), LINE_CAPS.title), outcomeWords(p.outcome)].join(" · "),
+    );
   const head = [
     m.failed ? "(This turn failed.)" : "",
     linePart(a.say.headline || a.say.detail, ASK_ANSWER_CAPS.headline),
@@ -560,7 +568,7 @@ export function answerLine(m: AskMessageVM, max: number): string {
   const rows = a.show.items
     .slice(0, LINE_CAPS.rows)
     .map((it, i) =>
-      [`${i + 1}.`, it.source.kind, oneLine(it.source.id), linePart(it.source.label, LINE_CAPS.label)]
+      [`${i + 1}.`, it.source.kind, oneLine(it.source.id), linePart(promptSafeName(it.source.label), LINE_CAPS.label)]
         .filter(Boolean)
         .join(" "),
     );
