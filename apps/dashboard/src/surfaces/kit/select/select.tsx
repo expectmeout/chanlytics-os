@@ -74,14 +74,7 @@ export function Select<V extends string>({
         <BaseSelect.Icon>{chevron}</BaseSelect.Icon>
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
-        {/* From the box's own leading edge, as the picker's list hangs from its token: Base UI centres a list under
-            its box, which only shows where the list is the wider of the two (a box as wide as its words). */}
-        <BaseSelect.Positioner
-          className="pop-place"
-          align="start"
-          alignItemWithTrigger={false}
-          sideOffset={LIST_GAP_PX}
-        >
+        <BaseSelect.Positioner className="pop-place" alignItemWithTrigger={false} sideOffset={LIST_GAP_PX}>
           <BaseSelect.Popup className="rec-combo-pop" render={<Panel variant="pop" size="flush" />}>
             <BaseSelect.List className="rec-combo-list">
               {options.map((option) => (

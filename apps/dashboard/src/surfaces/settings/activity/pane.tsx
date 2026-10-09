@@ -22,16 +22,7 @@ import { pageClock } from "@/legacy-bridge/zone";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { canDo } from "../../legacy-verbs";
 import { ActivityLog, type LogState } from "./log";
-import {
-  BoxesWaiting,
-  FiltersAsk,
-  NO_NARROWING,
-  boxesLoaded,
-  loadBoxes,
-  narrowedCount,
-  type Boxes,
-  type Narrowing,
-} from "./narrowing";
+import { ActivityFilters, FiltersAsk, NO_NARROWING, narrowedCount, type Narrowing } from "./filters";
 
 /** What the boxes hold, as the read the route takes: a kind, a family or what went wrong; who; the days; the person. */
 function readOf(n: Narrowing, today: string): Read {
@@ -95,20 +86,6 @@ export function PaneActivity() {
   const [n, setN] = useState<Narrowing>(NO_NARROWING);
   // On a phone the boxes wait behind the head's one control until asked for.
   const [asking, setAsking] = useState(false);
-  // The boxes' own chunk (narrowing.tsx says why): held from the first draw where it has come, asked for once where
-  // it has not, and drawn the moment it lands; their row keeps its height meanwhile.
-  const [boxes, setBoxes] = useState<Boxes | null>(boxesLoaded);
-  useEffect(() => {
-    if (boxes) return undefined;
-    let on = true;
-    void loadBoxes().then((m) => {
-      if (on) setBoxes(m);
-    });
-    return () => {
-      on = false;
-    };
-  }, [boxes]);
-  const FiltersRow = boxes;
   // What this tab read last time, painted at once. The read below replaces it inside the time this pane used to spend
   // showing a reader nothing: on the salon's log it was 763ms of empty pane on the first visit and 433ms on the fifth,
   // for a hundred rows that had not changed.
@@ -184,17 +161,13 @@ export function PaneActivity() {
         )}
         <FiltersAsk narrowed={narrowedCount(n)} open={asking} onToggle={() => setAsking((v) => !v)} />
       </div>
-      {FiltersRow ? (
-        <FiltersRow
-          n={n}
-          set={(over) => setN((c) => ({ ...c, ...over }))}
-          kinds={st.kinds}
-          members={st.members}
-          open={asking}
-        />
-      ) : (
-        <BoxesWaiting open={asking} />
-      )}
+      <ActivityFilters
+        n={n}
+        set={(over) => setN((c) => ({ ...c, ...over }))}
+        kinds={st.kinds}
+        members={st.members}
+        open={asking}
+      />
       <ActivityLog
         st={st}
         folds={!n.pick.startsWith("kind:")}

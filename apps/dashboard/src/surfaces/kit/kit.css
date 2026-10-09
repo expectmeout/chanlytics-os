@@ -3555,6 +3555,12 @@ a.list-row {
   backdrop-filter: var(--surface-control-blur);
   box-shadow: var(--surface-control-depth);
 }
+/* A menu that opens over rows of coloured words (MoreMenu `solid`: Settings › Activity's lists over its log) stands
+   on the pop's near-opaque ground (tokens.css, --surface-pop-glass), under the same sheen, blur and edge: the menu's
+   own glass let the amber and the red of the lines behind it through as a smear. */
+.more-menu.solid {
+  background-color: var(--surface-pop-glass);
+}
 /* An item lifts as a lozenge in the accent's soft tint, its glyph turning to the accent, under a pointer, a key or a
    finger. A phone's hover sticks to what the finger last touched, but the menu closes on the press, so it is never
    seen. A destructive item keeps its own tint. */
@@ -3793,14 +3799,15 @@ footer.rec-sheet-foot .btn {
   background: var(--selected-fill);
 }
 /* A select's box is pressed, not typed in, so it answers a pointer as a button and the picker's token do: it lifts to
-   the selected fill under one, and holds it while its list is open. It stood still, a stroke round its words. Under a
-   pointer alone: a touch screen keeps :hover on the last thing tapped. */
+   the selected fill under one, and holds it while its list is open (Base UI says data-popup-open; a box that opens the
+   house's menu says aria-expanded alone). It stood still, a stroke round its words. Under a pointer alone: a touch
+   screen keeps :hover on the last thing tapped. */
 .rec-select {
   transition:
     background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out);
 }
-.rec-select[data-popup-open] {
+.rec-select:is([data-popup-open], [aria-expanded="true"]) {
   background: var(--selected-fill);
 }
 @media (hover: hover) {

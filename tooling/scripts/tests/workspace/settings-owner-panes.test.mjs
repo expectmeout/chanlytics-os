@@ -26,7 +26,6 @@ import {
   POLICY_MODE_WORDS,
   NOTIFICATION_KIND_GROUPS,
   NOTIFICATION_PANE_WORDS,
-  ACTIVITY_PAGE_WORDS,
 } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
@@ -227,11 +226,8 @@ installRoleStore();
 const { SettingsPage } = await import("../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { activity } = await import("../../../../apps/dashboard/src/legacy-bridge/activity.ts");
 const { pageClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
-// The log's lists are the kit's Select (Base UI's, which the suite stands in for): a test finds one by its type. The
-// boxes are their own chunk, asked for as the pane is drawn; loaded once here, the pane finds them at its first draw.
-const { Select } = await import("../../../../apps/dashboard/src/surfaces/kit/select/select.tsx");
-const { loadBoxes } = await import("../../../../apps/dashboard/src/surfaces/settings/activity/narrowing.tsx");
-await loadBoxes();
+// The log's lists are the house's menu (the kit's MoreMenu), which runs here as it does in a browser.
+const { MoreMenu } = await import("../../../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
 /** The log's reads answered by `f`: the module's object, which the pane imports. */
 const stand = (f) => Object.assign(activity, f);
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -471,12 +467,24 @@ test("REGRESSION (one gate): Activity follows an owner's View-as preview like ev
 
 /* ------------------------------ Activity ------------------------------ */
 
-/** Pick an option of one of the log's lists (the kit's Select, or its Combobox), as a person does. */
-const pick = (tree, id, value) => byTestId(tree, id).props.onValueChange(value);
+/** One of the log's lists (filters.tsx): what it chooses, what it offers and the one chosen, as the page keeps them. */
+const listOf = (tree, id) => find(tree, (n) => n.props?.testid === id && Array.isArray(n.props?.options));
 /** Every option a list offers, with its value and its words. */
-const optionsOf = (box) => box.props.options.map((o) => [o.value, o.label]);
-/** The day picker (the kit's), drawn only while one day is what was asked for. */
-const dayPicker = (tree) => find(tree, (n) => n.props?.label === ACTIVITY_PAGE_WORDS.when.pick && !!n.props?.today);
+const optionsOf = (list) => list.props.options.map((o) => [o.value, o.label]);
+/** The house's menu a list is drawn as. */
+const menuOf = (tree, id) => find(tree, (n) => n.type === MoreMenu && n.props?.testid === id);
+/**
+ * Pick an option of one of the log's lists, as a person does: the box opens the house's menu, and a press on the row
+ * that says it picks it. The option is named by its value, as the page keeps it.
+ */
+const pick = (tree, id, value) => {
+  const words = listOf(tree, id).props.options.find((o) => o.value === value).label;
+  press(byTestId(tree, id));
+  const open = settle("activity");
+  const row = find(open, (n) => n.type === "button" && n.props?.role === "menuitemradio" && textOf(n).trim() === words);
+  assert.ok(row, `${id} offers "${words}"`);
+  press(row);
+};
 
 test("REGRESSION (S21): Activity says it is reading and names its filters -- the first load showed nothing, and three filters had no name", async () => {
   workspace("owner");
@@ -497,9 +505,18 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
     String(card().props.className).split(" ").includes("rec-card"),
     "the kit's record card, as Profile's and Partner's are: it stood on the older flat card",
   );
-  for (const id of ["act-area", "act-who", "act-when", "act-person-q"]) {
-    assert.ok(String(byTestId(tree, id)?.props.label || "").length > 2, `REGRESSION: ${id} had no name`);
+  for (const id of ["act-area", "act-who", "act-when"]) {
+    const name = String(listOf(tree, id)?.props.label || "");
+    assert.ok(name.length > 2, `REGRESSION: ${id} had no name`);
+    assert.ok(
+      textOf(byTestId(tree, id)).startsWith(`${name}: `),
+      `${id}'s box says what it chooses before the one chosen`,
+    );
   }
+  assert.ok(
+    String(byTestId(tree, "act-person-q")?.props["aria-label"] || "").length > 2,
+    "REGRESSION: the person box had no name",
+  );
   answer(A.waiting[0], [entry("e1", "Dana changed the business details")]);
   await flush();
   tree = settle("activity");
@@ -508,15 +525,15 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
   assert.equal(rowsOn(tree).length, 1);
   assert.equal(byTestId(tree, "act-clear"), null, "nothing narrows the log, so there is nothing to clear");
 
-  // Narrowed to one person, the way back to everyone is named too. The box is the kit's Combobox, and what it lists
-  // is the workspace's answer to the words typed (its onQuery), not the kit's own narrowing of a list it was given.
-  byTestId(tree, "act-person-q").props.onQuery("Ana");
+  // Narrowed to one person, the way back to everyone is named too. Whoever matches is listed under the box in the
+  // menu's own glass, on the pop's ground: it is the workspace's answer to the words typed.
+  type(byTestId(tree, "act-person-q"), "Ana");
   settle("activity");
   await new Promise((r) => setTimeout(r, 300));
   await flush();
   tree = settle("activity");
-  assert.deepEqual(optionsOf(byTestId(tree, "act-person-q")), [["c-ana", "Ana Ruiz"]], "who matches, as its list");
-  pick(tree, "act-person-q", "c-ana");
+  assert.equal(byTestId(tree, "act-person-matches").props.className, "more-menu align-left solid");
+  press(buttonSaying(tree, "Ana Ruiz"));
   tree = settle("activity");
   assert.equal(A.asked[A.asked.length - 1].person, "c-ana", "and the log is read for them");
   const clear = find(byTestId(tree, "act-person"), (n) => n.type === "button");
@@ -544,11 +561,21 @@ test("what kind of thing is two short lists -- the part of the product, then its
   answer(A.waiting[0], [], ["open_recording", "call.recorded", "message.sent", "appointment.changed"]);
   await flush();
   let tree = settle("activity");
-  const area = byTestId(tree, "act-area");
-  assert.equal(
-    area.type,
-    Select,
-    "REGRESSION (8 Oct): the kit's Select, its list on the panel's pop as every menu's is; the browser's own list drew itself in the system's colours, whatever the look",
+  const area = listOf(tree, "act-area");
+  const menu = menuOf(tree, "act-area");
+  assert.ok(
+    menu,
+    "REGRESSION (8 Oct): the house's menu, the glass the sidebar's menus are; the browser's own list drew itself in the system's colours, whatever the look",
+  );
+  assert.deepEqual(
+    [menu.props.solid, menu.props.escape, menu.props.btnClass],
+    [true, true, "rec-input rec-select"],
+    "REGRESSION (9 Oct): on the pop's ground, so the log's coloured lines do not show through; against the window, so it is as wide as its words; from the kit's box",
+  );
+  assert.deepEqual(
+    menu.props.items.filter((i) => i.checked).map((i) => i.label),
+    ["All activity"],
+    "the one chosen is ticked",
   );
   assert.deepEqual(
     optionsOf(area),
@@ -567,7 +594,7 @@ test("what kind of thing is two short lists -- the part of the product, then its
   tree = settle("activity");
   assert.equal(A.asked.length, 2, "a pick asks once");
   assert.deepEqual([A.asked[1].kind, A.asked[1].family], [undefined, "calls"]);
-  const kinds = byTestId(tree, "act-kind");
+  const kinds = listOf(tree, "act-kind");
   assert.deepEqual(
     optionsOf(kinds),
     [
@@ -583,7 +610,7 @@ test("what kind of thing is two short lists -- the part of the product, then its
   assert.equal(A.asked.length, 3);
   assert.deepEqual([A.asked[2].kind, A.asked[2].family], ["open_recording", undefined]);
   assert.deepEqual(
-    [byTestId(tree, "act-area").props.value, byTestId(tree, "act-kind").props.value],
+    [listOf(tree, "act-area").props.value, listOf(tree, "act-kind").props.value],
     ["family:calls", "kind:open_recording"],
     "the first box still says the part its kind is in",
   );
@@ -620,7 +647,7 @@ test("the log is narrowed to who did it and to a span of days; one day asks for 
   answer(A.waiting[0], [], undefined, { members: [{ id: "u-lee", name: "Lee" }] });
   await flush();
   let tree = settle("activity");
-  assert.deepEqual(optionsOf(byTestId(tree, "act-who")), [
+  assert.deepEqual(optionsOf(listOf(tree, "act-who")), [
     ["", "Anyone"],
     ["u-lee", "Lee"],
     ["receptionist", "Receptionist"],
@@ -630,7 +657,7 @@ test("the log is narrowed to who did it and to a span of days; one day asks for 
   tree = settle("activity");
   assert.equal(A.asked[1].actor, "u-lee", "REGRESSION: the log named who did it and could not be read for one of them");
 
-  assert.equal(dayPicker(tree), null, "no day picker until one day is what was asked for");
+  assert.equal(byTestId(tree, "act-day"), null, "no date box until one day is what was asked for");
   pick(tree, "act-when", "week");
   tree = settle("activity");
   const { from, to } = A.asked[2];
@@ -647,12 +674,12 @@ test("the log is narrowed to who did it and to a span of days; one day asks for 
     byTestId(tree, "act-clear"),
     "One day is a narrowing begun: the way back is offered before a day is picked",
   );
-  assert.equal(
-    dayPicker(tree).props.today,
-    pageClock().dayKey(Date.now()),
-    "the kit's date picker, told today in the workspace's zone",
+  assert.deepEqual(
+    [byTestId(tree, "act-day").props.type, byTestId(tree, "act-day").props.className],
+    ["date", "rec-input"],
+    "the browser's own date box in the kit's box: its calendar is the device's, in the theme's colours",
   );
-  dayPicker(tree).props.onValueChange("2026-09-15");
+  type(byTestId(tree, "act-day"), "2026-09-15");
   settle("activity");
   assert.equal(A.asked[5].day, "2026-09-15");
 });

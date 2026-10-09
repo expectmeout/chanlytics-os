@@ -1042,6 +1042,18 @@ export const FAMILIES = [
           `</div></div>`,
       },
       {
+        id: "more-menu-solid",
+        stage: "pop",
+        html:
+          `<div class="more-wrap"><button type="button" class="rec-input rec-select" aria-haspopup="menu" aria-expanded="true">All activity ${icon("chevron-down", 10)}</button>` +
+          `<div class="more-backdrop"></div>` +
+          `<div class="more-menu align-left solid" role="menu">` +
+          `<button class="more-item" role="menuitemradio" aria-checked="true">${icon("check", 13)}<span class="more-item-label">All activity</span></button>` +
+          `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">What went wrong or was stopped</span></button>` +
+          `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">Conversations</span></button>` +
+          `</div></div>`,
+      },
+      {
         id: "more-menu-escape",
         stage: "pop",
         html:

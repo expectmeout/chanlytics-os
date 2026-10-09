@@ -6,10 +6,6 @@
  * matches draw no list, as the record kit's draws none. The list pops over the page on the kit's Panel in its pop, at
  * least as wide as the box, where the record kit's pushed the rows under it.
  *
- * A page that answers the typed words itself (a search of the workspace, where a person is found by a number their
- * name does not hold) gives `onQuery`: the box then narrows nothing, and its options are the answer the page last
- * gave. Settings' Activity finds a person this way.
- *
  * Its behaviour is Base UI's Combobox (`@base-ui/react/combobox`, the plan's decision 15): focus stays in the box
  * while the arrows walk the list (aria-activedescendant); Enter or a press chooses; Escape closes the list and says it
  * handled the key, so a sheet around it stays open. The list is drawn in a portal on the document's body. The kit
@@ -42,24 +38,15 @@ export type ComboboxProps<V extends string> = {
   placeholder?: string;
   /** The box's glass: the Icon's `search`, at 12px. */
   glass: ReactElement;
-  /**
-   * Where the page answers the typed words itself (the workspace asked who matches, as Activity's person box asks
-   * it): the words as typed, and the options the page then gives are the whole list, which the kit narrows no
-   * further. Left out, the kit narrows the options by their words as you type.
-   */
-  onQuery?: (query: string) => void;
   /** While a save is out: it keeps its focus and opens no list (never `disabled`, which lets focus go). */
   readOnly?: boolean;
-  /** The id a test finds the box by (a page's tests and the browser's specs), on its input. */
-  "data-testid"?: string;
   className?: string;
   ref?: Ref<HTMLInputElement>;
 };
 
 /** A combobox: a box that narrows a list as you type, the list drawn on the document's body. */
 export function Combobox<V extends string>(props: ComboboxProps<V>) {
-  const { label, value, onValueChange, options, placeholder, glass, onQuery, readOnly, className, ref } = props;
-  const testid = props["data-testid"];
+  const { label, value, onValueChange, options, placeholder, glass, readOnly, className, ref } = props;
   // Whether a press on the box opens its list: then it selects the words, as focus does, where the press would put
   // the caret where it landed and a search would start in the middle of the words chosen.
   const pressOpens = useRef(false);
@@ -77,9 +64,6 @@ export function Combobox<V extends string>(props: ComboboxProps<V>) {
       }}
       autoHighlight
       readOnly={readOnly}
-      // Base UI's own narrowing is off (null) where the page narrows: its options are already the answer.
-      filter={onQuery ? null : undefined}
-      onInputValueChange={onQuery ? (typed: string) => onQuery(typed) : undefined}
     >
       <BaseCombobox.InputGroup className={cx("rec-combo", className)}>
         <span className="rec-combo-field">
@@ -91,7 +75,6 @@ export function Combobox<V extends string>(props: ComboboxProps<V>) {
             className="rec-combo-input"
             aria-label={label}
             placeholder={placeholder}
-            data-testid={testid}
             onMouseDown={(event) => {
               pressOpens.current = event.currentTarget.getAttribute("aria-expanded") !== "true";
             }}

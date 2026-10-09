@@ -1,19 +1,24 @@
 /**
- * The log's filters: what kind of thing, who did it, when, and about whom. The kit's lists in a row (its Select, whose
- * list pops over the page on the panel's pop as the sidebar's menus and the Inbox's do; its date picker; its Combobox
- * for a person); on a phone they wait behind the one control the card draws at the end of its head (narrowing.tsx).
- * This module is its own chunk, asked for as the pane is first drawn (narrowing.tsx loadBoxes): the three kit parts
- * stand on Base UI, and imported with the pane they rode on every Settings tab's load, 76 KB gzipped more on the
- * page's own JS (CI's build, 9 October 2026).
+ * The log's filters: what kind of thing, who did it, when, and about whom. Each list is a box that says the one
+ * chosen, over the house's menu (the kit's MoreMenu: the glass popover the sidebar's menus are, its rows lifting in the
+ * accent's soft tint, the one chosen ticked), as Autonomy's dials already are on this page. On a phone the boxes wait
+ * behind the one control the card draws at the end of its head.
  *
- * The lists were the browser's own selects in the kit's box until 8 Oct 2026, which drew their open list in the
- * system's colours whatever the look (Ruben's screenshot: a flat list with the system's blue on the row under the
- * pointer, beside the glass everything else stands on). The kind list was a text box over a browser's datalist of a
- * hundred and fifty kinds as the ledgers spell them (`open_recording`, `message.send_failed`), then one list of two
- * hundred. It is two short ones: the part of the product (contracts activityKindGroups: Conversations, Calls,
- * People…), with everything and "what went wrong" above them; and, once a part is picked, its kinds in the rows' own
- * words. The log could be narrowed to a customer and never to the member who did the thing, which is what "who did
- * it" asks; and to one day, never to a week.
+ * Why the house's menu and not the kit's Select: the Select, the Combobox and the date picker stand on Base UI, which
+ * no Settings tab loads. Imported with the pane they put 76 KB gzipped on every Settings tab's load; asked for on
+ * demand they made the bundler pack the chunks other pages share again, and Sent, Campaigns, Templates and People
+ * each downloaded 40 KB a second time (CI's builds of #1516, 9 October 2026). The menu is already loaded by this page
+ * and by the frame, so the lists cost what they are written in. One day is the browser's own date box in the kit's
+ * box, for the same reason: its calendar is the device's, in the theme's colours.
+ *
+ * The lists were the browser's own selects until 8 Oct 2026, which drew their open list in the system's colours
+ * whatever the look (Ruben's screenshot: a flat list with the system's blue on the row under the pointer, beside the
+ * glass everything else stands on). The kind list was a text box over a browser's datalist of a hundred and fifty
+ * kinds as the ledgers spell them (`open_recording`, `message.send_failed`), then one list of two hundred. It is two
+ * short ones: the part of the product (contracts activityKindGroups: Conversations, Calls, People…), with everything
+ * and "what went wrong" above them; and, once a part is picked, its kinds in the rows' own words. The log could be
+ * narrowed to a customer and never to the member who did the thing, which is what "who did it" asks; and to one day,
+ * never to a week.
  */
 import { useEffect, useState } from "react";
 import {
@@ -22,17 +27,38 @@ import {
   ACTIVITY_SPANS,
   activityFamily,
   activityKindGroups,
-  zoneMidnight,
   type ActivityMemberDto,
+  type ActivitySpan,
 } from "@chanlytics/contracts";
 import { activity } from "@/legacy-bridge/activity";
-import { pageClock } from "@/legacy-bridge/zone";
+import { holdStill } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
-import { Combobox } from "../../kit/combobox/combobox";
-import { DatePicker } from "../../kit/datepicker/datepicker";
 import { Icon } from "../../kit/icon/icon";
-import { Select } from "../../kit/select/select";
-import type { Narrowing, Person } from "./narrowing";
+import { MoreMenu } from "../../kit/more-menu/more-menu";
+
+export type Person = { id: string; name: string };
+
+/** What the log is narrowed to, as the boxes hold it. */
+export interface Narrowing {
+  /** The kind box: nothing, `only:problems`, `family:<family>` or `kind:<kind>`. */
+  pick: string;
+  /** Who did it: nobody picked, a member's id, `receptionist` or `system`. */
+  who: string;
+  /** When: any time, one of the spans, or `day` for the one day in `day`. */
+  when: "" | ActivitySpan | "day";
+  /** The day picked, "YYYY-MM-DD", read only while `when` is `day`. */
+  day: string;
+  person: Person | null;
+}
+
+export const NO_NARROWING: Narrowing = { pick: "", who: "", when: "", day: "", person: null };
+
+/**
+ * How many of the four are set, for the phone's one control and the way back to the whole log. One day with no day
+ * picked yet counts: the box says it, its date box stands beside it, and a reader who went that far is offered the
+ * way back (it counted only a day picked, so Clear stood hidden while the row showed two boxes more).
+ */
+export const narrowedCount = (n: Narrowing): number => [n.pick, n.who, n.when, n.person].filter(Boolean).length;
 
 /** How long the person box waits after a key before it asks who matches. */
 const PERSON_SEARCH_MS = 250;
@@ -59,8 +85,41 @@ function usePersonMatches(personQ: string): [Person[], (m: Person[]) => void] {
   return [matches, setMatches];
 }
 
-/** Every list's chevron: the Icon's, as the kit's Select asks for it. */
-const chevron = () => <Icon name="chevron-down" size={12} />;
+interface ListProps<V extends string> {
+  /** What the list chooses, for a screen reader and the box's tip: the box itself says the one chosen. */
+  label: string;
+  value: V;
+  options: readonly { value: V; label: string }[];
+  onPick: (value: V) => void;
+  testid: string;
+}
+
+/**
+ * One of the log's lists: the kit's box saying the one chosen, and the house's menu under it with that one ticked. A
+ * screen reader hears what the list chooses before the one chosen (the kit's sr-only words inside the box).
+ */
+function List<V extends string>({ label, value, options, onPick, testid }: ListProps<V>) {
+  const said = options.find((o) => o.value === value)?.label ?? "";
+  return (
+    <MoreMenu
+      items={options.map((o) => ({ label: o.label, checked: o.value === value, onClick: () => onPick(o.value) }))}
+      label={
+        <span className="set-filter-said">
+          <span className="rec-sr">{label}: </span>
+          {said}
+        </span>
+      }
+      title={`${label}: ${said}`}
+      btnClass="rec-input rec-select"
+      align="left"
+      // Against the window, so the menu is as wide as its words under a box that is not; and on the pop's ground, so
+      // the log's coloured lines do not show through it.
+      escape
+      solid
+      testid={testid}
+    />
+  );
+}
 
 /** The part of the product a pick is in, as the first list holds it: everything, what went wrong, or a family. */
 function areaOf(pick: string): string {
@@ -89,29 +148,27 @@ function KindBoxes({
   const group = groups.find((g) => area === `family:${g.family}`) ?? null;
   return (
     <>
-      <Select
+      <List
         label={W.area.label}
         value={area}
-        onValueChange={(pick) => set({ pick })}
+        onPick={(pick) => set({ pick })}
         options={[
           { value: "", label: W.area.any },
           { value: "only:problems", label: W.area.problems },
           ...groups.map((g) => ({ value: `family:${g.family}`, label: g.label })),
         ]}
-        chevron={chevron()}
-        data-testid="act-area"
+        testid="act-area"
       />
       {group && (
-        <Select
+        <List
           label={W.kind.label}
           value={n.pick}
-          onValueChange={(pick) => set({ pick })}
+          onPick={(pick) => set({ pick })}
           options={[
             { value: `family:${group.family}`, label: W.kind.any },
             ...group.kinds.map((k) => ({ value: `kind:${k.kind}`, label: k.label })),
           ]}
-          chevron={chevron()}
-          data-testid="act-kind"
+          testid="act-kind"
         />
       )}
     </>
@@ -129,57 +186,44 @@ function WhoBox({
   set: (over: Partial<Narrowing>) => void;
 }) {
   return (
-    <Select
+    <List
       label={W.who.label}
       value={n.who}
-      onValueChange={(who) => set({ who })}
+      onPick={(who) => set({ who })}
       options={[
         { value: "", label: W.who.any },
         ...members.map((m) => ({ value: m.id, label: m.name })),
         { value: "receptionist", label: W.who.receptionist },
         { value: "system", label: W.who.system },
       ]}
-      chevron={chevron()}
-      data-testid="act-who"
+      testid="act-who"
     />
   );
 }
 
-/**
- * When: any time, a span of days, or one day, whose picker is drawn only once a day is what was asked for: the kit's
- * date picker, a month over the page from the button that says the day (the browser's own date box drew its picker
- * in the system's colours and type). Until a day is picked the button asks for one, and the month opens on today.
- */
+/** When: any time, a span of days, or one day, whose date box is drawn only once a day is what was asked for. */
 function WhenBox({ n, set }: { n: Narrowing; set: (over: Partial<Narrowing>) => void }) {
-  const clock = pageClock();
-  const today = clock.dayKey(Date.now());
   return (
     <>
-      <Select<Narrowing["when"]>
+      <List<Narrowing["when"]>
         label={W.when.label}
         value={n.when}
-        onValueChange={(when) => set({ when })}
+        onPick={(when) => set({ when })}
         options={[
           { value: "", label: W.when.any },
           ...ACTIVITY_SPANS.map((s) => ({ value: s, label: W.when[s] })),
           { value: "day", label: W.when.day },
         ]}
-        chevron={chevron()}
-        data-testid="act-when"
+        testid="act-when"
       />
       {n.when === "day" && (
-        <DatePicker
-          value={n.day || today}
-          onValueChange={(day) => set({ day })}
-          today={today}
-          label={W.when.pick}
-          glyphs={{ previous: <Icon name="chevron" size={14} />, next: <Icon name="chevron" size={14} /> }}
-          trigger={
-            <Button size="sm" data-testid="act-day">
-              <Icon name="calendar" size={12} />
-              {n.day ? clock.dayLabel(zoneMidnight(clock.zone(), n.day)) : W.when.pick}
-            </Button>
-          }
+        <input
+          className="rec-input"
+          type="date"
+          aria-label={W.when.pick}
+          value={n.day}
+          onChange={(e) => set({ day: e.target.value })}
+          data-testid="act-day"
         />
       )}
     </>
@@ -187,9 +231,9 @@ function WhenBox({ n, set }: { n: Narrowing; set: (over: Partial<Narrowing>) => 
 }
 
 /**
- * About whom: the person picked, as the kit's chip with its ×; or the kit's Combobox that finds one. What it lists is
- * the workspace's answer to the words typed (its onQuery, asked once the typing pauses), so a number finds its person
- * as a name does; the kit narrows none of it.
+ * About whom: the person picked, as the kit's chip with its ×; or the box that finds one, whoever matches listed
+ * under it in the menu's own glass and rows. What it lists is the workspace's answer to the words typed, asked once
+ * the typing pauses, so a number finds its person as a name does.
  */
 function PersonBox({ n, set }: { n: Narrowing; set: (over: Partial<Narrowing>) => void }) {
   const [personQ, setPersonQ] = useState("");
@@ -212,24 +256,57 @@ function PersonBox({ n, set }: { n: Narrowing; set: (over: Partial<Narrowing>) =
   }
   return (
     <span className="set-filter-person">
-      <Combobox
-        label={W.person.label}
-        value={null}
-        onValueChange={(id) => {
-          const one = matches.find((m) => m.id === id);
-          if (!one) return;
-          set({ person: one });
-          setPersonQ("");
-          setMatches([]);
-        }}
-        onQuery={setPersonQ}
-        options={matches.map((m) => ({ value: m.id, label: m.name }))}
+      <input
+        className="rec-input"
+        type="search"
         placeholder={W.person.find}
-        glass={<Icon name="search" size={12} />}
-        className="set-filter-find"
+        aria-label={W.person.label}
+        value={personQ}
+        onChange={(e) => setPersonQ(e.target.value)}
         data-testid="act-person-q"
       />
+      {matches.length > 0 && (
+        <div className="more-menu align-left solid" data-testid="act-person-matches">
+          {matches.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className="more-item"
+              onClick={() => {
+                set({ person: m });
+                setPersonQ("");
+                setMatches([]);
+              }}
+            >
+              <span className="more-item-label">{m.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </span>
+  );
+}
+
+/**
+ * The phone's one control: the boxes stand between a reader and the log there, so they wait behind it until asked
+ * for, and it says how many are set. The card draws it at the end of its head, beside the way back to the whole log,
+ * so the head is one height whatever is set (under the head, on a line of its own, it pushed the log a row down). A
+ * desktop does not draw it.
+ */
+export function FiltersAsk({ narrowed, open, onToggle }: { narrowed: number; open: boolean; onToggle: () => void }) {
+  return (
+    <Button
+      variant="quiet"
+      size="sm"
+      className="set-filters-ask"
+      aria-expanded={open}
+      onClick={(e) => holdStill(e.currentTarget, onToggle)}
+      data-testid="act-filters-ask"
+    >
+      <Icon name="filter" size={12} />
+      {W.narrow}
+      {narrowed > 0 && <span className="set-filters-ask-n">{narrowed}</span>}
+    </Button>
   );
 }
 

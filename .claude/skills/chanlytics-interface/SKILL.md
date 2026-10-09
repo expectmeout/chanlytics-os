@@ -203,6 +203,15 @@ month. An option under a pointer or a key is a lozenge in `--accent-soft`, as a 
 lifts to `--selected-fill` under a pointer and while its list is open. Both fall back to the solid where the browser
 draws no blur or less transparency is asked for (`tokens.css`).
 
+A list on a page that loads no Base UI popup (Settings) is the house's `MoreMenu` under the kit's box
+(`btnClass="rec-input rec-select"`, each item `checked` or not), never the kit's Select: the Select, Combobox and date
+picker stand on Base UI, and a page that newly imports them pays for it twice. Imported with Settings' Activity pane
+they put 76 KB gzipped on every Settings tab; asked for on demand they changed which small chunks other pages share,
+and Sent, Campaigns, Templates and People each downloaded a 40 KB chunk a second time (#1516, 9 October 2026). Use
+what the page already loads, and measure before importing a kit part with behaviour of its own into a page that has
+none. A menu that opens over rows of coloured words takes `solid`: the pop's near-opaque ground, so they do not show
+through it.
+
 ## What the kit already answers
 
 The families the plan found built more than once (its Appendix A), with what a page takes instead. A legacy page draws

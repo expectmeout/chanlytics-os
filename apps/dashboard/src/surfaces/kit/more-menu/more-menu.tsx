@@ -9,6 +9,8 @@
  * the menu, says why when pressed, and leaves the menu open.
  * `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
  * An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true.
+ * `solid` is for a menu that opens over rows of coloured words (a log): the pop's near-opaque ground under the same
+ * sheen and edge, where the menu's own glass let the amber and the red of the lines behind it through.
  */
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -50,6 +52,8 @@ interface MoreMenuProps {
   gated?: string | null;
   /** Placed against the window, for a menu opened inside a pane that scrolls. */
   escape?: boolean;
+  /** On the pop's near-opaque ground, for a menu that opens over rows of coloured words. */
+  solid?: boolean;
   testid?: string | null;
 }
 
@@ -119,6 +123,7 @@ export function MoreMenu({
   icon = "more",
   gated = null,
   escape = false,
+  solid = false,
   testid = null,
 }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
@@ -192,7 +197,7 @@ export function MoreMenu({
           />
           {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/interactive-supports-focus -- kept as the JSX drew it: the click is only kept from reaching what is under the menu; its items are the buttons */}
           <div
-            className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`}
+            className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}${solid ? " solid" : ""}`}
             role="menu"
             onClick={(e) => e.stopPropagation()}
           >

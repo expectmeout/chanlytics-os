@@ -241,17 +241,20 @@
 .set-filters-ask { display: none; align-items: center; gap: 6px; }
 .set-filters-ask-n { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 .set-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 12px; }
-/* The boxes are the kit's (its Select, whose list pops on the panel's pop as every menu's does, its date picker's
-   button, its Combobox for a person); this only sizes them in the row. Each list's box is as wide as what it says, at
-   most 220px: at an equal share "Conversations" read "Conversatio…", and a fifth box wrapped under the other four and
-   took the log a row down with it. The browser's own lists stood here until 8 Oct 2026, and drew themselves in the
-   system's colours whatever the look. */
-.set-filters > button { width: auto; min-width: 0; max-width: 220px; flex: 0 1 auto; }
+/* Each list is the kit's box over the house's menu (filters.tsx says why it is the menu); this only sizes the boxes in
+   the row. A list's box is as wide as what it says, at most 220px: at an equal share "Conversations" read
+   "Conversatio…", and a fifth box wrapped under the other four and took the log a row down with it. The browser's own
+   lists stood here until 8 Oct 2026, and drew themselves in the system's colours whatever the look. */
+.set-filters > div { min-width: 0; max-width: 220px; flex: 0 1 auto; }
+/* What a list's box says: its words, ending in an ellipsis where the row has no room for them. */
+.set-filter-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The box that finds a person gives way first: it is read at 96px, and a named kind beside it is not at less than its words. */
-.set-filter-person { display: flex; flex: 1 1 96px; max-width: 220px; }
-.set-filter-find { flex: 1 1 auto; min-width: 0; }
-/* The row at the boxes' height while their chunk is on its way (narrowing.tsx BoxesWaiting): the log under it does not move when they land. */
-.set-filters-waiting { flex: 1 1 100%; height: var(--control-h-md); }
+.set-filter-person { position: relative; display: flex; flex: 1 1 96px; max-width: 220px; }
+.set-filter-person > input { flex: 1 1 auto; min-width: 0; }
+/* One day's date box: no wider than a date, in figures that do not shift. */
+.set-filters > input[type="date"] { flex: 0 0 auto; width: 150px; font-variant-numeric: tabular-nums; }
+.set-filters > input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
+.set-filters > input[type="date"]:hover::-webkit-calendar-picker-indicator { opacity: 0.8; }
 /* Back to the whole log, at the end of the card's head: words, where a box more would be one too many. */
 .set-filters-clear { margin-left: auto; white-space: nowrap; }
 /* A finger's 44px comes from around the words, not from the head: the head stood 21px taller while a filter was set,
@@ -400,7 +403,7 @@
   .set-filters-clear + .set-filters-ask { margin-left: 0; }
   .set-filters { display: none; }
   .set-filters.open { display: flex; }
-  .set-filters > button, .set-filter-person { flex: 1 1 100%; max-width: none; width: auto; }
+  .set-filters > div, .set-filters > input[type="date"], .set-filter-person { flex: 1 1 100%; max-width: none; width: auto; }
 }
 .settings .st-bullets { margin: 4px 0 12px; gap: 9px; }
 .settings .st-bullets li { font-size: var(--set-label); }
