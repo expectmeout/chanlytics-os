@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { waCfgFor, waCredentialsForTenant, loadTenantNotifications } = await import(
+const { waCfgFor, waCredentialsForTenant, loadTenantNotifications, loadTenantRuntime } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/tenant-runtime.ts")).href
 );
 
@@ -166,6 +166,88 @@ test("no active WhatsApp channel is ABSENT; a channel that cannot be read is UNA
       { outcome: "unavailable", error: "connection reset" },
       '"we could not check" is not "send on the pilot\'s token", and not "nothing on file" either',
     );
+  }));
+
+/* ---- a workspace with two active WhatsApp numbers ---- */
+
+/**
+ * Connecting a second number writes its row and turns it on, and leaves the first one on: nothing holds a workspace
+ * to one active WhatsApp row (connect-number.ts; tenant_channels is unique on the number alone). Both route.
+ */
+function twoNumbers() {
+  const T = "aaaaaaaa-2222-4222-8222-aaaaaaaaaaaa";
+  const number = (id, external, created) => ({
+    id,
+    tenant_id: T,
+    kind: "whatsapp",
+    status: "active",
+    credentials_ref: `ref-${id}`,
+    external_id: external,
+    number_e164: `+1305555${external.slice(0, 4)}`,
+    config: {},
+    created_at: created,
+  });
+  const db = fakeDb(
+    {
+      tenants: [{ id: T, name: "Harbor Nails", timezone: "America/New_York", status: "active" }],
+      tenant_config: [],
+      policies: [],
+      google_listings: [],
+      // The newer row first, as Postgres may return it to a read that names no order.
+      tenant_channels: [
+        number("wa-new", "555000", "2026-10-01T09:00:00.000Z"),
+        number("wa-old", "111000", "2026-09-01T09:00:00.000Z"),
+      ],
+    },
+    {},
+    {
+      runtime_stamp: () => "stamp-two-numbers",
+      get_channel_credentials: ({ p_channel_id }) =>
+        ({
+          "wa-old": { access_token: "token-old", phone_id: "111000" },
+          "wa-new": { access_token: "token-new", phone_id: "555000" },
+        })[p_channel_id] ?? null,
+    },
+  );
+  const routed = (channelId, externalId, kind = "whatsapp") => ({
+    tenantId: T,
+    channelId,
+    kind,
+    externalId,
+    numberE164: null,
+    credentialsRef: kind === "whatsapp" ? `ref-${channelId}` : null,
+    config: {},
+  });
+  return { T, db, routed };
+}
+
+test("a workspace with two active WhatsApp numbers answers each customer from the number they wrote to, whichever warmed the runtime first", () =>
+  withEnv(ENV, async () => {
+    const { db, routed } = twoNumbers();
+    const onNew = await loadTenantRuntime(db, routed("wa-new", "555000"));
+    assert.deepEqual(onNew.waCreds, { accessToken: "token-new", phoneId: "555000" });
+    const onOld = await loadTenantRuntime(db, routed("wa-old", "111000"));
+    assert.deepEqual(
+      [onOld.waCreds, onOld.envNumber],
+      [{ accessToken: "token-old", phoneId: "111000" }, true],
+      "REGRESSION: the runtime cached for the workspace answered from the number that warmed the instance first",
+    );
+    assert.equal(await loadTenantRuntime(db, routed("wa-new", "555000")), onNew, "and each is served from the cache");
+  }));
+
+test("a caller that knows no number the customer wrote to is given the workspace's oldest active WhatsApp number, every time", () =>
+  withEnv(ENV, async () => {
+    const { T, db, routed } = twoNumbers();
+    // A call: the voice channel routed it, and its booking link goes by WhatsApp.
+    const viaCall = await loadTenantRuntime(db, routed("voice-1", "agent_1", "voice"));
+    assert.deepEqual(viaCall.waCreds, { accessToken: "token-old", phoneId: "111000" }, "not whichever row came first");
+    // The job runner and the template doors.
+    assert.deepEqual(await waCredentialsForTenant(db, T), {
+      outcome: "present",
+      credentials: { phoneId: "111000", accessToken: "token-old" },
+    });
+    // And whether the workspace is the environment's own is asked of the same row.
+    assert.equal((await loadTenantNotifications(db, T)).isEnvDefault, true);
   }));
 
 /* ---- who a tenant known only by id is addressed as ---- */

@@ -95,6 +95,16 @@ const TTL_MS = 10 * 60 * 1000;
 const cache = new Map<string, { v: TenantRuntime; exp: number; stamp: string | null }>();
 
 /**
+ * Whose runtime an entry is: the workspace's, and for a request that came in on one of its WhatsApp numbers, that
+ * number's, since the credentials it carries are that number's (resolveWaCredentials). Keyed by the workspace alone,
+ * a workspace with two active numbers (connecting a second leaves the first active) answered a customer who wrote to
+ * one from the other, whichever had warmed the instance first, outside the window Meta keeps for the number they wrote
+ * to. Every other request shares the workspace's entry, whose credentials are its oldest active number's.
+ */
+const cacheKey = (routed: RoutedChannel): string =>
+  routed.kind === "whatsapp" ? `${routed.tenantId}/${routed.channelId}` : routed.tenantId;
+
+/**
  * "Did anything the runtime is built from change?" — the config's version,
  * the newest policy row, the tenant row, as one text from one door. null when
  * the door did not answer: the caller keeps what it has rather than reloading
@@ -125,10 +135,12 @@ function envPair(): { phoneId: string; accessToken: string } | null {
 /**
  * This tenant's WhatsApp credentials, whichever channel is asking.
  *
- * Resolved by tenant and kind rather than by the routed channel: a phone call
- * routes on the voice channel, whose credentials_ref is null, and the result
- * is cached under the tenant id alone, so the WhatsApp row is the one that
- * answers for every caller.
+ * A message that came in on a WhatsApp number is answered on that number's
+ * own credentials. Any other request (a phone call routes on the voice
+ * channel, whose credentials_ref is null) is resolved by tenant and kind: the
+ * oldest active WhatsApp row, the one contracts channelFor and every other
+ * reader picks, so a workspace with two active numbers gets the same answer
+ * every time rather than whichever row Postgres happened to return first.
  *
  * REFUSES RATHER THAN FALLS BACK. This returned null on a vault error and the
  * caller then used the environment pair, so a lookup blip sent one business's
@@ -155,6 +167,7 @@ async function resolveWaCredentials(
       .eq("tenant_id", routed.tenantId)
       .eq("kind", "whatsapp")
       .eq("status", "active")
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
     channelId = data?.id ?? null;
@@ -176,7 +189,7 @@ async function resolveWaCredentials(
 }
 
 export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: RoutedChannel): Promise<TenantRuntime> {
-  const hit = cache.get(routed.tenantId);
+  const hit = cache.get(cacheKey(routed));
   if (hit && hit.exp > Date.now()) {
     // Fresh while the stamp agrees. A setting saved on the dashboard is a new
     // stamp, so it reaches the receptionist on this message, not in a minute.
@@ -199,8 +212,8 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       // tenant id alone — so what a WhatsApp webhook got back depended on which
       // endpoint had most recently warmed that instance.
       //
-      // Resolving by tenant + kind makes the tenant-keyed cache correct by
-      // construction and closes the voice path in the same change.
+      // Resolving by tenant + kind closed the voice path; a WhatsApp message's
+      // own number keys its entry (cacheKey), the oldest active every other's.
       resolveWaCredentials(db, routed),
       db.from("tenants").select("name, timezone, status").eq("id", routed.tenantId).maybeSingle(),
       // Taken with the load, so the first re-check compares like with like.
@@ -265,7 +278,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       ...configState(parseResult.ok, cfgQ.data),
       loadFailed: false,
     };
-    cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });
+    cache.set(cacheKey(routed), { v: rt, exp: Date.now() + TTL_MS, stamp });
     return rt;
   } catch (e) {
     logger().error("tenant_runtime_load_failed", { tenant_id: routed.tenantId, error: errField(e) });
@@ -306,6 +319,10 @@ type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string 
  * it for absent failed a reply for good and sent the owner to reconnect a
  * number that worked. Said in the log either way, under the names alerting
  * greps for; never the environment's pair.
+ *
+ * With two active numbers, the oldest (contracts channelFor's choice, and the
+ * one Connections shows): these callers know no number a customer wrote to,
+ * and an unordered read answered with either, send by send.
  */
 export async function waCredentialsForTenant(
   db: SupabaseClient<Database>,
@@ -319,6 +336,7 @@ export async function waCredentialsForTenant(
       .eq("tenant_id", tenantId)
       .eq("kind", "whatsapp")
       .eq("status", "active")
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
     if (chErr) {
@@ -387,13 +405,15 @@ export async function loadTenantNotifications(
       // error the moment a workspace has two. That error was not checked
       // either, so it arrived as `chQ.data === null`, which reads as "not the
       // env number": the env-default workspace's own alerts silently became
-      // redacted platform notices with the customer's words withheld.
+      // redacted platform notices with the customer's words withheld. Two
+      // ACTIVE rows answer with the oldest, as waCredentialsForTenant does.
       db
         .from("tenant_channels")
         .select("external_id")
         .eq("tenant_id", tenantId)
         .eq("kind", "whatsapp")
         .eq("status", "active")
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle(),
     ]);
