@@ -240,6 +240,11 @@ interface Delivery {
     messageId?: string | null;
     /** What this send is, for the rules (SendKind). Absent, the door derives it the way it always read `sender`: see kindOf. */
     kind?: SendKind;
+    /**
+     * The call this send is made on, by the provider's id for it (the hold's control_ref, as the inbound door took it):
+     * that call's own hold on the thread does not refuse it (deliver-hold.ts). Absent for every send not made mid-call.
+     */
+    onCall?: string | null;
     /** Recorded on a row this call writes. */
     meta?: Record<string, Json>;
     /**
@@ -1059,7 +1064,9 @@ interface BroadcastBatchPorts {
     /**
      * An email written as the queued row its request was frozen for, before it is sent (deliver assertFrozenFor), and only
      * once its person is claimed, so a claim that is lost or fails leaves no row behind: "written" when this call made it,
-     * else the row that was already there under that id and how it stands. A write that fails throws.
+     * else the row that was already there under that id and how it stands. The row queued is claimed for the wire
+     * (messages.sending_at, as sendQueued claims a reply's), so nothing that calls a send back takes it while the provider
+     * answers. A write that fails throws.
      */
     queueEmail(row: {
         id: string;
@@ -1075,8 +1082,9 @@ interface BroadcastBatchPorts {
     }>;
     /**
      * An email written and never sent, because the provider did not take it (a send handed back) or the door threw before
-     * the wire: withdrawn while it is still queued (a row the door settled is left as it settled it), so nothing is left
-     * queued for a sweep to call lost, or counted against the month. Best effort: the caller logs a failure and goes on.
+     * the wire: its claim given back and the row withdrawn while it is still queued (a row the door settled is left as it
+     * settled it), so nothing is left queued for a sweep to call lost, or counted against the month. Best effort: the
+     * caller logs a failure and goes on.
      */
     withdrawEmail(messageId: string): Promise<void>;
     /**
@@ -2952,6 +2960,8 @@ interface LeadDb {
     }>;
     zoneOf(tenantId: TenantId): Promise<string>;
     leadSearchesOn(tenantId: TenantId): Promise<boolean>;
+    /** Whether the workspace may spend on the platform's account now (contracts maySpend); a read that fails throws. */
+    maySpend(tenantId: TenantId): Promise<boolean>;
 }
 interface LeadPorts {
     db: LeadDb;
@@ -3256,8 +3266,9 @@ round?: {
  *     left out and hold a way to reach them (a phone that dials, or a candidate email: decision 0010), never the Qualified
  *     share, and never under 5%; a probe that judged nothing counts as 20%.
  *   - runCaps: one dollar cap per run: the estimate for its places, every cap scaled down when the sum would pass what
- *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and none at all when less than
- *     that floor is left: the round then starts nothing.
+ *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and only as many runs as the
+ *     reserve holds a floor for, in the plan's order: the caps together never pass it, and with less than one floor
+ *     left the round starts nothing.
  */
 
 /** The probe: LEAD_PROBE_PLACES spread across every term (E10). */
@@ -3296,7 +3307,11 @@ declare function probeYield(members: {
  * One cap per run: the estimate for its places (with the estimate's own
  * room); when the sum would pass what the round still has reserved, every
  * cap is scaled to fit. The actor refuses a cap under $0.50, so none goes
- * under it.
+ * under it -- and the caps together never pass what is left: the floor is a
+ * floor on each run, so the round starts only as many runs as the reserve
+ * holds a floor for, the terms in the plan's order, and a term past them gets
+ * nothing (0), which its caller starts no run for. A term asked for no places
+ * takes no run's room.
  */
 declare function runCaps(plan: LeadSearchPlan, perTerm: number[], reservedLeftUsd: number): number[];
 
@@ -3415,11 +3430,12 @@ declare const targetOf: (round: LeadRoundRow) => number;
  * the provider. A round whose answer changed the plan re-judges its probe first (rejudge.ts).
  */
 
-type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already";
+/** no_room: a term past the runs the round's reserve holds the actor's floor for (runCaps), said and never started. */
+type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already" | "no_room";
 type StartOutcome = {
     kind: "not_open";
 } | {
-    kind: "paused";
+    kind: "paused" | "may_not_spend";
 } | {
     kind: "spent";
 } | {
@@ -3579,7 +3595,7 @@ declare function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<numbe
 type CheckOutcome = {
     kind: "not_open";
 } | {
-    kind: "paused";
+    kind: "paused" | "may_not_spend";
 } | {
     kind: "nothing_to_check";
 } | {
@@ -3995,6 +4011,12 @@ interface ConsentInputs {
      * is no record at all.
      */
     recorded: boolean | null;
+    /**
+     * THIS message was already held when it was taken in now (the ingest's
+     * `is_new` false): a text's answer job, a redelivery. Its START was written
+     * when it was first taken in, and nothing now (00360). Absent: a new message.
+     */
+    takenAgain?: boolean;
 }
 type ConsentSource = "this_message" | "record" | "none";
 interface ConsentDecision {
