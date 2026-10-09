@@ -687,3 +687,27 @@ test("(C3) a test of \"keep my number\" is proven as the call arrives: the carri
     assert.equal(w.tables.notifications.length, 1, "the owner is told once");
   }
 });
+
+test("a caller from abroad is recognised and their thread held: the door hands the number on whole, + and all, so ten digits after it are never read as an American number", async () => {
+  // Sequential digits, nobody's number. The door stripped the + before the judgement read the number, so this caller
+  // was looked up as +1 479 123 4567: told as new, their history unread, and their thread left unheld.
+  const ABROAD = "+4791234567";
+  const w = world();
+  w.tables.contacts[0].phone_e164 = ABROAD;
+  const db = w.open();
+  await listening(async (log) => {
+    const [status, , body] = await heard(await knock(w.call({ from_number: ABROAD })));
+    assert.equal(status, 200);
+    assert.ok(
+      body.call_inbound.dynamic_variables.caller_context.startsWith(
+        "Name on record: <profile_name>Rosa</profile_name>.",
+      ),
+      "their own memory",
+    );
+    assert.deepEqual(
+      log.said("retell_inbound").map((l) => [l.memory, l.hold, l.from_tail]),
+      [["known", "claimed", "4567"]],
+    );
+  });
+  assert.equal(db.held.length, 1, "and the call holds their thread");
+});

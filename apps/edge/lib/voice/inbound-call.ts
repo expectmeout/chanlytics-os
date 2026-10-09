@@ -77,7 +77,8 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
     /* fall through with empty body */
   }
   const inbound = body.call_inbound || {};
-  const from = String(inbound.from_number || "").replace(/^\+/, "");
+  // As Retell sends it, E.164: the "+" is the country code, and planCallStart reads the number whole.
+  const from = String(inbound.from_number || "");
   const agentId = inbound.agent_id;
 
   // The last four digits identify a caller across a log search without

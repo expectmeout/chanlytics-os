@@ -135,7 +135,10 @@ const history = (w) => [
 ];
 
 /** The world as it is when everything is in order, unless a case says otherwise. */
-function world(w, { config = { brain: BRAIN }, status = "active", channels = [voiceChannel(w)], faults = {} } = {}) {
+function world(
+  w,
+  { config = { brain: BRAIN }, status = "active", channels = [voiceChannel(w)], faults = {}, phone = CALLER } = {},
+) {
   return fakeDb(
     {
       tenant_channels: channels,
@@ -143,7 +146,7 @@ function world(w, { config = { brain: BRAIN }, status = "active", channels = [vo
       policies: [],
       tenants: [{ id: w.tenant, name: "Harbor", timezone: TZ, status }],
       google_listings: [],
-      contacts: [contact(w)],
+      contacts: [{ ...contact(w), phone_e164: phone }],
       conversations: [conversation(w)],
       messages: history(w),
     },
@@ -233,6 +236,28 @@ test("no caller ID: the facts are owed to every call, and the memory is nobody's
   );
   assert.equal(r.variables.caller_context, CALLER_UNKNOWN);
   assert.equal(cal.asked.visits.length, 0, "nobody to look up");
+});
+
+test("a caller from abroad is recognised on the number they are on file under: the + is read as their country code, never stripped into an American number", async () => {
+  // Ten digits after the +, sequential, nobody's number. Stripped of its + before it was read, this caller was looked
+  // up as +1 479 123 4567, told as new, and had none of what they said before.
+  const abroad = "+4791234567";
+  const w = fresh();
+  const cal = calendar({ visits: VISITS });
+  const r = await planCallStart({
+    agentId: w.agent,
+    from: abroad,
+    db: world(w, { phone: abroad }),
+    now: NOW,
+    calendar: cal.port,
+  });
+  assert.deepEqual([r.memory, r.conversationId, r.error], ["known", C1, null]);
+  assert.ok(r.variables.caller_context.startsWith("Name on record: <profile_name>Rosa</profile_name>."));
+  assert.deepEqual(
+    cal.asked.visits.map((c) => c.who),
+    [{ phone: abroad, name: "Rosa" }],
+    "their visits, by the same number",
+  );
 });
 
 test("a number nobody has on file is told as new, in the words the text receptionist uses for the same person", async () => {

@@ -104,7 +104,10 @@ interface CallStart {
 
 interface CallStartInput {
   agentId: string | undefined;
-  /** The caller's number as Retell sends it, with or without the "+"; "" when withheld. */
+  /**
+   * The caller's number as Retell sends it, "" when withheld. Read whole, "+" and all: the "+" is the country code, and
+   * stripped before the number was read, a ten-digit number from elsewhere was read as an American one.
+   */
   from: string;
   /** null when this deployment has no database: nothing can be routed, and nobody is paged for it. */
   db: Db | null;
@@ -117,8 +120,7 @@ interface CallStartInput {
 export async function planCallStart(o: CallStartInput): Promise<CallStart> {
   const now = o.now ?? new Date();
   const calendar = o.calendar ?? { openings: openingsFor, visits: visitsFor };
-  const digits = o.from.replace(/^\+/, "");
-  const phone = digits ? normalizePhone(digits) : null;
+  const phone = normalizePhone(o.from);
 
   let facts: FactsOutcome = "unreadable";
   let memory: MemoryOutcome = "none";

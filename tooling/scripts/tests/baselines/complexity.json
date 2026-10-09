@@ -230,8 +230,8 @@
     "depth": 3
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
-    "lines": 150,
-    "branches": 35,
+    "lines": 149,
+    "branches": 34,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {

@@ -3,15 +3,24 @@
  * by edge ingestion, backfill scripts, and the dashboard alike.
  *
  * Returns E.164 with leading "+", or null when the input can't be a phone number.
- * Bare 10-digit numbers are treated as US national (the pilot's market);
- * provider ids (e.g. Meta wa_id) are stored verbatim in contact_identities —
+ * A leading "+" (after any spaces) is the country code, written: the digits
+ * after it are the whole number, kept as given when there are eight to fifteen
+ * of them, and never given a +1. Only a BARE ten-digit number is US national
+ * (the pilot's market). The "+" used to be stripped with the punctuation before
+ * the length was read, so a ten-digit number from elsewhere -- many in Norway,
+ * Singapore, Denmark or New Zealand -- became an American one: a booking link
+ * texted to a stranger, and a person looked up under a number nobody has. A
+ * caller that holds an E.164 number passes it whole, "+" and all.
+ *
+ * Provider ids (e.g. Meta wa_id) are stored verbatim in contact_identities --
  * this normalizer is for the display/dial identity only.
  */
 export function normalizePhone(raw: string | null | undefined): string | null {
   if (raw == null) return null;
-  const digits = String(raw).replace(/[^\d]/g, "");
+  const typed = String(raw).trim();
+  const digits = typed.replace(/[^\d]/g, "");
   if (!digits) return null;
-  if (digits.length === 10) return `+1${digits}`;
+  if (!typed.startsWith("+") && digits.length === 10) return `+1${digits}`;
   if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
   return null;
 }
