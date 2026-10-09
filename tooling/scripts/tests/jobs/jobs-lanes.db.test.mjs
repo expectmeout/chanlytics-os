@@ -8,15 +8,17 @@
  * The ledger is one queue, and other suites claim from it at the same time, so each case runs in a transaction on this
  * machine's database that never commits and has the ledger to itself: it takes the table in a mode every writer waits
  * on, for the moment the case takes, and moves everyone else's due work out of reach. Nothing of another suite's is
- * claimed, and nothing of this one's is left behind. Read through the CLI, as the other database suites under
+ * claimed, and nothing of this one's is left behind. Between files, the ledger's lock (_file-lock.mjs) runs this
+ * and the other claiming suites one after the other. Read through the CLI, as the other database suites under
  * database/ are; SUPABASE_CLI names the binary when `supabase` is not on PATH.
  */
-import { test } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SCHEMA_SETS } from "@chanlytics/contracts";
+import { takeLock } from "../_file-lock.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -26,6 +28,18 @@ const skip = !URL_
   : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
     ? "refusing a database that is not on this machine: this suite claims due jobs"
     : false;
+
+// Its transaction holds the table against every other claim for the moment a case takes, and still the suites that
+// claim from the one queue take the ledger's lock for the whole file (_file-lock.mjs), so no claim of another's meets
+// this one's.
+let releaseLedger;
+before(async () => {
+  if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
+});
+after(async () => {
+  await releaseLedger?.();
+});
 
 /** A transaction that never commits: `body` runs in a DO block that ends by raising what it `seen`, as hex. */
 function rolledBack(body) {
