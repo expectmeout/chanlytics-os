@@ -10,7 +10,28 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+/** A migration's text, by its number, its lines ended as git keeps them (a Windows checkout ends them in CRLF). */
+const migration = (n) => {
+  const dir = path.join(ROOT, "supabase/migrations");
+  const file = path.join(
+    dir,
+    fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`)),
+  );
+  return fs.readFileSync(file, "utf8").split("\r\n").join("\n");
+};
+/** A function's body as a migration writes it: from `as $$` after its header to the next `$$`, as pg_proc keeps it. */
+const bodyIn = (src, header) => {
+  const at = src.indexOf(header);
+  assert.ok(at >= 0, `no ${header}`);
+  const open = src.indexOf("as $$", at) + "as $$".length;
+  return src.slice(open, src.indexOf("$$", open));
+};
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -153,4 +174,36 @@ test("a message taken in twice with nothing in between changes nothing the secon
   );
   assert.deepEqual([second.consent, second.dnc], ["opted_out", true]);
   assert.deepEqual(await ledger(first.contact_id), [["opted_out", `${RUN}-stop-3`]]);
+});
+
+test("00361 re-creates ingest_inbound whole: 00344's body with the replay gate moved above the answers, and nothing else", () => {
+  // The database runs 00361's body (reach-out-replies/never-again.db.test.mjs, LATER); this holds it to 00344's.
+  const header = "create or replace function public.ingest_inbound(";
+  const now = bodyIn(migration("00361"), header);
+  const once = (text, what) => assert.equal(now.split(text).length, 2, `00361 says this once: ${what}`);
+  // The person's row is locked where the answer used to be written, so the locks keep their order.
+  const lock =
+    "  -- A STOP or a START is written below, once the message is known to be new (00361). The person's row is locked\n" +
+    "  -- here, where that write used to be, so the person, the thread and the message are still locked in that order.\n" +
+    "  if p_opt_out or p_opt_in then\n" +
+    "    perform 1 from contacts where id = v_contact_id for no key update;\n" +
+    "  end if;\n\n";
+  once(lock, "the lock");
+  // The thread's recency and the message's own insert, the replay gate, now stand before the answers.
+  const gate = now.slice(now.indexOf("  -- monotone recency"), now.indexOf("  if p_opt_out then\n"));
+  once(gate, "the gate");
+  once(lock + gate, "the lock, then the gate");
+  // A message held already is told the consent that stands, as it was told it after the answers before.
+  const told =
+    "    -- Held already: its answer was written when it was kept, and whatever the person has said since stands. What\n" +
+    "    -- the caller is told is their consent as it is now.\n" +
+    "    select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;\n";
+  assert.equal(gate.split(told).length, 2, "the held message is told its consent once");
+  const gateWas = gate
+    .replace(told, "")
+    .replace("short-circuits BEFORE any\n  -- consent/window/", "short-circuits BEFORE any\n  -- window/");
+  const answered = "  select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;\n\n";
+  const without = now.replace(lock + gate, "");
+  assert.equal(without.split(answered).length, 2, "00361 tells the caller their consent once after the answers");
+  assert.equal(without.replace(answered, answered + gateWas), bodyIn(migration("00344"), header));
 });
