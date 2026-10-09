@@ -37995,19 +37995,27 @@ declare function reachOutReport(db: Db$m, tenantId: string, days: number): Promi
     message: string;
 }>;
 /**
+ * What each of the counts functions answers: one jsonb object, keyed by a playbook's, a run's or a chain's id or a
+ * message's name (an empty object: nothing counted), for contracts' guards to read. Never a bare value, so "missing"
+ * beside it is never a string the database could have answered.
+ */
+type CountsByKey = {
+    [key: string]: Json | undefined;
+};
+/**
  * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00362): one jsonb by
  * playbook id, which PostgREST's row cap never cuts; contracts' isPlaybookTotalsDto reads it.
  */
-declare function playbookTotals(db: Db$m, tenantId: string, history: number): Promise<Json | "missing">;
+declare function playbookTotals(db: Db$m, tenantId: string, history: number): Promise<CountsByKey | "missing">;
 /** Each run's people, receipts and replies, by run id (`run_counts`, 00362): what Sent, a run's sheet and a card say. */
-declare function runCounts(db: Db$m, tenantId: string, runIds: readonly string[]): Promise<Json | "missing">;
+declare function runCounts(db: Db$m, tenantId: string, runIds: readonly string[]): Promise<CountsByKey | "missing">;
 /** How many of each message went out, and when the latest did, by name (`template_sends`, 00362). */
-declare function templateSends(db: Db$m, tenantId: string): Promise<Json | "missing">;
+declare function templateSends(db: Db$m, tenantId: string): Promise<CountsByKey | "missing">;
 /**
  * Every chain's last `days`, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how many wrote
  * back, when it last wrote. A definer behind may_read_workspace: a caller who is no member is refused (P0002), thrown.
  */
-declare function reachOutChainTotals(db: Db$m, tenantId: string, days: number): Promise<Json | "missing">;
+declare function reachOutChainTotals(db: Db$m, tenantId: string, days: number): Promise<CountsByKey | "missing">;
 
 /**
  * The receptionist's first replies (`first_replies`, 00303): the one rule for who answered and how fast, which `report_series` and

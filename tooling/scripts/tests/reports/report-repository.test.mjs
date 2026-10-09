@@ -121,4 +121,10 @@ test("the counts' doors (00362, 00363) ask by name for the workspace, answer wha
   await assert.rejects(runCounts(slow, W, []), /run_counts: canceling statement/);
   await assert.rejects(templateSends(slow, W), /template_sends: canceling statement/);
   await assert.rejects(reachOutChainTotals(slow, W, 30), /reach_out_chain_totals: canceling statement/);
+  // Each function answers one object (an empty one when nothing is counted), so any other answer is a read that failed,
+  // never a value "missing" could be mistaken for.
+  for (const odd of [null, [], "missing", 3]) {
+    const strange = dbWith({ run_counts: { data: odd, error: null } }).db;
+    await assert.rejects(runCounts(strange, W, []), /run_counts: answered no object/, JSON.stringify(odd));
+  }
 });

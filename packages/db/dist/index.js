@@ -2652,9 +2652,12 @@ async function reachOutReport(db, tenantId, days) {
   return { ok: true, data };
 }
 function answerOrMissing(name, data, error) {
-  if (!error) return data;
-  if (isMissingDoor(error)) return "missing";
-  throw new Error(`${name}: ${error.message}`);
+  if (error) {
+    if (isMissingDoor(error)) return "missing";
+    throw new Error(`${name}: ${error.message}`);
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error(`${name}: answered no object`);
+  return data;
 }
 async function playbookTotals(db, tenantId, history) {
   const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
