@@ -10,6 +10,11 @@
  * update after it: two claimants who both read an empty thread both believe it
  * is theirs, and one of them is wrong about the only question this fact exists
  * to answer.
+ *
+ * A member's take-over and hand-back (takeOverThread, handBackThread) are the
+ * two doors of 00364, on the member's own session: a person's hold taken with
+ * the claim, the drafts and the ledger around it, and let go with the release,
+ * the ledger and the escalation, each in one transaction.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../database.types";
@@ -71,4 +76,84 @@ export async function releaseControl(
   } as never);
   if (error) throw new Error(`release_conversation_control: ${error.message}`);
   return data === true;
+}
+
+/** What the door names a take-over or a hand-back by: the thread, and what the request carried (the `via`, an undo link). */
+interface MemberMove {
+  tenantId: string;
+  conversationId: string;
+  via: string | null;
+  undoOf: string | null;
+}
+
+/** What a take-over leaves (00364 conversation_take_over). */
+export interface TakenOver {
+  /** The moment the receptionist is paused until, as the caller named it. */
+  pausedUntil: string;
+  /** How many of the receptionist's held drafts on the thread were withdrawn, with their send jobs. */
+  withdrawnDrafts: number;
+  /** The take_over decision, recorded as the caller's. */
+  decisionId: string;
+  /** The undo link the request named was dropped: it named a decision this database does not hold. */
+  undoDropped: boolean;
+}
+
+/**
+ * A member takes a thread over, whole (00364 conversation_take_over), on their own session: the claim (needs_human,
+ * paused until `pausedUntil`, the snooze cleared, theirs), the live hold on who is speaking (at most a day), the
+ * receptionist's queued drafts on the thread withdrawn with their send jobs, and the take_over decision as theirs, in
+ * one transaction. Null when no thread of the workspace's answered (it moved while they looked), and then nothing was
+ * written. The door's refusals are thrown as they came (not a member who may act here: `Workspace not found.`), and
+ * then nothing was written either.
+ */
+export async function takeOverThread(db: Db, p: MemberMove & { pausedUntil: string }): Promise<TakenOver | null> {
+  const { data, error } = await db.rpc("conversation_take_over", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_paused_until: p.pausedUntil,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.paused_until !== "string" || typeof data.withdrawn_drafts !== "number")
+    throw new Error("conversation_take_over: the door answered without its decision");
+  return {
+    pausedUntil: data.paused_until,
+    withdrawnDrafts: data.withdrawn_drafts,
+    decisionId: id,
+    undoDropped: data.undo_dropped === true,
+  };
+}
+
+/** What a hand-back leaves (00364 conversation_hand_back). */
+export interface HandedBack {
+  /** The hand_back decision, recorded as the caller's. */
+  decisionId: string;
+  /** How many open escalations on the thread it resolved: one, or none when nothing was open. */
+  resolvedEscalations: number;
+  /** The undo link the request named was dropped: it named a decision this database does not hold. */
+  undoDropped: boolean;
+}
+
+/**
+ * A member hands a thread back, whole (00364 conversation_hand_back), on their own session: the release (open, nothing
+ * paused, snoozed or claimed), this person's hold let go and nobody else's, the hand_back decision as theirs, and the
+ * open escalation resolved by it, in one transaction. Null when no thread of the workspace's answered, and then nothing
+ * was written; a refusal is thrown as it came, with nothing written either.
+ */
+export async function handBackThread(db: Db, p: MemberMove): Promise<HandedBack | null> {
+  const { data, error } = await db.rpc("conversation_hand_back", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.resolved_escalations !== "number")
+    throw new Error("conversation_hand_back: the door answered without its decision");
+  return { decisionId: id, resolvedEscalations: data.resolved_escalations, undoDropped: data.undo_dropped === true };
 }

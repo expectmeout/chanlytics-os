@@ -2,7 +2,9 @@
  * A thread's state moves by one table (contracts conversation-moves.ts); three of its moves are SQL's own, and the
  * table is the only thing that says they agree. Run on a real database: `expire_stale_pauses` (pause_expired),
  * `wake_stale_snoozes` (snooze_expired) and `ingest_inbound`'s reopening (reopen) each write, to a thread in each state
- * they touch, the columns the table says and leave alone the states it does not start from. And the columns every
+ * they touch, the columns the table says and leave alone the states it does not start from. The member's own two
+ * (take_over, hand_back: the doors of 00364) are held to the table where they are run as the member,
+ * ../take-over-and-hand-back-are-one-write.db.test.mjs. And the columns every
  * move writes are the session role's grant on `conversations`, read from the database (00037, fenced by 00132), so a
  * move that named a column the role cannot update, or a grant that dropped one, fails here.
  *

@@ -1,6 +1,6 @@
 import "server-only";
 import { MIN_MS } from "@chanlytics/contracts";
-import { claimControl, releaseControl } from "@chanlytics/db";
+import { claimControl } from "@chanlytics/db";
 import { deployment } from "../env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 
@@ -9,7 +9,9 @@ const STEER_TIMEOUT_MS = MIN_MS;
 import { serviceDb } from "../service-db";
 
 /**
- * Who is speaking on a thread right now (00132).
+ * Who is speaking on a thread right now (00132): a person's hold, taken for
+ * their reply. A take-over takes it inside its own door, and a hand-back lets
+ * it go inside its own (00364), so neither is here.
  *
  * On the service client for the same reason a job is: the column grant fences
  * these columns off from a member's own session, so the claim is the database's
@@ -31,11 +33,6 @@ export async function takeThreadControl(
   });
   if (outcome === "gone")
     throw new Error(`takeThreadControl: no conversation ${conversationId} in workspace ${tenantId}`);
-}
-
-/** This person's hold, let go. Somebody else's is left where it is. */
-export async function letThreadControlGo(tenantId: string, conversationId: string, userId: string): Promise<void> {
-  await releaseControl(serviceDb(), { tenantId, conversationId, holder: { kind: "person", userId } });
 }
 
 /**

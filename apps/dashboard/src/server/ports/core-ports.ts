@@ -9,19 +9,21 @@
 import crypto from "node:crypto";
 import {
   claimIdempotencyKey,
+  handBackThread,
   keepIdempotencyReceipt,
   lastInboundEmail,
   lastOutboundEmailSubject,
   releaseIdempotencyKey,
   takeIdempotencyKey,
+  takeOverThread,
   type Json,
 } from "@chanlytics/db";
 import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
 import { conversationPatch } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
+import { dbRefusal, type RouteContext } from "../with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "../verbs";
 import { cancelKindFor, schedule } from "../jobs";
-import { letThreadControlGo, takeThreadControl } from "../conversations/thread-control";
+import { takeThreadControl } from "../conversations/thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { log } from "@/server/log";
 
@@ -41,16 +43,42 @@ export async function changed(
 export function threadPorts(ctx: RouteContext): ThreadPorts {
   return {
     pauseMs: (tenantId) => pauseMsFor(ctx, tenantId),
-    claim: (id, until, userId) =>
-      changed(
-        ctx.supabase
-          .from("conversations")
-          .update(conversationPatch("take_over", { until, user: userId }))
-          .eq("id", id)
-          .select("id"),
-      ),
-    release: (id) =>
-      changed(ctx.supabase.from("conversations").update(conversationPatch("hand_back")).eq("id", id).select("id")),
+    // A take-over and a hand-back are each one door on the member's own session (00364): the session's claim, the
+    // service role's hold, the drafts and the ledger were four writes on two clients, and the ones after the first
+    // could stand while a later one failed. The door's refusal (not a member who may act here) is answered as a door's
+    // is; the undo link it dropped is logged as recordDecision logs it.
+    takeOver: async (tenantId, id, until) => {
+      const done = await takeOverThread(ctx.supabase, {
+        tenantId,
+        conversationId: id,
+        pausedUntil: until,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      }).catch((e: { code?: string | null; message: string }) => {
+        throw dbRefusal(e);
+      });
+      if (!done) return null;
+      if (done.undoDropped)
+        log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "take_over", subject: "conversation" });
+      return { withdrawn_drafts: done.withdrawnDrafts, decision_id: done.decisionId };
+    },
+    handBack: async (tenantId, id) => {
+      const done = await handBackThread(ctx.supabase, {
+        tenantId,
+        conversationId: id,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      }).catch((e: { code?: string | null; message: string }) => {
+        throw dbRefusal(e);
+      });
+      if (!done) return null;
+      if (done.undoDropped)
+        log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "hand_back", subject: "conversation" });
+      // Nothing was open to resolve: said, as resolveOpenEscalation says it, so a thread that sits in Needs You after
+      // a hand-back is not read as one the person cleared.
+      if (done.resolvedEscalations === 0) log.info("resolve_escalation_noop", { conversation: id });
+      return { decision_id: done.decisionId };
+    },
     snooze: (id, until) =>
       changed(
         ctx.supabase.from("conversations").update(conversationPatch("snooze", { until })).eq("id", id).select("id"),
@@ -70,7 +98,6 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
     // columns off from a member's own session (00132), exactly as it fences the
     // ledger -- so it goes the way scheduling a job goes.
     takeControl: (tenantId, id, userId, seconds) => takeThreadControl(tenantId, id, userId, seconds),
-    letControlGo: (tenantId, id, userId) => letThreadControlGo(tenantId, id, userId),
     withdrawDrafts: (tenantId, id) =>
       cancelPendingAiReply(ctx, { id, tenant_id: tenantId }, (tid, k, v) => cancelKindFor(tid, "outbound_send", k, v)),
     resolveEscalation: (id, decisionId) => resolveOpenEscalation(ctx, id, decisionId),
