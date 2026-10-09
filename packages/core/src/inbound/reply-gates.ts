@@ -1,10 +1,13 @@
 /**
- * The gates between a message the receptionist can read and the model, in the order answerInbound (./answer.ts, their
- * only caller) runs them. Each takes the Answering context and the customer's words, and returns GO to pass the message
- * on or nothing when it stops here.
+ * The gates between a message and the model, in the order answerInbound (./answer.ts, their only caller) runs them.
+ * Each takes the Answering context, and past the first the customer's words, and returns GO to pass the message on or
+ * nothing when it stops here.
  *
- * lateOrConfirmed: a message past the reply horizon is a person's, and a late one inside it is still answered
- * (steps.ts ageVerdict). A yes to a program is confirmed before anything can hold it, in the campaign's own filed
+ * tooLate: a message past the reply horizon is a person's, and a late one inside it is still answered (steps.ts
+ * ageVerdict). It is asked of every message the first gates pass, before one the receptionist will not read is
+ * acknowledged (./unreadable.ts), so nothing automated answers an old message of any kind.
+ *
+ * confirmedYes: a yes to a program is confirmed before anything can hold it, in the campaign's own filed
  * opt-in words (contracts optInConfirmation), as a system message: never a model call, sent whatever the reply mode,
  * and not held back by a thread a person holds. A marketing yes (YES OFFERS) that arrives by text is recorded, not
  * confirmed, because offers go by WhatsApp. A START on WhatsApp from a person whose yes to offers ended with their STOP
@@ -45,9 +48,15 @@ async function offersNoteFor(at: Answering): Promise<string | null> {
   }
 }
 
-/** A message too old to answer automatically, and a yes to confirm in the campaign's own words. */
-export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
-  const { raw, sink, tell, n, L, channel, brainCfg, rt, send } = at;
+/**
+ * A message too old to answer automatically: a person's, whatever it is. Asked before anything may be said about it,
+ * the acknowledgement of a message the receptionist will not read included (./unreadable.ts): that gate ran first, so an
+ * hours-old voice note or sticker Meta sent again after an outage got the canned "a member of the team will take a
+ * look" and paused the thread, an automated reply out of nowhere, which is what the horizon exists to prevent. Its
+ * attachment is still kept, for the person it is handed to.
+ */
+export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
+  const { raw, sink, tell, n, L } = at;
   // Late, but somebody is still waiting.
   //
   // This used to stamp anything over ten minutes old as processed and return —
@@ -72,11 +81,18 @@ export async function lateOrConfirmed(at: Answering, bodyText: string): Promise<
       asked,
       tell(n.body ?? `[${raw.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message"),
       processedAfter(sink, asked, "none"),
+      ...(n.media ? [sink.media(n)] : []),
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
     return;
   }
   if (age === "late") L.info("wa_late_but_answering", { age_ms: ageMs });
+  return GO;
+}
+
+/** A yes to confirm in the campaign's own words. */
+export async function confirmedYes(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
+  const { sink, tell, n, L, channel, brainCfg, rt, send } = at;
 
   // A YES IS CONFIRMED, and in these words. Every recurring program owes the
   // person who opted in an immediate confirmation naming the program, the

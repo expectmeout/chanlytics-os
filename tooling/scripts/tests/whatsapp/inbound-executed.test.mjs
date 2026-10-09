@@ -996,6 +996,44 @@ test("an unreadable attachment still reaches storage, and a redelivery of it doe
   assert.equal(w.seen.alerts.length, 1);
 });
 
+test("an old voice note or sticker Meta sent again after an outage is a person's: no acknowledgement and no pause, handed over as too late, its attachment still kept", async () => {
+  // The gate for what the receptionist will not read ran before the message's age, so an attachment hours old got the
+  // canned acknowledgement and paused the thread: an automated reply out of nowhere, past the two-hour horizon.
+  const at = (hoursAgo) => String(Math.floor((Date.now() - hoursAgo * HOUR_MS) / 1000));
+  for (const [name, m] of [
+    ["a voice note", { type: "audio", audio: { id: "a-old", mime_type: "audio/ogg" } }],
+    ["a sticker", { type: "sticker", sticker: { id: "s-old", mime_type: "image/webp" } }],
+  ]) {
+    const w = world();
+    await w.run({ from: FROM, id: `wamid.old-${m.type}`, timestamp: at(3), ...m });
+    assert.deepEqual(w.seen.sent, [], `${name}: REGRESSION, the canned acknowledgement went out three hours late`);
+    assert.deepEqual([w.seen.pauses, w.thread().pausedUntil], [[], 0], `${name}: nothing was said, so nothing paused`);
+    assert.deepEqual(
+      w.seen.escalations.map((e) => e.reason),
+      ["stale"],
+      name,
+    );
+    assert.match(w.seen.escalations[0].details, /minutes late — too old to answer automatically/, name);
+    assert.deepEqual(
+      w.seen.alerts.map((a) => [a.userText, a.botText]),
+      [[`[${m.type}]`, "(no reply sent — arrived too late to answer automatically)"]],
+      `${name}: a person is told what it was`,
+    );
+    assert.equal(w.seen.media, 1, `${name}: kept for the person it is handed to`);
+    assert.equal(w.seen.processed, 1, name);
+  }
+
+  // Late but inside the horizon, the customer is still in the conversation: acknowledged and handed over, as always.
+  const w = world();
+  await w.run({ from: FROM, id: "wamid.late-vn", type: "audio", timestamp: at(0.5), audio: { id: "a-late" } });
+  assert.equal(w.seen.sent.length, 1, "the acknowledgement");
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["non_text"],
+  );
+  assert.equal(w.seen.pauses.length, 1);
+});
+
 test("the confirmation of a YES OFFERS names itself marketing at the door, and everything else is a reply", async () => {
   // The sink stamped every send "conversational", so the one genuinely
   // marketing message this handler writes reached the door claiming to be a
