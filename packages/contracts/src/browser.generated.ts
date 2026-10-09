@@ -102,7 +102,7 @@ export { ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, snoozedThreadWords, heldDraftWaits, toInboxThreadVM } from "./conversations/inbox-thread";
-export { isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author";
+export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author";
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";

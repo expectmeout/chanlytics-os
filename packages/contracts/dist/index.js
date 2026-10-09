@@ -1122,7 +1122,15 @@ function isAutomatedSend(meta) {
   const source = metaKey(meta, "source");
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
-var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report", "booking_notice"];
+var EMAIL_CLAIMS = [
+  { claim: "report", personsWords: false },
+  { claim: "booking_notice", personsWords: false },
+  { claim: "forwarding_confirmation", personsWords: false },
+  { claim: "auto_reply", personsWords: false },
+  { claim: "automated", personsWords: false },
+  { claim: "person", personsWords: true }
+];
+var NOT_A_PERSONS_CLAIMS = EMAIL_CLAIMS.filter((c) => !c.personsWords).map((c) => c.claim);
 function isPersonsWords(meta) {
   const claim = metaKey(metaKey(meta, "email"), "claim");
   return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
@@ -37776,6 +37784,7 @@ export {
   EDGE_ERROR_CODES,
   EMAILED_NOTIFICATION_KINDS,
   EMAIL_BODY_MAX,
+  EMAIL_CLAIMS,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_HOLDS,
   EMAIL_NOT_ANSWERED_SENTENCE,
