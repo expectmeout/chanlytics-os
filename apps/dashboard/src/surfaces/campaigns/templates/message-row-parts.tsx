@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { VERSION_CHANNELS, refusedWords } from "@chanlytics/contracts";
 import type { CampaignMessage, TemplateSentWords, VersionChannel } from "@chanlytics/contracts";
-import { gate, navigate } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Field } from "../../kit/field/field";
@@ -379,14 +379,14 @@ function cardActs(c: RowCtx, row: TemplateDto) {
   return (
     <div className="msg-card-acts" data-testid="template-row">
       {renaming ? (
-        <span className="tpl-rename" data-testid="template-rename-form">
+        <span className="tpl-rename" data-testid="template-rename-form" {...editorBox}>
           <Field
             className="tpl-rename-name"
             aria-label="The message's new name"
             value={draft}
             maxLength={60}
-            // eslint-disable-next-line jsx-a11y-x/no-autofocus -- as the JSX drew it (decision 0015)
-            autoFocus
+            // eslint-disable-next-line jsx-a11y-x/no-autofocus -- as the JSX drew it (decision 0015), under a mouse
+            autoFocus={focusAsDrawn()}
             placeholder={tplTitle({ name: row.name })}
             onValueChange={setDraft}
             onKeyDown={(e) => {

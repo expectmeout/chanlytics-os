@@ -397,12 +397,27 @@ function onTouchScreen(): boolean {
  * Whether a text field may take focus as it is drawn. Not on a touch screen: a field that took focus by itself raised
  * the keyboard over a sheet the person had not read yet, and the phone moved the page to it. There a sheet opens with
  * itself in focus (the kit's Sheet, RecordSheet), and a tap on a field begins the typing. A mouse and keys keep the
- * field ready. An editor a press opened to type one value in place (a rename, a search its button reveals) does not
- * ask this: the press was the request to type.
+ * field ready. An editor a press opened in place (a rename, a search its button reveals) asks it too, and its box
+ * takes the focus there (`editorBox`).
  */
 export function focusAsDrawn(): boolean {
   return !onTouchScreen();
 }
+
+/** On a touch screen, focus on an editor's own box as it is drawn, unless focus is already inside it. */
+function focusBoxOnTouch(el: HTMLElement | null): void {
+  if (!el || !onTouchScreen() || el.contains(document.activeElement)) return;
+  el.focus({ preventScroll: true });
+}
+
+/**
+ * What the box of an editor a press opened in place spreads: a rename, a search its button reveals, a name asked in
+ * the row (Ruben, 9 October 2026: these open as a sheet does, with no keyboard until the field is tapped; its field
+ * asks `focusAsDrawn`). On a touch screen the box takes focus as it is drawn, since its field does not: the control
+ * that was pressed is gone by then, and focus left on the page's body sends the next Tab, and a screen reader, back
+ * to the top of the page. Under a mouse the field has focus and this does nothing.
+ */
+export const editorBox = { tabIndex: -1, ref: focusBoxOnTouch } as const;
 
 /** The kit's one phone width (kit.css, 900px), where its Sheet and its Menu rise from the bottom edge. */
 export function onAPhone(): boolean {

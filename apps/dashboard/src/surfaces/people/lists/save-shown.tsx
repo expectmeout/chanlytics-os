@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import type { ListRule } from "@chanlytics/contracts";
-import { refusalToast } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, refusalToast } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import type { Flash } from "../types";
 import { plMakeListWith, plMakeRuleList, plRuleMadeWords, plUndoList } from "./doors";
@@ -127,10 +127,10 @@ export function SaveShownAsList({
     );
   }
   return (
-    <span className={`cl-bulk-naming${rule && ids.length > 0 ? " has-modes" : ""}`}>
+    <span className={`cl-bulk-naming${rule && ids.length > 0 ? " has-modes" : ""}`} {...editorBox}>
       {rule && ids.length > 0 && <SaveModes mode={mode} onMode={setMode} count={ids.length} disabled={busy} />}
       <input
-        autoFocus
+        autoFocus={focusAsDrawn()}
         value={name}
         placeholder="Name the list"
         maxLength={60}

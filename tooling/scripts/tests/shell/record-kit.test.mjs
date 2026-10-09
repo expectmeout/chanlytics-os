@@ -2071,11 +2071,12 @@ test("a fold open when the window crosses the phone's width is drawn again in th
   }
 });
 
-test("on a touch screen a fold drawn as a sheet opens on the sheet itself, and its first field waits for a tap", () => {
+test("on a touch screen a fold opens on itself, as a sheet or under its row, and its first field waits for a tap", () => {
   // Ruben, 8 October 2026: a sheet that put a person in its first field as it rose raised the keyboard over what
   // they had not read yet, and the phone moved the page to the field. A touch screen is the pointer (legacy-verbs.ts),
   // never the width: the sheet takes focus itself there, as RecordSheet does, and Tab and a tap go on from it. A fold
-  // under its row is what a press asked to type in, and keeps its first field; so does every frame under a mouse.
+  // under its row, and an inline editor, open on themselves there too (the 9th: no editor a press opens is an
+  // exception); every frame under a mouse keeps its first field.
   const width = atWidth(true);
   const narrow = globalThis.matchMedia;
   let touch = true;
@@ -2110,7 +2111,7 @@ test("on a touch screen a fold drawn as a sheet opens on the sheet itself, and i
     };
     tree = cross(props);
     assert.ok(dialogOf(tree), "a sheet again");
-    assert.deepEqual(focused, ["field", "sheet"], "under its row the field is ready; as a sheet, the sheet is");
+    assert.deepEqual(focused, ["sheet", "sheet"], "under its row and as a sheet, the fold's own box takes focus");
     touch = false;
     cross(props);
     assert.deepEqual(

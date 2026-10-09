@@ -9,7 +9,7 @@ import type { leadRail } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { gate } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, gate } from "../../legacy-verbs";
 import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import { RailEmpty, RailRow, RailSection, railQuiet } from "../../people/rail/rail-kit";
 
@@ -151,9 +151,9 @@ interface RailRowsProps {
 
 /** A search being renamed: its name in a field, and Save. */
 const renamingField = (s: RailSearch, p: RailRowsProps) => (
-  <span className="cl-bulk-naming ld-search-renaming">
+  <span className="cl-bulk-naming ld-search-renaming" {...editorBox}>
     <input
-      autoFocus
+      autoFocus={focusAsDrawn()}
       defaultValue={s.name}
       maxLength={80}
       aria-label="The search's name"

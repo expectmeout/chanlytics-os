@@ -177,6 +177,18 @@ test("a typed name gates the Yes -- erasure only -- and the page may know a bett
   assert.equal(input.props["aria-label"], "Type Rosa M to confirm");
   assert.equal(input.props.autoFocus, true);
   assert.equal(byTestId(empty, "delete-yes").props.autoFocus, false, "the input has the focus, not the button");
+  // On a touch screen the question opens on itself and the name's field waits for a tap (Ruben, 9 October 2026: no
+  // editor a press opens raises the keyboard by itself).
+  const media = globalThis.matchMedia;
+  globalThis.matchMedia = (q) => ({ matches: q === "(pointer: coarse)" });
+  try {
+    const touched = Confirm({ ...props, value: "" });
+    assert.equal(byTestId(touched, "delete-typed").props.autoFocus, false, "the keyboard waits for a tap");
+    assert.equal(byTestId(touched, "delete-confirm").props.tabIndex, -1, "and the question's own box can hold focus");
+  } finally {
+    globalThis.matchMedia = media;
+  }
+  assert.equal(byTestId(empty, "delete-confirm").props.tabIndex, -1);
   assert.equal(
     byTestId(Confirm({ ...props, value: "rosa" }), "delete-yes").props.disabled,
     true,
