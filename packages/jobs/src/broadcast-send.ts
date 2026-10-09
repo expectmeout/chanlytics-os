@@ -42,7 +42,7 @@ import {
 } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "./context";
-import { sendByAt } from "./ledger";
+import { sendByAt, startByAt } from "./ledger";
 
 /** The broadcast_send job's own lines, by name: an email it could not build or sign for a person. */
 const sendLog = logger();
@@ -461,7 +461,15 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       now: Date.now,
       sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
     },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, ...carriedBy(p) },
+    // A WhatsApp send or a text runs its wire's own timeout whole, so the batch starts one only while that still ends
+    // inside the function (ledger startByAt); the people after it are the next batch's.
+    {
+      tenantId: job.tenant_id,
+      broadcastId: p.broadcast_id,
+      deadline: ctx.deadline,
+      startBy: startByAt(ctx.deadline),
+      ...carriedBy(p),
+    },
   );
 }
 

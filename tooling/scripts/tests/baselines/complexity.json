@@ -205,12 +205,12 @@
     "depth": 3
   },
   "apps/edge/lib/receptionist/eval.ts::evaluateCases#1": {
-    "lines": 95,
+    "lines": 79,
     "branches": 34,
     "depth": 2
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
-    "lines": 144,
+    "lines": 129,
     "branches": 35,
     "depth": 1
   },

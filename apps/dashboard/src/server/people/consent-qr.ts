@@ -10,12 +10,14 @@ import type { Member } from "@/server/route";
 
 export async function consentQr(ctx: RouteContext, member: Member) {
   const tenantId = member.tenantId;
+  // The oldest active number, the one Connections shows: a workspace may hold two, and the code says the same one each time.
   const { data: ch, error } = await ctx.supabase
     .from("tenant_channels")
     .select("number_e164")
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);

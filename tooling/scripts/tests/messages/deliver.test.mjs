@@ -136,7 +136,10 @@ test("words that may go, go: the wire is handed them, a row records them, the th
   const out = await deliver(ports(t, w), words({ meta: { source: "test" } }));
   assert.equal(out.outcome, "sent");
   assert.equal(out.externalId, "wamid.1");
-  assert.deepEqual(w.calls, [{ to: "+13475550101", p: { body: "See you at 3", template: undefined } }]);
+  // With the thread they are for: a wire that holds two numbers reads by it which one the person wrote to.
+  assert.deepEqual(w.calls, [
+    { to: "+13475550101", p: { body: "See you at 3", template: undefined, conversationId: "c1" } },
+  ]);
   assert.equal(t.messages.length, 1);
   const row = t.messages[0];
   assert.equal(out.messageId, row.id);
@@ -1137,7 +1140,9 @@ test("an email is handed what is left of its caller's ceiling at the moment it i
     globalThis.fetch = realFetch;
   }
   assert.deepEqual(asked, [10_000, 3_000, 15_000, 15_000], "each try is the smaller of 15 s and what is left");
-  // A text is handed none: only the email wire has a send that can outlive the tick.
+  // A text is handed none: its wire is one try under the provider's own timeout, which a ceiling cannot shorten, so it is
+  // the batch that starts one only while that timeout still ends inside the tick (jobs ledger startByAt,
+  // broadcast-by-channel.test.mjs). Only the email wire's send is bounded by what is left.
   const texts = [];
   const sms = async (to, p) => (texts.push({ to, p }), { ok: true, wamid: "SM1", status: 200 });
   await deliver(ports(tables(), { wire: { sms } }), {

@@ -25,6 +25,7 @@ import { notify, type NotifyTarget } from "../ops/notify.js";
 import {
   nameDecisionWords,
   parseTenantConfig,
+  samePhone,
   standingAfterNameDecision,
   standingFromConfig,
   WABA_FIELDS as WABA_FIELD_LIST,
@@ -59,20 +60,27 @@ interface Routed {
   config: Json;
 }
 
-async function routeByWaba(db: SupabaseClient<Database>, wabaId: string): Promise<Routed | null> {
+/**
+ * The account's number a notice is about. An account may hold two active numbers (connecting a second leaves the first
+ * on), and a read that named no order answered with either: a notice about one number's rating or name names it
+ * (display_phone_number, its digits with the country's), and is that number's. Any other notice, or one naming a
+ * number not on file, is the account's oldest active number, the one every reader that knows no number picks.
+ */
+async function routeByWaba(db: SupabaseClient<Database>, wabaId: string, named: unknown): Promise<Routed | null> {
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, tenant_id, number_e164, config")
     .eq("kind", "whatsapp")
     .eq("waba_id", wabaId)
     .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
   if (error) {
     logger().error("waba_route_failed", { waba_id: wabaId, error: error.message });
     return null;
   }
-  return data ? { tenantId: data.tenant_id, channelId: data.id, number: data.number_e164, config: data.config } : null;
+  const digits = typeof named === "string" ? named.replace(/\D/g, "") : "";
+  const row = (digits ? data.find((r) => samePhone(`+${digits}`, r.number_e164)) : undefined) ?? data[0];
+  return row ? { tenantId: row.tenant_id, channelId: row.id, number: row.number_e164, config: row.config } : null;
 }
 
 /** The account a notice is about, and whether the notice named it itself. */
@@ -327,7 +335,7 @@ export async function handleWabaChange(
 ): Promise<"unrouted" | "unclaimed" | "kept" | "alerted"> {
   const about = accountOf(entryId, change.value);
   if (!about) return "unrouted";
-  const routed = await routeByWaba(db, about.waba);
+  const routed = await routeByWaba(db, about.waba, change.value.display_phone_number);
   if (!routed) return unheld(about, entryId, change);
   const L = logger({ tenant_id: routed.tenantId });
   const described = describeWabaChange(change, routed.number);

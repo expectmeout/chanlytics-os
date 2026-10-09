@@ -27,7 +27,7 @@ import {
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
 import type { Channel, Delivered, Delivery } from "../deliver";
-import { isNotTakenError } from "../wire-senders";
+import { isNotTakenError, isWireUnavailableError } from "../wire-senders";
 import {
   channelOf,
   countSent,
@@ -36,6 +36,7 @@ import {
   queueEmailRow,
   rowFacts,
   prepare,
+  startsInTime,
   type Work,
 } from "./broadcast-channels";
 import { afterRefusal, pageTheDomain, release, stopForTheWorkspace, type Verdict } from "./broadcast-stops";
@@ -279,9 +280,11 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   // row: the person's own line says why they were held. A broadcast is the
   // owner's words (the row says so) sent by the machine (the door is told so). An email's row is already written,
   // queued, and the door finalizes it. A door that throws before the wire leaves that row queued, so it is withdrawn
-  // here (a row the door settled is not touched): none is left to count against the month.
+  // here (a row the door settled is not touched): none is left to count against the month. A wire that could not be
+  // bound at the send (the number this person wrote to, of a workspace's two) left nothing either, as one not taken.
   const out = await ports.deliver(made.delivery).catch(async (e: unknown): Promise<NotTaken> => {
     if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
+    if (isWireUnavailableError(e)) return { outcome: "not_taken", status: 0 };
     await withdrawQueued(ports, b, made.delivery);
     throw new ThrownAtTheDoor(e);
   });
@@ -406,12 +409,17 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   };
 
   let begun = 0;
+  let yielded = false;
   for (const [i, r] of batch.entries()) {
     if (unreadable) break;
     // Yield before the runner's ceiling rather than be killed mid-send: no new
     // send starts after the deadline, and the follow-up job below carries the
-    // rest. One person at least, so a batch that starts late still moves on.
+    // rest. One person at least, so a batch that starts late still moves on --
+    // but never a send whose own wire would outlive the function (startsInTime),
+    // the first's included: that leaves the rest queued, and is no stall.
     if (begun > 0 && ports.now() >= cmd.deadline) break;
+    yielded = !startsInTime(cmd, r, ports.now());
+    if (yielded) break;
     begun += 1;
     // FAIL CLOSED per person: a read that fails before the door — their
     // thread, the words for their slots — leaves them queued for the next
@@ -432,7 +440,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
 
-  await afterTheBatch(w, batch.length);
+  // A batch that stopped at its wire's moment is no failing read: the next is placed at once, never stalled on.
+  await afterTheBatch(w, yielded ? 0 : batch.length);
 }
 
 /**

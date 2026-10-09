@@ -120,6 +120,11 @@ export interface WirePayload {
    * wire). The email wire bounds its tries by it (channels sendEmail); absent, by its own deadline alone.
    */
   deadlineMs?: number;
+  /**
+   * The thread the words are for (Delivery.conversationId). A wire that holds more than one number reads which of them
+   * the person last wrote to by it (the job runner's WhatsApp wire); every other ignores it.
+   */
+  conversationId?: string;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */

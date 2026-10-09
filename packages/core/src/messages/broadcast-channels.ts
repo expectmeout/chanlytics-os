@@ -69,6 +69,12 @@ export function channelOf(r: Pick<RecipientRow, "channel">): Channel {
   return r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp";
 }
 
+/** Whether a send on this person's wire may still start at `now` (BroadcastBatchCommand.startBy): always, on one with no moment. */
+export function startsInTime(cmd: BroadcastBatchCommand, r: Pick<RecipientRow, "channel">, now: number): boolean {
+  const by = cmd.startBy?.[channelOf(r)];
+  return by === undefined || now <= by;
+}
+
 /** One batch as its people share it: the run, what fills its slots, who is on it, and what it reads once for them all. */
 export interface Work {
   ports: BroadcastBatchPorts;

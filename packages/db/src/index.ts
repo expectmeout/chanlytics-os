@@ -216,7 +216,13 @@ export { reportSeries, campaignSeries, reviewsLedger, reachOutReport } from "./r
 export { firstReplies } from "./repositories/reports/first-replies";
 export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
-export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
+export {
+  resolveChannelDetailed,
+  resolveChannel,
+  oldestActiveChannel,
+  activeWhatsappNumbers,
+  whatsappLineOf,
+} from "./repositories/routing";
 export {
   whatsappChannelFacts,
   textLineFacts,
@@ -227,7 +233,7 @@ export {
   campaignMonthSent,
   holdRecipients,
 } from "./repositories/campaigns/campaign-channels";
-export type { RoutedChannel, ChannelLookup } from "./repositories/routing";
+export type { RoutedChannel, ChannelLookup, WhatsappNumberRow } from "./repositories/routing";
 export {
   ingestCall,
   linkCallMessage,

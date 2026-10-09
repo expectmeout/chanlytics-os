@@ -25,7 +25,7 @@ import { json, refuse } from "../http.js";
 import { tokenWorkspace, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { readThreadState, readLeadContext, describeLead, type RoutedChannel } from "../packages/db.js";
+import { readThreadState, readLeadContext, describeLead, oldestActiveChannel } from "../packages/db.js";
 import {
   resolveSystemPrompt,
   describeNow,
@@ -182,24 +182,9 @@ export async function steerHeldDraft(
   // texting-only workspace and, where a WhatsApp channel happened to exist,
   // rewrote the reply against the wrong channel.
   const channel: "whatsapp" | "sms" = m.channel === "sms" ? "sms" : "whatsapp";
-  const { data: ch } = await db
-    .from("tenant_channels")
-    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id")
-    .eq("tenant_id", m.tenant_id)
-    .eq("kind", channel)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-  if (!ch) return refuse(409, "no_channel");
-  const routed: RoutedChannel = {
-    channelId: ch.id,
-    tenantId: ch.tenant_id,
-    kind: ch.kind,
-    externalId: ch.external_id,
-    numberE164: ch.number_e164,
-    credentialsRef: ch.credentials_ref,
-    config: ch.config,
-  };
+  // Its oldest active one, where a workspace holds two of the kind; a read that failed finds none, as it always did.
+  const routed = await oldestActiveChannel(db, m.tenant_id, channel).catch(() => null);
+  if (!routed) return refuse(409, "no_channel");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
 

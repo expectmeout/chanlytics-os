@@ -335,4 +335,11 @@ export interface BroadcastBatchCommand extends BatchCarry {
   tenantId: string;
   broadcastId: string;
   deadline: number;
+  /**
+   * Epoch ms, by channel: the latest moment a send on that wire may start (jobs ledger startByAt). A wire whose send no
+   * ceiling bounds (WhatsApp's, a text's) runs its own timeout whole, and one begun too late outlived the function. A
+   * person whose wire's moment has passed is left queued for the next batch, the first person of a batch too, and
+   * the batch is not a stall. A channel with none may start until the deadline.
+   */
+  startBy?: Partial<Record<Channel, number>>;
 }

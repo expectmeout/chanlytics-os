@@ -201,7 +201,7 @@ function ledger({ faults = {}, claim, relay } = {}) {
   const mark = net.calls.length;
   let due = 0;
 
-  function workspace({ whatsapp = "own", texting = false } = {}) {
+  function workspace({ whatsapp = "own", texting = false, second = null } = {}) {
     const i = ++seq;
     const ws = { T: `ffffffff-0000-4000-8000-${pad(i, 12)}`, owner: `owner-${i}@workspace.test` };
     tables.tenant_config.push({ tenant_id: ws.T, config: { notifications: { escalation_emails: [ws.owner] } } });
@@ -215,8 +215,10 @@ function ledger({ faults = {}, claim, relay } = {}) {
         status: "active",
         credentials_ref: whatsapp === "own" || whatsapp === "unreadable" ? `vault-ref-${i}` : null,
         config: {},
+        created_at: iso(Date.now() - 30 * 86_400_000),
       };
       tables.tenant_channels.push(channel);
+      ws.channelId = channel.id;
       if (whatsapp === "own") {
         ws.phoneId = channel.external_id;
         ws.token = `workspace-${i}-whatsapp-token`;
@@ -227,6 +229,29 @@ function ledger({ faults = {}, claim, relay } = {}) {
         vault.channels[channel.id] = () => {
           throw new Error("vault unavailable");
         };
+    }
+    // A second WhatsApp number, connected a day ago, with the first left on (connect-number.ts): its row first, as a
+    // read that names no order may find it. "own" carries its credentials, "unreadable" ones the vault does not answer for.
+    if (second) {
+      const newer = {
+        id: `wa-ch-${i}-2`,
+        tenant_id: ws.T,
+        kind: "whatsapp",
+        external_id: String(106580000000000 + i),
+        number_e164: `+1786556${pad(i, 4)}`,
+        status: "active",
+        credentials_ref: `vault-ref-${i}-2`,
+        config: {},
+        created_at: iso(Date.now() - 86_400_000),
+      };
+      tables.tenant_channels.unshift(newer);
+      ws.second = { channelId: newer.id, phoneId: newer.external_id, token: `workspace-${i}-second-whatsapp-token` };
+      vault.channels[newer.id] =
+        second === "unreadable"
+          ? () => {
+              throw new Error("vault unavailable");
+            }
+          : { access_token: ws.second.token, phone_id: ws.second.phoneId };
     }
     if (texting) {
       ws.line = {
@@ -250,8 +275,19 @@ function ledger({ faults = {}, claim, relay } = {}) {
           : { auth_token: ws.lineToken };
     }
     let n = 0;
-    /** One reply in the outbox and its job: due now, or (`died`) claimed once by a run that never reported back. */
-    ws.queue = ({ channel = "whatsapp", to, body = "See you at 3", died = false, lateMs = 30_000 } = {}) => {
+    /**
+     * One reply in the outbox and its job: due now, or (`died`) claimed once by a run that never reported back. `wrote`
+     * is the WhatsApp numbers (channel ids) the person wrote to before it, oldest first: each a message the webhook kept
+     * with the line it came in on (meta.line).
+     */
+    ws.queue = ({
+      channel = "whatsapp",
+      to,
+      body = "See you at 3",
+      died = false,
+      lateMs = 30_000,
+      wrote = [],
+    } = {}) => {
       const id = `${i}-${++n}`;
       const conversation = {
         id: `conv-${id}`,
@@ -289,6 +325,20 @@ function ledger({ faults = {}, claim, relay } = {}) {
           : { state: "scheduled", attempts: 0, lease_until: null }),
       };
       tables.conversations.push(conversation);
+      // Kept oldest first, as they came: only a read that asks for the newest finds the last of them.
+      for (const [k, line] of wrote.entries())
+        tables.messages.push({
+          id: `in-${id}-${k}`,
+          tenant_id: ws.T,
+          conversation_id: conversation.id,
+          status: "received",
+          body: "Hi, is 3 free?",
+          sender: "customer",
+          channel: "whatsapp",
+          direction: "inbound",
+          meta: { raw_type: "text", line },
+          created_at: iso(Date.now() - 600_000 + k * 60_000),
+        });
       tables.messages.push(message);
       tables.jobs.push(job);
       return { job, message };
@@ -466,6 +516,78 @@ test("each job leaves on its own workspace's WhatsApp credentials from the vault
     ],
     "the three ran; the refused one's kept row leaves one push job for its own owner's phone (00162), for the next heartbeat",
   );
+});
+
+test("a workspace with two WhatsApp numbers sends each reply from the number its person last wrote to, and a reply to someone who never wrote from its oldest", async () => {
+  // Meta keeps its 24-hour window per number. The job runner sent every reply from the oldest number, so one to a
+  // person who wrote to the newer was refused, or reached them from a number they never wrote to.
+  const L = ledger();
+  const ws = L.workspace({ second: "own" });
+  const older = { phoneId: ws.phoneId, token: ws.token };
+  const toNewer = ws.queue({ to: "+13475550121", body: "Yes, 3 works", wrote: [ws.channelId, ws.second.channelId] });
+  const toOlder = ws.queue({ to: "+13475550122", body: "We open at 9", wrote: [ws.second.channelId, ws.channelId] });
+  const neverWrote = ws.queue({ to: "+13475550123", body: "Your visit is tomorrow" });
+  // A number they wrote to that has been turned off since: nothing says which of the two on now, so the oldest.
+  ws.queue({ to: "+13475550124", body: "Still on for Friday?", wrote: ["wa-ch-turned-off"] });
+
+  await listening(async () => {
+    assert.deepEqual(await answer(await knock()), [
+      200,
+      { ok: true, claimed: 4, done: 4, failed: 0, gaveUp: 0, deferred: 0 },
+    ]);
+  });
+  const from = (n) => [`${GRAPH}/${n.phoneId}/messages`, `Bearer ${n.token}`];
+  assert.deepEqual(
+    L.left()
+      .graph.map((g) => [g.to, g.url, g.authorization])
+      .sort(([a], [b]) => a.localeCompare(b)),
+    [
+      ["13475550121", ...from(ws.second)],
+      ["13475550122", ...from(older)],
+      ["13475550123", ...from(older)],
+      ["13475550124", ...from(older)],
+    ],
+    "REGRESSION: every reply left from the oldest number, the newer one's person's too",
+  );
+  assert.deepEqual(
+    [toNewer, toOlder, neverWrote].map((q) => q.message.status),
+    ["sent", "sent", "sent"],
+  );
+});
+
+test("a second number whose credentials the vault did not answer for holds only the replies to its own people: they stay queued for a fresh job, and the others leave", async () => {
+  const L = ledger();
+  const ws = L.workspace({ second: "unreadable" });
+  const waiting = ws.queue({ to: "+13475550125", body: "Yes, 3 works", wrote: [ws.second.channelId] });
+  const goes = ws.queue({ to: "+13475550126", body: "We open at 9", wrote: [ws.channelId] });
+
+  await listening(async (log) => {
+    assert.deepEqual(await answer(await knock()), [
+      200,
+      { ok: true, claimed: 2, done: 2, failed: 0, gaveUp: 0, deferred: 0 },
+    ]);
+    assert.deepEqual(
+      log.said("wa_credentials_for_tenant_failed").map((l) => [l.tenant_id, l.error]),
+      [[ws.T, "vault unavailable"]],
+    );
+  });
+  assert.deepEqual(
+    L.left().graph.map((g) => [g.to, g.url]),
+    [["13475550126", `${GRAPH}/${ws.phoneId}/messages`]],
+    "never the older number in its stead",
+  );
+  assert.deepEqual([waiting.message.status, goes.message.status], ["queued", "sent"]);
+  assert.deepEqual(
+    L.tables.jobs
+      .filter((j) => j.kind === "outbound_send" && j.payload.message_id === waiting.message.id)
+      .map((j) => [j.state ?? "scheduled", j.payload.resumes ?? 0]),
+    [
+      ["done", 0],
+      ["scheduled", 1],
+    ],
+    "handed to a fresh job a while on, as a wire that could not be bound is",
+  );
+  assert.deepEqual(L.tables.escalations, [], "nobody is flagged");
 });
 
 test("a workspace whose vault did not answer is not a workspace that holds none: its reply stays queued for a fresh job, nobody is flagged, nobody is told to reconnect", async () => {
