@@ -8748,7 +8748,8 @@ CREATE FUNCTION public.message_is_a_persons_words(p_meta jsonb) RETURNS boolean
     LANGUAGE sql IMMUTABLE
     SET search_path TO ''
     AS $$
-  select coalesce(p_meta->'email'->>'claim', 'person') not in ('automated', 'auto_reply', 'report')
+  select coalesce(p_meta->'email'->>'claim', 'person')
+         not in ('automated', 'auto_reply', 'report', 'booking_notice', 'forwarding_confirmation')
 $$;
 
 
@@ -8756,7 +8757,7 @@ $$;
 -- Name: FUNCTION message_is_a_persons_words(p_meta jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) IS 'Whether an inbound message''s words are a person''s own: false for an email read as automated mail, an automatic reply or a delivery report (meta.email.claim), true for everything else, a message with no claim included. The one statement of it: has_relationship and people_list''s last_wrote_at read it.';
+COMMENT ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) IS 'Whether an inbound message''s words are a person''s own: false for an email the intake read as automated mail, an automatic reply, a delivery report, a booking tool''s notice or Gmail''s forwarding confirmation (meta.email.claim; contracts EMAIL_CLAIMS marks each), true for everything else, a message with no claim included. The one statement of it in SQL: has_relationship, people_list''s last_wrote_at and the campaign counts read it.';
 
 
 --

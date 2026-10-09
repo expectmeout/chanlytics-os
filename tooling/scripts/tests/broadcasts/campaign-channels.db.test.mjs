@@ -412,10 +412,10 @@ test("people_list says the channel a person last wrote on, which is not the chan
 
 test("the two rules a message's meta decides are said the same way in TypeScript and in SQL: an automated send, and a person's own words", async (t) => {
   if (skip) return t.skip(skip);
-  const { isAutomatedSend, isPersonsWords } = await import("@chanlytics/contracts");
-  // Every shape the column holds or could: the sources a run stamps, the claims the email intake keeps, and what is
-  // absent, empty or of the wrong kind. A pair that disagrees on one of them counts one way on a page and another in
-  // a report.
+  const { isAutomatedSend, isPersonsWords, EMAIL_CLAIMS } = await import("@chanlytics/contracts");
+  // Every shape the column holds or could: the sources a run stamps, every claim the email intake keeps (contracts
+  // EMAIL_CLAIMS, iterated, so a claim added there is tried here), and what is absent, empty or of the wrong kind. A pair
+  // that disagrees on one of them counts one way on a page and another in a report.
   const metas = [
     {},
     { source: "broadcast" },
@@ -423,10 +423,8 @@ test("the two rules a message's meta decides are said the same way in TypeScript
     { source: "voice" },
     { source: null },
     { source: 7 },
-    { email: { claim: "person" } },
-    { email: { claim: "auto_reply" } },
-    { email: { claim: "automated" } },
-    { email: { claim: "report" } },
+    ...EMAIL_CLAIMS.map(({ claim }) => ({ email: { claim } })),
+    { email: { claim: "a claim no intake writes" } },
     { email: { claim: null } },
     { email: {} },
     { email: "not an object" },
@@ -445,6 +443,14 @@ test("the two rules a message's meta decides are said the same way in TypeScript
       `a person's words: ${what}`,
     );
   }
+  // Each claim is what EMAIL_CLAIMS marks it, in SQL too: a booking tool's notice and Gmail's forwarding confirmation are
+  // no person's words (00360, decision 5), so Reports' replies and People's "last wrote" stop counting them.
+  for (const { claim, personsWords } of EMAIL_CLAIMS)
+    assert.equal(
+      ok(await db.rpc("message_is_a_persons_words", { p_meta: { email: { claim } } }), claim),
+      personsWords,
+      `SQL marks ${claim} as contracts does`,
+    );
   // No meta at all, as a caller may hold it: nobody's campaign, and a person's words.
   assert.deepEqual([isAutomatedSend(null), isPersonsWords(null), isPersonsWords(undefined)], [false, true, true]);
 });
