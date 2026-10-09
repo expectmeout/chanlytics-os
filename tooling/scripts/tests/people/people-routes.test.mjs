@@ -982,6 +982,45 @@ test("everyone is read a page at a time, each just past the last row's place, an
   ]);
 });
 
+test("each person's receptionist mode past a thousand people with one of their own, and the workspace's wherever its row was written: the policies are read a page at a time", async () => {
+  const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
+  const world = kept(1500);
+  const polId = (i) => `99999999-0000-4000-8000-${String(i).padStart(12, "0")}`;
+  // 1,100 people with a mode of their own, written before the workspace's own row: one select answers a thousand rows
+  // (PostgREST's max_rows), which held neither the workspace's row nor the last hundred people's.
+  const policies = [
+    ...Array.from({ length: 1100 }, (_, i) => ({ id: polId(i + 1), ...pol(A, "contact", world.idOf(i + 1), "never") })),
+    { id: polId(5000), ...pol(A, null, null, "veto") },
+  ];
+  const tables = {
+    memberships: both("owner", "owner"),
+    policies,
+    tenants: [],
+    tenant_config: [],
+    contacts: world.contacts,
+  };
+  const modes = new Map(
+    (await everyone(ctxFor(tables, {}, { people_list: world.people_list }), A)).map((p) => [
+      p.id,
+      p.effective_reply_mode,
+    ]),
+  );
+  assert.equal(modes.get(world.idOf(1)), "never", "their own");
+  assert.equal(modes.get(world.idOf(1050)), "never", "their own, past the thousandth row");
+  assert.equal(modes.get(world.idOf(1200)), "veto", "the workspace's, for someone with none of their own");
+  // People's own page reads them the same way.
+  const second = await contacts.GET.run(
+    get(`${inA}&offset=1000`),
+    ctxFor(tables, {}, { people_list: kept(1500, { places: false }).people_list }),
+  );
+  const onPage = new Map(second.people.map((p) => [p.id, p.effective_reply_mode]));
+  assert.deepEqual(
+    [onPage.get(world.idOf(1050)), onPage.get(world.idOf(1200))],
+    ["never", "veto"],
+    "on the page past the first",
+  );
+});
+
 test("the receptionist's mode for many: owners, ours and not erased, the same policy row and ledger verb per person", async () => {
   assert.deepEqual(receptionistMany.PUT.policy, {
     kind: "write",

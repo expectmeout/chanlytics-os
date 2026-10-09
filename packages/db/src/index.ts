@@ -347,6 +347,7 @@ export {
   addPersonNote,
   peopleCursorOf,
   everyoneIn,
+  everyoneOnceIn,
   erasureDigests,
   scrubPersonNotes,
   mergePeople,

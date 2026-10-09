@@ -12,10 +12,15 @@
  *
  * Pure: the readers are handed in and asked page by page, so the composer runs
  * in a test over a few rows and in the route over a workspace of any size
- * without holding it whole. A page is read by OFFSET under a fixed order
- * (created_at, then id): a keyset on created_at alone skips rows written by
- * one statement, which share a timestamp, and the export is the one place a
- * skipped row is worse than a slow page.
+ * without holding it whole. A page of conversations, messages, calls or
+ * consent changes is read by OFFSET under a fixed order (created_at, then id):
+ * a keyset on created_at alone skips rows written by one statement, which
+ * share a timestamp, and the export is the one place a skipped row is worse
+ * than a slow page. People are not: their order is people_list's, the latest
+ * contact first, which moves whenever someone writes or calls, so by offset
+ * one who wrote between two pages was never exported and the one on the
+ * boundary was exported twice. Their reader hands over pages of everyone
+ * exactly once (server/people everyoneOnce), in whatever size it reads them.
  */
 import type { CallDto, ConsentChange, MessageDto, PersonRowDto } from "@chanlytics/contracts";
 export { consentChangeOf } from "@chanlytics/contracts";
@@ -35,7 +40,8 @@ export interface BundleConversation {
 }
 
 export interface BundleReaders {
-  people(offset: number, limit: number): Promise<PersonRowDto[]>;
+  /** Every person exactly once, a page at a time: their order moves as they write, so it is not read by offset. */
+  people(): AsyncIterable<PersonRowDto[]>;
   conversations(offset: number, limit: number): Promise<BundleConversation[]>;
   messages(conversationId: string, offset: number, limit: number): Promise<MessageDto[]>;
   calls(offset: number, limit: number): Promise<CallDto[]>;
@@ -59,6 +65,11 @@ async function* paged<T>(read: (offset: number, limit: number) => Promise<T[]>, 
     for (const r of rows) yield r;
     if (rows.length < page) return;
   }
+}
+
+/** Every row of a sequence of pages, in order. */
+async function* each<T>(pages: AsyncIterable<T[]>): AsyncGenerator<T> {
+  for await (const rows of pages) yield* rows;
 }
 
 /** The items of an async sequence as one JSON array, an item per chunk. */
@@ -95,7 +106,7 @@ export async function* workspaceBundle(readers: BundleReaders, opts: BundleOpts)
   yield JSON.stringify(head, null, 2).replace(/\n\}$/, "") + ",\n";
 
   yield '"people": ';
-  yield* jsonArray(paged(readers.people, page));
+  yield* jsonArray(each(readers.people()));
 
   yield ',\n"conversations": ';
   yield* jsonArray(withMessages(readers, page));

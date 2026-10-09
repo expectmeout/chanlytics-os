@@ -3013,11 +3013,17 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
     const held = turn.ctx.supabase.seen.length;
     await kernel.load(turn, peopleReader, { q: null, offset: 0 });
+    const heldWant = want
+      .slice(1)
+      .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols)));
+    // Who each step is for waits on the page and its reply modes, which are read a page at a time; the follow-up's
+    // channels, asked beside it on its own chain, reach the database first when the turn holds the rest.
+    const roster = heldWant.findIndex(([k]) => k === "rpc:team_roster");
+    assert.deepEqual(heldWant[roster + 1], ["playbooks.select", "channels"]);
+    heldWant.splice(roster, 2, heldWant[roster + 1], heldWant[roster]);
     assert.deepEqual(
       askedWith(turn.ctx).slice(held),
-      want
-        .slice(1)
-        .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols))),
+      heldWant,
       "the page, the steps, the pace and the follow-up's own reads: the zone, the settings and sells_by were the turn's",
     );
   });
