@@ -93,7 +93,7 @@ const yamlCode = (file) =>
     .filter((l) => !/^\s*#/.test(l))
     .join("\n");
 
-test("the nightly evals run on a clock and on demand, only with the eval key, and hold no other secret: never the production key", () => {
+test("the nightly evals run on a clock once they are switched on and on demand, fail with no key, and hold no other secret: never the production key", () => {
   const y = yamlCode(".github/workflows/nightly-evals.yml");
   assert.match(y, /cron: "0 10 \* \* \*"/);
   assert.ok(y.includes("workflow_dispatch:"));
@@ -118,7 +118,18 @@ test("the nightly evals run on a clock and on demand, only with the eval key, an
   assert.ok(work.length >= 5);
   for (const st of work)
     assert.ok(st.includes("steps.key.outputs.set == 'true'"), "a step that runs without the key: " + st.split("\n")[0]);
-  assert.ok(steps[0].includes("id: key") && steps[0].includes("SKIPPED"), "a skip says it is one");
+  // Off, the night is skipped in grey and no runner starts; asked for with no key, the run fails. Never green for nothing.
+  assert.ok(
+    y.includes(
+      "    if: $" + "{{ vars.NIGHTLY_EVALS == '1' || github.event_name == 'workflow_dispatch' }}\n    runs-on:",
+    ),
+    "the job waits for the repository's switch, or a hand",
+  );
+  assert.ok(
+    steps[0].includes("id: key") && steps[0].includes("::error") && /\n\s+exit 1\n/.test(steps[0]),
+    "no key is a failure that says so",
+  );
+  assert.ok(!y.includes("SKIPPED"), "and nothing ends green having said it skipped");
   assert.ok(y.includes("permissions:\n  contents: read"));
   // The runner reads the eval key and never the production key (its behaviour is nightly-evals.test.mjs's).
   const runner = readRaw("tooling/scripts/evals/nightly.mjs").replace(/^\s*(\*|\/\/|\/\*).*$/gm, "");

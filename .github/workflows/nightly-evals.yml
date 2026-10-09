@@ -5,10 +5,16 @@ name: Nightly evals
 # prices in every currency, Spanish handoffs, multi-turn threads), asked of the model and judged. The pass line is the
 # lower bound of the Wilson interval of the pass rate, and a case marked hard must pass every time.
 #
-# The job runs ONLY when the repository holds ANTHROPIC_EVAL_KEY, a sandbox model key that is not the platform's. It
-# never receives ANTHROPIC_API_KEY, the production key, or any other secret: the script talks to the model directly with
-# the eval key and to nothing of ours. With no key every step says it was skipped (a skip is not a pass), and Ruben's
-# adding the secret in the repository settings is what turns it on.
+# The job asks the model ONLY with ANTHROPIC_EVAL_KEY, a sandbox model key that is not the platform's. It never
+# receives ANTHROPIC_API_KEY, the production key, or any other secret: the script talks to the model directly with the
+# eval key and to nothing of ours.
+#
+# Off until the repository variable NIGHTLY_EVALS is "1" (Settings, Secrets and variables, Actions, Variables), the way
+# preview-smoke.yml is off until PREVIEW_SMOKE is: a secret cannot be read in a job's `if`, and a variable can. Off, the
+# night's run is SKIPPED, in grey, with no runner started. It used to start one, find no key, say "skipped" in its log
+# and end green: nine green nights of thirteen seconds each in which nothing was asked (the architecture review of
+# 8 October 2026). On, or started by hand, a run with no key FAILS and says so: asked to judge and unable to is not a
+# pass. Turning it on is Ruben's: the secret first, then the variable.
 on:
   schedule:
     - cron: "0 10 * * *"
@@ -25,6 +31,7 @@ permissions:
 jobs:
   evals:
     name: The receptionist's cases against a sandbox model key
+    if: ${{ vars.NIGHTLY_EVALS == '1' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -44,7 +51,8 @@ jobs:
             echo "set=true" >> "$GITHUB_OUTPUT"
           else
             echo "set=false" >> "$GITHUB_OUTPUT"
-            echo "SKIPPED - ANTHROPIC_EVAL_KEY is not set, so nothing was asked and nothing was judged. This is not a pass."
+            echo "::error title=No eval key::The evals were asked for (NIGHTLY_EVALS is 1, or a hand started this run) and ANTHROPIC_EVAL_KEY is not set, so nothing was asked and nothing was judged. This is not a pass."
+            exit 1
           fi
       - uses: actions/checkout@v7
         if: ${{ steps.key.outputs.set == 'true' }}
