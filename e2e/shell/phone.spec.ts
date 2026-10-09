@@ -427,8 +427,12 @@ test.describe("Phone shell on a real workspace", () => {
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
     // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
+    // On a touch screen the field waits for a tap: no keyboard rises by itself.
     await bar.getByTestId("people-phone-search-open").click();
     const field = page.getByTestId("people-phone-search");
+    await expect(field).toBeVisible();
+    await expect(field).not.toBeFocused();
+    await field.tap();
     await expect(field).toBeFocused();
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     await page.getByTestId("people-phone-search-cancel").click();

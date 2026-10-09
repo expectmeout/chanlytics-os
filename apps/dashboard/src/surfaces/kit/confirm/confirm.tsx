@@ -23,6 +23,7 @@
  * Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
  */
 import type { KeyboardEvent, ReactNode } from "react";
+import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 
 interface ConfirmProps {
   question: ReactNode;
@@ -94,6 +95,8 @@ export function Confirm({
       aria-label={typeof question === "string" ? question : undefined}
       data-testid={id("confirm")}
       onKeyDown={onKey}
+      // A question that asks for a typed name opens on itself on a touch screen: the name's field waits for a tap.
+      {...(typed != null ? editorBox : null)}
     >
       <span className="confirm-words">
         <span className="confirm-q">{question}</span>
@@ -106,8 +109,8 @@ export function Confirm({
           onChange={(e) => onType && onType(e.target.value)}
           placeholder={String(typed)}
           aria-label={`Type ${typed} to confirm`}
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- kept as the JSX drew it: the typed name takes focus as the question appears
-          autoFocus
+          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- kept as the JSX drew it: the typed name takes focus as the question appears, under a mouse
+          autoFocus={focusAsDrawn()}
           disabled={busy}
           data-testid={id("typed")}
         />

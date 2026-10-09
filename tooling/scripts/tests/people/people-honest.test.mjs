@@ -1293,7 +1293,15 @@ test("on a phone search is a capsule at rest that opens into the field; Cancel g
     tree = draw();
     const field = byTestId(tree, "people-phone-search");
     assert.equal(field.props.type, "search");
-    assert.equal(field.props.autoFocus, true);
+    assert.equal(field.props.autoFocus, true, "with keys the field is ready");
+    // On a touch screen the field waits for a tap: the button showed it, and the keyboard is the person's to ask for.
+    const media = globalThis.window.matchMedia;
+    globalThis.window.matchMedia = (q) => ({ ...media(q), matches: q === "(pointer: coarse)" || media(q).matches });
+    try {
+      assert.equal(byTestId(draw(), "people-phone-search").props.autoFocus, false, "no keyboard by itself");
+    } finally {
+      globalThis.window.matchMedia = media;
+    }
     assert.ok(
       byTestId(tree, "people-phone-lists"),
       "the list stays over the field, as the Inbox's buckets stay over its search",
