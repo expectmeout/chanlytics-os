@@ -221,7 +221,7 @@ function personActs(b: BulkCtx) {
   const { st, flash, batch, rest, restWords, onKeep, onClear, onSheet, picked } = b;
   const { busy, setBusy, setNoting, note, setNote } = st;
   const exportCsv = () => {
-    downloadCsv(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked));
+    downloadCsv(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked, b.fileColumns ?? []));
     flash({ msg: <>{picked.length} exported as a CSV</> });
   };
   const receptionist = async (m: { id: ReceptionistMany; label: string }) => {

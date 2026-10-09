@@ -70,7 +70,7 @@ export function usePeopleState({
   const farther = usePeopleFarther({ people, q, plFlash });
   const { found } = farther;
   const shown = useMemo(
-    () => plPeopleShown({ rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir }),
+    () => plPeopleShown({ rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir, columns: PL_COLUMNS }),
     [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir],
   );
   const open = usePeopleOpenList({ people, lists, saved, listId, savedId, tab, q });

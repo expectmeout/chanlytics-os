@@ -1,7 +1,6 @@
 /**
  * The desk's controls at the right of the search (moved from legacy/pages/leads-scope.jsx, decision 0015): the map,
- * Values ⁄ Signals, which columns show and the file. The canvas (L1) folds the map, Values ⁄ Signals and the file under
- * one ⋯ beside Columns. The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live
+ * Values ⁄ Signals, which columns show and the file, as words beside Columns (the ⋯ that folded them is gone). The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live
  * canvas), stand at the right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
 import type { LeadSearchDto } from "@chanlytics/contracts";
@@ -10,10 +9,10 @@ import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
-import { Menu } from "../../kit/menu/menu";
+import { Button } from "../../kit/button/button";
 import { gate } from "../../legacy-verbs";
-import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import type { ColumnOption } from "../../people/table/columns";
+import type { TableLayout } from "../../people/table/use-layout";
 import { PeopleColumnsMenu } from "../../people/table/columns-menu";
 
 interface ControlsProps {
@@ -25,6 +24,7 @@ interface ControlsProps {
   onValues: (on: boolean) => void;
   colOptions: readonly ColumnOption[];
   onPickColumn: (key: string) => void;
+  layout: TableLayout | null;
 }
 
 /**
@@ -72,41 +72,43 @@ export const LeadsHead = ({ act }: { act?: ReactNode }) => {
 };
 
 export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
-  const exportItem = p.canExport
+  // Export: a role that may not keeps the button and says why at it (gate's props come last, so its handler is the one that runs).
+  const exportPress = p.canExport
     ? {
-        label: "Export",
-        icon: "external",
-        title: "Download these leads as a CSV file",
+        "data-tip": "Download these leads as a CSV file",
         onClick: () => {
           if (p.exportHref) window.open(p.exportHref, "_self");
         },
       }
-    : { label: "Export", icon: "external", gate: gate("export", "export these leads") };
+    : { onClick: () => undefined, ...gate("export", "export these leads") };
   return (
     <div className="cl-controls-right">
-      <PeopleColumnsMenu options={p.colOptions} onPick={p.onPickColumn} />
-      {/* The kit's Menu, as People's ⋯ beside it is (people/page/screen.tsx). */}
-      <MenuInPlace>
-        <Menu
-          label="More"
-          trigger={moreButton({ title: "More", testid: "leads-file-menu" })}
-          groups={menuGroups([
-            {
-              label: p.mapOpen ? "Table" : "Map",
-              icon: p.mapOpen ? "list" : "map",
-              title: "See these leads on the ground",
-              onClick: () => p.onMap(!p.mapOpen),
-            },
-            {
-              label: p.values ? "Signals" : "Values",
-              icon: "eye",
-              title: "Show the numbers and addresses in the rows",
-              onClick: () => p.onValues(!p.values),
-            },
-            exportItem,
-          ])}
-        />
-      </MenuInPlace>
+      <PeopleColumnsMenu options={p.colOptions} onPick={p.onPickColumn} layout={p.layout} rowHeight={false} />
+      {/* The map, Values / Signals and the file stand beside Columns as words, as People's Import and Export do (the ⋯ that
+          folded them away is gone, Ruben, 9 Oct 2026). */}
+      <div className="pl-file-acts">
+        <Button
+          variant="quiet"
+          size="sm"
+          data-tip="See these leads on the ground"
+          onClick={() => p.onMap(!p.mapOpen)}
+          data-testid="leads-map-toggle"
+        >
+          {p.mapOpen ? "Table" : "Map"}
+        </Button>
+        <Button
+          variant="quiet"
+          size="sm"
+          data-tip="Show the numbers and addresses in the rows"
+          onClick={() => p.onValues(!p.values)}
+          data-testid="leads-values-toggle"
+        >
+          {p.values ? "Signals" : "Values"}
+        </Button>
+        <Button variant="quiet" size="sm" data-testid="leads-export" {...exportPress}>
+          Export
+        </Button>
+      </div>
     </div>
   );
 };

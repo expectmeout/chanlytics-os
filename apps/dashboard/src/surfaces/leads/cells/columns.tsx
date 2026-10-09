@@ -110,7 +110,7 @@ const ldReachOutLine = (l: LeadRowVM, x: LeadCellCtx | null | undefined) => {
 };
 
 const reachCell = (l: LeadRowVM, x: LeadCellCtx) => (
-  <td key="reach" className="shrink ld-reach-cell" data-testid="lead-reach">
+  <td key="reach" className="ld-reach-cell" data-testid="lead-reach">
     {l.cls === "excluded" ? (
       <span className="dim">Not checked</span>
     ) : (
@@ -137,31 +137,40 @@ const reachCell = (l: LeadRowVM, x: LeadCellCtx) => (
 );
 
 export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
-  { key: "business", label: "Business", sortable: true, pinned: true, cell: ldBusinessCell },
+  {
+    key: "business",
+    label: "Business",
+    sortable: true,
+    pinned: true,
+    width: { base: 300, min: 240, max: 640, grow: 4 },
+    cell: ldBusinessCell,
+  },
   // Beside the name (Reach out Part 6, H8: "Columns puts the Stage beside the name"), with, while a reach-out writes to the
   // open search, the line that says where this business stands in it (contracts reachOutLineOf, x.reachOut).
   {
     key: "stage",
     label: "Stage",
     sortable: true,
+    width: { base: 148, min: 124, max: 260, grow: 1 },
     on: false,
     cell: (l, x) => (
-      <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">
+      <td key="stage" className="ld-stage-cell" data-testid="lead-stage">
         {l.cls !== "excluded" && <StatePill kind="lead_stage" value={l.stage} label={l.stageLabel} />}
         {ldReachOutLine(l, x)}
       </td>
     ),
   },
-  { key: "reach", label: "Reach", sortable: false, cell: reachCell },
+  { key: "reach", label: "Reach", sortable: false, width: { base: 150, min: 120, max: 240, grow: 1 }, cell: reachCell },
   {
     key: "rating",
     label: "Rated",
     sortable: true,
+    width: { base: 96, min: 84 },
     cell: (l) => (
       <LeadHover
         as="td"
         key="rating"
-        className="shrink ld-rated-cell ld-hover"
+        className="ld-rated-cell ld-hover"
         data-testid="lead-rated"
         card={l.rated && l.spread ? <LeadRatedCard l={l} /> : null}
       >
@@ -178,10 +187,11 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "found",
     label: "Found",
     sortable: true,
+    width: { base: 120, min: 104 },
     cell: (l) => (
       <td
         key="found"
-        className="shrink dim ld-found-cell ld-hover"
+        className="dim ld-found-cell ld-hover"
         data-testid="lead-found"
         onMouseEnter={ldPlacePop}
         onFocus={ldPlacePop}
@@ -200,9 +210,10 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "fit",
     label: "Fit",
     sortable: true,
+    width: { base: 100, min: 84 },
     on: false,
     cell: (l) => (
-      <td key="fit" className={`shrink ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">
+      <td key="fit" className={`ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">
         {l.fitLabel}
       </td>
     ),
@@ -211,9 +222,10 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "why",
     label: "Why it fits",
     sortable: false,
+    width: { base: 280, min: 160, max: 520, grow: 2 },
     on: false,
     cell: (l) => (
-      <td key="why" className="dim ld-why-cell" title={l.why}>
+      <td key="why" className="dim cl-cut ld-why-cell" title={l.why}>
         {l.why}
       </td>
     ),
@@ -222,10 +234,11 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "distance",
     label: "Distance",
     sortable: true,
+    width: { base: 104, min: 88 },
     needs: (x) => !!x.hasCenter,
     on: false,
     cell: (l) => (
-      <td key="distance" className="shrink dim ld-distance-cell">
+      <td key="distance" className="dim cl-cut ld-distance-cell">
         {l.distance}
       </td>
     ),
@@ -234,9 +247,10 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "source",
     label: "Source",
     sortable: false,
+    width: { base: 128, min: 96, max: 220, grow: 1 },
     on: false,
     cell: (l) => (
-      <td key="source" className="shrink dim ld-source-cell">
+      <td key="source" className="dim cl-cut ld-source-cell">
         {l.source}
       </td>
     ),
@@ -245,9 +259,10 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "website",
     label: "Website",
     sortable: false,
+    width: { base: 170, min: 120, max: 280, grow: 1 },
     on: false,
     cell: (l) => (
-      <td key="website" className="shrink dim ld-website-cell">
+      <td key="website" className="dim cl-cut ld-website-cell">
         {l.host}
       </td>
     ),
@@ -256,9 +271,10 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "search",
     label: "Search",
     sortable: false,
+    width: { base: 150, min: 108, max: 260, grow: 1 },
     on: false,
     cell: (l) => (
-      <td key="search" className="shrink dim ld-search-cell">
+      <td key="search" className="dim cl-cut ld-search-cell">
         {l.searchName}
       </td>
     ),
@@ -268,9 +284,10 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     key: "actions",
     label: "",
     sortable: false,
+    width: { base: 84 },
     fixed: true,
     cell: (l, x) => (
-      <td key="actions" className="shrink cl-actions-cell">
+      <td key="actions" className="cl-actions-cell">
         <LeadRowActions
           l={l}
           callMenu={x.callMenu}

@@ -6,6 +6,7 @@
 import type { ReactElement, ReactNode } from "react";
 import type { PeopleAggregates, PersonRowVM } from "@chanlytics/contracts";
 import type { PeopleSurface } from "./surface";
+import type { ColumnWidth } from "./table/layout";
 
 /** A smart list of People's, as the surface holds it. */
 export type SmartList = PeopleSurface["lists"][number];
@@ -51,16 +52,31 @@ export interface ColCtx {
 /** What a row's face says of the selection it is in: a selection under way (`choose`), this row in it (`chosen`), or none. */
 export type RowPick = "choose" | "chosen" | undefined;
 
-/** One column: its heading, whether it sorts, whether a member may hide it, and how its cell is drawn from a row. */
+/**
+ * One column, declared once: its heading, whether it sorts and how, what it asks of the table's room, whether a member
+ * may hide it, how its cell is drawn from a row, and what it says in an export. Nothing about a column is a class on its
+ * cell or a switch elsewhere: the sort, the width and the file all read this.
+ */
 export interface TableColumn<R extends TableRow = TableRow, X extends TableCtx = TableCtx> {
   key: string;
   label: ReactNode;
   sortable: boolean;
+  /** Which way the first press on its heading goes: `"asc"`, or by default the most first (`"desc"`). */
+  sortFirst?: "asc" | "desc";
+  /** What a row sorts by under this heading, where the page sorts the rows itself; a text is compared as words, in order. */
+  sortValue?: (p: R, dir: string) => number | string;
   pinned?: boolean;
   fixed?: boolean;
   on?: boolean | ((x: ColCtx) => boolean);
   needs?: (x: ColCtx) => boolean;
-  off?: boolean;
+  /** What it asks of the room (table/layout.ts); a column that says nothing is 120px and stays so. */
+  width?: ColumnWidth;
+  /** A number or a count sits against the column's right edge, its heading with it. */
+  align?: "end";
+  /** What the heading means, in a line: its tip, for a name that does not say it. */
+  hint?: string;
+  /** What it says in a file of the people shown: the heading and the cell's words. A column with none is not in the file. */
+  csv?: { head: string; cell: (p: R) => string };
   /** The cell, from the row, what the page knows, and (a card's) where the row stands in a selection. */
   cell: (p: R, x: X, pick?: RowPick) => ReactElement<{ className?: string }>;
 }

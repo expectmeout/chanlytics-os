@@ -31,7 +31,7 @@ export function usePeopleCells({
   saved: readonly SavedList[];
   activeSaved: SavedList | null;
   canEditLists: boolean;
-  columns: readonly { key: string; off?: boolean }[];
+  columns: readonly { key: string }[];
   onOpenProfile: (id: string) => void;
   dropFromList: (p: PersonRowVM) => Promise<void>;
 }) {
@@ -54,7 +54,7 @@ export function usePeopleCells({
     saved,
     activeSaved ? activeSaved.id : null,
     canEditLists,
-    columns.map((c) => (c.off ? `-${c.key}` : c.key)).join(","),
+    columns.map((c) => c.key).join(","),
     seen,
   ];
   if (!cellCtxRef.current || cellCtxRef.current.key.some((v, i) => !Object.is(v, cellCtxKey[i]))) {
@@ -73,7 +73,7 @@ export function usePeopleCells({
             ? { list: activeSaved, onDrop: (person) => void cellDropRef.current(person) }
             : null,
         listsOf,
-        shows: Object.fromEntries(columns.filter((c) => !c.off).map((c) => [c.key, true])),
+        shows: Object.fromEntries(columns.map((c) => [c.key, true])),
       },
     };
   }

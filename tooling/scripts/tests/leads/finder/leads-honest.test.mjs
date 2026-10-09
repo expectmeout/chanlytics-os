@@ -586,12 +586,17 @@ recorded.set(LeadPlanPanel, panels);
 recorded.set(LeadStrip, strips);
 /** A kept search's menu, as the rail drew it. */
 const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
-/** The desk's map switch: Map (or Table) in the ⋯ beside Columns, as the last draw made it (the phone's is its bar's). */
+/** The Leads tree `draw` last made: what the person is looking at, for the controls a test presses without being handed it. */
+let lastDrawn = null;
+/**
+ * The desk's map switch: Map (or Table), a quiet button of its own beside Columns (leads/scope/controls.tsx), as the last
+ * draw made it (the phone's is its bar's, which this does not find: a desk is drawn here).
+ */
 const mapToggle = () => {
-  const file = menus.findLast((m) => m.testid === "leads-file-menu");
-  const item = file?.items.find((i) => i.label === "Map" || i.label === "Table");
-  assert.ok(item, "the file menu offers the map");
-  return { props: { onClick: item.onClick } };
+  const button = lastDrawn && byTestId(lastDrawn, "leads-map-toggle");
+  assert.ok(button, "the desk's controls offer the map");
+  assert.ok(["Map", "Table"].includes(textOf(button)), `the map's button says Map or Table, not ${textOf(button)}`);
+  return { props: { onClick: button.props.onClick } };
 };
 // Find leads is Ask's (spec F1, F7): every door on the page hands Ask a detail, and that detail is what is pinned.
 const asks = [];
@@ -952,6 +957,7 @@ const fresh = async ({ leads = {}, views = {}, role = "owner", refuse = null, pe
   opened.length = 0;
   navigated.length = 0;
   menus.length = 0;
+  lastDrawn = null;
   confirms.length = 0;
   panels.length = 0;
   strips.length = 0;
@@ -984,7 +990,9 @@ const draw = (props = {}) => {
     ...props,
   };
   const Page = page.scope === "people" ? PeopleReal : page.scope === "pipeline" ? PipelineScope : LeadsReal;
-  return globalThis.React.createElement(Page, page);
+  const tree = globalThis.React.createElement(Page, page);
+  if (page.scope === "leads") lastDrawn = tree;
+  return tree;
 };
 /** The plan panel, through a kept search's Search again, changed: the plan Claude wrote, with what was asked. */
 const openPlanFrom = (name = "Personal trainers · Austin") => {
@@ -1023,9 +1031,11 @@ test("Leads' rows swap in with the kit's rise as a view's rows land, as People's
 
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `lead-${id}`);
 const names = (tree) => all(tree, (n) => n.props?.["data-testid"] === "lead-name").map(textOf);
+// The words of every heading the table draws, less the arrow a sortable one wears (▲ ▼ for the order, ↕ at rest). The table
+// draws the columns that show and no others (a column turned off is not hidden, it is not there), so nothing is filtered here.
 const headings = (tree) =>
-  all(tree, (n) => n.type === "th" && !/\bpl-col-off\b/.test(String(n.props?.className || "")))
-    .map((th) => textOf(th).replace(/[▲▼]/g, "").trim())
+  all(tree, (n) => n.type === "th")
+    .map((th) => textOf(th).replace(/[▲▼↕]/g, "").trim())
     .filter(Boolean);
 
 test("the Leads scope draws the rows the surface read, in the order it read them, each email's state a word beside a shape", async () => {
@@ -1038,8 +1048,26 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   );
   assert.deepEqual(
     headings(tree),
-    ["Business", "Reach", "Rated", "Found"],
-    "D5's three columns and when it was found; Fit, Why it fits, Stage, Distance, Source, Website and Search are the Columns menu's, off",
+    ["Business", "Reach", "Rated", "Found", "Actions"],
+    "D5's three columns and when it was found, then the row's acts (a heading read aloud as Actions, drawn with no words); Fit, Why it fits, Stage, Distance, Source, Website and Search are the Columns menu's, and not drawn",
+  );
+  // A heading that sorts is a button wearing a quiet idle caret (↕) until it is the order; Reach and the acts do not sort.
+  assert.deepEqual(
+    all(tree, (n) => n.type === "th").map((th) => [th.props["data-key"], textOf(th)]),
+    [
+      [undefined, ""],
+      ["business", "Business↕"],
+      ["reach", "Reach"],
+      ["rating", "Rated↕"],
+      ["found", "Found↕"],
+      ["actions", "Actions"],
+    ],
+    "every heading is keyed by its column; the ones that sort say so with their caret",
+  );
+  assert.deepEqual(
+    all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
+    ["Business↕", "Rated↕", "Found↕"],
+    "the headings that sort are buttons",
   );
   // D5: both contacts as two slots, phone then mailbox: the shape carries the state, the control's name carries the
   // word and the value, and the sentence behind the shape is a tip in the DOM the control names.
@@ -1114,6 +1142,97 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   assert.equal(byTestId(rowOf(tree, "l1"), "lead-card-name"), null, "not drawn before anyone reaches it");
 });
 
+test("the desk's map, Values / Signals and Export stand beside Columns as three quiet words, each doing its own act -- the ⋯ that folded them is gone", async () => {
+  await fresh();
+  let tree = draw();
+  const acts = (t) => find(t, (n) => n.props?.className === "pl-file-acts");
+  const ids = ["leads-map-toggle", "leads-values-toggle", "leads-export"];
+  const word = (id) => textOf(byTestId(acts(tree), id));
+  assert.ok(acts(tree), "the file acts stand in the controls row");
+  assert.equal(byTestId(tree, "leads-file-menu"), null, "no ⋯ menu folds them away");
+  assert.equal(
+    menus.some((m) => m.testid === "leads-file-menu"),
+    false,
+    "and none is drawn for the kit's menu to open",
+  );
+  assert.deepEqual(ids.map(word), ["Map", "Values", "Export"]);
+  assert.deepEqual(
+    ids.map((id) => byTestId(acts(tree), id).props["data-tip"]),
+    [
+      "See these leads on the ground",
+      "Show the numbers and addresses in the rows",
+      "Download these leads as a CSV file",
+    ],
+    "what each does is said under a pointer, where the old menu's items said it in a title",
+  );
+  try {
+    // Map: the map stands where the table stood, and the button says Table to go back.
+    click(byTestId(acts(tree), "leads-map-toggle"));
+    tree = draw();
+    assert.ok(byTestId(tree, "lead-map"), "Map opens the map");
+    assert.equal(word("leads-map-toggle"), "Table", "and offers the way back");
+    click(byTestId(acts(tree), "leads-map-toggle"));
+    tree = draw();
+    assert.equal(byTestId(tree, "lead-map"), null, "Table puts the rows back");
+    assert.equal(word("leads-map-toggle"), "Map");
+    // Values: the numbers and addresses behind each shape join the row, and the button says Signals to take them away.
+    const valuesDrawn = () => all(tree, (n) => /\bld-slot-value\b/.test(String(n.props?.className || ""))).length;
+    assert.equal(valuesDrawn(), 0, "a row's contacts are shapes alone to begin with");
+    click(byTestId(acts(tree), "leads-values-toggle"));
+    tree = draw();
+    assert.ok(valuesDrawn() > 0, "Values writes the numbers and addresses in the rows");
+    assert.equal(word("leads-values-toggle"), "Signals");
+    click(byTestId(acts(tree), "leads-values-toggle"));
+    tree = draw();
+    assert.equal(valuesDrawn(), 0, "Signals takes them out again");
+    assert.equal(word("leads-values-toggle"), "Values");
+  } finally {
+    globalThis.localStorage.removeItem("leads.values");
+  }
+  // Export: the browser is sent to the export route for this view, as an attachment, so the page stays where it is.
+  assert.deepEqual(navigated, [], "nothing is downloaded by itself");
+  click(byTestId(acts(tree), "leads-export"));
+  assert.deepEqual(
+    navigated,
+    [["/api/v1/leads/export?list=all&sort=fit&dir=asc&workspace=salon", "_self"]],
+    "the whole view, in the order the table has by default",
+  );
+});
+
+test("Export, for a role that may not take the file, stays on the page, says why at the button and downloads nothing", async () => {
+  await fresh({ role: "operator" });
+  const tree = draw();
+  const exportIt = byTestId(tree, "leads-export");
+  assert.ok(exportIt, "the button stays");
+  assert.deepEqual(
+    [exportIt.props["aria-disabled"], exportIt.props["data-gated"]],
+    [true, ""],
+    "gated, and still in the tab order",
+  );
+  assert.match(String(exportIt.props["aria-description"]), /export these leads/);
+  assert.equal(exportIt.props["data-tip"], exportIt.props["aria-description"], "the reason is the tip under a pointer");
+  click(exportIt);
+  assert.deepEqual(navigated, [], "a press downloads nothing");
+  // The map and Values are not the file: a role that may not export may still look.
+  assert.equal(byTestId(tree, "leads-map-toggle").props["data-gated"], undefined);
+  assert.equal(byTestId(tree, "leads-values-toggle").props["data-gated"], undefined);
+});
+
+test("a press on a gated Export shows the reason at the button, as every gate does (a finger has no hover)", async () => {
+  await fresh({ role: "operator" });
+  const shown = [];
+  const keep = globalThis.window.__tip;
+  globalThis.window.__tip = { show: (el) => shown.push(el) };
+  try {
+    const exportIt = byTestId(draw(), "leads-export");
+    const pressed = { stopPropagation() {}, preventDefault() {}, currentTarget: { name: "the Export button" } };
+    exportIt.props.onClick(pressed);
+    assert.deepEqual(shown, [pressed.currentTarget], "the tip is shown at the button that was pressed");
+  } finally {
+    globalThis.window.__tip = keep;
+  }
+});
+
 test("a hover's card is drawn once a pointer, focus or a finger first reaches its trigger, and kept from then on", () => {
   frames.reset();
   const card = globalThis.React.createElement("div", { "data-testid": "the-card" });
@@ -1163,7 +1282,19 @@ test("with no search kept and no lead held the first day stands alone: the quest
     "no rail",
   );
   assert.equal(searchBox(tree), null, "no search over no leads");
-  assert.equal(byTestId(tree, "leads-file-menu"), null, "no columns and no file");
+  // No columns to choose and no file to take. The controls row (Columns, then the map, Values / Signals and Export as words
+  // beside it) is drawn with the table and with it alone: the three buttons are always there on a day a table stands (the
+  // desk's controls test below), so their being absent here is the first day's, not the buttons'.
+  assert.deepEqual(
+    ["leads-map-toggle", "leads-values-toggle", "leads-export"].map((id) => byTestId(tree, id)),
+    [null, null, null],
+    "no map, no Values and no Export over no leads",
+  );
+  assert.equal(
+    menus.some((m) => m.title === "Columns"),
+    false,
+    "and no Columns to choose",
+  );
   const said = standingSaid();
   assert.deepEqual(
     [said?.title, said?.sentence, said?.act],
@@ -1833,7 +1964,7 @@ test("People and Leads are two components: each keeps its own state, and People 
   // by. Each is its own now (PeopleReal, LeadsReal, over the same two hooks), and the shell mounts them apart.
   await fresh();
   const peopleBox = (tree) =>
-    find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search by name or phone…");
+    find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search names, numbers and emails…");
   const leadsBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
   peopleBox(draw({ scope: "people", leadsRoute: null })).props.onChange({ target: { value: "zilker" } });
   assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
