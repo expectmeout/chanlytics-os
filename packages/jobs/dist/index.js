@@ -6,6 +6,7 @@ import { logger, requestId } from "../../channels/dist/index.js";
 // src/ledger.ts
 import { DAY_MS, MIN_MS, jittered } from "../../contracts/dist/index.js";
 import { DEADLINE_MARGIN_MS } from "../../core/dist/index.js";
+import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "../../channels/dist/index.js";
 var LEASE_SECONDS = 90;
 var CLAIM_FOR_MS = 2e4;
 var CLAIM_SLOTS = 3;
@@ -13,6 +14,10 @@ var YIELD_AT_MS = 45e3;
 var FUNCTION_CEILING_MS = MIN_MS;
 var SEND_SETTLE_MS = 5e3;
 var sendByAt = (deadline) => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
+var startByAt = (deadline) => ({
+  whatsapp: sendByAt(deadline) - WHATSAPP_SEND_TIMEOUT_MS,
+  sms: sendByAt(deadline) - TWILIO_TIMEOUT_MS
+});
 var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 var REPLY_LATE_PAGE_MS = MIN_MS;
 var MAX_ATTEMPTS = 3;
@@ -581,7 +586,15 @@ async function broadcastSend(ctx, job) {
       now: Date.now,
       sleep: (ms) => new Promise((res) => setTimeout(res, ms))
     },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, ...carriedBy(p) }
+    // A WhatsApp send or a text runs its wire's own timeout whole, so the batch starts one only while that still ends
+    // inside the function (ledger startByAt); the people after it are the next batch's.
+    {
+      tenantId: job.tenant_id,
+      broadcastId: p.broadcast_id,
+      deadline: ctx.deadline,
+      startBy: startByAt(ctx.deadline),
+      ...carriedBy(p)
+    }
   );
 }
 function nextBatch(id, carry) {

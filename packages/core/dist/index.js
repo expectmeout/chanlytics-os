@@ -168,6 +168,8 @@ async function putOnWire(wire, d, asReply, now) {
   const sent = await send(d.to, {
     body: d.body,
     template: d.template,
+    // Which of a workspace's numbers this person wrote to is read by the thread, on a wire that holds two.
+    conversationId: d.conversationId,
     // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
     // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
     // is, whatever its template's category says. Anything else keeps the purpose it asked with.
@@ -1443,6 +1445,10 @@ function purposeAtTheDoor(trigger, message) {
 function channelOf(r) {
   return r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp";
 }
+function startsInTime(cmd, r, now) {
+  const by = cmd.startBy?.[channelOf(r)];
+  return by === void 0 || now <= by;
+}
 function rowFacts(r) {
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
 }
@@ -1824,6 +1830,7 @@ async function sendOne(w, r) {
   if (!queued) return skip("send_failed");
   const out = await ports.deliver(made.delivery).catch(async (e) => {
     if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
+    if (isWireUnavailableError(e)) return { outcome: "not_taken", status: 0 };
     await withdrawQueued(ports, b, made.delivery);
     throw new ThrownAtTheDoor(e);
   });
@@ -1908,9 +1915,12 @@ async function sendBroadcastBatch(ports, cmd) {
     }
   };
   let begun = 0;
+  let yielded = false;
   for (const [i, r] of batch.entries()) {
     if (unreadable) break;
     if (begun > 0 && ports.now() >= cmd.deadline) break;
+    yielded = !startsInTime(cmd, r, ports.now());
+    if (yielded) break;
     begun += 1;
     let verdict;
     try {
@@ -1924,7 +1934,7 @@ async function sendBroadcastBatch(ports, cmd) {
     if (verdict !== "go on") return backOff(ports, b, cmd, { ...verdict, timezone: facts.timezone });
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
-  await afterTheBatch(w, batch.length);
+  await afterTheBatch(w, yielded ? 0 : batch.length);
 }
 async function afterTheBatch(w, picked) {
   const { ports, b, cmd } = w;

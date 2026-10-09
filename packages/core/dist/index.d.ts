@@ -182,6 +182,11 @@ interface WirePayload {
      * wire). The email wire bounds its tries by it (channels sendEmail); absent, by its own deadline alone.
      */
     deadlineMs?: number;
+    /**
+     * The thread the words are for (Delivery.conversationId). A wire that holds more than one number reads which of them
+     * the person last wrote to by it (the job runner's WhatsApp wire); every other ignores it.
+     */
+    conversationId?: string;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -1194,6 +1199,13 @@ interface BroadcastBatchCommand extends BatchCarry {
     tenantId: string;
     broadcastId: string;
     deadline: number;
+    /**
+     * Epoch ms, by channel: the latest moment a send on that wire may start (jobs ledger startByAt). A wire whose send no
+     * ceiling bounds (WhatsApp's, a text's) runs its own timeout whole, and one begun too late outlived the function. A
+     * person whose wire's moment has passed is left queued for the next batch, the first person of a batch too, and
+     * the batch is not a stall. A channel with none may start until the deadline.
+     */
+    startBy?: Partial<Record<Channel, number>>;
 }
 
 /**

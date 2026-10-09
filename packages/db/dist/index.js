@@ -952,7 +952,7 @@ import {
 
 // src/repositories/campaigns/campaign-channels.ts
 async function whatsappChannelFacts(db, tenantId) {
-  const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle();
+  const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
   if (!data) return null;
   const cfg = data.config;
@@ -2776,20 +2776,41 @@ async function resolveChannelDetailed(db, kind, externalId) {
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
     return { channel: null, lookupFailed: true };
   }
-  const routed = data && data.status === "active" ? {
-    channelId: data.id,
-    tenantId: data.tenant_id,
-    kind: data.kind,
-    externalId: data.external_id,
-    numberE164: data.number_e164,
-    credentialsRef: data.credentials_ref,
-    config: data.config
-  } : null;
+  const routed = data && data.status === "active" ? routedOf(data) : null;
   cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
   return { channel: routed, lookupFailed: false };
 }
+var ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, config, external_id";
+function routedOf(row) {
+  return {
+    channelId: row.id,
+    tenantId: row.tenant_id,
+    kind: row.kind,
+    externalId: row.external_id,
+    numberE164: row.number_e164,
+    credentialsRef: row.credentials_ref,
+    config: row.config
+  };
+}
+async function oldestActiveChannel(db, tenantId, kind) {
+  const { data, error } = await db.from("tenant_channels").select(ROUTED_COLUMNS).eq("tenant_id", tenantId).eq("kind", kind).eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
+  return data ? routedOf(data) : null;
+}
 async function resolveChannel(db, kind, externalId) {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
+}
+async function activeWhatsappNumbers(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("id, credentials_ref, external_id").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
+  return data ?? [];
+}
+async function whatsappLineOf(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "whatsapp").eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
+  const meta = data?.meta;
+  const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
+  return typeof line === "string" && line ? line : null;
 }
 
 // src/repositories/calls.ts
@@ -4491,6 +4512,7 @@ export {
   PERSON_FORGOTTEN,
   acceptHandover,
   acceptPartnerInvite,
+  activeWhatsappNumbers,
   activitySubjects,
   activityTokensOf,
   addPersonNote,
@@ -4660,6 +4682,7 @@ export {
   offerLanguageOf,
   offersAnswerOf,
   offersEmailReach,
+  oldestActiveChannel,
   openConversation,
   openDoubtsOf,
   ourLastWire,
@@ -4823,6 +4846,7 @@ export {
   watchedEvents,
   watchedTables,
   whatsappChannelFacts,
+  whatsappLineOf,
   whatsappNumberOf,
   whatsappNumbersToRead,
   wireRowOf,
