@@ -5,7 +5,10 @@
  */
 import { useEffect, useState, type SyntheticEvent } from "react";
 import type { WorkspacePartnerVM } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
+import { RecordField } from "../../kit/record/field";
+import { RecordRow } from "../../kit/record/row";
 import { gate, onRolesChanged, viewAsRole, type LegacyFlash } from "../../legacy-verbs";
 import { TeamSection } from "../team/team";
 import { partnerVerbs } from "./surface";
@@ -97,59 +100,59 @@ function TeamPartnerCard({ flash }: { flash: Flash }) {
           {W.title}
         </h2>
       </div>
-      {vm.sentence ? (
-        <p className="set-row-hint" data-testid={`team-partner-${vm.state}`}>
-          {vm.sentence}
-        </p>
+      {vm.sentence || vm.canWithdraw ? (
+        <RecordRow
+          id="team-partner-status"
+          label="Status"
+          value={vm.sentence ? <span data-testid={`team-partner-${vm.state}`}>{vm.sentence}</span> : null}
+          act={
+            vm.canWithdraw
+              ? {
+                  label: busy ? W.withdrawing : W.withdraw,
+                  onClick: () => {
+                    if (!busy) void withdraw();
+                  },
+                  gate: gate("team", "take back the invitation"),
+                  testid: "team-partner-withdraw",
+                }
+              : null
+          }
+        />
       ) : null}
-      {vm.canWithdraw ? (
-        <div className="set-form-actions">
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={() => void withdraw()}
-            disabled={busy}
-            aria-busy={busy || undefined}
-            data-testid="team-partner-withdraw"
-            {...gate("team", "take back the invitation")}
-          >
-            {busy ? W.withdrawing : W.withdraw}
-          </button>
-        </div>
+      {vm.canInvite && vm.state === "none" ? (
+        <RecordRow id="team-partner-about" label="A partner" value={<span className="rec-row-hint">{W.intro}</span>} />
       ) : null}
       {vm.canInvite ? (
-        <form onSubmit={ask} className="set-form" data-testid="team-partner-form">
-          {vm.state === "none" ? <p className="set-row-hint">{W.intro}</p> : null}
-          <label className="set-field">
-            <span className="set-field-label">{W.codeLabel}</span>
-            <input
-              className="input"
-              value={code}
-              onChange={(e) => {
-                setCode(e.target.value);
-                setError(null);
-              }}
-              placeholder={W.codePlaceholder}
-              autoComplete="off"
-              spellCheck={false}
-              data-testid="team-partner-code"
-            />
-          </label>
-          {error ? (
-            <p className="set-error" role="alert" data-testid="team-partner-error">
-              {error}
-            </p>
-          ) : null}
-          <button
+        <form onSubmit={ask} className="set-invite" data-testid="team-partner-form">
+          <RecordField
+            id="team-partner-code"
+            label={null}
+            aria-label={W.codeLabel}
+            value={code}
+            onChange={(v) => {
+              setCode(v);
+              setError(null);
+            }}
+            placeholder={W.codePlaceholder}
+            autoComplete="off"
+            spellCheck={false}
+            data-testid="team-partner-code"
+          />
+          <Button
             type="submit"
-            className="btn"
+            size="sm"
             disabled={busy || !code.trim()}
             aria-busy={busy || undefined}
             data-testid="team-partner-ask"
             {...gate("team", "ask a partner to join")}
           >
             {busy ? W.inviting : W.invite}
-          </button>
+          </Button>
+          {error ? (
+            <p className="set-error" role="alert" data-testid="team-partner-error">
+              {error}
+            </p>
+          ) : null}
         </form>
       ) : null}
     </section>

@@ -3692,6 +3692,77 @@ footer.rec-sheet-foot .btn {
 .rec-sheet-foot[data-asking="true"] .confirm-words {
   padding: 0 10px;
 }
+/* On a phone, and from the kit's 900px, where a sheet is the width of the screen or near it, Save and Cancel are an equal pair
+   across its foot, as the foot's question already is: two short buttons at the left of a capsule a thumb wide left
+   more than half of it empty, and the foot changed shape when it asked. The foot's line, and a line of the page's,
+   stand over the pair, so the two buttons are always the foot's last row. A name too long for half the foot ("Import 12
+   and check their addresses") takes the row, and the other button the row under it: never cut, never shrunk. The one
+   that is not the act is the plain button, as the question's No is (above): a quiet one, half the width, read as a
+   word adrift.
+
+   A foot of a page's own (a composer's Cancel and Send, at the foot's end on a desk) names its row of acts with
+   `data-foot-pair` and is laid out the same from the width a sheet of the kit's rises at: its line over the pair, and
+   the filled act first, where Save is, whichever way the row is written. The attribute is named twice so
+   that a page's own rule for its row on a desk (a class, written after the kit's) does not outrank the pair. */
+@media (max-width: 900px) {
+  .rec-sheet-foot:where(:has(> .rec-foot)) {
+    padding: 6px;
+  }
+  .rec-sheet-foot:where(:has(> .rec-foot)) > :where(:not(.rec-foot, .confirm)) {
+    padding: 8px 10px 0;
+  }
+  .rec-sheet-foot > .rec-foot {
+    gap: 8px;
+  }
+  .rec-sheet-foot > .rec-foot .btn {
+    flex: 1 1 calc(50% - 4px);
+    min-width: max-content;
+    max-width: 100%;
+    justify-content: center;
+  }
+  .rec-sheet-foot > .rec-foot .rec-foot-note {
+    flex: 1 1 100%;
+    order: -1;
+    padding: 8px 10px 2px;
+    text-align: left;
+  }
+  :where(.rec-sheet-foot > .rec-foot) .btn-ghost:where(:not(.danger)) {
+    background: var(--secondary-fill);
+    border-color: var(--line);
+    color: var(--ink);
+  }
+}
+@media (max-width: 900px) {
+  .rec-sheet-foot:where(:has([data-foot-pair])) {
+    padding: 6px;
+  }
+  [data-foot-pair][data-foot-pair] {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  [data-foot-pair][data-foot-pair] > .btn {
+    flex: 1 1 calc(50% - 4px);
+    min-width: max-content;
+    max-width: 100%;
+    justify-content: center;
+    border-radius: var(--control-radius);
+  }
+  [data-foot-pair][data-foot-pair] > .btn-primary {
+    order: -1;
+  }
+  [data-foot-pair][data-foot-pair] > :where(:not(.btn, .confirm)) {
+    flex: 1 1 100%;
+    order: -2;
+    padding: 8px 10px 2px;
+  }
+  [data-foot-pair][data-foot-pair] > :where(:not(.btn)):empty {
+    display: none;
+  }
+}
 
 /* ---- The composer's rows (campaigns3.py, the compact composer C2; deals3.py, the deal's pane D2) ----
    A composer's rows are a pane's: the key in the third ink, the rule between them the edge (the roles'), and the

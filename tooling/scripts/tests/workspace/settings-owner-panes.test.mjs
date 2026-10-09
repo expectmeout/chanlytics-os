@@ -797,7 +797,13 @@ test("on a phone the matrix is one line per class: its mode is a word that opens
       null,
       "no table on a phone",
     );
-    const rows = all(tree, (n) => String(n.props?.className || "").includes("pol-phone-row"));
+    // A line per class is the record kit's row, named `pol-phone-<class>` (its mode's trigger is `pol-phone-mode-<class>`).
+    const rows = all(
+      tree,
+      (n) =>
+        String(n.props?.className || "").includes("rec-row") &&
+        /^pol-phone-(?!mode-)/.test(String(n.props?.["data-testid"] || "")),
+    );
     assert.ok(rows.length >= 2, "one line per class");
     const reply = byTestId(tree, "pol-phone-reply");
     assert.match(textOf(reply), /Replies to customers/);
@@ -845,14 +851,14 @@ test("on a phone the reply dials are a word that opens their steps, and a deskto
     const steps = all(tree, (n) => n.props?.role === "menuitemradio");
     assert.ok(steps.length >= 2, "the steps, as radio items");
     assert.equal(steps.filter((i) => i.props["aria-checked"]).length, 1, "the one in force ticked");
-    assert.equal(all(tree, (n) => n.props?.className === "cl-tabs").length, 0, "no segmented strip on a phone");
+    assert.equal(all(tree, (n) => n.props?.className === "rec-seg").length, 0, "no segmented strip on a phone");
   } finally {
     W.matchMedia = was;
   }
   const desk = autonomy([{ class: "reply", mode: "veto", limits: { max_replies_day: 20, pause_hours: 4 } }]);
   assert.equal(
     find(desk, (n) => typeof n.type === "string" && n.props?.["data-testid"] === "aut-reply-cap").props.role,
-    "group",
+    "radiogroup",
     "a desktop keeps the dial",
   );
 });
@@ -969,7 +975,7 @@ test("F50: every dot and dial asks the autonomy gate, and a dial sends itself al
   };
   const dots = all(tree, (n) => n.type === "button" && String(n.props.className || "").startsWith("pol-dot"));
   assert.ok(dots.length > 0 && dots.every((d) => d.props["aria-disabled"] === true), "a viewer's dots are gated");
-  const steps = all(tree, (n) => n.type === "button" && n.props.className?.startsWith("cl-tab"));
+  const steps = all(tree, (n) => n.type === "button" && n.props.role === "radio");
   assert.ok(steps.length > 0 && steps.every((b) => b.props["aria-disabled"] === true), "and so are the dials' steps");
   press(dots[0]);
   await flush();
@@ -982,8 +988,8 @@ test("F50: every dot and dial asks the autonomy gate, and a dial sends itself al
     return { ok: true };
   };
   const step = (t, label, words) => {
-    const row = find(t, (n) => n.props?.className === "set-row" && textOf(n).startsWith(label));
-    return find(row, (n) => n.type === "button" && textOf(n).trim() === words);
+    const row = find(t, (n) => String(n.props?.className || "").includes("rec-row") && textOf(n).startsWith(label));
+    return find(row, (n) => n.type === "button" && n.props.role === "radio" && textOf(n).trim() === words);
   };
   press(step(own, "Hold window", "1m"));
   await flush();
@@ -1018,10 +1024,7 @@ test("a team read that failed is said, with the server's role kept; a roster rea
   workspace("owner", { __TEAM: null, __TEAM_INVITES: null });
   let tree = settings("team");
   assert.ok(byTestId(tree, "team-failed"), "the one failed read");
-  assert.ok(
-    find(tree, (n) => n.props?.className === "set-viewas"),
-    "an owner, as the server says, keeps View-as",
-  );
+  assert.ok(byTestId(tree, "team-viewas"), "an owner, as the server says, keeps View-as");
   assert.equal(
     all(tree, (n) => String(n.props?.className || "").startsWith("set-team-row")).length,
     0,
@@ -1030,11 +1033,7 @@ test("a team read that failed is said, with the server's role kept; a roster rea
   assert.equal(buttonSaying(tree, "Invite"), null, "no Invite over a roster that could not be read");
   workspace("operator", { __TEAM: null, __TEAM_INVITES: null });
   tree = settings("team");
-  assert.equal(
-    find(tree, (n) => n.props?.className === "set-viewas"),
-    null,
-    "an operator, as the server says, has none",
-  );
+  assert.equal(byTestId(tree, "team-viewas"), null, "an operator, as the server says, has none");
   // A roster read: You is the row whose address is the signed-in one, and only that row.
   workspace("owner");
   tree = settings("team");

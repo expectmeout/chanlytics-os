@@ -1372,6 +1372,8 @@ test("the domains you send from: under the Email row, each in contracts' words, 
   const host = () => find(byTestId(tree, "domain-host"), (n) => n.type === "input");
   const local = () => find(byTestId(tree, "domain-local"), (n) => n.type === "input");
   const name = () => find(byTestId(tree, "domain-name"), (n) => n.type === "input");
+  // The kit field draws what is wrong under its box, named by the field (rec-<id>-problem).
+  const hostProblem = () => find(byTestId(tree, "domain-host"), (n) => n.props?.id === "rec-domain-host-problem");
   assert.equal(name().props.value, "Harbor Moving", "the mailbox's name to start from");
   host().props.onChange({ target: { value: "gmail.com" } });
   local().props.onChange({ target: { value: "sam" } });
@@ -1379,7 +1381,7 @@ test("the domains you send from: under the Email row, each in contracts' words, 
   press(byTestId(tree, "domain-save"));
   await flush();
   tree = settle(Connections);
-  assert.match(textOf(byTestId(tree, "domain-host-problem")), /free mail/);
+  assert.match(textOf(hostProblem()), /free mail/);
   assert.deepEqual(added, [], "nothing is asked about what the rules already refuse");
 
   host().props.onChange({ target: { value: "getharbor.com" } });
@@ -1390,7 +1392,7 @@ test("the domains you send from: under the Email row, each in contracts' words, 
   tree = settle(Connections);
   assert.deepEqual(added, [{ host: "getharbor.com", fromLocal: "sam", fromName: "Harbor Moving" }]);
   assert.equal(
-    textOf(byTestId(tree, "domain-host-problem")),
+    textOf(hostProblem()),
     "This workspace already sends from that domain.",
     "the door's refusal lands under the box that caused it",
   );

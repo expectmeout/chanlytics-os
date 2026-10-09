@@ -9,10 +9,12 @@
  */
 import { Fragment, useState } from "react";
 import type { DomainRecordRow, EmailSetupDto, SendingDomainDto, SendingDomainWords } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
-import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
+import { RecordField } from "../../kit/record/field";
 import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { sendingDomains } from "./domains";
 
@@ -90,27 +92,25 @@ const SendingDomainRecords = ({ d, flash }: RecordsProps) => {
             </span>
             <span role="cell" className="n">
               <code id={idOf(r, "name")}>{r.name}</code>
-              <button
-                type="button"
-                className="cl-bucket-link rec-copy"
+              <LinkButton
+                className="rec-copy"
                 onClick={() => copy(r.name, idOf(r, "name"))}
                 aria-label={`Copy the ${r.kind} name`}
                 data-testid={`domain-copy-name-${r.key}`}
               >
                 Copy
-              </button>
+              </LinkButton>
             </span>
             <span role="cell" className="v">
               <code id={idOf(r, "value")}>{r.value}</code>
-              <button
-                type="button"
-                className="cl-bucket-link rec-copy"
+              <LinkButton
+                className="rec-copy"
                 onClick={() => copy(r.value, idOf(r, "value"))}
                 aria-label={`Copy the ${r.kind} value`}
                 data-testid={`domain-copy-value-${r.key}`}
               >
                 Copy
-              </button>
+              </LinkButton>
             </span>
           </div>
         ))}
@@ -163,77 +163,58 @@ const SendingDomainAdd = ({ mailDomain, fromName, flash, onClose }: AddProps) =>
   return (
     <div className="set-row set-row-stack biz set-domain-add" data-testid="domain-add">
       <div className="biz-fields">
-        <label className="biz-field" data-testid="domain-host">
-          <span className="biz-label">The domain you'll send from</span>
-          <input
-            className={`biz-input${problems.host ? " biz-bad" : ""}`}
-            value={host}
-            placeholder="getyourbusiness.com"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            disabled={busy}
-            aria-invalid={problems.host ? true : undefined}
-            aria-describedby={problems.host ? "domain-host-problem" : "domain-host-hint"}
-            onChange={(e) => setHost(e.target.value)}
-          />
-          {problems.host ? (
-            <FieldError id="domain-host-problem" message={problems.host} testid="domain-host-problem" />
-          ) : (
-            <span className="biz-hint" id="domain-host-hint">
-              A domain of its own is safest, like get{"<business>"}.com: your everyday email stays out of it.
-            </span>
-          )}
-        </label>
-        <label className="biz-field" data-testid="domain-local">
-          <span className="biz-label">Who it comes from</span>
-          <span className="biz-affix">
-            <input
-              className={`biz-input${problems.local ? " biz-bad" : ""}`}
-              value={local}
-              placeholder="sam"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              disabled={busy}
-              aria-invalid={problems.local ? true : undefined}
-              aria-describedby={problems.local ? "domain-local-problem" : undefined}
-              onChange={(e) => setLocal(e.target.value)}
-            />
-            <span className="biz-affix-text">@{shownHost}</span>
-          </span>
-          {problems.local ? (
-            <FieldError id="domain-local-problem" message={problems.local} testid="domain-local-problem" />
-          ) : null}
-        </label>
-        <label className="biz-field" data-testid="domain-name">
-          <span className="biz-label">The name people see beside it</span>
-          <input
-            className={`biz-input${problems.name ? " biz-bad" : ""}`}
-            value={name}
-            disabled={busy}
-            aria-invalid={problems.name ? true : undefined}
-            aria-describedby={problems.name ? "domain-name-problem" : undefined}
-            onChange={(e) => setName(e.target.value)}
-          />
-          {problems.name ? (
-            <FieldError id="domain-name-problem" message={problems.name} testid="domain-name-problem" />
-          ) : null}
-        </label>
+        <RecordField
+          id="domain-host"
+          testid="domain-host"
+          label="The domain you'll send from"
+          value={host}
+          onChange={setHost}
+          hint={<>A domain of its own is safest, like get{"<business>"}.com: your everyday email stays out of it.</>}
+          problem={problems.host}
+          placeholder="getyourbusiness.com"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          disabled={busy}
+        />
+        <RecordField
+          id="domain-local"
+          testid="domain-local"
+          label="Who it comes from"
+          value={local}
+          onChange={setLocal}
+          unit={`@${shownHost}`}
+          problem={problems.local}
+          placeholder="sam"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          disabled={busy}
+        />
+        <RecordField
+          id="domain-name"
+          testid="domain-name"
+          label="The name people see beside it"
+          value={name}
+          onChange={setName}
+          problem={problems.name}
+          disabled={busy}
+        />
       </div>
-      <div className="bc-chips">
-        <button
-          className="btn btn-primary btn-sm"
+      <div className="set-acts">
+        <Button
+          size="sm"
+          variant="primary"
           onClick={() => void save()}
           disabled={busy}
           data-testid="domain-save"
           {...gate("team", "add a domain to send from")}
         >
           {busy ? "Adding…" : "Add the domain"}
-        </button>
-        <button className="btn btn-sm" onClick={onClose} disabled={busy}>
+        </Button>
+        <Button size="sm" onClick={onClose} disabled={busy}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -352,39 +333,36 @@ function domainButtons(d: SendingDomainDto, ctx: RowContext) {
   return (
     <span className="set-int-actions">
       {doms.check && open && (
-        <button
-          type="button"
-          className="btn btn-sm"
+        <Button
+          size="sm"
           onClick={() => void acts.check(d)}
           disabled={busy !== null}
           data-testid={`domain-check-${d.host}`}
           {...(owner ? {} : gate("team", "check a domain"))}
         >
           {busy === d.id ? "Checking…" : "Check"}
-        </button>
+        </Button>
       )}
       {doms.resume && open && (
-        <button
-          type="button"
-          className="btn btn-sm"
+        <Button
+          size="sm"
           onClick={() => setArm({ id: d.id, what: "resume" })}
           disabled={busy !== null}
           data-testid={`domain-resume-${d.host}`}
           {...(owner ? {} : gate("team", "resume a domain"))}
         >
           Resume
-        </button>
+        </Button>
       )}
       {owner && open && (
-        <button
-          type="button"
-          className="cl-bucket-link"
+        <LinkButton
+          tone="danger"
           onClick={() => setArm({ id: d.id, what: "remove" })}
           disabled={busy !== null}
           data-testid={`domain-remove-${d.host}`}
         >
           Remove
-        </button>
+        </LinkButton>
       )}
     </span>
   );
@@ -437,16 +415,15 @@ function domainsFoot(opts: FootOptions) {
       <span />
       <span className="set-int-actions">
         {ready && count < DOMAINS.max && (
-          <button
-            type="button"
-            className="btn btn-sm"
+          <Button
+            size="sm"
             onClick={onAdd}
             data-testid="domain-add-open"
             {...(owner ? {} : gate("team", "add a domain to send from"))}
           >
             <Icon name="plus" size={12} />
             Add a domain
-          </button>
+          </Button>
         )}
       </span>
     </div>

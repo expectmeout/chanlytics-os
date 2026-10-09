@@ -4,6 +4,8 @@
  */
 import { useEffect, useState, type SyntheticEvent } from "react";
 import type { Enrolment } from "@/auth/second-factor";
+import { Button } from "../../kit/button/button";
+import { RecordField, RecordSwitch } from "../../kit/record/field";
 import type { LegacyFlash } from "../../legacy-verbs";
 import type { PartnerApi } from "./surface";
 
@@ -39,17 +41,16 @@ export function PartnerLettersRow({
   };
   return (
     <div className="set-row" data-testid="partner-letters-row">
-      <label className="set-check">
-        <input
-          type="checkbox"
-          checked={letters}
-          disabled={busy}
-          aria-busy={busy || undefined}
-          onChange={(e) => void toggle(e.target.checked)}
-          data-testid="partner-letters"
+      <div className="set-check">
+        <RecordSwitch
+          labelledBy="partner-letters-label"
+          on={letters}
+          readOnly={busy}
+          onChange={(on) => void toggle(on)}
+          testid="partner-letters"
         />
-        <span>{W.letters}</span>
-      </label>
+        <span id="partner-letters-label">{W.letters}</span>
+      </div>
     </div>
   );
 }
@@ -132,34 +133,32 @@ export function PartnerSecondFactor({ api, flash, onOn }: { api: PartnerApi; fla
             <span className="set-row-hint">
               {W.keyLabel}: <code data-testid="partner-second-factor-key">{state.enrolment.secret}</code>
             </span>
-            <label className="set-field">
-              <span className="set-field-label">{W.codeLabel}</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={7}
-                value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  setError(null);
-                }}
-                data-testid="partner-second-factor-code"
-              />
-            </label>
+            <RecordField
+              label={W.codeLabel}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={7}
+              value={code}
+              onChange={(words) => {
+                setCode(words);
+                setError(null);
+              }}
+              data-testid="partner-second-factor-code"
+            />
             <div className="set-form-actions">
-              <button
+              <Button
                 type="submit"
-                className="btn"
+                size="sm"
+                variant="primary"
                 disabled={busy || !code.trim()}
                 aria-busy={busy || undefined}
                 data-testid="partner-second-factor-confirm"
               >
                 {busy ? W.confirming : W.confirm}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
+              </Button>
+              <Button
+                size="sm"
+                variant="quiet"
                 onClick={() => {
                   setState({ phase: "off" });
                   setCode("");
@@ -169,7 +168,7 @@ export function PartnerSecondFactor({ api, flash, onOn }: { api: PartnerApi; fla
                 data-testid="partner-second-factor-cancel"
               >
                 {W.cancel}
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -181,16 +180,15 @@ export function PartnerSecondFactor({ api, flash, onOn }: { api: PartnerApi; fla
         ) : null}
       </div>
       {state.phase === "off" && (
-        <button
-          type="button"
-          className="btn btn-sm"
+        <Button
+          size="sm"
           onClick={() => void start()}
           disabled={busy}
           aria-busy={busy || undefined}
           data-testid="partner-second-factor-start"
         >
           {busy ? W.starting : W.start}
-        </button>
+        </Button>
       )}
     </div>
   );

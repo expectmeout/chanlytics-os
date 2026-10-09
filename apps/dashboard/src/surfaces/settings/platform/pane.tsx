@@ -24,6 +24,8 @@ import { backOffice, type PlatformApi, type PlatformTenantDetail } from "@/legac
 import { AttnRow } from "../../kit/attention/attn-row";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { RecordBox } from "../../kit/record/field";
 import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { PlatformHealthCard, PlatformQueueCard, PlatformWorkCards } from "./cards";
 import { PlatformDetail } from "./detail";
@@ -67,10 +69,10 @@ function PlatformPartnersCard({
   const partnerRows = P.partnerRows(partners.balances);
   const toDecide = partners.workspaces.filter((w) => w.standing !== "qualified");
   return (
-    <section className="fl-card set-card" data-testid="platform-partners">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">Partners</h2>
-        <span className="fl-card-sub set-says" data-testid="platform-partners-words">
+    <section className="rec-card set-card" data-testid="platform-partners">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">Partners</h2>
+        <span className="rec-card-sub set-says" data-testid="platform-partners-words">
           {P.partnerSummary(partners.balances)}
         </span>
       </div>
@@ -144,15 +146,15 @@ function PlatformOverviewCard({
   // Who brought each workspace (0012, P5): the column on its row.
   const broughtBy = new Map((partners ? partners.workspaces : []).map((w) => [w.tenant_id, w]));
   return (
-    <section className="fl-card set-card" data-testid="platform-overview">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">Every workspace</h2>
-        <span className="fl-card-sub set-says" data-testid="platform-summary">
+    <section className="rec-card set-card" data-testid="platform-overview">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">Every workspace</h2>
+        <span className="rec-card-sub set-says" data-testid="platform-summary">
           {summary.sentence}
         </span>
-        <button className="cl-bucket-link" onClick={() => void load()} disabled={busy} data-testid="platform-refresh">
+        <LinkButton onClick={() => void load()} disabled={busy} data-testid="platform-refresh">
           {busy ? "Reading…" : "Read again"}
-        </button>
+        </LinkButton>
       </div>
       {problem && (
         <FailedRead
@@ -169,11 +171,13 @@ function PlatformOverviewCard({
         <div className="set-row-info">
           <span className="set-row-hint">Sorted by who needs a person, not by name: work down the page.</span>
         </div>
-        <input
-          className="biz-input pf-find"
+        <RecordBox
+          id="platform-find"
+          label="Find a workspace"
+          className="pf-find"
           value={find}
           placeholder="Find a workspace"
-          onChange={(e) => setFind(e.target.value)}
+          onChange={setFind}
           data-testid="platform-find"
         />
       </div>
@@ -226,7 +230,7 @@ function PlatformOverviewCard({
 
 /** A frame that says one thing while the opened workspace reads. */
 const Reading = ({ words }: { words: string }) => (
-  <section className="fl-card set-card">
+  <section className="rec-card set-card">
     <div className="set-row">
       <div className="set-row-info">
         <span className="set-row-hint">{words}</span>
@@ -343,7 +347,7 @@ export function PanePlatform() {
 
       {openId && !detail && !detailProblem && <Reading words="Reading that workspace…" />}
       {openId && !detail && detailProblem && (
-        <section className="fl-card set-card">
+        <section className="rec-card set-card">
           <FailedRead
             kind="card"
             what="that workspace"

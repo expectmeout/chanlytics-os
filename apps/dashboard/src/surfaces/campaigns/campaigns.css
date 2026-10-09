@@ -3851,8 +3851,14 @@ section:has(> .tpl-composer:not(.is-translate)) {
   .cm-pane-body {
     padding: 8px 16px 16px;
   }
+  /* The foot on a phone: its acts are an equal pair across it (kit.css, `data-foot-pair`), so the capsule keeps one
+     inset all round, and the send screen's line and its name field keep theirs from the rim. */
   .cm-pane-foot {
     margin: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 6px;
+  }
+  .cm-pane-foot > .bc-foot > .bc-foot-say {
+    padding: 8px 10px 0;
   }
 }
 
@@ -5553,11 +5559,15 @@ div.tpl-slotbox:not([data-lines="1"]) {
    draws its head, body and foot as it does beside a list; the sheet is the surface it stands on, and its Close the one at
    the corner, so the pane's own Close and Back are not drawn. The send screen's own head is not drawn either: the sheet's
    says New message above the choice of kind. */
-.cmh-host.cmh-host {
-  width: min(560px, 92vw);
-}
-.cmh-host-wide.cmh-host-wide {
-  width: min(780px, 92vw);
+/* Beside the home on a desk the sheet takes a composer's width. On a phone it rises over the whole width, as every
+   sheet does (kit.css): held to a desk's 92vw there, it stood 31px short of the right edge with the page showing past it. */
+@media (width > 900px) {
+  .cmh-host.cmh-host {
+    width: min(560px, 92vw);
+  }
+  .cmh-host-wide.cmh-host-wide {
+    width: min(780px, 92vw);
+  }
 }
 .cmh-host-body {
   display: flex;
@@ -5585,9 +5595,13 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-host-body > .bc-pane > .cm-pane-head {
   display: none;
 }
+/* On a phone the sheet takes its full height and the pane fills what the head and the strip leave, so the pane's body
+   is the one thing that scrolls and its foot stands at the bottom. A height of its own (70dvh) was taller than that
+   room: the foot, with Send or Start in it, lay under the screen's edge until the sheet itself was scrolled. */
 @media (max-width: 900px) {
-  .cmh-host-body {
-    height: min(70dvh, 640px);
+  .cmh-host.cmh-host {
+    height: calc(82vh - var(--kb, 0px));
+    height: calc(82dvh - var(--kb, 0px));
   }
 }
 

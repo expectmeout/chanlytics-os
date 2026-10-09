@@ -61,7 +61,7 @@ function sheetFoot(p: {
   const { x, work, editing, busy, error, save } = p;
   const { say, ready } = x;
   return (
-    <div className="pb-foot">
+    <div className="pb-foot" data-foot-pair={work.asking ? undefined : ""}>
       {/* Cancel, and Escape, with something changed: the one question first (UnsavedAsk), where the buttons were. */}
       {work.asking ? (
         <UnsavedAsk onYes={work.discard} onNo={work.stay} what="saved" testid="pb-leave" />

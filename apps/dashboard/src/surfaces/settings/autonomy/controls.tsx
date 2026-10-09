@@ -1,11 +1,16 @@
 /**
  * Settings' row and its controls, as Autonomy draws them (moved from legacy/pages/settings.jsx, decision 0015 step 11):
  * what a row is on the left and its control on the right, the segmented control, and a dial of a few steps.
+ *
+ * They are the record kit's now (7 Oct 2026), as Profile's and the Business tab's rows are: a row is the kit's record row
+ * with its control as the value, a dial the kit's choice of a few (a radiogroup, one tab stop, the arrows walk it), and the
+ * note behind a mark the kit's tip. They were a row, a strip of tab buttons and a mark of the page's own.
  */
 import { useId, type ReactNode } from "react";
-import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
-import { showTip, type GateProps } from "../../legacy-verbs";
+import { RecordTip, RecordToggleGroup } from "../../kit/record/field";
+import { RecordRow } from "../../kit/record/row";
+import type { GateProps } from "../../legacy-verbs";
 
 /**
  * A settings row: what it is on the left, the control on the right.
@@ -26,28 +31,19 @@ export function SetRow({
   note?: string;
   control: (labelId: string) => ReactNode;
 }) {
-  const labelId = useId();
+  const id = useId().replace(/:/g, "");
   return (
-    <div className="set-row">
-      <div className="set-row-info">
-        <span className="set-row-label" id={labelId}>
+    <RecordRow
+      id={id}
+      label={
+        <>
           {label}
-          {note && (
-            <button
-              type="button"
-              className="set-mark"
-              data-tip={note}
-              aria-label={`About ${label}: ${note}`}
-              onClick={(e) => showTip(e.currentTarget)}
-            >
-              <Icon name="info" size={12} />
-            </button>
-          )}
-        </span>
-        {hint && <span className="set-row-hint">{hint}</span>}
-      </div>
-      <div className="set-row-control">{control(labelId)}</div>
-    </div>
+          {note && <RecordTip text={note} label={`About ${label}`} />}
+        </>
+      }
+      hint={hint}
+      value={control(`rec-row-${id}-key`)}
+    />
   );
 }
 
@@ -65,21 +61,17 @@ interface SegProps extends GroupProps {
   gate?: GateProps | null;
 }
 
-/** A choice of a few, side by side: role=group, so the label the row supplies has something to name. */
+/** A choice of a few, side by side: the kit's radiogroup, so the label the row supplies has something to name. */
 function SetSeg({ value, options, onChange, gate = null, ...group }: SegProps) {
   return (
-    <div className="cl-tabs" role="group" {...group}>
-      {options.map((o) => (
-        <button
-          key={o}
-          className={`cl-tab ${value === o ? "active" : ""}`}
-          onClick={() => onChange(o)}
-          {...(gate || {})}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
+    <RecordToggleGroup
+      labelledBy={group["aria-labelledby"] ?? null}
+      value={value}
+      options={options.map((o) => ({ value: o, label: o }))}
+      onChange={onChange}
+      gate={gate}
+      testid={group["data-testid"] ?? null}
+    />
   );
 }
 

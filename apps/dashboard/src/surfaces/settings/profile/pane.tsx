@@ -12,6 +12,7 @@
 import { useRef, useState } from "react";
 import { identityWords } from "@chanlytics/contracts";
 import { meVerbs } from "@/legacy-bridge/identity";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { RecordInline } from "../../kit/record/inline";
@@ -145,24 +146,24 @@ function DeleteAccountRow({ flash }: { flash: Flash }) {
       value={
         armed ? (
           <span className="set-delete-confirm" data-testid="set-profile-delete-confirm">
-            <button
-              type="button"
-              className="bt-link bt-danger"
+            <LinkButton
+              className="set-inline-act"
+              tone="danger"
               onClick={() => void go()}
               disabled={busy}
               data-testid="set-profile-delete-go"
             >
               {busy ? "Deleting…" : "Yes, delete my account"}
-            </button>
+            </LinkButton>
             {" · "}
-            <button type="button" className="bt-link" onClick={() => setArmed(false)} disabled={busy}>
+            <LinkButton className="set-inline-act" onClick={() => setArmed(false)} disabled={busy}>
               Keep it
-            </button>
+            </LinkButton>
           </span>
         ) : (
-          <button type="button" className="bt-link" onClick={() => setArmed(true)} data-testid="set-profile-delete">
+          <LinkButton className="set-inline-act" onClick={() => setArmed(true)} data-testid="set-profile-delete">
             Delete my account…
-          </button>
+          </LinkButton>
         )
       }
       hint={
@@ -220,9 +221,9 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
         id="profile-signout"
         label="Sign out"
         value={
-          <button type="button" className="bt-link" onClick={signOut} data-testid="set-profile-signout">
+          <LinkButton className="set-inline-act" onClick={signOut} data-testid="set-profile-signout">
             Sign out everywhere
-          </button>
+          </LinkButton>
         }
         hint="Ends your session on every device, this one included."
       />

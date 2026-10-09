@@ -126,10 +126,10 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/settings.css": {
-    "font": 23,
-    "radius": 9,
+    "font": 20,
+    "radius": 7,
     "shadow": 4,
-    "colour": 1,
+    "colour": 0,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/store.css": {

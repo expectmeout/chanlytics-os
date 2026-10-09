@@ -73,6 +73,12 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // The kit's RecordField names its hint and its sentence by one: kept where the hook sits, as React keeps it.
+  useId: () => {
+    const k = frames.key();
+    if (!(k in cells)) cells[k] = `:r${k}:`;
+    return cells[k];
+  },
   // A store outside React, read as it stands (this test draws once): all Today's queue asks of it.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
@@ -273,7 +279,13 @@ test("a save the route refuses marks each field it names under its box, and the 
   assert.equal(say(last.msg), `Not saved — ${why}`);
   const field = byTestId(tree, "biz-ein-problem");
   assert.ok(field, "the refusal marks the box it belongs to");
-  assert.equal(field.props.role, "alert");
+  // The kit's field draws the sentence in its one alert and names it from the box (aria-describedby); the page's mark
+  // on the sentence is the testid inside it.
+  let alert = null;
+  walk(tree, (n) => {
+    if (!alert && n.props?.role === "alert" && say(n).includes("nine digits")) alert = n;
+  });
+  assert.ok(alert, "announced");
   assert.ok(say(field).includes("nine digits"));
   assert.equal(inlineDanger(tree), 0);
 });

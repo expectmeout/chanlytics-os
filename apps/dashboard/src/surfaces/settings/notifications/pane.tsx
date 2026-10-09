@@ -14,8 +14,9 @@ import { NOTIFICATION_KIND_GROUPS, NOTIFICATION_PANE_WORDS, type NotificationsCo
 import { saveSettings } from "@/legacy-bridge/inbox-verbs";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
-import { Icon } from "../../kit/icon/icon";
-import { RecordSwitch } from "../../kit/record/field";
+import { Button } from "../../kit/button/button";
+import { RecordField, RecordSwitch, RecordTip } from "../../kit/record/field";
+import { RecordRow } from "../../kit/record/row";
 import { canDo, gate, gateTitle, showTip, type GateProps, type LegacyFlash } from "../../legacy-verbs";
 import { object } from "../../shell-doors";
 import { useSurface } from "../../use-surface";
@@ -44,80 +45,86 @@ interface Recipients {
 function recipientsCard(o: Recipients): ReactNode {
   const { emails, may, gated, broken, busy, lockTitle, email, setEmail, add, remove } = o;
   return (
-    <section className="fl-card set-card" data-testid="notif-recipients">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">Who gets alerted</h2>
-        <span className="fl-card-sub">{NOTIFICATION_PANE_WORDS.recipients}</span>
+    <section className="rec-card set-card" data-testid="notif-recipients">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">Who gets alerted</h2>
+        <span className="rec-card-sub">{NOTIFICATION_PANE_WORDS.recipients}</span>
       </div>
       {emails.length === 0 && (
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-label">Nobody yet</span>
-            <span className="set-row-hint">
-              Until an address is added, the platform operator receives a notice that this workspace needs attention —
-              without the customer&apos;s message, which is withheld rather than sent to a stranger.
-            </span>
-          </div>
-        </div>
+        <RecordRow
+          id="notif-nobody"
+          label="Alerted"
+          empty="Nobody yet"
+          value={null}
+          hint="Until an address is added, the platform operator receives a notice that this workspace needs attention — without the customer's message, which is withheld rather than sent to a stranger."
+        />
       )}
-      {emails.map((e) => (
-        <div className="set-row" key={e}>
-          <div className="set-row-info">
-            <span className="set-row-label">{e}</span>
-          </div>
-          {/* Removing an address is an item's own act: out of sight for a role that may not, and the card says why
-              once, below. */}
-          {may && (
-            <button
-              className="btn btn-ghost btn-sm"
-              disabled={broken || busy || emails.length <= 1}
-              title={
-                emails.length <= 1
-                  ? "At least one address must stay — the receptionist has to be able to reach someone"
-                  : lockTitle
-              }
-              onClick={() => remove(e)}
-            >
-              <Icon name="x" size={11} /> Remove
-            </button>
-          )}
-        </div>
-      ))}
-      <div className="set-row">
-        <div className="set-row-info" style={{ flex: 1 }}>
-          <input
-            className="rec-input"
-            type="email"
-            placeholder="owner@yourbusiness.com"
-            value={email}
-            disabled={broken || busy}
-            title={lockTitle}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") add();
-            }}
-            aria-label="Add an address to alert"
-            {...gated}
+      {emails.map((e, i) => {
+        // Removing an address is an item's own act: out of sight for a role that may not, and the card says why once,
+        // below. The last one cannot go, and says so where it is pressed, as a gated act does.
+        const last = emails.length <= 1;
+        const held = broken || busy || last;
+        const why = last
+          ? "At least one address must stay — the receptionist has to be able to reach someone"
+          : lockTitle;
+        return (
+          <RecordRow
+            key={e}
+            id={`notif-email-${i}`}
+            label="Alerted"
+            value={e}
+            act={
+              may
+                ? {
+                    label: "Remove",
+                    name: `Remove ${e}`,
+                    onClick: () => remove(e),
+                    gate: held
+                      ? {
+                          "aria-disabled": true,
+                          "data-tip": why || "Saving — wait for this one to land.",
+                          onClick: (ev: { currentTarget: HTMLElement }) => showTip(ev.currentTarget),
+                        }
+                      : null,
+                  }
+                : null
+            }
           />
-        </div>
-        <button
-          className="btn btn-primary btn-sm"
+        );
+      })}
+      <div className="set-invite">
+        <RecordField
+          id="notif-add"
+          label={null}
+          type="email"
+          placeholder="owner@yourbusiness.com"
+          value={email}
+          disabled={broken || busy}
+          title={lockTitle}
+          onChange={setEmail}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+          }}
+          aria-label="Add an address to alert"
+          {...gated}
+        />
+        <Button
+          size="sm"
+          variant="primary"
           disabled={broken || busy || !email.trim()}
           title={lockTitle}
           onClick={add}
           {...gated}
         >
           {busy ? "Saving…" : "Add"}
-        </button>
+        </Button>
       </div>
       {!may && (
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-hint" data-testid="notif-gated">
-              <Icon name="shield" size={11} /> {gateTitle("settings", "change who is alerted")}
-            </span>
-          </div>
-        </div>
+        <RecordRow
+          id="notif-gate"
+          label="Who can change this"
+          value={<span data-testid="notif-gated">{gateTitle("settings", "change who is alerted")}</span>}
+        />
       )}
     </section>
   );
@@ -141,31 +148,28 @@ function DeviceAlerts({ flash }: { flash: (f: LegacyFlash) => void }) {
     if (on && !next.on) flash({ tone: "warn", msg: <>Alerts are blocked in your browser's settings for this site.</> });
   };
   return (
-    <section className="fl-card set-card" data-testid="notif-device">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">This device</h2>
+    <section className="rec-card set-card" data-testid="notif-device">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">This device</h2>
       </div>
-      <div className="set-row">
-        <div className="set-row-info">
-          <span className="set-row-label" id="notif-device-label">
-            Alert this device
-          </span>
-          <span className="set-row-hint">
-            {blocked
-              ? "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on."
-              : "A browser alert when something needs you, while Chanlytics is open in a tab. Kept on this device only."}
-          </span>
-        </div>
-        <div className="set-row-control">
+      <RecordRow
+        id="notif-device"
+        label="Alert this device"
+        value={
           <RecordSwitch
-            labelledBy="notif-device-label"
+            labelledBy="rec-row-notif-device-key"
             on={alerts.on}
             readOnly={blocked}
             onChange={(on) => void set(on)}
             testid="notif-device-switch"
           />
-        </div>
-      </div>
+        }
+        hint={
+          blocked
+            ? "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on."
+            : "A browser alert when something needs you, while Chanlytics is open in a tab. Kept on this device only."
+        }
+      />
     </section>
   );
 }
@@ -173,10 +177,10 @@ function DeviceAlerts({ flash }: { flash: (f: LegacyFlash) => void }) {
 /** What is sent, in contracts' groups: each kind's name, whether it goes to Chanlytics, and when it is sent as its tip. */
 function kindsCard(): ReactNode {
   return (
-    <section className="fl-card set-card" data-testid="notif-kinds">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">What you&apos;ll get</h2>
-        <span className="fl-card-sub">{NOTIFICATION_PANE_WORDS.kinds}</span>
+    <section className="rec-card set-card" data-testid="notif-kinds">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">What you&apos;ll get</h2>
+        <span className="rec-card-sub">{NOTIFICATION_PANE_WORDS.kinds}</span>
       </div>
       {NOTIFICATION_KIND_GROUPS.map((g) => (
         <div className="set-notif-group" key={g.title} data-testid="notif-group">
@@ -189,15 +193,7 @@ function kindsCard(): ReactNode {
                 <span className="set-row-label">
                   {k.title}
                   {k.platform && <span className="chip set-notif-platform">to Chanlytics</span>}
-                  <button
-                    type="button"
-                    className="set-mark"
-                    data-tip={k.what}
-                    aria-label={`When this is sent: ${k.what}`}
-                    onClick={(e) => showTip(e.currentTarget)}
-                  >
-                    <Icon name="info" size={12} />
-                  </button>
+                  <RecordTip text={k.what} label={`When this is sent: ${k.what}`} />
                 </span>
               </div>
             </div>
@@ -211,34 +207,35 @@ function kindsCard(): ReactNode {
 /** How the alerts arrive: the bell's own alerts in the browser, the address they are sent from, and what is not sent. */
 function howCard(from: string | undefined): ReactNode {
   return (
-    <section className="fl-card set-card">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">How</h2>
+    <section className="rec-card set-card">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">How</h2>
       </div>
-      <ul className="st-bullets">
-        {/* The bell's device alerts are real (notifications.ts: a browser notification while the app is open in the
-            background), so "push notifications are not built" denied a switch one click away (S20). */}
-        <li>
-          <Icon name="check" size={11} />
-          <span>Your browser can alert you too while Chanlytics is open in it: This device, above.</span>
-        </li>
-        <li>
-          <Icon name="check" size={11} />
-          <span>
-            {from ? (
-              <>
-                {NOTIFICATION_PANE_WORDS.sentFrom} <b>{from}</b>.
-              </>
-            ) : (
-              NOTIFICATION_PANE_WORDS.sentFromPlatform
-            )}
-          </span>
-        </li>
-        <li>
-          <Icon name="check" size={11} />
-          <span>No text-message alerts, and no daily or weekly email. Today is the brief.</span>
-        </li>
-      </ul>
+      {/* The bell's device alerts are real (notifications.ts: a browser notification while the app is open in the
+          background), so "push notifications are not built" denied a switch one click away (S20). */}
+      <RecordRow
+        id="notif-how-browser"
+        label="In your browser"
+        value="Your browser can alert you too while Chanlytics is open in it: This device, above."
+      />
+      <RecordRow
+        id="notif-how-from"
+        label="Sent from"
+        value={
+          from ? (
+            <>
+              {NOTIFICATION_PANE_WORDS.sentFrom} <b>{from}</b>.
+            </>
+          ) : (
+            NOTIFICATION_PANE_WORDS.sentFromPlatform
+          )
+        }
+      />
+      <RecordRow
+        id="notif-how-not"
+        label="Not sent"
+        value="No text-message alerts, and no daily or weekly email. Today is the brief."
+      />
     </section>
   );
 }

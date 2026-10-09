@@ -6,7 +6,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HANDOVER_WORDS, PARTNER_WORDS, SECOND_FACTOR_WORDS } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+
+/** The code box the team card draws: the kit field's own input, which takes the event, not the field's words. */
+const teamCodeBox = (tree) =>
+  all(tree, (n) => n.type === "input" && n.props?.["data-testid"] === "team-partner-code")[0];
 
 installLegacyReact();
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
@@ -67,8 +71,8 @@ test("the offer: the share every new account starts with, the terms, and a press
   assert.equal(textOf(byTestId(tree, "partner-terms")), PARTNER_WORDS.terms);
   assert.equal(byTestId(tree, "partner-become").props.disabled, true, "nothing to send before a code and a yes");
 
-  byTestId(tree, "partner-code").props.onChange({ target: { value: "taken" } });
-  byTestId(redraw(), "partner-agree").props.onChange({ target: { checked: true } });
+  byTestId(tree, "partner-code").props.onChange("taken");
+  byTestId(redraw(), "partner-agree").props.onClick();
   tree = redraw();
   // Two-step sign-in first (0013, M3): partner_become asks for a session that showed a code.
   assert.equal(textOf(byTestId(tree, "partner-factor-first")), SECOND_FACTOR_WORDS.becomeFirst);
@@ -77,7 +81,7 @@ test("the offer: the share every new account starts with, the terms, and a press
   assert.deepEqual(asked, [], "a press before it sends nothing");
   press(byTestId(redraw(), "partner-second-factor-start"));
   await settle();
-  byTestId(redraw(), "partner-second-factor-code").props.onChange({ target: { value: "123456" } });
+  byTestId(redraw(), "partner-second-factor-code").props.onChange("123456");
   await byTestId(redraw(), "partner-second-factor-setup").props.onSubmit({ preventDefault() {} });
   await settle();
   redraw(); // the row says it is on, and tells the offer
@@ -89,7 +93,7 @@ test("the offer: the share every new account starts with, the terms, and a press
   tree = redraw();
   assert.equal(textOf(byTestId(tree, "partner-error")), "That code is taken. Try another.", "the door's own words");
 
-  byTestId(tree, "partner-code").props.onChange({ target: { value: "ada" } });
+  byTestId(tree, "partner-code").props.onChange("ada");
   await byTestId(redraw(), "partner-become-form").props.onSubmit({ preventDefault() {} });
   assert.deepEqual(asked, ["taken", "ada"]);
   assert.equal(flashes.at(-1).tone, "ok");
@@ -223,13 +227,13 @@ test("the daily letter (0014): a switch showing what is kept, pressed through th
   partnerVerbs.setLetters = async (on) => (asked.push(on), answer);
   let tree = draw();
   const box = byTestId(tree, "partner-letters");
-  assert.equal(box.props.checked, true);
+  assert.equal(box.props["aria-checked"], true);
   assert.equal(textOf(byTestId(tree, "partner-letters-row")), PARTNER_WORDS.letters);
-  await box.props.onChange({ target: { checked: false } });
+  await box.props.onClick();
   assert.deepEqual(asked, [false]);
   flashes.length = 0;
   answer = { ok: false, message: "Too many email settings changed. Try again in a while." };
-  await byTestId(redraw(), "partner-letters").props.onChange({ target: { checked: false } });
+  await byTestId(redraw(), "partner-letters").props.onClick();
   assert.equal(flashes.length, 1);
   assert.equal(flashes[0].tone, "warn", "a refusal is said, and the switch stays what the server kept");
 });
@@ -273,14 +277,14 @@ test("set up a workspace for a business: said before it starts, one form, the da
     true,
     "nothing to send before a name and an address",
   );
-  byTestId(tree, "partner-setup-name").props.onChange({ target: { value: "Luna Studio" } });
-  byTestId(redraw(), "partner-setup-email").props.onChange({ target: { value: "ada@example.com" } });
+  byTestId(tree, "partner-setup-name").props.onChange("Luna Studio");
+  byTestId(redraw(), "partner-setup-email").props.onChange("ada@example.com");
   tree = redraw();
   await byTestId(tree, "partner-setup-form").props.onSubmit({ preventDefault() {} });
   await settle();
   tree = redraw();
   assert.equal(textOf(byTestId(tree, "partner-setup-error")), "That is your own address. Enter the business owner's.");
-  byTestId(tree, "partner-setup-email").props.onChange({ target: { value: "owner@luna.example" } });
+  byTestId(tree, "partner-setup-email").props.onChange("owner@luna.example");
   await byTestId(redraw(), "partner-setup-form").props.onSubmit({ preventDefault() {} });
   await settle();
   assert.deepEqual(asked.at(-1), { name: "Luna Studio", email: "owner@luna.example" });
@@ -337,7 +341,7 @@ test("handed over: each waiting or declined one says where it stands, and Send a
     "owner@luna.example",
     "from the address it went to",
   );
-  byTestId(tree, "partner-resend-email-t9").props.onChange({ target: { value: "boss@luna.example" } });
+  byTestId(tree, "partner-resend-email-t9").props.onChange("boss@luna.example");
   await byTestId(redraw(), "partner-resend-t9").props.onSubmit({ preventDefault() {} });
   await settle();
   assert.deepEqual(sent, [["t9", "boss@luna.example"]]);
@@ -391,13 +395,13 @@ test("two-step sign-in: off says why and offers it; set up shows the code to sca
   assert.equal(byTestId(tree, "partner-second-factor-qr").props.src, "data:image/svg+xml;utf-8,x");
   assert.equal(textOf(byTestId(tree, "partner-second-factor-key")), "JBSWY3DP");
   assert.match(textOf(byTestId(tree, "partner-second-factor-lost")), /Lost your phone/);
-  byTestId(tree, "partner-second-factor-code").props.onChange({ target: { value: "000000" } });
+  byTestId(tree, "partner-second-factor-code").props.onChange("000000");
   await byTestId(redraw(), "partner-second-factor-setup").props.onSubmit({ preventDefault() {} });
   await settle();
   tree = redraw();
   assert.match(textOf(byTestId(tree, "partner-second-factor-error")), /didn't match/, "a wrong code says so");
   assert.ok(byTestId(tree, "partner-second-factor-setup"), "and the setup stays");
-  byTestId(tree, "partner-second-factor-code").props.onChange({ target: { value: "123456" } });
+  byTestId(tree, "partner-second-factor-code").props.onChange("123456");
   await byTestId(redraw(), "partner-second-factor-setup").props.onSubmit({ preventDefault() {} });
   await settle();
   tree = redraw();
@@ -518,11 +522,11 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   let tree = drawTeam();
   assert.equal(textOf(byTestId(tree, "team-partner")).includes(W.intro), true);
   assert.equal(byTestId(tree, "team-partner-ask").props.disabled, true, "nothing to send before a code");
-  byTestId(tree, "team-partner-code").props.onChange({ target: { value: "nobody" } });
+  teamCodeBox(tree).props.onChange({ target: { value: "nobody" } });
   await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
   tree = await reread(drawTeam);
   assert.equal(textOf(byTestId(tree, "team-partner-error")), "No active partner has that code.");
-  byTestId(tree, "team-partner-code").props.onChange({ target: { value: "https://app.chanlytics.com/p/ada-co" } });
+  teamCodeBox(tree).props.onChange({ target: { value: "https://app.chanlytics.com/p/ada-co" } });
   await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
   tree = await reread(drawTeam);
   assert.equal(textOf(byTestId(tree, "team-partner-waiting")), "Waiting for ada-co to accept.");
@@ -584,7 +588,7 @@ test("Team: an owner's View as another role sees no card, as that role would; th
     assert.equal(byTestId(drawTeam(), "team-partner-ask").props["data-gated"], "");
     store.can = () => true;
 
-    byTestId(tree, "team-partner-code").props.onChange({ target: { value: "ada-co" } });
+    teamCodeBox(tree).props.onChange({ target: { value: "ada-co" } });
     await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
     tree = await reread(drawTeam);
     assert.equal(textOf(flashes.at(-1).msg), W.notSent, "the email that did not go, in contracts' words");
@@ -593,7 +597,7 @@ test("Team: an owner's View as another role sees no card, as that role would; th
     tree = await reread(drawTeam);
 
     const before = reads;
-    byTestId(tree, "team-partner-code").props.onChange({ target: { value: "late" } });
+    teamCodeBox(tree).props.onChange({ target: { value: "late" } });
     await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
     tree = await reread(drawTeam);
     assert.equal(reads, before + 1, "a refusal reads the card again");

@@ -10,8 +10,10 @@
  * brought (workspaces.tsx), and the workspaces asking them to join (invitations.tsx).
  */
 import { useCallback, useState, type SyntheticEvent } from "react";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { RecordField, RecordSwitch } from "../../kit/record/field";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { PartnerLettersRow, PartnerSecondFactor } from "./account";
@@ -70,48 +72,41 @@ function PartnerOffer({ flash }: { flash: Flash }) {
         </>
       ) : null}
       <form onSubmit={become} className="set-form" data-testid="partner-become-form">
-        <label className="set-field">
-          <span className="set-field-label">{W.codeLabel}</span>
-          <input
-            className="input"
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value);
-              setError(null);
-            }}
-            placeholder="your-name"
-            autoComplete="off"
-            spellCheck={false}
-            data-testid="partner-code"
-          />
-          <span className="set-row-hint">{W.codeHint}</span>
-        </label>
+        <RecordField
+          label={W.codeLabel}
+          value={code}
+          onChange={(words) => {
+            setCode(words);
+            setError(null);
+          }}
+          hint={W.codeHint}
+          placeholder="your-name"
+          autoComplete="off"
+          spellCheck={false}
+          data-testid="partner-code"
+        />
         <p className="set-row-hint" data-testid="partner-terms">
           {W.terms}
         </p>
-        <label className="set-check">
-          <input
-            type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            data-testid="partner-agree"
-          />
-          <span>{W.termsAgree}</span>
-        </label>
+        <div className="set-check">
+          <RecordSwitch labelledBy="partner-agree-label" on={agreed} onChange={setAgreed} testid="partner-agree" />
+          <span id="partner-agree-label">{W.termsAgree}</span>
+        </div>
         {error ? (
           <p className="set-error" role="alert" data-testid="partner-error">
             {error}
           </p>
         ) : null}
-        <button
+        <Button
           type="submit"
-          className="btn"
+          size="sm"
+          variant="primary"
           disabled={busy || !agreed || !code.trim() || needsFactor}
           aria-busy={busy || undefined}
           data-testid="partner-become"
         >
           {busy ? W.becoming : W.become}
-        </button>
+        </Button>
       </form>
     </section>
   );
@@ -160,9 +155,9 @@ function PartnerAccount({
               {vm.link}
             </code>
           </div>
-          <button type="button" className="btn btn-sm" onClick={() => void copy()} data-testid="partner-copy">
+          <Button size="sm" onClick={() => void copy()} data-testid="partner-copy">
             <Icon name="copy" size={13} /> {copied ? W.copied : W.copy}
-          </button>
+          </Button>
         </div>
         <div className="set-row">
           <div className="set-row-info">
@@ -218,9 +213,9 @@ export function PanePartner({ flash }: { flash: Flash }) {
   const W = partnerVerbs.words;
   if (P === undefined) {
     return (
-      <section className="fl-card set-card" data-testid="partner-loading">
-        <div className="fl-card-head">
-          <h2 className="fl-card-title">{W.tab}</h2>
+      <section className="rec-card set-card" data-testid="partner-loading">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title">{W.tab}</h2>
         </div>
         <div className="set-row">
           <div className="set-row-info">

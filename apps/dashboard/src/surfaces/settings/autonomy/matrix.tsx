@@ -8,7 +8,10 @@ import { useEffect, useState } from "react";
 import { UI_MODES, UI_MODE_WORDS, type UiMode, type UiRow } from "@/legacy-bridge/policy-store";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
-import { gate, showTip } from "../../legacy-verbs";
+import { Press } from "../../kit/press";
+import { RecordTip } from "../../kit/record/field";
+import { RecordRow } from "../../kit/record/row";
+import { gate } from "../../legacy-verbs";
 
 /** A mode's words: its heading, the clause under it, and what it does. A row with no stored mode says nothing. */
 interface ModeWords {
@@ -91,30 +94,24 @@ export function PolPhoneRows({ rows, put, busy }: { rows: UiRow[]; put: PutMode;
         const gated =
           busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
         return (
-          <div key={r.id} className="set-row pol-phone-row" data-testid={`pol-phone-${r.id}`}>
-            <div className="set-row-info">
-              <span className="set-row-label">
+          <RecordRow
+            key={r.id}
+            id={`pol-${r.id}`}
+            testid={`pol-phone-${r.id}`}
+            label={
+              <>
                 {r.label}
                 {r.note && !r.locked && (
-                  <button
-                    type="button"
-                    className="set-mark"
-                    data-tip={r.note}
-                    aria-label={`What each mode does for ${r.label}: ${r.note}`}
-                    onClick={(e) => showTip(e.currentTarget)}
-                  >
-                    <Icon name="info" size={12} />
-                  </button>
+                  <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />
                 )}
-              </span>
-              {r.locked ? (
-                <span className="set-row-hint pol-phone-locked">
+              </>
+            }
+            value={
+              r.locked ? (
+                <span className="pol-phone-locked">
                   <Icon name="shield" size={11} /> {r.note} — locked by charter
                 </span>
-              ) : null}
-            </div>
-            {r.locked ? null : (
-              <div className="set-row-control">
+              ) : (
                 <MoreMenu
                   items={UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
                     label: polMode(m).head,
@@ -130,9 +127,9 @@ export function PolPhoneRows({ rows, put, busy }: { rows: UiRow[]; put: PutMode;
                   gated={gated}
                   testid={`pol-phone-mode-${r.id}`}
                 />
-              </div>
-            )}
-          </div>
+              )
+            }
+          />
         );
       })}
     </div>
@@ -155,7 +152,7 @@ function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
           —
         </span>
       ) : (
-        <button
+        <Press
           className={`pol-dot ${r.mode === m ? "on" : ""}`}
           aria-label={`${r.label}: ${String(polMode(m).head)}`}
           aria-pressed={r.mode === m}
@@ -165,7 +162,7 @@ function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
           {...gate("autonomy")}
         >
           {r.mode === m ? <Icon name="check" size={11} /> : ""}
-        </button>
+        </Press>
       )}
     </td>
   );
@@ -193,15 +190,7 @@ export function PolicyTable({ rows, put, busy }: { rows: UiRow[]; put: PutMode; 
                 {r.label}
                 {/* A locked row carries its note across the columns instead — said once. */}
                 {r.note && !r.locked && (
-                  <button
-                    type="button"
-                    className="set-mark"
-                    data-tip={r.note}
-                    aria-label={`What each mode does for ${r.label}: ${r.note}`}
-                    onClick={(e) => showTip(e.currentTarget)}
-                  >
-                    <Icon name="info" size={12} />
-                  </button>
+                  <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />
                 )}
               </span>
             </td>
