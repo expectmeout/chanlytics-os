@@ -91,19 +91,23 @@ test.describe("Google on a real workspace", () => {
     const ready: boolean = data.google.ready.places;
     const profile: boolean = data.google.ready.profile;
 
-    // The listing is the first step's, which every workspace has reached; the row is Setup's, drawn where a deployment can look
-    // a listing up or connect a profile at all.
+    // The listing is the first step's, which every workspace has reached. That step drew Setup's row for it until the
+    // first run was redrawn (contracts first-run.ts: "the business step is Find while there is a listing to link, and
+    // Check after"), and the row is Today's and Connections' now. So the step follows the platform the way the row
+    // did: with a listing on record, or nowhere to search for one, there is nothing to find and the step is Check;
+    // where Google can be searched and nothing is linked, an owner is offered Find, or Check once they put it off.
     await page.goto("/#/start/business");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("first-run")).toBeVisible();
-    const row = page.getByTestId("setup-row-google");
-    if (!ready && !profile) {
-      await expect(row).toHaveCount(0);
+    const find = page.getByTestId("fr-find");
+    const check = page.getByTestId("fr-check");
+    if (data.google.listing || !ready) {
+      await expect(find).toHaveCount(0);
+      await expect(check).toBeVisible();
     } else {
-      await expect(row).toBeVisible();
-      await expect(row).toContainText("Your Google listing");
-      await expect(row.locator(".cl-attn-status .lead")).toHaveText(/^(Ready|Waiting on Google)$/);
+      await expect(find.or(check)).toBeVisible();
     }
+    expect(typeof profile).toBe("boolean");
 
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
