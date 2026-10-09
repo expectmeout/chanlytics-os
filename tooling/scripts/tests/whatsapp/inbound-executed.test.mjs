@@ -604,6 +604,73 @@ test("YES OFFERS is not the way back in from a STOP: an opted-out person gets no
   assert.equal(w.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
 });
 
+/**
+ * The person's consent as the database keeps it since 00360: a message's STOP or START is written by the take that
+ * keeps it, and a message taken in again (a text's answer job, a redelivery) reads the consent that stands. The door
+ * refuses whatever is sent to a person who said STOP, as deliver does.
+ */
+function consentOnRecord() {
+  const record = { consent: "unknown", dnc: false };
+  const kept = new Set();
+  return {
+    record,
+    ingest: async (_db, _tenant, n) => {
+      if (!kept.has(n.messageId)) {
+        kept.add(n.messageId);
+        if (n.optOut) Object.assign(record, { consent: "opted_out", dnc: true });
+        if (n.optIn) Object.assign(record, { consent: "opted_in", dnc: false });
+      }
+      return { ...ingested(n), ...record };
+    },
+    get delivered() {
+      return record.consent === "opted_out" ? { outcome: "refused", reason: "opted_out", messageId: null } : undefined;
+    },
+  };
+}
+
+test("a START whose answer is taken up after the person said STOP is held by the STOP: nothing confirmed, nobody told they said yes", async () => {
+  const kept = consentOnRecord();
+  const w = world(kept);
+  const start = text("START", "wamid.y1");
+  await w.record(start);
+  await w.run(text("STOP", "wamid.y2"));
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["opt_out"],
+  );
+  // The START's job, run late: its ingest is a redelivery, and the record holds the STOP that came after it.
+  await w.run(start, {}, true);
+  assert.deepEqual(w.seen.sent, [], "no confirmation of a yes the STOP since took back");
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["opt_out"],
+    "and nobody is told the customer said yes and was not confirmed",
+  );
+  assert.equal(w.seen.alerts.length, 1, "the STOP's own alert, and no other");
+  assert.equal(kept.record.consent, "opted_out", "the STOP stands");
+});
+
+test("a START answered by its job, taken in again with the yes its door wrote on record, is confirmed as a new START is", async () => {
+  const visit = optInConfirmation("Harbor Nails", "conversational");
+  const later = world(consentOnRecord());
+  const start = text("START", "wamid.y3");
+  await later.record(start);
+  await later.run(start, {}, true);
+  assert.deepEqual(
+    later.seen.sent.map((s) => [s.body, s.meta]),
+    [[visit, { ack: true, confirmation: "conversational" }]],
+  );
+  assert.equal(later.seen.escalations.length, 0);
+  // And a START taken in once, after a STOP, is the way back it always was.
+  const back = world(consentOnRecord());
+  await back.run(text("STOP", "wamid.y4"));
+  await back.run(text("START", "wamid.y5"));
+  assert.deepEqual(
+    back.seen.sent.map((s) => s.body),
+    [visit],
+  );
+});
+
 test("a START does not bring back a yes to offers a STOP ended: WhatsApp says how to get them again, a text says the filed words alone", async () => {
   // A STOP ends the yes to offers (00323), and a START is a yes to messages about their visit and nothing more. The
   // person is told once, after the filed words, on WhatsApp alone: the texting line's confirmation is the campaign's
