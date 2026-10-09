@@ -1,10 +1,11 @@
 /**
- * Ask's day is one sum (00240).
+ * Ask's day is one sum (00240), and what a round writes to the cache is in it (00367).
  *
  * The edge's model gateway refuses a workspace's Ask round once its last 24 hours of Ask tokens reach the day's budget
  * (apps/edge/api/admin/llm.ts). It used to read every usage.ask_tokens event of the day and sum them in JavaScript;
  * ask_tokens_day sums them in the database. What it counts is what a sum over rows cannot show from source: the window,
- * the kind, the workspace, a value that is not a number, and who may call it. This runs against the local database the
+ * the kind, the workspace, a value that is not a number, the cache (a write counts, a read does not), and who may call
+ * it. This runs against the local database the
  * Database workflow builds from every migration. Never production: `supabase start`, then `pnpm test:db` with its keys.
  */
 import { test, before, after } from "node:test";
@@ -68,31 +69,47 @@ after(async () => {
 });
 
 test(
-  "the day is the last 24 hours of this workspace's Ask tokens, input plus output, and nothing else",
+  "the day is the last 24 hours of this workspace's Ask tokens, input, cache writes and output, and nothing else",
   { skip },
   async () => {
     const ws = await workspace("day");
     const other = await workspace("other");
-    const { error } = await db
-      .from("events")
-      .insert([
-        row(
-          ws,
-          "usage.ask_tokens",
-          { input_tokens: 1_000, output_tokens: 200, cache_read_input_tokens: 9_000 },
-          ago(HOUR),
-        ),
-        row(ws, "usage.ask_tokens", { input_tokens: 3_000, output_tokens: 800 }, ago(23 * HOUR)),
-        row(ws, "usage.ask_tokens", { input_tokens: 5_000_000, output_tokens: 0 }, ago(25 * HOUR)),
-        row(ws, "usage.llm_tokens", { input_tokens: 7_000_000, output_tokens: 0 }, ago(HOUR)),
-        row(ws, "usage.ask_tokens", { input_tokens: "12", output_tokens: null }, ago(HOUR)),
-        row(other, "usage.ask_tokens", { input_tokens: 9_000_000, output_tokens: 0 }, ago(HOUR)),
-      ]);
+    const { error } = await db.from("events").insert([
+      row(
+        ws,
+        "usage.ask_tokens",
+        { input_tokens: 1_000, output_tokens: 200, cache_read_input_tokens: 9_000, cache_creation_input_tokens: 4_000 },
+        ago(HOUR),
+      ),
+      row(ws, "usage.ask_tokens", { input_tokens: 3_000, output_tokens: 800 }, ago(23 * HOUR)),
+      // A warm (purpose ask_warm): the head written, next to nothing else.
+      row(
+        ws,
+        "usage.ask_tokens",
+        {
+          input_tokens: 8,
+          output_tokens: 1,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 30_000,
+          purpose: "ask_warm",
+        },
+        ago(2 * HOUR),
+      ),
+      row(ws, "usage.ask_tokens", { input_tokens: 5_000_000, output_tokens: 0 }, ago(25 * HOUR)),
+      row(ws, "usage.llm_tokens", { input_tokens: 7_000_000, output_tokens: 0 }, ago(HOUR)),
+      row(
+        ws,
+        "usage.ask_tokens",
+        { input_tokens: "12", output_tokens: null, cache_creation_input_tokens: "30000" },
+        ago(HOUR),
+      ),
+      row(other, "usage.ask_tokens", { input_tokens: 9_000_000, output_tokens: 0 }, ago(HOUR)),
+    ]);
     assert.equal(error, null, error?.message);
     assert.equal(
       await sum(ws),
-      1_000 + 200 + 3_000 + 800,
-      "the two rounds of the day: not yesterday's, not the receptionist's, not the cache counts, not a string, not another workspace's",
+      1_000 + 4_000 + 200 + 3_000 + 800 + 8 + 30_000 + 1,
+      "the day's two rounds and its warm, each with what it wrote to the cache: not yesterday's, not the receptionist's, not a cache read, not a string, not another workspace's",
     );
     assert.equal(await sum(other), 9_000_000, "each workspace its own day");
     assert.equal(await sum(await workspace("empty")), 0, "a workspace that asked nothing has spent nothing");

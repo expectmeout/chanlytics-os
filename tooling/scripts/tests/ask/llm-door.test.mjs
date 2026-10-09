@@ -741,6 +741,35 @@ test("the line is the cap: a workspace one token under it is served, one at it i
   assert.equal(net.calls.length, 1, "only the round under the cap reached the model");
 });
 
+test("what a round writes to the cache is counted and what it reads is not (00367): a day spent by warms writing a turn's head is refused, a day of reading the same head is served", async () => {
+  const warmed = T(11);
+  const read = T(12);
+  const HEAD = 30_000;
+  const heads = Math.ceil(ASK_TOKENS_DAY / HEAD);
+  /** A round of next to nothing but the head, written (a warm) or read. */
+  const round = (ws, cache) => {
+    const u = usage(ws, 8, 1, HOUR);
+    return { ...u, data: { ...u.data, ...cache } };
+  };
+  use({
+    events: [
+      ...Array.from({ length: heads }, () => round(warmed, { cache_creation_input_tokens: HEAD, purpose: "ask_warm" })),
+      ...Array.from({ length: heads }, () => round(read, { cache_read_input_tokens: HEAD })),
+    ],
+  });
+  const net = model();
+  const no = await knock(warmed, turn());
+  assert.deepEqual(
+    [no.status, (await no.json()).error],
+    [429, "ask_budget"],
+    "REGRESSION: a warm counted under a hundred tokens, so a day of heads written never spent the budget",
+  );
+  const ok = await knock(read, turn());
+  assert.equal(ok.status, 200, "the same heads read: a cache read is not counted");
+  await ok.text();
+  assert.equal(net.calls.length, 1, "only the day of reads reached the model");
+});
+
 test("the cache diagnostics ride through (the Phase 6 plan, D2): an id the API wrote or null passes; anything else is dropped, never refused; and the answer says in server-timing what this edge took and what the model took to its headers (D3)", async () => {
   const ask = (diagnostics) => validateGatewayRequest({ ...REQUEST, diagnostics }, "ask");
   assert.deepEqual(ask({ previous_message_id: "msg_01AbC-d_9" }).request.diagnostics, {

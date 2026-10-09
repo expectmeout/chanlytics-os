@@ -186,8 +186,9 @@ async function workspaceOf(userId) {
   return rows[0].tenant_id;
 }
 
-/** What the day's budget counts (ask-gateway.ts askTokensLast24h): uncached input plus output. */
-const budgetTokens = (rows) => rows.reduce((s, d) => s + num(d.input_tokens) + num(d.output_tokens), 0);
+/** What the day's budget counts (ask-gateway.ts askTokensLast24h, 00367): uncached input, cache writes and output. */
+const budgetTokens = (rows) =>
+  rows.reduce((s, d) => s + num(d.input_tokens) + num(d.cache_creation_input_tokens) + num(d.output_tokens), 0);
 
 /**
  * A run's usage by model: the rounds, the tokens by kind, the rounds that stopped at the cap, and the dollars at list

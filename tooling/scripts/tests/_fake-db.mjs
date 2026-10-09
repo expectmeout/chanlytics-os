@@ -762,14 +762,17 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
-    // Ask's day (00240): input plus output of the workspace's usage.ask_tokens events of the last 24 hours, a value
-    // that is not a number counting nothing, as the SQL sums them.
+    // Ask's day (00240, 00367): input, cache writes and output of the workspace's usage.ask_tokens events of the last
+    // 24 hours, a value that is not a number counting nothing and a cache read never counted, as the SQL sums them.
     ask_tokens_day: ({ p_tenant }) => {
       const since = Date.now() - 24 * 60 * 60 * 1000;
       const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       return (tables.events ?? [])
         .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
-        .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
+        .reduce(
+          (sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.cache_creation_input_tokens) + n(e.data?.output_tokens),
+          0,
+        );
     },
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.

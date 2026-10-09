@@ -116,11 +116,15 @@ export const ASK_MAX_TOKENS = 4000;
 export const ASK_WARM_MAX_TOKENS = 64;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
- * Counted on uncached input plus output. With the page's context riding into
- * every round behind its own cache breakpoint (a cache read is not counted),
- * a turn costs two to eight thousand such tokens; a busy owner
- * asking sixty questions stays well under this, and an eval run of the whole
- * case set fits several times over. The first cap (400k) was spent by a day
+ * Counted on uncached input, cache writes and output (ask_tokens_day, 00367);
+ * a cache read is not counted. A write is counted because it is input the
+ * model was sent, billed above uncached input: a warm (`ask_warm`) writes a
+ * turn's head, some thirty thousand tokens, and counted under a hundred while
+ * writes were not. The number was sized before they were: with the page's
+ * context riding into every round behind its own cache breakpoint, a turn
+ * cost two to eight thousand uncached input and output tokens, a busy owner
+ * asking sixty questions stayed well under this, and an eval run of the whole
+ * case set fitted several times over. The first cap (400k) was spent by a day
  * of eval runs and refused the palette until the window rolled.
  */
 export const ASK_TOKENS_DAY = 1_500_000;
