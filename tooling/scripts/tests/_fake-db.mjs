@@ -33,7 +33,7 @@
 
 import crypto from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { localHour, runDueNow } from "@chanlytics/contracts";
+import { isPersonsWords, isReplyTo, localHour, runDueNow } from "@chanlytics/contracts";
 import {
   schemaOf,
   unknownRelation,
@@ -774,6 +774,13 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,
+    // A run's counts, a moment playbook's totals and a message's sends (00362 run_counts, playbook_totals,
+    // template_sends), counted out of the tables a fixture holds as the SQL counts them; held to it over a real database
+    // by playbooks/totals/playbook-totals.db.test.mjs. A suite that models a database before 00362 answers them itself
+    // (a handler that throws an error with code PGRST202), and the dashboard then reads the old way.
+    run_counts: ({ p_tenant_id, p_run_ids }) => runCountsIn(tables, p_tenant_id, p_run_ids ?? []),
+    playbook_totals: ({ p_tenant_id, p_history = 10 }) => playbookTotalsIn(tables, p_tenant_id, p_history),
+    template_sends: ({ p_tenant_id }) => templateSendsIn(tables, p_tenant_id),
     // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are
@@ -1337,6 +1344,150 @@ const sent = (v) => (v === undefined ? "undefined" : v);
 /** The columns of a table's primary key, PostgREST's conflict target when an upsert names none. */
 function primaryKeyOf(table) {
   return uniqueKeysOf(SCHEMA, table).find((k) => k.primary)?.columns ?? ["id"];
+}
+
+/* ---- 00362's counts, as the SQL counts them (run_counts, playbook_totals, template_sends) ---- */
+
+/** A person's message on a run: the row's own `messages` where a fixture writes one, else the row its message_id names. */
+const messageOfRecipient = (tables, r) =>
+  r.messages ?? (r.message_id ? ((tables.messages ?? []).find((m) => m.id === r.message_id) ?? null) : null);
+
+/** The channel a person went by: a row naming none went by WhatsApp, as every run before channels did (00298). */
+const channelOfRecipient = (r) => (r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp");
+
+/**
+ * run_counts: each run's people by state, its receipts (a read is WhatsApp's own), what went by each channel, and the
+ * threads it reached that the customer answered in their own words within the window after the run first reached them
+ * there. A run nobody is on is absent.
+ */
+function runCountsIn(tables, tenantId, runIds) {
+  const wanted = new Set(runIds);
+  const out = {};
+  const reachedBy = new Map();
+  for (const r of tables.broadcast_recipients ?? []) {
+    if (r.tenant_id !== tenantId || !wanted.has(r.broadcast_id)) continue;
+    const c = (out[r.broadcast_id] ??= {
+      queued: 0,
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+      delivered: 0,
+      read: 0,
+      replied: 0,
+      sent_by: { whatsapp: 0, sms: 0, email: 0 },
+    });
+    const channel = channelOfRecipient(r);
+    if (r.state === "sent") {
+      c.sent += 1;
+      c.sent_by[channel] += 1;
+    } else if (r.state === "queued" || r.state === "skipped" || r.state === "failed") c[r.state] += 1;
+    const m = messageOfRecipient(tables, r);
+    if (m?.status === "delivered" || m?.status === "read") c.delivered += 1;
+    if (m?.status === "read" && channel === "whatsapp") c.read += 1;
+    if (m?.conversation_id && r.sent_at) {
+      const reached = reachedBy.get(r.broadcast_id) ?? new Map();
+      const first = reached.get(m.conversation_id);
+      if (first === undefined || Date.parse(r.sent_at) < Date.parse(first)) reached.set(m.conversation_id, r.sent_at);
+      reachedBy.set(r.broadcast_id, reached);
+    }
+  }
+  const words = new Map();
+  for (const m of tables.messages ?? []) {
+    if (m.tenant_id !== tenantId || m.direction !== "inbound" || m.sender !== "customer" || !isPersonsWords(m.meta))
+      continue;
+    words.set(m.conversation_id, [...(words.get(m.conversation_id) ?? []), m.created_at]);
+  }
+  for (const [run, reached] of reachedBy) {
+    let n = 0;
+    for (const [conversation, sentAt] of reached)
+      if ((words.get(conversation) ?? []).some((at) => isReplyTo(sentAt, at))) n += 1;
+    out[run].replied = n;
+  }
+  return out;
+}
+
+/**
+ * playbook_totals: each moment playbook's runs summed through run_counts, its newest run, the run that waits, its newest
+ * `history` runs. A column the table defaults (state, recipient_count) is read as the database would fill it.
+ */
+function playbookTotalsIn(tables, tenantId, history) {
+  const moments = new Set(
+    (tables.playbooks ?? [])
+      .filter((p) => p.tenant_id === tenantId && (p.kind ?? "moment") === "moment")
+      .map((p) => p.id),
+  );
+  const newest = (a, b) =>
+    Date.parse(b.created_at) - Date.parse(a.created_at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+  const runs = (tables.broadcasts ?? [])
+    .filter((b) => b.tenant_id === tenantId && moments.has(b.playbook_id))
+    .sort(newest);
+  const counted = runCountsIn(
+    tables,
+    tenantId,
+    runs.map((b) => b.id),
+  );
+  const out = {};
+  for (const b of runs) {
+    const c = counted[b.id] ?? { sent: 0, skipped: 0, failed: 0, delivered: 0, replied: 0 };
+    const held = c.skipped + c.failed;
+    const state = b.state ?? "scheduled";
+    const recipient_count = b.recipient_count ?? 0;
+    const run_for = b.run_for ?? null;
+    const t = (out[b.playbook_id] ??= {
+      runs: 0,
+      sent: 0,
+      delivered: 0,
+      replied: 0,
+      held: 0,
+      last_run: null,
+      waiting: null,
+      history: [],
+    });
+    t.runs += 1;
+    t.sent += c.sent;
+    t.delivered += c.delivered;
+    t.replied += c.replied;
+    t.held += held;
+    t.last_run ??= { id: b.id, state, run_for, recipient_count };
+    if (state === "pending_approval" && !t.waiting) {
+      const trigger = typeof b.audience?.trigger === "string" ? b.audience.trigger : null;
+      t.waiting = { id: b.id, recipient_count, name: b.name, run_for, trigger };
+    }
+    if (t.history.length < history)
+      t.history.push({
+        id: b.id,
+        run_for,
+        state,
+        scheduled_for: b.scheduled_for ?? null,
+        recipient_count,
+        sent: c.sent,
+        held,
+        delivered: c.delivered,
+        replied: c.replied,
+      });
+  }
+  return out;
+}
+
+/** template_sends: each message name a run sent a person on, or the Inbox sent that WhatsApp took, and its latest time. */
+function templateSendsIn(tables, tenantId) {
+  const nameOf = new Map(
+    (tables.broadcasts ?? []).filter((b) => b.tenant_id === tenantId).map((b) => [b.id, b.template_name]),
+  );
+  const out = {};
+  const went = (name, at) => {
+    const s = (out[name] ??= { count: 0, last_at: null });
+    s.count += 1;
+    if (at && (s.last_at === null || Date.parse(at) > Date.parse(s.last_at))) s.last_at = at;
+  };
+  for (const r of tables.broadcast_recipients ?? []) {
+    const name = r.tenant_id === tenantId && r.state === "sent" ? nameOf.get(r.broadcast_id) : null;
+    if (name) went(name, r.sent_at ?? null);
+  }
+  for (const m of tables.messages ?? [])
+    if (m.tenant_id === tenantId && m.direction === "outbound" && m.template_name && m.external_id)
+      went(m.template_name, m.created_at);
+  return out;
 }
 
 /** A Logger that keeps its lines instead of printing them. */
