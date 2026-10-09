@@ -518,6 +518,64 @@ test("a warm is Ask's own request under a purpose of its own (ask_warm): asked o
   );
 });
 
+test("a round cut short is counted all the same: the dashboard abandoning the answer (its turn's budget) or the model's stream breaking (the try's bound, the network) writes the round's usage row and its ledger row once, with what had been read, before the cut is answered; and the model's stream is let go", async () => {
+  // The round was written only when its stream ended cleanly, and a cut stream never does: Ask's day and the ledger
+  // lost every round the dashboard abandoned at forty-five seconds, and every one the network broke.
+  const enc = new TextEncoder();
+  const head = sse(TURN.slice(0, 3)); // message_start, the text's block, its first words; the output side comes last
+  for (const [n, cut] of [
+    [22, "the dashboard's abort"],
+    [23, "the stream breaks"],
+  ]) {
+    const ws = T(n);
+    const tables = { events: [] };
+    use(tables);
+    let letGo = false;
+    let pulls = 0;
+    wired(
+      () =>
+        new Response(
+          new ReadableStream({
+            pull(c) {
+              if (pulls++ === 0) c.enqueue(enc.encode(head));
+              else if (cut === "the stream breaks") c.error(new TypeError("terminated"));
+              // Otherwise nothing more for now: the model is still writing.
+            },
+            cancel() {
+              letGo = true;
+            },
+          }),
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        ),
+    );
+    const t0 = Date.now();
+    const res = await knock(ws, turn());
+    assert.equal(res.status, 200, cut);
+    const reader = res.body.getReader();
+    assert.equal(new TextDecoder().decode((await reader.read()).value), head, `${cut}: the first words went out`);
+    if (cut === "the stream breaks") await assert.rejects(reader.read(), /terminated/, `${cut}: the palette is told`);
+    else await reader.cancel(new DOMException("This operation was aborted", "AbortError"));
+    const written = tables.events.filter((e) => e.tenant_id === ws && Date.parse(e.created_at) >= t0);
+    assert.deepEqual(
+      written.map((e) => [
+        e.kind,
+        e.data.input_tokens,
+        e.data.cache_read_input_tokens,
+        e.data.output_tokens,
+        e.data.stop_reason,
+      ]),
+      [[ASK_USAGE_KIND, 1200, 900, 0, null]],
+      `${cut}: one usage row for Ask's day, with the input side message_start said, written before the cut was answered`,
+    );
+    assert.deepEqual(
+      tables.ai_usage.map((r) => [r.purpose, r.input_tokens, r.cache_read_tokens, r.usd > 0]),
+      [["ask", 1200, 900, true]],
+      `${cut}: and one row of the ledger, with its dollars`,
+    );
+    if (cut === "the dashboard's abort") assert.ok(letGo, `${cut}: the model's stream is let go`);
+  }
+});
+
 test("the budget spent: the day's rows add up to the cap, so the knock is refused with 429 before the key is spent -- no request to the model, no row written -- and stays refused within the minute even once the rows are gone: the count kept is the count believed; another workspace is another count", async () => {
   const ws = T(2);
   const tables = { events: [usage(ws, 1_000_000, 400_000, 3 * HOUR), usage(ws, 100_000, 0, 10 * HOUR)] };
