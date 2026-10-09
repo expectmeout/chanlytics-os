@@ -166,7 +166,7 @@ export async function steerHeldDraft(
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
   const held = notRewritable(m);
-  if (held) return refuse(409, held);
+  if (held) return held === "already_sent" ? refuse(409, "already_sent") : refuse(409, "not_a_held_draft");
 
   const { data: conv } = await db
     .from("conversations")
