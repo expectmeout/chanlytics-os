@@ -12,6 +12,8 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
 globalThis.window ??= globalThis;
+// The address a page is at, which what Reports shows is read from (the days a member picked are the address's own).
+globalThis.location ??= { pathname: "/w/studio", hash: "#/reports" };
 const { ROUTES } = await importSrc("apps/dashboard/src/client/routes.generated.ts");
 const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
 
@@ -191,7 +193,7 @@ test("a write that moves the listing, its reviews or the day a review is counted
   // surface itself; the receptionist's mode for reviews is in the answer, and decides whether a composer asks for a draft.
   const { reviews } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
   const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-  const held = () => setSurfaceValue("reports_reviews", { vm: {}, period: "30d" });
+  const held = () => setSurfaceValue("reports_reviews", { vm: {}, key: "30d" });
   for (const route of [
     "POST google/link",
     "DELETE google/link",

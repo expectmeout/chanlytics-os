@@ -895,6 +895,49 @@ test("Reports: the period the page shows, its tiles and lines, as the report too
   assert.match(textOf(first.blocks[0]), /^Reports, 1 day · /);
 });
 
+test("Reports over days a member picked: Ask reads the days on screen, named by their dates, and the booking line that is not counted for them says so; days that are no window read as thirty days", async () => {
+  const asked = [];
+  // The report as 00359 answers it: the workspace's today, and the window's last day where one was named.
+  const series = (a) => {
+    asked.push(a);
+    return {
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today: "2026-09-14",
+      ...(a.p_end ? { end: a.p_end } : {}),
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    };
+  };
+  const said = async (view) => {
+    clearContextCache();
+    asked.length = 0;
+    const rc = rcIn(ctxFor(tables(), { ...RPCS, report_series: series }));
+    return textOf((await buildContext(rc, page("reports", [], { view }))).blocks[0]);
+  };
+  // What the page says it shows is the days' one name (legacy-bridge/ask/context.ts): a week that ended a week ago.
+  const week = await said("2026-09-01~2026-09-07");
+  assert.deepEqual(
+    asked,
+    [{ p_tenant_id: A, p_days: 7, p_end: "2026-09-07" }],
+    "REGRESSION: Ask read the seven days to today under a page showing the first week of the month",
+  );
+  assert.match(week, /^Reports, Sep 1 – Sep 7 · /, "named by their dates, never as the last 7 days");
+  assert.ok(week.includes("Booked: Not counted for these days"), week);
+  // Days that end today name no day to the database, and are said as the period they are.
+  assert.match(await said("2026-09-08~2026-09-14"), /^Reports, 7 days · /);
+  assert.deepEqual(asked, [{ p_tenant_id: A, p_days: 7 }]);
+  // Days to come, or more than a report reads: no window, so thirty days, as a view that says nothing is.
+  for (const view of ["2030-01-01~2030-01-05", "2026-01-01~2026-09-01", "2026-09-07~2026-09-01"]) {
+    assert.match(await said(view), /^Reports, 30 days · /, view);
+    assert.deepEqual(asked, [{ p_tenant_id: A, p_days: 30 }], view);
+  }
+});
+
 test("Reports: the reply time's line names the hold it includes where replies waited one, and says what it said before where none did", async () => {
   const replies = Array.from({ length: 14 }, () => ({ day: "2026-09-14", s: 63, hold: 60 }));
   const report = (rs) => (a) => ({

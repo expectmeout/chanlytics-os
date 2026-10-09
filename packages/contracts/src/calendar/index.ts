@@ -144,7 +144,6 @@ export {
   afterPersonRefused,
   bookedAfterAsk,
   visitAnswersAsk,
-  toBookingReportVM,
 } from "./calendar-people";
 export type {
   EventContacts,
@@ -158,6 +157,4 @@ export type {
   VisitDto,
   PersonVisitsDto,
   CalendarPerson,
-  BookingReportDto,
-  BookingReportVM,
 } from "./calendar-people";

@@ -140,6 +140,42 @@ test("the one busiest day, with the peak hours; a week is said as days", () => {
   );
 });
 
+test("a report of one day names no busiest day: its only day is no busier than any other", () => {
+  // Friday alone (Yesterday, or Month on the 1st), four messages on it, and the day before to compare with.
+  const one = report(
+    {},
+    {
+      days: 1,
+      span_days: 2,
+      series: [
+        day("2026-09-03", { messages_in: 1, answered_ai: 1 }),
+        day("2026-09-04", { messages_in: 4, answered_ai: 4 }),
+      ],
+    },
+  );
+  assert.equal(one.days, 1);
+  assert.equal(
+    reportFacts(one, null).find((x) => x.id === "busiest"),
+    undefined,
+    "REGRESSION: a report of one Friday said Friday was your busiest day",
+  );
+  // Two days have one: the question is a real one again.
+  const two = report(
+    {},
+    {
+      days: 2,
+      span_days: 4,
+      series: [
+        day("2026-09-01", { messages_in: 1, answered_ai: 1 }),
+        day("2026-09-02", { messages_in: 1, answered_ai: 1 }),
+        day("2026-09-03", { messages_in: 5, answered_ai: 5 }),
+        day("2026-09-04", { messages_in: 2, answered_ai: 2 }),
+      ],
+    },
+  );
+  assert.equal(reportFacts(two, null).find((x) => x.id === "busiest").text, "Thursday was your busiest day");
+});
+
 test("over a longer period the busiest day is a weekday, from each weekday's own average", () => {
   const start = new Date("2025-07-21T12:00:00Z");
   const series = Array.from({ length: 60 }, (_, i) => {

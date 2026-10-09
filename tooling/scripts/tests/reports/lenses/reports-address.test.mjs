@@ -1,7 +1,9 @@
 /**
  * Reports' addresses and what the frame draws around each (surfaces/routes.ts, surfaces/reports/chrome.ts): one page that takes
  * the Overview's address and each lens's, a move between two of them a pushed or replaced entry on that page, and a strip of views
- * that is the lens registry's, decided from the workspace list the shell already holds.
+ * that is the lens registry's, decided from the workspace list the shell already holds. An address says the days a member
+ * picked too, after the lens in the shell's own grammar (`reports/people:2026-09-01~2026-09-20`, the Overview's the days
+ * alone): the same page takes it, and every tab of the strip keeps the days.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -40,6 +42,64 @@ test("the page takes the Overview's address and each lens's, and no other addres
     assert.ok(routeHasPage(route), route);
   for (const no of ["reports/overview", "reports/usage", "reports/leads", "reports/anything"])
     assert.ok(!routeHasPage(no), `${no} is the frame table's: not found`);
+});
+
+/** Twenty days a member picked, by their one name (contracts reportRangeKey). */
+const DAYS = "2026-09-01~2026-09-20";
+
+test("the page takes the days a member picked: alone for the Overview, after its colon for any other lens, and nothing that only looks like them", () => {
+  for (const route of [
+    `reports/${DAYS}`,
+    `reports/people:${DAYS}`,
+    `reports/reviews:${DAYS}`,
+    "reports/2026-09-15~2026-09-15",
+  ])
+    assert.ok(routeHasPage(route), route);
+  for (const no of [
+    "reports/people:", // a lens with nothing after its colon
+    `reports/overview:${DAYS}`, // the Overview has no word of its own
+    "reports/people:30d", // a period by name is never in the address: it is the device's
+    "reports/30d",
+    "reports/2026-09-20~2026-09-01", // out of order
+    "reports/2026-02-30~2026-03-01", // a day no month has
+    "reports/2026-09-01", // half a window
+    `reports/usage:${DAYS}`,
+    `reports/people:${DAYS}:more`,
+  ])
+    assert.ok(!routeHasPage(no), `${no} is the frame table's: not found`);
+  // A pick, another lens over the same days, and back to the period are all the one page's own moves.
+  assert.ok(onOnePage("reports", `reports/${DAYS}`));
+  assert.ok(onOnePage(`reports/${DAYS}`, `reports/people:${DAYS}`));
+  assert.ok(onOnePage(`reports/people:${DAYS}`, "reports/people"));
+  assert.ok(!onOnePage(`reports/people:${DAYS}`, "clients"));
+});
+
+test("on days a member picked every tab keeps them, so another lens is the same days there; the lens picked, the crumbs and the mount are the lens's own", () => {
+  hold("booking");
+  const overview = chromeAt(DAYS);
+  assert.equal(overview.views.picked, "overview", "days alone are the Overview over them");
+  assert.deepEqual(overview.crumbs, ["Reports"]);
+  assert.deepEqual(
+    overview.views.tabs.map((t) => [t.id, t.to]),
+    [
+      ["overview", `reports/${DAYS}`],
+      ["receptionist", `reports/receptionist:${DAYS}`],
+      ["people", `reports/people:${DAYS}`],
+      ["campaigns", `reports/campaigns:${DAYS}`],
+      ["reviews", `reports/reviews:${DAYS}`],
+    ],
+    "REGRESSION: a move to another lens went back to the period, and the week picked was lost",
+  );
+  const people = chromeAt(`people:${DAYS}`);
+  assert.equal(people.views.picked, "people");
+  assert.deepEqual(people.crumbs, [{ label: "Reports", to: "reports" }, "People"]);
+  assert.equal(people.views.tabs[0].to, `reports/${DAYS}`, "the Overview's tab is the days alone");
+  assert.equal(people.mount, "reports", "one mount, days or none: a pick never remounts the page");
+  assert.deepEqual(
+    chromeAt("people").views.tabs.map((t) => t.to),
+    ["reports", "reports/receptionist", "reports/people", "reports/campaigns", "reports/reviews"],
+    "and with no days in the address, none in a tab's",
+  );
 });
 
 test("a move between two lenses is a pushed or replaced entry on the one page, never a request for a page", () => {

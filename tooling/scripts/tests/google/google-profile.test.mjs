@@ -573,7 +573,7 @@ test("the connection in words, and the view model that says replies are possible
   };
   const vm = toGoogleVM(
     { ready: { places: true, profile: true }, listing, connection: conn(), reviews: [review], days: [], role: "owner" },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -598,7 +598,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -613,7 +613,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -632,7 +632,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );

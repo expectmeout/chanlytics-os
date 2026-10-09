@@ -214,6 +214,17 @@ test("a period of one day (This month so far, on the 1st) is today, never 'these
   const unangled = toReachOutReportVM(report({ ...day, angles: [], other_angles: { written: 0, wrote_back: 0 } }), NOW);
   assert.equal(unangled.lines.angles, "No email today had an opening, so there is no angle to compare.");
   assert.doesNotMatch(JSON.stringify([vm.lines, empty.lines, unangled.lines]), /\b1 day\b|these days/);
+  // A day a member picked that ended before today (00360) is said by its date, never as today.
+  const picked = { days: 1, end: "2026-09-20", since: "2026-09-20", series: [{ day: "2026-09-20", written: 40 }] };
+  assert.match(toReachOutReportVM(report(picked), NOW).lines.funnel, /^Of 40 emails written on Sep 20\. /);
+  const pickedEmpty = toReachOutReportVM(
+    report({ ...picked, totals: counts(), chains: [], angles: [], domains: [], no_angle: 0 }),
+    NOW,
+  );
+  assert.deepEqual(
+    [pickedEmpty.lines.empty, pickedEmpty.lines.funnel],
+    ["No reach-out wrote on Sep 20.", "Nothing was written on Sep 20."],
+  );
   // Any other period keeps its words.
   const week = report({ totals: counts(), chains: [], angles: [], other_angles: { written: 0, wrote_back: 0 } });
   assert.equal(toReachOutReportVM(week, NOW).lines.funnel, "Nothing was written in these days.");

@@ -516,45 +516,69 @@ const kitDatePicker = () => {
 };
 
 /**
- * The kit's MonthRange, a window of thirty days (September 7 to October 6, 2026, today the 6th) on a month: on October, the
- * month it ends in, where the band runs from the weeks' start to its last day; and moved back to September, where it starts.
- * The date picker's head and weekdays over six weeks of days that press nothing, hidden from a screen reader (the page says
- * the range in words beside it).
+ * The kit's DayRangePicker over a window of thirty days (September 7 to October 6, 2026, today the 6th, ninety days at
+ * most): chosen, on October, the month it ends in, where the band runs from the weeks' start to its last day, no day
+ * after today presses and the arrow to the month after stands down; and on September with a first day pressed (the
+ * 14th) and the pointer on the 25th, where the band is what would be chosen, fourteen days at most here, so the days
+ * too far to be the other end stand down. The date picker's head and weekdays over six weeks of days in the ARIA grid,
+ * the range's two ends its selected cells, and what is chosen so far said under it.
  */
-const kitMonthRange = (month) => {
+const kitDayRange = ({ month, first = null, reach = null, most = 90 }) => {
   const [from, to, today] = ["2026-09-07", "2026-10-06", "2026-10-06"];
-  const first = new Date(Date.UTC(2026, month, 1));
-  const start = new Date(Date.UTC(2026, month, 1 - ((first.getUTCDay() + 6) % 7)));
+  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October"];
+  const firstOf = new Date(Date.UTC(2026, month, 1));
+  const start = new Date(Date.UTC(2026, month, 1 - ((firstOf.getUTCDay() + 6) % 7)));
   const key = (d) => d.toISOString().slice(0, 10);
-  const cell = (d) => {
+  const apart = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
+  const band = first === null ? { from, to } : first <= reach ? { from: first, to: reach } : { from: reach, to: first };
+  // The one tab stop: the range's last day, and, moved back a month by the arrow, the same day of the month before.
+  const stop = month === 9 ? to : "2026-09-06";
+  const cell = (d, w) => {
     const k = key(d);
+    const inBand = k >= band.from && k <= band.to;
+    const open = k <= today && (first === null || apart(first, k) < most);
     const marks = [
-      k >= from && k <= to ? ' data-in="true"' : "",
-      k === from ? ' data-start="true"' : "",
-      k === to ? ' data-end="true"' : "",
+      inBand ? ' data-in="true"' : "",
+      k === band.from ? ' data-start="true"' : "",
+      k === band.to ? ' data-end="true"' : "",
       d.getUTCMonth() === month ? "" : ' data-outside="true"',
       k === today ? ' data-today="true"' : "",
     ].join("");
-    return `<span class="date-pick-cell"${marks}><span class="date-pick-num">${d.getUTCDate()}</span></span>`;
+    const name = `${full[w]}, ${months[d.getUTCMonth()]} ${d.getUTCDate()}, 2026${inBand ? ", in the range" : ""}`;
+    return (
+      `<div role="gridcell" class="date-pick-cell" data-day="${k}" aria-selected="${k === band.from || k === band.to}"${marks}>` +
+      `<button type="button" class="date-pick-day" tabindex="${k === stop ? 0 : -1}" aria-label="${name}"` +
+      `${k === today ? ' aria-current="date"' : ""}${open ? "" : ' aria-disabled="true"'}>` +
+      `<span class="date-pick-num">${d.getUTCDate()}</span></button></div>`
+    );
   };
   const week = (w) =>
-    `<div class="date-pick-row">` +
-    Array.from({ length: 7 }, (_, d) => cell(new Date(start.getTime() + (w * 7 + d) * 86_400_000))).join("") +
+    `<div role="row" class="date-pick-row">` +
+    Array.from({ length: 7 }, (_, d) => cell(new Date(start.getTime() + (w * 7 + d) * 86_400_000), d)).join("") +
     `</div>`;
-  const title = month === 9 ? "October 2026" : "September 2026";
+  const hint =
+    first === null ? "Press a first day, then a last. 90 days at most." : "Sep 14 – Sep 25, 12 days. Press to choose.";
+  // Nothing after the month that holds today can be chosen: the arrow that goes there stands down.
+  const last = month === 9;
   return (
-    `<div class="date-pick-month">` +
-    `<div class="date-pick-head"><span class="date-pick-title" aria-live="polite">${title}</span>` +
+    `<div class="date-pick-month"${first === null ? "" : ' data-pending="true"'}>` +
+    `<div class="date-pick-head"><span class="date-pick-title" aria-live="polite">${months[month]} 2026</span>` +
     `<span class="date-pick-nav">` +
     `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Previous month"><span class="date-pick-back">${icon("chevron", 14)}</span></button>` +
-    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Next month">${icon("chevron", 14)}</button>` +
+    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Next month"${last ? " disabled" : ""}>${icon("chevron", 14)}</button>` +
     `</span></div>` +
-    `<div class="date-pick-grid" aria-hidden="true">` +
-    `<div class="date-pick-row">` +
-    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((w) => `<span class="date-pick-dow">${w}</span>`).join("") +
+    `<div role="grid" tabindex="-1" aria-label="Days" aria-multiselectable="true" class="date-pick-grid">` +
+    `<div role="row" class="date-pick-row">` +
+    weekdays
+      .map((w, d) => `<span role="columnheader" aria-label="${full[d]}" class="date-pick-dow">${w}</span>`)
+      .join("") +
     `</div>` +
     Array.from({ length: 6 }, (_, w) => week(w)).join("") +
-    `</div></div>`
+    `</div>` +
+    `<p class="date-pick-hint" role="status">${hint}</p>` +
+    `</div>`
   );
 };
 
@@ -1845,14 +1869,16 @@ export const FAMILIES = [
     entries: [{ id: "datepicker-kit", stage: "pop", html: kitDatePicker() }],
   },
   {
-    family: "Month range",
+    family: "Day range picker",
     about:
-      "The kit's MonthRange (surfaces/kit/datepicker/month-range.tsx): the days a period covers on a month, one band of the " +
-      "inset's fill from its first day to its last, its ends the picked lozenge and today the accent's ink; it presses " +
-      "nothing but its two arrows. Reports' period draws it.",
+      "The kit's DayRangePicker (surfaces/kit/datepicker/day-range-picker.tsx): a month to choose a range of days from. " +
+      "The days chosen are one band from the first to the last, its ends the picked lozenge and today the accent's ink; " +
+      "two presses choose, a first day and a last, and while the last is still to be pressed the band follows the " +
+      "pointer and the days that cannot be the other end stand down, as every day to come does. Reports' date range " +
+      "draws it.",
     entries: [
-      { id: "month-range", html: kitMonthRange(9) },
-      { id: "month-range-start", html: kitMonthRange(8) },
+      { id: "day-range", html: kitDayRange({ month: 9 }) },
+      { id: "day-range-first", html: kitDayRange({ month: 8, first: "2026-09-14", reach: "2026-09-25", most: 14 }) },
     ],
   },
   {

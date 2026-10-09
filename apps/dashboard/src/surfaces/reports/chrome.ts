@@ -6,20 +6,23 @@
  * stands at first paint and never gains a tab.
  */
 import {
-  isLensParam,
   lensIsShown,
   lensOf,
-  lensOfRoute,
   lensRoute,
   lensesFor,
+  reportsParamParts,
   type LensId,
   type LensWho,
+  type ReportDays,
 } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/legacy-bridge/surface-data";
 import type { SurfaceViews } from "../routes";
 
-/** Which params of `reports` the page draws: a lens's. The Overview is `reports` itself; `reports/overview` is no address. */
-export const reportsTakes = (param: string): boolean => isLensParam(param);
+/**
+ * Which params of `reports` the page draws: a lens's, the days a member picked, or a lens over such days (contracts
+ * reportsParamParts). The Overview is `reports` itself; `reports/overview` is no address.
+ */
+export const reportsTakes = (param: string): boolean => reportsParamParts(param) !== null;
 
 /**
  * Who is looking and how their customers buy, as the workspace list the shell holds says it: the one place Reports asks, for the
@@ -45,12 +48,16 @@ export function lensShownHere(lens: LensId): boolean | null {
   return lensIsShown(lens, NOT_HELD) ? true : null;
 }
 
-/** The lenses shown here, as the frame's strip draws them (before the list is held, those that need nothing of it); `picked` is the one the address names. */
-function lensViews(picked: LensId): SurfaceViews {
+/**
+ * The lenses shown here, as the frame's strip draws them (before the list is held, those that need nothing of it); `picked`
+ * is the one the address names. Each tab's address keeps the days the address says (`days`): a member who picked a week
+ * and moves to another lens is looking at that week there, never back on the period.
+ */
+function lensViews(picked: LensId, days: ReportDays | null): SurfaceViews {
   const tabs = lensesFor(lensWho() ?? NOT_HELD).map((l) => ({
     id: l.id,
     label: l.label,
-    to: lensRoute(l.id),
+    to: lensRoute(l.id, days),
     testid: `lens-${l.id}`,
   }));
   // One mount across the lenses (reportsChrome below): the page stays as the lens changes, and the lens's body is the
@@ -64,7 +71,7 @@ function lensViews(picked: LensId): SurfaceViews {
  * afresh for each would lose its period's dimming and its place with every pick.
  */
 export function reportsChrome({ param }: { param: string | null }) {
-  const lens = lensOfRoute(param ? `reports/${param}` : "reports") ?? "overview";
-  const crumbs = lens === "overview" ? ["Reports"] : [{ label: "Reports", to: "reports" }, lensOf(lens).label];
-  return { crumbs, mount: "reports", views: lensViews(lens) };
+  const at = reportsParamParts(param ?? "") ?? { lens: "overview" as const, days: null };
+  const crumbs = at.lens === "overview" ? ["Reports"] : [{ label: "Reports", to: "reports" }, lensOf(at.lens).label];
+  return { crumbs, mount: "reports", views: lensViews(at.lens, at.days) };
 }

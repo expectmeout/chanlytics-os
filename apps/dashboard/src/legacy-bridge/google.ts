@@ -154,7 +154,8 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
 
 /** Google's verbs, each through its door. */
 export const googleVerbs: GoogleApi = {
-  vm: (dto, periodDays, nowMs, tz) => toGoogleVM(dto, periodDays, nowMs, tz),
+  // The Google surface reads a period that ends today: no day is named for it to stop at.
+  vm: (dto, periodDays, nowMs, tz) => toGoogleVM(dto, { days: periodDays, until: null }, nowMs, tz),
   async find(query) {
     const r = await api()("POST google/search", { body: query ? { query } : {} });
     if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };

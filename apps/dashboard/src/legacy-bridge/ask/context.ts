@@ -132,10 +132,15 @@ const pipeline: Provider = (w, route) => {
 
 const calendar: Provider = (w) => drawn(w, "calendar", "person");
 
-/** Reports' view is the days it shows, read through the seam (the surface's value), as the server's context provider describes them. */
+/**
+ * Reports' view is what it shows, read through the seam (the surface's value), as the server's context provider describes
+ * it: the days a period is, as a count, or the days a member picked, by their one name (`2026-09-01~2026-09-20`), so Ask
+ * reads the numbers of the days on screen and not of the days up to today.
+ */
 const reports: Provider = () => {
-  const days = surfaceValue("reports")?.days;
-  return { view: typeof days === "number" ? String(days) : null, rows: [] };
+  const shown = surfaceValue("reports");
+  if (!shown) return { view: null, rows: [] };
+  return { view: shown.period === null ? shown.key : String(shown.days), rows: [] };
 };
 
 /** Campaigns is its home, whose rows are the playbooks, and two rooms, Sent and the Library: the page is the view, and its rows are that page's. */

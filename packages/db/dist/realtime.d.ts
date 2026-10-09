@@ -6249,6 +6249,7 @@ type Database = {
             campaign_series: {
                 Args: {
                     p_days?: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -8664,6 +8665,7 @@ type Database = {
             reach_out_report: {
                 Args: {
                     p_days: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -8833,6 +8835,7 @@ type Database = {
             report_series: {
                 Args: {
                     p_days?: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -8873,6 +8876,7 @@ type Database = {
             reviews_ledger: {
                 Args: {
                     p_days?: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;

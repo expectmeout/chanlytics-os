@@ -7,7 +7,7 @@
  * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' and
  * Google's are built where their reports are, and name their figures from this same set.
  */
-import type { BookingReportVM } from "../calendar/calendar-people";
+import type { BookingReportVM } from "./booking-report";
 import { durationWords } from "../shared/clock";
 import { plural } from "../shared/words";
 import { holdNote } from "./report-speed";

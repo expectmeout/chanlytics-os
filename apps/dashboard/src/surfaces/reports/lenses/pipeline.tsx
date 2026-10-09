@@ -29,7 +29,7 @@ function dealsSection(deals: DealReportVM | null | undefined) {
     </ul>
   ) : null;
   return (
-    <RptSection title="Deals" testid="rpt-deals">
+    <RptSection title="Deals" testid="rpt-deals" bare>
       <div className="rpt-deals">
         <p className="rpt-deals-headline" data-testid="rpt-deals-headline">
           {dl.headline}

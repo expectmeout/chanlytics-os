@@ -10,7 +10,7 @@ import { domainHoldWords } from "../email/sending-domains";
 import { stepLabelOf } from "../reach-out/reach-out-sheet";
 import { pct } from "../shared/numbers";
 import type { HandKind } from "../reach-out/reach-out-hand";
-import { dayPointOf, withinWords } from "./reports";
+import { dayPointOf, endedOn, withinWords } from "./reports";
 
 export interface ReachOutReportCounts {
   written: number;
@@ -57,6 +57,8 @@ export interface ReachOutReportDto {
   timezone: string;
   days: number;
   today: string;
+  /** The report's last day (00360): today for a period by name, an earlier day for days a member picked. */
+  end?: string;
   since: string;
   /** The workspace has a reach-out at all: the section is drawn only then. */
   has_reach_out: boolean;
@@ -277,19 +279,22 @@ function stepLineOf(root: string, s: ReachOutReportStepDto): ReachOutSourceLine 
 function linesOf(dto: ReachOutReportDto): ReachOutReportVM["lines"] {
   const t = dto.totals;
   const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
-  // A period of one day (This month so far, on the 1st) is today, as withinWords says it; any other is "these days".
-  const today = dto.days === 1;
-  const these = today ? "today" : "in these days";
+  // The day the report ended, where that was before today (endedOn); null where it ends today.
+  const until = endedOn(dto);
+  // A period of one day is its day, as withinWords says it: today (This month so far, on the 1st), or "on Sep 20" for a
+  // day a member picked before today. Any other is "these days".
+  const oneDay = dto.days === 1 ? withinWords(1, until) : null;
+  const these = oneDay ?? "in these days";
   return {
     funnel: t.written
-      ? `Of ${plural(t.written, "email")} written ${today ? "today" : `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
+      ? `Of ${plural(t.written, "email")} written ${oneDay ?? `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
       : `Nothing was written ${these}.`,
     angles: angled
       ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}`
       : `No email ${these} had an opening, so there is no angle to compare.`,
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote ${withinWords(dto.days)}.`,
+    empty: `No reach-out wrote ${withinWords(dto.days, until)}.`,
   };
 }
 
@@ -313,6 +318,7 @@ function wholeOf(raw: Partial<ReachOutReportDto>): ReachOutReportDto {
     timezone: raw.timezone || "UTC",
     days: raw.days ?? 30,
     today: raw.today ?? "",
+    end: raw.end ?? raw.today ?? "",
     since: raw.since ?? "",
     has_reach_out: raw.has_reach_out === true,
     totals: { ...NO_COUNTS, ...(raw.totals ?? {}) },

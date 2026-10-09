@@ -119,13 +119,16 @@ export function routePrefetchScript(): string {
     'if(s==="clients"&&l==="leads")s="leads";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here.
     'if(s==="calendar"&&l)s="";',
-    // Reports is read over the period this device last picked, as the page reads it; one it does not know is the default's.
-    `var P=null;if(s==="reports")try{var o=localStorage.getItem(${JSON.stringify(REPORT_PERIOD_STORAGE)});` +
-      `if(${JSON.stringify(REPORT_PERIOD_IDS)}.indexOf(o)>=0)P=o}catch(e){}`,
+    // Reports is read over the days its address says, where it says them (`reports/people:2026-09-01~2026-09-20`,
+    // lenses.ts lensRoute: a link someone sent), else over the period this device last picked, as the page reads it; one
+    // it does not know is the default's. The days are spelled as the page's own read spells them, first then last.
+    `var P=null;if(s==="reports"){var d=/(?:^|:)(\\d{4}-\\d{2}-\\d{2})~(\\d{4}-\\d{2}-\\d{2})$/.exec(l);` +
+      `if(d)P="from="+d[1]+"&to="+d[2];else try{var o=localStorage.getItem(${JSON.stringify(REPORT_PERIOD_STORAGE)});` +
+      `if(${JSON.stringify(REPORT_PERIOD_IDS)}.indexOf(o)>=0)P="period="+o}catch(e){}}`,
     `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
     // A view of Leads the address names (a search, a list) is the page's to read: it opens on who is looking alone.
     'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
-    `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},"period="+P):t[s][j];` +
+    `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},P):t[s][j];` +
       'u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}',
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
     "var M=window.AbortController;",

@@ -21,14 +21,16 @@
 import { read } from "@/legacy-bridge/api";
 import { publishGoogleRead } from "@/legacy-bridge/google";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
-import { toReviewsReportVM, type ReportPeriodId, type ReviewsReportVM } from "@chanlytics/contracts";
+import { reportRangeKey, toReviewsReportVM, type ReviewsReportVM } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
+import { rangeQuery, shownReportRange } from "./surface";
 
-/** What the lens draws from: the fold of the read, and the period it is of (what the control says is chosen, and what the held reads are kept by). */
+/** What the lens draws from: the fold of the read, and the range it is of (what the control says is chosen, and what the held reads are kept by). */
 export interface ReviewsSurface {
   /** The figures, the cards, the waiting rows and every sentence, the head's among them. */
   vm: ReviewsReportVM;
-  period: ReportPeriodId;
+  /** The range it is of, by its one name (contracts reportRangeKey): a period's id, or the days a member picked. */
+  key: string;
 }
 
 /** The tables whose changes the live feed tells a workspace of and that the Reviews read draws from. */
@@ -36,11 +38,15 @@ const REVIEWS_TABLES: string[] = ["google_reviews", "google_listings", "google_c
 
 export const reviews = periodSurface({
   key: "reports_reviews",
-  read: async (period): Promise<ReviewsSurface> => {
-    const dto = await read("GET reports/reviews", { query: { period } });
+  // The lens is drawn on the page the days are picked on: it follows whatever Reports shows, days a member picked too.
+  shown: shownReportRange,
+  of: (value) => value.key,
+  read: async (range): Promise<ReviewsSurface> => {
+    const dto = await read("GET reports/reviews", { query: rangeQuery(range) });
     const readAt = Date.now();
+    // Google's own read rides in the answer and is the same whatever days were asked for: published as Google's.
     publishGoogleRead(dto.google, readAt);
-    return { vm: toReviewsReportVM(dto, { nowMs: readAt }), period };
+    return { vm: toReviewsReportVM(dto, { nowMs: readAt }), key: reportRangeKey(range) };
   },
   // Read again only while the lens is on screen, and once when it comes back (surface-registry.ts).
   live: { refreshOnTables: REVIEWS_TABLES, refreshWhen: onlyOnItsPage("reports_reviews", REVIEWS_TABLES) },

@@ -16,7 +16,7 @@ import {
   serverNotificationRows,
   JOB_KINDS,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, textOf, classes, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_legacy-react.mjs";
 
 const NOW = Date.parse("2026-09-25T15:00:00Z");
 const kept = (over) => ({
@@ -291,6 +291,33 @@ const popover = (items, acts = {}) =>
     onClose: () => {},
     alerts: null,
   });
+
+test("Escape closes the bell while it is drawn: once, not a key something inside took, and not after it has gone", () => {
+  fresh();
+  const closed = [];
+  const draw = () =>
+    W.NotifPopover({
+      items: [],
+      onAction() {},
+      onReadAll() {},
+      onDismiss() {},
+      onClose: () => closed.push(1),
+      alerts: null,
+    });
+  draw();
+  const key = (k, over = {}) => ({ type: "keydown", key: k, defaultPrevented: false, ...over });
+  W.dispatchEvent(key("Escape"));
+  assert.equal(closed.length, 1, "Escape closes it");
+  W.dispatchEvent(key("Enter"));
+  W.dispatchEvent(key("Escape", { defaultPrevented: true }));
+  assert.equal(closed.length, 1, "no other key does, and a key a menu or a field inside took is not the bell's");
+  again(draw);
+  W.dispatchEvent(key("Escape"));
+  assert.equal(closed.length, 2, "drawn again, still one listener, never two");
+  unmount();
+  W.dispatchEvent(key("Escape"));
+  assert.equal(closed.length, 2, "gone with the popover: the window's Escape is nobody's while the bell is shut");
+});
 
 test("a note is one press that does what it says, named by where it goes; nothing on it is a row of buttons", () => {
   fresh();

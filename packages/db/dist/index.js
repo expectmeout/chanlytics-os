@@ -2628,27 +2628,44 @@ async function setTemplateQuality(db, p) {
 }
 
 // src/repositories/reports/report-series.ts
-async function reportSeries(db, tenantId, days) {
-  const { data, error } = await db.rpc("report_series", { p_tenant_id: tenantId, p_days: days });
-  if (error) throw new Error(`report_series: ${error.message}`);
+var ReportWindowNotReadable = class extends Error {
+  constructor(door) {
+    super(`${door}: this database cannot read a report of days that ended before today (00360)`);
+    this.name = "ReportWindowNotReadable";
+  }
+};
+var windowArgs = (tenantId, w) => w.end === null ? { p_tenant_id: tenantId, p_days: w.days } : { p_tenant_id: tenantId, p_days: w.days, p_end: w.end };
+var notReadable = (w, error) => w.end !== null && isMissingDoor({ code: error.code ?? null });
+async function reportSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("report_series", windowArgs(tenantId, window));
+  if (error) {
+    if (notReadable(window, error)) throw new ReportWindowNotReadable("report_series");
+    throw new Error(`report_series: ${error.message}`);
+  }
   return data;
 }
-async function campaignSeries(db, tenantId, days) {
-  const { data, error } = await db.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
-  if (error) throw new Error(`campaign_series: ${error.message}`);
+async function campaignSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("campaign_series", windowArgs(tenantId, window));
+  if (error) {
+    if (notReadable(window, error)) throw new ReportWindowNotReadable("campaign_series");
+    throw new Error(`campaign_series: ${error.message}`);
+  }
   return data;
 }
-async function reviewsLedger(db, tenantId, days) {
-  const { data, error } = await db.rpc("reviews_ledger", { p_tenant_id: tenantId, p_days: days });
+async function reviewsLedger(db, tenantId, window) {
+  const { data, error } = await db.rpc("reviews_ledger", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
     throw new Error(`reviews_ledger: ${error.message}`);
   }
   return data;
 }
-async function reachOutReport(db, tenantId, days) {
-  const { data, error } = await db.rpc("reach_out_report", { p_tenant_id: tenantId, p_days: days });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+async function reachOutReport(db, tenantId, window) {
+  const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
+  if (error) {
+    if (notReadable(window, error)) throw new ReportWindowNotReadable("reach_out_report");
+    return { ok: false, code: error.code ?? "", message: error.message };
+  }
   return { ok: true, data };
 }
 function answerOrMissing(name, data, error) {
@@ -4448,6 +4465,7 @@ export {
   MAX_ROWS,
   PEOPLE_PAGE,
   PERSON_FORGOTTEN,
+  ReportWindowNotReadable,
   acceptHandover,
   acceptPartnerInvite,
   activitySubjects,

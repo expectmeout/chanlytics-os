@@ -115,12 +115,12 @@ test("the sample's channels (0030) share each period's figures, every part insid
 test("the Reviews sample is the public listing through the Reviews fold: four figures, the ratings it gained, the five reviews Google shows, and what a profile would add; kept per period and day", () => {
   const a = reviewsSample("30d", TODAY);
   assert.equal(a, reviewsSample("30d", TODAY), "kept rather than rebuilt on every draw");
-  assert.deepEqual(Object.keys(a).sort(), ["period", "vm"], "what the surface holds");
-  assert.equal(reviewsSample("14d", TODAY).period, "30d", "a period Reports does not offer is the default one");
+  assert.deepEqual(Object.keys(a).sort(), ["key", "vm"], "what the surface holds");
+  assert.equal(reviewsSample("14d", TODAY).key, "30d", "a period Reports does not offer is the default one");
   for (const id of ["7d", "30d", "90d", "month"]) {
     const s = reviewsSample(id, TODAY);
     const days = fixedDaysOf(id) ?? 18;
-    assert.equal(s.period, id);
+    assert.equal(s.key, id);
     assert.deepEqual(
       [s.vm.state, s.vm.source, s.vm.days, s.vm.empty],
       ["linked", "places", days, false],

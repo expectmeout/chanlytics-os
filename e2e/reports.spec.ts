@@ -9,8 +9,10 @@ import { routeOf } from "./address";
  *
  * The Overview: the receptionist's share of the answered as a meter beside Worth knowing, and a strip of five figures compared
  * with the period before in counts; then each lens's cards, each with a table twin, and nothing in dollars. Read-only: the
- * period control only issues a GET. The period is the page's act at the right of the strip of lenses (the frame's row),
- * outside the page's own element: a round button that opens the four periods and the month they cover.
+ * date range only issues a GET. It is the page's act at the right of the strip of lenses (the frame's row), outside the
+ * page's own element: a capsule that says what the page is on and opens the four periods, three windows reached in one
+ * press, and a month to pick any days on. Days a member picked are the address's (`reports/<lens>:<from>~<to>`), so a
+ * link opens on them and Back walks them; they need 00360 on the database the app reads.
  */
 const INVENTED = [
   "Revenue",
@@ -61,13 +63,22 @@ test.describe("Reports on a real workspace", () => {
     }
 
     await expect(page.locator(".pg-act-slot").getByTestId("reports-period"), "at the strip's right").toBeVisible();
+    await expect(page.getByTestId("reports-period-open"), "it says the period it is on").toHaveText("30 days");
     await page.getByTestId("reports-period-open").click();
-    await expect(page.getByRole("dialog", { name: "Period" })).toBeVisible();
-    await expect(page.locator('[data-testid^="period-"]')).toHaveCount(4);
+    const range = page.getByRole("dialog", { name: "Date range" });
+    await expect(range).toBeVisible();
+    await expect(range.getByRole("radio"), "the four periods").toHaveCount(4);
     await expect(page.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
     await expect(page.getByTestId("reports-period-range")).toHaveText(/\S+ \d+ – \S+ \d+/);
+    await expect(page.getByTestId("reports-period-before")).toHaveText(/^Compared with \S+ \d+ – \S+ \d+$/);
+    for (const id of ["yesterday", "last-week", "last-month"])
+      await expect(page.getByTestId(`period-${id}`), "days reached in one press").toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    await expect(range.getByRole("grid", { name: "Days" }), "and a month to pick any days on").toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Period" })).toHaveCount(0);
+    await expect(range).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Ask about this period" }), "the period asks nothing").toHaveCount(0);
 
     // A workspace nobody reached in the period has one honest card instead of the charts, and no Worth knowing.
@@ -180,7 +191,9 @@ test.describe("Reports on a real workspace", () => {
     await page.getByTestId("reports-period-open").click();
     await page.getByTestId("period-7d").click();
     await reviewsRead;
+    await page.getByTestId("reports-period-open").click();
     await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     expect(documents, "a pick of another period is never a page request").toEqual([]);
     await page.goto(`/w/${slug}/reports/overview`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
@@ -210,8 +223,87 @@ test.describe("Reports on a real workspace", () => {
     await page.getByTestId("period-7d").click();
     const seen = await req;
     expect(seen.url()).toContain("workspace=");
+    await expect(page.getByTestId("period-7d"), "a press of a period closes the popover").toBeHidden();
+    await page.getByTestId("reports-period-open").click();
     await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     await expect(report.getByTestId("reports-hero")).toBeVisible();
+  });
+
+  test("days picked on the month are the address's: read by their first and last day, kept across a lens, Back and a reload, and a period takes them out again", async ({
+    page,
+  }) => {
+    await page.goto("/#/reports");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("reports-real")).toBeVisible();
+    const open = page.getByTestId("reports-period-open");
+    const days = /^reports\/(\d{4}-\d{2})-10~\1-12$/;
+
+    // The month before this one always holds its 10th and its 12th, and neither is a day to come.
+    await open.click();
+    const range = page.getByRole("dialog", { name: "Date range" });
+    await range.getByRole("button", { name: "Previous month" }).click();
+    const day = (n: number) =>
+      range.locator(".date-pick-cell:not([data-outside]) > .date-pick-day").filter({ hasText: new RegExp(`^${n}$`) });
+    await day(10).click();
+    await expect(range.locator(".date-pick-hint"), "a first press chooses nothing").toContainText("Press the last day");
+    expect(routeOf(page.url()), "and moves nothing").toBe("reports");
+    const read = page.waitForRequest((r) => {
+      const u = new URL(r.url());
+      return (
+        u.pathname.endsWith("/api/v1/reports") &&
+        /-10$/.test(u.searchParams.get("from") ?? "") &&
+        /-12$/.test(u.searchParams.get("to") ?? "")
+      );
+    });
+    await day(12).click();
+    await read;
+    await expect.poll(() => routeOf(page.url())).toMatch(days);
+    await expect(open, "the capsule says the days").toHaveText(/^\S+ 10 – 12$/);
+    await expect(range, "a pick closes the popover").toBeHidden();
+    await expect(page.locator(".rpt-failed"), "they were read").toHaveCount(0);
+    await open.click();
+    await expect(range.getByRole("radio", { checked: true }), "and none of the four periods is these days").toHaveCount(
+      0,
+    );
+    await page.keyboard.press("Escape");
+    await expect(range).toBeHidden();
+
+    // Another lens is the same days there, and Back walks the ranges a member looked at: the lens before, then the period.
+    const peopleOverDays = /^reports\/people:\d{4}-\d{2}-10~\d{4}-\d{2}-12$/;
+    await page.getByTestId("lens-people").click();
+    await expect.poll(() => routeOf(page.url())).toMatch(peopleOverDays);
+    await expect(open).toHaveText(/^\S+ 10 – 12$/);
+    await page.goBack();
+    await expect.poll(() => routeOf(page.url())).toMatch(days);
+    await expect(open).toHaveText(/^\S+ 10 – 12$/);
+    await page.goBack();
+    await expect.poll(() => routeOf(page.url())).toBe("reports");
+    await expect(open, "an address with no days is the period kept").toHaveText("30 days");
+    // Forward to the days again, and a link to them (the address, loaded afresh) opens on them.
+    await page.goForward();
+    await page.goForward();
+    await expect.poll(() => routeOf(page.url())).toMatch(peopleOverDays);
+    await expect(open).toHaveText(/^\S+ 10 – 12$/);
+    await page.reload();
+    await expect(page.getByTestId("reports-real")).toBeVisible({ timeout: 30_000 });
+    await expect(open, "a link to days opens on them").toHaveText(/^\S+ 10 – 12$/);
+    await expect(page.locator(".rpt-failed"), "and says nothing failed").toHaveCount(0);
+
+    // A window reached in one press is days like any picked, and a period by name takes the days out of the address.
+    await open.click();
+    await page.getByTestId("period-yesterday").click();
+    await expect.poll(() => routeOf(page.url())).toMatch(/^reports\/people:(\d{4}-\d{2}-\d{2})~\1$/);
+    await expect(open).toHaveText("Yesterday");
+    await expect(range, "a press of a shortcut closes the popover too").toBeHidden();
+    await open.click();
+    await expect(page.getByTestId("period-yesterday")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("period-30d").click();
+    await expect.poll(() => routeOf(page.url())).toBe("reports/people");
+    await expect(open).toHaveText("30 days");
+    await expect(range, "and a press of a period").toBeHidden();
+    await open.click();
+    await expect(page.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
   });
 
   test("asked, then booked: the share from the calendar, the calendar's own sentence, or a read that failed", async ({

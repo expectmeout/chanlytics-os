@@ -219,11 +219,13 @@ export {
   campaignSeries,
   reviewsLedger,
   reachOutReport,
+  ReportWindowNotReadable,
   playbookTotals,
   runCounts,
   templateSends,
   reachOutChainTotals,
 } from "./repositories/reports/report-series";
+export type { ReportWindow } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
 export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";

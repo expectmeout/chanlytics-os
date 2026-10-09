@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   REVIEWS_WAITING_SHOWN,
+  endedOn,
   isReviewsLedgerDto,
   lensAnswerOf,
   metricWordsOf,
@@ -31,7 +32,7 @@ import {
 
 const vmOf = (dto) => toReviewsReportVM(dto, { nowMs: REVIEWS_NOW });
 /** The listing's own view model, as the fold makes it for a read. */
-const googleOf = (dto) => toGoogleVM(dto.google, dto.days, REVIEWS_NOW, dto.timezone);
+const googleOf = (dto) => toGoogleVM(dto.google, { days: dto.days, until: endedOn(dto) }, REVIEWS_NOW, dto.timezone);
 /** A figure as a person reads it, by its id. */
 const tile = (vm, id) => vm.tiles.find((t) => t.id === id);
 const said = (t) => ({ value: t.value, meta: t.meta, compare: t.compare });

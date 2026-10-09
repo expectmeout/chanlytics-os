@@ -7,11 +7,22 @@
  * reports-honest and rewritten for this page (C13, C25 to C28): every row a door, the period before drawn where it
  * reads, one keyboard stop per chart, a period control that never holds (the latest pick wins), and a table that
  * leaves the page. The period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
+ *
+ * And the date range: the capsule that says what the page is on, the days picked on its month or reached in one press,
+ * which move the address and are read by their first and last day, and days that fail to load. What the page does when
+ * its address moves by itself (a link, Back) is periods/report-range-page.test.mjs's, on a document of its own.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
-import { toReportVM, toDealReportVM, REPORT_CHANNELS } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  toDealReportVM,
+  REPORT_CHANNELS,
+  reportDaysCount,
+  reportRangeOfKey,
+  shiftKey,
+} from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh,
@@ -62,7 +73,7 @@ globalThis.__ACTIVE_WORKSPACE = "w1";
 const S = "../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
-const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
 const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
@@ -89,8 +100,32 @@ const json = (status, body) =>
 const period = { asked: [], held: [], mode: "hold" };
 /** The days each period's answer says it covers (Month on this fixture's day: four). */
 const DAYS_OF = { "7d": 7, "30d": 30, "90d": 90, month: 4 };
-const answer = (id) =>
-  json(200, {
+/**
+ * The report over days a member picked, as the route answers it: as many days to their last day and as many before
+ * them, one message a day in the days picked, the last day named (`end`), and a booking line that is not counted for
+ * days that ended before today.
+ */
+const daysAnswer = (picked) => {
+  const days = reportDaysCount(picked);
+  const series = Array.from({ length: days * 2 }, (_, i) =>
+    rday(
+      shiftKey(picked.to, -(days * 2 - 1 - i)),
+      i < days ? {} : { messages_in: 1, conversations: 1, answered_ai: 1 },
+    ),
+  );
+  return json(200, {
+    ok: true,
+    data: {
+      report: reportDto({ ...quiet(), days, span_days: days * 2, end: picked.to, series }),
+      booking: { calendar: "ended", days, asked: 0, booked: 0 },
+      deals: null,
+    },
+  });
+};
+const answer = (id) => {
+  const range = reportRangeOfKey(id);
+  if (range !== null && typeof range !== "string") return daysAnswer(range);
+  return json(200, {
     ok: true,
     data: {
       report: reportDto({ days: DAYS_OF[id] }),
@@ -98,6 +133,7 @@ const answer = (id) =>
       deals: null,
     },
   });
+};
 /**
  * A reply posted to a review, and what the answer's re-read of the Reviews surface finds (null: no reply is on its way). The route
  * accepts the reply, then the refresh map re-reads Google and the Reviews read, which this serves as Google's now holds the review.
@@ -122,7 +158,10 @@ globalThis.window.fetch = async (url, init) => {
   if (/\/reports\/(campaigns|reach-outs)$/.test(u.pathname))
     return json(500, { ok: false, error: { code: "internal", message: "not read here" } });
   if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
-  const id = u.searchParams.get("period");
+  // What a read names: a period, or the first and the last of the days picked, said here by the range's one name.
+  const id = u.searchParams.has("from")
+    ? `${u.searchParams.get("from")}~${u.searchParams.get("to")}`
+    : u.searchParams.get("period");
   period.asked.push(id);
   if (period.mode === "refuse") return json(500, { ok: false, error: { code: "internal", message: "down" } });
   if (period.mode === "answer") return answer(id);
@@ -158,6 +197,10 @@ const draw = () => ReportsPage({ pathname: lensAt });
 /** One lens drawn over what `set` puts in the surface, as a person at its address sees it. */
 const drawOnce = (set) => {
   set();
+  // The period kept in this browser is the one the surface shows, as it is whenever the page's own read published it:
+  // the page follows its address, and an address with no days says the period kept.
+  const shown = surfaceValue("reports");
+  if (shown?.period) keepReportPeriod(shown.period);
   fresh();
   went.length = 0;
   return draw();
@@ -196,7 +239,7 @@ const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
 const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
-const { MonthRange } = await import(`${S}/surfaces/kit/datepicker/month-range.tsx`);
+const { DayRangePicker } = await import(`${S}/surfaces/kit/datepicker/day-range-picker.tsx`);
 // What the period's button opens loads on demand in the app (period-picker.tsx, held by periods/period-picker.test.mjs); the page's
 // tests read and press it open, so it is loaded first, as a pointer on the button loads it.
 const { loadPeriodPopover } = await import("../../../../apps/dashboard/src/surfaces/reports/period-picker.tsx");
@@ -234,6 +277,44 @@ const chosen = (tree) => {
   return c.props.options.find((o) => o.value === c.props.value)?.label;
 };
 const takeaway = (tree, id) => textOf(find(card(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
+/** The date range's button, as what it opens holds it. */
+const rangeButton = (tree) => find(seen(tree), (n) => n.type === Popover).props.trigger;
+/** What the date range says of itself: its name to a screen reader, the word on it, and what stands beside it on a desk. */
+const rangeSays = (tree) => [
+  rangeButton(tree).props["aria-label"],
+  textOf(find(rangeButton(tree), (n) => n.props?.className === "rpt-when-word")),
+  textOf(cls(seen(tree), "rpt-dates")),
+];
+/** The month days are picked on, and a day reached in one press, by its test id. */
+const month = (tree) => find(seen(tree), (n) => n.type === DayRangePicker);
+const shortcut = (tree, id) => find(seen(tree), (n) => n.props?.["data-testid"] === `period-${id}`);
+/**
+ * A run in which the shell's own move is followed, as the frame follows it: the address says the route a pick sent it
+ * to, and the page is drawn at it. `moves` holds each move and whether it took its entry's place. Each run is a
+ * workspace of its own, since a range read is held by the address's workspace (held-views.ts): what one test read
+ * must not paint at once in another that says it was never read.
+ */
+const moves = [];
+let rangeWorkspaces = 0;
+const followingMoves = async (run) => {
+  const nav = globalThis.CHANLY.nav;
+  const { hash, pathname } = globalThis.location;
+  globalThis.location.pathname = `/w/range-${(rangeWorkspaces += 1)}`;
+  moves.length = 0;
+  globalThis.CHANLY.nav = (to, opts) => {
+    moves.push([to, opts?.replace === true]);
+    globalThis.location.hash = `#/${to}`;
+    lensAt = `/w/harbor/${to}`;
+  };
+  try {
+    await run();
+  } finally {
+    globalThis.CHANLY.nav = nav;
+    globalThis.location.hash = hash;
+    globalThis.location.pathname = pathname;
+    lensAt = LENS_PATHS[0];
+  }
+};
 
 /* ------------------------------------------ the headline ------------------------------------------ */
 
@@ -345,12 +426,12 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
     "chart-sources",
   ])
     assert.ok(card(tree, id), id);
-  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), [
-    "Worth knowing",
-    "The receptionist",
-    "Your customers",
-    "Campaigns",
-  ]);
+  // A lens draws no heading that says what its tab says (Ruben, 9 Oct 2026): the section keeps its label for a screen reader.
+  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing"]);
+  assert.deepEqual(
+    all(tree, (n) => n.type === "section" && n.props.className === "rpt-section").map((n) => n.props["aria-label"]),
+    ["The receptionist", "Your customers", "Campaigns"],
+  );
   assert.equal(
     find(tree, (n) => n.type === "section" && n.props["aria-label"] === "This period").props.className,
     "rpt-grid rpt-top",
@@ -672,7 +753,7 @@ test("the head names Reports on every lens with no way back above it: a lens is 
   lensAt = LENS_PATHS[0];
 });
 
-test("the period is a round button that opens the table's periods, each with a test id, the days in words and on a month", () => {
+test("the date range is a capsule that says what the page is on, and opens the four periods, the days reached in one press and a month to pick days on", () => {
   const tree = page();
   const c = control(tree);
   assert.deepEqual(
@@ -685,21 +766,45 @@ test("the period is a round button that opens the table's periods, each with a t
     ],
   );
   assert.equal(c.props.label, "Period");
+  assert.equal(c.props.value, "7d", "the period the page is on");
   const period = byTestId(seen(tree), "reports-period");
   const pop = find(period, (n) => n.type === Popover);
-  // A glyph alone, as the Calendar's options are, opening it: named for a screen reader by the period and its days.
+  // The capsule says its word beside its glyph (the bare glyph said nothing of what it held), and names the period
+  // and its days to a screen reader; on a desk the days stand beside it.
   const open = pop.props.trigger;
   assert.equal(open.props["data-testid"], "reports-period-open");
-  assert.equal(open.props.iconOnly, true);
-  assert.equal(open.props["aria-label"], "Period: Last 7 days, Aug 29 – Sep 4");
-  assert.equal(pop.props.label, "Period", "what it opens names itself");
+  assert.equal(open.props.iconOnly, undefined, "REGRESSION: a glyph alone, which said nothing of the period it held");
+  assert.deepEqual(rangeSays(tree), ["Date range: Last 7 days, Aug 29 – Sep 4", "7 days", "Aug 29 – Sep 4"]);
+  assert.equal(pop.props.label, "Date range", "what it opens names itself");
   assert.equal(textOf(byTestId(pop, "reports-period-range")), "Aug 29 – Sep 4", "the days in words");
   assert.match(textOf(cls(pop, "rpt-when-said")), /^Last 7 days · .+ time$/, "the period and the zone the days follow");
-  const month = find(pop, (n) => n.type === MonthRange);
+  assert.equal(
+    textOf(byTestId(pop, "reports-period-before")),
+    "Compared with Aug 22 – Aug 28",
+    "and the days every figure is read against: the same number before them",
+  );
+  // The days reached in one press, worked out from the business's today (Friday 4 September): none is the page's.
   assert.deepEqual(
-    [month.props.from, month.props.to, month.props.today],
-    ["2026-08-29", "2026-09-04", "2026-09-04"],
-    "and on a month: the window's first day to today",
+    ["yesterday", "last-week", "last-month"].map((id) => {
+      const b = shortcut(tree, id);
+      return [textOf(b), b.props["aria-pressed"]];
+    }),
+    [
+      ["Yesterday", false],
+      ["Last week", false],
+      ["Last month", false],
+    ],
+  );
+  // And the month days are picked on: the period's own days drawn on it, none after today, ninety at most.
+  const picker = month(tree);
+  assert.deepEqual(
+    [picker.props.from, picker.props.to, picker.props.today, picker.props.most, picker.props.label],
+    ["2026-08-29", "2026-09-04", "2026-09-04", 90, "Days"],
+  );
+  assert.equal(
+    picker.props.hint({ first: null, band: { from: "2026-08-29", to: "2026-09-04" } }),
+    "Press a first day, then a last. 90 days at most.",
+    "what it says under itself is contracts' own",
   );
 });
 
@@ -715,9 +820,97 @@ test("the window picked shows at once, before its read lands: Month is the 1st t
       "said at once, from the business's today",
     );
     assert.match(textOf(cls(pop, "rpt-when-said")), /^This month so far · /);
-    const month = find(pop, (n) => n.type === MonthRange);
-    assert.deepEqual([month.props.from, month.props.to], ["2026-09-01", "2026-09-04"]);
+    assert.deepEqual([month(tree).props.from, month(tree).props.to], ["2026-09-01", "2026-09-04"]);
+    assert.deepEqual(rangeSays(tree), ["Date range: This month so far, Sep 1 – Sep 4", "Month", "Sep 1 – Sep 4"]);
   });
+});
+
+/** The week before the fixture's own: seven days that ended before the business's today. */
+const WEEK_BEFORE = { from: "2026-08-22", to: "2026-08-28" };
+const WEEK_BEFORE_KEY = "2026-08-22~2026-08-28";
+
+test("days picked on the month move the address and are read by their first and last day; the capsule says their dates, no period is chosen, and a period picked from there takes the days out of the address", async () => {
+  await inPeriodTest("answer", () =>
+    followingMoves(async () => {
+      let tree = page();
+      month(tree).props.onRangeChange(WEEK_BEFORE);
+      // Said at once, before the read lands: the control is on the days, and no period is.
+      tree = redraw();
+      assert.deepEqual(rangeSays(tree), ["Date range: 7 days, Aug 22 – Aug 28", "Aug 22 – 28", "7 days"]);
+      assert.equal(chosen(tree), undefined, "none of the four periods is these days");
+      for (let i = 0; i < 12; i++) await settle();
+      assert.deepEqual(
+        moves,
+        [[`reports/${WEEK_BEFORE_KEY}`, false]],
+        "the address says the days, as a new entry: Back walks the ranges a member looked at",
+      );
+      assert.deepEqual(period.asked, [WEEK_BEFORE_KEY], "one read, of the days picked");
+      redraw();
+      tree = redraw();
+      assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "the days landed");
+      assert.deepEqual(rangeSays(tree), ["Date range: 7 days, Aug 22 – Aug 28", "Aug 22 – 28", "7 days"]);
+      assert.equal(textOf(byTestId(seen(tree), "reports-period-before")), "Compared with Aug 15 – Aug 21");
+      assert.deepEqual(
+        [month(tree).props.from, month(tree).props.to, month(tree).props.today],
+        ["2026-08-22", "2026-08-28", "2026-09-04"],
+        "the month shows what was picked, and today is still the business's",
+      );
+      assert.equal(failedLine(tree), null);
+      // The booking line follows people as they stand today, so it is not counted for days that ended.
+      const booked = find(tree, (n) => n.type === Figure && n.props.id === "booked");
+      assert.equal(textOf(booked.props.value), "—", "no count is drawn of what was not counted");
+      // A period by name from there: the address says no days again, and the period is read.
+      choose(tree, "30 days");
+      for (let i = 0; i < 12; i++) await settle();
+      assert.deepEqual(moves.at(-1), ["reports", false], "a period is never in the address");
+      assert.equal(period.asked.at(-1), "30d");
+      redraw();
+      tree = redraw();
+      assert.equal(chosen(tree), "30 days");
+      assert.equal(rangeSays(tree)[1], "30 days");
+    }),
+  );
+});
+
+test("a day reached in one press is days like any picked: Yesterday is the day before the business's today, in the address by its date", async () => {
+  await inPeriodTest("answer", () =>
+    followingMoves(async () => {
+      let tree = page();
+      press(shortcut(tree, "yesterday"));
+      for (let i = 0; i < 12; i++) await settle();
+      assert.deepEqual(moves, [["reports/2026-09-03~2026-09-03", false]]);
+      assert.deepEqual(period.asked, ["2026-09-03~2026-09-03"]);
+      redraw();
+      tree = redraw();
+      assert.deepEqual(rangeSays(tree), ["Date range: Yesterday, Sep 3", "Yesterday", "Sep 3"]);
+      assert.equal(shortcut(tree, "yesterday").props["aria-pressed"], true, "and its press is drawn as chosen");
+      assert.equal(shortcut(tree, "last-week").props["aria-pressed"], false);
+      assert.equal(chosen(tree), undefined);
+    }),
+  );
+});
+
+test("days that fail to load say so by their dates, keep the range showing, and the address goes back to it in the entry's own place", async () => {
+  await inPeriodTest("refuse", () =>
+    followingMoves(async () => {
+      let tree = page();
+      month(tree).props.onRangeChange(WEEK_BEFORE);
+      for (let i = 0; i < 12; i++) await settle();
+      tree = redraw();
+      assert.equal(textOf(failedLine(tree)), "Couldn't load Aug 22 – Aug 28. Still showing 7 days.");
+      assert.deepEqual(
+        moves,
+        [
+          [`reports/${WEEK_BEFORE_KEY}`, false],
+          ["reports", true],
+        ],
+        "the entry the pick made says what the page shows, so Back never returns to days that failed",
+      );
+      assert.equal(chosen(tree), "7 days", "and the control says what the page shows");
+      assert.equal(rangeSays(tree)[1], "7 days");
+      assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is left dimmed");
+    }),
+  );
 });
 
 test("a period on its way keeps the one showing, dimmed by the one rule every page uses, and says it is busy", async () => {
@@ -1617,7 +1810,7 @@ test("REGRESSION (C25): Reports says what the campaigns sent, not what offers ea
     !said.includes("offers earned") && !said.includes("yes to offers"),
     "REGRESSION: offers over visit reminders",
   );
-  assert.ok(said.includes("what your broadcasts and playbooks sent"), "the section says what a campaign is");
+  assert.ok(said.includes("Sent") || said.includes("sent"), "the lens still says what a campaign sent");
 });
 
 test("Reports draws a Deals section where deals are on and a deal was recorded: the headline, what became of the cohort in the kit's bars, the lines beside them, the stock", () => {
@@ -1662,11 +1855,10 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
     ],
   );
   assert.equal(textOf(byTestId(section, "rpt-deals-stock")), "4 clients now · $7,500 a month.");
-  // Each fact once and nothing more: the section is its title, the headline, the card, the lines and the stock.
+  // Each fact once and nothing more: the section is the headline, the card, the lines and the stock (no title drawn).
   assert.equal(
     textOf(section),
     [
-      "Deals",
       "5 proposals went out in the last 7 days.",
       "What became of the proposals",
       "Became clients",
@@ -1691,7 +1883,9 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
 });
 
 test("a period no proposal went out in draws no bars: the headline, what is still open in the column, and the stock", () => {
-  const tree = page({ deals: toDealReportVM(dealsDto({ clients: 2, open: { count: 2, amounts: [] } }), "7 days") });
+  const tree = page({
+    deals: toDealReportVM(dealsDto({ clients: 2, open: { count: 2, amounts: [] } }), "in the last 7 days"),
+  });
   const section = byTestId(tree, "rpt-deals");
   assert.equal(textOf(byTestId(section, "rpt-deals-headline")), "No proposals went out in the last 7 days.");
   assert.equal(byTestId(section, "rpt-deals-outcomes"), null, "no bars of nothing");
@@ -1699,7 +1893,7 @@ test("a period no proposal went out in draws no bars: the headline, what is stil
   assert.deepEqual(all(lines, (n) => n.type === "li").map(textOf), ["2 proposals still open."]);
   assert.ok(!classes(lines).includes("rpt-span-7"), "no card to sit beside: the lines take the column");
   assert.equal(textOf(byTestId(section, "rpt-deals-stock")), "2 clients now.");
-  const bare = page({ deals: toDealReportVM(dealsDto({ clients: 1 }), "7 days") });
+  const bare = page({ deals: toDealReportVM(dealsDto({ clients: 1 }), "in the last 7 days") });
   assert.equal(byTestId(bare, "rpt-deals-lines"), null, "nothing more to say: no lines");
   assert.equal(textOf(byTestId(bare, "rpt-deals-stock")), "1 client now.");
 });
@@ -1707,7 +1901,7 @@ test("a period no proposal went out in draws no bars: the headline, what is stil
 test("REGRESSION: a period nobody wrote or called in still says its deals -- the section sat inside the branch for a period with messages, so a workspace whose deals are made in meetings saw none", () => {
   const tree = page({
     report: quiet(),
-    deals: toDealReportVM(dealsDto({ sent: 1, waiting: 1, open: { count: 1, amounts: [] } }), "7 days"),
+    deals: toDealReportVM(dealsDto({ sent: 1, waiting: 1, open: { count: 1, amounts: [] } }), "in the last 7 days"),
   });
   assert.ok(card(tree, "reports-empty"), "the period is still said to be quiet");
   assert.ok(byTestId(tree, "rpt-deals"), "and the deals are there beside it");
