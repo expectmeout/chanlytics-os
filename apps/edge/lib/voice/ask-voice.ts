@@ -48,12 +48,16 @@ export const askSpeechConfigured = (): boolean => !!env.ELEVENLABS_API_KEY;
 /**
  * Words read aloud in Ask's one voice (door E, api/admin/voice/speech.ts): a brief or an answer, through the
  * ElevenLabs port, as a stream of MP3 the door hands on unread. Null on an edge without the key. The voice and the
- * model are contracts' (ASK_VOICE_ID, ASK_VOICE_MODEL), the same the agent speaks with.
+ * model are contracts' (ASK_VOICE_ID, ASK_VOICE_MODEL), the same the agent speaks with. `before`: the words read just
+ * before these, in the clip this one follows (a reading's first sentence), which the vendor carries on from.
  */
-export async function speakAskVoice(text: string): Promise<SpeechStream | null> {
+export async function speakAskVoice(text: string, before?: string): Promise<SpeechStream | null> {
   const apiKey = env.ELEVENLABS_API_KEY;
   if (!apiKey) return null;
-  return speakText({ apiKey }, { voiceId: ASK_VOICE_ID, modelId: ASK_VOICE_MODEL, text });
+  return speakText(
+    { apiKey },
+    { voiceId: ASK_VOICE_ID, modelId: ASK_VOICE_MODEL, text, ...(before ? { previousText: before } : {}) },
+  );
 }
 
 /** Whether this edge holds the webhook's secret: without it there is no post-call door. */

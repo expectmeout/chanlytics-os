@@ -53,9 +53,17 @@ const idle = (): SpeechState => "idle";
  * Listen and Stop: the brief read aloud in Ask's voice. The clip and what is happening to it are the bridge's, not the
  * pane's (useSyncExternalStore over its watch): a pane drawn again while it plays (Today redraws itself as its data
  * moves) says Stop, a pane that did not start it hears its end, and a pane that goes away leaves it to finish. A
- * refusal (the mint, the vendor, a paused workspace) is said once beside the button, in the server's words.
+ * refusal (the mint, the vendor, a paused workspace) is said once beside the button, in the server's words. `warm`: a
+ * mouse gone down on Listen, a tenth of a second before the click that follows it: the clips are asked for then, so
+ * the voice is that much nearer the press. (A finger going down may be a scroll beginning, and asks nothing.)
  */
-function useSpeech(text: string | null): { can: boolean; state: SpeechState; why: string | null; toggle: () => void } {
+function useSpeech(text: string | null): {
+  can: boolean;
+  state: SpeechState;
+  why: string | null;
+  toggle: () => void;
+  warm: () => void;
+} {
   const speech = askSpeech();
   const state = useSyncExternalStore(
     speech ? (on: () => void) => speech.watchSpeech(on) : noWatch,
@@ -78,7 +86,10 @@ function useSpeech(text: string | null): { can: boolean; state: SpeechState; why
       setWhy(e instanceof Error && e.message ? e.message : "Ask's voice could not be reached just now.");
     });
   };
-  return { can: !!speech, state, why, toggle };
+  const warm = () => {
+    if (speech && text && speech.state() === "idle") speech.warmSpeech?.(text, "brief");
+  };
+  return { can: !!speech, state, why, toggle, warm };
 }
 
 /**
@@ -97,6 +108,9 @@ function listenButton(speech: ReturnType<typeof useSpeech>, line: string, place:
       aria-pressed={speech.state === "speaking"}
       aria-busy={speech.state === "loading" || undefined}
       onClick={speech.toggle}
+      onPointerDown={(e) => {
+        if (e.pointerType === "mouse" && e.button === 0) speech.warm();
+      }}
       data-state={speech.state}
       data-testid={place === "head" ? "today-brief-listen-head" : "today-brief-listen"}
     >

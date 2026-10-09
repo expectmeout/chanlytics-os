@@ -64,6 +64,8 @@ interface AskSpeech {
   speak(text: string, purpose: SpeechPurpose): Promise<void>;
   /** Stop reading, or stop waiting for the clip. */
   stopSpeaking(): void;
+  /** A press that has begun: the clips asked for before it lands. Absent from a bridge that does not warm. */
+  warmSpeech?(text: string, purpose: SpeechPurpose): void;
 }
 
 /** Ask's voice where the shell has wired it and the device can play it; nothing in a stand-in window. */

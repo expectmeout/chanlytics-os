@@ -142,14 +142,17 @@ function voiceCalls(client: Api) {
 
 /**
  * Words read aloud in Ask's one voice (the spec's §3.5 as amended 4 Oct 2026: the one-way speech): the route answers
- * the audio itself, MP3, as the vendor makes it. The whole clip is read before it plays (a brief is 15 to 25 KB and
- * arrives in about a second), so the player needs no media-source plumbing; a refusal is thrown in the server's
- * words, for the button to say.
+ * the audio itself, MP3, as the vendor makes it. A clip is read whole before it plays, so the player needs no
+ * media-source plumbing; that the first word is not behind the whole of a brief is the speech module's doing, which
+ * asks for the first sentence as a clip of its own (ask/speech.ts speechParts). `before`: the words read just before
+ * these, where these carry on from them, so the vendor reads them in the same breath. A refusal is thrown in the
+ * server's words, for the button to say.
  */
 function speechCalls(client: Api) {
   return {
-    speech: async (text: string, purpose: SpeechPurpose): Promise<Blob> => {
-      const res = await client.raw("POST ask/speech", { body: { text, purpose }, timeoutMs: SPEECH_MS });
+    speech: async (text: string, purpose: SpeechPurpose, more?: { before?: string }): Promise<Blob> => {
+      const body = more?.before ? { text, purpose, before: more.before } : { text, purpose };
+      const res = await client.raw("POST ask/speech", { body, timeoutMs: SPEECH_MS });
       if (!res.ok) {
         const j = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
         // A clip asked for and refused changed nothing: a read, for the refusal's words.

@@ -78,3 +78,22 @@ test("the vendor's no: its limit (429) and a connection that never opened are un
   assert.equal(a.outcome, "unreachable");
   assert.equal(a.status, 0);
 });
+
+test("a clip that carries on from another is told what came before it: previous_text, beside the words, and absent where nothing came before", async () => {
+  const bytes = new Uint8Array([0xff, 0xfb, 0x90, 0x00]);
+  const w = wire(() => new Response(bytes, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+  const a = await port.speakText(
+    CFG,
+    { ...INPUT, text: "Three are booked.", previousText: "Two at 3:30." },
+    { fetch: w.fetch },
+  );
+  assert.equal(a.outcome, "ok");
+  assert.deepEqual(JSON.parse(w.calls[0].body), {
+    text: "Three are booked.",
+    model_id: "eleven_turbo_v2",
+    apply_text_normalization: "on",
+    previous_text: "Two at 3:30.",
+  });
+  await port.speakText(CFG, { ...INPUT, previousText: "" }, { fetch: w.fetch });
+  assert.equal("previous_text" in JSON.parse(w.calls[1].body), false, "nothing came before: nothing said of it");
+});

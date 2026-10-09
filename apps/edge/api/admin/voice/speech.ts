@@ -9,7 +9,9 @@
  * mint door does: a paused, ended or unbilled one spends nothing, 402), then streams the vendor's MP3 back as it
  * arrives, so the first word reaches the person about when the connection is up. A vendor that could not be reached,
  * or said "not now" (a 429), is 503 provider_unreachable; one that refused is 502 provider_refused. Body: { tenant_id,
- * user_id, text, purpose } where purpose is `brief` or `answer`, for the log alone.
+ * user_id, text, purpose, before? } where purpose is `brief` or `answer`, for the log alone, and `before` is the words
+ * read just before these in the clip this one follows (a reading's first sentence, asked for by itself so the first
+ * word is not behind the whole): the vendor reads these as carrying on from them, and is not billed for them.
  */
 import { refuse } from "../../../lib/http.js";
 import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
@@ -30,7 +32,13 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!auth.ok) return auth.response;
   if (!askSpeechConfigured()) return refuse(503, "no_provider_key");
 
-  const body = await readBody<{ tenant_id?: string; user_id?: string; text?: string; purpose?: string }>(request);
+  const body = await readBody<{
+    tenant_id?: string;
+    user_id?: string;
+    text?: string;
+    purpose?: string;
+    before?: string;
+  }>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -41,13 +49,16 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (text.length > ASK_SPEECH_MAX_CHARS)
     return refuse(413, "too_large", `text over ${ASK_SPEECH_MAX_CHARS} characters`);
   const purpose = PURPOSES.has(String(body.purpose)) ? String(body.purpose) : "answer";
+  // What came before, bounded as the words are: its end is what the next clip carries on from.
+  const before =
+    typeof body.before === "string" ? body.before.replace(/\s+/g, " ").trim().slice(-ASK_SPEECH_MAX_CHARS) : "";
 
   if (!(await mayUseModelFor("ask", tenantId))) {
     L.warn("voice_speech_refused", { tenant_id: tenantId, why: "may_not_spend" });
     return refuse(402, "payment_required", "Voice is off while this workspace is paused or its plan has ended.");
   }
 
-  const spoken = await speakAskVoice(text);
+  const spoken = await speakAskVoice(text, before || undefined);
   if (!spoken) return refuse(503, "no_provider_key");
   if (spoken.outcome !== "ok") {
     L.warn("voice_speech_refused", {
@@ -62,7 +73,13 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   }
   // The words themselves are never logged (a brief names customers); their length and the time to the vendor's first
   // byte are what a question about speed or cost needs.
-  L.info("voice_speech_spoken", { tenant_id: tenantId, purpose, chars: text.length, ttfb_ms: Date.now() - t0 });
+  L.info("voice_speech_spoken", {
+    tenant_id: tenantId,
+    purpose,
+    chars: text.length,
+    ttfb_ms: Date.now() - t0,
+    ...(before ? { follows: true } : {}),
+  });
   return new Response(spoken.body, {
     status: 200,
     headers: { "content-type": spoken.contentType, "cache-control": "no-store" },

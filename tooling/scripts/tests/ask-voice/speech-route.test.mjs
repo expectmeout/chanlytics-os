@@ -175,3 +175,34 @@ test("the words are bounded before the edge hears of them: past the cap, empty, 
   await refused(speech.POST.run(send({ text: "Hello.", purpose: "song" }), ctxFor()), "validation", 400);
   assert.equal(net.calls.length, 0);
 });
+
+test("the rest of a reading says what came before it: the edge is handed the words read just before, folded; a clip that follows nothing says nothing of it; and what came before is bounded as the words are", async () => {
+  const mp3 = new Uint8Array([0xff, 0xfb, 0x90, 0x00]);
+  const net = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+  await speech.POST.run(
+    send({ text: "Five are booked today.", purpose: "brief", before: "Two  people\n need you." }),
+    ctxFor(),
+  );
+  assert.deepEqual(net.calls[0].body, {
+    tenant_id: A,
+    user_id: USER,
+    text: "Five are booked today.",
+    purpose: "brief",
+    before: "Two people need you.",
+  });
+  const alone = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+  await speech.POST.run(send({ text: "Hello.", purpose: "answer", before: "   " }), ctxFor());
+  assert.equal("before" in alone.calls[0].body, false, "blank is nothing");
+  const quiet = silent();
+  await refused(
+    speech.POST.run(send({ text: "Hello.", purpose: "answer", before: "x".repeat(1501) }), ctxFor()),
+    "validation",
+    400,
+  );
+  assert.equal(quiet.calls.length, 0);
+});
+
+test("a reading of more than one sentence is two clips, so the hour's count is a hundred and twenty: sixty readings, as it was", async () => {
+  const { RATE } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+  assert.equal(RATE.speech.limit, 120);
+});

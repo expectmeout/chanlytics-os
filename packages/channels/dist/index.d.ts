@@ -1157,12 +1157,17 @@ type SpeechStream = {
  * the agent's does (`apply_text_normalization: "on"`); MP3 at 44.1 kHz and 128 kb/s is the format every plan may ask
  * for and every browser plays. The body comes back unread, for the door to hand on as it arrives; the vendor's first
  * byte came in 300 to 550 ms on this account (4 Oct 2026, both models, `apply_text_normalization: on` accepted), so a
- * person hears the first word about when the connection is up.
+ * person hears the first word about when the connection is up. It comes sooner the fewer the words: 280 to 300 ms for
+ * one sentence against 470 to 550 for a brief of 600 characters (9 Oct 2026), which is why a reading asks for its
+ * first sentence as a clip of its own. `previousText`: the words read just before these in another clip, which the
+ * vendor reads these as carrying on from (`previous_text`, accepted on the stream by Turbo v2 and Flash v2.5), so two
+ * clips of one reading keep one breath.
  */
 declare function speakText(cfg: Pick<ElevenLabsConfig, "apiKey">, input: {
     voiceId: string;
     modelId: string;
     text: string;
+    previousText?: string;
 }, deps?: Deps): Promise<SpeechStream>;
 /** The vendor's record of a conversation, erased (`DELETE /v1/convai/conversations/{id}`): what door D does once the minutes are written. */
 declare function deleteConversation(cfg: Pick<ElevenLabsConfig, "apiKey">, conversationId: string, deps?: Deps): Promise<{
