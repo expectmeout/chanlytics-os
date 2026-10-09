@@ -264,7 +264,8 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   if (!(await ports.mark(b.id, r.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN }))) return "go on";
   // An email's queued row is written only now, with the claim held: a claim that was lost or failed left none behind. A
   // write that fails gives the claim back (nothing was written, nothing left), and the person waits queued like one
-  // whose thread could not be read; a row under that id that has had its say is not sent again.
+  // whose thread could not be read; a row under that id that has had its say is not sent again. The row is written
+  // claimed for the wire too (ports queueEmail), so a member's cancel-send cannot win it while the provider answers.
   const queued = await queueEmailRow(w, made).catch(async (e: unknown) => {
     await release(ports, b.id, r.contact_id, "not_taken");
     throw e;

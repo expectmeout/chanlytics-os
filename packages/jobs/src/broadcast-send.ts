@@ -25,12 +25,14 @@ import {
   type Database,
   appointmentStates,
   campaignMonthSent,
+  claimQueuedSend,
   emitEvent,
   insertQueuedEmail,
   mailboxOfTenant,
   messageVersionRowsOf,
   queuedRecipients,
   recordEvent,
+  releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   runGoesByOthers,
@@ -254,6 +256,11 @@ function peoplePorts(
     unsubscribeUrl: unsubscribeUrlPort(ctx, tenantId),
     // The email, written queued under the id its request was frozen with, before it leaves (the door asks for the
     // row). Its row keeps the request as meta.email, as every email's does. A row already there is a resumed run's.
+    // Written CLAIMED (sending_at, 00352), as sendQueued claims a reply's row before the wire: the batch holds this
+    // person and puts the words on the wire next, and a call-back that asks `sending_at is null` (a member's
+    // cancel-send, the clock's withdrawal) would otherwise win the row while the provider answers, and the person
+    // would get the email under a row that said canceled for ever. A resumed run's row still queued is this run's (the
+    // person's claim is the batch's one door), and takes the claim before it is read, unless it holds one already.
     queueEmail: async (row) => {
       const wrote = await insertQueuedEmail(db, {
         id: row.id,
@@ -266,17 +273,22 @@ function peoplePorts(
         type: "text",
         body: row.body,
         status: "queued",
+        sending_at: new Date().toISOString(),
         meta: {
           ...row.meta,
           email: { subject: row.request.subject, to: [...row.request.to], request: frozen(row.request) },
         },
       });
       if (wrote === "written") return { status: "queued" };
+      await claimQueuedSend(db, tenantId, row.id);
       const there = await writtenEmail(db, { tenantId: tenantId, id: row.id });
       if (!there) throw new Error(`broadcast_send: the email ${row.id} is taken and cannot be read`);
       return { status: there.status };
     },
+    // The batch's own row, which it wrote claimed: the claim given back first (the provider did not take the email, or
+    // the door threw before the wire), so the withdrawal that follows, which takes only a row no run holds, takes it.
     withdrawEmail: async (messageId) => {
+      await releaseQueuedSend(db, tenantId, messageId);
       await withdrawEmail(db, { tenantId: tenantId, id: messageId, reason: "not_taken" });
     },
     monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
