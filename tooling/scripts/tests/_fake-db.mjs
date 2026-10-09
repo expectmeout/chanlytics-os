@@ -778,8 +778,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are
     // given, 00298) and each person's channel (none stays none, which is WhatsApp), as campaign-channels.db.test.mjs
-    // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too.
-    assemble_broadcast: ({ p_tenant, p_run, p_recipients, p_send_at }) => {
+    // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too. Called
+    // with `p_decision` it is 00360's door: the send_broadcast decision on the run rides in the same write, the
+    // member's (p_actor) or the system's (none), and the answer is {id, decision_id, undo_dropped} ({id} alone for a
+    // run that waits); called without, it is 00282's and answers the id, as an app from before 00360 reads it.
+    assemble_broadcast: (args) => {
+      const { p_tenant, p_run, p_recipients, p_send_at, p_decision, p_actor, p_via } = args;
       const at = stampOf(tables);
       const id = crypto.randomUUID();
       const run = Object.fromEntries(Object.entries(p_run).filter(([, v]) => v !== null));
@@ -815,7 +819,76 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             payload: { broadcast_id: id },
           }),
         );
-      return id;
+      if (!("p_decision" in args)) return id;
+      if (p_decision == null) return { id };
+      const decision = insertRow("decisions", {
+        tenant_id: p_tenant,
+        subject_type: "broadcast",
+        subject_id: id,
+        verb: "send_broadcast",
+        actor_type: p_actor ? "user" : "system",
+        actor_user_id: p_actor ?? null,
+        payload: p_via ? { ...p_decision, via: p_via } : p_decision,
+      });
+      return { id, decision_id: decision.id, undo_dropped: false };
+    },
+    /**
+     * A billing reading and the workspace's switch as one write (00361 billing_apply): the row's columns laid over it,
+     * only while the row is still what the caller planned against (p_expect), then tenants.status when the switch
+     * moves; true when written, false when another reading won or there is no row. Its two statements are logged as
+     * the statements they are (a suite reads the compare-and-set's filters and the switch's write), and a fault on
+     * either refuses the whole door as the database would, with nothing of it kept.
+     */
+    billing_apply: ({ p_tenant_id, p_row, p_expect, p_tenant_status }) => {
+      const allowed = new Set([
+        "stripe_customer_id",
+        "stripe_subscription_id",
+        "status",
+        "price_id",
+        "current_period_end",
+        "trial_end",
+        "cancel_at",
+        "cancel_at_period_end",
+        "card_brand",
+        "card_last4",
+        "last_payment_failed_at",
+        "last_paid_at",
+      ]);
+      const stray = Object.keys(p_row ?? {}).find((k) => !allowed.has(k));
+      if (stray)
+        throw Object.assign(new Error(`billing_apply: ${stray} is not a column a reading writes`), { code: "22023" });
+      const filters = [["eq", "tenant_id", p_tenant_id]];
+      if (p_expect) filters.push(["eq", "status", p_expect.status], ["eq", "updated_at", p_expect.updated_at]);
+      seen.push({ table: "billing_accounts", op: "update", values: p_row, filters });
+      for (const statement of ["billing_accounts.update", ...(p_tenant_status ? ["tenants.update"] : [])]) {
+        const fault = faults[statement];
+        if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      }
+      const row = (tables.billing_accounts ?? []).find(
+        (r) =>
+          r.tenant_id === p_tenant_id &&
+          (!p_expect || (r.status === p_expect.status && r.updated_at === p_expect.updated_at)),
+      );
+      if (!row) return false;
+      Object.assign(row, p_row, { updated_at: stampOf(tables) });
+      if (p_tenant_status) {
+        const tenant = tenantOf(p_tenant_id);
+        if (!["active", "paused", "test"].includes(p_tenant_status))
+          throw Object.assign(
+            new Error('new row for relation "tenants" violates check constraint "tenants_status_check"'),
+            {
+              code: "23514",
+            },
+          );
+        seen.push({
+          table: "tenants",
+          op: "update",
+          values: { status: p_tenant_status },
+          filters: [["eq", "id", p_tenant_id]],
+        });
+        if (tenant) tenant.status = p_tenant_status;
+      }
+      return true;
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),

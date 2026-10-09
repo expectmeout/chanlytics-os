@@ -504,7 +504,10 @@ test("a database that refuses the amount costs the amount alone: the claim compl
 test("a database that does not answer the call at all costs the amount alone", async () => {
   const door = amountDoor();
   const { state, db } = withDoor(door);
-  db.rpc = () => Promise.reject(new TypeError("fetch failed"));
+  // The amount's door is dark; the row's own door answers (00361 billing_apply: the stamp is a door's call too).
+  const rpc = db.rpc;
+  db.rpc = (name, args) =>
+    name === "billing_event_keep_amount" ? Promise.reject(new TypeError("fetch failed")) : rpc.call(db, name, args);
   const { result, lines } = await logged(() =>
     deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_dark"),
   );
