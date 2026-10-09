@@ -14,14 +14,18 @@
  * was sent, stored or audited. There is no optimistic update and no undo: an invitation email cannot be recalled, and a
  * role change is the power to message customers.
  */
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { inviteState, memberWords, personInitials, stateOf } from "@chanlytics/contracts";
 import { teamVerbs } from "@/legacy-bridge/inbox-verbs";
 import type { TeamInvite, TeamMember } from "@/legacy-bridge/surfaces/settings";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
+import { RecordField } from "../../kit/record/field";
+import { RecordRow } from "../../kit/record/row";
 import { Segmented } from "../../kit/segmented/segmented";
 import {
   actingRole,
@@ -51,13 +55,6 @@ interface Person {
   expiresAt?: string | null;
   isMe: boolean;
 }
-
-/** A person's own hue, from the address they are known by: the same two letters on the same disc, but one is theirs. */
-const teamHue = (seed: string): number => {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360;
-  return h;
-};
 
 /** A teammate's role is a name, not a state (tone.ts `role` is plain): the one chip, in the words contracts keeps. */
 function RolePill({ role }: { role: string }) {
@@ -103,23 +100,20 @@ function peopleOf(team: TeamMember[], invites: TeamInvite[], me: string | null):
 /** An owner's preview of a narrower role: View-as, the role store's, which every gate reads and which only narrows. */
 function viewAs(myRole: string, previewing: boolean): ReactNode {
   return (
-    <div className="set-viewas">
-      <span className="set-viewas-label" id="set-viewas-label">
-        View as
-      </span>
-      <Segmented
-        labelledBy="set-viewas-label"
-        value={myRole}
-        onValueChange={(r) => setViewAs(r === "owner" ? null : r)}
-        options={["owner", "operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
-      />
-      {previewing && (
-        <span className="set-viewas-note">
-          <Icon name="agents" size={10} /> Previewing — controls a {roleWords(myRole).label} wouldn&apos;t have are
-          hidden
-        </span>
-      )}
-    </div>
+    <RecordRow
+      id="team-viewas"
+      testid="team-viewas"
+      label="View as"
+      value={
+        <Segmented
+          labelledBy="rec-row-team-viewas-key"
+          value={myRole}
+          onValueChange={(r) => setViewAs(r === "owner" ? null : r)}
+          options={["owner", "operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
+        />
+      }
+      hint={previewing ? `Previewing — controls a ${roleWords(myRole).label} wouldn't have are hidden` : null}
+    />
   );
 }
 
@@ -159,13 +153,7 @@ function personRow(m: Person, k: RowKit): ReactNode {
       className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}
       data-asking={k.armRemove === m.id ? "true" : undefined}
     >
-      <span
-        className="avatar set-team-face"
-        aria-hidden="true"
-        style={{ "--who-h": teamHue(m.email || m.name) } as CSSProperties}
-      >
-        {personInitials(m.displayName, m.email)}
-      </span>
+      <Face className="set-team-face" initials={personInitials(m.displayName, m.email)} />
       <span className="set-team-body">
         <span className="set-team-name">
           {m.name}
@@ -257,17 +245,19 @@ function invitedWords(
 /** The card's head: its name, how many people (or that they could not be read), and Invite, the card's act. */
 function teamHead(realTeam: TeamMember[] | null, inviting: boolean, open: () => void): ReactNode {
   return (
-    <div className="fl-card-head">
-      <h2 className="fl-card-title">Team</h2>
-      <span className="fl-card-sub">
+    <div className="rec-card-head">
+      <h2 className="rec-card-title" id="set-team-title">
+        Team
+      </h2>
+      <span className="rec-card-sub">
         {realTeam === null ? "Couldn't be loaded" : `${realTeam.length} ${realTeam.length === 1 ? "person" : "people"}`}
       </span>
       {/* Invite is the card's act, so a role that may not invite sees it gated, saying why when pressed, instead of a
           card with no act at all. */}
       {realTeam !== null && !inviting && (
-        <button className="btn btn-sm" onClick={open} {...gate("team", "invite a teammate")}>
+        <Button size="sm" onClick={open} {...gate("team", "invite a teammate")}>
           <Icon name="plus" size={12} /> Invite
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -285,12 +275,14 @@ function inviteRow(o: {
 }): ReactNode {
   return (
     <div className="set-invite">
-      <input
-        className="rec-input set-invite-email"
+      <RecordField
+        id="team-invite-email"
+        label={null}
+        aria-label="Teammate's email"
         type="email"
         placeholder="teammate@email.com"
         value={o.email}
-        onChange={(e) => o.setEmail(e.target.value)}
+        onChange={o.setEmail}
         onKeyDown={(e) => {
           if (e.key === "Enter") o.invite();
         }}
@@ -302,12 +294,12 @@ function inviteRow(o: {
         onValueChange={o.setInviteRole}
         options={["operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
       />
-      <button className="btn btn-primary btn-sm" onClick={o.invite} disabled={o.teamBusy}>
+      <Button size="sm" variant="primary" onClick={o.invite} disabled={o.teamBusy}>
         {o.teamBusy ? "Sending…" : "Send invite"}
-      </button>
-      <button className="btn btn-ghost btn-icon btn-sm" onClick={o.cancel} aria-label="Cancel">
+      </Button>
+      <Button size="sm" variant="quiet" iconOnly onClick={o.cancel} aria-label="Cancel">
         <Icon name="x" size={12} />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -410,7 +402,7 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
   };
 
   return (
-    <section className="fl-card set-card">
+    <section className="rec-card set-card" data-testid="set-team" aria-labelledby="set-team-title">
       {teamHead(realTeam, inviting, () => setInviting(true))}
 
       {isOwner && viewAs(myRole, previewing)}
@@ -443,12 +435,15 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
 
       {!teamUnavailable && people.map((m) => personRow(m, kit))}
 
-      {rolesLegend(people)}
+      <RecordRow id="team-roles" testid="team-roles" label="Roles" value={rolesLegend(people)} />
 
       {!canManage && (
-        <div className="set-team-gated" data-testid="team-gated">
-          <Icon name="shield" size={11} /> {gateTitle("team", "change the team")}
-        </div>
+        <RecordRow
+          id="team-gated"
+          testid="team-gated"
+          label="Who can change this"
+          value={gateTitle("team", "change the team")}
+        />
       )}
     </section>
   );

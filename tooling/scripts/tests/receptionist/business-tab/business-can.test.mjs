@@ -237,7 +237,7 @@ test("with replies held, the card says so once, above the rows, and no row repea
     }
     assert.equal(chipsOf(byTestId(card, "rec-can-transfer"))[1].props["data-on"], "true", "a call still answers");
     // One door, to the tab that fixes it.
-    const doors = all(card, (n) => n.props?.["data-testid"] === "rec-can-held-door");
+    const doors = all(card, (n) => n.type === "button" && n.props?.["data-testid"] === "rec-can-held-door");
     assert.equal(doors.length, 1);
     const before = went.length;
     press(doors[0]);

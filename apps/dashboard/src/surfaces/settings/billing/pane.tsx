@@ -6,6 +6,10 @@
  * on a direct arrangement sees that, and no button that charges. Settings' page (settings.jsx) still draws it by its old
  * name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  *
+ * Drawn as Profile and the Business tab are (7 Oct 2026): the kit's record card, each fact a record row (the plan and
+ * where it stands, the card on file, who may change it, where the WhatsApp bill is), the doors under the plan's words,
+ * and the state as the kit's pill. It was the house's older card, a raised ground of its own beside the glass panes.
+ *
  * One row at the foot of the plan card says where the WhatsApp bill is: Meta bills the messages a business starts, to the card on its
  * own WhatsApp account, and not here (contracts WHATSAPP_COST_WORDS), linked to what WhatsApp costs on Settings > Connections.
  */
@@ -17,22 +21,19 @@ import {
   type BillingInvoiceDto,
   type BillingVM,
 } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { StatePill } from "../../kit/pill/state-pill";
+import { RecordRow } from "../../kit/record/row";
 import { canDo, gate, gateTitle, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { billingVerbs as api } from "./surface";
 
-const BILLING_PILL: Record<string, string> = {
-  ok: "pill-ok",
-  warn: "pill-warn",
-  danger: "pill-danger",
-  "": "pill-accent",
-};
 // An invoice's status as the pill every other status on this surface is. The words are contracts' (invoiceStatusWords);
 // the tone is the page's: paid is fine, not paid yet wants a look, could not be collected is a problem, the rest are plain.
-const INVOICE_PILL: Record<string, string> = { paid: "pill-ok", open: "pill-warn", uncollectible: "pill-danger" };
+const INVOICE_TONE: Record<string, string> = { paid: "ok", open: "warn", uncollectible: "danger" };
 
 /** Inside the phone app (contracts IN_APP_CLASS, stamped on the document before paint). */
 const inApp = (): boolean =>
@@ -54,39 +55,42 @@ interface Doors {
 function acts(vm: BillingVM, subscribed: boolean, d: Doors): ReactNode {
   const { busy } = d;
   return (
-    <div className="bc-chips">
+    <span className="set-acts">
       {inApp() ? (
         /* A free companion to a paid web tool offers no purchase and no call to buy elsewhere (App Store 3.1.3(f)): the status stays, the doors do not. */
-        <span className="set-row-hint" data-testid="billing-in-app">
+        <span className="rec-row-hint" data-testid="billing-in-app">
           Billing is managed from Chanlytics on the web.
         </span>
       ) : (
         <>
           {vm.actions.checkout && (
-            <button
-              className="btn btn-primary btn-sm"
+            <Button
+              size="sm"
+              variant="primary"
               disabled={!!busy}
               onClick={() => d.leave("checkout")}
               data-testid="billing-checkout"
               {...gate("billing", "start the subscription")}
             >
               {busy === "checkout" ? "Opening Stripe…" : "Start the trial"}
-            </button>
+            </Button>
           )}
           {vm.actions.resume && (
-            <button
-              className="btn btn-primary btn-sm"
+            <Button
+              size="sm"
+              variant="primary"
               disabled={!!busy}
               onClick={d.resume}
               data-testid="billing-resume"
               {...gate("billing", "resume the subscription")}
             >
               {busy === "resume" ? "Resuming…" : "Resume"}
-            </button>
+            </Button>
           )}
           {vm.actions.startNow && api.startWords && (
-            <button
-              className="btn btn-primary btn-sm"
+            <Button
+              size="sm"
+              variant="primary"
               disabled={!!busy}
               onClick={d.ask}
               aria-busy={busy === "startNow" || undefined}
@@ -94,33 +98,49 @@ function acts(vm: BillingVM, subscribed: boolean, d: Doors): ReactNode {
               {...gate("billing", "start the plan")}
             >
               {busy === "startNow" ? api.startWords.busy : api.startWords.button}
-            </button>
+            </Button>
           )}
           {vm.actions.portal && (
-            <button
-              className="btn btn-sm"
+            <Button
+              size="sm"
               disabled={!!busy}
               onClick={() => d.leave("portal")}
               data-testid="billing-portal"
               {...gate("billing", "manage the subscription")}
             >
               {busy === "portal" ? "Opening Stripe…" : "Manage billing"}
-            </button>
+            </Button>
           )}
         </>
       )}
       {subscribed && (
-        <button
-          className="cl-bucket-link"
+        <LinkButton
           disabled={!!busy}
           onClick={d.sync}
           data-testid="billing-sync"
           {...gate("approve", "read Stripe again")}
         >
           {busy === "sync" ? "Refreshing…" : "Refresh"}
-        </button>
+        </LinkButton>
       )}
-    </div>
+    </span>
+  );
+}
+
+/** Where the plan stands, said under its name: the detail Stripe's state gives, the card on file, and a test mode's note. */
+function planSays(vm: BillingVM): ReactNode {
+  const cardLine = vm.card && !String(vm.detail || "").includes(vm.card) ? `Card on file: ${vm.card}` : null;
+  return (
+    <>
+      {vm.detail}
+      {cardLine ? ` ${cardLine}` : null}
+      {vm.testMode ? (
+        <>
+          {" "}
+          <span data-testid="billing-test-mode-note">{vm.testMode}</span>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -142,17 +162,13 @@ function planCard(o: {
   const acct = dto.account;
   const brand = acct?.card_brand ? acct.card_brand.charAt(0).toUpperCase() + acct.card_brand.slice(1) : null;
   return (
-    <section className="fl-card set-card" data-testid="billing-real">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">
+    <section className="rec-card set-card" data-testid="billing-real" aria-labelledby="set-billing-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="set-billing-title">
           Billing
-          {vm.testMode && (
-            <span className="pill pill-warn" style={{ marginLeft: 8 }} data-testid="billing-test-mode">
-              Test mode
-            </span>
-          )}
         </h2>
-        <span className="fl-card-sub">
+        {vm.testMode && <StatePill kind="tone" value="warn" label="Test mode" testid="billing-test-mode" />}
+        <span className="rec-card-sub">
           {product || (vm.mode === "direct" ? "An arrangement made with Chanlytics" : "How this workspace pays")}
         </span>
         {price && (
@@ -163,68 +179,53 @@ function planCard(o: {
         )}
       </div>
       {note && (
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-hint" data-testid="billing-note">
-              {note}
-            </span>
-          </div>
-          <button className="cl-bucket-link" onClick={dismiss}>
-            Dismiss
-          </button>
-        </div>
+        <RecordRow
+          id="billing-note"
+          label="From Stripe"
+          value={<span data-testid="billing-note">{note}</span>}
+          act={{ label: "Dismiss", onClick: dismiss, testid: "billing-note-dismiss" }}
+        />
       )}
-      <div className="set-row">
-        <div className="set-row-info">
-          <span className="set-row-label" data-testid="billing-headline">
+      <RecordRow
+        id="billing-plan"
+        label="Plan"
+        value={
+          <span className="set-headline" data-testid="billing-headline">
             {vm.headline}
             {vm.mode === "stripe" && vm.status !== "none" && (
-              <span className={`pill ${BILLING_PILL[pill.tone]}`} style={{ marginLeft: 8 }} data-testid="billing-pill">
-                {pill.words}
-              </span>
+              <StatePill kind="tone" value={pill.tone} label={pill.words} testid="billing-pill" />
             )}
           </span>
-          <span className="set-row-hint">{vm.detail}</span>
-          {vm.card && !String(vm.detail || "").includes(vm.card) && (
-            <span className="set-row-hint">Card on file: {vm.card}</span>
-          )}
-          {vm.testMode && (
-            <span className="set-row-hint" data-testid="billing-test-mode-note">
-              {vm.testMode}
-            </span>
-          )}
-        </div>
+        }
+        hint={planSays(vm)}
+      >
         {acts(vm, subscribed, d)}
-      </div>
+      </RecordRow>
       {brand && acct?.card_last4 && (
-        <div className="set-row" data-testid="billing-method">
-          <div className="set-row-info set-method">
-            <span className="set-card-chip" aria-hidden="true">
-              {brand}
-            </span>
-            <span className="set-method-body">
-              <span className="set-row-label">&bull;&bull;&bull;&bull; {acct.card_last4}</span>
-              <span className="set-row-hint">
-                Stripe holds it. Chanlytics sees the brand and the last four digits, nothing else.
-              </span>
-            </span>
-          </div>
-          {/* No Change here: Manage billing above opens the same Stripe portal, and one door is one door. */}
-        </div>
+        <RecordRow
+          id="billing-method"
+          testid="billing-method"
+          label="Card"
+          value={`${brand} •••• ${acct.card_last4}`}
+          hint="Stripe holds it. Chanlytics sees the brand and the last four digits, nothing else."
+        />
       )}
       {vm.mode === "stripe" && !owner && (
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-hint">{gateTitle("billing", "start or manage the subscription")}</span>
-          </div>
-        </div>
+        <RecordRow
+          id="billing-access"
+          label="Who can change this"
+          value={gateTitle("billing", "start or manage the subscription")}
+        />
       )}
       {/* Meta bills the WhatsApp messages the business starts, to the card on its own WhatsApp account: said where a bill is
           read, with Meta's own page of prices after it (no rate is written in Chanlytics). A new tab, and nothing of this
           page's passes with it. */}
-      <div className="set-row" data-testid="billing-whatsapp">
-        <div className="set-row-info">
-          <span className="set-row-hint">
+      <RecordRow
+        id="billing-whatsapp"
+        testid="billing-whatsapp"
+        label="WhatsApp"
+        value={
+          <>
             <span data-testid="billing-whatsapp-line">{WHATSAPP_COST_WORDS.billingLine}</span>{" "}
             <LinkButton
               href={WHATSAPP_COST_WORDS.ratesUrl}
@@ -234,9 +235,9 @@ function planCard(o: {
             >
               {WHATSAPP_COST_WORDS.pricesLink}
             </LinkButton>
-          </span>
-        </div>
-      </div>
+          </>
+        }
+      />
     </section>
   );
 }
@@ -244,31 +245,28 @@ function planCard(o: {
 /** The invoices: the last twelve when asked, none yet, or each one with its date, amount, status and Stripe's page. */
 function invoicesCard(invoices: BillingInvoiceDto[] | null, busy: Busy, showInvoices: () => void): ReactNode {
   return (
-    <section className="fl-card set-card" data-testid="billing-invoices">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">Invoices</h2>
-        <span className="fl-card-sub">Each one opens on Stripe&rsquo;s page.</span>
+    <section className="rec-card set-card" data-testid="billing-invoices" aria-labelledby="set-invoices-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="set-invoices-title">
+          Invoices
+        </h2>
+        <span className="rec-card-sub">Each one opens on Stripe&rsquo;s page.</span>
       </div>
       {invoices === null ? (
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-hint">The last twelve, when you ask.</span>
-          </div>
-          <button
-            className="btn btn-sm"
-            disabled={!!busy}
-            onClick={showInvoices}
-            {...gate("billing", "read the invoices")}
-          >
-            {busy === "invoices" ? "Reading…" : "Show invoices"}
-          </button>
-        </div>
+        <RecordRow
+          id="billing-invoices-ask"
+          label="Last twelve"
+          value="Read from Stripe when you ask."
+          act={{
+            label: busy === "invoices" ? "Reading…" : "Show invoices",
+            onClick: () => {
+              if (!busy) showInvoices();
+            },
+            gate: gate("billing", "read the invoices"),
+          }}
+        />
       ) : invoices.length === 0 ? (
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-hint">No invoices yet.</span>
-          </div>
-        </div>
+        <RecordRow id="billing-invoices-none" label="Invoices" empty="No invoices yet" value={null} />
       ) : (
         <div className="set-table" role="table" aria-label="Invoices" data-testid="billing-invoice-rows">
           <div className="set-table-head" role="row">
@@ -292,15 +290,17 @@ function invoicesCard(invoices: BillingInvoiceDto[] | null, busy: Busy, showInvo
                 {api.words.money(inv.amount_due, inv.currency)}
               </span>
               <span role="cell">
-                <span className={`pill ${(inv.status && INVOICE_PILL[inv.status]) || ""}`}>
-                  {api.words.invoice(inv.status)}
-                </span>
+                <StatePill
+                  kind="tone"
+                  value={(inv.status && INVOICE_TONE[inv.status]) || "plain"}
+                  label={api.words.invoice(inv.status)}
+                />
               </span>
               <span role="cell">
                 {inv.hosted_url && (
-                  <a className="cl-bucket-link" href={inv.hosted_url} target="_blank" rel="noreferrer">
+                  <LinkButton href={inv.hosted_url} target="_blank" rel="noreferrer">
                     Open
-                  </a>
+                  </LinkButton>
                 )}
               </span>
             </div>
@@ -324,15 +324,11 @@ export const PaneBillingReal = ({ flash }: { flash: (f: LegacyFlash) => void }) 
   });
   if (B === undefined) {
     return (
-      <section className="fl-card set-card" data-testid="billing-loading">
-        <div className="fl-card-head">
-          <h2 className="fl-card-title">Billing</h2>
+      <section className="rec-card set-card" data-testid="billing-loading">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title">Billing</h2>
         </div>
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-hint">Reading your billing…</span>
-          </div>
-        </div>
+        <RecordRow id="billing-reading" label="Plan" empty="Reading your billing…" value={null} />
       </section>
     );
   }

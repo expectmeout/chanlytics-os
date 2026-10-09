@@ -6,9 +6,11 @@
 import { Fragment, useState, type RefCallback } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { recFolds } from "../../kit/record/registry";
+import { RecordRow } from "../../kit/record/row";
 import { ViewTabs } from "../../kit/view-tabs/view-tabs";
 import { activity } from "@/legacy-bridge/activity";
 import { backOffice } from "@/legacy-bridge/platform";
@@ -54,19 +56,17 @@ const SET_SOON = {
 function PaneSoon({ which, onTab }: { which: keyof typeof SET_SOON; onTab: (tab: string) => void }) {
   const m = SET_SOON[which];
   return (
-    <section className="fl-card set-card" data-testid={`soon-${which}`}>
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">{m.title}</h2>
-        <span className="fl-card-sub">{m.chip}</span>
+    <section className="rec-card set-card" data-testid={`soon-${which}`}>
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">{m.title}</h2>
+        <span className="rec-card-sub">{m.chip}</span>
       </div>
-      <div className="set-row">
-        <div className="set-row-info">
-          <span className="set-row-hint">{m.body}</span>
-        </div>
-        <button className="btn btn-sm" onClick={() => onTab(m.action.tab)}>
-          <Icon name={m.action.icon} size={12} /> {m.action.label}
-        </button>
-      </div>
+      <RecordRow
+        id={`soon-${which}`}
+        label={m.chip}
+        value={m.body}
+        act={{ label: m.action.label, onClick: () => onTab(m.action.tab) }}
+      />
     </section>
   );
 }
@@ -188,7 +188,7 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
           <Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map((t) => (
-              <button
+              <LinkButton
                 key={t.id}
                 ref={active.id === t.id ? setTabIntoView : undefined}
                 className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`}
@@ -199,7 +199,7 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
               >
                 <Icon name={t.icon} size={14} />
                 <span className="set-nav-label">{t.label}</span>
-              </button>
+              </LinkButton>
             ))}
           </Fragment>
         ))}

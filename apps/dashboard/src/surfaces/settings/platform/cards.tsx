@@ -6,6 +6,7 @@
 import { useState } from "react";
 import type { PageVitalsRowDto, PlatformHealth, PlatformQueueVM } from "@chanlytics/contracts";
 import type { PlatformApi } from "@/legacy-bridge/platform";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import type { LegacyFlash } from "../../legacy-verbs";
 
@@ -59,9 +60,9 @@ export function WaitingRow({
         )}
       </div>
       {!arm && (
-        <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="platform-queue-mark">
+        <Button size="sm" onClick={() => setArm(true)} disabled={busy} data-testid="platform-queue-mark">
           Mark as invited
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -80,10 +81,10 @@ export function PlatformQueueCard({
   flash: Flash;
 }) {
   return (
-    <section className="fl-card set-card" data-testid="platform-queue">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">Waiting to get in</h2>
-        <span className="fl-card-sub set-says" data-testid="platform-queue-words">
+    <section className="rec-card set-card" data-testid="platform-queue">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">Waiting to get in</h2>
+        <span className="rec-card-sub set-says" data-testid="platform-queue-words">
           {waiting.sentence}
         </span>
       </div>
@@ -116,10 +117,10 @@ export function PlatformQueueCard({
 export function PlatformHealthCard({ P, health }: { P: PlatformApi; health: PlatformHealth | null }) {
   if (!health) return null;
   return (
-    <section className="fl-card set-card" data-testid="platform-health">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">The platform</h2>
-        <span className="fl-card-sub set-says" data-testid="platform-health-words">
+    <section className="rec-card set-card" data-testid="platform-health">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">The platform</h2>
+        <span className="rec-card-sub set-says" data-testid="platform-health-words">
           {P.healthWords(health)}
         </span>
       </div>
@@ -158,10 +159,10 @@ function PlatformVitalsCard({
   if (problem || rows === undefined) return null;
   const pace = P.vitalsWords(rows);
   return (
-    <section className="fl-card set-card" data-testid="platform-vitals">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">How fast the pages are</h2>
-        <span className="fl-card-sub set-says" data-testid="platform-vitals-words">
+    <section className="rec-card set-card" data-testid="platform-vitals">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">How fast the pages are</h2>
+        <span className="rec-card-sub set-says" data-testid="platform-vitals-words">
           {pace.sentence}
         </span>
       </div>
@@ -207,10 +208,10 @@ function PlatformDaysCard({ P, problem }: { P: PlatformApi; problem: string | nu
   if (problem || rows === undefined) return null;
   const work = P.daysWords(rows);
   return (
-    <section className="fl-card set-card" data-testid="platform-days">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">Each workspace's day</h2>
-        <span className="fl-card-sub set-says" data-testid="platform-days-words">
+    <section className="rec-card set-card" data-testid="platform-days">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">Each workspace's day</h2>
+        <span className="rec-card-sub set-says" data-testid="platform-days-words">
           {work.sentence}
         </span>
       </div>

@@ -813,8 +813,9 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   const card = ["pane", "row", "google-choose"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`))
     .join("\n");
-  for (const t of ["google-choose", "google-place-choose", "google-note"])
-    assert.ok(card.includes(`data-testid="${t}"`), t);
+  for (const t of ["google-choose", "google-place-choose"]) assert.ok(card.includes(`data-testid="${t}"`), t);
+  // The note is a record row of the kit's, which takes its test id as a prop.
+  assert.ok(card.includes('testid="google-note"'), "google-note");
   assert.ok(card.includes('testid="google-disconnect"'), "the disconnect asks through the one Confirm");
   for (const v of ["google-connect", "google-disconnect"])
     assert.ok(card.includes(`"verb:${v}": "${v}"`), `${v} keeps its name as a row verb`);

@@ -247,7 +247,6 @@
      Android reloaded it). Every other page's lists give way under a thumb on purpose (below, "every list pulls"). */
   .set-pane { padding: 16px 16px 48px; gap: 16px; overscroll-behavior-y: none; }
   html.legacy-on:has(.settings), html.legacy-on:has(.settings) body { overscroll-behavior-y: none; }
-  .settings .set-card { padding: 14px 15px 6px; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
      this bounded flex column and collapsed to its head with an inner scroll —
      every Settings card, on every phone. Cards keep their height; the pane scrolls. */
@@ -265,8 +264,9 @@
   .set-row:has(.set-row-control > *) .set-row-hint { display: none; }
   /* ...unless the line IS the card's news: the back office's health, who is waiting and the workspaces counted
      (`set-says`). Hidden, "The platform" and "Waiting to get in" were titles over nothing on a phone. */
-  .settings .fl-card-sub:not(.set-says) { display: none; }
-  .set-roles-legend { display: none; }
+  .settings .set-says { display: block; }
+  /* The Roles row is a desktop's: a phone reads each person's role word on their row. */
+  [data-testid="team-roles"] { display: none; }
   /* A finger's worth of every control. The settings input, the icon button and
      the options in a segmented dial each set a size for a mouse, and each was
      more specific than the 44px floor in legacy-bridge/legacy.css. */
@@ -428,8 +428,8 @@
      business editor: nothing scrolls sideways any more -- the policy matrix is a
      list and the invoices are a three-column grid -- so this now guards the back
      office alone.
-     .tq (Setup) is not .fl-card and never had it. */
-  .fl-card.set-card:has(table) { overflow-x: auto; }
+     .tq (Setup) is not a settings card and never had it. */
+  .set-card:has(table) { overflow-x: auto; }
   /* 104px a column now the headings are words, not filing labels. Only the back
      office reaches this rule: under 640px the matrix is a list, not a table. */
   .pol-table { min-width: 640px; }

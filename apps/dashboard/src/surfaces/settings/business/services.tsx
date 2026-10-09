@@ -18,7 +18,9 @@ import { useRef, useState } from "react";
 import type { ComponentProps, Dispatch, ReactNode, SetStateAction } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { FieldError } from "../../kit/field-error/field-error";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordBox } from "../../kit/record/field";
 import { gate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
@@ -110,9 +112,9 @@ const btsTools = (f: SheetFields, search: Search, setSearch: Dispatch<SetStateAc
       </span>
       {/* The write schema takes no more than this, so the sheet does not offer it (rows' canAdd). */}
       {svc.canAdd ? (
-        <button type="button" className="btn btn-sm" {...f.press(() => svc.add())} data-testid="rec-services-add">
+        <Button size="sm" {...f.press(() => svc.add())} data-testid="rec-services-add">
           <Icon name="plus" size={12} /> Add
-        </button>
+        </Button>
       ) : (
         <span className="bt-fold-note" data-testid="rec-services-cap">
           {btsFull(businessTabSave.LIMITS.services)}
@@ -135,9 +137,7 @@ const btsMark = (m: PutBack, f: SheetFields) => (
     data-testid={`rec-service-gone-${m.id}`}
   >
     <span className="bt-service-gone-words">Removed {btsNameOf(m.row) ? <b>{btsNameOf(m.row)}</b> : "a service"}</span>
-    <button
-      type="button"
-      className="bt-link"
+    <LinkButton
       aria-label={BUSINESS_TAB.serviceUndoName(btsNameOf(m.row))}
       {...f.press(() => {
         const at = m.at;
@@ -146,7 +146,7 @@ const btsMark = (m: PutBack, f: SheetFields) => (
       data-testid={`rec-service-undo-${m.id}`}
     >
       Undo
-    </button>
+    </LinkButton>
   </div>
 );
 
@@ -221,15 +221,16 @@ const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
         problem={said(`service-${i}-price_note`)}
         readOnly={f.readOnly}
       />
-      <button
-        type="button"
-        className="btn btn-ghost btn-icon btn-sm"
+      <Button
+        variant="quiet"
+        size="sm"
+        iconOnly
         aria-label={`Remove ${x.name ? x.name : `service ${n}`}`}
         {...f.press(() => removeService())}
         data-testid={`rec-service-remove-${i}`}
       >
         <Icon name="x" size={11} />
-      </button>
+      </Button>
     </div>
   );
 };

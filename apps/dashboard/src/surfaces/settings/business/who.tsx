@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { gate, navigate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField, RecordToggleGroup } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BT_SAVED } from "./gestures/common";
@@ -558,14 +559,9 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
       {/* Nothing is asked twice (spec §3): the carrier record is Connections', and this card only says where it is. */}
       <p className="bt-card-foot" data-testid="rec-who-foot">
         Your legal name and registered address are asked once on{" "}
-        <button
-          type="button"
-          className="bt-link"
-          onClick={() => navigate("admin/integrations")}
-          data-testid="rec-who-carriers"
-        >
+        <LinkButton onClick={() => navigate("admin/integrations")} data-testid="rec-who-carriers">
           Connections
-        </button>
+        </LinkButton>
         , for the carriers. Nothing here repeats them.
       </p>
     </section>

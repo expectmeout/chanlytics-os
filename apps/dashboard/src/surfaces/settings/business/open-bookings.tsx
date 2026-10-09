@@ -33,6 +33,8 @@ import {
 } from "@chanlytics/contracts";
 import type { CalendarVM } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
+import { Button } from "../../kit/button/button";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordCombobox } from "../../kit/record/combobox";
 import { gate, navigate } from "../../legacy-verbs";
 import type { BtFold } from "./gestures/fold";
@@ -103,15 +105,6 @@ export const BtoBookingsRead = () => {
 const BTO_COPIED_MS = 1500;
 
 /**
- * A quiet press of this fold's, in the tab's own markup, as its other folds write a button (open.tsx's "Add a closed
- * day"): the classes the kit's Button gives a small quiet one. The kit's Button is not taken here until Settings moves
- * to the kit whole (eslint.config.mjs lists the folder as pending): this tab loads with the shell, and the shell's
- * first import of that module made the bundler split a chunk four pages share with it, so Broadcasts, Campaigns,
- * People and Templates each fetched a second copy of it, 12,758 bytes gzipped (against main's own build, 7 Oct 2026).
- */
-const BTO_QUIET = "btn btn-sm btn-ghost";
-
-/**
  * A workspace with no address yet: the one its name gives, made in one press (the route Connections' own form calls,
  * with the business's name beside it), and the door to Connections for an owner who wants another. It said "Make one
  * under Connections" and nothing else, which sent the owner to another page in the middle of this one. An address is
@@ -142,25 +135,24 @@ const BtoBookingsNoAddress = ({ suggested, name }: { suggested: string | null; n
       </p>
       <span className="bt-bookings-acts">
         {suggested ? (
-          <button
-            type="button"
-            className="btn btn-sm"
+          <Button
+            size="sm"
             onClick={make}
             disabled={busy}
             data-testid="bto-bookings-make"
             {...gate("team", "set up email")}
           >
             {busy ? "Making it…" : `Use ${suggested}`}
-          </button>
+          </Button>
         ) : null}
-        <button
-          type="button"
-          className={BTO_QUIET}
+        <Button
+          size="sm"
+          variant="quiet"
           onClick={() => navigate("admin/integrations")}
           data-testid="bto-bookings-choose"
         >
           {suggested ? "Choose another" : "Make one under Connections"}
-        </button>
+        </Button>
       </span>
       {problem ? (
         <p className="bt-fold-note bt-fold-refused" role="alert" data-testid="bto-bookings-make-refused">
@@ -191,15 +183,9 @@ const BtoBookingsAddress = ({ notices, name }: { notices: Notices | null; name: 
       <p className="bt-fold-note">Send your booking emails to this address.</p>
       <span className="bt-fold-line">
         <b className="bt-bookings-address">{address}</b>
-        <button
-          type="button"
-          className={BTO_QUIET}
-          onClick={copy}
-          aria-label="Copy the address"
-          data-testid="bto-bookings-copy"
-        >
+        <Button size="sm" variant="quiet" onClick={copy} aria-label="Copy the address" data-testid="bto-bookings-copy">
           {copied ? "Copied" : "Copy"}
-        </button>
+        </Button>
       </span>
     </div>
   );
@@ -286,17 +272,12 @@ const BtoBookingsHeld = ({ notices }: { notices: Notices }) => {
             </span>
             <span className="bt-fold-note">{h.reason}</span>
             <span className="bt-bookings-acts">
-              <button
-                type="button"
-                className={BTO_QUIET}
-                disabled={busy === h.id}
-                onClick={() => act(h.id, "read-again")}
-              >
+              <Button size="sm" variant="quiet" disabled={busy === h.id} onClick={() => act(h.id, "read-again")}>
                 Read again
-              </button>
-              <button type="button" className={BTO_QUIET} disabled={busy === h.id} onClick={() => act(h.id, "dismiss")}>
+              </Button>
+              <Button size="sm" variant="quiet" disabled={busy === h.id} onClick={() => act(h.id, "dismiss")}>
                 Dismiss
-              </button>
+              </Button>
             </span>
           </div>
         );
@@ -349,9 +330,9 @@ const BtoLinkPart = ({ f, stored, offers }: PartProps) => {
         {shown === "offered" && !f.readOnly ? (
           <>
             {" "}
-            <button type="button" className="bt-link" onClick={() => setAsked(true)} data-testid="bto-link-anyway">
+            <LinkButton onClick={() => setAsked(true)} data-testid="bto-link-anyway">
               {BOOKING_TOOL_WORDS.link.anyway}
-            </button>
+            </LinkButton>
           </>
         ) : null}
       </p>
@@ -417,9 +398,9 @@ export const BtoSourceBody = ({
       {guess && !f.readOnly ? (
         <p className="bt-fold-note" data-testid="bto-bookings-guess">
           Your booking link is on {bookingToolName(guess)}.{" "}
-          <button type="button" className={BTO_QUIET} onClick={() => pick(guess)}>
+          <Button size="sm" variant="quiet" onClick={() => pick(guess)}>
             Use {bookingToolName(guess)}
-          </button>
+          </Button>
         </p>
       ) : null}
       {d.with ? <BtoLinkPart f={f} stored={stored} offers={offers} /> : null}

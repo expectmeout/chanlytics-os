@@ -47,11 +47,8 @@
   "apps/dashboard/src/surfaces/people/person/hero.tsx": 1,
   "apps/dashboard/src/surfaces/people/pipeline/board.tsx": 1,
   "apps/dashboard/src/surfaces/settings/activity/pane.tsx": 2,
-  "apps/dashboard/src/surfaces/settings/billing/pane.tsx": 2,
   "apps/dashboard/src/surfaces/settings/frame/workspace.tsx": 1,
-  "apps/dashboard/src/surfaces/settings/notifications/pane.tsx": 1,
   "apps/dashboard/src/surfaces/settings/platform/detail.tsx": 1,
-  "apps/dashboard/src/surfaces/settings/team/team.tsx": 1,
   "apps/dashboard/src/surfaces/setup/first-run/page.tsx": 1,
   "apps/dashboard/src/surfaces/today/pages/card.tsx": 2
 }

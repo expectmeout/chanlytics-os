@@ -25,6 +25,7 @@ import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { canDo, gateTitle } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { recFolds } from "../../kit/record/registry";
 import { BtAnswersCard } from "./answers";
 import { BtCanCard } from "./can";
@@ -65,15 +66,14 @@ const BtGap = ({ brain, door }: { brain: Brain; door: ((id: string) => void) | n
     <p className="bt-gap" data-testid="rec-gap">
       <span className="bt-gap-dot" aria-hidden="true" />
       {door ? (
-        <button
-          type="button"
+        <LinkButton
           className="bt-gap-door"
           onClick={() => door(gap.row)}
           aria-labelledby={`bt-gap-door-words rec-row-${gap.row}-act rec-row-${gap.row}-key`}
           data-testid="rec-gap-door"
         >
           <span id="bt-gap-door-words">{gap.sentence}</span>
-        </button>
+        </LinkButton>
       ) : (
         <span className="bt-gap-words">{gap.sentence}</span>
       )}

@@ -31,6 +31,7 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import { navigate } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { recFolds } from "../../kit/record/registry";
 import type { SetupSurface } from "../../setup/surface";
 import type { Brain as SavedBrain, Config } from "./save";
@@ -102,15 +103,9 @@ const BtcRow = ({
         <p className="bt-can-why">
           <span id={saysId}>{a.detail}</span>{" "}
           {open ? (
-            <button
-              type="button"
-              className="bt-link"
-              onClick={() => door(runsOn.row)}
-              aria-describedby={saysId}
-              data-testid={`rec-can-door-${a.id}`}
-            >
+            <LinkButton onClick={() => door(runsOn.row)} aria-describedby={saysId} data-testid={`rec-can-door-${a.id}`}>
               {runsOn.label}
-            </button>
+            </LinkButton>
           ) : null}
         </p>
       ) : (
@@ -229,15 +224,9 @@ const btcAbilities = (
 const BtcHeld = ({ held }: { held: NonNullable<Abilities["held"]> }) => (
   <p className="bt-can-held" data-testid="rec-can-held">
     <span id="bt-can-held-words">{held.sentence}</span>{" "}
-    <button
-      type="button"
-      className="bt-link"
-      onClick={() => navigate(held.to)}
-      aria-describedby="bt-can-held-words"
-      data-testid="rec-can-held-door"
-    >
+    <LinkButton onClick={() => navigate(held.to)} aria-describedby="bt-can-held-words" data-testid="rec-can-held-door">
       {held.door}
-    </button>
+    </LinkButton>
   </p>
 );
 
