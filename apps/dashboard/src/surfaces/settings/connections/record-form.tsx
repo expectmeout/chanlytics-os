@@ -29,7 +29,6 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
-import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { canDo, gate, gateTitle, holdStill, meNow, refusalToast, type LegacyFlash } from "../../legacy-verbs";
