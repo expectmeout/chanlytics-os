@@ -427,8 +427,12 @@ test.describe("Phone shell on a real workspace", () => {
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
     // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
+    // On a touch screen the field waits for a tap: no keyboard rises by itself.
     await bar.getByTestId("people-phone-search-open").click();
     const field = page.getByTestId("people-phone-search");
+    await expect(field).toBeVisible();
+    await expect(field).not.toBeFocused();
+    await field.tap();
     await expect(field).toBeFocused();
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     await page.getByTestId("people-phone-search-cancel").click();
@@ -710,13 +714,16 @@ test.describe("Phone shell on a real workspace", () => {
     });
     const [first, firstShape] = shapes[0];
     // The Inbox's and People's strips stand beside the page's act and give 4px of each tab's side to it (components.css,
-    // "Beside the act the strip has 44px less"); Settings' has no act beside it. So a tab's words sit 4px further in
-    // there, and that one measure is held between the two that share the row.
+    // "Beside the act the strip has 44px less"); Settings' has no act beside it, so a tab's words sit further in there.
+    // The Inbox's act says a word since #1508 ("+ New": a plus alone said nothing), and beside that capsule its strip
+    // gives 2px more of each side, so its three views still stand on one line on a phone 360 wide. So that one measure
+    // is held between the two that share the row with an act: People's words start 2px further in than the Inbox's.
     const { words: firstWords, ...firstRest } = firstShape;
     for (const [label, shape] of shapes.slice(1)) {
       const { words, ...rest } = shape;
       expect(rest, `the strip on ${label} is the one on ${first}`).toEqual(firstRest);
-      if (label === "People") expect(words, `a tab's words on ${label} start where ${first}'s do`).toBe(firstWords);
+      if (label === "People")
+        expect(words - firstWords, `a tab's words on ${label} start 2px further in than on ${first}`).toBe(2);
     }
     expect(
       Math.abs(firstShape.middle - firstShape.tab / 2),

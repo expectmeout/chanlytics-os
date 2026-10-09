@@ -161,11 +161,11 @@ export function useRecFocus(id: FoldId, open: boolean, box: Box, area: FocusArea
       return undefined;
     }
     const el = box.current;
-    // A fold drawn as a sheet, on a touch screen, opens with the sheet itself in focus, as RecordSheet does: its first
-    // field taking focus raised the keyboard over a sheet nobody had read yet (Ruben, 8 October 2026). A tap on a field
-    // begins the typing. An inline editor, and a fold under its row, are what a press asked to type in, and keep
-    // their first field; so does every frame where the pointer is a mouse.
-    if (frame === true && onTouchScreen() && el && typeof el.focus === "function") el.focus();
+    // On a touch screen whatever opened takes focus itself, as RecordSheet does: a fold drawn as a sheet (its first
+    // field taking focus raised the keyboard over a sheet nobody had read yet; Ruben, 8 October 2026), and an inline
+    // editor or a fold under its row the same (the 9th). A tap on a field begins the typing. Where the pointer is a
+    // mouse the first field is ready, in every frame.
+    if (onTouchScreen() && el && typeof el.focus === "function") el.focus();
     else recFocusIn(el, inner, fallback);
     return () => recFocusBack(id, el);
     // a new opening, a new id or a new frame: not each draw

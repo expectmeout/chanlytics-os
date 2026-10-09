@@ -30,6 +30,8 @@ import { Segmented } from "../../kit/segmented/segmented";
 import {
   actingRole,
   canDo,
+  editorBox,
+  focusAsDrawn,
   gate,
   gateTitle,
   meNow,
@@ -274,7 +276,7 @@ function inviteRow(o: {
   cancel: () => void;
 }): ReactNode {
   return (
-    <div className="set-invite">
+    <div className="set-invite" {...editorBox}>
       <RecordField
         id="team-invite-email"
         label={null}
@@ -286,7 +288,7 @@ function inviteRow(o: {
         onKeyDown={(e) => {
           if (e.key === "Enter") o.invite();
         }}
-        autoFocus
+        autoFocus={focusAsDrawn()}
       />
       <Segmented
         label="Invite as"

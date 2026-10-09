@@ -306,6 +306,8 @@ function foldRow(props: RecordFoldProps, d: FoldDraw) {
       ref={d.box}
       className="rec-fold"
       role="group"
+      // Focusable by the fold's own rule and never by Tab: on a touch screen it opens on itself (focus.ts).
+      tabIndex={-1}
       aria-labelledby={labelId}
       aria-busy={saving || undefined}
       data-open={open ? "true" : "false"}

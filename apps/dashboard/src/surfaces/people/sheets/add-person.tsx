@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 import { plAddPerson, plAddedWords } from "../lists/doors";
 import type { Flash } from "../types";
 
@@ -44,9 +45,9 @@ export function AddPersonButton({ onAdded, flash }: { onAdded: (id: string) => v
     );
   }
   return (
-    <span className="cl-bulk-naming" data-testid="add-person-form">
+    <span className="cl-bulk-naming" data-testid="add-person-form" {...editorBox}>
       <input
-        autoFocus
+        autoFocus={focusAsDrawn()}
         value={name}
         placeholder="Name (optional)"
         maxLength={80}

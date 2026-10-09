@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { whyNotAnEmail } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 import { setPersonDetails } from "../people-detail";
 import type { FlashFn } from "../person-verbs";
 
@@ -80,11 +81,11 @@ export function PersonName({ p, canEdit, flash }: FieldProps) {
     );
   }
   return (
-    <div className="cl-prof-name-row editing">
+    <div className="cl-prof-name-row editing" {...editorBox}>
       <input
         className="cl-prof-name-input"
-        // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the pencil was pressed to type here: focus follows it
-        autoFocus
+        // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the pencil was pressed to type here: focus follows it under a mouse
+        autoFocus={focusAsDrawn()}
         value={value}
         placeholder="Their name"
         maxLength={80}
@@ -173,7 +174,7 @@ export function PersonEmail({ p, canEdit, flash }: FieldProps) {
     );
   }
   return (
-    <span className="cl-prof-email editing" data-testid="person-email">
+    <span className="cl-prof-email editing" data-testid="person-email" {...editorBox}>
       <input
         className="cl-prof-email-input"
         type="email"
@@ -181,8 +182,8 @@ export function PersonEmail({ p, canEdit, flash }: FieldProps) {
         autoComplete="off"
         autoCapitalize="none"
         spellCheck={false}
-        // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the pencil was pressed to type here: focus follows it
-        autoFocus
+        // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the pencil was pressed to type here: focus follows it under a mouse
+        autoFocus={focusAsDrawn()}
         value={value}
         placeholder="name@example.com"
         maxLength={254}

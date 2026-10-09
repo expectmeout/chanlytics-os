@@ -10,7 +10,7 @@ import { installLegacyReact } from "../../_legacy-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 installLegacyReact();
-const { focusAsDrawn, keepTouch, onAPhone } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { editorBox, focusAsDrawn, keepTouch, onAPhone } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 /** A window that answers these queries with yes, and every other with no. */
 const answering = (yes, run) => {
@@ -79,4 +79,21 @@ test("a gesture's handlers keep the touch to themselves, and say what they said"
   assert.equal(kept.min, 80, "what is not a handler is handed on as it was");
   kept.onTouchStart({ at: 3 });
   assert.deepEqual(heard.at(-1), ["start", 3], "an event with nothing to stop is still heard");
+});
+
+test("the box of an editor a press opened in place takes focus on a touch screen, and only there", () => {
+  // Ruben, 9 October 2026: such an editor opens with no keyboard, so its field does not take focus; the control that
+  // was pressed is gone, and focus left on the body sends the next Tab back to the top of the page.
+  assert.equal(editorBox.tabIndex, -1, "focusable by this rule, never by Tab");
+  const focused = [];
+  const box = (holds) => ({ contains: () => holds, focus: (how) => focused.push(how) });
+  answering([], () => editorBox.ref(box(false)));
+  assert.deepEqual(focused, [], "under a mouse the field has it");
+  answering(["(pointer: coarse)"], () => {
+    editorBox.ref(null);
+    editorBox.ref(box(true));
+    assert.deepEqual(focused, [], "nothing to do as the box goes, or where focus is already inside it");
+    editorBox.ref(box(false));
+  });
+  assert.deepEqual(focused, [{ preventScroll: true }], "the box itself, and the page holds still");
 });

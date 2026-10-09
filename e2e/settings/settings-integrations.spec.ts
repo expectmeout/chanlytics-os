@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
@@ -26,6 +26,18 @@ const KINDS = [
   "deposits",
 ];
 
+/**
+ * Where a channel's row states its health. A row that waits on the owner says it in a line of its own; any other says
+ * it when asked, in place, under the press beside its name (#1493, 8 Oct 2026: "all extra info should be on a need to
+ * know"). Until then every row drew it, and these specs read the row's whole text.
+ */
+async function healthOf(row: Locator, kind: string): Promise<Locator> {
+  const line = row.getByTestId(`connection-${kind}-line`);
+  if (await line.count()) return line;
+  await row.getByTestId(`connection-${kind}-why`).click();
+  return row.getByTestId(`connection-${kind}-says`);
+}
+
 test.describe("Settings → Integrations on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -52,14 +64,17 @@ test.describe("Settings → Integrations on a real workspace", () => {
     const later = page.getByTestId("connections-later");
     await expect(later).toContainText("Instagram");
     await expect(later).toContainText("nothing here is connected");
-    // Since #614 a Later row offers what it will offer: a Connect that is gated, with the reason on it, never a door.
-    const offers = later.locator("button");
-    await expect(offers.first()).toBeVisible();
-    for (const offer of await offers.all()) {
-      await expect(offer).toHaveText("Connect");
-      await expect(offer).toHaveAttribute("aria-disabled", "true");
-      await expect(offer).toHaveAttribute("data-tip", /Not built yet/);
+    // A Later row offers nothing to press. It drew a gated Connect (#614) until the page said less (#1493, 8 Oct 2026):
+    // now its word is "Soon", which says why when asked, and the one button a Later row may hold is the press beside
+    // its name that opens what it would say.
+    const soon = later.locator('[data-testid^="connection-"][data-testid$="-later"]');
+    await expect(soon.first()).toBeVisible();
+    for (const word of await soon.all()) {
+      await expect(word).toHaveText("Soon");
+      await expect(word).toHaveAttribute("title", /Not built yet/);
     }
+    for (const button of await later.locator(".set-int-row button").all())
+      await expect(button, "a Later row's only button opens what it says").toHaveAttribute("aria-label", /^About /);
     const text = await page.locator(".set-pane").innerText();
     for (const s of INVENTED) expect(text, `invented service: "${s}"`).not.toContain(s);
   });
@@ -73,7 +88,9 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await expect(row).toBeVisible();
     const state = await row.getAttribute("data-state");
     if (state === "connected" || state === "off") {
-      await expect(row).toContainText(/Receiving|Quiet|Switched off|no message has arrived yet/);
+      await expect(await healthOf(row, "whatsapp")).toContainText(
+        /Receiving|Quiet|Switched off|no message has arrived yet/,
+      );
       return;
     }
     await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|Checking|Sign in to Meta/);
@@ -115,7 +132,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     for (const k of ["whatsapp", "phone"]) {
       const row = card.getByTestId(`connection-${k}`);
       if (!(await row.count())) continue;
-      await expect(row, "each channel states its health in the schema's words").toContainText(
+      await expect(await healthOf(row, k), "each channel states its health in the schema's words").toContainText(
         /Receiving|Quiet|Switched off|no (message|call) has arrived yet/,
       );
       await expect(row.locator(".pill")).toContainText(/^On$|^Off$/);
