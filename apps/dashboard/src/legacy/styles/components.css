@@ -657,6 +657,14 @@
    width to there too, and a finger walks its strip (the view says its strip, data-strip; the rest is the tokens'). */
 @media (max-width: 900px) {
   .route-view[data-strip="people"] { --view-travel: 100%; }
+  /* A touch under a strip keeps the axis it began on. The reader (data-bits touchSwipe) picks one at 8px: mostly down,
+     a scroll and the page stands; else the page walks. The browser was told nothing of that choice, so its own scroll
+     ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
+     2026). touch-action is read on what scrolls, so each strip page's phone scroller says it: Reports' body, the
+     Inbox's threads, Conversations' rows, People's main, Settings' pane (one each, found on the app at 375px;
+     tooling/scripts/tests/styles/swipe-axis.test.mjs holds the list). A touch that began across never scrolls it, as a
+     phone's own pagers hold their axis; one that began down scrolls as before, and the reader moves nothing. */
+  .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane { touch-action: pan-y; }
 }
 
 /* ---------- Unified stat strip (dashboard anchors · clients head · profile money) ---------- */

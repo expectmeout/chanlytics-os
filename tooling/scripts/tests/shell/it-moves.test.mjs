@@ -263,6 +263,75 @@ test("a page follows the thumb across, both ways: it is told how far, which side
   assert.equal(seen.at(-1), "settle");
 });
 
+/** An element that keeps what is listened for on it, as a browser's does. */
+const listened = (over = {}) => {
+  const el = element(over);
+  el.listeners = [];
+  el.addEventListener = (type, fn, opts) => el.listeners.push({ type, fn, opts });
+  el.removeEventListener = (type, fn) => {
+    el.listeners = el.listeners.filter((l) => l.fn !== fn);
+  };
+  return el;
+};
+/** A browser's own touchmove on `el`, through the listener the reader put there: whether its default was refused. */
+const browserMove = (el, x, y) => {
+  const [{ fn }] = el.listeners;
+  let refused = false;
+  fn({
+    touches: [{ clientX: x, clientY: y }],
+    currentTarget: el,
+    cancelable: true,
+    preventDefault: () => void (refused = true),
+  });
+  return refused;
+};
+
+test("a move is read from the element first, and the browser's scroll is refused while a page is carried across", () => {
+  const seen = [];
+  const el = listened();
+  const h = touchSwipe({ pages: () => pager({ drag: (dx) => seen.push(dx) }) });
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  assert.deepEqual(
+    el.listeners.map((l) => [l.type, l.opts]),
+    [["touchmove", { passive: false }]],
+    "the element's own, non-passive",
+  );
+  assert.equal(browserMove(el, 170, 304), true, "the move that makes it a page is refused, that same move");
+  assert.deepEqual(seen, [-30]);
+  h.onTouchMove({ touches: [{ clientX: 170, clientY: 304 }], currentTarget: el });
+  assert.deepEqual(seen, [-30], "React's handler reads nothing the element's listener read");
+  assert.equal(browserMove(el, 120, 340), true, "and every move after, however far down it drifts");
+  assert.deepEqual(seen, [-30, -80]);
+  h.onTouchEnd({ changedTouches: [{ clientX: 120, clientY: 340 }], currentTarget: el });
+  assert.deepEqual(el.listeners, [], "let go, the listener goes with the touch");
+});
+
+test("a touch mostly down is the browser's own: nothing is refused, a pull follows, and a page is never carried", () => {
+  const seen = [];
+  const el = listened();
+  const h = touchSwipe({ onDown() {}, pages: () => pager({ drag: (dx) => seen.push(dx) }) });
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  assert.equal(browserMove(el, 204, 330), false);
+  assert.equal(browserMove(el, 260, 400), false, "nor once it drifts across");
+  assert.equal(el.style.transform, "translate3d(0, 100px, 0)", "the pull still follows the finger");
+  assert.deepEqual(seen, []);
+  h.onTouchCancel({ currentTarget: el });
+  assert.deepEqual(el.listeners, []);
+});
+
+test("a thread swiped back and a drawer slid away hold the browser's scroll the same way", () => {
+  for (const [opts, from, to] of [
+    [{ onBack() {} }, 60, 140],
+    [{ onAway() {} }, 200, 120],
+  ]) {
+    const el = listened();
+    const h = touchSwipe(opts);
+    h.onTouchStart({ touches: [{ clientX: from, clientY: 300 }], currentTarget: el, target: el });
+    assert.equal(browserMove(el, to, 306), true, `${Object.keys(opts)[0]} refuses the scroll under it`);
+    h.onTouchCancel({ currentTarget: el });
+  }
+});
+
 test("past the last tab a page is told a quarter of the drag, 48px at most, and that no page is there; then it settles", () => {
   const seen = [];
   const went = [];
