@@ -77,9 +77,9 @@ export {
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
-export { campaignsHomeOf, lifecycleKicker } from "./lifecycle";
-export { reachCountsOf } from "./lifecycle-tiles";
-export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords } from "./lifecycle-words";
+export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
+export { reachCountsOf } from "./lifecycle/lifecycle-tiles";
+export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords } from "./lifecycle/lifecycle-words";
 export type {
   LifecycleAct,
   LifecycleBroadcasts,
@@ -111,7 +111,7 @@ export type {
   LifecycleTone,
   LifecycleTrigger,
   ReachCounts,
-} from "./lifecycle-types";
+} from "./lifecycle/lifecycle-types";
 export type { RunMessage } from "./playbook-purpose";
 export { isPlaybookTotalsDto } from "./playbook-totals";
 export type { PlaybookTotalsDto } from "./playbook-totals";

@@ -9169,7 +9169,7 @@ var OFFERS_IN_WRITING_WORDS = {
   link: `print one in ${sent}`
 };
 
-// src/playbooks/lifecycle-words.ts
+// src/playbooks/lifecycle/lifecycle-words.ts
 var channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
 var LIFECYCLE_WORDS = {
   title: CAMPAIGN_ROOMS.home,
@@ -27211,7 +27211,7 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 
-// src/playbooks/lifecycle-tiles.ts
+// src/playbooks/lifecycle/lifecycle-tiles.ts
 var COMING_DAYS = 7;
 var RESULTS_DAYS = 30;
 var RUNS_SHOWN = 3;
@@ -27693,7 +27693,7 @@ function playbookChannelsRead(p, ticks, message, workspace) {
   return { purpose, about, ready, choices, ticked, kept, on, stands };
 }
 
-// src/playbooks/lifecycle.ts
+// src/playbooks/lifecycle/lifecycle.ts
 function readyOf(input) {
   return input.playbooks?.ready ?? input.broadcasts?.ready ?? null;
 }

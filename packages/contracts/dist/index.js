@@ -7597,7 +7597,7 @@ function pausedVoiceFacts(businessName) {
   ].join("\n");
 }
 
-// src/playbooks/lifecycle-words.ts
+// src/playbooks/lifecycle/lifecycle-words.ts
 var channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
 var LIFECYCLE_WORDS = {
   title: CAMPAIGN_ROOMS.home,
@@ -27094,7 +27094,7 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 
-// src/playbooks/lifecycle-tiles.ts
+// src/playbooks/lifecycle/lifecycle-tiles.ts
 var COMING_DAYS = 7;
 var RESULTS_DAYS = 30;
 var RUNS_SHOWN = 3;
@@ -27396,7 +27396,7 @@ function lifecycleResults(input) {
   };
 }
 
-// src/playbooks/lifecycle.ts
+// src/playbooks/lifecycle/lifecycle.ts
 function readyOf(input) {
   return input.playbooks?.ready ?? input.broadcasts?.ready ?? null;
 }

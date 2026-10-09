@@ -3,13 +3,13 @@
  * rail and the strips, lifecycle-tiles.ts to make the tiles). A sentence of the page is here or made from here, never in the
  * page.
  */
-import type { ConsentChannel } from "../consent/consent-channels";
-import { clockHour } from "../shared/clock";
-import { CAMPAIGN_ROOMS, runStoppedWords } from "../shell/campaign-rooms";
-import { joinWords, plural } from "../shared/words";
-import { VERSION_CHANNEL_WORDS } from "../templates/message-versions";
-import { WORKSPACE_PAUSED_FACT } from "../workspace/billing";
-import { SENDING_HOURS_WORDS } from "./playbook-triggers";
+import type { ConsentChannel } from "../../consent/consent-channels";
+import { clockHour } from "../../shared/clock";
+import { CAMPAIGN_ROOMS, runStoppedWords } from "../../shell/campaign-rooms";
+import { joinWords, plural } from "../../shared/words";
+import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
+import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
+import { SENDING_HOURS_WORDS } from "../playbook-triggers";
 import type { LifecyclePlaybook, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
 
 /** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */

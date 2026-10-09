@@ -12,16 +12,16 @@
  * A number the surfaces could not count is `null`, never a zero it did not count (the moments' pools say so); a surface
  * not read yet leaves its sections out, and one that failed says so.
  */
-import { channelsStandingParts } from "../broadcasts/channels-standing";
-import { offersPausedLine } from "../broadcasts/email-offers";
-import type { ChannelsReady } from "../broadcasts/reach-for";
-import { purposeOfPlaybook } from "../consent/consent";
-import { CONSENT_CHANNELS } from "../consent/consent-channels";
-import { emailTemplateRowsOf } from "../reach-out/reach-out-sheet";
-import { libraryCount } from "../templates/library-count";
-import { VERSION_CHANNEL_WORDS } from "../templates/message-versions";
-import { bookingTemplate } from "../templates/template-order";
-import { plural } from "../shared/words";
+import { channelsStandingParts } from "../../broadcasts/channels-standing";
+import { offersPausedLine } from "../../broadcasts/email-offers";
+import type { ChannelsReady } from "../../broadcasts/reach-for";
+import { purposeOfPlaybook } from "../../consent/consent";
+import { CONSENT_CHANNELS } from "../../consent/consent-channels";
+import { emailTemplateRowsOf } from "../../reach-out/reach-out-sheet";
+import { libraryCount } from "../../templates/library-count";
+import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
+import { bookingTemplate } from "../../templates/template-order";
+import { plural } from "../../shared/words";
 import { lifecycleComing, lifecycleReach, lifecycleResults } from "./lifecycle-tiles";
 import { LIFECYCLE_WORDS, lifecycleStateOf } from "./lifecycle-words";
 import type {
@@ -45,8 +45,8 @@ import {
   campaignChannelsOf,
   playbookChannelsRead,
   type PlaybookMessage,
-} from "./playbook-channels";
-import { isWinBack, triggerOf } from "./playbook-triggers";
+} from "../playbook-channels";
+import { isWinBack, triggerOf } from "../playbook-triggers";
 
 /**
  * Whether the workspace can send on each channel, as the home has it: the playbooks surface's own reading, else the

@@ -8,7 +8,7 @@ import {
   channelsWords,
   type ConsentChannel,
 } from "../consent/consent-channels";
-import { LIFECYCLE_TOAST, channelsGoesByWords } from "../playbooks/lifecycle-words";
+import { LIFECYCLE_TOAST, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";

@@ -3,15 +3,15 @@
  * what came back in the last thirty. Each is made from what the surfaces carry and says nothing it does not know: a count the
  * workspace could not make is left out, a surface not read yet leaves its tile out, and a zero is shown as zero.
  */
-import { zoneMidnight, shiftKey } from "../calendar/day-keys";
-import { purposeOfPlaybook } from "../consent/consent";
-import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../consent/consent-channels";
-import { GET_YES_ROUTE } from "../people/people-lists";
-import type { PersonRowVM } from "../people/person-row";
-import { fmtDay } from "../reports/reports";
-import { clockHour, clockNear, clockTime, zoneDayKey } from "../shared/clock";
-import { HOUR_MS } from "../shared/time";
-import { plural } from "../shared/words";
+import { zoneMidnight, shiftKey } from "../../calendar/day-keys";
+import { purposeOfPlaybook } from "../../consent/consent";
+import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/consent-channels";
+import { GET_YES_ROUTE } from "../../people/people-lists";
+import type { PersonRowVM } from "../../people/person-row";
+import { fmtDay } from "../../reports/reports";
+import { clockHour, clockNear, clockTime, zoneDayKey } from "../../shared/clock";
+import { HOUR_MS } from "../../shared/time";
+import { plural } from "../../shared/words";
 import type {
   LifecycleAct,
   LifecycleCameBack,
@@ -28,12 +28,12 @@ import type {
   ReachCounts,
 } from "./lifecycle-types";
 import { LIFECYCLE_WORDS } from "./lifecycle-words";
-import { todayRunWords } from "../today/today-runs";
-import { waitingRunOffer } from "./playbook-approval";
-import { DAY_MS } from "./playbook-time";
-import { playbookReach } from "./playbook-reach";
-import { nextOpenMoment, nextRunOf } from "./playbook-schedule";
-import { triggerOf } from "./playbook-triggers";
+import { todayRunWords } from "../../today/today-runs";
+import { waitingRunOffer } from "../playbook-approval";
+import { DAY_MS } from "../playbook-time";
+import { playbookReach } from "../playbook-reach";
+import { nextOpenMoment, nextRunOf } from "../playbook-schedule";
+import { triggerOf } from "../playbook-triggers";
 
 /** How far ahead "Coming up" looks, and how far back "What came back" does. */
 const COMING_DAYS = 7;

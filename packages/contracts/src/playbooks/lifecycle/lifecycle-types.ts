@@ -7,12 +7,12 @@
  * A surface that has not landed yet is `undefined` and its sections say nothing; one that could not be read is `null`
  * and its sections say so. A number that is not known is `null`, never a zero it did not count.
  */
-import type { ChannelStandingPart } from "../broadcasts/channels-standing";
-import type { ChannelsReady } from "../broadcasts/reach-for";
-import type { ConsentChannel } from "../consent/consent-channels";
-import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
-import type { CampaignMessage } from "../templates/campaign-message";
-import type { ChannelStand } from "./playbook-channels";
+import type { ChannelStandingPart } from "../../broadcasts/channels-standing";
+import type { ChannelsReady } from "../../broadcasts/reach-for";
+import type { ConsentChannel } from "../../consent/consent-channels";
+import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
+import type { CampaignMessage } from "../../templates/campaign-message";
+import type { ChannelStand } from "../playbook-channels";
 
 /** One moment's count as the playbooks surface keeps it (`pools`), less what the home does not read. */
 export interface LifecyclePool {
