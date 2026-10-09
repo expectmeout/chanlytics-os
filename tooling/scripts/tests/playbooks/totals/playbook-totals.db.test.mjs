@@ -17,6 +17,9 @@
  *   5. At scale (spec §4.7): 3,600 runs of 25 people answer a signed-in member inside the 8 seconds a member's statement
  *      has (00283), as GET playbooks asks it. A playbook's totals that carried every run's counts on each run's row took
  *      half a minute here, and a timeout is no missing function: the dashboard would have had no fold to fall back to.
+ *   6. The dashboard's own reads on the stack: GET playbooks and Sent say the same bytes counted by the database as by the
+ *      fold a database before 00362 leaves them, where the fold counts right (the salon), and the fold's wrong answers
+ *      where it does not (the shop, the studio); the fake database's twins say what the SQL says.
  *
  * Local stack only: it makes workspaces, people, runs and users.
  */
@@ -24,9 +27,10 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { REPLY_WINDOW_MS, isPlaybookTotalsDto, isReplyTo, runCountsOf, templateSendsOf } from "@chanlytics/contracts";
+import { fakeDb } from "../../_fake-db.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -42,6 +46,33 @@ const skip =
         : false;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+
+// The dashboard's own reads, run on the stack: modules that build a service client on first use read these.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= URL_ ?? "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
+const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
+
+/**
+ * The session client as a database before 00362 answers it: the named functions are not there (PostgREST's PGRST202),
+ * so the dashboard reads the old way, as it will for one release. Everything else is the client's own.
+ */
+const before00362 = (client, names) =>
+  new Proxy(client, {
+    get(target, prop) {
+      if (prop === "rpc")
+        return (name, args, opts) =>
+          names.includes(name)
+            ? Promise.resolve({
+                data: null,
+                error: { code: "PGRST202", message: `Could not find the function public.${name}` },
+              })
+            : target.rpc(name, args, opts);
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 
 /** One SQL read of the local stack, for what PostgREST does not serve (pg_proc, an interval's seconds). */
 function query(sql) {
@@ -850,5 +881,103 @@ test(
       [direct.runs, direct.sent, direct.delivered, direct.held, direct.replies].map(Number),
       "each reply answers one run's send",
     );
+  },
+);
+
+/* ---- the dashboard's own reads on the stack: the database's count, else the fold, for one release ---- */
+
+test(
+  "GET playbooks' rows are the same bytes counted by the database as by the fold where the fold counts right -- the salon, as the service role and as its own member -- and so are Sent's",
+  { skip },
+  async () => {
+    const w = await world();
+    const fold = await P.listPlaybooks({ supabase: before00362(db, ["playbook_totals", "run_counts"]) }, w.A.tenant);
+    const sql = await P.listPlaybooks({ supabase: db }, w.A.tenant);
+    assert.equal(JSON.stringify(sql), JSON.stringify(fold), "byte for byte");
+    const own = await member(w.A.tenant, "operator");
+    assert.equal(
+      JSON.stringify(await P.listPlaybooks({ supabase: own }, w.A.tenant)),
+      JSON.stringify(fold),
+      "and for a member, under row security",
+    );
+    assert.deepEqual(
+      sql.find((p) => p.id === w.A.lapsed).totals,
+      { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
+      "a playbook that never ran",
+    );
+    assert.equal(
+      sql.some((p) => p.id === w.A.chain),
+      false,
+      "a reach-out is its own sheet's",
+    );
+    const t = sql.find((p) => p.id === w.A.winback).totals;
+    assert.deepEqual([t.runs, t.sent, t.delivered, t.replied, t.held], [40, 93, 63, 7, 34], "the hand count");
+    const listed = await Bc.listBroadcasts({ supabase: db }, w.A.tenant);
+    const folded = await Bc.listBroadcasts({ supabase: before00362(db, ["run_counts"]) }, w.A.tenant);
+    assert.equal(JSON.stringify(listed), JSON.stringify(folded), "Sent's fifty, counted by run_counts and by the fold");
+  },
+);
+
+test(
+  "past its caps the fold reads short, which is why seeded truth is the oracle: the shop's newest thousand runs, and a chunk of two hundred cut at 20,000 people",
+  { skip },
+  async () => {
+    const w = await world();
+    const fold = await P.listPlaybooks({ supabase: before00362(db, ["playbook_totals", "run_counts"]) }, w.B.tenant);
+    const sql = await P.listPlaybooks({ supabase: db }, w.B.tenant);
+    const of = (rows, id) => rows.find((p) => p.id === id).totals;
+    assert.deepEqual(
+      [of(sql, w.B.big).runs, of(sql, w.B.big).sent, of(sql, w.B.wide).runs, of(sql, w.B.wide).sent],
+      [1050, 1050, 11, 22000],
+      "the database: every run and every person",
+    );
+    assert.equal(of(fold, w.B.big).runs, 989, "the fold: the newest thousand runs, eleven of them Wide's");
+    assert.ok(
+      of(fold, w.B.wide).sent <= 20000,
+      `the fold: the first chunk cut at 20,000 people (${of(fold, w.B.wide).sent})`,
+    );
+    assert.deepEqual(
+      of(sql, w.B.big).history.map((h) => h.id),
+      of(fold, w.B.big).history.map((h) => h.id),
+      "the newest ten are the same runs: only the totals read short",
+    );
+  },
+);
+
+test(
+  "the studio: the fold timed a thread two people share from its later send and missed the reply the database counts",
+  { skip },
+  async () => {
+    const w = await world();
+    const fold = await P.listPlaybooks({ supabase: before00362(db, ["playbook_totals", "run_counts"]) }, w.C.tenant);
+    const sql = await P.listPlaybooks({ supabase: db }, w.C.tenant);
+    assert.deepEqual([sql[0].totals.replied, fold[0].totals.replied], [1, 0]);
+  },
+);
+
+test(
+  "the fake database's twins (_fake-db.mjs) answer what the SQL answers, over the salon's own rows",
+  { skip },
+  async () => {
+    const w = await world();
+    const rows = async (table) => ok(await db.from(table).select("*").eq("tenant_id", w.A.tenant), table);
+    const tables = {
+      playbooks: await rows("playbooks"),
+      broadcasts: await rows("broadcasts"),
+      broadcast_recipients: await rows("broadcast_recipients"),
+      messages: await rows("messages"),
+    };
+    const fake = fakeDb(tables);
+    const ids = tables.broadcasts.map((b) => b.id);
+    for (const [name, args] of [
+      ["playbook_totals", { p_tenant_id: w.A.tenant, p_history: 10 }],
+      ["run_counts", { p_tenant_id: w.A.tenant, p_run_ids: ids }],
+      ["template_sends", { p_tenant_id: w.A.tenant }],
+    ]) {
+      const real = ok(await db.rpc(name, args), name);
+      const twin = await fake.rpc(name, args);
+      assert.equal(twin.error, null, `${name}: ${twin.error?.message}`);
+      assert.deepEqual(twin.data, real, `${name}: the twin says what SQL says`);
+    }
   },
 );
