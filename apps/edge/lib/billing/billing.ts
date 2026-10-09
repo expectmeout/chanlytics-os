@@ -203,6 +203,7 @@ export async function applySubscription(
   sub: Stripe.Subscription,
   source: string,
   now = new Date(),
+  by: string | null = null,
 ): Promise<{ switched: "paused" | "resumed" | null; status: BillingStatus }> {
   const L = logger({ tenant_id: row.tenant_id, subscription: sub.id });
   const tenant = await tenantState(db, row.tenant_id);
@@ -261,7 +262,7 @@ export async function applySubscription(
     plan.switched === "paused" ? "billing.paused" : plan.switched === "resumed" ? "billing.resumed" : "billing.updated",
     "subscription",
     null,
-    { source, status: facts.status, subscription: sub.id, price_id: facts.price_id },
+    { source, status: facts.status, subscription: sub.id, price_id: facts.price_id, ...(by ? { by } : {}) },
   ).catch(() => {});
   L.info("billing_applied", {
     source,
@@ -498,6 +499,7 @@ export async function resumeFor(
   db: Db,
   tenantId: string,
   now = new Date(),
+  by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   if (!s) return { ok: false, error: "not_ready" };
@@ -512,7 +514,7 @@ export async function resumeFor(
       billing_cycle_anchor: "now",
       expand: ["default_payment_method"],
     });
-    const r = await applySubscription(db, row, sub, "resume", now);
+    const r = await applySubscription(db, row, sub, "resume", now, by);
     return { ok: true, status: r.status };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
@@ -529,6 +531,7 @@ export async function startPlanNowFor(
   db: Db,
   tenantId: string,
   now = new Date(),
+  by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   if (!s) return { ok: false, error: "not_ready" };
@@ -543,7 +546,7 @@ export async function startPlanNowFor(
       trial_end: "now",
       expand: ["default_payment_method"],
     });
-    const r = await applySubscription(db, row, sub, "start_now", now);
+    const r = await applySubscription(db, row, sub, "start_now", now, by);
     return { ok: true, status: r.status };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
@@ -771,16 +774,21 @@ export async function notePayment(
       route: "admin/billing",
       about: null,
     });
+    await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(() => {});
   } else if (amountPaid === undefined || amountPaid > 0) {
     const up = await db
       .from("billing_accounts")
       .update({ last_paid_at: now.toISOString() })
       .eq("tenant_id", row.tenant_id);
     if (up.error) throw new Error(up.error.message);
+    await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(() => {});
   }
 }
 
 export async function noteTrialEnding(db: Db, row: BillingRow, trialEnd: string | null): Promise<void> {
+  await emitEvent(db, row.tenant_id, "billing.trial_ending", "subscription", null, { trial_end: trialEnd }).catch(
+    () => {},
+  );
   await recordNotification(row.tenant_id, {
     kind: "billing",
     title: "Your trial ends in three days",

@@ -208,5 +208,13 @@ test("the owner's echo writes owner_echo's patch, the thread touched at the mome
     const at = Date.parse(values.last_message_at);
     assert.ok(at >= before && at <= Date.now(), `touched now: ${values.last_message_at}`);
     assert.deepEqual(values, conversationPatch("owner_echo", { until: UNTIL, now: values.last_message_at }), from);
+    assert.deepEqual(
+      // Finding the person writes its own row (person.resolved, a kept record): this is the thread's.
+      (t.events ?? [])
+        .filter((e) => e.kind === "conversation.owner_replied")
+        .map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+      [["t1", "conversation.owner_replied", "conversation", "c1", { until: UNTIL }]],
+      `REGRESSION (${from}): the receptionist went quiet because the owner spoke, and nothing on any page said why`,
+    );
   }
 });

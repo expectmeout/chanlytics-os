@@ -31,6 +31,7 @@ import {
   tenantZoneOf,
   updateAppointment,
   clearForwardingConfirmation,
+  emitEvent,
   type AppointmentInsert,
   type AppointmentNoticeRow,
   type AppointmentRow,
@@ -44,6 +45,25 @@ const STATUSES: readonly AppointmentStatus[] = ["proposed", "booked", "kept", "m
 const OUTCOMES: readonly NoticeOutcome[] = ["booked", "changed", "cancelled", "held", "dismissed"];
 const isStatus = (v: string): v is AppointmentStatus => (STATUSES as readonly string[]).includes(v);
 const isOutcome = (v: string): v is NoticeOutcome => (OUTCOMES as readonly string[]).includes(v);
+
+/**
+ * A booking tool's email, read into the calendar, on the ledger: a visit booked, moved or cancelled, on the
+ * appointment it wrote. The notice's own ledger (appointment_notices) says each email; this says what happened to the
+ * calendar, where an owner reads everything else that did. A notice held or set aside moved no visit, and says nothing.
+ */
+async function sayBooking(
+  db: JobContext["db"],
+  p: { tenantId: string; tool: string; outcome: NoticeOutcome; appointmentId: string | null },
+): Promise<void> {
+  if (!p.appointmentId) return;
+  const data = { source: "booking_email" as const, tool: p.tool };
+  if (p.outcome === "booked")
+    await emitEvent(db, p.tenantId, "appointment.booked", "appointment", p.appointmentId, data);
+  if (p.outcome === "changed")
+    await emitEvent(db, p.tenantId, "appointment.moved", "appointment", p.appointmentId, data);
+  if (p.outcome === "cancelled")
+    await emitEvent(db, p.tenantId, "appointment.cancelled", "appointment", p.appointmentId, data);
+}
 
 /** The row as the verb reads it: its life and its key, nothing it does not move. */
 function stored(r: AppointmentRow): StoredAppointment {
@@ -154,8 +174,8 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
         const row = await appointmentNoticeOf(db, tenantId, noticeId);
         return row ? ledgerOf(row) : null;
       },
-      keepNotice: (p) =>
-        keepAppointmentNotice(db, {
+      keepNotice: async (p) => {
+        await keepAppointmentNotice(db, {
           tenant_id: p.tenantId,
           notice_id: p.noticeId,
           tool: p.tool,
@@ -165,7 +185,9 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
           outcome: p.outcome,
           hold_reason: p.holdReason,
           appointment_id: p.appointmentId,
-        }),
+        });
+        await sayBooking(db, p);
+      },
       byKey: async (tenantId, key) => {
         const r = await appointmentByKey(db, tenantId, "booking_email", key);
         return r ? stored(r) : null;

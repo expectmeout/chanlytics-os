@@ -3,7 +3,7 @@
  * apart from either. Here, rather than in handlers.ts, so that settling a job that died does not load the core.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { emitEvent, type Database } from "@chanlytics/db";
 import { logger } from "@chanlytics/channels";
 
 /**
@@ -40,7 +40,13 @@ export async function upsertEscalation(
     reason,
     details,
   });
-  if (!error) return "opened";
+  if (!error) {
+    // On the ledger, where an owner reads what happened: every path that flags a thread comes through here, and the
+    // activity log had no line for any of them. Best effort (emitEvent logs a write that failed and never throws): the
+    // hold is open, and what follows it must not wait on its record.
+    await emitEvent(db, tenantId, "escalation.opened", "conversation", conversationId, { reason });
+    return "opened";
+  }
   if (error.code === "23505") {
     // One open escalation per conversation, so this thread already has one.
     // Whether it said something ELSE is the whole question: asked as an update

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { answerOf, refusalOf } from "@/server/leads/leads";
+import { answerOf, refusalOf, saidLeadExcluded } from "@/server/leads/leads";
 
 const Body = z.object({ search_id: z.string().uuid() });
 
@@ -11,7 +11,7 @@ export const POST = write({
   role: "partner",
   rate: "lead_member",
   input: Body,
-  handle: async ({ ctx, input }) => {
+  handle: async ({ ctx, member, input }) => {
     const leadId = requireUuid(ctx.params.id, "lead");
     const { data, error } = await ctx.supabase.rpc("lead_member_exclude", {
       p_search_id: input.search_id,
@@ -21,6 +21,7 @@ export const POST = write({
     const a = answerOf(data);
     const refused = refusalOf(a);
     if (refused) throw refused;
+    await saidLeadExcluded({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
     return { lead_id: leadId, op_id: a.op_id, version: a.version };
   },
 });

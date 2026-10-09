@@ -1,6 +1,9 @@
 import "server-only";
 import { z } from "zod";
 import {
+  activityDoor,
+  activityLines,
+  activityRowsForLines,
   agoLabel,
   clockStamp,
   dealsAreOn,
@@ -13,6 +16,7 @@ import {
   serverNotificationRows,
   setupSteps,
   unreadCount,
+  zoneDayKey,
 } from "@chanlytics/contracts";
 import { ActivityQuerySchema } from "../../../metrics/activity";
 import { load } from "../../../readers";
@@ -142,18 +146,20 @@ async function getNotifications(t: ToolContext): Promise<unknown> {
   };
 }
 
-/** How many lines of the log one read says, of its page of a hundred. */
+/** How many lines of the log one read says, of its page. */
 const ACTIVITY_CAP = 30;
 
 /**
  * Who did what, as Settings › Activity lists it (readers/activity.ts, GET activity's own read, filtered by the same
- * checks): both ledgers, newest first, each line the page's -- who, then the sentence -- by the business's clock, and
- * where it opens. An owner's (D13): the route's door is the owner's and RLS lets every member read the ledgers, so the
+ * checks): both ledgers, newest first, each line the page's -- who, then the sentence, then who or what it was about
+ * by name -- by the business's clock, and where it opens. Rows of one kind by one hand on one day are one line with its
+ * count, as the page folds them (contracts activityLines), so a burst of one kind is said once and not thirty times. An owner's (D13): the route's door is the owner's and RLS lets every member read the ledgers, so the
  * action is the door -- the registry offers it to an owner alone and refuses anyone else, and this checks again.
  * Money stays out (the charter): a row about money (contracts isActivityMoney, the category its emitter filed it under
  * -- billing, and a partner's share) is never said, and a kind whose rows are money is refused in words. It pages
- * without a gap: past the lines it says, the next read starts right after the last one said, so the rows between it
- * and the reader's page's end are read again, and a money row among them is left out again.
+ * without a gap: it says the lines its newest rows fold to (activityRowsForLines), and the next read starts right after
+ * the last of those rows, so the rows between it and the reader's page's end are read again, and a money row among
+ * them is left out again.
  */
 async function readActivity(
   t: ToolContext,
@@ -168,12 +174,15 @@ async function readActivity(
   if (q.data.kind && page.rows.some(isActivityMoney))
     return { error: "that kind is about money, which stays out of Ask: its page has it" };
   const rows = page.rows.filter((r) => !isActivityMoney(r));
-  const said = rows.slice(0, ACTIVITY_CAP);
-  const last = said[said.length - 1];
+  const dayOf = (at: string): string => zoneDayKey(Date.parse(at), t.timezone);
+  const folds = !q.data.kind;
+  const read = rows.slice(0, activityRowsForLines(rows, dayOf, ACTIVITY_CAP, folds));
+  const last = read[read.length - 1];
   const nowMs = t.now.getTime();
   return {
     route: "admin/activity",
-    activity: said.map((r) => {
+    activity: activityLines(read, dayOf, folds).map((line) => {
+      const r = line.row;
       const who = r.actor_user_id
         ? (page.actors[r.actor_user_id] ?? "A member")
         : r.actor_type === "ai"
@@ -181,20 +190,20 @@ async function readActivity(
           : r.source === "event"
             ? ""
             : "System";
-      const open =
-        r.subject_type === "contact" && r.subject_id
-          ? `clients/${r.subject_id}`
-          : r.subject_type === "conversation" && r.subject_id
-            ? `inbox/th-${r.subject_id}`
-            : r.subject_type === "call" && r.subject_id
-              ? `conversations/cv-${r.subject_id}`
-              : null;
-      return { when: clockStamp(Date.parse(r.at), t.timezone, nowMs), what: who ? `${who} · ${r.text}` : r.text, open };
+      const key = r.subject_type && r.subject_id ? `${r.subject_type}:${r.subject_id}` : "";
+      const about = key ? page.subjects[key] : undefined;
+      const said = line.title ?? (about ? `${r.text} · ${about}` : r.text);
+      return {
+        when: clockStamp(Date.parse(r.at), t.timezone, nowMs),
+        what: who ? `${who} · ${said}` : said,
+        // A fold stands for several rows, and opens none of them.
+        ...(line.count > 1 ? { times: line.count, open: null } : { open: page.doors[key] ?? activityDoor(r) }),
+      };
     }),
-    // The reader's own cursor shape, "<created_at>|<row id>": after the last line said while this page holds more;
+    // The reader's own cursor shape, "<created_at>|<row id>": after the last row said while this page holds more;
     // else after the page, while the log holds more; else none.
     next_cursor:
-      rows.length > ACTIVITY_CAP ? `${last.at}|${last.id}` : page.page.has_more ? page.page.next_cursor : null,
+      last && rows.length > read.length ? `${last.at}|${last.id}` : page.page.has_more ? page.page.next_cursor : null,
   };
 }
 

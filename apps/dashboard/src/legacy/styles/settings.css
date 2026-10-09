@@ -220,7 +220,7 @@
 .setup-rows .cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info-ink); }
 .setup-rows .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .setup-rows .cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent-ink); }
-.settings .sd-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+.settings .sd-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 
 /* Facts in two columns (the Business pane, the activity ledger): the name of a
    fact, then the fact. The list is the person's page's, where the key is a word
@@ -237,31 +237,45 @@
 .settings .cl-prof-attr .cl-bucket-link { height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
 .settings .cl-prof-aut-hint { margin-top: 0; font-size: var(--set-hint); font-style: normal; line-height: 1.5; }
 /* Filters over a list: the settings input, a row of them. On a phone they wait
-   behind one control, which is the only place this button is drawn. */
-.set-filters-ask { display: none; align-items: center; gap: 6px; margin: 8px 0 0; }
+   behind one control, at the end of the card's head, which is the only place this button is drawn. */
+.set-filters-ask { display: none; align-items: center; gap: 6px; }
 .set-filters-ask-n { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 .set-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 12px; }
-.set-filters .set-input { width: auto; flex: 1 1 180px; max-width: 240px; }
-.set-filter-person { position: relative; display: flex; flex: 1 1 180px; max-width: 240px; }
-.set-filter-person .set-input { flex: 1 1 auto; max-width: none; }
+/* Each list is the kit's box over the house's menu (filters.tsx says why it is the menu); this only sizes the boxes in
+   the row. A list's box is as wide as what it says, at most 220px: at an equal share "Conversations" read
+   "Conversatio…", and a fifth box wrapped under the other four and took the log a row down with it. The browser's own
+   lists stood here until 8 Oct 2026, and drew themselves in the system's colours whatever the look. */
+.set-filters > div { min-width: 0; max-width: 220px; flex: 0 1 auto; }
+/* What a list's box says: its words, ending in an ellipsis where the row has no room for them. */
+.set-filter-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The box that finds a person gives way first: it is read at 96px, and a named kind beside it is not at less than its words. */
+.set-filter-person { position: relative; display: flex; flex: 1 1 96px; max-width: 220px; }
+.set-filter-person > input { flex: 1 1 auto; min-width: 0; }
+/* One day's date box: no wider than a date, in figures that do not shift. */
+.set-filters > input[type="date"] { flex: 0 0 auto; width: 150px; font-variant-numeric: tabular-nums; }
+.set-filters > input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
+.set-filters > input[type="date"]:hover::-webkit-calendar-picker-indicator { opacity: 0.8; }
+/* Back to the whole log, at the end of the card's head: words, where a box more would be one too many. */
+.set-filters-clear { margin-left: auto; white-space: nowrap; }
+/* A finger's 44px comes from around the words, not from the head: the head stood 21px taller while a filter was set,
+   and the log under it moved down and back. */
+@media (pointer: coarse) {
+  .set-filters-clear { align-self: center; margin-block: -14px; }
+}
 .set-filters + .cl-prof-attr-list, .set-filters + .act-list { border-top: 1px solid var(--line); }
-/* The date box was as wide as the boxes either side of it, so "mm/dd/yyyy"
-   shouted louder than the two filters a person actually types in. */
-.set-filters .set-input[type="date"] { flex: 0 0 auto; width: 150px; font-variant-numeric: tabular-nums; }
-.set-filters .set-input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
-.set-filters .set-input[type="date"]:hover::-webkit-calendar-picker-indicator { opacity: 0.8; }
 
 /* ---- The activity log ---------------------------------------------------
    Thirteen rows, each printing its own date, read as thirteen dates and no
    log. The day is said once above the rows that belong to it; a row says the
    time, what kind of thing it was, what happened, and where to go for it. */
 .act-list { display: flex; flex-direction: column; }
-/* Said whenever the log is being read, so narrowing it does not leave the old
-   rows on screen with nothing to say they are stale. */
-.act-reading { padding: 8px 0 2px; font-size: var(--set-hint); color: var(--ink-dim); }
+/* While the log is read again, what is on screen stays and dims (components.css data-loading and data-dims, the
+   loading standard): a sentence that came and went above the rows moved every one of them down and back. */
 /* ---- While it is reading, with nothing held ------------------------------
-   The shape of the log rather than a sentence about it, so the card does not
-   resize under the reader when the rows land. */
+   The shape of the log rather than a sentence about it, drawn in the list itself, so nothing above or below it moves
+   when the rows land. */
+.act-waiting { display: flex; flex-direction: column; }
+.act-waiting > .act-day:first-child { padding-top: 10px; }
 .act-waiting .act-glyph::before { display: none; }
 /* A flat dim block, not a sweeping one: the motion grammar refuses a skeleton shimmer here (the design spec's 9), and
    a gradient that travels is the loudest thing on a settings page while it says the least. */
@@ -273,6 +287,14 @@
   background: var(--bg-sunken);
 }
 .act-bone-day { width: 96px; height: 10px; }
+/* Seven sentences of seven lengths, as a log's are: each row of the waiting shape by its place (the day is the first child). */
+.act-waiting > .act-row:nth-child(2) .act-what > .act-bone { width: 68%; }
+.act-waiting > .act-row:nth-child(3) .act-what > .act-bone { width: 52%; }
+.act-waiting > .act-row:nth-child(4) .act-what > .act-bone { width: 61%; }
+.act-waiting > .act-row:nth-child(5) .act-what > .act-bone { width: 44%; }
+.act-waiting > .act-row:nth-child(6) .act-what > .act-bone { width: 57%; }
+.act-waiting > .act-row:nth-child(7) .act-what > .act-bone { width: 49%; }
+.act-waiting > .act-row:nth-child(8) .act-what > .act-bone { width: 63%; }
 .act-more { display: flex; align-items: center; gap: 10px; padding-top: 10px; }
 .act-so-far { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .act-day {
@@ -294,12 +316,27 @@
   margin-inline: calc(var(--set-row-y) * -0.5);
   padding: 7px calc(var(--set-row-y) * 0.5);
   border-radius: var(--radius-sm);
+  /* A row is its own door where it has a page (a link), and its fold's press where it stands for several (a button):
+     either way it is drawn as the row it is, in the row's own ink and type. */
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  text-decoration: none;
 }
-.act-row:hover { background: var(--bg-hover); }
-/* The time clears 4.5 on a card, and the hover tint under it costs 0.5 of
-   that. It darkens with the row it belongs to rather than the tint being
-   watered down: the row a pointer is on is the one worth reading anyway. */
-.act-row:hover .act-when { color: var(--ink-muted); }
+.act-row:is(a, button) { cursor: pointer; }
+.act-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Under a pointer only: a row is a press now, and a touch screen keeps :hover on the last thing tapped, so a thumb
+   left its wash on a row long after the page it opened was closed again. */
+@media (hover: hover) {
+  .act-row:hover { background: var(--bg-hover); }
+  /* The time clears 4.5 on a card, and the hover tint under it costs 0.5 of
+     that. It darkens with the row it belongs to rather than the tint being
+     watered down: the row a pointer is on is the one worth reading anyway. */
+  .act-row:hover .act-when { color: var(--ink-muted); }
+  .act-row:hover .act-go { color: var(--ink-muted); }
+}
 /* One segment of spine per row: contiguous rows draw a line, and the heading
    that opens the next day leaves the gap between them. No row hairlines --
    the spine is what separates a log, and both at once is a cage. */
@@ -311,10 +348,12 @@
   width: 1px;
   background: var(--line);
 }
-/* The line begins and ends at the first and last disc of a day, not in the air. */
+/* The line begins and ends at the first and last disc of a day, not in the air. The last row of a day says so itself
+   (data-ends, log.tsx): a rule that looked ahead for the next day's heading (:has) was asked again of every row
+   whenever one was added or a fold opened. The waiting shape has no days, and ends at its last row. */
 .act-day + .act-row::before { top: 50%; }
-.act-row:has(+ .act-day)::before { bottom: 50%; }
-.act-row:last-child::before { bottom: 50%; }
+.act-row[data-ends]::before { bottom: 50%; }
+.act-waiting > .act-row:last-child::before { bottom: 50%; }
 /* ---- The kind, and what it means ---------------------------------------
    Every line the same grey is a log you read rather than scan, and the line
    an owner opens it to find is the one that went wrong. The node on the spine
@@ -322,11 +361,30 @@
    activityTone) is said by the row's words where it is a warning or a failure,
    so most rows stay quiet and the failures do not. */
 .act-glyph { align-self: center; position: relative; z-index: 1; border-radius: var(--radius-full); }
-.act-row[data-tone="warn"] .act-what { color: var(--warn-ink); }
-.act-row[data-tone="danger"] .act-what { color: var(--danger-ink); }
 .act-when { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.act-what { font-size: var(--set-label); color: var(--ink); line-height: 1.5; text-wrap: pretty; }
-.settings .act-row .act-open { justify-self: end; height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
+/* A row's two facts are the ink: who did it, a weight up, and what happened. The dots between them are the line's own
+   quieter grey, so a row reads as its facts and not as one run; a member's address in bold on every line was the
+   loudest thing on the card. The tone is the sentence's alone: who did it is not what went wrong. */
+.act-what { font-size: var(--set-label); color: var(--ink-dim); line-height: 1.5; text-wrap: pretty; }
+.act-who { color: var(--ink); font-weight: var(--weight-semibold); }
+.act-said { color: var(--ink); }
+.act-row[data-tone="warn"] .act-said { color: var(--warn-ink); }
+.act-row[data-tone="danger"] .act-said { color: var(--danger-ink); }
+/* Who or what a row is about, and since when a fold runs: said after the sentence, a step quieter than it. */
+.act-about { color: var(--ink-muted); }
+/* Where a row goes, at its end: a quiet chevron for a door, and one that turns for a fold as it opens (the bell's
+   group of notes does the same). It wakes with the row under a pointer or the focus. */
+.act-go { align-self: center; justify-self: end; display: inline-flex; color: var(--ink-faint); }
+.act-row:focus-visible .act-go { color: var(--ink-muted); }
+.act-turn { transition: rotate var(--duration-fast) var(--ease-out); }
+.act-row[aria-expanded="true"] .act-turn { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) { .act-turn { transition: none; } }
+/* ---- A fold, and the rows under it --------------------------------------
+   Rows of one kind by one hand on one day are one line (contracts activityLines, the bell's rule), and a press on
+   it draws them under it: no mark of their own, since the fold wears it, and a step quieter, so the line they belong
+   to still reads as the line. The spine runs on through them. */
+.act-under .act-what { font-size: var(--set-hint); }
+.act-under .act-said { color: var(--ink-muted); }
 @media (max-width: 640px) {
   /* On a phone the sentence wants the whole width, so the kind, the time and the
      door share one line and the sentence takes the next. Every cell is placed:
@@ -335,15 +393,17 @@
   .act-row { grid-template-columns: 24px minmax(0, 1fr) auto; row-gap: 3px; }
   .act-glyph { grid-row: 1; grid-column: 1; }
   .act-when { grid-row: 1; grid-column: 2; }
-  .settings .act-row .act-open { grid-row: 1; grid-column: 3; }
+  .act-go { grid-row: 1; grid-column: 3; }
   .act-what { grid-row: 2; grid-column: 2 / -1; }
 
   /* A log is the work; three boxes are how you narrow it once you are in it.
      Stacked, they pushed the first line 300px down a phone. */
-  .set-filters-ask { display: inline-flex; }
+  /* At the head's end: after Clear while something is set, else by itself. */
+  .set-filters-ask { display: inline-flex; margin-left: auto; }
+  .set-filters-clear + .set-filters-ask { margin-left: 0; }
   .set-filters { display: none; }
   .set-filters.open { display: flex; }
-  .set-filters .set-input, .set-filters .set-input[type="date"], .set-filter-person { flex: 1 1 100%; max-width: none; width: auto; }
+  .set-filters > div, .set-filters > input[type="date"], .set-filter-person { flex: 1 1 100%; max-width: none; width: auto; }
 }
 .settings .st-bullets { margin: 4px 0 12px; gap: 9px; }
 .settings .st-bullets li { font-size: var(--set-label); }
@@ -739,7 +799,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 }
 .set-input::placeholder { color: var(--ink-dim); }
 .set-input:hover { border-color: var(--line-strong); }
-.set-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+.set-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 
 /* ── Create your workspace ────────────────────────────────────────────────
    Rendered INSTEAD of the app, for an account that belongs to nowhere. It
@@ -784,7 +844,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   font-size: 14px;
   padding: 9px 12px;
 }
-.cw-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+.cw-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 .cw-hint { font-size: var(--text-xs); color: var(--ink-faint); }
 .cw-error {
   font-size: 13px;
@@ -941,7 +1001,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .setup-find { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .setup-find-label { font-size: var(--set-hint); color: var(--ink-dim); }
 .setup-area { width: 72px; min-height: 36px; padding: 6px 12px; font: inherit; font-size: var(--set-label); font-variant-numeric: tabular-nums; color: var(--ink); background: var(--surface-inset-fill); border: 1px solid var(--surface-inset-edge); border-radius: var(--control-radius); box-shadow: var(--surface-inset-depth); }
-.setup-area:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+.setup-area:focus-visible { outline: none; box-shadow: var(--focus-field), var(--surface-inset-depth); border-color: var(--accent); }
 .setup-numbers { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
 .setup-number { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--surface-inset-edge); border-radius: var(--surface-inset-radius); background: var(--secondary-fill); box-shadow: var(--surface-inset-depth); cursor: pointer; color: var(--ink); }
 .setup-number.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -1027,7 +1087,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   color: var(--ink);
 }
 .biz-input:hover:not(:disabled) { border-color: var(--line-strong); }
-.biz-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
+.biz-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 .biz-input:disabled { opacity: 0.6; }
 .biz-bad { border-color: var(--danger); }
 /* A box whose value is half of something: the address before the @, with the rest said beside it rather than typed.

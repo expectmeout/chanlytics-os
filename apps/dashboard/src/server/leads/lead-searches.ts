@@ -14,9 +14,11 @@ import {
   type LeadStage,
   type PersonLeadDto,
 } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db";
 import { answerOf, refusalOf } from "./lead-answers";
 import { leadTimelineOf } from "../campaigns/reach-out-leads";
 import { requireUuid } from "../request-guards";
+import { serviceDb } from "../service-db";
 import { type Params, row } from "../route";
 import type { RouteContext } from "../with-route";
 
@@ -299,7 +301,7 @@ export async function searchesOf(
 /* --------------------------------------------------------- a search, kept */
 
 export async function renameSearch(
-  ctx: Pick<RouteContext, "supabase">,
+  ctx: Pick<RouteContext, "supabase" | "userId">,
   s: LeadSearchScopeRow,
   name: string,
 ): Promise<{ name: string }> {
@@ -308,7 +310,9 @@ export async function renameSearch(
   const a = answerOf(data);
   const refused = refusalOf(a);
   if (refused) throw refused;
-  return { name: a.name ?? name };
+  const now = a.name ?? name;
+  await emitEvent(serviceDb(), s.tenant_id, "lead.search_renamed", "lead_search", s.id, { name: now, by: ctx.userId });
+  return { name: now };
 }
 
 /**
@@ -317,7 +321,7 @@ export async function renameSearch(
  * database's and never the page's guess.
  */
 export async function removeSearch(
-  ctx: Pick<RouteContext, "supabase">,
+  ctx: Pick<RouteContext, "supabase" | "userId">,
   s: LeadSearchScopeRow,
 ): Promise<{ archived: number; kept: number; toast: string }> {
   const { data, error } = await ctx.supabase.rpc("lead_search_remove", { p_search_id: s.id });
@@ -332,6 +336,13 @@ export async function removeSearch(
     .is("blanked_at", null);
   if (kept) throw new Error(kept.message);
   const keptN = count ?? 0;
+  // A search and the leads nobody worked are gone on a member's word: the ledger says whose, and what was kept.
+  await emitEvent(serviceDb(), s.tenant_id, "lead.search_removed", "lead_search", s.id, {
+    name: s.name,
+    kept: keptN,
+    archived: a.blanked ?? 0,
+    by: ctx.userId,
+  });
   return {
     archived: a.blanked ?? 0,
     kept: keptN,

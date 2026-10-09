@@ -232,6 +232,13 @@ export async function membershipCountOf(db: Db, userId: string): Promise<number>
   return count ?? 0;
 }
 
+/** The workspaces this user belongs to, by id, read on the session client, which sees only its own rows. */
+export async function workspaceIdsOf(db: Db, userId: string): Promise<string[]> {
+  const { data, error } = await db.from("memberships").select("tenant_id").eq("user_id", userId);
+  if (error) throw new Error(`memberships_of: ${error.message}`);
+  return (data ?? []).map((m) => m.tenant_id);
+}
+
 /** Call `create_workspace` once: its one row, or its error as the database raised it. */
 export async function createWorkspaceFn(db: Db, args: CreateWorkspaceArgs) {
   return db.rpc("create_workspace", args).single();

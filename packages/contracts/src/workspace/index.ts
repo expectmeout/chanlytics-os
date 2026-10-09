@@ -47,14 +47,17 @@ export {
 } from "./retention";
 export {
   activityWords,
-  activityTone,
+  activityKindWords,
+  REACH_OUT_EMAILED_WORDS,
+  CALL_MISSED_WORDS,
+  CALL_UNANSWERED_WORDS,
   isActivityMoney,
   isActivityNoise,
   ACTIVITY_NOISE_PREFIXES,
   ACTIVITY_NOISE_KINDS,
   ACTIVITY_KINDS,
 } from "./activity";
-export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";
+export type { ActivityRowDto, ActivityPageDto, ActivityMemberDto, ActivityVerb } from "./activity";
 export {
   SHARED_EVENT_VERSIONS,
   SHARED_EVENT_SHAPES,

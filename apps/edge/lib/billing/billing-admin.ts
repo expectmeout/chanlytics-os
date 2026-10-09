@@ -26,7 +26,7 @@
  * workspace's row and slug, and the dispatch.
  */
 import { json } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
+import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { respond, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
 import {
   billingReadiness,
@@ -61,6 +61,8 @@ interface BillingCall {
   body: BillingBody;
   db: Db;
   tenantId: string;
+  /** The member the dashboard acted for, where one is named: who a resume or a plan started now is written down as. */
+  person: string | null;
   L: Logger;
 }
 
@@ -73,8 +75,8 @@ const OPS: Record<BillingOp, (c: BillingCall) => Promise<BillingOutcome | Respon
   portal,
   invoices: (c) => invoicesFor(c.db, c.tenantId),
   sync: (c) => syncFor(c.db, c.tenantId),
-  resume: (c) => resumeFor(c.db, c.tenantId),
-  start_now: (c) => startPlanNowFor(c.db, c.tenantId),
+  resume: (c) => resumeFor(c.db, c.tenantId, new Date(), c.person),
+  start_now: (c) => startPlanNowFor(c.db, c.tenantId, new Date(), c.person),
   end: (c) => endFor(c.db, c.tenantId),
 };
 
@@ -95,10 +97,13 @@ async function status(): Promise<Response> {
 }
 
 /** Past status every op needs a database and a workspace id. */
-function workspaceCall(body: BillingBody): { ok: true; value: BillingCall } | Refused {
+function workspaceCall(body: BillingBody, person: string | null): { ok: true; value: BillingCall } | Refused {
   const ws = workspaceOf(body.tenant_id);
   if (!ws.ok) return ws;
-  return { ok: true, value: { body, db: ws.db, tenantId: ws.tenantId, L: logger({ tenant_id: ws.tenantId }) } };
+  return {
+    ok: true,
+    value: { body, db: ws.db, tenantId: ws.tenantId, person, L: logger({ tenant_id: ws.tenantId }) },
+  };
 }
 
 /** The outcome on the wire: logged as the op says, answered with the status its refusal earns, the body as billing.ts stated it. */
@@ -129,7 +134,7 @@ export async function billingOp(auth: Admitted, body: Partial<BillingBody>): Pro
 
   if (op === "status") return status();
 
-  const call = workspaceCall(body);
+  const call = workspaceCall(body, personFor(auth, body.user_id));
   if (!call.ok) return call.response;
   if (!Object.hasOwn(OPS, op)) return respond(UNKNOWN_BILLING_OP);
   const r = await OPS[op as BillingOp](call.value);

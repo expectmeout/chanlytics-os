@@ -1002,7 +1002,8 @@ test("resume: a paused subscription is resumed on Stripe, billing from now, and 
   );
   assert.deepEqual(
     t.events.map((e) => [e.kind, e.data]),
-    [["billing.resumed", { source: "resume", status: "active", subscription: "sub_1", price_id: "price_1" }]],
+    // A resume is a member's: the ledger says whose, where Stripe's own events name nobody.
+    [["billing.resumed", { source: "resume", status: "active", subscription: "sub_1", price_id: "price_1", by: "u1" }]],
   );
 
   for (const [r, error] of [

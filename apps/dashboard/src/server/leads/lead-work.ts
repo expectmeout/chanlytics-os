@@ -10,9 +10,11 @@ import {
   type LeadStageInput,
   stageArgs,
 } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db";
 import { answerOf, type DoorAnswer, refusalOf } from "./lead-answers";
 import type { DoorArgs } from "./lead-helpers";
 import type { LeadRow } from "./lead-searches";
+import { serviceDb } from "../service-db";
 import { recordDecision } from "../verbs";
 import type { RouteContext } from "../with-route";
 
@@ -184,3 +186,22 @@ export async function eraseLead(
   if (!already) await recordDecision(ctx, lead.tenant_id, "lead", lead.id, "erase", {});
   return { erased: true, already };
 }
+
+/**
+ * A member's word on a place in Needs review, on the ledger: kept (it counts against the month, as a search's own
+ * leads do), left out, or put back. Each has its operation record, which is how it is undone; the ledger is where an
+ * owner reads who did it. As the service role: a session may not insert into events.
+ */
+interface LeadTriage {
+  tenantId: string;
+  leadId: string;
+  searchId: string;
+  by: string;
+}
+const triageData = (t: LeadTriage) => ({ by: t.by, search_id: t.searchId });
+export const saidLeadKept = (t: LeadTriage): Promise<void> =>
+  emitEvent(serviceDb(), t.tenantId, "lead.kept", "lead", t.leadId, triageData(t));
+export const saidLeadExcluded = (t: LeadTriage): Promise<void> =>
+  emitEvent(serviceDb(), t.tenantId, "lead.excluded", "lead", t.leadId, triageData(t));
+export const saidLeadPutBack = (t: LeadTriage): Promise<void> =>
+  emitEvent(serviceDb(), t.tenantId, "lead.put_back", "lead", t.leadId, triageData(t));

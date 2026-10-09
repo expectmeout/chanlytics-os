@@ -1848,7 +1848,15 @@ test("disconnect gives the grant back, drops the token from Vault, forgets the p
   assert.equal(tables.google_listings.length, 1, "the listing stays: the public half still works");
   assert.deepEqual(
     tables.events.map((e) => [e.tenant_id, e.kind, e.category, e.data]),
-    [[A, "google.disconnected", "google", { email: "owner@example.com", location: "locations/222", revoked: true }]],
+    [
+      [
+        A,
+        "google.disconnected",
+        "google",
+        // Who gave the grant back: the ledger said the profile was disconnected and never whose hand it was.
+        { email: "owner@example.com", location: "locations/222", revoked: true, by: U },
+      ],
+    ],
   );
   assert.deepEqual(
     await answer(await knock({ op: "disconnect" })),
@@ -1902,8 +1910,8 @@ test("disconnect gives the grant back, drops the token from Vault, forgets the p
   assert.deepEqual(
     t3.events.map((e) => [e.kind, e.data]),
     [
-      ["google.disconnected", { email: "owner@example.com", location: "locations/222", revoked: true }],
-      ["google.unlinked", { place_id: PLACE, name: "Harbor Moving", had_profile: true }],
+      ["google.disconnected", { email: "owner@example.com", location: "locations/222", revoked: true, by: U }],
+      ["google.unlinked", { place_id: PLACE, name: "Harbor Moving", had_profile: true, by: U }],
     ],
   );
 

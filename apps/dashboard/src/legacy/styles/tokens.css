@@ -254,6 +254,15 @@
 
   --quiet-ink: var(--ink-muted);
 
+  /* A box that is typed in or picked from, while it holds the keys: its own hairline in the accent, and a soft wash
+     of the accent around it. One quiet line, where the keyboard's ring (--focus-ring: a gap in the page's ground, then
+     a second hard line 2px out) drew two; and a box takes focus from a pointer too, so every press on a list or a
+     search box wore the ring a button shows to a keyboard alone (Ruben, 8 Oct 2026: "2 coral outlines… strong and
+     performative"). The first is for a box whose own border turns the accent; the second draws that hairline as well,
+     for a capsule with no border of its own. A button, a row, a tab and a door keep --focus-ring. */
+  --focus-field: 0 0 0 3px var(--accent-soft);
+  --focus-field-edged: 0 0 0 1px var(--accent), var(--focus-field);
+
   /* Surfaces: the page; a pane of content; an inset inside one (a segmented control's track, a note); what pops over
      the page (a menu, a toast, a tip); the wash behind a sheet. */
   --surface-page-fill: var(--bg);
@@ -423,7 +432,8 @@
   --surface-inset-radius: 14px;
   --surface-row-radius: 18px;
 
-  /* What pops over the page: opaque, and a soft shadow (derived from the canvases' popover). Opaque to the last per cent:
+  /* What pops over the page: opaque, and a soft shadow (derived from the canvases' popover); the kit's pop panel wears
+     the near-opaque glass made from it, --surface-pop-glass, below. Opaque to the last per cent:
      at the canvases' 98% and the dark side's 97%, with no blur, Reports' headline read through its period's month on a
      phone (7 Oct 2026). Each is the colour the canvases' fill came to over the page. */
   --surface-pop-fill: oklch(1 0 0);
@@ -432,6 +442,13 @@
   --surface-pop-depth:
     inset 0 1px 0 oklch(1 0 0 / 0.95), 0 18px 44px -14px oklch(0.274 0.063 274 / 0.3),
     0 1px 2px oklch(0.274 0.063 274 / 0.08);
+  /* What pops from a control (the kit's Panel in its pop: a list, a month, a popover) wears the control layer's lit
+     glass (the sheen, the specular edge and the depth) on this ground: the pop's fill at 88%, over a blur. An action
+     menu's own glass is the control layer's 8.5% to 50%, which holds over the sidebar's plain light; over a log's rows
+     it let the amber and the red of the lines under it through as a brown smear (Settings › Activity, 8 Oct 2026), the
+     fault the pop's opaque ground was set to keep out. Where there is no blur to be had, or less transparency is asked
+     for, it is the solid (below). */
+  --surface-pop-glass: color-mix(in oklab, var(--surface-pop-fill) 88%, transparent);
   --surface-scrim: oklch(0.959 0.005 275 / 0.5);
 
   /* The live call's island: always dark, as the hardware it borrows from, in both themes, with its own ink and coral. */
@@ -602,6 +619,7 @@
     --secondary-fill: var(--surface-inset-solid);
     --selected-fill: var(--selected-solid);
     --surface-pop-fill: var(--surface-pop-solid);
+    --surface-pop-glass: var(--surface-pop-solid);
     --surface-island-fill: var(--surface-island-solid);
     --surface-control-blur: none;
   }
@@ -615,6 +633,7 @@
     --secondary-fill: var(--surface-inset-solid);
     --selected-fill: var(--selected-solid);
     --surface-pop-fill: var(--surface-pop-solid);
+    --surface-pop-glass: var(--surface-pop-solid);
     --surface-island-fill: var(--surface-island-solid);
     --surface-control-blur: none;
   }
