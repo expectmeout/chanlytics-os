@@ -11,12 +11,12 @@
  *
  * One tick, in this order:
  *   1. sweepUnfinished (lib/receptionist/unfinished.ts), asked first and on its own, so a failure there
- *      (unfinished_sweep_failed) never costs the watchdog its tick. It finds a WhatsApp or SMS message the handler
- *      accepted and never finished with, and a queued reply no live outbound_send job is sending. The first is
- *      opened for a person (an escalation, reason brain_error), its owner told what the customer said, and the
- *      message stamped handled; nothing is answered on its own. The second is marked failed and its thread flagged
- *      (send_failed), except a campaign's email, which its run counts. Email is not swept here: its intake is a job
- *      with its own lease.
+ *      (unfinished_sweep_failed) never costs the watchdog its tick, and inside a time budget, so a slow mail provider
+ *      never costs it its time either. It finds a WhatsApp or SMS message the handler accepted and never finished
+ *      with, and a queued reply no live outbound_send job is sending. The first is opened for a person (an
+ *      escalation, reason brain_error), its owner told what the customer said, and the message stamped handled;
+ *      nothing is answered on its own. The second is marked failed and its thread flagged (send_failed), except a
+ *      campaign's email, which its run counts. Email is not swept here: its intake is a job with its own lease.
  *   2. sweepStrandedRuns (lib/ops/stranded-runs.ts), on its own too (stranded_run_sweep_failed) and inside a time
  *      budget: a run still scheduled ten minutes past its time with no broadcast_send job to start it is marked not
  *      sent (run_interrupted) and its owner told once, with the run's own link. A reach-out's run is not one.
@@ -25,9 +25,13 @@
  *      kind `deadman` and a mail carrying the customer to the workspace's OWN recipients. Only a delivered warning
  *      earns the once-guard, and it lives on the ROW (escalations.deadman_alerted_at, set by deadman_mark_alerted),
  *      so a failed send is tried again next tick and an escalation is flagged at most once however long it stays
- *      open. A workspace with nobody on file (reachesTenant) is not warned from here at all and its escalation is
- *      left unstamped, so it is raised the moment somebody is on file; the platform hears of it through pageOperator
- *      (deadman_unaddressable:<tenant>, one page per workspace per pager window), which is not one email per tick.
+ *      open. The guard is written the moment its warning is delivered, and no warning is started past the tick's
+ *      budget (WARN_BUDGET_MS): stamped only after the last of fifty, a tick the platform killed part way stamped
+ *      nothing, and every owner was warned again ten minutes later. What the budget leaves is the next tick's,
+ *      unstamped and oldest first. A workspace with nobody on file (reachesTenant) is not warned from here at all and
+ *      its escalation is left unstamped, so it is raised the moment somebody is on file; the platform hears of it
+ *      through pageOperator (deadman_unaddressable:<tenant>, one page per workspace per pager window), which is not
+ *      one email per tick.
  *
  * The DETECTION is a SQL sweep, so it notices an abandoned conversation regardless of which code path abandoned it,
  * including paths written later. The ALERT is here, because addressing a tenant correctly is real logic -- one
@@ -42,7 +46,7 @@
  * its `tenant_id`.
  */
 import { json } from "../http.js";
-import { notify, notifyOnce, reachesTenant } from "../ops/notify.js";
+import { notify, notifyOnce, reachesTenant, NOTIFY_TIMEOUT_MS } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { errField } from "../log.js";
 import { pageOperator } from "../ops/page-operator.js";
@@ -65,8 +69,19 @@ interface Candidate {
   opened_at: string;
   phone_e164: string | null;
 }
+/*
+ * Each part of the tick starts new work only so long, measured from the door (sweepDoor's `started`) inside the
+ * function's sixty seconds (vercel.json). Each tells owners by mail, and a mail waits up to NOTIFY_TIMEOUT_MS, so a
+ * part that stops at its line may still be finishing one past it. What a part leaves is found again next tick.
+ */
+/** How long into the tick the unfinished may keep raising: the stranded runs and the watchdog need the rest. */
+const UNFINISHED_BUDGET_MS = 15_000;
 /** How long into the tick the stranded runs may keep telling: the two-hour watchdog after them needs the rest. */
 const STRANDED_BUDGET_MS = 20_000;
+/** How long into the tick a warning may still be started: one started at the line has its mail's time and its stamp. */
+const WARN_BUDGET_MS = 35_000;
+/** And a page for a workspace nobody can be told about, after the last warning's mail; a page stamps when it sends. */
+const PAGE_BUDGET_MS = WARN_BUDGET_MS + NOTIFY_TIMEOUT_MS;
 
 export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Response> {
   // A customer's message the handler never finished with, and a queued reply
@@ -83,6 +98,7 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
       notify,
       loadTenantNotifications,
       reachesTenant,
+      deadline: started + UNFINISHED_BUDGET_MS,
     });
   } catch (e) {
     L.error("unfinished_sweep_failed", { error: errField(e) });
@@ -114,11 +130,21 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
   // One addressing lookup per TENANT, not per escalation: a backlog is usually
   // one workspace having a bad morning.
   const addressing = new Map<string, Awaited<ReturnType<typeof loadTenantNotifications>>>();
-  const alerted: string[] = [];
+  let flagged = 0;
+  /** The candidates the budget left for the next tick. */
+  let left = 0;
   /** Workspaces with an open escalation and nobody on file to tell about it. */
   const unaddressable = new Set<string>();
 
-  for (const c of candidates) {
+  for (const [i, c] of candidates.entries()) {
+    // Out of time: the rest wait for the next tick, unstamped and oldest first, so none is warned twice and none is
+    // skipped. Started past it, a warning could still be in flight when the platform ends the function: a mail that
+    // left with no stamp to say so.
+    if (Date.now() > started + WARN_BUDGET_MS) {
+      left = candidates.length - i;
+      L.warn("deadman_over_budget", { left });
+      break;
+    }
     try {
       if (!addressing.has(c.tenant_id)) {
         addressing.set(c.tenant_id, await loadTenantNotifications(db, c.tenant_id));
@@ -160,16 +186,22 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
       // Only a DELIVERED warning earns the once-guard, and only this
       // workspace's own people count as delivery — the unaddressable case
       // never reaches here. If the send failed, the next tick tries again
-      // rather than marking the customer as handled.
-      if (delivered) alerted.push(c.escalation_id);
-      else L.warn("deadman_alert_undelivered", { tenant_id: c.tenant_id, escalation: c.escalation_id });
+      // rather than marking the customer as handled. Earned, it is written
+      // now, before the next warning starts: a tick cut short after this one
+      // never warns this owner about this customer again.
+      if (delivered) {
+        flagged += 1;
+        await markAlerted(db, L, c);
+      } else L.warn("deadman_alert_undelivered", { tenant_id: c.tenant_id, escalation: c.escalation_id });
     } catch (e) {
       L.error("deadman_candidate_failed", { tenant_id: c.tenant_id, escalation: c.escalation_id, error: errField(e) });
     }
   }
 
-  // One page per workspace per six hours, not one per escalation per tick.
+  // One page per workspace per six hours, not one per escalation per tick. A page stamps only when it sends, so one the
+  // budget leaves is simply the next tick's.
   for (const tenantId of unaddressable) {
+    if (Date.now() > started + PAGE_BUDGET_MS) break;
     await pageOperator(
       { db },
       `deadman_unaddressable:${tenantId}`,
@@ -181,15 +213,16 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
     ).catch(() => {});
   }
 
-  if (alerted.length) {
-    const { error: markErr } = await db.rpc("deadman_mark_alerted", { p_ids: alerted });
-    if (markErr) {
-      // The warnings went out; failing to stamp means they may repeat next
-      // tick. Noisy beats silent, but it must be visible.
-      L.error("deadman_mark_failed", { count: alerted.length, error: markErr.message });
-    }
-  }
+  L.info("deadman_swept", { candidates: candidates.length, flagged, left, ...asked });
+  return json(200, { ok: true, candidates: candidates.length, flagged, ...asked });
+}
 
-  L.info("deadman_swept", { candidates: candidates.length, flagged: alerted.length, ...asked });
-  return json(200, { ok: true, candidates: candidates.length, flagged: alerted.length, ...asked });
+/**
+ * The once-guard on one escalation whose warning was delivered (escalations.deadman_alerted_at). The warning went out;
+ * failing to stamp means it may repeat next tick. Noisy beats silent, but it must be visible.
+ */
+async function markAlerted(db: SweepTick["db"], L: SweepTick["L"], c: Candidate): Promise<void> {
+  const { error } = await db.rpc("deadman_mark_alerted", { p_ids: [c.escalation_id] });
+  if (error)
+    L.error("deadman_mark_failed", { tenant_id: c.tenant_id, escalation: c.escalation_id, error: error.message });
 }
