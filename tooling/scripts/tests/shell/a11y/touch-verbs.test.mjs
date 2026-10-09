@@ -6,8 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
-import { importSrc } from "../_source.mjs";
+import { installLegacyReact } from "../../_legacy-react.mjs";
+import { importSrc } from "../../_source.mjs";
 
 installLegacyReact();
 const { focusAsDrawn, keepTouch, onAPhone, onTouchScreen } = await importSrc(
