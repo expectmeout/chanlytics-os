@@ -9383,8 +9383,11 @@ type Database = {
  */
 
 type Db$A = SupabaseClient<Database>;
-/** A JSON object whose keys are open: a provider's own payload, or a tally, forwarded as it came. */
-type Open = {
+/**
+ * A JSON object whose keys are open: a provider's own payload, a tally, or a counts function's answer, forwarded as it
+ * came. Json's object branch, spelled once for packages/db (reports/report-series.ts and reach-out-sheet.ts read it).
+ */
+type JsonObject = {
     [key: string]: Json | undefined;
 };
 /** A kind that carries nothing but its subject. */
@@ -9427,7 +9430,7 @@ interface TableData {
     "billing.paused": BillingData;
     "billing.resumed": BillingData;
     "billing.updated": BillingData;
-    "broadcast.sent": Open;
+    "broadcast.sent": JsonObject;
     /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
     "broadcast.stopped": {
         failure: string;
@@ -9496,7 +9499,7 @@ interface TableData {
         review_id: string;
         chars: number;
         by?: "receptionist";
-        usage?: Open | null;
+        usage?: JsonObject | null;
     };
     /** An automatic reply the receptionist wrote and did not post: it named a price or money (contracts autoReplyHold). */
     "google.reply_held": {
@@ -9520,7 +9523,7 @@ interface TableData {
     "ingest.unreachable_sender": Nothing;
     "ingest.unroutable": {
         channel: "email" | "voice" | "whatsapp";
-    } & Open;
+    } & JsonObject;
     "lead.emailed": {
         by: "reach_out";
         send_id: string;
@@ -9574,19 +9577,19 @@ interface TableData {
     "line.released": {
         e164: string | null;
         provider: string;
-    } & Open;
+    } & JsonObject;
     "line.texting_approved": TextingData;
     "line.texting_on": TextingData;
     "line.texting_rejected": TextingData;
     "message.send_blocked": {
         reason: string | null;
-    } & Open;
+    } & JsonObject;
     /** `http_status` is the send's own answer: absent when the failure came later, in the provider's receipt (reason "receipt"). */
     "message.send_failed": {
         http_status?: number;
         body: string | null;
         reason: string;
-    } & Open;
+    } & JsonObject;
     "message.send_raced_cancel": {
         wamid: string | null;
     };
@@ -9626,10 +9629,10 @@ interface TableData {
     };
     "sending_domain.held": {
         host: string;
-    } & Open;
+    } & JsonObject;
     "sending_domain.released": {
         host: string;
-    } & Open;
+    } & JsonObject;
     "sending_domain.removed": {
         host: string;
         why?: string;
@@ -9642,7 +9645,7 @@ interface TableData {
     };
     "sending_domain.verified": {
         host: string;
-    } & Open;
+    } & JsonObject;
     "settings.changed": {
         fields: string[];
         by: string;
@@ -9660,18 +9663,18 @@ interface TableData {
         language: string;
         by: string;
     };
-    "usage.ask_tokens": Open;
+    "usage.ask_tokens": JsonObject;
     "usage.llm_tokens": Record<string, unknown>;
-    "voice.provisioned": Open & {
+    "voice.provisioned": JsonObject & {
         agent_id: string;
         llm_id: string;
     };
     "webhook.auth": {
         provider: "retell";
-    } & Open;
+    } & JsonObject;
     "webhook.delivery": {
         provider: "retell";
-    } & Open;
+    } & JsonObject;
     /** A workspace reached one of the activation milestones for the first time (contracts ACTIVATION_MILESTONES). */
     "workspace.activated": {
         milestone: ActivationMilestone;
@@ -9681,7 +9684,7 @@ interface TableData {
 /** Meta's account webhooks, one kind per field (contracts WABA_FIELDS): the payload as Meta sent it. */
 type WabaData = {
     waba_id: string;
-} & Open;
+} & JsonObject;
 /** Every kind this module writes, and its data: the table above, and Meta's family. */
 type EventData = TableData & {
     [K in WabaEventKind]: WabaData;
@@ -37922,9 +37925,6 @@ interface HeldNoticeMark {
     claimed_at: string;
     sent_at?: string;
 }
-type JsonObject = {
-    [key: string]: Json | undefined;
-};
 /** A live reach-out run with holds whose owner has not been told of them yet, as the check's notice reads it. */
 interface HeldNoticeRun {
     id: string;
@@ -37995,27 +37995,19 @@ declare function reachOutReport(db: Db$m, tenantId: string, days: number): Promi
     message: string;
 }>;
 /**
- * What each of the counts functions answers: one jsonb object, keyed by a playbook's, a run's or a chain's id or a
- * message's name (an empty object: nothing counted), for contracts' guards to read. Never a bare value, so "missing"
- * beside it is never a string the database could have answered.
- */
-type CountsByKey = {
-    [key: string]: Json | undefined;
-};
-/**
  * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00362): one jsonb by
  * playbook id, which PostgREST's row cap never cuts; contracts' isPlaybookTotalsDto reads it.
  */
-declare function playbookTotals(db: Db$m, tenantId: string, history: number): Promise<CountsByKey | "missing">;
+declare function playbookTotals(db: Db$m, tenantId: string, history: number): Promise<JsonObject | "missing">;
 /** Each run's people, receipts and replies, by run id (`run_counts`, 00362): what Sent, a run's sheet and a card say. */
-declare function runCounts(db: Db$m, tenantId: string, runIds: readonly string[]): Promise<CountsByKey | "missing">;
+declare function runCounts(db: Db$m, tenantId: string, runIds: readonly string[]): Promise<JsonObject | "missing">;
 /** How many of each message went out, and when the latest did, by name (`template_sends`, 00362). */
-declare function templateSends(db: Db$m, tenantId: string): Promise<CountsByKey | "missing">;
+declare function templateSends(db: Db$m, tenantId: string): Promise<JsonObject | "missing">;
 /**
  * Every chain's last `days`, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how many wrote
  * back, when it last wrote. A definer behind may_read_workspace: a caller who is no member is refused (P0002), thrown.
  */
-declare function reachOutChainTotals(db: Db$m, tenantId: string, days: number): Promise<CountsByKey | "missing">;
+declare function reachOutChainTotals(db: Db$m, tenantId: string, days: number): Promise<JsonObject | "missing">;
 
 /**
  * The receptionist's first replies (`first_replies`, 00303): the one rule for who answered and how fast, which `report_series` and

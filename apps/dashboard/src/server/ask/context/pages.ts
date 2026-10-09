@@ -48,7 +48,7 @@ export const reports: Provider = async (rc, ctx) => {
 };
 
 /** The playbooks the page drew, each as campaigns.playbooks says one: its moment, state, next run, what runs earned. */
-async function playbookRows(rc: ReaderContext, ids: string[]) {
+async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   const read = await load(rc, playbooksReader, undefined);
   const pb = read.data;
   const byId = new Map(pb.playbooks.map((p) => [p.id, p]));
@@ -134,7 +134,7 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
 export const campaigns: Provider = async (rc, ctx) => {
   const got =
     ctx.view === "playbooks"
-      ? await playbookRows(
+      ? await playbookContextRows(
           rc,
           idsOf(ctx, "playbook").map((r) => r.id),
         )

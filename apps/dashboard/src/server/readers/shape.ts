@@ -2,7 +2,7 @@ import "server-only";
 import { dealsAreOn, parseTenantConfig, MIN_MS } from "@chanlytics/contracts";
 import { connectionFor } from "../connections/google";
 import { emailLineFor } from "../connections/email";
-import { listPlaybooks } from "../campaigns/playbooks";
+import { playbookRows } from "../campaigns/playbooks";
 import { load, stamp, type Reader } from "./index";
 import * as facts from "./facts";
 import { channels } from "./channels";
@@ -44,7 +44,8 @@ export const shape: Reader<undefined, WorkspaceShape> = {
       emailLineFor(rc.ctx.supabase, rc.tenantId),
       connectionFor(rc.ctx.supabase, rc.tenantId),
       load(rc, lists, undefined).then((r) => r.data.lists),
-      listPlaybooks(rc.ctx, rc.tenantId),
+      // The rows alone (00362's split): the shape names each by its name, trigger and state, and runs nothing's count.
+      playbookRows(rc.ctx, rc.tenantId),
     ]);
     const config = parseTenantConfig(cfg?.config ?? null);
     const data: WorkspaceShape = {

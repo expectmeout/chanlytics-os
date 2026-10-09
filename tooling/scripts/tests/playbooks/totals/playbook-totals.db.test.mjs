@@ -26,7 +26,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { REPLY_WINDOW_MS, isReplyTo } from "@chanlytics/contracts";
+import { REPLY_WINDOW_MS, isPlaybookTotalsDto, isReplyTo, runCountsOf, templateSendsOf } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -607,6 +607,8 @@ test(
   async () => {
     const w = await world();
     const got = ok(await db.rpc("playbook_totals", { p_tenant_id: w.A.tenant, p_history: 10 }), "playbook_totals");
+    // The guard the dashboard reads it through takes it: every count a whole number, as contracts' isCount asks.
+    assert.equal(isPlaybookTotalsDto(got), true, "contracts' guard takes the database's answer");
     assert.deepEqual(
       Object.keys(got).sort(),
       [w.A.winback, w.A.welcome].sort(),
@@ -676,6 +678,7 @@ test(
       await db.rpc("run_counts", { p_tenant_id: w.A.tenant, p_run_ids: [0, 4, 5, 7, 8, 20, 34, 36, 39].map(id) }),
       "run_counts",
     );
+    assert.notEqual(runCountsOf(got), null, "contracts' reader takes the database's answer");
     const counts = (queued, sent, skipped, failed, delivered, read, replied, whatsapp, sms, email) => ({
       queued,
       sent,
@@ -717,6 +720,7 @@ test(
   async () => {
     const w = await world();
     const got = ok(await db.rpc("template_sends", { p_tenant_id: w.A.tenant }), "template_sends");
+    assert.notEqual(templateSendsOf(got), null, "contracts' reader takes the database's answer");
     assert.deepEqual(Object.keys(got).sort(), ["reach_hello", "welcome_note", "winback_offer"]);
     // Win-back's 93, the one-off's 2 and the Inbox's one that left; not the one still in its veto window.
     assert.deepEqual([got.winback_offer.count, got.welcome_note.count, got.reach_hello.count], [96, 6, 1]);

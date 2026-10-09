@@ -1144,6 +1144,32 @@ test("the shape reader is kept across turns for a context that keeps, and read e
   assert.ok(ctx.supabase.seen.length > after, "a route's context reads it again");
 });
 
+test("the shape reads the playbooks' rows alone: no run, no person on one and no count is read to name them", async () => {
+  const ctx = ctxFor(
+    shapeTables({
+      broadcasts: [
+        {
+          id: "b1",
+          tenant_id: A,
+          playbook_id: "pb2",
+          name: "Win-back",
+          state: "sent",
+          recipient_count: 9,
+          created_at: iso(NOW.getTime()),
+        },
+      ],
+      broadcast_recipients: [
+        { tenant_id: A, broadcast_id: "b1", contact_id: P1, state: "sent", sent_at: iso(NOW.getTime()) },
+      ],
+    }),
+  );
+  await load(rcIn(ctx, A, { keep: false }), shape, undefined);
+  const asked = ctx.supabase.seen.map((q) => q.table ?? `rpc:${q.rpc}`);
+  for (const not of ["broadcasts", "broadcast_recipients", "rpc:playbook_totals", "rpc:run_counts"])
+    assert.equal(asked.includes(not), false, `${not}: not the shape's`);
+  assert.ok(asked.includes("playbooks"), "the rows themselves");
+});
+
 /* ------------------------------------------------------------------ the tab's warm */
 
 test("the tab's warm (D6): the page's context posted to ask/warm for the named workspace, raw -- no refresh runs -- and a warm that fails, or a network that is down, costs nothing", async () => {

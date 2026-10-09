@@ -14582,6 +14582,7 @@ function buildAskSuggestions(input) {
 
 // src/shared/unknown.ts
 var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
 var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
 var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
 var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
@@ -24517,7 +24518,6 @@ var APP_FILE_MAX_CHARS = 2e6;
 var APP_FILE_NAME_RE = /^[\w .()-]{1,100}\.(csv|txt)$/;
 var PUSH_TOKEN_MAX = 200;
 var isRecord = (v) => typeof v === "object" && v !== null;
-var isCount = (n) => typeof n === "number" && Number.isInteger(n) && n >= 0;
 var PAGE_MESSAGES = {
   route: (v) => typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "route", route: v.route } : null,
   needs: (v) => isCount(v.inbox) ? { t: "needs", inbox: v.inbox } : null,
@@ -28010,24 +28010,23 @@ It kept trying through the day. If today's message matters, you can send it your
 }
 
 // src/playbooks/playbook-totals.ts
-var isCount2 = (v) => typeof v === "number" && Number.isFinite(v);
 var isText = (v) => typeof v === "string";
 var isTextOrNull = (v) => v === null || typeof v === "string";
 function isHistoryRun(v) {
   const r2 = recordOrNull(v);
-  return !!r2 && isText(r2.id) && isTextOrNull(r2.run_for) && isText(r2.state) && isText(r2.scheduled_for) && isCount2(r2.recipient_count) && isCount2(r2.sent) && isCount2(r2.held) && isCount2(r2.delivered) && isCount2(r2.replied);
+  return !!r2 && isText(r2.id) && isTextOrNull(r2.run_for) && isText(r2.state) && isText(r2.scheduled_for) && isCount(r2.recipient_count) && isCount(r2.sent) && isCount(r2.held) && isCount(r2.delivered) && isCount(r2.replied);
 }
 function isLastRun(v) {
   const r2 = recordOrNull(v);
-  return !!r2 && isText(r2.id) && isText(r2.state) && isTextOrNull(r2.run_for) && isCount2(r2.recipient_count);
+  return !!r2 && isText(r2.id) && isText(r2.state) && isTextOrNull(r2.run_for) && isCount(r2.recipient_count);
 }
 function isWaiting(v) {
   const r2 = recordOrNull(v);
-  return !!r2 && isText(r2.id) && isCount2(r2.recipient_count) && isText(r2.name) && isTextOrNull(r2.run_for) && isTextOrNull(r2.trigger);
+  return !!r2 && isText(r2.id) && isCount(r2.recipient_count) && isText(r2.name) && isTextOrNull(r2.run_for) && isTextOrNull(r2.trigger);
 }
 function isTotalsRow(v) {
   const r2 = recordOrNull(v);
-  return !!r2 && isCount2(r2.runs) && isCount2(r2.sent) && isCount2(r2.delivered) && isCount2(r2.replied) && isCount2(r2.held) && isLastRun(r2.last_run) && (r2.waiting === null || isWaiting(r2.waiting)) && Array.isArray(r2.history) && r2.history.every(isHistoryRun);
+  return !!r2 && isCount(r2.runs) && isCount(r2.sent) && isCount(r2.delivered) && isCount(r2.replied) && isCount(r2.held) && isLastRun(r2.last_run) && (r2.waiting === null || isWaiting(r2.waiting)) && Array.isArray(r2.history) && r2.history.every(isHistoryRun);
 }
 function isPlaybookTotalsDto(answer) {
   const byId = recordOrNull(answer);

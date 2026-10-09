@@ -9,6 +9,7 @@
 
 import type { Theme } from "../shell/chrome";
 import { isUuid } from "../shared/identity";
+import { isCount } from "../shared/unknown";
 import { parseTodayWidgetSnapshot, type TodayWidgetSnapshot } from "./widget";
 
 /** A hash route's name as the shell writes it: `today`, `inbox`, `clients/abc-123`. Never a URL, never a scheme. */
@@ -72,9 +73,6 @@ export type ShellMessage =
   | { t: "device"; token: string; platform: "ios" | "android"; version: string; activity?: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
-
-/** A whole number, none below zero: a count the page says. */
-const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
 /** One reader per shape the page says: a table, so a new shape is a row, not another branch in one function. */
 const PAGE_MESSAGES: { [K in PageMessage["t"]]: (v: Record<string, unknown>) => PageMessage | null } = {

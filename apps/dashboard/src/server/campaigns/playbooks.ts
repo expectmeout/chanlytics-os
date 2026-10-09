@@ -10,13 +10,16 @@ import {
   playbookStopBy,
   purposeOfTemplate,
   dealsAreOn,
+  isPlaybookTotalsDto,
   ruleNeedsViewer,
   viewerListWords,
   DEFAULT_CAMPAIGN_CHANNELS,
+  type BroadcastDto,
   type ConsentChannel,
   type FollowUpFactsDto,
   type PlaybookDto,
   type PlaybookPolicyClass,
+  type PlaybookTotalsDto,
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { checkPlaybook, checkPlaybookChannels, type PlaybookInput } from "@chanlytics/core";
@@ -25,6 +28,7 @@ import {
   listRow,
   messageVersionRowsOf,
   playbookChannels,
+  playbookTotals,
   readAllRows,
   touchIndex,
   touchesSince,
@@ -53,18 +57,11 @@ import { lazily } from "@/server/lazy";
 const COLUMNS =
   "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels";
 
-/** One run on a card's history: the day it ran for, and what it earned. */
-export interface RunSummary {
-  id: string;
-  run_for: string | null;
-  state: string;
-  scheduled_for: string;
-  recipient_count: number;
-  sent: number;
-  held: number;
-  delivered: number;
-  replied: number;
-}
+/** One moment playbook's totals as the database counts them (playbook_totals, 00362): the card's shapes are read off it. */
+type TotalsRow = PlaybookTotalsDto[string];
+
+/** One run on a card's history: the day it ran for, and what it earned (contracts' shape, the database's answer). */
+export type RunSummary = TotalsRow["history"][number];
 
 /** How many runs a card lists; the totals are over every run. */
 export const HISTORY_ON_CARD = 10;
@@ -75,9 +72,9 @@ export interface PlaybookTotals {
   delivered: number;
   replied: number;
   held: number;
-  lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
+  lastRun: TotalsRow["last_run"] | null;
   /** The run waiting for a person, with its day and its moment: what the approve verb's refusal reads (runApprovalRefusal). */
-  waiting: { id: string; recipient_count: number; name: string; run_for: string | null; trigger: string | null } | null;
+  waiting: TotalsRow["waiting"];
   /** The most recent runs, newest first, from the same rows the totals are summed over. */
   history: RunSummary[];
 }
@@ -248,9 +245,24 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
 
 export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };
 
-export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
-  // The moments. A reach-out's steps are its own sheet's (Reach out, Part 4), never cards here.
-  // The query is returned as it is built, and runs when it is awaited, so the runs' read starts first, as it did.
+/** What a playbook that never ran has earned: nothing, and no run to name. */
+const noTotals = (): PlaybookTotals => ({
+  runs: 0,
+  sent: 0,
+  delivered: 0,
+  replied: 0,
+  held: 0,
+  lastRun: null,
+  waiting: null,
+  history: [],
+});
+
+/**
+ * The workspace's moment playbooks, newest first, without what their runs earned: the rows GET playbooks lists, the pools
+ * count by, and Ask's shape names. A reach-out's steps are its own sheet's (Reach out, Part 4), never cards here.
+ */
+export async function playbookRows(ctx: RouteContext, tenantId: string): Promise<PlaybookDto[]> {
+  // The query is returned as it is built, and runs when it is awaited.
   const read = (
     columns: string,
     moments = true,
@@ -260,10 +272,9 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
       ascending: false,
     }) as unknown as ReturnType<typeof read>;
   };
-  const [first, runs] = await Promise.all([read(COLUMNS), listRuns(ctx, tenantId)]);
   // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
   // them, and no playbook runs on a People list (or on any list).
-  let { data: rows, error } = first;
+  let { data: rows, error } = await read(COLUMNS);
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
   // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
@@ -279,19 +290,72 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
   if (missing("list_key")) ({ data: rows, error } = await read(columns.replace("list_key, ", ""), moments));
   if (missing("list_id")) ({ data: rows, error } = await read(columns.replace("list_id, list_key, ", ""), moments));
   if (error) throw new Error(error.message);
+  return (rows ?? []).map((r) => ({
+    ...(r as unknown as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state">),
+    list_id: (r.list_id as string | null | undefined) ?? null,
+    list_key: (r.list_key as string | null | undefined) ?? null,
+    trigger: r.trigger as PlaybookTrigger,
+    policy_class: r.policy_class as PlaybookPolicyClass,
+    state: r.state as PlaybookDto["state"],
+    params: parseParamSpecs(r.params),
+  }));
+}
+
+/**
+ * playbook_totals' answer (00362) in the card's words: storage's `last_run` is the wire's `lastRun` (banked in
+ * wire-casing.json, decision 0022), each object written in the order the fold wrote it, so GET playbooks answers the same
+ * bytes whichever counted them. The one mapping, behind contracts' isPlaybookTotalsDto, never a cast.
+ */
+function toPlaybookTotals(dto: PlaybookTotalsDto): Map<string, PlaybookTotals> {
+  const out = new Map<string, PlaybookTotals>();
+  for (const [id, t] of Object.entries(dto)) {
+    out.set(id, {
+      runs: t.runs,
+      sent: t.sent,
+      delivered: t.delivered,
+      replied: t.replied,
+      held: t.held,
+      lastRun: {
+        id: t.last_run.id,
+        state: t.last_run.state,
+        run_for: t.last_run.run_for,
+        recipient_count: t.last_run.recipient_count,
+      },
+      waiting: t.waiting
+        ? {
+            id: t.waiting.id,
+            recipient_count: t.waiting.recipient_count,
+            name: t.waiting.name,
+            run_for: t.waiting.run_for,
+            trigger: t.waiting.trigger,
+          }
+        : null,
+      history: t.history.map((h) => ({
+        id: h.id,
+        run_for: h.run_for,
+        state: h.state,
+        scheduled_for: h.scheduled_for,
+        recipient_count: h.recipient_count,
+        sent: h.sent,
+        held: h.held,
+        delivered: h.delivered,
+        replied: h.replied,
+      })),
+    });
+  }
+  return out;
+}
+
+/**
+ * The fold playbook_totals replaced, kept for one release for a database before 00362: each of `runs` (every run of any
+ * playbook, newest first, listRuns) summed into its playbook's totals. Its runs are read unpaged, so past PostgREST's
+ * thousand rows it reads short (playbooks/totals/playbook-totals.db.test.mjs shows where); it leaves with listRuns.
+ */
+function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
   const totals = new Map<string, PlaybookTotals>();
   for (const b of runs) {
     if (!b.playbook_id) continue;
-    const t = totals.get(b.playbook_id) ?? {
-      runs: 0,
-      sent: 0,
-      delivered: 0,
-      replied: 0,
-      held: 0,
-      lastRun: null,
-      waiting: null,
-      history: [],
-    };
+    const t = totals.get(b.playbook_id) ?? noTotals();
     t.runs += 1;
     t.sent += b.counts.sent;
     t.delivered += b.counts.delivered;
@@ -321,25 +385,25 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
       };
     totals.set(b.playbook_id, t);
   }
-  return (rows ?? []).map((r) => ({
-    ...(r as unknown as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state">),
-    list_id: (r.list_id as string | null | undefined) ?? null,
-    list_key: (r.list_key as string | null | undefined) ?? null,
-    trigger: r.trigger as PlaybookTrigger,
-    policy_class: r.policy_class as PlaybookPolicyClass,
-    state: r.state as PlaybookDto["state"],
-    params: parseParamSpecs(r.params),
-    totals: totals.get(r.id as string) ?? {
-      runs: 0,
-      sent: 0,
-      delivered: 0,
-      replied: 0,
-      held: 0,
-      lastRun: null,
-      waiting: null,
-      history: [],
-    },
-  }));
+  return totals;
+}
+
+/**
+ * What each moment playbook's runs earned, by its id (one that never ran is absent): the database's count
+ * (playbook_totals, 00362), one call however long its history, or, on a database before it, for one release, the fold
+ * over every run it replaced, so either deploy order works.
+ */
+async function playbookTotalsOf(ctx: RouteContext, tenantId: string): Promise<Map<string, PlaybookTotals>> {
+  const read = await playbookTotals(ctx.supabase, tenantId, HISTORY_ON_CARD);
+  if (read === "missing") return foldTotals(await listRuns(ctx, tenantId));
+  if (!isPlaybookTotalsDto(read)) throw new Error("playbook_totals answered a shape it does not know");
+  return toPlaybookTotals(read);
+}
+
+/** The moment playbooks with what their runs earned: GET playbooks' rows (playbookRows), each with its totals. */
+export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
+  const [rows, totals] = await Promise.all([playbookRows(ctx, tenantId), playbookTotalsOf(ctx, tenantId)]);
+  return rows.map((r) => ({ ...r, totals: totals.get(r.id) ?? noTotals() }));
 }
 
 export type { PlaybookInput };

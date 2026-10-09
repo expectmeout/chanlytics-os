@@ -345,3 +345,51 @@ test("Sent and a run's sheet say what run_counts says, read in one call for the 
     sheet.broadcast.counts,
   );
 });
+
+const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
+
+test("GET playbooks' rows: the database's count read in one call, the same bytes the fold says on a database before it, a playbook that never ran all zeros, and the rows alone read without a run", async () => {
+  const sql = fakeDb(harbor());
+  const rows = await P.listPlaybooks({ supabase: sql }, T);
+  assert.deepEqual(
+    sql.seen.filter((q) => q.rpc).map((q) => q.rpc),
+    ["playbook_totals"],
+  );
+  assert.equal(
+    sql.seen.some((q) => q.table === "broadcasts" || q.table === "broadcast_recipients"),
+    false,
+    "no run read to sum them",
+  );
+  const folded = await P.listPlaybooks({ supabase: before00362(harbor()) }, T);
+  assert.equal(JSON.stringify(rows), JSON.stringify(folded), "byte for byte");
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    ["p2", "p1"],
+    "the moments, newest first; the reach-out is its own sheet's",
+  );
+  assert.deepEqual(rows[0].totals, {
+    runs: 0,
+    sent: 0,
+    delivered: 0,
+    replied: 0,
+    held: 0,
+    lastRun: null,
+    waiting: null,
+    history: [],
+  });
+  const t = rows[1].totals;
+  assert.deepEqual([t.runs, t.sent, t.delivered, t.replied, t.held], [4, 4, 4, 2, 3]);
+  assert.deepEqual(t.lastRun, { id: "b3", state: "pending_approval", run_for: "2026-09-04", recipient_count: 3 });
+  const bare = fakeDb(harbor());
+  const plain = await P.playbookRows({ supabase: bare }, T);
+  assert.deepEqual(
+    plain,
+    rows.map(({ totals: _totals, ...r }) => r),
+    "the rows alone, as GET playbooks lists them",
+  );
+  assert.deepEqual(
+    bare.seen.map((q) => q.table ?? `rpc:${q.rpc}`),
+    ["playbooks"],
+    "and nothing of a run",
+  );
+});

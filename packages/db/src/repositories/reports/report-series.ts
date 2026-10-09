@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
+import type { JsonObject } from "../../events";
 import { isMissingDoor } from "../templates";
 
 type Db = SupabaseClient<Database>;
@@ -57,14 +58,9 @@ export async function reachOutReport(
 }
 
 /**
- * What each of the counts functions answers: one jsonb object, keyed by a playbook's, a run's or a chain's id or a
- * message's name (an empty object: nothing counted), for contracts' guards to read. Never a bare value, so "missing"
- * beside it is never a string the database could have answered.
- */
-type CountsByKey = { [key: string]: Json | undefined };
-
-/**
- * A door's answer where the database may not have the function yet: its object, or "missing" on a database before its
+ * A counts door's answer where the database may not have the function yet: its one jsonb object, keyed by a
+ * playbook's, a run's or a chain's id or a message's name (an empty object: nothing counted), or "missing" on a
+ * database before its
  * migration (isMissingDoor), where the dashboard reads the old way for one release so either deploy order works. Any
  * other failure throws, an answer that is no object among them: "we could not read" is never "none", nor "missing".
  */
@@ -72,7 +68,7 @@ function answerOrMissing(
   name: string,
   data: Json,
   error: { code: string; message: string } | null,
-): CountsByKey | "missing" {
+): JsonObject | "missing" {
   if (error) {
     if (isMissingDoor(error)) return "missing";
     throw new Error(`${name}: ${error.message}`);
@@ -85,19 +81,19 @@ function answerOrMissing(
  * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00362): one jsonb by
  * playbook id, which PostgREST's row cap never cuts; contracts' isPlaybookTotalsDto reads it.
  */
-export async function playbookTotals(db: Db, tenantId: string, history: number): Promise<CountsByKey | "missing"> {
+export async function playbookTotals(db: Db, tenantId: string, history: number): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
   return answerOrMissing("playbook_totals", data, error);
 }
 
 /** Each run's people, receipts and replies, by run id (`run_counts`, 00362): what Sent, a run's sheet and a card say. */
-export async function runCounts(db: Db, tenantId: string, runIds: readonly string[]): Promise<CountsByKey | "missing"> {
+export async function runCounts(db: Db, tenantId: string, runIds: readonly string[]): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("run_counts", { p_tenant_id: tenantId, p_run_ids: [...runIds] });
   return answerOrMissing("run_counts", data, error);
 }
 
 /** How many of each message went out, and when the latest did, by name (`template_sends`, 00362). */
-export async function templateSends(db: Db, tenantId: string): Promise<CountsByKey | "missing"> {
+export async function templateSends(db: Db, tenantId: string): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
   return answerOrMissing("template_sends", data, error);
 }
@@ -106,7 +102,7 @@ export async function templateSends(db: Db, tenantId: string): Promise<CountsByK
  * Every chain's last `days`, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how many wrote
  * back, when it last wrote. A definer behind may_read_workspace: a caller who is no member is refused (P0002), thrown.
  */
-export async function reachOutChainTotals(db: Db, tenantId: string, days: number): Promise<CountsByKey | "missing"> {
+export async function reachOutChainTotals(db: Db, tenantId: string, days: number): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("reach_out_chain_totals", { p_tenant_id: tenantId, p_days: days });
   return answerOrMissing("reach_out_chain_totals", data, error);
 }

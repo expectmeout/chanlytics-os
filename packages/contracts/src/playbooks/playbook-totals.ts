@@ -4,7 +4,7 @@
  * campaigns/playbooks.ts toPlaybookTotals) behind isPlaybookTotalsDto, never a cast, and GET playbooks answers the same
  * bytes it answered when it summed every run itself. A playbook that never ran is absent.
  */
-import { recordOrNull } from "../shared/unknown";
+import { isCount, recordOrNull } from "../shared/unknown";
 
 /** One run on a card's history, newest first: the day it ran for, and what it earned. */
 interface PlaybookHistoryRunDto {
@@ -35,7 +35,6 @@ interface PlaybookTotalsRowDto {
 /** playbook_totals' answer: each moment playbook that has run, by its id. */
 export type PlaybookTotalsDto = Record<string, PlaybookTotalsRowDto>;
 
-const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isText = (v: unknown): v is string => typeof v === "string";
 const isTextOrNull = (v: unknown): v is string | null => v === null || typeof v === "string";
 

@@ -3692,12 +3692,16 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       ["lines.select", "sms_state, reg_mock"],
       ["tenants.select", "status"],
     );
-    // 9 Oct 2026 (00362): what each run earned is the database's count, one call (run_counts), where every person on
-    // every run was read to count it here.
+    // 9 Oct 2026 (00362): what the runs earned is the database's count, one call (playbook_totals), where every run of
+    // every playbook and every person on one were read to sum it here.
+    want.splice(
+      want.findIndex(([k, cols]) => k === "broadcasts.select" && cols.startsWith("id, name, template_id")),
+      1,
+      ["rpc:playbook_totals", null],
+    );
     want.splice(
       want.findIndex(([k, cols]) => k === "broadcast_recipients.select" && cols.includes("messages(")),
       1,
-      ["rpc:run_counts", null],
     );
     // 9 Oct 2026: the pools' reads leave with the page's first ones (server/campaigns/playbook-pools.ts poolReads), so the
     // reads no longer reach the database one behind another: the same reads, each as often, the door before them all.
