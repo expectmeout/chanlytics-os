@@ -474,11 +474,8 @@ test(
     assert.equal(rep.no_angle, 1);
     const dom = rep.domains.find((d) => d.host === `back-${stamp}.example`);
     assert.deepEqual([dom.state, dom.sent, dom.delivered, dom.bounced, dom.complained], ["verified", 5, 4, 1, 0]);
-    refusedWith(
-      await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 14 }),
-      "22023",
-      REACH_OUT_REFUSALS.period,
-    );
+    // Any period of 1 to 90 days since 00361 (reports/periods/reach-out-month.db.test.mjs): fourteen is read, not refused.
+    assert.equal(ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 14 })).days, 14);
     refusedWith(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: B, p_days: 7 }), "P0002");
     refusedWith(await as.viewer.c.rpc("reach_out_search_lines", { p_tenant_id: B, p_search_id: w.s }), "P0002");
     refusedWith(await as.stranger.c.rpc("reach_out_search_lines", { p_tenant_id: A, p_search_id: w.s }), "P0002");

@@ -15555,9 +15555,9 @@ begin
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  if p_days is null or p_days not in (7, 30, 90) then
-    raise exception 'A period is 7, 30 or 90 days.' using errcode = '22023';
-  end if;
+  -- Any period of 1 to 90 days, one outside them held to them as campaign_series holds its own (00361): Reports'
+  -- "This month so far" is the day of the month.
+  p_days := least(greatest(coalesce(p_days, 30), 1), 90);
   select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
   v_tz := coalesce(v_tz, 'America/New_York');
   v_today := (now() at time zone v_tz)::date;
@@ -15709,7 +15709,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over the last p_days (7, 30 or 90) days in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over the last p_days days in the workspace''s zone (1 to 90; one outside them is held to them, as campaign_series holds its own, 00361), the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back.';
 
 
 --

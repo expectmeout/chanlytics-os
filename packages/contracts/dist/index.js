@@ -25326,7 +25326,10 @@ var REACH_OUT_REFUSALS = {
   leadGone: "This lead is gone.",
   /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
   nothingWritten: "Nothing has been written to them yet.",
-  /** 00241 reach_out_report: only Reports' own periods. */
+  /**
+   * 00241's reach_out_report refused any period but 7, 30 or 90 days; 00361 holds any to 1 to 90, so only a database
+   * before it says this.
+   */
   period: "A period is 7, 30 or 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
