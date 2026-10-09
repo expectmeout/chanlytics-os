@@ -180,6 +180,13 @@ export const FLAGS: readonly Flag[] = [
     },
   },
   {
+    name: "WHATSAPP_ANSWERS_AS_JOBS",
+    mechanism: "edge_env",
+    does: "Workspace ids, or 'all': their WhatsApp messages are recorded, acknowledged and answered by a job (whatsapp/answer-later.ts); empty answers every message inside the webhook.",
+    owner: "Ruben",
+    sunset: "2026-12-31",
+  },
+  {
     name: "LINES_DRY_RUN",
     mechanism: "edge_env",
     does: "'1' uses the dry line provider (fake SIDs) on a preview or a laptop.",
