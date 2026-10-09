@@ -34,6 +34,7 @@ jobs:
     # action refuses merge_group events; a skipped required check passes.
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # gitleaks-action lists the PR's commits to scan only what the PR adds. The
     # default GITHUB_TOKEN cannot read pull_requests, so on the repo's first PR
     # the job died with "403 Resource not accessible by integration" — a scan
@@ -50,43 +51,77 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # The phone app's check, when a change could reach the app. The app is paused (7 October 2026), and this job
+  # installs, builds every package, typechecks, lints, runs Expo's doctor and bundles both platforms: a little over
+  # two minutes of a runner, which every pull request and every push to main spent for an app that 3 of main's last
+  # 60 merges touched (9 October 2026). So its first step asks whether the change touches anything the app is built
+  # from (tooling/scripts/checks/mobile-paths-changed.mjs: its own tree, the one module of the workspace it imports
+  # and everything that reaches, what an install resolves), and every step after it waits for a yes. The job reports
+  # either way, in seconds when the answer is no, so a rule that requires it by name still gets its check. A run
+  # asked for by hand is a yes.
   mobile:
     name: Mobile (typecheck, lint, doctor, bundle)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          # the commit before this one too: the question is asked of this change's own files
+          fetch-depth: 2
+      - name: Could this change have reached the phone app?
+        id: changed
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "Asked for by hand, so the check runs."
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only HEAD^1 HEAD | node tooling/scripts/checks/mobile-paths-changed.mjs >> "$GITHUB_OUTPUT"
+          fi
       - uses: pnpm/action-setup@v6
+        if: steps.changed.outputs.mobile == 'true'
       - uses: actions/setup-node@v7
+        if: steps.changed.outputs.mobile == 'true'
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: steps.changed.outputs.mobile == 'true'
       - run: pnpm --filter "./packages/*" build
+        if: steps.changed.outputs.mobile == 'true'
       # The shell: its types (with the routes' own, which typecheck generates first, so an address that names no
       # screen is an error), its own lint (Expo's config plus the layer rule), Expo's doctor, and a bundle for each
       # platform, the one check that proves Metro resolves everything the app imports from this workspace.
       - run: pnpm --filter @chanlytics/mobile typecheck
+        if: steps.changed.outputs.mobile == 'true'
       - run: pnpm --filter @chanlytics/mobile lint
+        if: steps.changed.outputs.mobile == 'true'
       # Named check:doctor because `pnpm doctor` is pnpm's own command and shadows a script by that name. Every doctor
       # check fails the job but one: whether the packages are the versions the installed SDK expects, which Expo's
       # own switch hands to the next step. Expo ships patch releases inside an SDK, and matching one changes the app's
       # fingerprint: a new preview APK, and no update reaches the installed one until it is replaced. That is the phone
       # app lane's to schedule, so drift warns here (docs/debt.md, the phone app's Expo packages).
       - run: pnpm --filter @chanlytics/mobile check:doctor
+        if: steps.changed.outputs.mobile == 'true'
         env:
           EXPO_DOCTOR_SKIP_DEPENDENCY_VERSION_CHECK: "1"
       - name: The Expo SDK's package versions, as a warning
+        if: steps.changed.outputs.mobile == 'true'
         run: >-
           pnpm --filter @chanlytics/mobile exec expo install --check ||
           echo "::warning title=Expo packages behind the SDK::The versions above are not the ones the installed Expo SDK
           expects. Matching them builds a new preview APK; see docs/debt.md."
       - run: pnpm --filter @chanlytics/mobile export:check
+        if: steps.changed.outputs.mobile == 'true'
         env:
           EXPO_PUBLIC_SITE_ORIGIN: https://example.com
 
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       # Two commits deep: on a pull request the checkout is the merge commit GitHub tests, whose first parent is the
       # base, so HEAD^1..HEAD is what the pull request changes (the changed tests, below).
@@ -239,6 +274,7 @@ jobs:
     name: Node suite, Pacific/Auckland
     if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -261,6 +297,7 @@ jobs:
     name: What landed keeps the title rule
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write

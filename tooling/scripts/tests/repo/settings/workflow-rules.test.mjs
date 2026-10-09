@@ -125,3 +125,21 @@ test("the nightly's node suite has its own job and cap, the specs run after it w
   assert.ok(report.includes("needs: [suite, e2e]") && report.includes("always()"));
   assert.ok(report.includes("SUITE: ${{ needs.suite.result }}") && report.includes("SPECS: ${{ needs.e2e.result }}"));
 });
+
+test("every job says how long it may run: a step that hangs is ended at its cap, not at GitHub's six hours", () => {
+  // No job had a cap on ci.yml, database.yml, release.yml, suite.yml or the ledger's compare (9 Oct 2026), so a hung
+  // install or a stack that never came up would have held a runner, and the account's minutes, for 360 minutes.
+  for (const file of all) {
+    const lines = workflow(file).split("\n");
+    const jobs = [];
+    for (const line of lines.slice(lines.indexOf("jobs:") + 1)) {
+      const job = /^ {2}([a-z0-9_-]+):\s*$/.exec(line);
+      if (job) jobs.push({ name: job[1], cap: null });
+      const cap = /^ {4}timeout-minutes: (\d+)\s*$/.exec(line);
+      if (cap && jobs.length) jobs.at(-1).cap = Number(cap[1]);
+    }
+    assert.ok(jobs.length > 0, `${file}: its jobs were read`);
+    for (const { name, cap } of jobs)
+      assert.ok(cap !== null && cap >= 1 && cap <= 60, `${file}: the job ${name} has no cap of an hour or less`);
+  }
+});
