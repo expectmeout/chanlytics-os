@@ -14,6 +14,9 @@
  *   4. The floor: an empty workspace answers {}, and a signed-in member of another workspace reads {} of the salon's (the
  *      suites run as the service role, which row security never stops). The window is contracts' REPLY_WINDOW_MS, and
  *      campaign_series reads it.
+ *   5. At scale (spec §4.7): 3,600 runs of 25 people answer a signed-in member inside the 8 seconds a member's statement
+ *      has (00283), as GET playbooks asks it. A playbook's totals that carried every run's counts on each run's row took
+ *      half a minute here, and a timeout is no missing function: the dashboard would have had no fold to fall back to.
  *
  * Local stack only: it makes workspaces, people, runs and users.
  */
@@ -528,9 +531,73 @@ async function build() {
   return { A, B, C, E };
 }
 
+/**
+ * A busy workspace's year and a half, written in SQL in one statement: six moments of 600 daily runs, each run sending
+ * 24 people (20 delivered, 3 read, one only sent) and skipping one. The people come in four groups of 150, so each is
+ * written to every fourth day and a reply an hour after a send answers that send alone; the first person of every fifth
+ * run replies. So each moment is 600 runs, 14,400 sent, 13,800 delivered, 600 held and 120 replied.
+ */
+const SCALE = { moments: 6, runs: 600, people: 25 };
+const scaled = [];
+function atScale() {
+  const tenant = uuid();
+  scaled.push(tenant);
+  const person = (p) => `md5(t || ':person:' || (${p}))::uuid`;
+  const thread = (p) => `md5(t || ':thread:' || (${p}))::uuid`;
+  const who = "(j % 4) * 150 + p * 25 + k";
+  const at = "t0 + j * interval '1 day' + p * interval '1 minute'";
+  query(`do $$
+declare
+  t uuid := '${tenant}';
+  tpl uuid := md5('${tenant}' || ':template')::uuid;
+  t0 timestamptz := date_trunc('day', now()) - interval '700 days';
+begin
+  insert into public.tenants (id, slug, name, timezone) values (t, 'totals-scale-${RUN}', 'Totals at scale', 'UTC');
+  insert into public.templates (id, tenant_id, channel, name, language, meta_status)
+    values (tpl, t, 'whatsapp', 'scale_offer', 'en_US', 'approved');
+  insert into public.playbooks (id, tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
+    select md5(t || ':moment:' || p)::uuid, t, 'Moment ' || p, 'quiet_30', tpl, 'scale_offer', 'en_US', 'reengage'
+      from generate_series(0, ${SCALE.moments - 1}) p;
+  insert into public.contacts (id, tenant_id) select ${person("c")}, t from generate_series(0, 599) c;
+  insert into public.conversations (id, tenant_id, contact_id)
+    select ${thread("c")}, t, ${person("c")} from generate_series(0, 599) c;
+  insert into public.broadcasts (id, tenant_id, name, template_id, template_name, template_language, audience, state,
+                                 scheduled_for, recipient_count, playbook_id, run_for, created_at)
+    select md5(t || ':run:' || p || ':' || j)::uuid, t, 'Run ' || j, tpl, 'scale_offer', 'en_US',
+           jsonb_build_object('kind', 'playbook', 'id', md5(t || ':moment:' || p)::uuid, 'label', 'Moment ' || p,
+                              'trigger', 'quiet_30'),
+           'sent', ${at}, ${SCALE.people}, md5(t || ':moment:' || p)::uuid, (t0 + j * interval '1 day')::date, ${at}
+      from generate_series(0, ${SCALE.moments - 1}) p, generate_series(0, ${SCALE.runs - 1}) j;
+  insert into public.messages (id, tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status,
+                               meta, created_at)
+    select md5(t || ':sent:' || p || ':' || j || ':' || k)::uuid, t, ${thread(who)}, ${person(who)},
+           'whatsapp', 'outbound', 'human', 'template', 'We miss you',
+           case when k < 20 then 'delivered' when k < 23 then 'read' else 'sent' end,
+           jsonb_build_object('source', 'broadcast'), ${at} + k * interval '1 second'
+      from generate_series(0, ${SCALE.moments - 1}) p, generate_series(0, ${SCALE.runs - 1}) j,
+           generate_series(0, ${SCALE.people - 2}) k;
+  insert into public.broadcast_recipients (broadcast_id, contact_id, tenant_id, state, reason, message_id, sent_at)
+    select md5(t || ':run:' || p || ':' || j)::uuid, ${person(who)}, t,
+           case when k < ${SCALE.people - 1} then 'sent' else 'skipped' end,
+           case when k < ${SCALE.people - 1} then null else 'opted_out' end,
+           case when k < ${SCALE.people - 1} then md5(t || ':sent:' || p || ':' || j || ':' || k)::uuid end,
+           case when k < ${SCALE.people - 1} then ${at} + k * interval '1 second' end
+      from generate_series(0, ${SCALE.moments - 1}) p, generate_series(0, ${SCALE.runs - 1}) j,
+           generate_series(0, ${SCALE.people - 1}) k;
+  insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status,
+                               meta, created_at)
+    select t, ${thread("(j % 4) * 150 + p * 25")}, ${person("(j % 4) * 150 + p * 25")}, 'whatsapp', 'inbound', 'customer',
+           'text', 'Yes please', 'received', '{}'::jsonb, ${at} + interval '1 hour'
+      from generate_series(0, ${SCALE.moments - 1}) p, generate_series(0, ${SCALE.runs - 1}, 5) j;
+end $$`);
+  return tenant;
+}
+
 after(async () => {
   if (skip) return;
   for (const id of tenants) await db.from("tenants").delete().eq("id", id);
+  // A workspace of 90,000 people on runs goes as it came, in SQL, past the service role's 30 seconds.
+  for (const id of scaled) query(`delete from public.tenants where id = '${id}'`);
   for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
@@ -736,5 +803,48 @@ test(
     const src = series.sources.find((s) => s.id === w.A.winback);
     // Per person sent (a failed one is not): runs 0, 4 (the edge), 6, 7 and the person on runs 20 and 24.
     assert.deepEqual([src.sent, src.replied], [93, 6]);
+  },
+);
+
+test(
+  "at scale: 3,600 runs of 25 people answer a signed-in member inside a member's 8 seconds, every run, person and reply counted",
+  { skip },
+  async (t) => {
+    const tenant = atScale();
+    const [{ setconfig }] = query(
+      `select s.setconfig from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
+        where r.rolname = 'authenticated' and s.setdatabase = 0`,
+    );
+    assert.ok(
+      setconfig.includes("statement_timeout=8s"),
+      "a member's statement stops at 8 seconds, as production's do",
+    );
+    const own = await member(tenant, "viewer");
+    const started = performance.now();
+    const got = ok(await own.rpc("playbook_totals", { p_tenant_id: tenant }), "playbook_totals at scale, as a member");
+    t.diagnostic(`playbook_totals over 3,600 runs of 25, as a member: ${Math.round(performance.now() - started)} ms`);
+    assert.equal(Object.keys(got).length, SCALE.moments);
+    for (const totals of Object.values(got)) {
+      assert.deepEqual(
+        [totals.runs, totals.sent, totals.delivered, totals.held, totals.replied, totals.history.length],
+        [600, 14_400, 13_800, 600, 120, 10],
+      );
+    }
+    // The same, counted straight off the rows.
+    const [direct] = query(
+      `select count(distinct r.broadcast_id) as runs,
+              count(*) filter (where r.state = 'sent') as sent,
+              count(*) filter (where m.status in ('delivered', 'read')) as delivered,
+              count(*) filter (where r.state in ('skipped', 'failed')) as held,
+              (select count(*) from public.messages i where i.tenant_id = '${tenant}' and i.direction = 'inbound') as replies
+         from public.broadcast_recipients r left join public.messages m on m.id = r.message_id
+        where r.tenant_id = '${tenant}'`,
+    );
+    const sum = (k) => Object.values(got).reduce((n, x) => n + x[k], 0);
+    assert.deepEqual(
+      [sum("runs"), sum("sent"), sum("delivered"), sum("held"), sum("replied")],
+      [direct.runs, direct.sent, direct.delivered, direct.held, direct.replies].map(Number),
+      "each reply answers one run's send",
+    );
   },
 );

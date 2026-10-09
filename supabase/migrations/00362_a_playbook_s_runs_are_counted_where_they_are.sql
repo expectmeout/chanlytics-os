@@ -127,18 +127,21 @@ as $$
      where b.tenant_id = p_tenant_id
   ),
   counts as (
-    -- Each run's counts as run_counts says them to Sent: one statement of what a run earned.
+    -- Each run's counts as run_counts says them to Sent: one statement of what a run earned, asked once.
     select public.run_counts(p_tenant_id, coalesce(array_agg(x.id), '{}'::uuid[])) as c from runs x
   ),
   per_run as (
+    -- Taken apart by run, so a run's row carries its own counts alone: one that carried the whole answer had every
+    -- run's counts sorted with every run, and 3,600 runs took half a minute (the test's scale case answers in under one).
     select x.*,
-           coalesce((k.c -> x.id::text ->> 'sent')::bigint, 0)      as sent,
-           coalesce((k.c -> x.id::text ->> 'skipped')::bigint, 0)
-             + coalesce((k.c -> x.id::text ->> 'failed')::bigint, 0) as held,
-           coalesce((k.c -> x.id::text ->> 'delivered')::bigint, 0) as delivered,
-           coalesce((k.c -> x.id::text ->> 'replied')::bigint, 0)   as replied
+           coalesce((c.value ->> 'sent')::bigint, 0)      as sent,
+           coalesce((c.value ->> 'skipped')::bigint, 0)
+             + coalesce((c.value ->> 'failed')::bigint, 0) as held,
+           coalesce((c.value ->> 'delivered')::bigint, 0) as delivered,
+           coalesce((c.value ->> 'replied')::bigint, 0)   as replied
       from runs x
      cross join counts k
+      left join lateral jsonb_each(k.c) c on c.key = x.id::text
   )
   select coalesce(jsonb_object_agg(t.playbook_id::text, t.totals), '{}'::jsonb)  -- one scalar: no row cap cuts it
     from (
