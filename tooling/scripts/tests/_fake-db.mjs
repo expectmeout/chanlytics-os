@@ -473,7 +473,9 @@ function resolveArgs(a) {
   const channel = word(a.p_channel) || null;
   const external = word(a.p_external) || null;
   const digits = String(a.p_phone ?? "").replace(/\D/g, "");
-  const plus = String(a.p_phone ?? "").trim().startsWith("+");
+  const plus = String(a.p_phone ?? "")
+    .trim()
+    .startsWith("+");
   const email = word(a.p_email).toLowerCase() || null;
   const name = word(a.p_name).replace(/\s+/g, " ").slice(0, 80) || null;
   const assurance = word(a.p_assurance) || "observed";
