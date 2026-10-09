@@ -572,11 +572,15 @@ a.lm-head-door:active { opacity: 0.72; }
    house's 44px floor on a button (legacy.css) does not outrank them.
    ==================================================================== */
 @media (max-width: 900px) {
+  /* The 8px under the strip is 4 of the slot's, as the Inbox's and Conversations' slots have, and 4 of the page's own.
+     The slot's alone were 8, and a page arriving from either tab was drawn 4px high until the copy of the one leaving
+     was taken away (view-deck.ts keeps it in .main, so its page's rule on the slot still held), then dropped (Ruben,
+     8 Oct 2026). What differs between two views of one strip goes with the page, never on the frame. */
   .main:has(> .main-scroll > .live-monitor) .pg-slot {
-    padding-bottom: 8px;
+    padding-bottom: 4px;
   }
   .main-scroll > .live-monitor {
-    padding: 0 12px 12px;
+    padding: 4px 12px 12px;
   }
   /* The calls, then the call: what the calls take is their own, and the call has the rest. */
   .live-monitor > .lm-body {
