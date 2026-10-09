@@ -605,7 +605,7 @@ test("YES OFFERS is not the way back in from a STOP: an opted-out person gets no
 });
 
 /**
- * The person's consent as the database keeps it since 00360: a message's STOP or START is written by the take that
+ * The person's consent as the database keeps it since 00361: a message's STOP or START is written by the take that
  * keeps it, and a message taken in again (a text's answer job, a redelivery) reads the consent that stands. The door
  * refuses whatever is sent to a person who said STOP, as deliver does.
  */
@@ -672,7 +672,7 @@ test("a START answered by its job, taken in again with the yes its door wrote on
 });
 
 test("a YES OFFERS answered after the person took back their yes to offers is held by that no: nothing confirmed, nobody told they said yes", async () => {
-  // Its yes was written when the door kept it (00360); the person then said no more offers, and the answer's job, run
+  // Its yes was written when the door kept it (00361); the person then said no more offers, and the answer's job, run
   // late, takes the message in again. The door would refuse the confirmation (no_marketing_consent), and a person used
   // to be told the customer said yes and was never confirmed, when the customer's last word was no.
   const offers = (marketingConsent) => ({

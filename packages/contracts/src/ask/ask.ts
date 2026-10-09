@@ -116,7 +116,7 @@ export const ASK_MAX_TOKENS = 4000;
 export const ASK_WARM_MAX_TOKENS = 64;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
- * Counted on uncached input, cache writes and output (ask_tokens_day, 00367);
+ * Counted on uncached input, cache writes and output (ask_tokens_day, 00368);
  * a cache read is not counted. A write is counted because it is input the
  * model was sent, billed above uncached input: a warm (`ask_warm`) writes a
  * turn's head, some thirty thousand tokens, and counted under a hundred while

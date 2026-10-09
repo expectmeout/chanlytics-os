@@ -1,5 +1,5 @@
 /**
- * A member calls back only a send that has not started, and changes nothing else of a message (00361), on a real
+ * A member calls back only a send that has not started, and changes nothing else of a message (00362), on a real
  * Postgres with a real session.
  *
  * The update policy asked only that the caller act in the workspace, and a session holds UPDATE on a message's status

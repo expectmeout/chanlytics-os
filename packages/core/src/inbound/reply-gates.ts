@@ -50,7 +50,7 @@ async function offersNoteFor(at: Answering): Promise<string | null> {
 
 /**
  * Whether the person took back their yes to offers since this message's own YES OFFERS was kept: asked only of a message
- * taken in again (a WhatsApp answer's job, a redelivery). Its yes was written when it was first kept (00360), so a
+ * taken in again (a WhatsApp answer's job, a redelivery). Its yes was written when it was first kept (00361), so a
  * record that says no now is the person's later word, and it stands. A read that fails is not a no.
  */
 async function offersTakenBack(at: Answering): Promise<boolean> {

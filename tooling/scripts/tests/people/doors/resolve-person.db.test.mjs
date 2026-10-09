@@ -456,7 +456,7 @@ test("what it refuses, and how it reads a number and an address", { skip }, asyn
   );
   const again = ok(await door({ p_phone: "6465550182", p_assurance: "asserted", p_source: "manual" }), "ten digits");
   assert.deepEqual([again.contact_id, again.matched_by], [made.contact_id, "phone"], "ten digits are North American");
-  // A + is the country's word (00366): ten digits after it are a number abroad, never one in North America.
+  // A + is the country's word (00367): ten digits after it are a number abroad, never one in North America.
   const abroad = ok(await door({ p_phone: "+47 91 00 01 82", p_assurance: "asserted", p_source: "manual" }), "abroad");
   const [kept] = (await living()).filter((r) => r.id === abroad.contact_id);
   assert.equal(kept.phone_e164, "+4791000182", "kept as written, never +14791000182");

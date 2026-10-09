@@ -1,6 +1,6 @@
 /**
  * The repair for people kept under a North American number they never had (tooling/scripts/ops/plus-ten-digit-numbers.mjs,
- * after 00366): a person kept as +1 and ten digits whose own identity on a number wire is exactly those ten digits was
+ * after 00367): a person kept as +1 and ten digits whose own identity on a number wire is exactly those ten digits was
  * read from a + and ten digits abroad, and is given back + and the ten. The script's main (the reads, the backup) needs
  * production and is not run here; these are the two parts it is made of, run over a world in memory.
  */

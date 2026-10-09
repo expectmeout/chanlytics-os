@@ -1,5 +1,5 @@
 /**
- * The calendar feed's address is the owner's to read (00364, 00365), on a real database through PostgREST.
+ * The calendar feed's address is the owner's to read (00365, 00366), on a real database through PostgREST.
  *
  * The address grants read access to the owner's calendar. The dashboard always showed it to the owner alone
  * (readers/settings.ts feedVisibleTo), and the table let every member's session read it whole from a browser. Proved

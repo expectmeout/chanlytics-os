@@ -1,4 +1,4 @@
--- 00362 · Every sweep's request waits past the sweep's own minute.
+-- 00363 · Every sweep's request waits past the sweep's own minute.
 --
 -- Each edge sweep may run sixty seconds (apps/edge/vercel.json), and pg_net gave up on it sooner: the deadman and
 -- health clocks call pg_net themselves with twenty seconds, and request_sweep's default, which every other clock takes

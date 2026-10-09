@@ -2,7 +2,7 @@
  * Give back their country to the people kept under a North American number they never had (prod-script bar): dry-run
  * DEFAULT, a JSONL backup of every planned row before any write, idempotent, --apply to execute.
  *
- * Until 00366 a number written with its + and ten digits after it (+47 91 23 45 67, a Norwegian mobile; Danish,
+ * Until 00367 a number written with its + and ten digits after it (+47 91 23 45 67, a Norwegian mobile; Danish,
  * Singaporean and many New Zealand numbers) was read as North American, and the person was kept as +14791234567. The
  * wire itself still says who they are: a WhatsApp identity is the full international number's digits, a text's the
  * sender's digits, a call's the caller's number with its +. So a person kept as +1 and ten digits, whose own identity

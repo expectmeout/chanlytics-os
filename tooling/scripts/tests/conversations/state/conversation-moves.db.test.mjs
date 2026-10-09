@@ -54,7 +54,7 @@ before(async () => {
   });
   if (uErr) throw new Error(uErr.message);
   userId = user.user.id;
-  // The person a move gives a thread to is a member of its workspace: an assignee is one (00364).
+  // The person a move gives a thread to is a member of its workspace: an assignee is one (00365).
   const { error: mErr } = await db
     .from("memberships")
     .insert({ tenant_id: tenantId, user_id: userId, role: "operator" });

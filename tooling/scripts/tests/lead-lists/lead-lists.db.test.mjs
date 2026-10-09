@@ -269,7 +269,7 @@ before(async () => {
     db.from("tenants").insert({ slug: `lists-c-${stamp}`, name: "Big List Co", timezone: "America/Chicago" }),
   );
   ok(await db.rpc("provision_tenant", { p_tenant_id: C }));
-  // A list is checked on the platform's account: a workspace that may spend (00363), as A is.
+  // A list is checked on the platform's account: a workspace that may spend (00364), as A is.
   ok(await db.from("billing_accounts").upsert({ tenant_id: C, mode: "direct", status: "active" }));
   for (const role of ["owner", "partner", "operator", "viewer"]) as[role] = await person(role);
   as.stranger = await person("owner", B);

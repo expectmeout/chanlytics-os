@@ -1,6 +1,6 @@
--- 00364 · A member reads the configuration as their role may, and four writes keep to what is true.
+-- 00365 · A member reads the configuration as their role may, and four writes keep to what is true.
 --
--- Five changes, each safe whichever of this file and the dashboard reaches production first. 00365, which takes the
+-- Five changes, each safe whichever of this file and the dashboard reaches production first. 00366, which takes the
 -- table's own read from everyone but the owner, waits for the dashboard that reads through the doors made here.
 --
 --   the configuration   tenant_config_member_read lets every member read the whole row, and the calendar feed's
@@ -9,7 +9,7 @@
 --                       table itself. tenant_config_read is a session's door to the row of a workspace it is a member
 --                       of: the address masked as the dashboard masks it unless the caller is the owner, and
 --                       feed_hidden saying so. tenant_config_write is a session's versioned write, under the permission
---                       the table's update policy names (settings): an update reads the row it changes, so once 00365
+--                       the table's update policy names (settings): an update reads the row it changes, so once 00366
 --                       lets only the owner read the row a partner's update would find nothing. A dashboard from
 --                       before this reads and writes the table as it did; the one after it uses these, and the table
 --                       where a database has not run this yet.
@@ -72,7 +72,7 @@ as $$
    where c.tenant_id = p_tenant_id
 $$;
 
-comment on function public.tenant_config_read(uuid) is 'A member''s read of their workspace''s configuration row (00364): every member reads it, and only the owner reads the calendar feed''s address whole, since it grants read access to the owner''s calendar. Anyone else is shown it masked as the dashboard masks it, with feed_hidden true. No row for a caller who is not a member, nor for a partner''s seat on a session that has not shown its second factor (0013). The session''s door to the row once 00365 lets only the owner read the table.';
+comment on function public.tenant_config_read(uuid) is 'A member''s read of their workspace''s configuration row (00365): every member reads it, and only the owner reads the calendar feed''s address whole, since it grants read access to the owner''s calendar. Anyone else is shown it masked as the dashboard masks it, with feed_hidden true. No row for a caller who is not a member, nor for a partner''s seat on a session that has not shown its second factor (0013). The session''s door to the row once 00366 lets only the owner read the table.';
 
 revoke all on function public.tenant_config_read(uuid) from public, anon;
 grant execute on function public.tenant_config_read(uuid) to authenticated, service_role;
@@ -111,7 +111,7 @@ begin
   end if;
 end $$;
 
-comment on function public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) is 'A member''s versioned write of their workspace''s configuration (00364): the whole column, where the row is still at p_version, by a caller with the settings permission (a partner on a session that showed its second factor), recorded as theirs. outcome is saved (with the new version), stale (someone saved since) or missing (no row). The session''s write once 00365 lets only the owner read the table, which an update needs.';
+comment on function public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) is 'A member''s versioned write of their workspace''s configuration (00365): the whole column, where the row is still at p_version, by a caller with the settings permission (a partner on a session that showed its second factor), recorded as theirs. outcome is saved (with the new version), stale (someone saved since) or missing (no row). The session''s write once 00366 lets only the owner read the table, which an update needs.';
 
 revoke all on function public.tenant_config_write(uuid, jsonb, integer) from public, anon;
 grant execute on function public.tenant_config_write(uuid, jsonb, integer) to authenticated, service_role;
@@ -134,7 +134,7 @@ declare
   v_wait    record;
 begin
   -- The invoice's one lock, partner_reverse's too: a reversal of this invoice waits for this share to commit, or
-  -- this waits for it to have parked, so the parked reversals read below are every one there is (00364).
+  -- this waits for it to have parked, so the parked reversals read below are every one there is (00365).
   perform pg_advisory_xact_lock(hashtextextended('partner_invoice:' || p_invoice_id, 0));
   select * into v_link from public.partner_tenants where tenant_id = p_tenant_id;
   if v_link.tenant_id is null then
@@ -201,7 +201,7 @@ begin
     raise exception 'Unknown reversal: %', p_kind using errcode = '22023';
   end if;
   -- The invoice's one lock, partner_earn's too, taken before the share is looked for: a share written and not yet
-  -- committed is invisible here, and a reversal parked beside it was never applied (00364).
+  -- committed is invisible here, and a reversal parked beside it was never applied (00365).
   perform pg_advisory_xact_lock(hashtextextended('partner_invoice:' || p_invoice_id, 0));
   select * into v_share from public.partner_earnings
    where stripe_invoice_id = p_invoice_id and kind = 'share'
@@ -674,7 +674,7 @@ begin
   return new;
 end $$;
 
-comment on function public.tenants_zone_guard() is 'A workspace''s zone, written or changed, is one pg_timezone_names holds (00364), as create_workspace_for asks at creation: lead_month, lead_renews_on and Intl all raise on a name they do not know. A row whose zone is not changed is let be.';
+comment on function public.tenants_zone_guard() is 'A workspace''s zone, written or changed, is one pg_timezone_names holds (00365), as create_workspace_for asks at creation: lead_month, lead_renews_on and Intl all raise on a name they do not know. A row whose zone is not changed is let be.';
 
 revoke all on function public.tenants_zone_guard() from public, anon, authenticated;
 grant execute on function public.tenants_zone_guard() to service_role;
@@ -706,7 +706,7 @@ begin
   return new;
 end $$;
 
-comment on function public.conversations_assignee_guard() is 'A thread assigned or reassigned names a member of its workspace (00364): the column''s key is auth.users, which any account satisfies. A member''s departure clears theirs (clear_control_of_departed_member).';
+comment on function public.conversations_assignee_guard() is 'A thread assigned or reassigned names a member of its workspace (00365): the column''s key is auth.users, which any account satisfies. A member''s departure clears theirs (clear_control_of_departed_member).';
 
 revoke all on function public.conversations_assignee_guard() from public, anon, authenticated;
 grant execute on function public.conversations_assignee_guard() to service_role;

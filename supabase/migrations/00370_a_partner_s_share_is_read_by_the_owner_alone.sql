@@ -1,4 +1,4 @@
--- 00369 · A partner's share of an invoice is read by the workspace's owner alone.
+-- 00370 · A partner's share of an invoice is read by the workspace's owner alone.
 --
 -- partner_earn and partner_reverse (0012) write what the partner who brought a workspace earns from its invoices, and
 -- what a refund takes back, into the workspace's own events: the invoice, its amount, the partner and their share. The

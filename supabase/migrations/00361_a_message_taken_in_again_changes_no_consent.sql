@@ -1,4 +1,4 @@
--- 00360 · A message taken in again changes nobody's consent.
+-- 00361 · A message taken in again changes nobody's consent.
 --
 -- ingest_inbound wrote a STOP's no and a START's yes before its replay gate (the message's own insert, on its unique
 -- key), so a message it already held wrote its answer again. Every text is taken in twice by design (its door, then the
@@ -50,7 +50,7 @@ begin
     p_wa_profile_name, 'observed', 'inbound', '{}'::jsonb, now());
   v_contact_id := (v_person->>'contact_id')::uuid;
 
-  -- A STOP or a START is written below, once the message is known to be new (00360). The person's row is locked
+  -- A STOP or a START is written below, once the message is known to be new (00361). The person's row is locked
   -- here, where that write used to be, so the person, the thread and the message are still locked in that order.
   if p_opt_out or p_opt_in then
     perform 1 from contacts where id = v_contact_id for no key update;

@@ -13,13 +13,14 @@
  * view model also says the one sentence under each chart (`lines`), so the
  * page composes no sentence of its own.
  */
+import { shiftKey } from "../calendar/day-keys";
 import { reasonShort } from "../conversations/escalations";
 import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdOf, type ReportHoldVM } from "./report-speed";
 import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
 import { REPORT_TILES, beforeWords, fmtSeconds, type ReportTileVM } from "./report-tiles";
 import type { ReportHeadlineDto } from "./report-headline";
 import type { ReportPeriodId } from "./report-periods";
-import type { BookingReportDto } from "../calendar/calendar-people";
+import type { BookingReportDto } from "./booking-report";
 import { pct, sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
 import { capitalize, plural } from "../shared/words";
@@ -52,13 +53,17 @@ export const REPORT_CHANNELS: readonly { key: ReportChannelKey; label: string }[
 
 export type ReportChannelCounts = Record<ReportChannelKey, number>;
 
-/** What `report_series(tenant, days)` returns. `series` spans TWO periods —
+/** What `report_series(tenant, days, end)` returns. `series` spans TWO periods —
  *  the requested one and the one before it — newest last. */
 export interface ReportDto {
   timezone: string;
   days: number;
   span_days: number;
+  /** The workspace's today, "YYYY-MM-DD", whatever days the report is of. */
   today: string;
+  /** The report's last day (00360): today for a period by name, an earlier day for days a member picked. Absent on a
+   *  report from before 00360, which always ended today. */
+  end?: string;
   series: ReportDayDto[];
   reasons: Record<string, number>;
   reply_seconds: number[];
@@ -177,8 +182,12 @@ export interface ReportVM {
   since: string;
   until: string;
   timezone: string;
-  /** The business's today, "YYYY-MM-DD": the period's last day, which the period's picker counts from. */
+  /** The business's today, "YYYY-MM-DD": what the period's control counts from, whatever days the report is of. */
   today: string;
+  /** The report's last day, "YYYY-MM-DD": today for a period by name, an earlier day for days a member picked. */
+  end: string;
+  /** Whether the report ends today. One that does not is of days a member picked, and says them by their dates. */
+  live: boolean;
   /** Nothing came in during the period: no customer message and no call. */
   empty: boolean;
   tiles: ReportTileVM[];
@@ -244,6 +253,18 @@ function dayDate(day: string): Date {
 export function fmtDay(day: string): string {
   return DATE_FMT.format(dayDate(day));
 }
+
+/** Days in words: "Sep 7 – Oct 6", or the one day's "Oct 6". The one way a report says a stretch of days. */
+export const daysWords = (from: string, to: string): string =>
+  from === to ? fmtDay(to) : `${fmtDay(from)} – ${fmtDay(to)}`;
+
+/**
+ * The day a report ended, where that was before the workspace's today; null where it ends today, which every report
+ * did before a member could pick its days (00360) and a period by name still does. The one question the period's words
+ * ask: a window that ended in September is not "the last 20 days".
+ */
+export const endedOn = (report: { today: string; end?: string | null }): string | null =>
+  report.end && report.end < report.today ? report.end : null;
 
 /** A calendar day as a chart's point names it: the day, "Aug 28", and the date alone, "28". */
 export function dayPointOf(day: string): { day: string; label: string; short: string } {
@@ -443,16 +464,28 @@ export const rangeLabelOf = (days: number): string =>
 
 /**
  * The two periods by name, said the same way wherever they are said: "Last 30 days", "The 30 days before", and where a
- * sentence says when something happened, "in the last 30 days".
+ * sentence says when something happened, "in the last 30 days". `until` is the day the period ended where that was
+ * before today (endedOn), and each caller says it: days a member picked are named by their dates, "Sep 1 – Sep 20",
+ * and happened "in the 20 days to Sep 20" (the Reviews lens's words for a count that stopped short of today), since
+ * "the last 20 days" would claim days the report did not read. The days before are "the 20 days before" either way.
  */
-export const periodWords = (rangeLabel: string): { now: string; before: string; within: string } => ({
-  now: `Last ${rangeLabel}`,
-  before: capitalize(beforeWords(rangeLabel)),
-  within: `in the last ${rangeLabel}`,
-});
+export const periodWords = (days: number, until: string | null): { now: string; before: string; within: string } => {
+  const rangeLabel = rangeLabelOf(days);
+  const before = capitalize(beforeWords(rangeLabel));
+  if (until === null) return { now: `Last ${rangeLabel}`, before, within: `in the last ${rangeLabel}` };
+  return {
+    now: daysWords(shiftKey(until, -(days - 1)), until),
+    before,
+    within: days === 1 ? `on ${fmtDay(until)}` : `in the ${rangeLabel} to ${fmtDay(until)}`,
+  };
+};
 
-/** Where a sentence says when: "in the last 30 days", and "today" where the period is the one day (Month on the 1st). */
-export const withinWords = (days: number): string => (days === 1 ? "today" : periodWords(rangeLabelOf(days)).within);
+/**
+ * Where a sentence says when: "in the last 30 days", "today" where the period is the one day that is today (Month on
+ * the 1st), and for a period that ended before today (`until`), "in the 20 days to Sep 20" or the one day's "on Sep 20".
+ */
+export const withinWords = (days: number, until: string | null): string =>
+  days === 1 && until === null ? "today" : periodWords(days, until).within;
 
 /**
  * What every part of the report is built from, counted once: the period asked for (the series' last `days`) and the
@@ -495,6 +528,7 @@ function periodFactsOf(dto: ReportDto) {
     newPeople: sumOf(previous.map((d) => d.new_contacts)),
   };
   const noun = plural(days, "day");
+  const until = endedOn(dto);
   const answeredTotal = tot.ai + tot.you + tot.none;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
   const sortedReply = [...(dto.reply_seconds ?? [])].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
@@ -507,6 +541,8 @@ function periodFactsOf(dto: ReportDto) {
     tot,
     prev,
     noun,
+    /** The day the period ended, where that was before today; null for one that ends today (endedOn). */
+    until,
     rangeLabel: rangeLabelOf(days),
     // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
     priorHadAny: prev.in + prev.calls > 0,
@@ -686,6 +722,8 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
     today: dto.today,
+    end: dto.end ?? dto.today,
+    live: f.until === null,
     empty: f.empty,
     tiles,
     answered: answeredOf(f),
@@ -703,7 +741,7 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
     hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts?.profile)),
     hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
-    period: periodWords(f.rangeLabel),
+    period: periodWords(f.days, f.until),
     lines: linesOf(f, week, channels),
     table: {
       columns: [

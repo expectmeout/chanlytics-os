@@ -511,7 +511,7 @@ after(async () => {
  * What a member may read of each tenant table:
  *   member  the workspace's rows
  *   acting  the workspace's rows, for an operator or an owner; a viewer reads nothing
- *   owner   the workspace's rows, for its owner alone; a viewer and a partner read nothing (00365: the configuration,
+ *   owner   the workspace's rows, for its owner alone; a viewer and a partner read nothing (00366: the configuration,
  *           which holds the calendar feed's address; every other member reads it through tenant_config_read)
  *   own     their own rows only (user_id = auth.uid()); another member of the same workspace sees none of theirs
  *   partner the partner who brought the workspace; no member else, its owner included

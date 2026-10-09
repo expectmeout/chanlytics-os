@@ -87,7 +87,7 @@ before(async () => {
       .select("id")
       .single(),
   ).id;
-  // A workspace that may spend (00363): Check again asks, and a new workspace's plan has not started.
+  // A workspace that may spend (00364): Check again asks, and a new workspace's plan has not started.
   ok(await db.from("billing_accounts").upsert({ tenant_id: A, mode: "direct", status: "active" }));
   owner = await memberClient("owner", A);
   operator = await memberClient("operator", A);

@@ -255,7 +255,7 @@ test("where only the merged record had a thread, the kept person takes it whole"
 });
 
 test(
-  "the merged record's visits are the kept person's, whatever source made them, and the counts say how many (00364)",
+  "the merged record's visits are the kept person's, whatever source made them, and the counts say how many (00365)",
   { skip },
   async () => {
     const k = await bare({ phone_e164: phone(), display_name: "Kept" });

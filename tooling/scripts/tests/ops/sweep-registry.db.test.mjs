@@ -5,7 +5,7 @@
  * upserts the sweeps themselves make still land, the alert stamp works on
  * the new rows, and the calls clock records what it asks, so the register's
  * word that it is judged on its answers is true (00149); and every clock that
- * asks the edge waits past the sweep's own minute for the answer (00362).
+ * asks the edge waits past the sweep's own minute for the answer (00363).
  *
  * Runs the way jobs-outbox.db.test.mjs does: against the database
  * `supabase start` builds on this machine, never production. The calls clock
@@ -303,7 +303,7 @@ test(
   () => {
     // Each clock is run as pg_cron runs it (its job's command), with something owed to each one that asks only when
     // something is: the deadman and health clocks called pg_net with 20 s and the rest took request_sweep's 55, so a
-    // healthy sweep that ran its minute was judged "the request timed out before the edge answered" (00362).
+    // healthy sweep that ran its minute was judged "the request timed out before the edge answered" (00363).
     const seen = rolledBack(`
     declare
       t uuid; c uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid;

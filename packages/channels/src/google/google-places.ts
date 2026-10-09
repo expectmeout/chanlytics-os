@@ -203,7 +203,7 @@ function periodOf(v: unknown): GooglePeriod | null {
 
 /**
  * The number as Google writes it for the world ("+44 20 7946 0958"), in E.164: its own digits after its own country
- * code, and nothing at all for a number written without one. normalizePhone reads a + the same way since 00366, but
+ * code, and nothing at all for a number written without one. normalizePhone reads a + the same way since 00367, but
  * takes a bare ten digits for North American, a guess this never makes.
  */
 function e164Of(international: string | null): string | null {

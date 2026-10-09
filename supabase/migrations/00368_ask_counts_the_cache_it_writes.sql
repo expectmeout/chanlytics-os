@@ -1,4 +1,4 @@
--- 00367 · Ask counts the cache it writes.
+-- 00368 · Ask counts the cache it writes.
 --
 -- ask_tokens_day (00240) summed input plus output of the day's usage.ask_tokens events. The API's input_tokens leaves
 -- out what a request writes to the cache, which the edge's gateway records beside it as cache_creation_input_tokens
@@ -34,4 +34,4 @@ $$;
 revoke execute on function public.ask_tokens_day(uuid) from public, anon, authenticated;
 grant execute on function public.ask_tokens_day(uuid) to service_role;
 comment on function public.ask_tokens_day(uuid) is
-  'The workspace''s Ask tokens (input, cache writes and output of every usage.ask_tokens event; a cache read is not counted) in the last 24 hours: what the edge''s model gateway weighs against the day''s budget (00240, 00367). Service role only.';
+  'The workspace''s Ask tokens (input, cache writes and output of every usage.ask_tokens event; a cache read is not counted) in the last 24 hours: what the edge''s model gateway weighs against the day''s budget (00240, 00368). Service role only.';

@@ -597,24 +597,24 @@ const report = (over = {}) => ({
   reasons: [],
   ...over,
 });
-const linesOf = (over) => toDealReportVM(report(over), "30 days").lines.map((l) => l.text);
+const linesOf = (over) => toDealReportVM(report(over), "in the last 30 days").lines.map((l) => l.text);
 const usd = (amount_cents, per) => ({ amount_cents, per, currency: "USD" });
 
 test("the report counts one cohort and the stock, and is absent where no deal was ever recorded", () => {
   const absent = { present: false, headline: "", stock: "", outcomes: null, lines: [] };
-  assert.deepEqual(toDealReportVM(null, "30 days"), absent);
-  assert.deepEqual(toDealReportVM(report({ any: false }), "30 days"), absent);
+  assert.deepEqual(toDealReportVM(null, "in the last 30 days"), absent);
+  assert.deepEqual(toDealReportVM(report({ any: false }), "in the last 30 days"), absent);
   const vm = toDealReportVM(
     report({ sent: 5, won: 3, lost: 1, waiting: 1, clients: 4, monthly_cents: 750_000 }),
-    "30 days",
+    "in the last 30 days",
   );
   assert.equal(vm.present, true);
   assert.equal(vm.headline, "5 proposals went out in the last 30 days.");
   assert.equal(vm.stock, "4 clients now · $7,500 a month.");
-  const quiet = toDealReportVM(report({ clients: 1 }), "7 days");
+  const quiet = toDealReportVM(report({ clients: 1 }), "in the last 7 days");
   assert.equal(quiet.headline, "No proposals went out in the last 7 days.");
   assert.equal(quiet.stock, "1 client now.");
-  const one = toDealReportVM(report({ sent: 1, won: 1, clients: 1 }), "7 days");
+  const one = toDealReportVM(report({ sent: 1, won: 1, clients: 1 }), "in the last 7 days");
   assert.equal(one.headline, "1 proposal went out in the last 7 days.");
   assert.deepEqual(
     one.outcomes.rows.map((r) => [r.label, r.display]),
@@ -626,8 +626,24 @@ test("the report counts one cohort and the stock, and is absent where no deal wa
   );
 });
 
+test("the report says when its proposals went out in the words it is handed: days a member picked are named to their last day, never as the last so many", () => {
+  // What Reports hands it is the report's own (ReportVM.period.within, held by reports/periods/report-window.test.mjs), so the
+  // deals' sentence and the report's name one period.
+  const sent = report({ sent: 5, won: 3, lost: 1, waiting: 1 });
+  assert.equal(
+    toDealReportVM(sent, "in the 20 days to Sep 20").headline,
+    "5 proposals went out in the 20 days to Sep 20.",
+    "days that ended before today",
+  );
+  assert.equal(
+    toDealReportVM(report({ clients: 1 }), "on Sep 20").headline,
+    "No proposals went out on Sep 20.",
+    "one day",
+  );
+});
+
 test("what became of the period's proposals, as bars out of the cohort's size: each outcome's count and share, a zero said, no bars where none went out", () => {
-  assert.deepEqual(toDealReportVM(report({ sent: 5, won: 3, lost: 1, waiting: 1 }), "30 days").outcomes, {
+  assert.deepEqual(toDealReportVM(report({ sent: 5, won: 3, lost: 1, waiting: 1 }), "in the last 30 days").outcomes, {
     title: "What became of the proposals",
     max: 5,
     rows: [
@@ -637,10 +653,10 @@ test("what became of the period's proposals, as bars out of the cohort's size: e
     ],
   });
   assert.deepEqual(
-    toDealReportVM(report({ sent: 3, won: 1, waiting: 2 }), "7 days").outcomes.rows.map((r) => r.display),
+    toDealReportVM(report({ sent: 3, won: 1, waiting: 2 }), "in the last 7 days").outcomes.rows.map((r) => r.display),
     ["1  33%", "2  67%", "0  0%"],
   );
-  assert.equal(toDealReportVM(report({ clients: 2 }), "30 days").outcomes, null, "none went out: no bars");
+  assert.equal(toDealReportVM(report({ clients: 2 }), "in the last 30 days").outcomes, null, "none went out: no bars");
 });
 
 test("the lines, each only when it has something and in this order: how long a yes took, where the new clients came from, why people passed, what is still open", () => {
@@ -662,7 +678,7 @@ test("the lines, each only when it has something and in this order: how long a y
         { reason: "timing", count: 1 },
       ],
     }),
-    "30 days",
+    "in the last 30 days",
   );
   assert.deepEqual(vm.lines, [
     { id: "median", text: "Median 9 days to a yes." },
@@ -671,7 +687,7 @@ test("the lines, each only when it has something and in this order: how long a y
     { id: "open", text: "$4,250 still open across 3 proposals." },
   ]);
   assert.deepEqual(
-    toDealReportVM(report({ sent: 2, waiting: 2 }), "30 days").lines,
+    toDealReportVM(report({ sent: 2, waiting: 2 }), "in the last 30 days").lines,
     [],
     "nothing more to say: no line",
   );

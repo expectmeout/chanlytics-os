@@ -1610,7 +1610,7 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
     [dealsWorld(undefined), 30],
   ]) {
     const page = await reportsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
-    const r = await kernel.load(turnIn(worldCtx(w)), reportReader, { days });
+    const r = await kernel.load(turnIn(worldCtx(w)), reportReader, { days, end: null });
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     assert.deepEqual(
@@ -1621,14 +1621,14 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
     assert.deepEqual(r.rows, [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${days} days` }]);
   }
   // What ask-routes asserts of the route, of the reader.
-  const week = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days: 7 });
+  const week = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days: 7, end: null });
   assert.deepEqual(week.data.report, { days: 7, tenant: A });
   assert.deepEqual(week.data.booking, { calendar: "none", days: 7, asked: 0, booked: 0 }, "no calendar, said as none");
-  const on = await kernel.load(turnIn(worldCtx(dealsWorld("proposal"))), reportReader, { days: 30 });
+  const on = await kernel.load(turnIn(worldCtx(dealsWorld("proposal"))), reportReader, { days: 30, end: null });
   assert.deepEqual([on.data.deals.any, on.data.deals.clients, on.data.deals.monthly_cents], [true, 1, 250_000]);
   assert.deepEqual(on.data.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
   for (const sellsBy of ["booking", null, undefined]) {
-    const off = await kernel.load(turnIn(worldCtx(dealsWorld(sellsBy))), reportReader, { days: 30 });
+    const off = await kernel.load(turnIn(worldCtx(dealsWorld(sellsBy))), reportReader, { days: 30, end: null });
     assert.equal(off.data.deals.any, false, `${sellsBy}: a deal on file switches nothing`);
   }
 });
@@ -1638,7 +1638,7 @@ test("the Reports row Ask cites names its period as the page does: one day is '1
     [1, "Reports, 1 day"],
     [5, "Reports, 5 days"],
   ]) {
-    const r = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days });
+    const r = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days, end: null });
     assert.deepEqual(r.rows, [{ kind: "page", id: "reports", route: "reports", label }], `${days}: ${label}`);
   }
 });
@@ -1657,14 +1657,14 @@ test("the report reader hands the workspace's hours and closures beside the repo
   };
   kept.tables.tenant_config = [{ tenant_id: A, config: { brain }, version: 1 }];
   const ctx = worldCtx(kept);
-  const r = await kernel.load(turnIn(ctx), reportReader, { days: 30 });
+  const r = await kernel.load(turnIn(ctx), reportReader, { days: 30, end: null });
   assert.deepEqual(r.data.profile, { hours, closures });
   assert.equal(
     asked(ctx).filter((q) => q === "tenant_config.select").length,
     1,
     "the config is read once in the turn: the booking line's read, not a second",
   );
-  const none = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days: 30 });
+  const none = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days: 30, end: null });
   assert.equal(
     none.data.profile,
     null,
@@ -1674,14 +1674,17 @@ test("the report reader hands the workspace's hours and closures beside the repo
   // that is how the page knows the workspace has not set them.
   const refused = presetsWorld();
   refused.tables.tenant_config = [{ tenant_id: A, config: { brain: { profile: { hours, closures } } }, version: 1 }];
-  assert.equal((await kernel.load(turnIn(worldCtx(refused)), reportReader, { days: 30 })).data.profile, null);
+  assert.equal(
+    (await kernel.load(turnIn(worldCtx(refused)), reportReader, { days: 30, end: null })).data.profile,
+    null,
+  );
   for (const [profile, kept] of [
     [{}, {}],
     [{ closures }, { closures }],
   ]) {
     const w = presetsWorld();
     w.tables.tenant_config = [{ tenant_id: A, config: { brain: { ...brain, profile } }, version: 1 }];
-    const said = await kernel.load(turnIn(worldCtx(w)), reportReader, { days: 30 });
+    const said = await kernel.load(turnIn(worldCtx(w)), reportReader, { days: 30, end: null });
     assert.deepEqual(said.data.profile, kept);
   }
 });
@@ -1753,7 +1756,7 @@ test("the report reader's profile reaches the view model: the closed count with 
     const w = presetsWorld();
     w.rpcs.report_series = replyReport([], { arrivals, hours: Array.from({ length: 7 }, () => Array(24).fill(0)) });
     if (config) w.tables.tenant_config = [{ tenant_id: A, config, version: 1 }];
-    const r = (await kernel.load(turnIn(worldCtx(w)), reportReader, { days: 30 })).data;
+    const r = (await kernel.load(turnIn(worldCtx(w)), reportReader, { days: 30, end: null })).data;
     return toReportVM(r.report, { profile: r.profile });
   };
   const said = await read({ brain: { ...brain, profile: { hours } } });
@@ -1786,7 +1789,7 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
     // lookup read them at origin/main.
     "tenants.select",
     "tenant_config.select",
-    // This workspace has no settings row, so the door is asked after the table: from 00365 a member who is not the
+    // This workspace has no settings row, so the door is asked after the table: from 00366 a member who is not the
     // owner reads the row only there (workspace/config-row.ts).
     "rpc:tenant_config_read",
     // How the workspace's customers buy, after the booking line, then the deals.
@@ -1798,7 +1801,7 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
   assert.deepEqual(asked(routed).slice(0, 2), ["memberships.select", "rpc:report_series"], "the door, then the series");
   assert.deepEqual(readTogether(asked(routed).slice(1)), readTogether(REPORT_READS), "and each of the reads, once");
   const ctx = worldCtx(dealsWorld("proposal"));
-  await kernel.load(turnIn(ctx), reportReader, { days: 30 });
+  await kernel.load(turnIn(ctx), reportReader, { days: 30, end: null });
   assert.equal(asked(ctx)[0], "rpc:report_series", "the series is asked first");
   assert.deepEqual(readTogether(asked(ctx)), readTogether(REPORT_READS));
   assert.deepEqual(
@@ -1820,7 +1823,7 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
   const turn = turnIn(worldCtx(dealsWorld("proposal")));
   await Promise.all([facts, config, sellsBy].map((r) => kernel.load(turn, r, undefined)));
   const held = turn.ctx.supabase.seen.length;
-  await kernel.load(turn, reportReader, { days: 30 });
+  await kernel.load(turn, reportReader, { days: 30, end: null });
   assert.deepEqual(
     readTogether(asked(turn.ctx).slice(held)),
     readTogether(["rpc:report_series", "rpc:people_list", "policies.select", "deals.select"]),
@@ -1828,20 +1831,71 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
   );
   // Where the workspace's customers book, the deals are not even read.
   const off = worldCtx(dealsWorld("booking"));
-  await kernel.load(turnIn(off), reportReader, { days: 30 });
+  await kernel.load(turnIn(off), reportReader, { days: 30, end: null });
   assert.deepEqual(readTogether(asked(off)), readTogether(REPORT_READS.slice(0, -1)));
+});
+
+test("the report over days that ended before today: the series is asked to their last day, the deals are those proposed in those days, and the booking line is not counted; on a database that cannot read such days yet it is refused in words, where days that end today read as they always did", async () => {
+  const day = (k) => new Date(Date.now() - k * 86_400_000).toISOString().slice(0, 10);
+  const seriesAsked = (ctx) => ctx.supabase.seen.filter((q) => q.rpc === "report_series").map((q) => q.args);
+  // Seven days that hold the proposal of five days ago (8 to 2 days ago).
+  const ctx = worldCtx(dealsWorld("proposal"));
+  const holding = (await kernel.load(turnIn(ctx), reportReader, { days: 7, end: day(2) })).data;
+  assert.deepEqual(seriesAsked(ctx), [{ p_tenant_id: A, p_days: 7, p_end: day(2) }]);
+  assert.deepEqual(
+    holding.booking,
+    { calendar: "ended", days: 7, asked: 0, booked: 0 },
+    "the booking line follows people as they stand today: for days that ended it is not counted at all",
+  );
+  assert.deepEqual([holding.deals.sent, holding.deals.won, holding.deals.clients], [1, 1, 1]);
+  // Seven days that ended before it went out (20 to 14 days ago): the proposal is not theirs, the client it made is
+  // still among the clients now, which are counted whenever they began.
+  const before = (await kernel.load(turnIn(worldCtx(dealsWorld("proposal"))), reportReader, { days: 7, end: day(14) }))
+    .data;
+  assert.deepEqual(
+    [before.deals.sent, before.deals.won, before.deals.clients],
+    [0, 0, 1],
+    "REGRESSION: a window that ended two weeks ago counted every proposal sent since its first day",
+  );
+  // The route answers its reader's payload for a first and a last day, as it does for a period.
+  const routed = worldCtx(dealsWorld("proposal"));
+  const page = await reportsRoute.GET.run(req(`?from=${day(8)}&to=${day(2)}&workspace=${A}`), routed);
+  assert.deepEqual(seriesAsked(routed), [{ p_tenant_id: A, p_days: 7, p_end: day(2) }]);
+  assert.deepEqual(page, holding, "the route's payload is the reader's");
+
+  // A database without 00359 has no function that takes a last day: PostgREST refuses the call by its arguments.
+  const gone = (a) => {
+    if (a.p_end === undefined) return series(a);
+    throw Object.assign(new Error("Could not find the function public.report_series(p_days, p_end, p_tenant_id)"), {
+      code: "PGRST202",
+    });
+  };
+  const old = () => worldCtx({ ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: gone } });
+  await assert.rejects(
+    kernel.load(turnIn(old()), reportReader, { days: 7, end: day(2) }),
+    (e) =>
+      e.code === "validation" &&
+      e.status === 400 &&
+      e.message === "Picked days cannot be read yet. Pick a period that ends today.",
+    "said in words, never as some other days and never as a failure of the workspace",
+  );
+  assert.equal(
+    (await kernel.load(turnIn(old()), reportReader, { days: 7, end: null })).data.report.days,
+    7,
+    "either deploy order works: a period names no day, and reads as it always did",
+  );
 });
 
 test("a report the function will not answer is GET reports' 404, in its sentence, whatever was asked beside the series; the booking line is never fatal: a calendar lookup that fails is null, said once in the log, and the series and the deals stand", async () => {
   const refused = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => ({ error: "no" }) } };
   const ctx = worldCtx(refused);
-  await assert.rejects(kernel.load(turnIn(ctx), reportReader, { days: 30 }), noReport);
+  await assert.rejects(kernel.load(turnIn(ctx), reportReader, { days: 30, end: null }), noReport);
   // The series is asked first and its answer alone decides there is a report: the booking line and the deals are asked
   // for beside it (as the headline's are), and what they found is answered to nobody.
   assert.equal(asked(ctx)[0], "rpc:report_series", "the series first");
   await assert.rejects(reportsRoute.GET.run(req(`?workspace=${A}`), worldCtx(refused)), noReport);
   const empty = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => null } };
-  await assert.rejects(kernel.load(turnIn(worldCtx(empty)), reportReader, { days: 30 }), noReport);
+  await assert.rejects(kernel.load(turnIn(worldCtx(empty)), reportReader, { days: 30, end: null }), noReport);
 
   const down = { "tenant_config.select": { message: "config down" } };
   const { result: page, lines } = await logged("booking_report_failed", () =>
@@ -1856,7 +1910,7 @@ test("a report the function will not answer is GET reports' 404, in its sentence
     [{ tenant_id: A, error: "getTenantConfig: config down" }],
   );
   const { result: r } = await logged("booking_report_failed", () =>
-    kernel.load(turnIn(worldCtx(dealsWorld("proposal"), down)), reportReader, { days: 30 }),
+    kernel.load(turnIn(worldCtx(dealsWorld("proposal"), down)), reportReader, { days: 30, end: null }),
   );
   assert.deepEqual(r.data, page, "the reader's payload is the route's");
 });
@@ -1866,13 +1920,13 @@ test("the campaigns' report, for Ask and for the page: GET reports/campaigns ans
   for (const days of [7, 30, 90]) {
     const page = await campaignsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
     const ctx = worldCtx(w);
-    const r = await kernel.load(turnIn(ctx), campaignReport, { days });
+    const r = await kernel.load(turnIn(ctx), campaignReport, { days, end: null });
     assert.deepEqual(r.data, page, "the route's payload");
     assert.deepEqual(r.data, { report: { days } });
     assert.deepEqual(r.rows, []);
     assert.deepEqual(ctx.supabase.seen, [{ rpc: "campaign_series", args: { p_tenant_id: A, p_days: days } }]);
   }
-  await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30 }), noReport);
+  await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30, end: null }), noReport);
   await assert.rejects(campaignsRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)), noReport);
 });
 
@@ -2009,7 +2063,7 @@ test("the reviews' report, for Ask and for the page: GET reports/reviews answers
     ["90d", 90],
   ]) {
     const page = await reviewsRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
-    const r = await kernel.load(turnIn(worldCtx(w)), reviewsReport, { days });
+    const r = await kernel.load(turnIn(worldCtx(w)), reviewsReport, { days, end: null });
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "the route's payload, byte for byte");
     assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "google", "readable", "ledger"]);
     assert.deepEqual([page.timezone, page.days], ["Pacific/Auckland", days]);
@@ -2036,7 +2090,7 @@ test("the reviews' ledger is the database's, asked once for the days and beside 
   // 14:00 UTC on 6 October is 03:00 on the 7th in Auckland, which the database says.
   const clock = new Date("2026-10-06T14:00:00Z");
   const turn = kernel.readerContext(ctx, { tenantId: A, role: "viewer" }, clock);
-  const r = await kernel.load(turn, reviewsReport, { days: 30 });
+  const r = await kernel.load(turn, reviewsReport, { days: 30, end: null });
   assert.deepEqual([r.data.timezone, r.data.today, r.data.days], ["Pacific/Auckland", "2026-10-07", 30]);
   assert.deepEqual(r.data.ledger, reviewsLedgerOf({ p_days: 30 }), "the database's answer, as it answered");
   assert.deepEqual(
@@ -2072,7 +2126,7 @@ test("the reviews' ledger is the database's, asked once for the days and beside 
     "no event and no zone is read by the dashboard: the function says both",
   );
   // The report at three periods in one turn (Ask's report tool) reads Google once.
-  for (const days of [7, 90]) await kernel.load(turn, reviewsReport, { days });
+  for (const days of [7, 90]) await kernel.load(turn, reviewsReport, { days, end: null });
   for (const table of ["google_listings", "google_connections", "google_reviews", "google_listing_days", "policies"])
     assert.equal(selects(ctx, table).length, 1, `${table}: read once for the turn`);
   assert.deepEqual(
@@ -2088,6 +2142,7 @@ test("the reviews' report keeps no ledger where no profile has synced: the five 
   const clock = new Date("2026-10-06T14:00:00Z");
   const r = await kernel.load(kernel.readerContext(ctx, { tenantId: A, role: "viewer" }, clock), reviewsReport, {
     days: 30,
+    end: null,
   });
   assert.equal(r.data.ledger, null);
   assert.deepEqual([r.data.timezone, r.data.today, r.data.days], ["Pacific/Auckland", "2026-10-07", 30]);
@@ -2098,7 +2153,7 @@ test("the reviews' report keeps no ledger where no profile has synced: the five 
 test("the reviews' report of a workspace with no listing answers `ledger: null`; a ledger that cannot be read is the route's failure and a function with no workspace is its 404 -- no listing, could not read and not found are three answers", async () => {
   const none = reviewsWorld({ listing: false });
   const ctx = worldCtx(none);
-  const r = await kernel.load(turnIn(ctx), reviewsReport, { days: 30 });
+  const r = await kernel.load(turnIn(ctx), reviewsReport, { days: 30, end: null });
   assert.equal(r.data.ledger, null);
   assert.deepEqual([r.data.google.listing, r.data.google.reviews, r.data.google.days], [null, [], []]);
   assert.equal(r.data.readable, false, "none is kept and this deployment can look none up");
@@ -2118,10 +2173,10 @@ test("the reviews' report of a workspace with no listing answers `ledger: null`;
     },
   };
   const failed = /reviews_ledger: connection refused/;
-  await assert.rejects(kernel.load(turnIn(worldCtx(down)), reviewsReport, { days: 30 }), failed);
+  await assert.rejects(kernel.load(turnIn(worldCtx(down)), reviewsReport, { days: 30, end: null }), failed);
   await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)), failed);
   const unknown = { ...reviewsWorld(), rpcs: { reviews_ledger: () => ({ error: "unknown_tenant" }) } };
-  await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), reviewsReport, { days: 30 }), noReport);
+  await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), reviewsReport, { days: 30, end: null }), noReport);
   await assert.rejects(reviewsRoute.GET.run(req(`?workspace=${A}`), worldCtx(unknown)), noReport);
 });
 
@@ -2158,7 +2213,7 @@ test("the reviews' report on a database that does not have the ledger's function
   );
 
   const { result: r } = await logged("reviews_ledger_missing", () =>
-    kernel.load(turnIn(worldCtx(absent)), reviewsReport, { days: 30 }),
+    kernel.load(turnIn(worldCtx(absent)), reviewsReport, { days: 30, end: null }),
   );
   assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
 
@@ -2639,7 +2694,7 @@ test("GET ask/openings through its reader asks what it asked at origin/main, in 
       ["tenants.select", "name, timezone"],
       // At origin/main (c39ce689), the one column: config.
       ["tenant_config.select", "tenant_id, config, version, updated_at, updated_by"],
-      // No settings row in this world, so the door after the table (00365, workspace/config-row.ts).
+      // No settings row in this world, so the door after the table (00366, workspace/config-row.ts).
       ["rpc:tenant_config_read", null],
     ],
   );
@@ -3986,7 +4041,7 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   };
   const none = dayCtx(settingsWorld({ tenant_config: [] }));
   await assert.rejects(kernel.load(memberIn(none, A, "viewer"), settingsReader, undefined), noRow);
-  // The table, then the door: from 00365 a viewer reads the row only through tenant_config_read, and neither has it.
+  // The table, then the door: from 00366 a viewer reads the row only through tenant_config_read, and neither has it.
   assert.deepEqual(asked(none), ["tenant_config.select", "rpc:tenant_config_read"]);
   await assert.rejects(
     settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(settingsWorld({ tenant_config: [] }))),

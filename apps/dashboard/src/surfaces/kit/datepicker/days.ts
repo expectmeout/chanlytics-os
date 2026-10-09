@@ -3,6 +3,7 @@
  * runs on UTC midnights, which have no daylight saving to cross, so a day is never skipped or met twice. Nothing here
  * knows a zone or a clock: the page says which day is today.
  */
+import { DAY_MS } from "@chanlytics/contracts";
 
 /** A day's parts, read once; a string that is not a day reads as the first of January 1970 rather than throwing. */
 function partsOf(key: string): { year: number; month: number; day: number } {
@@ -20,7 +21,7 @@ const dateOf = (key: string): Date => {
 const dayKeyOf = (date: Date): string => date.toISOString().slice(0, 10);
 
 /** The day `n` days from `key` (negative for before). */
-export function shiftDays(key: string, n: number): string {
+function shiftDays(key: string, n: number): string {
   const date = dateOf(key);
   date.setUTCDate(date.getUTCDate() + n);
   return dayKeyOf(date);
@@ -40,6 +41,10 @@ export function shiftMonths(key: string, n: number): string {
 /** Whether two days are in the same month. */
 export const sameMonth = (a: string, b: string): boolean => a.slice(0, 7) === b.slice(0, 7);
 
+/** How many days lie between two days, whichever is first: a day and itself are none apart, and its morrow one. */
+export const daysApart = (a: string, b: string): number =>
+  Math.abs(Math.round((dateOf(a).getTime() - dateOf(b).getTime()) / DAY_MS));
+
 /** The day of the month, as the number a cell says. */
 export const dayNumber = (key: string): number => partsOf(key).day;
 
@@ -49,7 +54,35 @@ function intoWeek(key: string, weekStartsOn: 0 | 1): number {
 }
 
 /** The first day of `key`'s week. */
-export const weekStart = (key: string, weekStartsOn: 0 | 1): string => shiftDays(key, -intoWeek(key, weekStartsOn));
+const weekStart = (key: string, weekStartsOn: 0 | 1): string => shiftDays(key, -intoWeek(key, weekStartsOn));
+
+/**
+ * Where a key takes the day that holds a grid's tab stop, after the ARIA grid pattern: the arrows a day or a week, Home
+ * and End the week's ends, Page Up and Page Down a month (a year with Shift). Null for a key that is not the grid's.
+ * The date picker's and the range picker's one walk.
+ */
+export function dayForKey(key: string, from: string, shift: boolean, weekStartsOn: 0 | 1): string | null {
+  switch (key) {
+    case "ArrowLeft":
+      return shiftDays(from, -1);
+    case "ArrowRight":
+      return shiftDays(from, 1);
+    case "ArrowUp":
+      return shiftDays(from, -7);
+    case "ArrowDown":
+      return shiftDays(from, 7);
+    case "Home":
+      return weekStart(from, weekStartsOn);
+    case "End":
+      return shiftDays(weekStart(from, weekStartsOn), 6);
+    case "PageUp":
+      return shiftMonths(from, shift ? -12 : -1);
+    case "PageDown":
+      return shiftMonths(from, shift ? 12 : 1);
+    default:
+      return null;
+  }
+}
 
 /** Six weeks that hold `key`'s month, from the week its first day is in: always six, so the picker never changes height. */
 export function monthWeeks(key: string, weekStartsOn: 0 | 1): string[][] {

@@ -4,7 +4,7 @@
  * one share and the calendar's line. `headlineOf` (reports.ts) sums them where the series is, from the facts the page's view
  * model is built from; `toHeadlineVM` words them. The Overview reads it too from phase C (the lenses spec, §6.5).
  */
-import { toBookingReportVM, type BookingReportDto, type BookingReportVM } from "../calendar/calendar-people";
+import { toBookingReportVM, type BookingReportDto, type BookingReportVM } from "./booking-report";
 import type { ReportPeriodId } from "./report-periods";
 import { periodWords, rangeLabelOf, type ReportDto } from "./reports";
 import { compareWords } from "./report-tiles";
@@ -69,7 +69,8 @@ export function toHeadlineVM(dto: ReportHeadlineDto): ReportHeadlineVM {
     period: dto.period,
     days: dto.days,
     rangeLabel,
-    lead: periodWords(rangeLabel).now,
+    // Today reads a period by name, never days a member picked: it ends today.
+    lead: periodWords(dto.days, null).now,
     empty: dto.empty,
     messages: {
       total: dto.messages_in,

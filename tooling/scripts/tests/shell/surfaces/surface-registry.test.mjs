@@ -361,6 +361,16 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   assert.equal(registry.routeSurfaceFor("reports", "reviews"), "reports");
   assert.deepEqual(registry.routeSurfaces("reports", "reviews"), ["workspace", "reports", "reports_reviews"]);
   assert.deepEqual(registry.routeSurfaces("reports"), ["workspace", "reports"]);
+  // The days a member picked ride in the param (contracts lensRoute): the lens is what is classified and fed, whatever
+  // days it is over, and days alone are the Overview's.
+  const DAYS = "2026-09-01~2026-09-20";
+  assert.deepEqual(registry.routeDrawsFor("reports", `reviews:${DAYS}`), ["reports_reviews"]);
+  assert.deepEqual(registry.routeSurfaces("reports", `reviews:${DAYS}`), ["workspace", "reports", "reports_reviews"]);
+  for (const param of [DAYS, `people:${DAYS}`, `campaigns:${DAYS}`]) {
+    assert.equal(registry.routeSurfaceFor("reports", param), "reports", param);
+    assert.deepEqual(registry.routeDrawsFor("reports", param), [], param);
+    assert.deepEqual(registry.routeSurfaces("reports", param), ["workspace", "reports"], param);
+  }
   // What was asked of the page alone is asked as it was: a param that names no row of its own falls to the page's.
   assert.deepEqual(registry.routeDrawsFor("today"), registry.ROUTE_DRAWS.today);
   assert.deepEqual(registry.routeDrawsFor("today", "anything"), registry.ROUTE_DRAWS.today);

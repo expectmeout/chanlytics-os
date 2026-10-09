@@ -28,24 +28,32 @@ import { LinkButton } from "../kit/link-button/link-button";
 import { RadialChart } from "../kit/charts/radial";
 import { Tooltip } from "../kit/tooltip/tooltip";
 
-/** A section of the page under its title, with a line of what it holds beside it where it has one. */
+/**
+ * A section of the page under its title, with a line of what it holds beside it where it has one. `bare` keeps the title
+ * for a screen reader (the section's label) and draws none: a lens's one section named what its tab already says
+ * ("Your customers" under People), which Ruben had taken out (9 Oct 2026).
+ */
 export function RptSection({
   title,
   meta = null,
   testid = null,
+  bare = false,
   children,
 }: {
   title: string;
   meta?: string | null;
   testid?: string | null;
+  bare?: boolean;
   children?: ReactNode;
 }) {
   return (
     <section className="rpt-section" aria-label={title} data-testid={testid || undefined}>
-      <header className="rpt-section-head">
-        <h2 className="rpt-section-title">{title}</h2>
-        {meta && <span className="rpt-section-meta">{meta}</span>}
-      </header>
+      {!bare && (
+        <header className="rpt-section-head">
+          <h2 className="rpt-section-title">{title}</h2>
+          {meta && <span className="rpt-section-meta">{meta}</span>}
+        </header>
+      )}
       {children}
     </section>
   );

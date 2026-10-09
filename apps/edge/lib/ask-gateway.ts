@@ -45,7 +45,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 
 /**
  * Ask's tokens in the last day, this workspace: input, cache writes and output of every usage.ask_tokens event of the
- * last 24 hours, a cache read not counted, summed in one statement (ask_tokens_day, 00240, 00367). A read that fails is
+ * last 24 hours, a cache read not counted, summed in one statement (ask_tokens_day, 00240, 00368). A read that fails is
  * not known, and says so (null): the door holds the turn rather than let a failed count read as a day with nothing
  * spent (the scorecard, 29 September).
  */

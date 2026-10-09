@@ -1,5 +1,5 @@
 /**
- * A refund that races its invoice's first share is applied, whichever commits first (00364), on a real database.
+ * A refund that races its invoice's first share is applied, whichever commits first (00365), on a real database.
  *
  * partner_reverse looks for the invoice's share and, finding none, parks the reversal for partner_earn to apply when
  * the share is written. Two webhooks in flight at once used to lose it: a share written and not yet committed is

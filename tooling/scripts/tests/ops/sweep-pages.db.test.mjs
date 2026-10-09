@@ -8,7 +8,7 @@
  *
  * Each read is kept to this suite's own workspaces (p_tenant_id), so the database suites running beside it keep
  * their rows out of these pages and counts. Local stack only: it makes workspaces. A zone Postgres does not know is
- * refused when written since 00364, so a workspace that holds one is written as such a row was before it, through the
+ * refused when written since 00365, so a workspace that holds one is written as such a row was before it, through the
  * Supabase CLI (SUPABASE_CLI names the binary when `supabase` is not on PATH, SUPABASE_DB_URL the database here).
  */
 import { test, before, after } from "node:test";
@@ -52,7 +52,7 @@ let dueCalendars;
 const made = [];
 
 /**
- * A workspace on its own clock, with the template its moments send. A zone Postgres does not know (00364 refuses one
+ * A workspace on its own clock, with the template its moments send. A zone Postgres does not know (00365 refuses one
  * written) is the zone of a row written before the guard: the workspace is made on the default, and the zone put in
  * with the triggers off for that one statement, through the CLI.
  */
@@ -332,7 +332,7 @@ test(
   "a zone the database does not know is judged in UTC (safe_zone), and one such workspace never fails the page for the others",
   { skip },
   async () => {
-    // tenants.timezone is owner-settable text, checked against pg_timezone_names at creation and, since 00364, on every
+    // tenants.timezone is owner-settable text, checked against pg_timezone_names at creation and, since 00365, on every
     // write that changes it; a workspace that took a name Postgres does not know before then still holds it, and
     // `at time zone` on it raises.
     const mars = await workspace("mars", "Mars/Olympus");

@@ -31,15 +31,15 @@ interface StoredCredentials {
   scope: string | null;
 }
 
-/** put_google_credentials' refusal of a compare-and-set (00363): the token stored is no longer the one named. */
+/** put_google_credentials' refusal of a compare-and-set (00364): the token stored is no longer the one named. */
 const TOKEN_CHANGED = "40001";
-/** PostgREST's word for a function it cannot find by the arguments named: a database before 00363 takes no third. */
+/** PostgREST's word for a function it cannot find by the arguments named: a database before 00364 takes no third. */
 const NO_SUCH_FUNCTION = "PGRST202";
 
 /**
  * The token, kept in Vault. A connect writes it whatever is there; a refresh names the refresh token it read
  * (`ifRefreshToken`), and the write is made only while the stored token still carries it: "changed" when a reconnect
- * stored new credentials since, which then stand. A database before 00363 cannot compare, and is written as it always
+ * stored new credentials since, which then stand. A database before 00364 cannot compare, and is written as it always
  * was.
  */
 async function storeCredentials(

@@ -56,6 +56,9 @@ export interface ReviewsLedgerDto {
   timezone: string;
   /** The workspace's day in that zone when the read was made: "2026-10-06". */
   today: string;
+  /** The period's last day (00360): today for a period by name, an earlier day for days a member picked. Absent on a
+   *  ledger from before 00360, which always ended today. */
+  end?: string;
   /** The period the ledger was read for, as the database clamped it. */
   days: number;
   /**
@@ -100,9 +103,9 @@ export function reviewsAreOnRecord(google: Pick<GoogleReadDto, "listing" | "conn
   return google.listing !== null && reviewsFromProfile(google.connection);
 }
 
-/** The days of a period at a business day, and of the one before it. */
-export function reviewsWindowOf(today: string, days: number): { since: string; priorSince: string } {
-  const since = periodSince(today, days);
+/** The days of a period that ends on `last` (today, or the earlier day a member picked), and of the one before it. */
+export function reviewsWindowOf(last: string, days: number): { since: string; priorSince: string } {
+  const since = periodSince(last, days);
   return { since, priorSince: periodSince(shiftKey(since, -1), days) };
 }
 
@@ -162,10 +165,12 @@ export interface ReviewsStarMix {
 
 /** What a period holds of the profile's reviews, counted once for the figures, the head and the lines. */
 export type ReviewsPeriod =
-  | { exact: false; days: number; history: ReviewsHistory }
+  | { exact: false; days: number; until: string | null; history: ReviewsHistory }
   | {
       exact: true;
       days: number;
+      /** The period's last day where it ended before today; null for one that ends today (reports.ts endedOn). */
+      until: string | null;
       history: ReviewsHistory;
       written: number;
       /** Written in the period before; null where the record does not reach back to its first day. */
@@ -234,20 +239,21 @@ function reviewsWeeksOf(
 /**
  * What the period holds of the profile's reviews on record, counted once: the period's figures where the history reaches
  * its first day (and the period before's where it reaches that), and the weeks the history covers. The middle reply time
- * is `quantile` over the seconds, not deals' medianWait, which rounds to whole days: a reply takes hours.
+ * is `quantile` over the seconds, not deals' medianWait, which rounds to whole days: a reply takes hours. The period is
+ * its days, its last day (`last`), and that same day where it was before today, for the period's words (`until`; null:
+ * it ends today).
  */
 export function reviewsPeriodOf(
   ledger: Pick<ReviewsLedgerDto, "written">,
   history: ReviewsHistory,
-  today: string,
-  days: number,
+  { last, days, until }: { last: string; days: number; until: string | null },
 ): { period: ReviewsPeriod; weeks: ReviewsWeekVM[] } {
-  const { since, priorSince } = reviewsWindowOf(today, days);
-  const current = ledger.written.filter((r) => r.d >= since && r.d <= today);
+  const { since, priorSince } = reviewsWindowOf(last, days);
+  const current = ledger.written.filter((r) => r.d >= since && r.d <= last);
   const perDay = new Map<string, number>();
   for (const r of current) perDay.set(r.d, (perDay.get(r.d) ?? 0) + 1);
-  const weeks = reviewsWeeksOf(perDay, since, today, history);
-  if (!historyReaches(history, since)) return { period: { exact: false, days, history }, weeks };
+  const weeks = reviewsWeeksOf(perDay, since, last, history);
+  if (!historyReaches(history, since)) return { period: { exact: false, days, until, history }, weeks };
   const answered = current.filter((r) => r.replied);
   const waits = answered.flatMap((r) => (r.secs === null ? [] : [r.secs])).sort((a, b) => a - b);
   const mix = reviewsStarMixOf(current);
@@ -255,6 +261,7 @@ export function reviewsPeriodOf(
     period: {
       exact: true,
       days,
+      until,
       history,
       written: current.length,
       prior: historyReaches(history, priorSince)

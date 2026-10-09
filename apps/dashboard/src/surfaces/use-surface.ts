@@ -9,7 +9,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { followState, surfaceValue } from "./surface-values";
 import type { FollowState, SurfaceKey, SurfaceValues } from "./surface-values";
-import { isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { getSurfaceStatuses, isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 
 export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
@@ -25,6 +25,17 @@ export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | und
 export function useSurfaceFailed(key: SurfaceKey): boolean {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
   const snapshot = () => isSurfaceFailed(key);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+}
+
+/**
+ * Whether a read of this surface has come back in this document, with real data or with none. Until one has, what the
+ * surface holds, if anything, is what the cache kept from an earlier visit, and the read that is out is of what the page
+ * opened on: a page that follows its own address asks for nothing meanwhile, or it would only read it twice.
+ */
+export function useSurfaceSettled(key: SurfaceKey): boolean {
+  const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
+  const snapshot = () => getSurfaceStatuses().has(key);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 

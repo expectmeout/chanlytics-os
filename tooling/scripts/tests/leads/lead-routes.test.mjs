@@ -265,7 +265,7 @@ test("a search: the route computes the estimate from the card's prices and hands
   await refused(searches.POST.run(send({ ...PLAN, count: 5000 }), ctxFor("owner", rpcs)), "validation", 400);
 });
 
-test("a plan that lapsed between the route's billing check and the door's own (00363) is a 402 in the door's words", async () => {
+test("a plan that lapsed between the route's billing check and the door's own (00364) is a 402 in the door's words", async () => {
   // Another owner, so the hour's count of searches is theirs alone.
   const OTHER = "u-lapsed";
   const ctx = {

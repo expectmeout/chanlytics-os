@@ -9,6 +9,7 @@
 import { roleAtLeast } from "../config/roles";
 import type { Role } from "../config/workspace-config/role-perms";
 import { dealsAreOn } from "../deals/sells-by";
+import { reportRangeKey, reportRangeOfKey, type ReportDays } from "./report-periods";
 
 /** The period a lens's words are about: the report's own dates, as the page says them ("Aug 29" to "Sep 4"). */
 export interface LensRange {
@@ -118,8 +119,16 @@ export type LensId = (typeof REPORT_LENSES)[number]["id"];
 /** A row of the table, with its id as the literal it is. */
 export type LensRow = (typeof REPORT_LENSES)[number];
 
-/** The route a lens is at: the Overview is `reports`, every other `reports/<lens>`. */
-export const lensRoute = (id: LensId): string => (id === "overview" ? "reports" : `reports/${id}`);
+/**
+ * The route a lens is at: the Overview is `reports`, every other `reports/<lens>`. Over days a member picked the address
+ * says them too, after the lens in the shell's own grammar (`clients/leads:…`): `reports/receptionist:2026-09-01~2026-09-20`,
+ * and for the Overview the days alone, `reports/2026-09-01~2026-09-20`. A period by name is never in the address: it is
+ * the device's, and a link to a lens opens on whatever period its reader keeps.
+ */
+export const lensRoute = (id: LensId, days: ReportDays | null = null): string => {
+  if (days === null) return id === "overview" ? "reports" : `reports/${id}`;
+  return id === "overview" ? `reports/${reportRangeKey(days)}` : `reports/${id}:${reportRangeKey(days)}`;
+};
 
 /** Every lens's route, in the strip's order (Ask's page routes read them). */
 export const LENS_ROUTES: readonly string[] = REPORT_LENSES.map((l) => lensRoute(l.id));
@@ -128,11 +137,43 @@ export const LENS_ROUTES: readonly string[] = REPORT_LENSES.map((l) => lensRoute
 export const isLensParam = (param: string): param is Exclude<LensId, "overview"> =>
   REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
 
-/** The lens a route is: `reports` is the Overview, `reports/<lens>` that lens, and anything else none. */
-export function lensOfRoute(route: string): LensId | null {
-  if (route === "reports") return "overview";
+/** The days a key names, where it names days and not a period (`2026-09-01~2026-09-20`); null otherwise. */
+const daysOfKey = (key: string): ReportDays | null => {
+  const range = reportRangeOfKey(key);
+  return range !== null && typeof range !== "string" ? range : null;
+};
+
+/**
+ * What follows `reports` in an address, read: the lens, and the days a member picked where the address says them
+ * (lensRoute). Nothing is the Overview; a lens is that lens; days alone are the Overview over them; `<lens>:<days>` both.
+ * Null for anything else, which is no address of Reports'. Whether the days may be read (not to come, not too many) is
+ * not asked here: the address is read before the workspace's today is known, and the report's own read refuses them.
+ */
+export function reportsParamParts(param: string): { lens: LensId; days: ReportDays | null } | null {
+  if (param === "") return { lens: "overview", days: null };
+  const alone = daysOfKey(param);
+  if (alone) return { lens: "overview", days: alone };
+  const at = param.indexOf(":");
+  const word = at < 0 ? param : param.slice(0, at);
+  if (!isLensParam(word)) return null;
+  if (at < 0) return { lens: word, days: null };
+  const days = daysOfKey(param.slice(at + 1));
+  return days ? { lens: word, days } : null;
+}
+
+/**
+ * A Reports route, read: `reports` and what follows it (reportsParamParts); null for a route that is not Reports'. A
+ * slash with nothing after it is no address of Reports': the Overview is `reports` alone.
+ */
+export function reportsRouteParts(route: string): { lens: LensId; days: ReportDays | null } | null {
+  if (route === "reports") return reportsParamParts("");
   const param = route.startsWith("reports/") ? route.slice("reports/".length) : "";
-  return isLensParam(param) ? param : null;
+  return param === "" ? null : reportsParamParts(param);
+}
+
+/** The lens a route is: `reports` is the Overview, `reports/<lens>` that lens (whatever days it is over), and anything else none. */
+export function lensOfRoute(route: string): LensId | null {
+  return reportsRouteParts(route)?.lens ?? null;
 }
 
 /** What decides which lenses a workspace is shown: how its customers buy, and the role of the person looking. */

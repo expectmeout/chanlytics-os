@@ -187,7 +187,7 @@ first touch, with its id as the ref) and `reach-out-replies/never-again.db` (the
   this note's is the doubt around it: a pair dismissed must stay dismissed on the next arrival, and a doubt must never
   hold an arrival's reply.
 - **The country.** A bare ten-digit number is North American today; one written with its + keeps the country it names
-  (00366, 9 October 2026: ten digits after a + were read as North American too, and people from abroad were kept under
+  (00367, 9 October 2026: ten digits after a + were read as North American too, and people from abroad were kept under
   a stranger's number). The workspace's country (from its listing or its line) decides a bare number after step 2, and
   a number that normalises differently is a doubt, never a silent change.
 

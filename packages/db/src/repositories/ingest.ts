@@ -122,7 +122,7 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   const out = data as unknown as IngestResult;
 
   // A delivery this workspace already holds says nothing new, as the email door's own check says it (email.ts): the
-  // call that kept the message wrote its answers, and ingest_inbound writes a STOP or a START only then (00360). A text
+  // call that kept the message wrote its answers, and ingest_inbound writes a STOP or a START only then (00361). A text
   // is taken in twice by design (its door, then the job that answers it), and a WhatsApp message again on Meta's
   // redelivery, an operator's replay and an answer taken up later; a yes written again there would stand over a no the
   // person has given since.

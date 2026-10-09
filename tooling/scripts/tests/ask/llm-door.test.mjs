@@ -741,7 +741,7 @@ test("the line is the cap: a workspace one token under it is served, one at it i
   assert.equal(net.calls.length, 1, "only the round under the cap reached the model");
 });
 
-test("what a round writes to the cache is counted and what it reads is not (00367): a day spent by warms writing a turn's head is refused, a day of reading the same head is served", async () => {
+test("what a round writes to the cache is counted and what it reads is not (00368): a day spent by warms writing a turn's head is refused, a day of reading the same head is served", async () => {
   const warmed = T(11);
   const read = T(12);
   const HEAD = 30_000;

@@ -2319,12 +2319,15 @@ textarea.rec-input {
   padding-top: 6px;
 }
 
-/* ---------- A month of a range: the days a period covers, on a month ---------- */
-/* The date picker's head and weekdays over the same six weeks, with nothing to press but the arrows. The days of the range
-   are one band across each week, round where the range or the week begins and ends, in the hairline's colour, the quiet
-   track a switch at rest and a meter's rest are drawn in: the inset's fill was white on the light side's white pop, and no
-   band was drawn there (7 Oct 2026). Its first day and its last are the lozenge a picked tab wears. A day of the month
-   before or after is the dim ink, in the band or out of it, and today the accent's ink. */
+/* ---------- A month to choose a range from: its days one band, each a day that presses ---------- */
+/* The date picker's head and weekdays over the same six weeks, with its button in each cell (day-range-picker.tsx). The
+   days of the range are one band across each week, round where the range or the week begins and ends, in the
+   hairline's colour, the quiet track a switch at rest and a meter's rest are drawn in: the inset's fill was white on
+   the light side's white pop, and no band was drawn there (7 Oct 2026). Its first day and its last are the lozenge a
+   picked tab wears. A day of the month before or after is the dim ink, in the band or out of it, and today the
+   accent's ink. The cell keeps the band and its ends' lozenge, the button the pointer's hover and the keyboard's ring.
+   A cell takes its button's height: a touch screen's 44px floor grows the button, and a cell held at 36 let one
+   week's days lie over the next's. */
 .date-pick-month {
   display: flex;
   flex-direction: column;
@@ -2333,7 +2336,7 @@ textarea.rec-input {
   justify-self: stretch;
   display: grid;
   place-items: center;
-  height: 36px;
+  min-height: 36px;
 }
 .date-pick-cell[data-in] {
   background: var(--line);
@@ -2370,6 +2373,23 @@ textarea.rec-input {
    says so by ending. */
 .date-pick-cell:is([data-start], [data-end]) .date-pick-num {
   color: var(--ink);
+}
+/* A day that cannot be chosen (one to come, or too far to be the other end) is the faint ink and answers no pointer. */
+.date-pick-day[aria-disabled="true"] {
+  cursor: default;
+}
+.date-pick-day[aria-disabled="true"] .date-pick-num {
+  background: none;
+  color: var(--ink-faint);
+}
+/* What is chosen so far, under the grid: one quiet line, with the room of two kept so the month never changes height
+   as it speaks. */
+.date-pick-hint {
+  min-height: calc(2 * var(--leading-normal, 1.45) * 1em);
+  margin: 0;
+  padding: 8px 6px 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
 }
 
 /* ---------- A combobox: a box over a list that narrows as you type ---------- */

@@ -1,10 +1,10 @@
 /**
- * The Business Profile's token, kept in Vault through its one write path (00070, 00363), on a real Postgres.
+ * The Business Profile's token, kept in Vault through its one write path (00070, 00364), on a real Postgres.
  *
  * A connect writes the token whatever is there. A refresh names the refresh token it read (p_if_refresh_token) and is
  * written only while the stored token still carries it: a reconnect stored between the refresh's read and its write is
  * kept, and the refresh is refused with 40001, writing nothing. A call that names two arguments, as every caller before
- * 00363 does, writes as it always did; and the door stays the service role's alone.
+ * 00364 does, writes as it always did; and the door stays the service role's alone.
  *
  * Local stack only: it makes a workspace and a Vault secret, and drops both.
  */
@@ -56,7 +56,7 @@ after(async () => {
 });
 
 test("a refresh is written only over the grant it refreshed; a reconnect since it read stands", { skip }, async () => {
-  // A connect, as every caller before 00363 writes: two arguments, whatever is there.
+  // A connect, as every caller before 00364 writes: two arguments, whatever is there.
   assert.equal(
     ok(await db.rpc("put_google_credentials", { p_tenant_id: A, p_secret: token("rt-1", "at-1") }), "connect"),
     `google-creds-${A}`,

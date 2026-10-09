@@ -1,10 +1,10 @@
--- 00365 · Only the owner reads the configuration row whole.
+-- 00366 · Only the owner reads the configuration row whole.
 --
 -- tenant_config holds the calendar feed's address, and the address grants read access to the owner's calendar. The
 -- dashboard shows it to the owner alone, but tenant_config_member_read let every member's session read the row, so an
 -- operator, a viewer or a partner could read the address from a browser through the Data API. The row is now the
--- owner's to read; every other member reads it through tenant_config_read (00364), which masks the address, and writes
--- it through tenant_config_write (00364), since an update reads the row it changes. The dashboard's server reads the
+-- owner's to read; every other member reads it through tenant_config_read (00365), which masks the address, and writes
+-- it through tenant_config_write (00365), since an update reads the row it changes. The dashboard's server reads the
 -- row whole for the work it does on a member's behalf (the Calendar reads the feed, a save writes the whole column) with
 -- the service role, once that member's session has been answered by tenant_config_read (server/workspace/config-row.ts).
 -- The service role, every SQL door that reads the row, and the update policy (the settings permission) are unchanged.

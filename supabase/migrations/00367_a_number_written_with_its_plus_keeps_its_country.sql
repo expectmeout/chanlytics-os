@@ -1,4 +1,4 @@
--- 00366 · A number written with its + keeps its country.
+-- 00367 · A number written with its + keeps its country.
 --
 -- resolve_person reads a number the way contracts normalizePhone reads it (decision 0034), and both took ten digits
 -- for North American whatever was written before them: +47 91 23 45 67, a Norwegian mobile, was kept as
@@ -61,7 +61,7 @@ begin
     raise exception 'That is not a channel.' using errcode = '22023';
   end if;
   -- The number as contracts normalizePhone reads it: a leading + is the country's word, so eight to fifteen digits
-  -- after it are as given; a bare ten digits are North American; eight to fifteen bare digits are as given (00366).
+  -- after it are as given; a bare ten digits are North American; eight to fifteen bare digits are as given (00367).
   if v_digits = '' then
     v_phone := null;
   elsif char_length(v_digits) = 10 and not v_plus then

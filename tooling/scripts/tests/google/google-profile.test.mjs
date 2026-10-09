@@ -573,7 +573,7 @@ test("the connection in words, and the view model that says replies are possible
   };
   const vm = toGoogleVM(
     { ready: { places: true, profile: true }, listing, connection: conn(), reviews: [review], days: [], role: "owner" },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -598,7 +598,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -613,7 +613,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -632,7 +632,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -1330,18 +1330,18 @@ test("REGRESSION (review H:0): a paused or ended workspace, or one whose plan st
   }));
 
 /**
- * Vault's two credential doors as 00363 writes them, over one secret: a write that names the refresh token it read
- * (p_if_refresh_token) is refused with 40001 once the secret carries another. `before00363` answers a third argument
+ * Vault's two credential doors as 00364 writes them, over one secret: a write that names the refresh token it read
+ * (p_if_refresh_token) is refused with 40001 once the secret carries another. `before00364` answers a third argument
  * as PostgREST does a function it cannot find, as a database before the migration would.
  */
-function vaultDoors(secret, { before00363 = false } = {}) {
+function vaultDoors(secret, { before00364 = false } = {}) {
   const vault = { secret, writes: [] };
   const answer = (data, error = null) => Promise.resolve({ data, error });
   const db = {
     rpc(name, args) {
       if (name === "get_google_credentials") return answer(vault.secret);
       if (name !== "put_google_credentials") throw new Error(`not modelled: ${name}`);
-      if ("p_if_refresh_token" in args && before00363) return answer(null, { code: "PGRST202", message: "not found" });
+      if ("p_if_refresh_token" in args && before00364) return answer(null, { code: "PGRST202", message: "not found" });
       if ("p_if_refresh_token" in args && vault.secret?.refresh_token !== args.p_if_refresh_token)
         return answer(null, { code: "40001", message: "put_google_credentials: the token changed since it was read" });
       vault.writes.push(args);
@@ -1382,8 +1382,8 @@ test("a token refreshed while the owner reconnected never writes the old grant b
       ["rt-old", "at-refreshed", "rt-old"],
     );
 
-    // A database before 00363 cannot compare: the refresh is written as it always was, and the profile keeps working.
-    const older = vaultDoors(stale, { before00363: true });
+    // A database before 00364 cannot compare: the refresh is written as it always was, and the profile keeps working.
+    const older = vaultDoors(stale, { before00364: true });
     assert.deepEqual(await tokenFor(older.db, "t1", now, async () => refreshed), { ok: true, token: "at-refreshed" });
     assert.deepEqual(
       [older.vault.secret.access_token, "p_if_refresh_token" in older.vault.writes[0]],

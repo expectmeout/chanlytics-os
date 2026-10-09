@@ -22,11 +22,11 @@ import {
   HOUR_MS,
   sumOf,
   REPORT_PERIOD_DEFAULT,
-  fixedDaysOf,
+  isReportDays,
   isReportPeriod,
-  monthDaysAt,
-  type ReportPeriodId,
+  type ReportRange,
 } from "@chanlytics/contracts";
+import { reportWindowOf, type ReportWindowVM } from "@chanlytics/contracts/report-window";
 import type { ReviewsSurface } from "./reviews-surface";
 import type { ReportsSurface } from "./surface";
 
@@ -279,10 +279,16 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
   return { timezone: ZONE, days: n, span_days: 2 * n, today, series: span.map((d) => d.campaign), sources, by_channel };
 }
 
-function bookingDto(all: readonly SampleDay[], n: number): BookingReportDto {
+/** Asked, then booked, counted for a window that ends today alone, as the server counts it (readers/report.ts bookingOf). */
+function bookingDto(all: readonly SampleDay[], n: number, live: boolean): BookingReportDto {
+  if (!live) return { calendar: "ended", days: n, asked: 0, booked: 0 };
   const asked = Math.max(1, Math.round(sumOf(all.slice(-n).map((d) => d.report.conversations)) * 0.45));
   return { calendar: "ok", days: n, asked, booked: Math.round(asked * 0.45) };
 }
+
+/** The window a sample is of: the range asked for (anything that is none of ours is the default period) as of `today`. */
+const sampleWindow = (range: ReportRange, today: string): ReportWindowVM =>
+  reportWindowOf(isReportPeriod(range) || isReportDays(range) ? range : REPORT_PERIOD_DEFAULT, today);
 
 const todayIn = (zone: string): string =>
   new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
@@ -291,24 +297,30 @@ const todayIn = (zone: string): string =>
 
 const keptReports = new Map<string, ReportsSurface>();
 
-/** The demo's report for a period (anything that is none of ours is the default) as of `today`, a YYYY-MM-DD key in the business's zone. */
-export function reportsSample(period: ReportPeriodId, today: string = todayIn(ZONE)): ReportsSurface {
-  const id = isReportPeriod(period) ? period : REPORT_PERIOD_DEFAULT;
-  const n = fixedDaysOf(id) ?? monthDaysAt(today);
-  const key = `${id}:${today}`;
+/**
+ * The demo's report for a range (anything that is none of ours is the default period) as of `today`, a YYYY-MM-DD key in
+ * the business's zone. Days a member picked are those days of the same business: half a year of it ending on their last
+ * day, said as the report says a window that ended before today (`end`).
+ */
+export function reportsSample(range: ReportRange, today: string = todayIn(ZONE)): ReportsSurface {
+  const win = sampleWindow(range, today);
+  const n = win.days;
+  const key = `${win.key}:${today}`;
   const hit = keptReports.get(key);
   if (hit) return hit;
-  const all = business(today);
-  const vm = toReportVM(reportDto(all, n, today), { profile: null });
-  const campaigns = toCampaignReportVM(campaignDto(all, n, today));
+  const all = business(win.to);
+  const vm = toReportVM({ ...reportDto(all, n, win.to), today, end: win.to }, { profile: null });
+  const campaigns = toCampaignReportVM(campaignDto(all, n, win.to));
   const surface: ReportsSurface = {
     vm,
     campaigns,
-    booking: toBookingReportVM(bookingDto(all, n)),
+    booking: toBookingReportVM(bookingDto(all, n, win.live)),
     // The demo is a salon: no deal was ever recorded, so Reports draws no Deals section (0004).
-    deals: toDealReportVM(null, vm.rangeLabel),
+    deals: toDealReportVM(null, vm.period.within),
     facts: reportFacts(vm, campaigns),
-    period: id,
+    range: win.range,
+    key: win.key,
+    period: win.period,
     days: n,
     fetchedAt: 0,
   };
@@ -332,17 +344,18 @@ const keptReviews = new Map<string, ReviewsSurface>();
  * counts, the ratings its daily readings gained, the five public reviews, and what a profile would add. Nothing here can be answered:
  * a demo posts no reply to Google.
  */
-export function reviewsSample(period: ReportPeriodId, today: string = todayIn(ZONE)): ReviewsSurface {
-  const id = isReportPeriod(period) ? period : REPORT_PERIOD_DEFAULT;
-  const n = fixedDaysOf(id) ?? monthDaysAt(today);
-  const key = `${id}:${today}`;
+export function reviewsSample(range: ReportRange, today: string = todayIn(ZONE)): ReviewsSurface {
+  const win = sampleWindow(range, today);
+  const n = win.days;
+  const key = `${win.key}:${today}`;
   const hit = keptReviews.get(key);
   if (hit) return hit;
   const r = seeded(11);
   let count = 180;
+  // The listing's daily readings up to the window's last day: what the lens counts a gain from.
   const days = Array.from({ length: n + 1 }, (_, i) => {
     count += r() > 0.6 ? 1 : 0;
-    return { day: back(today, n - i), rating: 4.8, review_count: count };
+    return { day: back(win.to, n - i), rating: 4.8, review_count: count };
   });
   const reviews = PUBLIC_REVIEWS.map(([author, rating, body, ago], i): GoogleReviewDto => {
     const day = back(today, ago);
@@ -366,6 +379,7 @@ export function reviewsSample(period: ReportPeriodId, today: string = todayIn(ZO
   const dto: ReviewsReportDto = {
     timezone: ZONE,
     today,
+    ...(win.live ? {} : { end: win.to }),
     days: n,
     readable: true,
     ledger: null,
@@ -390,7 +404,7 @@ export function reviewsSample(period: ReportPeriodId, today: string = todayIn(ZO
   };
   const surface: ReviewsSurface = {
     vm: toReviewsReportVM(dto, { nowMs: Date.parse(`${today}T16:00:00Z`) }),
-    period: id,
+    key: win.key,
   };
   keptReviews.set(key, surface);
   return surface;

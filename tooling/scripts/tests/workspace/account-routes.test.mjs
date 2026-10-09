@@ -223,7 +223,7 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
     "validation",
     400,
   );
-  // A zone this server's Intl knows and the database refuses (00364 tenants_zone_guard, its words): the owner's to
+  // A zone this server's Intl knows and the database refuses (00365 tenants_zone_guard, its words): the owner's to
   // choose again, in the refusal's own words, never a failure of ours.
   const databaseRefuses = {
     ...ctxFor(tables),

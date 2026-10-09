@@ -467,7 +467,7 @@ const refusal = (code, message) => Object.assign(new Error(message), { code });
 const living = (c) => c.erased_at == null && c.merged_into_contact_id == null;
 const inWorkspace = (tables, tenantId) => (tables.contacts ?? []).filter((c) => c.tenant_id === tenantId);
 
-/** The door's reading of its arguments, refused with its own codes and words: the number as 00366 restates normalizePhone. */
+/** The door's reading of its arguments, refused with its own codes and words: the number as 00367 restates normalizePhone. */
 function resolveArgs(a) {
   const word = (v) => String(v ?? "").trim();
   const channel = word(a.p_channel) || null;
@@ -765,7 +765,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
-    // Ask's day (00240, 00367): input, cache writes and output of the workspace's usage.ask_tokens events of the last
+    // Ask's day (00240, 00368): input, cache writes and output of the workspace's usage.ask_tokens events of the last
     // 24 hours, a value that is not a number counting nothing and a cache read never counted, as the SQL sums them.
     ask_tokens_day: ({ p_tenant }) => {
       const since = Date.now() - 24 * 60 * 60 * 1000;
@@ -780,7 +780,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,
-    // The configuration row's doors for a session (00364). A world has no row policy and no session, so the row reads as
+    // The configuration row's doors for a session (00365). A world has no row policy and no session, so the row reads as
     // its owner reads it (nothing hidden), and the write is the versioned compare-and-swap, by nobody in particular. Who
     // sees the feed's address and who may write are SQL's, proved on a stack in
     // workspace/config/the-feed-address-is-the-owner-s.db.test.mjs; a suite that models a member who is not the owner

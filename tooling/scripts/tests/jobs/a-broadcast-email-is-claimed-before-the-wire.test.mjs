@@ -1,14 +1,14 @@
 /**
  * A broadcast's email is claimed for the wire from the moment its row is written (messages.sending_at, 00352), as a
  * reply's row is claimed by sendQueued before the wire. The batch wrote it queued and unclaimed, then called the
- * provider: a member's cancel-send (which, since 00361, takes only a row no run has claimed) could win the row in the
+ * provider: a member's cancel-send (which, since 00362, takes only a row no run has claimed) could win the row in the
  * seconds the provider took to answer, and the person got the email under a row that said canceled for ever, with no
  * provider id and no receipt to match. A send the provider did not take still gives its claim back and is withdrawn,
  * so nothing is left queued for a sweep to call lost.
  *
  * jobs' broadcastSend runs here as the runner dispatches it, with core's batch and the real door, over a database in
  * memory; only the provider is a fake, and the member's call-back is the one the dashboard makes (core-ports
- * cancelQueued) under the session's policy (00361): a queued row with no claim.
+ * cancelQueued) under the session's policy (00362): a queued row with no claim.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

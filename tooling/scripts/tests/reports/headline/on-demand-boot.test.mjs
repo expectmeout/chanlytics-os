@@ -381,8 +381,23 @@ test("the three overrides that read Reports are the three marked, and nothing el
 test("the real registry names the Reviews lens's read for that lens alone, and the page it draws it on owns it", () => {
   assert.deepEqual(registry.routeDrawsFor("reports", "reviews"), ["reports_reviews"]);
   assert.equal(registry.ownsTheScreen("reports_reviews", "reports/reviews"), true);
-  for (const route of ["reports", "reports/people", "reports/campaigns", "today", "inbox"])
+  assert.equal(
+    registry.ownsTheScreen("reports_reviews", "reports/reviews:2026-09-01~2026-09-20"),
+    true,
+    "over days a member picked the lens is still the lens",
+  );
+  for (const route of [
+    "reports",
+    "reports/people",
+    "reports/campaigns",
+    "reports/2026-09-01~2026-09-20",
+    "reports/people:2026-09-01~2026-09-20",
+    "today",
+    "inbox",
+  ])
     assert.equal(registry.ownsTheScreen("reports_reviews", route), false, route);
+  for (const route of ["reports/2026-09-01~2026-09-20", "reports/people:2026-09-01~2026-09-20"])
+    assert.equal(registry.ownsTheScreen("reports", route), true, `${route}: Reports' own read is the page's`);
 });
 
 test("Google is marked and ages by the read's own time, and the real registry names its read for Today and for the Connections pane alone", () => {

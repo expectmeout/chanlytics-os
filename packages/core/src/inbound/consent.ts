@@ -27,7 +27,7 @@ export interface ConsentInputs {
   /**
    * THIS message was already held when it was taken in now (the ingest's
    * `is_new` false): a text's answer job, a redelivery. Its START was written
-   * when it was first taken in, and nothing now (00360). Absent: a new message.
+   * when it was first taken in, and nothing now (00361). Absent: a new message.
    */
   takenAgain?: boolean;
 }

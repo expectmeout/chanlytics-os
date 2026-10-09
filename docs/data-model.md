@@ -1797,7 +1797,7 @@ Foreign keys:
 | `status_updated_at` | timestamp with time zone | yes |  |  |
 | `meta` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
-| `sending_at` | timestamp with time zone | yes |  | When the one run that took this queued row to the wire claimed it (00352): set where status = 'queued' and it is null, so a second job naming the row sends nothing, and a member's call-back takes only a row nobody has claimed (00361). Cleared only when the provider provably did not take the message. A broadcast's email is claimed as it is written (00368). Null on a row no job sent (an inbound message, a direct answer). |
+| `sending_at` | timestamp with time zone | yes |  | When the one run that took this queued row to the wire claimed it (00352): set where status = 'queued' and it is null, so a second job naming the row sends nothing, and a member's call-back takes only a row nobody has claimed (00362). Cleared only when the provider provably did not take the message. A broadcast's email is claimed as it is written (00369). Null on a row no job sent (an inbound message, a direct answer). |
 
 Foreign keys:
 

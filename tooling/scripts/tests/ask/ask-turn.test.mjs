@@ -2910,11 +2910,11 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
       "the tenant and its settings: the turn's, never read again",
     );
     // The page's own builders over the page's own payload, as the bridge applies them; the same read, once a turn.
-    const page = (await load(rc, reportReader, { days: 7 })).data;
+    const page = (await load(rc, reportReader, { days: 7, end: null })).data;
     assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "report_series").length, 1, "read once a turn");
     const vm = toReportVM(page.report);
     const booking = toBookingReportVM(page.booking);
-    const deals = toDealReportVM(page.deals, vm.rangeLabel);
+    const deals = toDealReportVM(page.deals, vm.period.within);
     assert.equal(read.range, vm.rangeLabel);
     assert.deepEqual(
       read.tiles,

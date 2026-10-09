@@ -9,7 +9,7 @@
  * target, a suppressed place never inserted, the check's settlement (a member
  * held by the email standard alone qualifies on ok), Stop's generation bump
  * and pending ending, the once-only lead_collect job, and a workspace that
- * may not spend refused at the door (00363). Anything else the code
+ * may not spend refused at the door (00364). Anything else the code
  * under test asks of an RPC throws by name, as _fake-db.mjs does.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
@@ -133,7 +133,7 @@ export function leadWorld({
           error: "paused",
           sentence: "Lead searches are paused for now. Your leads are all here, and nothing is being counted.",
         };
-      // 00363's lead_spend_refusal: a workspace that may not spend is refused before anything is reserved.
+      // 00364's lead_spend_refusal: a workspace that may not spend is refused before anything is reserved.
       const billing = T.billing_accounts.find((b) => b.tenant_id === p_tenant_id);
       const why = billing
         ? whyCannotSpend(billing.mode, billing.status, SPEND_LEADS)

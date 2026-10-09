@@ -1,5 +1,5 @@
 /**
- * A partner's share of an invoice is read by the workspace's owner alone (00369), on a real Postgres with real sessions.
+ * A partner's share of an invoice is read by the workspace's owner alone (00370), on a real Postgres with real sessions.
  *
  * partner_earn and partner_reverse write what the partner who brought the workspace earns from its invoices into the
  * workspace's own events, and the events policy let every member read every event: an operator or a viewer could read

@@ -1,5 +1,5 @@
 /**
- * A delivery taken in again changes nobody's consent (00360), on a real Postgres. ingest_inbound wrote a STOP's no and
+ * A delivery taken in again changes nobody's consent (00361), on a real Postgres. ingest_inbound wrote a STOP's no and
  * a START's yes before its replay gate (the message's own insert), so a message it already held wrote its answer
  * again: START, STOP, then the START's job run late (a text is taken in twice by design, its door and then the job that
  * answers it) opted the person back in and lifted do-not-contact, and an old STOP taken in again after a START held

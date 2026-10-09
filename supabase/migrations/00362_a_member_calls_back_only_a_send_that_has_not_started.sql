@@ -1,4 +1,4 @@
--- 00361 · A member calls back only a send that has not started, and nothing else of a message.
+-- 00362 · A member calls back only a send that has not started, and nothing else of a message.
 --
 -- Two holes in one place, the moment a queued message is changed by anyone but the run that sends it.
 --
@@ -72,7 +72,7 @@ begin
     return false;
   end if;
   -- The older turn's replies still waiting to go are superseded by this one. One a run has claimed is already on its
-  -- way to the person (00361): it is left to say what became of it.
+  -- way to the person (00362): it is left to say what became of it.
   update public.messages d
      set status = 'canceled', error = jsonb_build_object('reason', 'superseded_by_newer_message', 'by', p_message)
    where d.conversation_id = p_conversation
@@ -88,4 +88,4 @@ end $$;
 revoke all on function public.claim_reply_turn(uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.claim_reply_turn(uuid, uuid, uuid) to service_role;
 comment on function public.claim_reply_turn(uuid, uuid, uuid) is
-  'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00361). True when held.';
+  'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362). True when held.';

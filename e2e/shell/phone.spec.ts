@@ -815,8 +815,8 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * Reports' period stands over what scrolls (25 Sep): it is the head's act now, a round button beside the strip of lenses
-   * (6 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
+   * Reports' date range stands over what scrolls (25 Sep): it is the head's act now, a capsule beside the strip of lenses
+   * that says what the page is on (6 and 9 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
    */
   test("Reports' period stands over the charts, and only they scroll", async ({ page }) => {
     await page.goto("/#/reports");
@@ -847,7 +847,7 @@ test.describe("Phone shell on a real workspace", () => {
     expect(shape.scrolls, "the period stands over what scrolls").toBe(false);
     expect(shape.still, "and holds its place as the charts scroll").toBe(0);
     expect(shape.edge, "the charts scroll edge to edge").toEqual([0, 0]);
-    expect(shape.beside, "a round button beside the strip of lenses, on its line").toBe(true);
+    expect(shape.beside, "a capsule beside the strip of lenses, on its line").toBe(true);
   });
 
   /**

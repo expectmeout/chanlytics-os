@@ -11,7 +11,7 @@
  *     know is UTC, where it raised and held every email and text of that workspace's campaigns.
  *
  * (The gates' hard bounces are held in consent/email-offers.db.test.mjs.) Runs against the database `supabase start`
- * builds on this machine, never production. A zone Postgres does not know is refused when written since 00364, so the
+ * builds on this machine, never production. A zone Postgres does not know is refused when written since 00365, so the
  * workspace is given one as a row written before it holds one, through the Supabase CLI (SUPABASE_CLI names the binary
  * when `supabase` is not on PATH, SUPABASE_DB_URL the database here).
  */
@@ -203,7 +203,7 @@ test("a call they placed that connected is a relationship only with a start, as 
 test("the month's counts read a zone Postgres does not know as UTC, where they raised", async (t) => {
   if (skip) return t.skip(skip);
   // Accepted by the browser's Intl when it was saved, unknown to Postgres: the counts used to raise on it. Such a zone is
-  // refused when written since 00364, so it is put in as a row from before then holds it: the triggers off for the one
+  // refused when written since 00365, so it is put in as a row from before then holds it: the triggers off for the one
   // statement.
   const sql = `do $$ begin execute 'set local session_replication_role = replica'; update public.tenants set timezone = 'Mars/Olympus_Mons' where id = '${A}'; end $$`;
   const r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], { cwd: ROOT, encoding: "utf8" });

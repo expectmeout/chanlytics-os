@@ -6182,7 +6182,7 @@ export type Database = {
         Returns: number
       }
       campaign_series: {
-        Args: { p_days?: number; p_tenant_id: string }
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       channel_keep_quality: {
@@ -7968,7 +7968,7 @@ export type Database = {
         Returns: string
       }
       reach_out_report: {
-        Args: { p_days: number; p_tenant_id: string }
+        Args: { p_days: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
@@ -8100,7 +8100,7 @@ export type Database = {
         Returns: Json
       }
       report_series: {
-        Args: { p_days?: number; p_tenant_id: string }
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       request_id_of_caller: { Args: never; Returns: string }
@@ -8125,7 +8125,7 @@ export type Database = {
       }
       resume_email_offers: { Args: { p_tenant_id: string }; Returns: boolean }
       reviews_ledger: {
-        Args: { p_days?: number; p_tenant_id: string }
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }

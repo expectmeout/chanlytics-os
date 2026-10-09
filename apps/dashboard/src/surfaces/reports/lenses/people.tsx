@@ -160,7 +160,7 @@ function peopleCard(vm: ReportVM, days: number) {
 /** Who they are and where and when they reach you. */
 function customersSection(vm: ReportVM, days: number) {
   return (
-    <RptSection title="Your customers">
+    <RptSection title="Your customers" bare>
       <div className="rpt-grid">
         {channelsCard(vm)}
         {rhythmCard(vm, days)}
@@ -171,5 +171,5 @@ function customersSection(vm: ReportVM, days: number) {
 }
 
 export function PeopleLens({ R, pick }: LensProps) {
-  return R.vm.empty ? nothingCameIn(R.vm, R.period, pick) : customersSection(R.vm, R.days);
+  return R.vm.empty ? nothingCameIn(R.vm, R.range, pick) : customersSection(R.vm, R.days);
 }

@@ -203,7 +203,7 @@ before(async () => {
       .select("id")
       .single(),
   ).id;
-  // A workspace that may spend (00363): the door and the runner ask, and a new workspace's plan has not started.
+  // A workspace that may spend (00364): the door and the runner ask, and a new workspace's plan has not started.
   ok(await db.from("billing_accounts").upsert({ tenant_id: A, mode: "direct", status: "active" }));
   const email = `money-lock-owner-${stamp}@example.com`;
   const password = `pw-${stamp}-Aa1!long`;

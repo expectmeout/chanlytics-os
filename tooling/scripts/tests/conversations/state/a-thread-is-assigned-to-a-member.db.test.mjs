@@ -1,5 +1,5 @@
 /**
- * A thread is assigned only to a member of its workspace (00364 conversations_assignee_guard), on a real database
+ * A thread is assigned only to a member of its workspace (00365 conversations_assignee_guard), on a real database
  * through PostgREST.
  *
  * conversations.assignee_user_id is who is responsible for a thread, and a member's session may write it: a take-over

@@ -71,7 +71,7 @@ test("STOP outranks an opt-in record; START outranks an opt-out record", () => {
 });
 
 test("a START taken in again is not the way back a second time: the record, which holds its yes and anything said since, decides", () => {
-  // 00360: a message already held writes no answer when it is taken in again (a text's answer job, a redelivery). A
+  // 00361: a message already held writes no answer when it is taken in again (a text's answer job, a redelivery). A
   // START, then a STOP, then the START's job run late: the record says the STOP, and the START is held by it, so no
   // confirmation goes that the door would refuse and nobody is told the customer said yes.
   assert.deepEqual(on({ optInNow: true, takenAgain: true, recorded: true }), { optedOut: true, source: "record" });

@@ -1,4 +1,4 @@
--- 00363 · A search is paid for, a lead from a list can be put back, and a token refreshed never undoes a reconnect.
+-- 00364 · A search is paid for, a lead from a list can be put back, and a token refreshed never undoes a reconnect.
 --
 -- Three doors a member's session reaches, each closed where it decides.
 --
@@ -64,7 +64,7 @@ $$;
 revoke all on function public.billing_may_spend(uuid) from public, anon, authenticated;
 grant execute on function public.billing_may_spend(uuid) to service_role;
 comment on function public.billing_may_spend(uuid) is
-  'Whether this workspace may incur a cost on the platform''s account: contracts'' maySpend, restated once in SQL (00363). mode direct may; mode stripe only with status active; no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
+  'Whether this workspace may incur a cost on the platform''s account: contracts'' maySpend, restated once in SQL (00364). mode direct may; mode stripe only with status active; no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
 
 create or replace function public.lead_spend_refusal(p_tenant_id uuid)
 returns jsonb
@@ -93,7 +93,7 @@ end $$;
 revoke all on function public.lead_spend_refusal(uuid) from public, anon, authenticated;
 grant execute on function public.lead_spend_refusal(uuid) to service_role;
 comment on function public.lead_spend_refusal(uuid) is
-  'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00363). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+  'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
 
 create or replace function public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer default 5)
 returns numeric
@@ -128,7 +128,7 @@ end $$;
 revoke all on function public.lead_estimate_ceiling(text, integer, integer) from public, anon, authenticated;
 grant execute on function public.lead_estimate_ceiling(text, integer, integer) to service_role;
 comment on function public.lead_estimate_ceiling(text, integer, integer) is
-  'The most a finder door takes as its estimate (00363). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50, the probe and the main phase at the assumed yield at the card''s dearest place, and a run''s floor a term in each phase; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50. What the route computes (estimateForRound, leadImportEstimateUsd) never passes it; lead-spend.db.test.mjs compares them.';
+  'The most a finder door takes as its estimate (00364). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50, the probe and the main phase at the assumed yield at the card''s dearest place, and a run''s floor a term in each phase; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50. What the route computes (estimateForRound, leadImportEstimateUsd) never passes it; lead-spend.db.test.mjs compares them.';
 
 -- The four spending doors, each copied from its latest definition with the ceiling and lead_spend_refusal added.
 
@@ -166,7 +166,7 @@ begin
     raise exception 'a new search starts at plan version 1' using errcode = '22023';
   end if;
   v_count := (p_plan->>'count')::integer;
-  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00363).
+  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00364).
   if p_estimate_usd > public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms')) then
     raise exception 'estimate: 0 to % usd for this plan', public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms'))
       using errcode = '22023';
@@ -175,7 +175,7 @@ begin
   if not public.lead_searches_on(p_tenant_id) then
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now. Your leads are all here, and nothing is being counted.');
   end if;
-  -- A workspace that may not spend is refused before anything is written (00363): the route asks requireSpend, and this
+  -- A workspace that may not spend is refused before anything is written (00364): the route asks requireSpend, and this
   -- door is the session's, so it asks too.
   v_err := public.lead_spend_refusal(p_tenant_id);
   if v_err is not null then
@@ -221,7 +221,7 @@ end $$;
 revoke all on function public.lead_search_create(uuid, jsonb, text, numeric, uuid) from public, anon;
 grant execute on function public.lead_search_create(uuid, jsonb, text, numeric, uuid) to authenticated, service_role;
 comment on function public.lead_search_create(uuid, jsonb, text, numeric, uuid) is
-  'Owner. Checks the plan (version 1, the shape) and the estimate (at most lead_estimate_ceiling for its count and terms, 00363), the switch ({error: paused}), whether the workspace may spend ({error: payment_required, sentence}: lead_spend_refusal, 00363), the card ({error: no_card}, logged as demand), then in one transaction reserves the count from the month''s allowance and the estimate from the budget and both day caps ({error: month_leads_used | budget_used | day_cap}, each with a sentence), inserts the search, its probe round (seq 1, target least(25, count)), the start job and the event. p_thread_id (00172) is the Ask thread the search was planned in, kept only when it is the caller''s own in this workspace, else null. Returns {search_id, round_id}.';
+  'Owner. Checks the plan (version 1, the shape) and the estimate (at most lead_estimate_ceiling for its count and terms, 00364), the switch ({error: paused}), whether the workspace may spend ({error: payment_required, sentence}: lead_spend_refusal, 00364), the card ({error: no_card}, logged as demand), then in one transaction reserves the count from the month''s allowance and the estimate from the budget and both day caps ({error: month_leads_used | budget_used | day_cap}, each with a sentence), inserts the search, its probe round (seq 1, target least(25, count)), the start job and the event. p_thread_id (00172) is the Ask thread the search was planned in, kept only when it is the caller''s own in this workspace, else null. Returns {search_id, round_id}.';
 
 create or replace function public.lead_search_import(p_tenant_id uuid, p_name text, p_asked text, p_rows jsonb, p_estimate_usd numeric)
 returns jsonb
@@ -276,7 +276,7 @@ begin
   if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > public.lead_cap('month_usd') then
     raise exception 'estimate: 0 to % usd', public.lead_cap('month_usd') using errcode = '22023';
   end if;
-  -- The estimate is the route's to compute (leadImportEstimateUsd) and never more than checking these rows can cost (00363).
+  -- The estimate is the route's to compute (leadImportEstimateUsd) and never more than checking these rows can cost (00364).
   if p_estimate_usd > public.lead_estimate_ceiling('list', jsonb_array_length(p_rows)) then
     raise exception 'estimate: 0 to % usd for this list', public.lead_estimate_ceiling('list', jsonb_array_length(p_rows))
       using errcode = '22023';
@@ -285,7 +285,7 @@ begin
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now, and a list is checked the way a search is. Nothing was imported.');
   end if;
   -- A list is checked at the provider, on the platform's account: a workspace that may not spend is refused before a
-  -- row is read (00363), as the route refuses it.
+  -- row is read (00364), as the route refuses it.
   v_err := public.lead_spend_refusal(p_tenant_id);
   if v_err is not null then
     return v_err;
@@ -448,7 +448,7 @@ end $_$;
 revoke all on function public.lead_search_import(uuid, text, text, jsonb, numeric) from public, anon;
 grant execute on function public.lead_search_import(uuid, text, text, jsonb, numeric) to authenticated, service_role;
 comment on function public.lead_search_import(uuid, text, text, jsonb, numeric) is
-  'An owner''s or a partner''s file of leads (1 to lead_cap(''list_rows'') rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). A row without a name or an address, a second row of one address, an address or number a person in People holds and one on the never-again list are left out and counted. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the round, and draws nothing; one another round is checking is left out (elsewhere); otherwise it is checked. Every other address is a new lead in Needs review for its address alone, marked with any lead it shares a number or a website with, checked by the finder''s own round (queued, running, checking; a lead_check job), which lead_check_commit settles. One lead of the month is reserved per address checked, with the check''s estimate, never under $0.50 and never over lead_estimate_ceiling(''list'', rows) (00363) ({error: month_leads_used | budget_used | day_cap, sentence}); paused searching refuses ({error: paused}); a workspace that may not spend refuses ({error: payment_required, sentence}: lead_spend_refusal, 00363); nothing to add refuses ({error: nothing}). Returns {search_id, round_id, added, checking, counted, left_out: {unreadable, twice, customer, never_again, elsewhere}}.';
+  'An owner''s or a partner''s file of leads (1 to lead_cap(''list_rows'') rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). A row without a name or an address, a second row of one address, an address or number a person in People holds and one on the never-again list are left out and counted. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the round, and draws nothing; one another round is checking is left out (elsewhere); otherwise it is checked. Every other address is a new lead in Needs review for its address alone, marked with any lead it shares a number or a website with, checked by the finder''s own round (queued, running, checking; a lead_check job), which lead_check_commit settles. One lead of the month is reserved per address checked, with the check''s estimate, never under $0.50 and never over lead_estimate_ceiling(''list'', rows) (00364) ({error: month_leads_used | budget_used | day_cap, sentence}); paused searching refuses ({error: paused}); a workspace that may not spend refuses ({error: payment_required, sentence}: lead_spend_refusal, 00364); nothing to add refuses ({error: nothing}). Returns {search_id, round_id, added, checking, counted, left_out: {unreadable, twice, customer, never_again, elsewhere}}.';
 
 create or replace function public.lead_search_more(p_search_id uuid, p_purpose text, p_plan jsonb, p_estimate_usd numeric)
 returns jsonb
@@ -496,7 +496,7 @@ begin
     raise exception 'the plan is the current version or the next' using errcode = '22023';
   end if;
   v_count := (p_plan->>'count')::integer;
-  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00363). Held to
+  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00364). Held to
   -- the plan's whole count, not the round's target: the route prices a top-up from the counted it read a moment before.
   if p_estimate_usd > public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms')) then
     raise exception 'estimate: 0 to % usd for this plan', public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms'))
@@ -514,7 +514,7 @@ begin
   if not public.lead_searches_on(s.tenant_id) then
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now. Your leads are all here, and nothing is being counted.');
   end if;
-  -- A workspace that may not spend is refused before anything is reserved (00363), as the route refuses it.
+  -- A workspace that may not spend is refused before anything is reserved (00364), as the route refuses it.
   v_err := public.lead_spend_refusal(s.tenant_id);
   if v_err is not null then
     return v_err;
@@ -542,7 +542,7 @@ end $$;
 revoke all on function public.lead_search_more(uuid, text, jsonb, numeric) from public, anon;
 grant execute on function public.lead_search_more(uuid, text, jsonb, numeric) to authenticated, service_role;
 comment on function public.lead_search_more(uuid, text, jsonb, numeric) is
-  'Owner. A new round on an ended search: topup reserves the count minus what already counted, renew the whole count, through the same reservation as create; the plan is the current version or the next (stored on the search); the estimate at most lead_estimate_ceiling for the plan''s count and terms (00363). {error: live} while a round is open; {error: nothing_to_add} when the count is already met; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00363).';
+  'Owner. A new round on an ended search: topup reserves the count minus what already counted, renew the whole count, through the same reservation as create; the plan is the current version or the next (stored on the search); the estimate at most lead_estimate_ceiling for the plan''s count and terms (00364). {error: live} while a round is open; {error: nothing_to_add} when the count is already met; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364).';
 
 create or replace function public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[])
 returns jsonb
@@ -566,7 +566,7 @@ begin
   if not public.lead_searches_on(p_tenant_id) then
     return jsonb_build_object('error', 'paused');
   end if;
-  -- And whether the workspace may spend at all (00363): this door is the session's, so the route's question is asked here too.
+  -- And whether the workspace may spend at all (00364): this door is the session's, so the route's question is asked here too.
   v_err := public.lead_spend_refusal(p_tenant_id);
   if v_err is not null then
     return v_err;
@@ -599,7 +599,7 @@ end $$;
 revoke all on function public.lead_check_again(uuid, uuid[]) from public, anon;
 grant execute on function public.lead_check_again(uuid, uuid[]) to authenticated, service_role;
 comment on function public.lead_check_again(uuid, uuid[]) is
-  'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: each goes to checking and one lead_check job per round is written with {round_id, batch 0, again <nonce>, lead_ids}, so the engine runs it under the round with a run id of its own and commits through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00363). Returns {scheduled, skipped}.';
+  'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: each goes to checking and one lead_check job per round is written with {round_id, batch 0, again <nonce>, lead_ids}, so the engine runs it under the round with a run id of its own and commits through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). Returns {scheduled, skipped}.';
 
 -- Put back, copied from its latest definition (00272) with the place's suppression asked only of a lead with a place.
 
@@ -659,7 +659,7 @@ begin
       end if;
       -- Neither Put back nor Keep revives a suppression or an out-of-area place (§0.1). A place's suppression is asked
       -- of a lead that has a place: one a list of the owner's own brought has none (00242), and a lead blanked or
-      -- erased, which loses or keeps its place, was refused above (00363).
+      -- erased, which loses or keeps its place, was refused above (00364).
       if l.place_id is not null and exists (select 1 from public.lead_suppressions x where x.tenant_id = s.tenant_id and x.kind = 'place'
                     and x.what in ('customer', 'erased') and x.hash = public.lead_suppression_hash(s.tenant_id, l.place_id)) then
         return jsonb_build_object('error', 'hidden');
@@ -698,7 +698,7 @@ end $$;
 revoke all on function public.lead_member_move(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function public.lead_member_move(uuid, uuid, text) to service_role;
 comment on function public.lead_member_move(uuid, uuid, text) is
-  'The body of lead_member_keep, lead_member_exclude and lead_member_put_back: the state each expects, the change, the allowance when it counts, and one lead_operations row with the member''s new version. {error: removed} on a search that was removed, as lead_search_more says it. Put back refuses a blanked or erased lead and a place a customer or an erasure suppressed ({error: hidden}); a lead with no place, as a list of the owner''s own brings (00242), is put back like any other (00363).';
+  'The body of lead_member_keep, lead_member_exclude and lead_member_put_back: the state each expects, the change, the allowance when it counts, and one lead_operations row with the member''s new version. {error: removed} on a search that was removed, as lead_search_more says it. Put back refuses a blanked or erased lead and a place a customer or an erasure suppressed ({error: hidden}); a lead with no place, as a list of the owner''s own brings (00242), is put back like any other (00364).';
 
 -- The token's one write path, with the refresh's compare-and-set beside the reconnect's plain write. The two-argument
 -- function goes first: kept beside the three-argument one, a call naming two arguments would match both.
@@ -739,4 +739,4 @@ end $$;
 revoke all on function public.put_google_credentials(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function public.put_google_credentials(uuid, jsonb, text) to service_role;
 comment on function public.put_google_credentials(uuid, jsonb, text) is
-  'Service-role only: stores a workspace''s Google token in Vault under google-creds-<workspace> and points credentials_ref at it. The only write path for the token. With p_if_refresh_token (00363), only while the token stored still carries that refresh token, under a lock on the connection''s row every write takes; otherwise it raises 40001 and writes nothing: a refresh never undoes a reconnect stored since it read.';
+  'Service-role only: stores a workspace''s Google token in Vault under google-creds-<workspace> and points credentials_ref at it. The only write path for the token. With p_if_refresh_token (00364), only while the token stored still carries that refresh token, under a lock on the connection''s row every write takes; otherwise it raises 40001 and writes nothing: a refresh never undoes a reconnect stored since it read.';

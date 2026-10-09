@@ -1,5 +1,5 @@
 /**
- * A workspace's zone is one Postgres knows (00364 tenants_zone_guard), on a real database through PostgREST.
+ * A workspace's zone is one Postgres knows (00365 tenants_zone_guard), on a real database through PostgREST.
  *
  * tenants.timezone decides the workspace's month (lead_month, lead_renews_on), its days and the hours its receptionist
  * states, and an owner may set it. The settings route judges it (contracts cleanTimezone), and create_workspace_for
