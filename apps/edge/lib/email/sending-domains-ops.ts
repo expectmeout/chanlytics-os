@@ -111,7 +111,7 @@ export async function sendingDomainsOp(auth: Admitted, request: Request, body: P
       const out = await resumeSendingDomain(ports, row, platform ? "platform" : "owner");
       return out.ok ? json(200, out) : json(out.status, out);
     }
-    const gone = await removeSendingDomain(ports, row);
+    const gone = await removeSendingDomain(ports, row, personFor(auth, body.user_id));
     return gone.ok ? json(200, { ok: true, removed: true }) : json(gone.status, gone);
   } catch (e) {
     L.error("sending_domain_door_failed", { error: e instanceof Error ? e.message : String(e) });

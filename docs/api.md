@@ -25,7 +25,12 @@ Reads; for a member of the workspace the request names, owner or above; counts a
 | --- | --- | --- | --- |
 | `person` | string (uuid) | no |  |
 | `kind` | string | no | at most 60 characters; matches `^[a-z_.]+$` |
+| `family` | one of `"conversations"`, `"calls"`, `"people"`, `"lists"`, `"leads"`, `"deals"`, `"campaigns"`, `"calendar"`, `"google"`, `"connections"`, `"team"`, `"settings"`, `"billing"`, `"partner"`, `"records"` | no |  |
+| `only` | `"problems"` | no |  |
+| `actor` | string (uuid) or one of `"receptionist"`, `"system"` | no |  |
 | `day` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
+| `from` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
+| `to` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
 | `cursor` | string | no | at most 120 characters; matches `^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z\|[+-][\d:]+)?\\|[de]-[\w-]+$` |
 
 ## ask

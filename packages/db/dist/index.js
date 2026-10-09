@@ -1,5 +1,6 @@
 // src/events.ts
 import {
+  personName,
   SHARED_EVENT_VERSIONS
 } from "../../contracts/dist/index.js";
 
@@ -43,16 +44,27 @@ function namedFetch(base) {
 
 // src/events.ts
 var WRITES = {
+  "appointment.booked": { category: "appointment", version: 1 },
+  "appointment.cancelled": { category: "appointment", version: 1 },
+  "appointment.moved": { category: "appointment", version: 1 },
+  "billing.paid": { category: "billing", version: 1 },
+  "billing.payment_failed": { category: "billing", version: 1 },
+  "billing.trial_ending": { category: "billing", version: 1 },
   "billing.paused": { category: "billing", version: 1 },
   "billing.resumed": { category: "billing", version: 1 },
   "billing.updated": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
   "broadcast.stopped": { category: "message", version: 1 },
   "business.recorded": { category: "setup", version: 1 },
+  "capability.activated": { category: "setup", version: 1 },
+  "capability.deactivated": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "contact.email_suppressed": { category: "contact", version: 1 },
+  "contact.kept_apart": { category: "contact", version: 1 },
+  "conversation.owner_replied": { category: "message", version: 1 },
+  "escalation.opened": { category: "message", version: 1 },
   "google.connected": { category: "google", version: 1 },
   "google.disconnected": { category: "google", version: 1 },
   "google.linked": { category: "google", version: 1 },
@@ -64,8 +76,16 @@ var WRITES = {
   "ingest.unreachable_sender": { category: "ingest", version: 1 },
   "ingest.unroutable": { category: "ingest", version: 1 },
   "lead.emailed": { category: "lead", version: 1 },
+  "lead.excluded": { category: "lead", version: 1 },
+  "lead.kept": { category: "lead", version: 1 },
+  "lead.put_back": { category: "lead", version: 1 },
+  "lead.search_removed": { category: "lead", version: 1 },
+  "lead.search_renamed": { category: "lead", version: 1 },
+  "member.joined": { category: "system", version: 1 },
+  "member.left": { category: "system", version: 1 },
   "line.answering": { category: "setup", version: 1 },
   "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_set": { category: "setup", version: 1 },
   "line.forwarding_verified": { category: "setup", version: 1 },
   "line.released": { category: "setup", version: 1 },
   "line.texting_approved": { category: "setup", version: 1 },
@@ -76,9 +96,12 @@ var WRITES = {
   "message.send_raced_cancel": { category: "message", version: 1 },
   "message.sent": { category: "message", version: 1 },
   "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
+  "playbook.changed": { category: "message", version: 1 },
   "playbook.run": { category: "message", version: 1 },
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "reach_out.lead_stopped": { category: "lead", version: 1 },
+  "reach_out.send_decided": { category: "lead", version: 1 },
   "sending_domain.added": { category: "setup", version: 1 },
   "sending_domain.held": { category: "setup", version: 1 },
   "sending_domain.released": { category: "setup", version: 1 },
@@ -86,6 +109,8 @@ var WRITES = {
   "sending_domain.resumed": { category: "setup", version: 1 },
   "sending_domain.verified": { category: "setup", version: 1 },
   "settings.changed": { category: "system", version: 1 },
+  "template.removed": { category: "message", version: 1 },
+  "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
   "voice.provisioned": { category: "setup", version: 1 },
@@ -161,6 +186,121 @@ async function deliveryOf(db, tenantId, eventId, subscriber) {
 async function settleDelivery(db, d) {
   const { error } = await db.from("event_deliveries").update({ state: d.state, attempts: d.attempts, last_error: d.error }).eq("tenant_id", d.tenantId).eq("event_id", d.eventId).eq("subscriber", d.subscriber);
   if (error) throw new Error(`event_deliveries: ${error.message}`);
+}
+var IDS_PER_READ = 100;
+var chunks = (ids) => {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) out.push(ids.slice(i, i + IDS_PER_READ));
+  return out;
+};
+async function readByIds(ids, read) {
+  const answers = await Promise.all(chunks(ids).map((some) => read(some)));
+  const out = [];
+  for (const a of answers) {
+    if (a.error) throw new Error(a.error.message);
+    out.push(...a.data ?? []);
+  }
+  return out;
+}
+async function theirsOf(db, tenantId, idsOf) {
+  const [conversation, call, deal, message, escalation, appointment] = await Promise.all([
+    readByIds(
+      idsOf("conversation"),
+      (some) => db.from("conversations").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("call"),
+      (some) => db.from("calls").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("deal"),
+      (some) => db.from("deals").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("message"),
+      (some) => db.from("messages").select("id, contact_id, conversation_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("escalation"),
+      (some) => db.from("escalations").select("id, conversation_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("appointment"),
+      (some) => db.from("appointments").select("id, contact_id, client_name").eq("tenant_id", tenantId).in("id", some)
+    )
+  ]);
+  return { conversation, call, deal, message, escalation, appointment };
+}
+async function ownNames(db, tenantId, idsOf) {
+  const [lists, broadcasts, playbooks, leads, searches] = await Promise.all([
+    readByIds(idsOf("list"), (some) => db.from("segments").select("id, name").eq("tenant_id", tenantId).in("id", some)),
+    readByIds(
+      idsOf("broadcast"),
+      (some) => db.from("broadcasts").select("id, name").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("playbook"),
+      (some) => db.from("playbooks").select("id, name").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("lead"),
+      (some) => db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("lead_search"),
+      (some) => db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", some)
+    )
+  ]);
+  const names = {};
+  for (const r of lists) if (r.name) names[`list:${r.id}`] = r.name;
+  for (const r of broadcasts) if (r.name) names[`broadcast:${r.id}`] = r.name;
+  for (const r of playbooks) if (r.name) names[`playbook:${r.id}`] = r.name;
+  for (const r of leads) if (r.business_name) names[`lead:${r.id}`] = r.business_name;
+  for (const r of searches) if (r.name) names[`lead_search:${r.id}`] = r.name;
+  return names;
+}
+async function activitySubjects(db, tenantId, subjects) {
+  const idsOf = (type) => [...new Set(subjects.filter((s) => s.type === type).map((s) => s.id))];
+  const [names, theirs] = await Promise.all([ownNames(db, tenantId, idsOf), theirsOf(db, tenantId, idsOf)]);
+  const threads = {};
+  const people = {};
+  const known = new Map((theirs.conversation ?? []).map((c) => [c.id, c.contact_id ?? null]));
+  const asked = [
+    ...new Set((theirs.escalation ?? []).map((e) => e.conversation_id).filter((id) => !!id))
+  ];
+  const more = await readByIds(
+    asked.filter((id) => !known.has(id)),
+    (some) => db.from("conversations").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+  );
+  for (const c of more) known.set(c.id, c.contact_id ?? null);
+  const personOf = /* @__PURE__ */ new Map();
+  for (const id of idsOf("contact")) personOf.set(`contact:${id}`, id);
+  for (const [type, rows2] of Object.entries(theirs))
+    for (const r of rows2) {
+      const key = `${type}:${r.id}`;
+      if (type !== "conversation" && r.conversation_id) threads[key] = r.conversation_id;
+      const person = r.contact_id ?? (r.conversation_id ? known.get(r.conversation_id) : null) ?? null;
+      if (!person) continue;
+      personOf.set(key, person);
+      if (type === "deal") people[key] = person;
+    }
+  const rows = await readByIds(
+    [...new Set(personOf.values())],
+    (some) => db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", some)
+  );
+  const nameOf = /* @__PURE__ */ new Map();
+  for (const p of rows) {
+    if (p.display_name || p.wa_profile_name || p.phone_e164 || p.email) nameOf.set(p.id, personName(p));
+  }
+  for (const [key, person] of personOf) {
+    const name = nameOf.get(person);
+    if (name) names[key] = name;
+  }
+  for (const a of theirs.appointment ?? []) {
+    const key = `appointment:${a.id}`;
+    if (!names[key] && a.client_name) names[key] = a.client_name;
+  }
+  return { names, threads, people };
 }
 
 // src/ai-usage.ts
@@ -519,11 +659,11 @@ import {
   openDealsFromJson
 } from "../../contracts/dist/index.js";
 var PEOPLE_PAGE = 1e3;
-var IDS_PER_READ = 100;
+var IDS_PER_READ2 = 100;
 async function namesOfPeople(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`namesOfPeople: ${error.message}`);
     out.push(...data ?? []);
   }
@@ -662,7 +802,7 @@ async function openDoubtsOf(db, tenantId, contactId) {
   const rows = data ?? [];
   if (!rows.length) return [];
   const otherIds = [...new Set(rows.map((r) => r.contact_id === contactId ? r.other_id : r.contact_id))];
-  const others = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", otherIds.slice(0, IDS_PER_READ)).is("erased_at", null).is("merged_into_contact_id", null);
+  const others = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", otherIds.slice(0, IDS_PER_READ2)).is("erased_at", null).is("merged_into_contact_id", null);
   if (others.error) throw new Error(`person_doubts: ${others.error.message}`);
   const byId = new Map((others.data ?? []).map((c) => [c.id, c]));
   const out = [];
@@ -810,8 +950,8 @@ async function campaignMonthSent(db, tenantId, channel, at) {
   return data;
 }
 async function holdRecipients(db, p) {
-  for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ) {
-    const { error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ2) {
+    const { error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`hold_recipients: ${error.message}`);
   }
 }
@@ -1075,8 +1215,11 @@ async function recordEchoAndPause(db, p) {
     dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
   if (error?.code === "23505" && p.externalId) return;
   const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
-  if (perr)
+  if (perr) {
     dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
+    return;
+  }
+  await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
@@ -2631,8 +2774,8 @@ async function linkCallMessage(db, tenantId, callId, messageId) {
 }
 async function callersOf(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`callersOf: ${error.message}`);
     out.push(...data ?? []);
   }
@@ -2941,8 +3084,8 @@ async function searchMessages(db, tenantId, words, since, limit) {
 }
 async function failedMessageErrors(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`failedMessageErrors: ${error.message}`);
     for (const r of data ?? [])
       if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
@@ -2952,8 +3095,8 @@ async function failedMessageErrors(db, tenantId, ids) {
 }
 async function messageSenders(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`messageSenders: ${error.message}`);
     out.push(...data ?? []);
   }
@@ -3242,6 +3385,11 @@ async function membershipCountOf(db, userId) {
   const { count: count2, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
   if (error) throw new Error(`memberships_count: ${error.message}`);
   return count2 ?? 0;
+}
+async function workspaceIdsOf(db, userId) {
+  const { data, error } = await db.from("memberships").select("tenant_id").eq("user_id", userId);
+  if (error) throw new Error(`memberships_of: ${error.message}`);
+  return (data ?? []).map((m) => m.tenant_id);
 }
 async function createWorkspaceFn(db, args) {
   return db.rpc("create_workspace", args).single();
@@ -4267,12 +4415,13 @@ export {
   ERASURE_LEGS,
   ERASURE_STRATEGIES,
   HISTORY_COLUMNS,
-  IDS_PER_READ,
+  IDS_PER_READ2 as IDS_PER_READ,
   MAX_ROWS,
   PEOPLE_PAGE,
   PERSON_FORGOTTEN,
   acceptHandover,
   acceptPartnerInvite,
+  activitySubjects,
   activityTokensOf,
   addPersonNote,
   addToList,
@@ -4609,6 +4758,7 @@ export {
   withdrawPartnerInvite,
   workspaceAbout,
   workspaceAnswersOnItsOwn,
+  workspaceIdsOf,
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,

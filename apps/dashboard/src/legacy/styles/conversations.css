@@ -411,7 +411,7 @@
   }
   .conversations .cv-list-head > div:focus-within {
     box-shadow:
-      var(--focus-ring),
+      var(--focus-field-edged),
       var(--surface-inset-depth);
   }
   .conversations .cv-list-head > div > .icon {

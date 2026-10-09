@@ -601,7 +601,7 @@ const kitOption = (label, meta, { chosen = false, walked = false, focus = null }
 const kitSelect = () =>
   `<div class="rec-field"><label><span class="rec-field-label">Service</span></label>` +
   `<button type="button" tabindex="0" role="combobox" aria-expanded="true" aria-haspopup="listbox" ` +
-  `class="rec-input rec-select"><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
+  `class="rec-input rec-select" data-popup-open=""><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
   `</button><span class="rec-hint">What the proposal is for.</span></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 88px; left: 16px; --anchor-width: 240px;")}>` +
   `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1">` +
@@ -1039,6 +1039,18 @@ export const FAMILIES = [
           `<button class="more-item" role="menuitemradio" aria-checked="true">${icon("check", 13)}<span class="more-item-label">Newest first</span></button>` +
           `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">Oldest first</span></button>` +
           `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">By name</span></button>` +
+          `</div></div>`,
+      },
+      {
+        id: "more-menu-solid",
+        stage: "pop",
+        html:
+          `<div class="more-wrap"><button type="button" class="rec-input rec-select" aria-haspopup="menu" aria-expanded="true">All activity ${icon("chevron-down", 10)}</button>` +
+          `<div class="more-backdrop"></div>` +
+          `<div class="more-menu align-left solid" role="menu">` +
+          `<button class="more-item" role="menuitemradio" aria-checked="true">${icon("check", 13)}<span class="more-item-label">All activity</span></button>` +
+          `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">What went wrong or was stopped</span></button>` +
+          `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">Conversations</span></button>` +
           `</div></div>`,
       },
       {

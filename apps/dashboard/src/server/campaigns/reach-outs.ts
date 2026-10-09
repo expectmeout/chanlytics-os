@@ -35,6 +35,7 @@ import {
 import {
   emailWordsByTemplate,
   emailWordsOf,
+  emitEvent,
   outreachModeOf,
   reachOutRunSendsOf,
   reachOutStepsOf,
@@ -227,7 +228,15 @@ export async function saveChain(
   const { data, error } = await saveReachOut(member.tenantId, ctx.userId, { ...input, steps, root_id: rootId });
   if (error) throw reachOutRefusal(error);
   const saved = data as { root_id: string; step_ids: string[]; rechecked: number };
-  if (rootId) return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked ?? 0, start: null };
+  if (rootId) {
+    // A chain edited: a new one is start_playbook, below, and an edit left nothing on the ledger.
+    await emitEvent(serviceDb(), member.tenantId, "playbook.changed", "playbook", saved.root_id, {
+      name: input.name,
+      by: ctx.userId,
+      fields: ["steps"],
+    });
+    return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked ?? 0, start: null };
+  }
   await recordDecision(ctx, member.tenantId, "playbook", saved.root_id, "start_playbook", { name: input.name });
   const start = startOf(await runPlaybookNow(member.tenantId, saved.root_id, ctx.userId));
   return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: 0, start };
@@ -283,12 +292,18 @@ export async function removeChain(
 /** An owner's answer to one held (or planned) email: include, rewrite, skip, or not a fit, atomic (R18). */
 export async function decideSend(
   ctx: RouteContext,
-  sendId: string,
+  send: { id: string; tenant_id: string; broadcast_id: string },
   decision: ReachOutDecision,
 ): Promise<{ send_id: string; decision: ReachOutDecision }> {
-  const { error } = await ctx.supabase.rpc("reach_out_send_decide", { p_send_id: sendId, p_decision: decision });
+  const { error } = await ctx.supabase.rpc("reach_out_send_decide", { p_send_id: send.id, p_decision: decision });
   if (error) throw reachOutRefusal(error);
-  return { send_id: sendId, decision };
+  // What a member decided of an email the check held, on the run it belongs to: an email went out, or did not, on
+  // their word, and the ledger said neither.
+  await emitEvent(serviceDb(), send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
+    decision,
+    by: ctx.userId,
+  });
+  return { send_id: send.id, decision };
 }
 
 /** Every hold of a run the check could not answer, back to be checked in one call (R18). */

@@ -233,7 +233,7 @@ async function choose(c: GoogleCall, conn: ConnectionRow | null): Promise<Respon
 /* ----------------------------------------------------- disconnect, reply */
 
 async function disconnect(c: GoogleCall): Promise<Response> {
-  const r = await disconnectProfile(c.db, c.tenantId);
+  const r = await disconnectProfile(c.db, c.tenantId, c.userId);
   c.L.info("google_disconnected", { removed: r.removed, revoked: r.revoked });
   return json(200, r);
 }
@@ -250,7 +250,7 @@ async function reply(c: GoogleCall): Promise<Response> {
 
 /** The listing, its reviews and its days, gone -- the profile disconnected first, the grant given back on the way. */
 async function unlink(c: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null): Promise<Response> {
-  if (conn) await disconnectProfile(c.db, c.tenantId);
+  if (conn) await disconnectProfile(c.db, c.tenantId, c.userId);
   if (!row) return json(200, { ok: true, removed: false });
   const del = await c.db.from("google_listings").delete().eq("tenant_id", c.tenantId);
   if (del.error) return refuse(500, "write_failed", del.error.message);
@@ -258,6 +258,7 @@ async function unlink(c: GoogleCall, conn: ConnectionRow | null, row: ListingRow
     place_id: row.place_id,
     name: row.name,
     had_profile: !!conn,
+    by: c.userId,
   }).catch(() => {});
   c.L.info("google_unlinked", { place_id: row.place_id });
   return json(200, { ok: true, removed: true });

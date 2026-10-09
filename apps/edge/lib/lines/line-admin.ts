@@ -28,7 +28,7 @@
  * door (inbound-sms.ts with sms-ingress.ts) uses.
  */
 import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
+import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
 import { emitEvent, type Database } from "../packages/db.js";
 import { SPEND_NUMBER, SPEND_TEXTING, UUID, type SpendWords } from "../packages/contracts.js";
@@ -86,6 +86,8 @@ interface LineCall {
   db: Db;
   tenantId: string;
   tenant: { id: string; name: string; slug: string };
+  /** The member the dashboard acted for (the token's, admin-auth.ts personFor), where one is named. */
+  person: string | null;
 }
 
 type WritingOp = "buy" | "retry" | "release" | "record" | "register" | "registration-status";
@@ -116,6 +118,7 @@ async function searchNumbers(choice: LineProviderChoice, body: LinesBody): Promi
 async function writingCall(
   body: LinesBody,
   choice: LineProviderChoice,
+  person: string | null,
 ): Promise<{ ok: true; value: LineCall } | Refused> {
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;
@@ -131,7 +134,7 @@ async function writingCall(
   }
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant;
-  return { ok: true, value: { body, choice, apiKey, db: ws.db, tenantId: ws.tenantId, tenant: tenant.row } };
+  return { ok: true, value: { body, choice, apiKey, db: ws.db, tenantId: ws.tenantId, tenant: tenant.row, person } };
 }
 
 /**
@@ -264,6 +267,8 @@ async function record(c: LineCall): Promise<Response> {
   await emitEvent(c.db, c.tenantId, "business.recorded", "tenant", c.tenantId, {
     legal_name: plan.row.legal_name,
     path: plan.path,
+    // Who saved it: the ledger said the record changed and never whose hand it was.
+    by: c.person,
   }).catch(() => {});
   return respond(recordAnswer(up.data));
 }
@@ -392,7 +397,7 @@ export async function lineOp(auth: Admitted, body: Partial<LinesBody>): Promise<
   if (!choice) return respond(NO_LINE_PROVIDER);
   if (op === "search") return searchNumbers(choice, body);
 
-  const call = await writingCall(body, choice);
+  const call = await writingCall(body, choice, personFor(auth, body.user_id));
   if (!call.ok) return call.response;
   const run = Object.hasOwn(WRITES, op) ? WRITES[op as WritingOp] : null;
   return run ? run(call.value) : respond(UNKNOWN_LINE_OP);

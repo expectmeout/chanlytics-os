@@ -793,8 +793,9 @@ a.more-item {
   border-radius: var(--radius-sm);
 }
 .confirm-typed:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-field);
 }
 .confirm-typed::placeholder {
   color: var(--ink-faint);
@@ -1997,9 +1998,11 @@ a.more-item {
   font-size: var(--text-base);
   color: var(--ink);
 }
+/* A box that holds the keys: its hairline in the accent and a soft wash around it (tokens.css, --focus-field), over
+   the specular edge it keeps. One line; the keyboard's ring over an accent border was two. */
 .rec-input:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
   border-color: var(--accent);
 }
 .rec-input[aria-invalid="true"] {
@@ -2034,7 +2037,7 @@ textarea.rec-input {
   background: var(--bg-raised);
 }
 .rec-input-group:focus-within {
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
   border-color: var(--accent);
 }
 .rec-input-group[data-invalid="true"] {
@@ -2348,6 +2351,11 @@ textarea.rec-input {
 .date-pick-cell[data-outside] .date-pick-num {
   color: var(--ink-dim);
 }
+/* A day of the month before or after, inside the range: a step up from the faint ink, so the band's fill under it
+   does not take it under the kit's 4.5. */
+.date-pick-cell[data-in][data-outside] .date-pick-num {
+  color: var(--ink-muted);
+}
 .date-pick-cell[data-today] .date-pick-num {
   color: var(--accent-ink);
   font-weight: var(--weight-semibold);
@@ -2357,7 +2365,10 @@ textarea.rec-input {
   box-shadow: var(--selected-depth);
   font-weight: var(--weight-semibold);
 }
-.date-pick-cell:is([data-start], [data-end]):not([data-today]) .date-pick-num {
+/* Today among them: the date picker gives a chosen day the ink over today's accent (above), and here today's accent
+   on the end's lozenge read 4.42:1 on a phone in the dark (the gallery's check 6, 9 Oct 2026); a band that ends today
+   says so by ending. */
+.date-pick-cell:is([data-start], [data-end]) .date-pick-num {
   color: var(--ink);
 }
 
@@ -2373,7 +2384,7 @@ textarea.rec-input {
   overflow: hidden;
 }
 .rec-combo:focus-within {
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
   border-color: var(--accent);
 }
 .rec-combo-field {
@@ -2491,18 +2502,29 @@ select.rec-input {
   text-overflow: ellipsis;
   cursor: pointer;
 }
+/* Its open list is the browser's own, and Chrome draws it on the box's own fill: over Glass's translucent control that
+   was the device's white list under the page's light ink, and no option could be read but the one a pointer was on
+   (Settings › Activity, 8 Oct 2026; the theme's color-scheme reaches the list only where the box's fill is opaque).
+   The options take the pop layer's ground and the ink, as the kit's Select draws its list on the panel's pop. A phone
+   draws its own picker, which follows the color-scheme and reads none of this. */
+select.rec-input :is(option, optgroup) {
+  background-color: var(--surface-pop-fill);
+  color: var(--ink);
+}
 /* The kit's picker (surfaces/kit/picker/): the same list, richer. Its options in groups under a heading in the small
    capitals' ink; an option's glyph before its words and a line under them; a search at the list's top over a hairline;
    what is said when nothing matches; and a line under the list for what is not offered. */
 .rec-combo-pop > .rec-combo-field {
   height: var(--control-h-md);
 }
-/* Its search takes a key with the accent's line round the row, drawn inside it: the record kit's box draws the ring
-   (.rec-combo:focus-within), and here there is no box, and the pop's flush panel clips anything drawn outside it. */
+/* Its search takes a key with the accent's hairline round the row, drawn inside it: the record kit's box draws its own
+   (.rec-combo:focus-within), and here there is no box, and the pop's flush panel clips anything drawn outside it. It
+   holds the keys for as long as the list is open, so the line is a hairline: at 2px it was the loudest thing in the
+   list. */
 .rec-combo-pop > .rec-combo-field:focus-within {
   border-radius: inherit;
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 /* What none matching says always stands between the search and the list (Base UI's Empty stays in the page, to be
    heard), so the hairline is the list's under it. */
@@ -3533,6 +3555,12 @@ a.list-row {
   backdrop-filter: var(--surface-control-blur);
   box-shadow: var(--surface-control-depth);
 }
+/* A menu that opens over rows of coloured words (MoreMenu `solid`: Settings › Activity's lists over its log) stands
+   on the pop's near-opaque ground (tokens.css, --surface-pop-glass), under the same sheen, blur and edge: the menu's
+   own glass let the amber and the red of the lines behind it through as a smear. */
+.more-menu.solid {
+  background-color: var(--surface-pop-glass);
+}
 /* An item lifts as a lozenge in the accent's soft tint, its glyph turning to the accent, under a pointer, a key or a
    finger. A phone's hover sticks to what the finger last touched, but the menu closes on the press, so it is never
    seen. A destructive item keeps its own tint. */
@@ -3562,9 +3590,43 @@ a.list-row {
 .more-item.danger:focus-visible .icon {
   color: var(--danger-ink);
 }
+/* A panel that pops from a control (the Select's list, the Combobox's and the Picker's, the date picker's month, a
+   popover) is lit as the menu is: the control layer's sheen, its blur, and its specular edge and depth, with no
+   hairline. It stood flat inside a stroke, a plain box among the menus it opens beside (Ruben, 8 Oct 2026, of Settings
+   › Activity's lists: "the same glassy feel… without just the stroke"). Its ground is the pop's own near-opaque glass
+   (tokens.css, --surface-pop-glass), not the menu's: the menu's let a log's coloured lines through. Both fall back as
+   the roles do. */
+.panel-pop {
+  border-width: 0;
+  background-color: var(--surface-pop-glass);
+  background-image: var(--surface-control-sheen);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth);
+}
+/* A list's options lift as a menu's items do: a lozenge in the accent's soft tint under a pointer or a key, inside the
+   list's own margin so the wash never meets the glass's edge. The house's hover was an opaque ground, a dark patch on
+   glass, and the one walked to looked no different from the one chosen but for its weight. */
+.rec-combo-pop > .rec-combo-list {
+  padding: 6px;
+}
+.rec-combo-pop .rec-combo-opt {
+  border-radius: var(--radius-lg);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.rec-combo-pop .rec-combo-opt[data-highlighted] {
+  background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .rec-combo-pop .rec-combo-opt:hover {
+    background: var(--accent-soft);
+  }
+}
 
 /* ---- A sheet, and the glass foot bar (campaigns3.py foot and composer, C2; deals3.py, the deal's pane, D2) ----
-   On a desk a side sheet stands clear of the window's edges at a pane's corner, opaque as what pops over the page is,
+   On a desk a side sheet stands clear of the window's edges at a pane's corner, opaque (what pops over the page is
+   near-opaque glass, --surface-pop-glass; a sheet is the solid itself),
    over the page's wash; on a phone it rises from the bottom edge at the same corner. Its foot is a capsule of the
    control layer's glass, standing clear of the sheet's edges: its line, then its acts at the canvases' height. The
    rows scroll above it, never under it, and it stands on the sheet's opaque ground, so it has nothing to blur. It
@@ -3736,8 +3798,26 @@ footer.rec-sheet-foot .btn {
 .token[data-popup-open] {
   background: var(--selected-fill);
 }
+/* A select's box is pressed, not typed in, so it answers a pointer as a button and the picker's token do: it lifts to
+   the selected fill under one, and holds it while its list is open (Base UI says data-popup-open; a box that opens the
+   house's menu says aria-expanded alone). It stood still, a stroke round its words. Under a pointer alone: a touch
+   screen keeps :hover on the last thing tapped. */
+.rec-select {
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.rec-select:is([data-popup-open], [aria-expanded="true"]) {
+  background: var(--selected-fill);
+}
+@media (hover: hover) {
+  .rec-select:hover {
+    background: var(--selected-fill);
+  }
+}
 .token:focus-visible {
-  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+  border-color: var(--accent);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
 }
 textarea.rec-input,
 .rec-combo[data-open="true"] {
@@ -3763,7 +3843,8 @@ textarea.rec-input,
    (.input input, above), and the capsule's hairline turning a step darker was all that said where the key stood. */
 .input:focus-within {
   outline: none;
-  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+  border-color: var(--accent);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
 }
 
 /* ---- Counts as text (liquid_lite.py count_text; liquid.py count) ----

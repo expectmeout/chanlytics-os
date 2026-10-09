@@ -12,5 +12,5 @@ export const POST = write({
   scope: leadScope,
   role: "operator",
   rate: "playbook",
-  handle: ({ ctx, row }) => stopLead(ctx, row.id),
+  handle: ({ ctx, row }) => stopLead(ctx, row),
 });

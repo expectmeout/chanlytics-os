@@ -58,6 +58,8 @@ export interface LinesBody {
   line_id?: string;
   /** Who pressed Retry: "owner" from the owner's route, "support" from the back office. */
   by?: string;
+  /** The member the dashboard acted for, where its token names none (admin-auth.ts personFor). */
+  user_id?: string;
   /** The business on record, as the form sends it; validated field by field below. */
   record?: unknown;
   /**

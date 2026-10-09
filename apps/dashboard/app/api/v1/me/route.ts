@@ -1,6 +1,7 @@
 import { write, account } from "@/server/route";
 import { AppError, cleanDisplayName } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
+import { saidLeft, seatsOf } from "@/server/workspace/team";
 import { log } from "@/server/log";
 import { dbRefusal } from "@/server/with-route";
 
@@ -48,6 +49,7 @@ export const DELETE = write({
   role: null,
   rate: "profile_set",
   handle: async ({ ctx }) => {
+    const seats = await seatsOf(ctx.supabase, ctx.userId);
     const { data, error } = await ctx.supabase.rpc("delete_my_account");
     if (error) {
       const named = Object.keys(REFUSALS).find((k) => error.message.includes(k));
@@ -58,6 +60,7 @@ export const DELETE = write({
         "Your account could not be deleted. Nothing was changed. Try again, or write to us.",
       );
     }
+    await saidLeft(seats, ctx.userId);
     await ctx.supabase.auth.signOut().catch(() => undefined);
     const answer = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
     const left = Number(answer.workspaces_left_empty ?? 0);

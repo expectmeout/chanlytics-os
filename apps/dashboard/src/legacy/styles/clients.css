@@ -3076,7 +3076,7 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   }
   .pp-lookup > .pp-lookup-box:focus-within {
     box-shadow:
-      var(--focus-ring),
+      var(--focus-field-edged),
       var(--surface-inset-depth);
   }
   .pp-lookup-cancel {
@@ -3184,7 +3184,7 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     ) input:focus {
     border: 0;
     box-shadow:
-      var(--focus-ring),
+      var(--focus-field-edged),
       var(--surface-inset-depth);
   }
 }
@@ -3466,7 +3466,7 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
 }
 [data-testid="person-notes-input"]:focus {
   box-shadow:
-    var(--focus-ring),
+    var(--focus-field-edged),
     var(--surface-inset-depth);
 }
 .cl-prof-note-body {

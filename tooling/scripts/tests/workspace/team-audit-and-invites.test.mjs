@@ -96,6 +96,7 @@ test("an open invitation, run: looked up beside the boot's other reads, accepted
       { id: B, slug: "luna", name: "Luna", status: "active", timezone: "Europe/Madrid" },
     ],
     profiles: [],
+    events: [],
     invitations: [
       {
         id: "i-1",
@@ -136,10 +137,16 @@ test("an open invitation, run: looked up beside the boot's other reads, accepted
     assert.equal(home.user.role, "owner");
     assert.ok(world.invitations[0].accepted_at, "the invitation is stamped accepted");
     assert.equal(world.memberships.length, 2);
+    assert.deepEqual(
+      world.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+      [[B, "member.joined", "invitation", "i-1", { by: USER, role: "operator" }]],
+      "REGRESSION: the ledger kept the invitation and never that anybody arrived",
+    );
 
     const again = await read("same-origin");
     assert.equal(world.memberships.length, 2, "an accepted invitation is not looked up again");
     assert.equal(roleIn(again, B), "operator");
+    assert.equal(world.events.length, 1, "and is said once");
   } finally {
     setServiceClient(null);
   }

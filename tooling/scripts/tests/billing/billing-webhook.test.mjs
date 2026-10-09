@@ -327,6 +327,11 @@ test("a failed payment marks the row and rings, and the receptionist keeps answe
   assert.equal(writes(db, "notifications").length, 1);
   assert.equal(first(writes(db, "notifications")[0]).title, "A payment did not go through");
   assert.equal(writes(db, "tenants").length, 0, "a failed card never silences the receptionist");
+  assert.deepEqual(
+    writes(db, "events").map((s) => [first(s).kind, first(s).category, first(s).data]),
+    [["billing.payment_failed", "billing", {}]],
+    "REGRESSION: the bell said it and the ledger did not; filed under billing, so Ask leaves it out, and never an amount",
+  );
 });
 
 /* ------------------------------------------------ what an invoice moved (K8) */

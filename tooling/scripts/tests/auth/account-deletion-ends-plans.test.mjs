@@ -83,3 +83,47 @@ test("an edge that cannot end a plan never fails the deletion, which already hap
   }
   assert.deepEqual(none.asked, []);
 });
+
+test("each workspace the person sat in is told a member left: read before the account goes, said after, on that workspace's ledger, and never who they were", async () => {
+  const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+  setRateStore(memoryStore());
+  const seats = [
+    { id: "m1", user_id: "u1", tenant_id: A, role: "operator" },
+    { id: "m2", user_id: "u1", tenant_id: B, role: "owner" },
+    { id: "m3", user_id: "someone-else", tenant_id: A, role: "owner" },
+  ];
+  const world = { memberships: seats };
+  const supabase = fakeDb(
+    world,
+    {},
+    {
+      // The door takes their seats with the account: what is read after it is nothing.
+      delete_my_account: () => {
+        world.memberships = seats.filter((m) => m.user_id !== "u1");
+        return { deleted: true, workspaces_left_empty: 0, workspaces_emptied: [] };
+      },
+    },
+  );
+  supabase.auth = { signOut: async () => ({ error: null }) };
+  const ledger = { events: [] };
+  setServiceClient(fakeDb(ledger));
+  try {
+    const out = await me.DELETE.run(new Request("http://localhost/api/v1/me", { method: "DELETE" }), {
+      supabase,
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    });
+    assert.deepEqual(out, { deleted: true, workspaces_left_empty: 0 });
+  } finally {
+    setServiceClient(null);
+  }
+  assert.deepEqual(
+    ledger.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.data]),
+    [
+      [A, "member.left", "workspace", { by: "u1", how: "account_deleted" }],
+      [B, "member.left", "workspace", { by: "u1", how: "account_deleted" }],
+    ],
+    "REGRESSION: a member vanished from the roster with no trace on the ledger",
+  );
+});

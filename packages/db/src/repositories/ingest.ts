@@ -673,8 +673,13 @@ export async function recordEchoAndPause(
     .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
     .eq("id", conv.id)
     .eq("tenant_id", p.tenantId);
-  if (perr)
+  if (perr) {
     dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
+    return;
+  }
+  // The receptionist is quiet on this thread because its owner spoke: on the ledger, since nothing on any page said why
+  // it stopped answering. Once per echo: a redelivery returned above.
+  await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
 }
 
 /**
