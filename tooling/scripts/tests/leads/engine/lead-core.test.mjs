@@ -279,6 +279,34 @@ test("sizing: the probe spreads 25 across the terms; the main phase divides the 
   );
   const squeezed = runCaps(PLAN, [400, 400], 1);
   assert.deepEqual(squeezed, [0.5, 0.5], "the reserve is the ceiling, the floor is the actor's");
+  const threeTerms = { ...PLAN, terms: [...PLAN.terms, "kettlebell class"] };
+  assert.deepEqual(
+    runCaps(threeTerms, [9, 8, 8], 0.6),
+    [0.5, 0, 0],
+    "$0.60 holds one run's floor: the first term in the plan's order runs, the others wait -- never $1.50 of caps",
+  );
+  assert.deepEqual(runCaps(threeTerms, [0, 9, 8], 0.6), [0, 0.5, 0], "a term asked for nothing takes no run's room");
+  assert.deepEqual(runCaps(PLAN, [13, 12], 0.49), [0, 0], "less than one floor left starts nothing");
+  const lopsided = runCaps(PLAN, [105, 10], 1.2);
+  assert.ok(
+    lopsided.every((c) => c >= 0.5) && Math.round((lopsided[0] + lopsided[1]) * 100) <= 120 && lopsided[0] > 0.5,
+    `the floors and the rounding never carry the caps past the reserve, and the larger ask keeps the larger share: ${lopsided}`,
+  );
+  for (const terms of [1, 2, 3, 4, 5]) {
+    const plan = { ...PLAN, terms: ["a", "b", "c", "d", "e"].slice(0, terms) };
+    for (const places of [1, 13, 60, 120]) {
+      for (const left of [0, 0.3, 0.5, 0.6, 0.99, 1, 1.01, 1.49, 1.5, 2.37, 3, 7.77, 25]) {
+        const caps = runCaps(plan, Array(terms).fill(places), left);
+        const runs = caps.filter((c) => c > 0);
+        assert.ok(
+          Math.round(caps.reduce((a, b) => a + b, 0) * 100) <= Math.round(left * 100) &&
+            runs.every((c) => c >= 0.5) &&
+            runs.length === Math.min(terms, Math.floor(Math.round(left * 100) / 50)),
+          `${terms} terms of ${places} with $${left}: ${caps}`,
+        );
+      }
+    }
+  }
   const three = mainAsk({ ...PLAN, terms: ["personal trainer", "strength coach", "kettlebell class"] }, 1, 0.95, null);
   assert.deepEqual(
     three.perTerm,

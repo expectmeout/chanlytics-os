@@ -64,6 +64,9 @@ const MEMBER_NOW: Record<string, string> = {
 
 /** A door's refusal, in a sentence the owner can act on; null when the door did not refuse. */
 export function refusalOf(a: DoorAnswer): AppError | null {
+  // A workspace that may not spend (00363's lead_spend_refusal, the door asking what requireSpend asked): a 402 in
+  // whyCannotSpend's words, as the route's own refusal is.
+  if (a.error === "payment_required" && a.sentence) return new AppError("payment_required", a.sentence, 402);
   if (a.error && a.sentence) return new AppError("conflict", a.sentence, 409);
   switch (a.error) {
     case undefined:

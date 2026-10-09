@@ -269,6 +269,8 @@ before(async () => {
     db.from("tenants").insert({ slug: `lists-c-${stamp}`, name: "Big List Co", timezone: "America/Chicago" }),
   );
   ok(await db.rpc("provision_tenant", { p_tenant_id: C }));
+  // A list is checked on the platform's account: a workspace that may spend (00363), as A is.
+  ok(await db.from("billing_accounts").upsert({ tenant_id: C, mode: "direct", status: "active" }));
   for (const role of ["owner", "partner", "operator", "viewer"]) as[role] = await person(role);
   as.stranger = await person("owner", B);
   as.big = await person("owner", C);
@@ -553,6 +555,35 @@ test(
     } finally {
       ok(await db.from("lead_platform").update({ tenants_on: p.tenants_on }).eq("id", true));
     }
+  },
+);
+
+test(
+  "a lead a list brought, left out by its owner, can be put back: it has no place, so no place's suppression hides it",
+  { skip },
+  async () => {
+    await world();
+    const a = ok(await importAs(as.owner, { p_name: `Put back ${stamp}`, p_rows: [row("Back Gym", at("back1"))] }));
+    platformDays.add(
+      ok(await db.from("lead_rounds").select("platform_day").eq("id", a.round_id).single()).platform_day,
+    );
+    const [m] = ok(await db.from("lead_search_members").select("lead_id, class").eq("search_id", a.search_id));
+    const l = ok(await db.from("leads").select("place_id").eq("id", m.lead_id).single());
+    assert.deepEqual([m.class, l.place_id], ["review", null], "in Needs review, and with no place: a list's own lead");
+    const door = { p_search_id: a.search_id, p_lead_id: m.lead_id };
+    assert.ok(ok(await as.owner.c.rpc("lead_member_exclude", door)).op_id, "left out by the owner");
+    const back = ok(await as.owner.c.rpc("lead_member_put_back", door));
+    assert.equal(back.error, undefined, `put back, not refused as hidden: ${JSON.stringify(back)}`);
+    assert.equal(back.counted, true, "and it counts, as any lead put back does");
+    const now = ok(
+      await db
+        .from("lead_search_members")
+        .select("class, counted, excluded_by")
+        .eq("search_id", a.search_id)
+        .eq("lead_id", m.lead_id)
+        .single(),
+    );
+    assert.deepEqual([now.class, now.counted, now.excluded_by], ["qualified", true, null]);
   },
 );
 

@@ -394,11 +394,6 @@
     "branches": 31,
     "depth": 1
   },
-  "packages/core/src/leads/runner/start.ts::startRound#1": {
-    "lines": 93,
-    "branches": 32,
-    "depth": 2
-  },
   "packages/jobs/src/settle.ts::settleJob#1": {
     "lines": 151,
     "branches": 37,

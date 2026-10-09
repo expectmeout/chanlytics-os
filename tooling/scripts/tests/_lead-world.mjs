@@ -8,13 +8,14 @@
  * the counting up to the reservation, the pending ending and the raised
  * target, a suppressed place never inserted, the check's settlement (a member
  * held by the email standard alone qualifies on ok), Stop's generation bump
- * and pending ending, the once-only lead_collect job. Anything else the code
+ * and pending ending, the once-only lead_collect job, and a workspace that
+ * may not spend refused at the door (00363). Anything else the code
  * under test asks of an RPC throws by name, as _fake-db.mjs does.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 import crypto from "node:crypto";
-import { legacyLeadSuppressionHash } from "@chanlytics/contracts";
+import { SPEND_LEADS, legacyLeadSuppressionHash, whyCannotSpend } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { PLAN, probeItems, mainItems, checkerItem, fakeApify, fakeJudge } from "./_lead-fixtures.mjs";
 
@@ -45,6 +46,8 @@ export function leadWorld({
   const nowIso = () => new Date(clock.ms).toISOString();
   const T = {
     tenants: [{ id: TENANT, slug: "lead-world", name: "Lead World", timezone: "America/Chicago", status: "active" }],
+    // A workspace that may spend (contracts maySpend), as every search the runner starts and checks for has to be.
+    billing_accounts: [{ tenant_id: TENANT, mode: "stripe", status: "active" }],
     lead_platform: [
       { id: uuid(), searches_on: false, tenants_on: searchesOn ? [TENANT] : [], note: null, prices_checked_at: null },
     ],
@@ -130,6 +133,12 @@ export function leadWorld({
           error: "paused",
           sentence: "Lead searches are paused for now. Your leads are all here, and nothing is being counted.",
         };
+      // 00363's lead_spend_refusal: a workspace that may not spend is refused before anything is reserved.
+      const billing = T.billing_accounts.find((b) => b.tenant_id === p_tenant_id);
+      const why = billing
+        ? whyCannotSpend(billing.mode, billing.status, SPEND_LEADS)
+        : "This workspace has no billing record. Open Billing to set one up.";
+      if (why) return { error: "payment_required", sentence: why };
       const used =
         T.lead_search_members.filter((m) => m.tenant_id === p_tenant_id && m.counted).length +
         T.lead_rounds
