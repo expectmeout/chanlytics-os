@@ -494,7 +494,7 @@ $$;
 -- Name: FUNCTION ask_tokens_day(p_tenant uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ask_tokens_day(p_tenant uuid) IS 'The workspace''s Ask tokens (input, cache writes and output of every usage.ask_tokens event; a cache read is not counted) in the last 24 hours: what the edge''s model gateway weighs against the day''s budget (00240, 00367). Service role only.';
+COMMENT ON FUNCTION public.ask_tokens_day(p_tenant uuid) IS 'The workspace''s Ask tokens (input, cache writes and output of every usage.ask_tokens event; a cache read is not counted) in the last 24 hours: what the edge''s model gateway weighs against the day''s budget (00240, 00368). Service role only.';
 
 
 --
@@ -641,7 +641,7 @@ $$;
 -- Name: FUNCTION billing_may_spend(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may incur a cost on the platform''s account: contracts'' maySpend, restated once in SQL (00363). mode direct may; mode stripe only with status active; no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
+COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this workspace may incur a cost on the platform''s account: contracts'' maySpend, restated once in SQL (00364). mode direct may; mode stripe only with status active; no billing row may not. The finder''s spending doors ask it through lead_spend_refusal.';
 
 
 --
@@ -1448,7 +1448,7 @@ begin
     return false;
   end if;
   -- The older turn's replies still waiting to go are superseded by this one. One a run has claimed is already on its
-  -- way to the person (00361): it is left to say what became of it.
+  -- way to the person (00362): it is left to say what became of it.
   update public.messages d
      set status = 'canceled', error = jsonb_build_object('reason', 'superseded_by_newer_message', 'by', p_message)
    where d.conversation_id = p_conversation
@@ -1466,7 +1466,7 @@ end $$;
 -- Name: FUNCTION claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) IS 'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00361). True when held.';
+COMMENT ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) IS 'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362). True when held.';
 
 
 --
@@ -1905,7 +1905,7 @@ end $$;
 -- Name: FUNCTION conversations_assignee_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.conversations_assignee_guard() IS 'A thread assigned or reassigned names a member of its workspace (00364): the column''s key is auth.users, which any account satisfies. A member''s departure clears theirs (clear_control_of_departed_member).';
+COMMENT ON FUNCTION public.conversations_assignee_guard() IS 'A thread assigned or reassigned names a member of its workspace (00365): the column''s key is auth.users, which any account satisfies. A member''s departure clears theirs (clear_control_of_departed_member).';
 
 
 --
@@ -4504,7 +4504,7 @@ begin
     p_wa_profile_name, 'observed', 'inbound', '{}'::jsonb, now());
   v_contact_id := (v_person->>'contact_id')::uuid;
 
-  -- A STOP or a START is written below, once the message is known to be new (00360). The person's row is locked
+  -- A STOP or a START is written below, once the message is known to be new (00361). The person's row is locked
   -- here, where that write used to be, so the person, the thread and the message are still locked in that order.
   if p_opt_out or p_opt_in then
     perform 1 from contacts where id = v_contact_id for no key update;
@@ -5034,7 +5034,7 @@ begin
   if not public.lead_searches_on(p_tenant_id) then
     return jsonb_build_object('error', 'paused');
   end if;
-  -- And whether the workspace may spend at all (00363): this door is the session's, so the route's question is asked here too.
+  -- And whether the workspace may spend at all (00364): this door is the session's, so the route's question is asked here too.
   v_err := public.lead_spend_refusal(p_tenant_id);
   if v_err is not null then
     return v_err;
@@ -5070,7 +5070,7 @@ end $$;
 -- Name: FUNCTION lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]) IS 'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: each goes to checking and one lead_check job per round is written with {round_id, batch 0, again <nonce>, lead_ids}, so the engine runs it under the round with a run id of its own and commits through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00363). Returns {scheduled, skipped}.';
+COMMENT ON FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]) IS 'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: each goes to checking and one lead_check job per round is written with {round_id, batch 0, again <nonce>, lead_ids}, so the engine runs it under the round with a run id of its own and commits through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). Returns {scheduled, skipped}.';
 
 
 --
@@ -5655,7 +5655,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00363). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50, the probe and the main phase at the assumed yield at the card''s dearest place, and a run''s floor a term in each phase; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50. What the route computes (estimateForRound, leadImportEstimateUsd) never passes it; lead-spend.db.test.mjs compares them.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50, the probe and the main phase at the assumed yield at the card''s dearest place, and a run''s floor a term in each phase; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50. What the route computes (estimateForRound, leadImportEstimateUsd) never passes it; lead-spend.db.test.mjs compares them.';
 
 
 --
@@ -5864,7 +5864,7 @@ begin
       end if;
       -- Neither Put back nor Keep revives a suppression or an out-of-area place (§0.1). A place's suppression is asked
       -- of a lead that has a place: one a list of the owner's own brought has none (00242), and a lead blanked or
-      -- erased, which loses or keeps its place, was refused above (00363).
+      -- erased, which loses or keeps its place, was refused above (00364).
       if l.place_id is not null and exists (select 1 from public.lead_suppressions x where x.tenant_id = s.tenant_id and x.kind = 'place'
                     and x.what in ('customer', 'erased') and x.hash = public.lead_suppression_hash(s.tenant_id, l.place_id)) then
         return jsonb_build_object('error', 'hidden');
@@ -5906,7 +5906,7 @@ end $$;
 -- Name: FUNCTION lead_member_move(p_search_id uuid, p_lead_id uuid, p_kind text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_member_move(p_search_id uuid, p_lead_id uuid, p_kind text) IS 'The body of lead_member_keep, lead_member_exclude and lead_member_put_back: the state each expects, the change, the allowance when it counts, and one lead_operations row with the member''s new version. {error: removed} on a search that was removed, as lead_search_more says it. Put back refuses a blanked or erased lead and a place a customer or an erasure suppressed ({error: hidden}); a lead with no place, as a list of the owner''s own brings (00242), is put back like any other (00363).';
+COMMENT ON FUNCTION public.lead_member_move(p_search_id uuid, p_lead_id uuid, p_kind text) IS 'The body of lead_member_keep, lead_member_exclude and lead_member_put_back: the state each expects, the change, the allowance when it counts, and one lead_operations row with the member''s new version. {error: removed} on a search that was removed, as lead_search_more says it. Put back refuses a blanked or erased lead and a place a customer or an erasure suppressed ({error: hidden}); a lead with no place, as a list of the owner''s own brings (00242), is put back like any other (00364).';
 
 
 --
@@ -6976,7 +6976,7 @@ begin
     raise exception 'a new search starts at plan version 1' using errcode = '22023';
   end if;
   v_count := (p_plan->>'count')::integer;
-  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00363).
+  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00364).
   if p_estimate_usd > public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms')) then
     raise exception 'estimate: 0 to % usd for this plan', public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms'))
       using errcode = '22023';
@@ -6985,7 +6985,7 @@ begin
   if not public.lead_searches_on(p_tenant_id) then
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now. Your leads are all here, and nothing is being counted.');
   end if;
-  -- A workspace that may not spend is refused before anything is written (00363): the route asks requireSpend, and this
+  -- A workspace that may not spend is refused before anything is written (00364): the route asks requireSpend, and this
   -- door is the session's, so it asks too.
   v_err := public.lead_spend_refusal(p_tenant_id);
   if v_err is not null then
@@ -7034,7 +7034,7 @@ end $$;
 -- Name: FUNCTION lead_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) IS 'Owner. Checks the plan (version 1, the shape) and the estimate (at most lead_estimate_ceiling for its count and terms, 00363), the switch ({error: paused}), whether the workspace may spend ({error: payment_required, sentence}: lead_spend_refusal, 00363), the card ({error: no_card}, logged as demand), then in one transaction reserves the count from the month''s allowance and the estimate from the budget and both day caps ({error: month_leads_used | budget_used | day_cap}, each with a sentence), inserts the search, its probe round (seq 1, target least(25, count)), the start job and the event. p_thread_id (00172) is the Ask thread the search was planned in, kept only when it is the caller''s own in this workspace, else null. Returns {search_id, round_id}.';
+COMMENT ON FUNCTION public.lead_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) IS 'Owner. Checks the plan (version 1, the shape) and the estimate (at most lead_estimate_ceiling for its count and terms, 00364), the switch ({error: paused}), whether the workspace may spend ({error: payment_required, sentence}: lead_spend_refusal, 00364), the card ({error: no_card}, logged as demand), then in one transaction reserves the count from the month''s allowance and the estimate from the budget and both day caps ({error: month_leads_used | budget_used | day_cap}, each with a sentence), inserts the search, its probe round (seq 1, target least(25, count)), the start job and the event. p_thread_id (00172) is the Ask thread the search was planned in, kept only when it is the caller''s own in this workspace, else null. Returns {search_id, round_id}.';
 
 
 --
@@ -7092,7 +7092,7 @@ begin
   if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > public.lead_cap('month_usd') then
     raise exception 'estimate: 0 to % usd', public.lead_cap('month_usd') using errcode = '22023';
   end if;
-  -- The estimate is the route's to compute (leadImportEstimateUsd) and never more than checking these rows can cost (00363).
+  -- The estimate is the route's to compute (leadImportEstimateUsd) and never more than checking these rows can cost (00364).
   if p_estimate_usd > public.lead_estimate_ceiling('list', jsonb_array_length(p_rows)) then
     raise exception 'estimate: 0 to % usd for this list', public.lead_estimate_ceiling('list', jsonb_array_length(p_rows))
       using errcode = '22023';
@@ -7101,7 +7101,7 @@ begin
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now, and a list is checked the way a search is. Nothing was imported.');
   end if;
   -- A list is checked at the provider, on the platform's account: a workspace that may not spend is refused before a
-  -- row is read (00363), as the route refuses it.
+  -- row is read (00364), as the route refuses it.
   v_err := public.lead_spend_refusal(p_tenant_id);
   if v_err is not null then
     return v_err;
@@ -7267,7 +7267,7 @@ end $_$;
 -- Name: FUNCTION lead_search_import(p_tenant_id uuid, p_name text, p_asked text, p_rows jsonb, p_estimate_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_search_import(p_tenant_id uuid, p_name text, p_asked text, p_rows jsonb, p_estimate_usd numeric) IS 'An owner''s or a partner''s file of leads (1 to lead_cap(''list_rows'') rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). A row without a name or an address, a second row of one address, an address or number a person in People holds and one on the never-again list are left out and counted. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the round, and draws nothing; one another round is checking is left out (elsewhere); otherwise it is checked. Every other address is a new lead in Needs review for its address alone, marked with any lead it shares a number or a website with, checked by the finder''s own round (queued, running, checking; a lead_check job), which lead_check_commit settles. One lead of the month is reserved per address checked, with the check''s estimate, never under $0.50 and never over lead_estimate_ceiling(''list'', rows) (00363) ({error: month_leads_used | budget_used | day_cap, sentence}); paused searching refuses ({error: paused}); a workspace that may not spend refuses ({error: payment_required, sentence}: lead_spend_refusal, 00363); nothing to add refuses ({error: nothing}). Returns {search_id, round_id, added, checking, counted, left_out: {unreadable, twice, customer, never_again, elsewhere}}.';
+COMMENT ON FUNCTION public.lead_search_import(p_tenant_id uuid, p_name text, p_asked text, p_rows jsonb, p_estimate_usd numeric) IS 'An owner''s or a partner''s file of leads (1 to lead_cap(''list_rows'') rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). A row without a name or an address, a second row of one address, an address or number a person in People holds and one on the never-again list are left out and counted. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the round, and draws nothing; one another round is checking is left out (elsewhere); otherwise it is checked. Every other address is a new lead in Needs review for its address alone, marked with any lead it shares a number or a website with, checked by the finder''s own round (queued, running, checking; a lead_check job), which lead_check_commit settles. One lead of the month is reserved per address checked, with the check''s estimate, never under $0.50 and never over lead_estimate_ceiling(''list'', rows) (00364) ({error: month_leads_used | budget_used | day_cap, sentence}); paused searching refuses ({error: paused}); a workspace that may not spend refuses ({error: payment_required, sentence}: lead_spend_refusal, 00364); nothing to add refuses ({error: nothing}). Returns {search_id, round_id, added, checking, counted, left_out: {unreadable, twice, customer, never_again, elsewhere}}.';
 
 
 --
@@ -7318,7 +7318,7 @@ begin
     raise exception 'the plan is the current version or the next' using errcode = '22023';
   end if;
   v_count := (p_plan->>'count')::integer;
-  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00363). Held to
+  -- The estimate is the route's to compute (estimateForRound) and never more than this plan can cost (00364). Held to
   -- the plan's whole count, not the round's target: the route prices a top-up from the counted it read a moment before.
   if p_estimate_usd > public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms')) then
     raise exception 'estimate: 0 to % usd for this plan', public.lead_estimate_ceiling('search', v_count, jsonb_array_length(p_plan->'terms'))
@@ -7336,7 +7336,7 @@ begin
   if not public.lead_searches_on(s.tenant_id) then
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now. Your leads are all here, and nothing is being counted.');
   end if;
-  -- A workspace that may not spend is refused before anything is reserved (00363), as the route refuses it.
+  -- A workspace that may not spend is refused before anything is reserved (00364), as the route refuses it.
   v_err := public.lead_spend_refusal(s.tenant_id);
   if v_err is not null then
     return v_err;
@@ -7367,7 +7367,7 @@ end $$;
 -- Name: FUNCTION lead_search_more(p_search_id uuid, p_purpose text, p_plan jsonb, p_estimate_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_search_more(p_search_id uuid, p_purpose text, p_plan jsonb, p_estimate_usd numeric) IS 'Owner. A new round on an ended search: topup reserves the count minus what already counted, renew the whole count, through the same reservation as create; the plan is the current version or the next (stored on the search); the estimate at most lead_estimate_ceiling for the plan''s count and terms (00363). {error: live} while a round is open; {error: nothing_to_add} when the count is already met; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00363).';
+COMMENT ON FUNCTION public.lead_search_more(p_search_id uuid, p_purpose text, p_plan jsonb, p_estimate_usd numeric) IS 'Owner. A new round on an ended search: topup reserves the count minus what already counted, renew the whole count, through the same reservation as create; the plan is the current version or the next (stored on the search); the estimate at most lead_estimate_ceiling for the plan''s count and terms (00364). {error: live} while a round is open; {error: nothing_to_add} when the count is already met; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364).';
 
 
 --
@@ -7794,7 +7794,7 @@ end $$;
 -- Name: FUNCTION lead_spend_refusal(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00363). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
 
 
 --
@@ -10103,7 +10103,7 @@ declare
   v_wait    record;
 begin
   -- The invoice's one lock, partner_reverse's too: a reversal of this invoice waits for this share to commit, or
-  -- this waits for it to have parked, so the parked reversals read below are every one there is (00364).
+  -- this waits for it to have parked, so the parked reversals read below are every one there is (00365).
   perform pg_advisory_xact_lock(hashtextextended('partner_invoice:' || p_invoice_id, 0));
   select * into v_link from public.partner_tenants where tenant_id = p_tenant_id;
   if v_link.tenant_id is null then
@@ -11023,7 +11023,7 @@ begin
     raise exception 'Unknown reversal: %', p_kind using errcode = '22023';
   end if;
   -- The invoice's one lock, partner_earn's too, taken before the share is looked for: a share written and not yet
-  -- committed is invisible here, and a reversal parked beside it was never applied (00364).
+  -- committed is invisible here, and a reversal parked beside it was never applied (00365).
   perform pg_advisory_xact_lock(hashtextextended('partner_invoice:' || p_invoice_id, 0));
   select * into v_share from public.partner_earnings
    where stripe_invoice_id = p_invoice_id and kind = 'share'
@@ -13981,7 +13981,7 @@ end $$;
 -- Name: FUNCTION put_google_credentials(p_tenant_id uuid, p_secret jsonb, p_if_refresh_token text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.put_google_credentials(p_tenant_id uuid, p_secret jsonb, p_if_refresh_token text) IS 'Service-role only: stores a workspace''s Google token in Vault under google-creds-<workspace> and points credentials_ref at it. The only write path for the token. With p_if_refresh_token (00363), only while the token stored still carries that refresh token, under a lock on the connection''s row every write takes; otherwise it raises 40001 and writes nothing: a refresh never undoes a reconnect stored since it read.';
+COMMENT ON FUNCTION public.put_google_credentials(p_tenant_id uuid, p_secret jsonb, p_if_refresh_token text) IS 'Service-role only: stores a workspace''s Google token in Vault under google-creds-<workspace> and points credentials_ref at it. The only write path for the token. With p_if_refresh_token (00364), only while the token stored still carries that refresh token, under a lock on the connection''s row every write takes; otherwise it raises 40001 and writes nothing: a refresh never undoes a reconnect stored since it read.';
 
 
 --
@@ -17131,7 +17131,7 @@ begin
     raise exception 'That is not a channel.' using errcode = '22023';
   end if;
   -- The number as contracts normalizePhone reads it: a leading + is the country's word, so eight to fifteen digits
-  -- after it are as given; a bare ten digits are North American; eight to fifteen bare digits are as given (00366).
+  -- after it are as given; a bare ten digits are North American; eight to fifteen bare digits are as given (00367).
   if v_digits = '' then
     v_phone := null;
   elsif char_length(v_digits) = 10 and not v_plus then
@@ -19691,7 +19691,7 @@ $$;
 -- Name: FUNCTION tenant_config_read(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.tenant_config_read(p_tenant_id uuid) IS 'A member''s read of their workspace''s configuration row (00364): every member reads it, and only the owner reads the calendar feed''s address whole, since it grants read access to the owner''s calendar. Anyone else is shown it masked as the dashboard masks it, with feed_hidden true. No row for a caller who is not a member, nor for a partner''s seat on a session that has not shown its second factor (0013). The session''s door to the row once 00365 lets only the owner read the table.';
+COMMENT ON FUNCTION public.tenant_config_read(p_tenant_id uuid) IS 'A member''s read of their workspace''s configuration row (00365): every member reads it, and only the owner reads the calendar feed''s address whole, since it grants read access to the owner''s calendar. Anyone else is shown it masked as the dashboard masks it, with feed_hidden true. No row for a caller who is not a member, nor for a partner''s seat on a session that has not shown its second factor (0013). The session''s door to the row once 00366 lets only the owner read the table.';
 
 
 --
@@ -19735,7 +19735,7 @@ end $$;
 -- Name: FUNCTION tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) IS 'A member''s versioned write of their workspace''s configuration (00364): the whole column, where the row is still at p_version, by a caller with the settings permission (a partner on a session that showed its second factor), recorded as theirs. outcome is saved (with the new version), stale (someone saved since) or missing (no row). The session''s write once 00365 lets only the owner read the table, which an update needs.';
+COMMENT ON FUNCTION public.tenant_config_write(p_tenant_id uuid, p_config jsonb, p_version integer) IS 'A member''s versioned write of their workspace''s configuration (00365): the whole column, where the row is still at p_version, by a caller with the settings permission (a partner on a session that showed its second factor), recorded as theirs. outcome is saved (with the new version), stale (someone saved since) or missing (no row). The session''s write once 00366 lets only the owner read the table, which an update needs.';
 
 
 --
@@ -19761,7 +19761,7 @@ end $$;
 -- Name: FUNCTION tenants_zone_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.tenants_zone_guard() IS 'A workspace''s zone, written or changed, is one pg_timezone_names holds (00364), as create_workspace_for asks at creation: lead_month, lead_renews_on and Intl all raise on a name they do not know. A row whose zone is not changed is let be.';
+COMMENT ON FUNCTION public.tenants_zone_guard() IS 'A workspace''s zone, written or changed, is one pg_timezone_names holds (00365), as create_workspace_for asks at creation: lead_month, lead_renews_on and Intl all raise on a name they do not know. A row whose zone is not changed is let be.';
 
 
 --
@@ -22445,7 +22445,7 @@ CREATE TABLE public.messages (
 -- Name: COLUMN messages.sending_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.messages.sending_at IS 'When the one run that took this queued row to the wire claimed it (00352): set where status = ''queued'' and it is null, so a second job naming the row sends nothing, and a member''s call-back takes only a row nobody has claimed (00361). Cleared only when the provider provably did not take the message. A broadcast''s email is claimed as it is written (00368). Null on a row no job sent (an inbound message, a direct answer).';
+COMMENT ON COLUMN public.messages.sending_at IS 'When the one run that took this queued row to the wire claimed it (00352): set where status = ''queued'' and it is null, so a second job naming the row sends nothing, and a member''s call-back takes only a row nobody has claimed (00362). Cleared only when the provider provably did not take the message. A broadcast''s email is claimed as it is written (00369). Null on a row no job sent (an inbound message, a direct answer).';
 
 
 --
