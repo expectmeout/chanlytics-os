@@ -978,7 +978,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `events_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+| `events_member_select` | select | authenticated | `((tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))) AND ((kind <> ALL (ARRAY['partner.earned'::text, 'partner.reversed'::te…` |  |
 
 ### google_connections
 
@@ -1809,7 +1809,7 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `messages_acting_member_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (direction = 'outbound'::text) AND (sender = 'human'::text) AND (sent_by = auth.uid()) AND (status = 'queued'::text) AND (medi…` |
-| `messages_acting_member_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
+| `messages_acting_member_update` | update | authenticated | `(is_acting_member(tenant_id) AND (status = 'queued'::text) AND (sending_at IS NULL))` | `(is_acting_member(tenant_id) AND (status = 'canceled'::text))` |
 | `messages_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### notification_marks
@@ -2826,7 +2826,7 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `tenant_config_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+| `tenant_config_owner_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` |  |
 | `tenant_config_owner_update` | update | authenticated | `caller_has_permission(tenant_id, 'settings'::text)` | `caller_has_permission(tenant_id, 'settings'::text)` |
 
 ### tenants
