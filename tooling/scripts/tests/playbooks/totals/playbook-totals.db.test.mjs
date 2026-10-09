@@ -17,6 +17,9 @@
  *   5. At scale (spec §4.7): 3,600 runs of 25 people answer a signed-in member inside the 8 seconds a member's statement
  *      has (00283), as GET playbooks asks it. A playbook's totals that carried every run's counts on each run's row took
  *      half a minute here, and a timeout is no missing function: the dashboard would have had no fold to fall back to.
+ *      Then the same workspace talks: 1,800 more messages of its people's own, none a reply, and the answer comes inside
+ *      half those 8 seconds. Before run_counts' fence its replied step weighed every thread against every inbound
+ *      message, and this case hit the member's 8 seconds.
  *   6. The dashboard's own reads on the stack: GET playbooks and Sent say the same bytes counted by the database as by the
  *      fold a database before 00362 leaves them, where the fold counts right (the salon), and the fold's wrong answers
  *      where it does not (the shop, the studio); the fake database's twins say what the SQL says.
@@ -623,6 +626,9 @@ begin
 end $$`);
   return tenant;
 }
+let busy;
+/** The busy workspace, seeded once: the scale case reads it as written, then the talking case adds to it. */
+const busyWorkspace = () => (busy ??= atScale());
 
 after(async () => {
   if (skip) return;
@@ -845,7 +851,7 @@ test(
   "at scale: 3,600 runs of 25 people answer a signed-in member inside a member's 8 seconds, every run, person and reply counted",
   { skip },
   async (t) => {
-    const tenant = atScale();
+    const tenant = busyWorkspace();
     const [{ setconfig }] = query(
       `select s.setconfig from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
         where r.rolname = 'authenticated' and s.setdatabase = 0`,
@@ -881,6 +887,42 @@ test(
       [direct.runs, direct.sent, direct.delivered, direct.held, direct.replies].map(Number),
       "each reply answers one run's send",
     );
+  },
+);
+
+test(
+  "at scale, a workspace that talks: 1,800 more messages its people wrote, none a reply, and playbook_totals still answers inside half a member's 8 seconds, every count as it was",
+  { skip },
+  async (t) => {
+    const tenant = busyWorkspace();
+    // Three more of each person's own, all before the first run: 2,520 inbound in all with the 720 replies. Without
+    // run_counts' fence its replied step weighed every thread a run reached against every one of them, and took 8 s here.
+    query(`insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body,
+                                        status, meta, created_at)
+           select t, md5(t || ':thread:' || c)::uuid, md5(t || ':person:' || c)::uuid, 'whatsapp', 'inbound', 'customer',
+                  'text', 'Is Saturday free?', 'received', '{}'::jsonb,
+                  date_trunc('day', now()) - interval '701 days' - (c * 3 + n) * interval '1 minute'
+             from (select '${tenant}'::uuid as t) w, generate_series(0, 599) c, generate_series(1, 3) n`);
+    // Counted as production counts them, on its tables' statistics.
+    query("analyze public.messages, public.broadcasts, public.broadcast_recipients, public.playbooks");
+    const [{ inbound }] = query(
+      `select count(*) as inbound from public.messages where tenant_id = '${tenant}' and direction = 'inbound'`,
+    );
+    assert.equal(Number(inbound), 2520);
+    // As GET playbooks asks it: a signed-in member, under row security, whose statement stops at 8 seconds.
+    const own = await member(tenant, "viewer");
+    const started = performance.now();
+    const got = ok(await own.rpc("playbook_totals", { p_tenant_id: tenant }), "playbook_totals, as a member");
+    const ms = Math.round(performance.now() - started);
+    t.diagnostic(`playbook_totals over 3,600 runs of 25 and 2,520 inbound messages, as a member: ${ms} ms`);
+    assert.ok(ms < 4000, `half a member's 8 seconds, for margin: ${ms} ms`);
+    assert.equal(Object.keys(got).length, SCALE.moments);
+    for (const totals of Object.values(got))
+      assert.deepEqual(
+        [totals.runs, totals.sent, totals.delivered, totals.held, totals.replied, totals.history.length],
+        [600, 14_400, 13_800, 600, 120, 10],
+        "not one of them a reply",
+      );
   },
 );
 

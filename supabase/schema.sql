@@ -17521,17 +17521,27 @@ CREATE FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) RETURNS js
      group by p.broadcast_id, p.conversation_id
   ),
   replied as (
+    -- One probe of messages_conversation_created (conversation_id, created_at) for each thread, whatever the planner
+    -- guesses. This statement is planned with its arguments as placeholders, so any(p_run_ids) is guessed at about 250
+    -- people where a busy workspace's history is 90,000, and the planner joined every thread to every inbound message of
+    -- the workspace: 3,600 runs of 25 took 3 s at 720 inbound messages and 8 s, a member's limit, at 2,520. OFFSET 0
+    -- keeps the EXISTS a probe of its own, and the probe names no workspace, since on tables not yet analyzed the planner
+    -- probed the workspace's inbound index instead, every inbound message once per thread again (15 s at 720). The thread
+    -- fixes the workspace: a run's person names a message of its own workspace, and a message a thread of its own
+    -- (broadcast_recipients_message_id_same_workspace, messages_conversation_id_same_workspace). Now about 0.4 s from
+    -- 720 to 30,720 inbound messages, analyzed or not, with the same answer
+    -- (playbooks/totals/playbook-totals.db.test.mjs, "a workspace that talks").
     select t.broadcast_id, count(*) as replied
       from threads t
      where exists (
              select 1 from public.messages i
               where i.conversation_id = t.conversation_id
-                and i.tenant_id = p_tenant_id
                 and i.direction = 'inbound'
                 and i.sender = 'customer'
                 and public.message_is_a_persons_words(i.meta)
                 and i.created_at > t.sent_at
-                and i.created_at <= t.sent_at + public.campaign_reply_window())
+                and i.created_at <= t.sent_at + public.campaign_reply_window()
+             offset 0)
      group by t.broadcast_id
   )
   select coalesce(jsonb_object_agg(c.broadcast_id::text, jsonb_build_object(
