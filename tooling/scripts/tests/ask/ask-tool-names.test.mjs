@@ -892,7 +892,15 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // the reader does not count as the person's own, so the draft that reaches the read makes it. Its bytes are unchanged.
     const readsOurWire = NAMES[old] === "propose_reply.draft" && withSeen.includes("messages.select");
     const withOurWire = readsOurWire ? [...withSeen, "messages.select"] : withSeen;
-    const reads = NAMES[old] === "report" ? withReviewReads(withOurWire) : withOurWire;
+    // 9 Oct 2026 (a moment holds many campaigns, lane 1, task 14): the playbooks reader asks the database what each
+    // playbook's runs earned (00362 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
+    // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
+    // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
+    const countsInTheDatabase = NAMES[old] === "campaigns.playbooks" && withOurWire.includes("broadcasts.select");
+    const withTotals = countsInTheDatabase
+      ? [...withOurWire.toSpliced(withOurWire.indexOf("broadcasts.select"), 1), "rpc:playbook_totals"]
+      : withOurWire;
+    const reads = NAMES[old] === "report" ? withReviewReads(withTotals) : withTotals;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)
