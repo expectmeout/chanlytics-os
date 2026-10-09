@@ -3636,7 +3636,7 @@ footer.rec-sheet-foot .btn {
 .rec-sheet-foot[data-asking="true"] .confirm-words {
   padding: 0 10px;
 }
-/* On a phone the sheet rises over the whole width (focus.ts, REC_PHONE_QUERY), and Save and Cancel are an equal pair
+/* On a phone, and from the kit's 900px, where a sheet is the width of the screen or near it, Save and Cancel are an equal pair
    across its foot, as the foot's question already is: two short buttons at the left of a capsule a thumb wide left
    more than half of it empty, and the foot changed shape when it asked. The foot's line, and a line of the page's,
    stand over the pair, so the two buttons are always the foot's last row. A name too long for half the foot ("Import 12
@@ -3648,7 +3648,7 @@ footer.rec-sheet-foot .btn {
    `data-foot-pair` and is laid out the same from the width a sheet of the kit's rises at: its line over the pair, and
    the filled act first, where Save is, whichever way the row is written. The attribute is named twice so
    that a page's own rule for its row on a desk (a class, written after the kit's) does not outrank the pair. */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .rec-sheet-foot:where(:has(> .rec-foot)) {
     padding: 6px;
   }
