@@ -9,10 +9,8 @@
 // and the one menu is always drawn.
 import { Fragment } from "react";
 import type { ComponentProps, ReactNode } from "react";
-import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { RecordBox, RecordSwitch } from "../../kit/record/field";
 import type { BtFold } from "./gestures/fold";
@@ -281,16 +279,15 @@ const BtoDay = ({
                     the left already means "closed", and two ways to say
                     the same thing is how one of them gets misread. */}
                 {n > 0 ? (
-                  <Button
-                    size="sm"
-                    variant="quiet"
-                    iconOnly
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon btn-sm"
                     aria-label={`Remove ${long} shift ${n + 1}`}
                     {...press(() => acts.removeShift(d, n))}
                     data-testid={`rec-hours-remove-${d}-${n}`}
                   >
                     <Icon name="x" size={11} />
-                  </Button>
+                  </button>
                 ) : null}
               </span>
             ))}
@@ -302,13 +299,15 @@ const BtoDay = ({
       <span className="bt-week-more">
         {/* The write schema refuses more than this, so the fold must not offer it (rows' canAdd). */}
         {day.isOpen && list.canAdd ? (
-          <LinkButton
+          <button
+            type="button"
+            className="bt-week-break"
             {...press(() => acts.addShift(d))}
             aria-label={`Add a break to ${long}`}
             data-testid={`rec-hours-add-${d}`}
           >
             <Icon name="plus" size={10} /> break
-          </LinkButton>
+          </button>
         ) : null}
       </span>
       <FieldError id={problemId} message={bad} testid={`rec-hours-problem-${d}`} />

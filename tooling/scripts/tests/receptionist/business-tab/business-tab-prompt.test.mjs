@@ -48,8 +48,7 @@ const drawPrompt = (channel = "whatsapp", over = {}) => {
 const sheetOf = (tree) => byTestId(tree, "rec-sheet-prompt");
 /** The resolved prompt the sheet cuts, cut the way it cuts it: with the stored brain, so a carried prompt is found. */
 const cut = (channel) => promptBlocks(W.__SETTINGS.prompt[channel], channel, W.__SETTINGS.config.brain);
-const entriesOf = (tree) =>
-  all(byTestId(tree, "rec-prompt-contents"), (n) => n.type === "button" && classes(n).includes("bt-prompt-entry"));
+const entriesOf = (tree) => all(byTestId(tree, "rec-prompt-contents"), (n) => classes(n).includes("bt-prompt-entry"));
 /** An element's description, as a screen reader reads it: the text of every node its aria-describedby names. */
 const describedBy = (tree, node) =>
   String(node.props["aria-describedby"] || "")

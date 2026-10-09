@@ -9,7 +9,6 @@ import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { CalendarVM } from "@chanlytics/contracts";
 import type { CALENDAR_PAGE } from "../../calendar/words";
 import { FailedRead } from "../../kit/empty/empty";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordBox } from "../../kit/record/field";
 import { navigate } from "../../legacy-verbs";
 import { businessTabSave } from "./saver";
@@ -240,9 +239,9 @@ const BtoFeedWhole = () => {
   return (
     <p className="bt-fold-note bt-fold-line" data-testid="rec-calendar-whole">
       <span>{feed.detail}</span>
-      <LinkButton onClick={() => navigate("calendar")} data-testid="rec-calendar-open">
+      <button type="button" className="bt-link" onClick={() => navigate("calendar")} data-testid="rec-calendar-open">
         Open Calendar
-      </LinkButton>
+      </button>
     </p>
   );
 };

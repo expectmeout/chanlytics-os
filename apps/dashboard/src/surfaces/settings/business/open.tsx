@@ -27,10 +27,8 @@ import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { TzApi } from "@/legacy-bridge/identity";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import type { PromptPreviewDto } from "@/server/receptionist/prompt-preview";
-import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordBox } from "../../kit/record/field";
 import { RecordCombobox } from "../../kit/record/combobox";
 import { gate as roleGate } from "../../legacy-verbs";
@@ -181,9 +179,14 @@ const btoZoneBox =
             <>
               {" "}
               ·{" "}
-              <LinkButton onClick={() => set(device)} data-testid="rec-inline-timezone-device">
+              <button
+                type="button"
+                className="bt-link"
+                onClick={() => set(device)}
+                data-testid="rec-inline-timezone-device"
+              >
                 Use this device&rsquo;s ({T.city ? T.city(device) : device})
-              </LinkButton>
+              </button>
             </>
           ) : null}
         </span>
@@ -294,23 +297,27 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFi
             {box("date", { type: "date", label: named("Closed from") })}
             {box("until", { type: "date", label: named("Closed until"), min: c.date || undefined })}
             {box("note", { label: named("Reason"), placeholder: "Christmas" })}
-            <Button
-              size="sm"
-              variant="quiet"
-              iconOnly
+            <button
+              type="button"
+              className="btn btn-ghost btn-icon btn-sm"
               aria-label={`Remove closure ${c.date || ""}`}
               {...press(() => removeClosure(i))}
               data-testid={`rec-closure-remove-${i}`}
             >
               <Icon name="x" size={12} />
-            </Button>
+            </button>
           </div>
         );
       })}
       {closed.canAdd ? (
-        <LinkButton {...press(() => closed.add())} data-testid="rec-closures-add">
+        <button
+          type="button"
+          className="btn btn-sm bt-fold-add"
+          {...press(() => closed.add())}
+          data-testid="rec-closures-add"
+        >
           <Icon name="plus" size={12} /> Add a closed day
-        </LinkButton>
+        </button>
       ) : (
         <p className="bt-fold-note" data-testid="rec-closures-cap">
           {full}

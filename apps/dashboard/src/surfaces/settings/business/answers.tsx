@@ -26,9 +26,7 @@ import type { BrainConfig, BusinessProfile, GuardrailsInForce } from "@chanlytic
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { gate } from "../../legacy-verbs";
-import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { RecordBox, RecordField } from "../../kit/record/field";
 import { RecordChips } from "../../kit/record/row";
@@ -140,10 +138,9 @@ const BtaNote = ({
         invalid={bad ? problemId : null}
         readOnly={readOnly}
       />
-      <Button
-        variant="quiet"
-        size="sm"
-        iconOnly
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon btn-sm"
         aria-label={`Remove ${title.trim() || `note ${i + 1}`}`}
         {...press(() =>
           notes.removeAt(i, (gone) => {
@@ -154,7 +151,7 @@ const BtaNote = ({
         data-testid={`rec-note-remove-${i}`}
       >
         <Icon name="x" size={12} />
-      </Button>
+      </button>
       <FieldError id={problemId} message={bad} testid={`rec-note-problem-${i}`} />
     </div>
   );
@@ -206,9 +203,14 @@ const BtaNotes = ({
         />
       ))}
       {notes.canAdd ? (
-        <LinkButton className="bt-fold-add" {...press(() => notes.add())} data-testid="rec-notes-add">
+        <button
+          type="button"
+          className="btn btn-sm bt-fold-add"
+          {...press(() => notes.add())}
+          data-testid="rec-notes-add"
+        >
           <Icon name="plus" size={12} /> Add a note
-        </LinkButton>
+        </button>
       ) : (
         <p className="bt-fold-note" data-testid="rec-notes-cap">
           {BTA_NOTES_FULL}
@@ -354,16 +356,15 @@ const BtaFallback = ({
       ) : null}
       {written ? <BtaWrittenOut messageKey={key} written={written} /> : null}
       {defaultWording !== undefined && !BUSINESS_TAB.isProductFallback(key, text) ? (
-        <Button
-          variant="quiet"
-          size="sm"
-          className="bt-fallback-default"
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm bt-fallback-default"
           aria-describedby={`bt-fallback-${key}-label`}
           {...press(() => update((was) => ({ ...(was as FallbacksDraft), [key]: defaultWording }), [key]))}
           data-testid={`rec-fallback-${key}-default`}
         >
           Use the default wording
-        </Button>
+        </button>
       ) : null}
     </div>
   );

@@ -28,11 +28,10 @@ import type { BusinessFieldVM, BusinessRecordDto, LineDto, RegistrationPath } fr
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
-import { Field } from "../../kit/field/field";
+import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
-import { Select } from "../../kit/select/select";
 import { canDo, gate, gateTitle, holdStill, meNow, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { businessRecord } from "./record";
 
@@ -131,23 +130,35 @@ function fieldBox(opts: FieldOptions) {
   );
   const cell = `biz-cell${f.multiline ? " biz-cell-wide" : ""}`;
   if (!f.multiline && f.options) {
-    const control = (
-      <Select
-        label={f.label}
-        value={record[f.name] ?? ""}
-        onValueChange={(next) => onSet(f.name, next)}
-        options={f.options.map((o) => ({ value: o, label: RECORD.optionWords(o) }))}
-        chevron={<Icon name="chevron-down" size={12} />}
-        readOnly={disabled}
-      />
-    );
+    // A native list, as it was: the kit's Select is Base UI's, and a list asked once at setup is not worth its weight on
+    // the settings page (CI measured +48 KB gzipped for it).
+    const problemId = `rec-${testid}-problem`;
     return (
       <div className={cell} key={f.name} data-testid={testid}>
-        {problem ? (
-          <Field label={label} control={control} problem={problem} problemGlyph={<Icon name="alert" size={11} />} />
-        ) : (
-          <Field label={label} control={control} hint={f.hint} />
-        )}
+        <div className="rec-field">
+          <label>
+            <span className="rec-field-label">{label}</span>
+            <select
+              className="rec-input"
+              value={record[f.name] ?? ""}
+              disabled={disabled}
+              aria-invalid={problem ? true : undefined}
+              aria-describedby={problem ? problemId : undefined}
+              onChange={(e) => onSet(f.name, e.target.value)}
+            >
+              {f.options.map((o) => (
+                <option key={o} value={o}>
+                  {RECORD.optionWords(o)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {problem ? (
+            <FieldError id={problemId} message={problem} />
+          ) : f.hint ? (
+            <span className="rec-hint">{f.hint}</span>
+          ) : null}
+        </div>
       </div>
     );
   }

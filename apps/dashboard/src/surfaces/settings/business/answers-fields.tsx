@@ -8,9 +8,7 @@
 import type { GuardrailKey } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
@@ -138,17 +136,15 @@ export const BtaLanguages = ({
           {chosen.map((l, i) => (
             <li key={`${l}-${i}`} className="bt-token">
               {l}
-              <Button
-                variant="quiet"
-                size="sm"
-                iconOnly
+              <button
+                type="button"
                 className="bt-token-x"
                 aria-label={`Remove ${l}`}
                 {...press(() => remove(i))}
                 data-testid={`rec-language-remove-${l}`}
               >
                 <Icon name="x" size={10} />
-              </Button>
+              </button>
             </li>
           ))}
         </ul>
@@ -382,14 +378,16 @@ const BtaHandoffCall = ({
       </p>
     ) : null}
     {calls ? (
-      <LinkButton
+      <button
+        type="button"
+        className="bt-link"
         {...press(() => {
           recFolds.request("handoff_number");
         })}
         data-testid="rec-handoff-door"
       >
         {transfer ? "Change the transfer number" : "Add a transfer number"}
-      </LinkButton>
+      </button>
     ) : null}
   </div>
 );

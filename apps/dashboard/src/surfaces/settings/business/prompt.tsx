@@ -30,8 +30,6 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { navigate } from "../../legacy-verbs";
-import { Button } from "../../kit/button/button";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
@@ -114,15 +112,16 @@ export const BtPromptTold = ({ prompt }: { prompt: BtPromptHold | null }) => {
           What your receptionist is told
         </h2>
         <span className="rec-card-sub">{tab.PROMPT_READERS[prompt.channel]}</span>
-        <LinkButton
-          className="bt-told-open"
+        <button
+          type="button"
+          className="bt-link bt-told-open"
           onClick={prompt.request}
           aria-describedby="bt-told-title"
           data-rec-act="prompt"
           data-testid="rec-prompt-open"
         >
           Read it
-        </LinkButton>
+        </button>
       </div>
     </section>
   );
@@ -155,14 +154,15 @@ const btpDoor = (block: PromptBlock, prompt: BtPromptHold, canEdit: boolean): Re
     recFolds.request(door.id);
   };
   return (
-    <LinkButton
-      className="bt-prompt-door"
+    <button
+      type="button"
+      className="bt-link bt-prompt-door"
       onClick={go}
       aria-describedby={`bt-prompt-label-${block.id}`}
       data-testid={`rec-prompt-door-${block.id}`}
     >
       {door.words}
-    </LinkButton>
+    </button>
   );
 };
 
@@ -185,9 +185,8 @@ const btpContents = (blocks: PromptBlock[], total: number): ReactNode => {
       <ol className="bt-prompt-entries">
         {blocks.map((b) => (
           <li key={b.id}>
-            <Button
-              variant="quiet"
-              size="sm"
+            <button
+              type="button"
               className="bt-prompt-entry"
               onClick={() => btpShow(b.id)}
               title={cost(b)}
@@ -195,7 +194,7 @@ const btpContents = (blocks: PromptBlock[], total: number): ReactNode => {
               data-testid={`rec-prompt-entry-${b.id}`}
             >
               <span className="bt-prompt-entry-label">{b.label}</span>
-            </Button>
+            </button>
             {/* Beside the button, not in it: text inside a button, hidden or not, is part of its name, and the count
                 was heard twice, as the name and again as the description. */}
             <span className="rec-sr" id={`bt-prompt-cost-${b.id}`}>
@@ -297,9 +296,9 @@ export const BtPromptSheet = ({
         />
       }
       foot={
-        <Button size="sm" className="bt-prompt-close" onClick={prompt.close}>
+        <button type="button" className="btn btn-sm bt-prompt-close" onClick={prompt.close}>
           Close
-        </Button>
+        </button>
       }
     >
       {body}
