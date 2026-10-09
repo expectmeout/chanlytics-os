@@ -19,7 +19,6 @@ import {
   messageHolds,
   nextOpenMoment,
   parseParamSpecs,
-  purposeOfTemplate,
   resolveParams,
   triggerOf,
   versionsOf,
@@ -29,7 +28,16 @@ import {
 import { errField, logger } from "@chanlytics/channels";
 import type { Channel, Delivered, Delivery } from "../deliver";
 import { isNotTakenError } from "../wire-senders";
-import { channelOf, countSent, overAllowance, queueEmailRow, rowFacts, prepare, type Work } from "./broadcast-channels";
+import {
+  channelOf,
+  countSent,
+  overAllowance,
+  purposeAtTheDoor,
+  queueEmailRow,
+  rowFacts,
+  prepare,
+  type Work,
+} from "./broadcast-channels";
 import { afterRefusal, pageTheDomain, release, stopForTheWorkspace, type Verdict } from "./broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "./ports";
 import { LIMIT_WORDS, WIRE_WORDS, gotIt, thenWhat } from "./broadcast-words";
@@ -357,13 +365,14 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // WHICH yes this send needs. The message's own purpose (contracts campaignMessageOf): Meta's category is the authority
   // where it has a WhatsApp row, in any status — it can recategorise a live template — and else the category its email's
   // and text's rows carry. purposeOfTemplate fails closed, so a message whose category we do not have (or that has no row at
-  // all) reads as marketing and needs the stronger consent rather than the weaker one. Whichever channel it goes by. (What
-  // fills each slot, typed text once and the rest per person, and the workspace's own words for the slots that name it, are
+  // all) reads as marketing and needs the stronger consent rather than the weaker one. Whichever channel it goes by; and a
+  // playbook's run asks the stricter of it and its moment's class, as its enrolment did (purposeAtTheDoor). (What fills
+  // each slot, typed text once and the rest per person, and the workspace's own words for the slots that name it, are
   // `facts`, read once above.)
-  const purpose = message?.purpose ?? purposeOfTemplate(undefined);
   // The moment a playbook's run was made for (contracts audienceTrigger), null for a broadcast: a visit run is never held by the
   // month's allowance, and what its message is about, the pause it passes and whether it is an offer by email follow from it.
   const trigger = audienceTrigger(b.audience);
+  const purpose = purposeAtTheDoor(trigger, message);
   const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
