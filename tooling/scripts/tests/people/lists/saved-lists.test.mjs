@@ -174,6 +174,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
       q: "",
       sortBy: "last",
       sortDir: "desc",
+      columns: PL_COLUMNS,
     })
       .map((r) => r.id)
       .sort();

@@ -98,6 +98,7 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     onCursor={p.onCursor}
     scrolled={p.scrolled}
     onScrolled={p.onScrolled}
+    layout={p.layout}
     empty={p.empty}
   />
 );

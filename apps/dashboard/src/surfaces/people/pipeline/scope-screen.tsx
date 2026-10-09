@@ -13,6 +13,7 @@ import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleTable } from "../table/table";
 import { PL_SEARCH_LABEL } from "../words";
 import { PipelineBoard } from "./board";
+import { PL_FILE_COLUMNS } from "../cells/columns";
 import { pipeCardRow } from "./columns";
 import { PipelineNew } from "./new";
 import { PipelinePeek } from "./peek";
@@ -82,7 +83,7 @@ function standingLine(s: PipelineState) {
 /** The controls row: the search, which columns show, the list or the board, and the page's one filled button. */
 function controlsRow(s: PipelineState) {
   const { f, r } = s;
-  const { q, setQ, searchRef, colOptions, pickColumn, clearSelection, setExtraView } = f.controls;
+  const { q, setQ, searchRef, colOptions, pickColumn, layout: tableLayout, clearSelection, setExtraView } = f.controls;
   const { board, layout } = r;
   const { words } = P;
   return (
@@ -100,7 +101,7 @@ function controlsRow(s: PipelineState) {
       </div>
       <div className="cl-controls-right">
         {/* Which columns show, a member's own, kept in their view: People's menu (table/columns-menu.tsx). */}
-        {!board ? <PeopleColumnsMenu options={colOptions} onPick={pickColumn} /> : null}
+        {!board ? <PeopleColumnsMenu options={colOptions} onPick={pickColumn} layout={tableLayout} /> : null}
         {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
         <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
           {PIPE_LAYOUTS.map((v) => (
@@ -183,6 +184,7 @@ function rowsView(s: PipelineState) {
       rowClass={phone ? pipeCardRow : null}
       scrolled={scrolledX}
       onScrolled={setScrolledX}
+      layout={f.controls.layout}
       empty={emptyWords}
     />
   );
@@ -290,6 +292,7 @@ function bulkBlock(s: PipelineState) {
   const pickedPeople = new Set(r.shown.filter((row) => sel.has(row.id)).map((row) => row.person.id));
   return (
     <PeopleBulkBar
+      fileColumns={PL_FILE_COLUMNS}
       sel={pickedPeople}
       rows={shownPeople}
       saved={people.saved || []}

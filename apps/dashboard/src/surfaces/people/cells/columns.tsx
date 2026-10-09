@@ -3,7 +3,7 @@
  * once: its heading, whether it sorts, whether a member may hide it, and how its cell is drawn from a row and what the
  * page knows (`x`: bookingLink, attention, onOpen, drop, listsOf, shows). Person is pinned and always shown; on a desktop
  * a member shows or hides any other with the Columns menu, and the choice rides with their view (views.people.columns); a
- * phone's cards draw what they draw by default whatever the choice (plDrawnColumns). With a calendar connected the
+ * phone's cards draw what they draw by default whatever the choice (plShownColumns). With a calendar connected the
  * visit is a column; the receptionist's standing is a column a member can show, off by default (Ruben, 8 Oct 2026), and
  * while it is hidden its word sits beside the state. Offers is the fact that gates every campaign. The next step is a
  * column after State (0007). First contact waits in the Columns menu; the last column is the row's own actions, the
@@ -29,6 +29,7 @@ import {
   plWhen,
 } from "../words";
 import { plRowCard } from "./row-card";
+import { plCallsSort, plLastSort, plNameSort, plNextSort, plOffersSort, plStateSort, plVisitsSort } from "./sorts";
 
 /** The person's state as the one pill draws it (contracts/tone.ts). */
 function PeopleStatePill({ state, label }: { state: string; label: string }) {
@@ -208,7 +209,7 @@ const plOffersCell = (p: PersonRowVM) => {
   return (
     <td
       key="offers"
-      className="shrink cl-offers-cell"
+      className="cl-offers-cell"
       title={held ? `${p.consent.marketingSub} · ${heldWords(held, "marketing")}` : p.consent.marketingSub}
       data-testid="row-offers"
     >
@@ -229,7 +230,7 @@ const visitHours = (p: PersonRowVM): string => (p.nextVisit || "").split(" · ")
 const plVisitsCell = (p: PersonRowVM) => (
   <td
     key="visits"
-    className="shrink cl-visits-cell"
+    className="cl-visits-cell"
     title={p.nextVisit || p.lastVisit || "Never on the calendar"}
     data-testid="row-next-visit"
   >
@@ -262,7 +263,7 @@ const plVisitsCell = (p: PersonRowVM) => (
 
 /** The State cell: the pill, the receptionist's word beside it (said once), and the reason behind it. */
 const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
-  <td key="state" className="shrink cl-state-cell">
+  <td key="state" className="cl-cut cl-state-cell">
     <PeopleStatePill state={p.state} label={p.stateLabel} />
     {/* The receptionist's word beside the state, said once. On a desktop the stylesheet hides this one while its own
         column shows (is-in-column); a card draws that column's cell whatever the member chose, so a card hides this
@@ -290,7 +291,7 @@ const plReachCell = (p: PersonRowVM) => {
   // A long address is cut with an ellipsis so the column stays narrow (a number never is): its whole rides in the tip.
   const tip = [words.tip, words.id !== null && words.id === p.email ? words.id : null].filter(Boolean).join(" · ");
   return (
-    <td key="reach" className="shrink cl-reach-cell" title={tip || undefined} data-testid="row-reach">
+    <td key="reach" className="cl-reach-cell" title={tip || undefined} data-testid="row-reach">
       {words.wire || words.id ? (
         <span className="cl-row-reach">
           {words.wire && <span className="cl-row-reach-wire">{words.wire}</span>}
@@ -308,15 +309,34 @@ const plReachCell = (p: PersonRowVM) => {
 
 type PeopleColumn = TableColumn<PersonRowVM, PeopleCellCtx>;
 
+/**
+ * People's columns, each declared once (types.ts TableColumn): the heading, how it sorts and which way a first press
+ * goes, what it asks of the table's room (table/layout.ts: where it starts, the least it is squeezed to, and the share of
+ * spare room it takes, if any), and what it says in a file of the people shown. The cell is its own `<td>`; nothing about a
+ * column's width is a class on it. Four are on until a member turns them off (Person, State, the next step, the last
+ * contact), and the visit joins them where a calendar is connected; the rest wait in the Columns menu.
+ */
 export const PL_COLUMNS: PeopleColumn[] = [
   {
     key: "name",
     label: "Person",
     sortable: true,
+    sortFirst: "asc",
+    sortValue: plNameSort,
     pinned: true,
+    width: { base: 300, min: 240, max: 560, grow: 3 },
+    csv: { head: "Name", cell: (p) => p.name },
     cell: (p, x) => plNameCell(p, plUnread(p) ? { ...x, unread: true } : x),
   },
-  { key: "state", label: "State", sortable: true, cell: plStateCell },
+  {
+    key: "state",
+    label: "State",
+    sortable: true,
+    sortValue: plStateSort,
+    width: { base: 128, min: 118, max: 240, grow: 1 },
+    csv: { head: "State", cell: (p) => p.stateLabel },
+    cell: plStateCell,
+  },
   // Their next step (0007, amended): the words over its day ("Due today", "Overdue since Mon"), the day in the warn ink
   // once it has come and said in words, never by the colour alone. The Pipeline's row said it; People's did not, and
   // it is the one fact on the row that is the owner's to do. The whole of a step cut short is its tip.
@@ -324,10 +344,15 @@ export const PL_COLUMNS: PeopleColumn[] = [
     key: "next",
     label: "Next step",
     sortable: true,
+    sortFirst: "asc",
+    sortValue: plNextSort,
+    hint: "Their next step, and the day it is due",
+    width: { base: 140, min: 112, max: 240, grow: 1 },
+    csv: { head: "Next step", cell: (p) => (p.nextStep ? [p.nextStep.words, p.nextStep.day.words].join(" · ") : "") },
     cell: (p) => (
       <td
         key="next"
-        className="shrink cl-step-cell"
+        className="cl-step-cell"
         data-due={p.nextStep ? p.nextStep.due : undefined}
         title={
           p.nextStep
@@ -345,14 +370,29 @@ export const PL_COLUMNS: PeopleColumn[] = [
       </td>
     ),
   },
-  { key: "reach", label: "Reach", sortable: false, cell: plReachCell },
+  // The wire they last wrote on and the one way to reach them there; off until asked for, since the State cell and the
+  // thread's own reply box say what a reply may be (Ruben, 9 Oct 2026).
+  {
+    key: "reach",
+    label: "Reach",
+    sortable: false,
+    on: false,
+    hint: "The wire they last wrote on, and how to reach them there",
+    width: { base: 150, min: 124, max: 260, grow: 1 },
+    csv: { head: "Reach", cell: (p) => rowReachWords(p, !plIsNumber(p.name) && !plIsAddress(p)).wire ?? "" },
+    cell: plReachCell,
+  },
   // When over who: the column the table is sorted by reads by its time, and the speaker sits under it.
   {
     key: "last",
     label: "Last contact",
     sortable: true,
+    sortValue: plLastSort,
+    hint: "When you last spoke, and who spoke",
+    width: { base: 124, min: 112, max: 240, grow: 1 },
+    csv: { head: "Last contact", cell: (p) => p.lastContact.label },
     cell: (p) => (
-      <td key="last" className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>
+      <td key="last" className="dim cl-last-cell" title={plWhen(p.lastContact.at)}>
         <span className="cl-row-last">
           <span className="cl-row-last-when">{p.lastContact.when || p.lastContact.by}</span>
           {p.lastContact.when && <span className="cl-row-last-by">{p.lastContact.by}</span>}
@@ -360,7 +400,17 @@ export const PL_COLUMNS: PeopleColumn[] = [
       </td>
     ),
   },
-  { key: "visits", label: "Visits", sortable: true, needs: (x) => !!x.withCalendar, cell: plVisitsCell },
+  {
+    key: "visits",
+    label: "Visits",
+    sortable: true,
+    sortFirst: "asc",
+    sortValue: plVisitsSort,
+    needs: (x) => !!x.withCalendar,
+    width: { base: 144, min: 120, max: 240, grow: 1 },
+    csv: { head: "Next visit", cell: (p) => p.nextVisit || "" },
+    cell: plVisitsCell,
+  },
   // The receptionist's standing as the one pill (tone.ts, standing), off until asked for: "Answering" on every row said
   // nothing, and the State cell says the exception beside its pill while this column is hidden.
   {
@@ -368,13 +418,29 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "Receptionist",
     sortable: false,
     on: false,
+    hint: "Whether the receptionist is answering them",
+    width: { base: 124, min: 108, max: 200, grow: 0.5 },
+    csv: { head: "Receptionist", cell: (p) => p.receptionist.label },
     cell: (p) => (
       <td key="receptionist" className="cl-recept-cell">
         <StatePill kind="standing" value={p.receptionist.tone} label={p.receptionist.label} testid="row-receptionist" />
       </td>
     ),
   },
-  { key: "offers", label: "Offers", sortable: true, cell: plOffersCell },
+  // Whether they said yes to offers and news: the fact that gates every campaign, and so a column a member asks for (an
+  // export carries the consent whether it shows or not).
+  {
+    key: "offers",
+    label: "Offers",
+    sortable: true,
+    sortFirst: "asc",
+    sortValue: plOffersSort,
+    on: false,
+    hint: "Whether they said yes to offers and news",
+    width: { base: 108, min: 96, max: 180, grow: 0.5 },
+    csv: { head: "Offers", cell: (p) => offersOf(p.consent.marketing)[0] },
+    cell: plOffersCell,
+  },
   // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says. It is
   // the Columns menu's to show (canvas P1 keeps it there): with it the table was wider than the pane at 1440.
   {
@@ -382,8 +448,11 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "Came from",
     sortable: false,
     on: false,
+    hint: "Where they first came from",
+    width: { base: 120, min: 88, max: 220, grow: 1 },
+    csv: { head: "Came from", cell: (p) => (p.cameFrom ? p.cameFrom.label : "") },
     cell: (p) => (
-      <td key="came_from" className="shrink dim cl-came-cell" data-testid="row-came-from">
+      <td key="came_from" className="dim cl-cut cl-came-cell" data-testid="row-came-from">
         {p.cameFrom ? p.cameFrom.label : ""}
       </td>
     ),
@@ -394,14 +463,32 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "First contact",
     sortable: false,
     on: false,
+    hint: "When they first wrote or phoned",
+    width: { base: 124, min: 108, max: 200, grow: 0.5 },
+    csv: { head: "First contact", cell: (p) => (p.firstContact.label !== "—" ? p.firstContact.label : "") },
     cell: (p) => (
       <td
         key="since"
-        className="shrink dim cl-since-cell"
+        className="dim cl-cut cl-since-cell"
         data-testid="row-since"
         title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : undefined}
       >
         {p.firstContact.label !== "—" ? p.firstContact.label : ""}
+      </td>
+    ),
+  },
+  // Their number on its own: Reach says it only beside the wire they last wrote on, and a number is the fact an owner
+  // copies. A long address is cut with an ellipsis in its own cell, its whole in the tip.
+  {
+    key: "phone",
+    label: "Phone",
+    sortable: false,
+    on: false,
+    width: { base: 152, min: 136, max: 220, grow: 0.5 },
+    csv: { head: "Phone", cell: (p) => p.phone || "" },
+    cell: (p) => (
+      <td key="phone" className="dim cl-cut tabular cl-phone-cell" title={p.phone || undefined} data-testid="row-phone">
+        {p.phone || ""}
       </td>
     ),
   },
@@ -410,9 +497,28 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "Email",
     sortable: false,
     on: false,
+    width: { base: 220, min: 140, max: 360, grow: 1 },
+    csv: { head: "Email", cell: (p) => p.email || "" },
     cell: (p) => (
-      <td key="email" className="shrink dim cl-email-cell" data-testid="row-email">
+      <td key="email" className="dim cl-cut cl-email-cell" title={p.email || undefined} data-testid="row-email">
         {p.email || ""}
+      </td>
+    ),
+  },
+  // How many times they have called, as a number against the column's right edge with its heading.
+  {
+    key: "calls",
+    label: "Calls",
+    sortable: true,
+    sortValue: plCallsSort,
+    on: false,
+    align: "end",
+    hint: "How many calls you have had with them",
+    width: { base: 84, min: 72 },
+    csv: { head: "Calls", cell: (p) => String(p.calls) },
+    cell: (p) => (
+      <td key="calls" className="dim num cl-calls-cell" data-testid="row-calls">
+        {p.calls > 0 ? p.calls : ""}
       </td>
     ),
   },
@@ -421,11 +527,15 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "Lists",
     sortable: false,
     on: false,
-    cell: (p, x) => (
-      <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">
-        {(x.listsOf[p.id] || []).join(", ")}
-      </td>
-    ),
+    width: { base: 180, min: 108, max: 320, grow: 1 },
+    cell: (p, x) => {
+      const names = (x.listsOf[p.id] || []).join(", ");
+      return (
+        <td key="lists" className="dim cl-cut cl-lists-cell" title={names || undefined} data-testid="row-lists">
+          {names}
+        </td>
+      );
+    },
   },
   // The deal's stage as the one pill (0004), off until asked for, and offered only where deals are a thing here: a salon
   // never sees "Deal" in the menu. The row's second line already says a proposal waiting.
@@ -435,8 +545,10 @@ export const PL_COLUMNS: PeopleColumn[] = [
     sortable: false,
     on: false,
     needs: (x) => !!x.dealsOn,
+    width: { base: 130, min: 96 },
+    csv: { head: "Deal", cell: (p) => (p.deal ? p.deal.stage : "") },
     cell: (p) => (
-      <td key="deal" className="shrink cl-deal-cell" data-testid="row-deal">
+      <td key="deal" className="cl-deal-cell" data-testid="row-deal">
         {/* A pill per stage their open deals stand at (0029): a client with a proposal out for another service is both. */}
         {(p.openDeals.length ? [...new Set(p.openDeals.map((d) => d.stage))] : p.deal ? [p.deal.stage] : []).map(
           (s) => (
@@ -451,8 +563,9 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "",
     sortable: false,
     fixed: true,
+    width: { base: 84 },
     cell: (p, x) => (
-      <td key="actions" className="shrink cl-actions-cell">
+      <td key="actions" className="cl-actions-cell">
         <PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} />
       </td>
     ),
@@ -497,3 +610,6 @@ export const PL_PHONE_COLUMNS: PeopleColumn[] = [
   { key: "card", label: "Person", sortable: false, pinned: true, cell: plCardCell },
 ];
 export const plCardRowClass = (): string => "pl-card-row";
+
+/** The columns a file of the people shown follows where the page has no table of its own to follow (the Pipeline's): the ones on by default. */
+export const PL_FILE_COLUMNS: readonly PeopleColumn[] = PL_COLUMNS.filter((c) => c.on !== false);

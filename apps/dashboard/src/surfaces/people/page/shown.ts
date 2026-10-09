@@ -3,45 +3,9 @@
  * rows and what the server found, the state, the list and the words.
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
-import type { SavedList, SmartList } from "../types";
+import { plCompare, plLastSort } from "../cells/sorts";
+import type { SavedList, SmartList, TableColumn } from "../types";
 import { plMatcher, plWithFound } from "../words";
-
-/** Where the visits behind us sort from: past every offset a visit ahead can have, most recent first (as the JSX wrote it, 1e15). */
-const PAST_VISITS_FROM = 1e15;
-
-/** By state: who needs a person first, then who is waiting on one, then the rest in the rail's order. Never heard from sits with the quiet (decision 0009). */
-const STATE_ORDER: Record<string, number> = {
-  needs_you: 6,
-  waiting_on_you: 5,
-  opted_out: 4,
-  new: 3,
-  quiet: 2,
-  unheard: 1,
-  active: 0,
-};
-const OFFER_RANK: Record<string, number> = { opted_in: 0, unknown: 1, opted_out: 2 };
-
-/** What a row sorts by under a heading: the name, the state, the visit, the offers answer, else the last contact. */
-function sortKeyOf(p: PersonRowVM, sortBy: string, sortDir: string): number | string {
-  switch (sortBy) {
-    case "name":
-      return p.name.toLowerCase();
-    case "state":
-      return STATE_ORDER[p.state] ?? 0;
-    // Ahead first (soonest), then the most recent visit, then never.
-    case "visits": {
-      const none = sortDir === "asc" ? Infinity : -Infinity;
-      return p.nextVisitMs ?? (p.lastVisitMs !== null ? PAST_VISITS_FROM + (PAST_VISITS_FROM - p.lastVisitMs) : none);
-    }
-    case "offers":
-      return OFFER_RANK[p.consent.marketing] ?? 1;
-    // The soonest step first, and a row with none last whichever way the heading is pressed: the day keys sort as text.
-    case "next":
-      return p.nextStep ? p.nextStep.day.day : sortDir === "asc" ? "~" : "";
-    default:
-      return p.lastContact.ts ?? -Infinity;
-  }
-}
 
 export function plPeopleShown({
   rows,
@@ -54,6 +18,7 @@ export function plPeopleShown({
   q,
   sortBy,
   sortDir,
+  columns,
 }: {
   rows: PersonRowVM[];
   found: PersonRowVM[] | null;
@@ -65,6 +30,8 @@ export function plPeopleShown({
   q: string;
   sortBy: string;
   sortDir: string;
+  /** The columns, whose `sortValue` says what each heading sorts by; an unknown heading sorts by the last contact. */
+  columns: readonly Pick<TableColumn<PersonRowVM>, "key" | "sortValue">[];
 }): PersonRowVM[] {
   let list = found ? plWithFound(rows, found) : rows;
   if (tab !== "all") list = list.filter((p) => p.state === tab);
@@ -80,17 +47,16 @@ export function plPeopleShown({
   }
   const match = plMatcher(q);
   if (match) list = list.filter(match);
+  const valueOf = columns.find((c) => c.key === sortBy)?.sortValue ?? plLastSort;
   return [...list].sort((a, b) => {
-    let av = sortKeyOf(a, sortBy, sortDir);
-    let bv = sortKeyOf(b, sortBy, sortDir);
+    let av = valueOf(a, sortDir);
+    let bv = valueOf(b, sortDir);
     // Offers ties fall to the last contact, as the default does.
     if (sortBy === "offers" && av === bv) {
-      av = a.lastContact.ts ?? -Infinity;
-      bv = b.lastContact.ts ?? -Infinity;
+      av = plLastSort(a);
+      bv = plLastSort(b);
     }
-    // A number against a number, a string against a string: the one comparison JavaScript's < makes of either.
-    if ((av as number) < (bv as number)) return sortDir === "asc" ? -1 : 1;
-    if ((av as number) > (bv as number)) return sortDir === "asc" ? 1 : -1;
-    return 0;
+    const order = plCompare(av, bv);
+    return sortDir === "asc" ? order : -order;
   });
 }

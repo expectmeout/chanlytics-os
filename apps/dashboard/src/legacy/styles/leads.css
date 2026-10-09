@@ -782,8 +782,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 }
 
 /* The phone (900px and under): the D5 row as a card -- the tile and the name, the two slots and the rating
-   under them, the 44px Call at the end. A phone draws every column, the ones switched off too (plDrawnColumns: a
-   member's choices are a desktop's), so each cell is placed on an area here or hidden here. A cell naming an area
+   under them, the 44px Call at the end. A phone draws every column its card has, whatever a member turned off
+   (a member's choices are a desktop's), so each cell is placed on an area here or hidden here. A cell naming an area
    the template lacks is not dropped: it opens implicit tracks past the grid. Fit and Stage still named the areas
    of the card before D5, and those tracks squeezed the name to a few letters and put Call mid-card. */
 @media (max-width: 900px) {

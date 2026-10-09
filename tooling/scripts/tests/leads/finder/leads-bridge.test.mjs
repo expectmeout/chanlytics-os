@@ -449,6 +449,38 @@ test("a view the tab read since the last change paints with no read behind it; a
   }
 });
 
+test("REGRESSION: a change in the millisecond a view was read is still a change -- the surface set the time of the change against the time of the read, and on a fast machine the two were equal", async () => {
+  // The clock does not move in this test, as on a machine that reads a view and hears a change inside one millisecond
+  // (CI's runners, 9 Oct 2026: the two tests around this one failed there, a different one each run).
+  const keepNow = Date.now;
+  const now = Date.now();
+  Date.now = () => now;
+  try {
+    const w = wire({
+      searches: [SEARCH_DONE],
+      counts: COUNTS,
+      rows: (q) => (q.list === "ready" ? READY : NURTURE),
+    });
+    await leadsView("clients/leads:l-ready");
+    await leadsView("clients/leads:l-nurture");
+    let at = w.reads.length;
+    await leadsView("clients/leads:l-ready");
+    assert.equal(w.reads.length, at, "held since the last change: nothing is read, though no time has passed");
+    // A change, heard with Ready on screen: Ready is read here (apply), and Nurture is held from before it.
+    await leadsOverride.apply();
+    at = w.reads.length;
+    await leadsView("clients/leads:l-nurture");
+    assert.ok(w.reads.length > at, "REGRESSION: the view held from before the change was not read again");
+    // What was asked after the change is fresh: neither is read a second time for it.
+    at = w.reads.length;
+    await leadsView("clients/leads:l-ready");
+    await leadsView("clients/leads:l-nurture");
+    assert.equal(w.reads.length, at, "and a view asked since the change is not read again for it");
+  } finally {
+    Date.now = keepNow;
+  }
+});
+
 test("a failed read is its own state, never an empty list", async () => {
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, fail: "GET /api/v1/leads" });
   await leadsOverride.apply().catch(() => {});

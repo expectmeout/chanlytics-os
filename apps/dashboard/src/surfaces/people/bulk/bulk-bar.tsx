@@ -10,6 +10,7 @@
 import type { ReactNode } from "react";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import type { Flash, SavedList } from "../types";
+import type { FileColumn } from "./bulk-state";
 import { bulkActs, bulkCtx } from "./bulk-acts";
 import { useBulkState } from "./bulk-state";
 import { deskBulk } from "./desk-bulk";
@@ -32,6 +33,7 @@ export function PeopleBulkBar({
   onSelectAll = null,
   lead = null,
   acts = null,
+  fileColumns = null,
 }: {
   sel: ReadonlySet<string>;
   rows: readonly PersonRowVM[];
@@ -49,6 +51,7 @@ export function PeopleBulkBar({
   onSelectAll?: (() => void) | null;
   lead?: ReactNode;
   acts?: readonly string[] | null;
+  fileColumns?: readonly FileColumn[] | null;
 }) {
   const st = useBulkState();
   const b = bulkCtx(
@@ -69,6 +72,7 @@ export function PeopleBulkBar({
       onSelectAll,
       lead,
       acts,
+      fileColumns,
     },
     st,
   );

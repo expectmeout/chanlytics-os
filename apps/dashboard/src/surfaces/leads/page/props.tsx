@@ -120,6 +120,7 @@ export const leadsListProps = (p: LeadsPage) => {
     loading: !p.viewLanded,
     total: leads.counts[leadView.list] ?? leads.counts.all,
     columns: p.columns,
+    layout: p.layout,
     colOptions: p.colOptions,
     onPickColumn: p.pickColumn,
     cellCtx: p.cellCtxLeads,

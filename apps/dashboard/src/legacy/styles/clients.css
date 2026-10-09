@@ -277,6 +277,8 @@
   align-items: center;
   gap: 8px;
 }
+/* The file acts (Import, Export; Leads' map and Values too) stand beside Columns as words. */
+.pl-file-acts { display: flex; align-items: center; gap: 8px; }
 
 /* === Buckets section wrapper === */
 .cl-buckets {
@@ -1905,6 +1907,7 @@
 /* ---- The table: who, at a glance; actions on hover; a keyboard row; cards when narrow ---- */
 .tabular { font-variant-numeric: tabular-nums; }
 .cl-row-fullname { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cl-row-fullname > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: 10.5px; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { opacity: 1; }
 .cl-row-name-them:hover { color: var(--accent); }
@@ -1919,8 +1922,6 @@
 .cl-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
 .cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--ink-dim); background: var(--bg-raised); }
-/* The lists a person is on: one quiet line, cut with an ellipsis rather than widening the table. */
-.cl-table td.cl-lists-cell { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The Columns menu is the kit's (kit.css draws its ticks and Person's lock). A phone draws cards, not columns. */
 @media (max-width: 900px) { .pl-cols { display: none; } }
 /* People's controls wrap on a desktop too. Beside the sidebar and the rail, Add a person, Export CSV, Columns and the
@@ -2002,9 +2003,53 @@
   .pl-table-scroll.scrolled .pl-pin { border-right-color: var(--line); }
   /* The cursor's edge, on the first cell: a pinned cell paints over the row's own. */
   .pl-table tbody tr.focused > td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
-  /* A column the member turned off: its heading and its cells are drawn, and only here are they hidden. A member's
-     choices are a desktop's; a card keeps the facts it draws by default (plDrawnColumns). */
-  .pl-table th.pl-col-off, .pl-table td.pl-col-off { display: none; }
+}
+
+/* ---- The widths are the columns' own (surfaces/people/table/layout.ts) ---------------------------------------------
+   On a desktop the table is a fixed layout: each column is as wide as its <col> says, settled from what the column
+   declares, the room the table has and what the member dragged. So a heading's words, a long address or a step on
+   one row never move another column, and what a cell cannot show ends in an ellipsis in ITS column, not in a number
+   of characters the page guessed. A cell does not wrap; a plain-text one (cl-cut) is cut, and one that holds a hover
+   card is not, since the card is drawn inside the cell. */
+@media (width > 900px) {
+  .pl-table[data-fixed] { table-layout: fixed; width: 100%; }
+  .pl-table[data-fixed] td { white-space: nowrap; }
+  .pl-table[data-fixed] td.cl-cut { overflow: hidden; text-overflow: ellipsis; }
+  .pl-table[data-fixed] thead th { overflow: hidden; }
+  /* Where a cell's words end the cell does: an ellipsis, never into the next column. */
+  .pl-table[data-fixed] :is(.cl-row-step-when, .cl-row-last-when, .cl-row-last-by, .cl-row-reach-wire, .cl-row-reach-id:not(.tabular), .cl-row-reach-may, .ld-stage-cell .cl-row-meta) { overflow: hidden; text-overflow: ellipsis; }
+  /* The empty table's one sentence wraps: it is the row's, not a cell's of the columns. */
+  .pl-table[data-fixed] td.pl-nobody-cell { white-space: normal; }
+  /* A number sits against the column's right edge, with its heading. */
+  .pl-table thead th[data-align="end"] { text-align: right; }
+  /* A heading that sorts is pressed anywhere in its cell: the button's own box is the words, and this is the rest of it. */
+  .pl-table thead .cl-th-sort::after { content: ""; position: absolute; inset: 0; }
+  /* The caret says which headings sort before one does: faint at rest, nearer on approach, the arrow once it is the sort. */
+  .pl-table thead .sort-arr[data-idle] { color: var(--ink-faint); opacity: 0.55; transition: opacity 120ms ease; }
+  .pl-table thead th:hover .sort-arr[data-idle], .pl-table thead .cl-th-sort:focus-visible .sort-arr[data-idle] { opacity: 1; }
+  /* The edge: a thin separator at the heading's right, wider to hit than to see. It is the keyboard's too (it takes focus). */
+  .pl-edge { position: absolute; top: 0; right: 0; bottom: 0; z-index: 1; width: 10px; cursor: col-resize; touch-action: none; outline: none; }
+  .pl-edge::after { content: ""; position: absolute; top: 26%; right: 4px; bottom: 26%; width: 1px; background: var(--line-strong); opacity: 0; transition: opacity 120ms ease; }
+  .pl-table thead th:hover .pl-edge::after, .pl-edge:focus-visible::after { opacity: 1; }
+  .pl-edge:hover::after, .pl-edge[data-dragging]::after { opacity: 1; width: 2px; right: 3px; background: var(--ink-muted); }
+  .pl-edge[data-dragging]::after { background: var(--ink); }
+  .pl-edge:focus-visible::after { background: var(--ink); }
+  .pl-edge:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+  /* A column dragged over another says on which side it would land. */
+  .pl-table thead th[data-drop]::before { content: ""; position: absolute; top: 0; bottom: 0; z-index: 1; width: 2px; background: var(--ink); }
+  .pl-table thead th[data-drop="before"]::before { left: 0; }
+  .pl-table thead th[data-drop="after"]::before { right: 0; }
+  /* Compact: a row is one line. What the second line said goes beside the first (their words after the name, a step's
+     day after its words, a contact's speaker after its time), and what is only a reason (the State's detail and the
+     reach's stopped mail) is the cell's tip. */
+  .pl-table-wrap[data-density="compact"] .cl-row-name-block { flex: 1 1 0; display: flex; align-items: baseline; gap: 8px; }
+  .pl-table-wrap[data-density="compact"] .cl-row-fullname { flex: 0 1 auto; }
+  .pl-table-wrap[data-density="compact"] .cl-row-words { flex: 1 1 0; min-width: 0; margin-top: 0; }
+  .pl-table-wrap[data-density="compact"] :is(.cl-row-reach, .cl-row-step, .cl-row-last) { flex-direction: row; align-items: baseline; gap: 8px; }
+  .pl-table-wrap[data-density="compact"] :is(.cl-row-state-detail, .cl-row-reach-may) { display: none; }
+  /* On one line the secondary words give way first, so the primary ones are what stays whole. */
+  .pl-table-wrap[data-density="compact"] :is(.cl-row-step-when, .cl-row-last-by, .cl-row-reach-id) { flex-shrink: 8; }
+  .main-scroll .pl-table-wrap[data-density="compact"] .cl-table td { padding-top: 4px; padding-bottom: 4px; }
 }
 
 /* ---- Where your attention matters, redrawn to the mockup ------------------
@@ -2185,23 +2230,23 @@
    accepting mail; it was a strip of glyphs, where WhatsApp and a text shared one, and then the number. */
 .cl-row-reach { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; }
 .cl-row-reach-id, .cl-row-reach-may { font-size: var(--text-xs); color: var(--ink-dim); }
-/* A long address ends in an ellipsis so the column stays narrow, and its whole is the cell's tip (columns.tsx
-   plReachCell). A number is never cut: it wears .tabular, and the tip does not say it again. */
-.cl-row-reach-id:not(.tabular) { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+/* A long address ends in an ellipsis where its column ends, and its whole is the cell's tip (columns.tsx plReachCell).
+   A number is never cut: it wears .tabular, and the tip does not say it again. */
+.cl-row-reach-id:not(.tabular) { overflow: hidden; text-overflow: ellipsis; }
 /* The next step (0007): its words over its day ("Due today", "Overdue since Mon"), two lines as the cells beside it
    are, the words cut with an ellipsis so the column stays narrow (their whole is the cell's tip), and the day in the
    warn ink once it has come: said in words too, so never by the colour alone. Named for the step, never "next":
    .cl-row-next is the next visit's day in the Visits cell, and a rule of that name here broke that day onto a line
    of its own. */
-.cl-row-step { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 18ch; }
+.cl-row-step { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cl-row-step-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); color: var(--ink); }
 .cl-row-step-when { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
 .cl-step-cell[data-due]:not([data-due="ahead"]) .cl-row-step-when { color: var(--warn-ink); font-weight: var(--weight-medium); }
 /* The last contact: when, over who, so the column the table is sorted by reads by its time. */
 .cl-row-last { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
 .cl-row-last-by { font-size: var(--text-xs); color: var(--ink-dim); }
-.cl-row-words { max-width: 52ch; margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-row-words { margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-row-state-detail { display: block; margin-top: 3px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
 /* A profile's timeline filter: the kit's sub-tabs, where the page stands them: over the rows, a gap under. */
@@ -2884,6 +2929,26 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     outline: none;
     box-shadow: var(--focus-ring);
   }
+  /* Some of the rows picked: neither on nor off, a dash in the box. */
+  .main-scroll .cl-check:indeterminate {
+    background: var(--count-fill);
+    box-shadow: none;
+  }
+  .main-scroll .cl-check:indeterminate:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+  .main-scroll .cl-check:indeterminate::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 7px;
+    width: 8px;
+    height: 2px;
+    background: var(--count-ink);
+  }
+  .main-scroll .cl-table th .cl-check:indeterminate {
+    opacity: 1;
+  }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
   .main-scroll .cl-list-action {
     margin: 0 10px 12px;
@@ -2949,14 +3014,11 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   .main-scroll .cl-table th .cl-check:checked {
     opacity: 1;
   }
-  /* A row's words and its state's detail say a line each and end in an ellipsis, so the Person column stays the width
-     the canvas gives it and the table fits the pane at 1440 without a bar across it. */
-  .main-scroll .cl-row-words {
-    max-width: 24ch;
-  }
+  /* A row's words and its state's detail say a line each and end in an ellipsis where their column ends (the column's
+     width is its own, table/layout.ts), and a visit the same. */
   .main-scroll .cl-row-visit {
     display: block;
-    max-width: 132px;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2983,6 +3045,20 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
 }
 
 /* On a phone the head is the date and the name; where the page stands is said once, in the line under the list's picker. */
+/* A row's box for a selection is not there until a pointer reaches the row, the keyboard is on it or anyone is picked, as
+   the Inbox's is (I1): it was faint on every row at rest. A screen with no pointer cannot reach a row, so there the box
+   and the row's acts and its "Name them" stay drawn. */
+@media (hover: hover) {
+  .main-scroll .cl-table td .cl-check { opacity: 0; }
+  .main-scroll .cl-table tr:is(:hover, .focused, .selected) td .cl-check,
+  .main-scroll .cl-table-wrap.selecting td .cl-check,
+  .main-scroll .cl-table td .cl-check:is(:checked, :focus-visible) { opacity: 1; }
+}
+@media (hover: none) {
+  .cl-row-actions, .cl-row-name-them { opacity: 1; }
+  .pl-edge::after { opacity: 0.6; }
+}
+
 @media (max-width: 900px) {
   .main-scroll:has(> .clients) > header .pg-sentence {
     display: none;

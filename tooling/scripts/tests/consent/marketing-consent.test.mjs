@@ -57,6 +57,7 @@ import { personRow } from "./_person-row.mjs";
 // People's Offers column and its sort, from the code the page runs (surfaces/people/), not a scan of it.
 const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 const { plPeopleShown } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
+const { plFirstDir } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
 
 test("which question a customer's message answers", () => {
   // The split. One pattern used to match both, so one message gave one yes.
@@ -634,9 +635,13 @@ test('every read of "said yes to offers" points at the offers column', () => {
       q: "",
       sortBy: "offers",
       sortDir,
+      columns: PL_COLUMNS,
     }).map((p) => p.id);
   assert.deepEqual(sortedBy("asc"), ["y", "u", "n"], "and sorting by it sorts by it: yes, not asked, no");
   assert.deepEqual(sortedBy("desc"), ["n", "u", "y"]);
+  // The heading's first press goes ascending, so Yes comes first: the column says which way it starts, and the sort
+  // above is exactly as told, whichever way it is asked.
+  assert.equal(plFirstDir(PL_COLUMNS, "offers"), "asc", "a first press on Offers lists the yeses first");
 
   const exp = readCode("apps/dashboard/src/server/export/export.ts");
   assert.match(exp, /\["offers_consent", \(r\) => r\.marketing_consent \?\? "unknown"\]/);

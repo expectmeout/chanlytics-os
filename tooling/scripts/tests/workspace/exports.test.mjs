@@ -411,14 +411,17 @@ test("the pages link to the routes, and only where the bridge can name the works
     if (had) Object.defineProperty(globalThis, "window", had);
     else delete globalThis.window;
   }
-  // The desk's file is an item of the page's file menu (page/screen.tsx, canvas P1), drawn and pressed in
-  // people-honest.test.mjs (people-file-menu): the link is opened in place.
-  const people = readRaw("apps/dashboard/src/surfaces/people/page/screen.tsx");
-  assert.ok(people.includes('window.open(exportHref, "_self")'));
+  // The desk's file is a quiet Export button after Columns (page/file-acts.tsx; the ⋯ More menu that folded it away is gone),
+  // drawn and pressed in people-honest.test.mjs (people-export): the link is opened in place.
+  const fileActs = readRaw("apps/dashboard/src/surfaces/people/page/file-acts.tsx");
+  assert.ok(fileActs.includes('window.open(exportHref, "_self")'));
   assert.ok(
-    people.includes('!canDo("export")') &&
-      people.includes('{ label: "Export CSV", icon: "external", gate: gate("export") }'),
-    "a non-owner sees an item that says why, not a refusal",
+    fileActs.includes('!canDo("export")') && fileActs.includes('...gate("export")'),
+    "a non-owner sees a button that says why, not a refusal",
+  );
+  assert.ok(
+    fileActs.indexOf('!canDo("export")') < fileActs.indexOf("window.open("),
+    "and the role is asked before the link is: a role that may not never reaches the door",
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__href = href;"));

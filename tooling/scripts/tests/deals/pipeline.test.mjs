@@ -1350,12 +1350,31 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map((n) => textOf(n)),
-    ["", "Person", "Value", "Where it stands▲", "Next step", "More"],
+    // A heading that sorts wears an arrow at its end: the sort's own (▲) once it is the order, else a quiet idle caret (↕) so
+    // the ones that sort can be told from More, which does not (a span, no caret).
+    ["", "Person↕", "Value↕", "Where it stands▲", "Next step↕", "More"],
   );
   assert.deepEqual(
     all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
-    ["Person", "Value", "Where it stands▲", "Next step"],
+    ["Person↕", "Value↕", "Where it stands▲", "Next step↕"],
     "the headings that sort are buttons, and where it stands is the order it opens in",
+  );
+  assert.deepEqual(
+    all(tree, (n) => n.props?.className === "sort-arr").map((n) => [textOf(n), n.props["data-idle"]]),
+    [
+      ["↕", "true"],
+      ["↕", "true"],
+      ["▲", undefined],
+      ["↕", "true"],
+    ],
+    "the caret is idle on the headings that are not the order, and the arrow of the one that is is not",
+  );
+  assert.equal(
+    all(tree, (n) => n.props?.className === "cl-th-text")
+      .map(textOf)
+      .join("|"),
+    "More",
+    "a heading that does not sort is a span of words, not a button",
   );
   // Each row: People's own person cell with the service under the name, the value, the time in stage, and the chip in its tone.
   const wes = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
@@ -1768,7 +1787,7 @@ test("on a phone: one bar with the view's list button and search, New proposal i
     // Beside three scopes a narrow phone has room for one word: the act says "New" with its mark, and the rest gives way.
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-keep")), "New");
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-rest")), " proposal");
-    assert.equal(byTestId(bar, "pipeline-phone-search-open").props["aria-label"], "Search by name or phone");
+    assert.equal(byTestId(bar, "pipeline-phone-search-open").props["aria-label"], "Search names, numbers and emails");
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
     assert.match(card.props.className, /\bpl-card-row\b/);
@@ -3235,7 +3254,7 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map(textOf),
-    ["", "Person", "Where it stands▲"],
+    ["", "Person↕", "Where it stands▲"],
   );
   // Closed again, the table has all its columns back.
   press("Escape");
