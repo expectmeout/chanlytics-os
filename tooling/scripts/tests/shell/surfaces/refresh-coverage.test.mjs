@@ -166,6 +166,24 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
   }
 });
 
+test("a playbook paused, renamed or retimed in another tab is heard where Campaigns draws it: the playbooks and the reach-outs surfaces, which hear a run made or moved too (00364)", async () => {
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
+  const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
+  const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
+  assert.ok(watchedTables().includes("playbooks"), "the database tells a workspace about its playbooks");
+  const change = (table) => ({ table, event: "UPDATE", row: {} });
+  for (const o of [playbooksOverride, reachOutsOverride]) {
+    for (const table of ["playbooks", "broadcasts"]) {
+      assert.equal(wantsRefresh(o, table), true, `${o.key} hears ${table}`);
+      assert.equal(wantsRefresh(o, table, change(table)), true, `${o.key}: ${table} heard on any page`);
+    }
+  }
+  // A message is no chain's: the chains' read never hears one.
+  for (const table of ["messages", "conversations", "escalations"])
+    assert.equal(wantsRefresh(reachOutsOverride, table), false, `reach_outs: ${table} is not its`);
+});
+
 test("a write that moves the listing, its reviews or the day a review is counted on makes the Reviews lens's read forgotten, not read from the page it was made on; a reply posted, and a reply mode saved, name it", async () => {
   // The lens counts the reviews of a period by the day Google dates them in the workspace's zone, and who answered. Settings' Google verbs
   // and the zone are never made from the lens, so its read is dropped (as a template written is for the Inbox) and read as the lens comes

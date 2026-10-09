@@ -26912,6 +26912,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.person_notes REFEREN
 
 
 --
+-- Name: playbooks workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.playbooks REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: reach_out_replies workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -27087,6 +27094,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.person_notes REFEREN
 
 
 --
+-- Name: playbooks workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.playbooks REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: reach_out_replies workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -27245,6 +27259,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.messages REFERENCING
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.person_notes REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: playbooks workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.playbooks REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --

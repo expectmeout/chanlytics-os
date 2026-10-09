@@ -276,10 +276,10 @@ export const playbooksOverride: SurfaceOverride = {
   key: "playbooks",
   value: "playbooks",
   events: ["surface:playbooks"],
-  // A run the sweep made, or one approved or stopped elsewhere (00321), moves a playbook's row and its "next run":
-  // heard wherever the tab is. A message moves a playbook's replies: read again only while its page is on screen, and
-  // once when it comes back (surface-registry.ts).
-  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts"],
+  // A run the sweep made, or one approved or stopped elsewhere (00321), and a playbook paused, renamed or retimed by a
+  // teammate (00364), move a playbook's row and its "next run": heard wherever the tab is. A message moves a playbook's
+  // replies: read again only while its page is on screen, and once when it comes back (surface-registry.ts).
+  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts", "playbooks"],
   refreshWhen: onlyOnItsPage("playbooks", DEFAULT_REFRESH_TABLES),
   apply: async () => {
     const [pb, tpl, ch, cfg] = await Promise.all([
