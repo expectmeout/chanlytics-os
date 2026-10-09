@@ -1,5 +1,6 @@
 /**
- * Where a sign-in comes back to, for a deep link into a workspace (apps/dashboard/src/auth/sign-in-return.ts).
+ * Where a sign-in comes back to, for a deep link into a workspace (apps/dashboard/src/auth/sign-in-return.ts, and its
+ * workspace's query, workspace-return.ts).
  *
  * The address was a hash, and the browser carried a fragment through the gate's redirect to /login on its own. A route
  * is a path now (decision 0015), which the redirect would drop: a signed-out tab opening /w/acme/inbox/th-1 would sign
@@ -11,9 +12,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { returnFragmentOf, returnQueryOf, signInReturnOf } = await importSrc(
-  "apps/dashboard/src/auth/sign-in-return.ts",
-);
+const { returnFragmentOf, signInReturnOf } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
+const { returnQueryOf } = await importSrc("apps/dashboard/src/auth/workspace-return.ts");
 const { routeOfHash, routeOfPath } = await import("@chanlytics/contracts");
 
 test("a page of a workspace comes back as its route, in the fragment the sign-in page keeps", () => {

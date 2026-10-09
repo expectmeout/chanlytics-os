@@ -18,7 +18,7 @@
  */
 import { doorOf, movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
-import { askedWorkspaceOf, returnQueryOf } from "../auth/sign-in-return";
+import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 
 const LAST_KEY = "chanlytics.workspace";
@@ -76,7 +76,7 @@ export function rememberWorkspace(slug: string | null): void {
 }
 
 /**
- * Where the home sends a tab: the workspace a sign-in came back for (`?w=`, sign-in-return.ts), else the last
+ * Where the home sends a tab: the workspace a sign-in came back for (`?w=`, workspace-return.ts), else the last
  * workspace used, else the one the server calls active, else nowhere (an account with no workspace stays, and the
  * app shows the create screen). The rest of the query and the hash ride along, so a return from Stripe or a deep
  * link lands where it meant to.

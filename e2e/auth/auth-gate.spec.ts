@@ -36,7 +36,7 @@ test.describe("unauthenticated", () => {
   }) => {
     // A route is a path (decision 0015), which a redirect drops; the fragment reaches no server and no log, so the gate
     // writes it there, and the sign-in page keeps it and lands on it. The workspace is the gate's own query value, so a
-    // member of two lands in the one the link named (sign-in-return.ts).
+    // member of two lands in the one the link named (sign-in-return.ts, workspace-return.ts).
     await page.goto("/w/acme/inbox/th-1?private=1", { waitUntil: "domcontentloaded" });
     const at = new URL(page.url());
     expect(at.pathname).toBe("/login");

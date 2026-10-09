@@ -7,7 +7,8 @@ import { writeAuthCookies } from "@/server/auth-cookies";
 import { env, isProduction, servedOverHttps } from "@/server/env";
 import { publicEnv } from "@/lib/public-env";
 import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
-import { returnFragmentOf, returnQueryOf } from "@/auth/sign-in-return";
+import { returnFragmentOf } from "@/auth/sign-in-return";
+import { returnQueryOf } from "@/auth/workspace-return";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every

@@ -2,7 +2,7 @@
  * Where a 401 sends the tab, and what it leaves behind.
  *
  * A session the gate no longer knows is a 401 on any read or write: the tab drops what it kept and goes to /login,
- * carrying the page's route and workspace (sign-in-return.ts), so signing in lands where it was. Two things went wrong
+ * carrying the page's route and workspace (sign-in-return.ts, workspace-return.ts), so signing in lands where it was. Two things went wrong
  * on the way. The tab's cache was cleared and not sealed, so a read landing before the page unloaded wrote one person's
  * rows back for whoever signed in next on that tab (as a sign-out once did, defect 52). And a route that declares
  * `fresh` (erasing a person, an export, the team, billing, deleting the account) refused a session the Auth server no

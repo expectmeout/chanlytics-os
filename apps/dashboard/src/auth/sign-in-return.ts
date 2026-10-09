@@ -14,44 +14,19 @@
  * was asked for: no log learns anything from it that the request's own line did not say. The page's own query never
  * travels.
  *
- * No imports: the gate runs on every request, and nothing else here should come along.
+ * This module is the sign-in pages' and the server's: the route's fragment and what the sign-in carries on. The
+ * workspace's query, which the gate writes and the shell reads, is workspace-return.ts, and the few lines both read a
+ * workspace by are return-workspace.ts, so the workspace route draws only those beside the sign-in pages.
+ *
+ * Its one import imports nothing: the gate runs on every request, and nothing else here should come along.
  */
-
-/** The query value the sign-in bounce carries the workspace in: `/login?w=acme`. */
-const RETURN_WORKSPACE = "w";
-
-/**
- * A workspace as a return may name it: its slug or its id, as a path writes either (letters, digits and dashes, a
- * letter or digit at each end, no longer than a slug can be). Anything else names none, so a value written into a
- * link to /login can only ever send a signed-in tab to a workspace's own address on this site, where the server
- * decides whether it is theirs.
- */
-const WORKSPACE_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?$/;
-function returnWorkspace(value: string | null | undefined): string | null {
-  return typeof value === "string" && WORKSPACE_NAME.test(value) ? value : null;
-}
+import { RETURN_WORKSPACE, returnWorkspace } from "./return-workspace";
 
 /** The fragment the sign-in bounce carries for a workspace page: `#/inbox/th-1`, and nothing for the workspace's own page. */
 export function returnFragmentOf(pathname: string): string {
   const m = /^\/w\/[^/?#]+\/([^?#]+)$/.exec(pathname);
   const route = m?.[1]?.replace(/\/+$/, "");
   return route ? `#/${route}` : "";
-}
-
-/** The workspace a path names, `/w/<slug>`, when a return may carry it; null for any other path or a malformed escape. */
-function workspaceOfPath(pathname: string): string | null {
-  const m = /^\/w\/([^/?#]+)/.exec(pathname);
-  try {
-    return m ? returnWorkspace(decodeURIComponent(m[1] ?? "")) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The query the sign-in bounce carries for a workspace page, its own page included: `?w=acme`; nothing off one. */
-export function returnQueryOf(pathname: string | null | undefined): string {
-  const named = workspaceOfPath(pathname ?? "");
-  return named ? `?${RETURN_WORKSPACE}=${encodeURIComponent(named)}` : "";
 }
 
 /**
@@ -63,19 +38,4 @@ export function returnQueryOf(pathname: string | null | undefined): string {
 export function signInReturnOf(address: { search?: string | null; hash?: string | null }): string {
   const named = returnWorkspace(new URLSearchParams(address.search ?? "").get(RETURN_WORKSPACE));
   return `${named ? `?${RETURN_WORKSPACE}=${encodeURIComponent(named)}` : ""}${address.hash ?? ""}`;
-}
-
-/**
- * The workspace a landing was asked for (`?w=acme`, as signInReturnOf carried it), and what rides on without it: the
- * home prefers it over the workspace this browser used last. `after` is the landing's query and fragment.
- */
-export function askedWorkspaceOf(after: string): { workspace: string | null; rest: string } {
-  const at = after.indexOf("#");
-  const query = at < 0 ? after : after.slice(0, at);
-  const params = new URLSearchParams(query);
-  if (!params.has(RETURN_WORKSPACE)) return { workspace: null, rest: after };
-  const workspace = returnWorkspace(params.get(RETURN_WORKSPACE));
-  params.delete(RETURN_WORKSPACE);
-  const left = params.toString();
-  return { workspace, rest: `${left ? `?${left}` : ""}${at < 0 ? "" : after.slice(at)}` };
 }
