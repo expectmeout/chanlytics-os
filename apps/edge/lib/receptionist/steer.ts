@@ -89,13 +89,13 @@ function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, work
 }
 
 /**
- * Why a draft cannot be rewritten, or null when it can: it is not the receptionist's draft waiting its turn, or its
- * send job has claimed it (sending_at, 00352) and it is on its way to the customer, queued only until the provider
- * answers. There is nothing left to rewrite then, and the model is not asked.
+ * The door's refusal of a draft that cannot be rewritten, or null when it can: it is not the receptionist's draft
+ * waiting its turn, or its send job has claimed it (sending_at, 00352) and it is on its way to the customer, queued only
+ * until the provider answers. There is nothing left to rewrite then, and the model is not asked.
  */
-function notRewritable(m: { sender: string; status: string; sending_at: string | null }) {
-  if (m.sender !== "ai" || m.status !== "queued") return "not_a_held_draft";
-  return m.sending_at ? "already_sent" : null;
+function notRewritable(m: { sender: string; status: string; sending_at: string | null }): Response | null {
+  if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");
+  return m.sending_at ? refuse(409, "already_sent") : null;
 }
 
 /**
@@ -166,7 +166,7 @@ export async function steerHeldDraft(
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
   const held = notRewritable(m);
-  if (held) return held === "already_sent" ? refuse(409, "already_sent") : refuse(409, "not_a_held_draft");
+  if (held) return held;
 
   const { data: conv } = await db
     .from("conversations")
