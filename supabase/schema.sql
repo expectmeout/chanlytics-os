@@ -8220,6 +8220,29 @@ end $$;
 
 
 --
+-- Name: may_read_workspace(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.may_read_workspace(p_tenant uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select auth.uid() is not null and exists (
+    select 1 from public.memberships m
+     where m.tenant_id = p_tenant
+       and m.user_id = auth.uid()
+       and (m.role <> 'partner' or public.session_shows_second_factor()))
+$$;
+
+
+--
+-- Name: FUNCTION may_read_workspace(p_tenant uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.may_read_workspace(p_tenant uuid) IS 'Whether the caller (auth.uid(), never a parameter) may read this workspace: a member of it, a partner''s seat only on a session that showed its second factor (00218, 00261). The one member check for a definer read (00363); the ten that inline it keep theirs until each is next changed.';
+
+
+--
 -- Name: member_decision(uuid, text, uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14126,6 +14149,79 @@ begin
                                  where s.root_id = p_root_id and s.state in ('claimed', 'queued', 'sent', 'failed')))
   );
 end $$;
+
+
+--
+-- Name: reach_out_chain_totals(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_days  integer := least(greatest(coalesce(p_days, 30), 1), 90);
+  v_tz    text;
+  v_since timestamptz;
+begin
+  if not public.may_read_workspace(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
+  v_tz := coalesce(v_tz, 'America/New_York');
+  v_since := (((now() at time zone v_tz)::date - (v_days - 1))::timestamp) at time zone v_tz;
+  return (
+    -- An email that left (email_left), dated by when it left (email_sent_at), as reach_out_report counts it.
+    with sent as (
+      select s.root_id, s.lead_id, s.contact_id,
+             coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at
+        from public.reach_out_sends s
+        left join public.messages m on m.id = s.message_id
+       where s.tenant_id = p_tenant_id
+         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
+    ),
+    period as (
+      select x.* from sent x where x.sent_at >= v_since
+    ),
+    -- Each business once a chain, at its last email of the period.
+    last_sent as (
+      select distinct on (x.root_id, x.lead_id) x.root_id, x.lead_id, x.contact_id
+        from period x
+        join public.leads l on l.id = x.lead_id and l.tenant_id = p_tenant_id
+       order by x.root_id, x.lead_id, x.sent_at desc
+    ),
+    wrote as (
+      select w.contact_id from public.outreach_wrote_back(p_tenant_id, array(
+        select distinct ls.contact_id from last_sent ls where ls.contact_id is not null)) w(contact_id)
+    ),
+    per_chain as (
+      select x.root_id, count(*) as written, max(x.sent_at) as last_at
+        from period x
+       group by x.root_id
+    ),
+    wrote_back as (
+      select ls.root_id, count(*) as wrote_back
+        from last_sent ls
+       where ls.contact_id in (select w.contact_id from wrote w)
+       group by ls.root_id
+    )
+    select coalesce(jsonb_object_agg(r.id::text, jsonb_build_object(
+             'written', coalesce(c.written, 0),
+             'wrote_back', coalesce(b.wrote_back, 0),
+             'last_at', c.last_at)), '{}'::jsonb)
+      from public.playbooks r
+      left join per_chain c on c.root_id = r.id
+      left join wrote_back b on b.root_id = r.id
+     where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
+  );
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over the last p_days days in the workspace''s zone (1 to 90), how many businesses it wrote to wrote back (outreach_wrote_back, each once a chain at its last email) and when it last wrote; a chain that wrote nothing is { written: 0, wrote_back: 0, last_at: null } (00363).';
 
 
 --
@@ -31513,6 +31609,15 @@ GRANT ALL ON FUNCTION public.marketing_consent_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION may_read_workspace(p_tenant uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.may_read_workspace(p_tenant uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.may_read_workspace(p_tenant uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.may_read_workspace(p_tenant uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32446,6 +32551,15 @@ GRANT ALL ON FUNCTION public.reach_out_booked(p_tenant_id uuid, p_seen jsonb) TO
 REVOKE ALL ON FUNCTION public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) TO service_role;
 
 
 --
