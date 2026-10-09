@@ -700,6 +700,51 @@ test("the delivery is kept on the door's own URL, never with the ?key= it came i
   assert.ok(!JSON.stringify(w.tables.provider_events).includes(SECRET), "the secret is nowhere in the row");
 });
 
+test("a caller who withheld their number, and one whose memory could not be read, are still the workspace's call: the delivery is kept under it and a test of \"keep my number\" is proven by the carrier's headers", async () => {
+  const KEPT = "+12125550142";
+  for (const [why, over, faults] of [
+    ["a withheld number", { from_number: "" }, {}],
+    ["a memory that could not be read", {}, { "contacts.select": { message: "permission denied" } }],
+  ]) {
+    const w = world();
+    w.tables.lines = [
+      {
+        id: `fw-${w.i}`,
+        tenant_id: w.T,
+        kind: "forwarded",
+        forwarding_state: "instructed",
+        e164: KEPT,
+        facts: {
+          carrier: "tmobile",
+          mode: "unanswered",
+          destination_e164: LINE,
+          test_from: null,
+          test_started_at: ago(5 * 60_000),
+          test_until: new Date(Date.now() + 25 * 60_000).toISOString(),
+        },
+      },
+    ];
+    w.tables.notifications = [];
+    w.tables.events = [];
+    w.open(faults);
+    const diversion = `<sip:${KEPT}@carrier.example>;reason=no-answer,<sip:${LINE}@trunk.example>`;
+    await listening(async () => {
+      assert.equal((await knock(w.call({ ...over, custom_sip_headers: { diversion } }))).status, 200, why);
+    });
+    assert.deepEqual(
+      w.tables.provider_events.map((r) => r.tenant_id),
+      [w.T],
+      `${why}: kept under the workspace the call routed to`,
+    );
+    const line = w.tables.lines[0];
+    assert.deepEqual(
+      [line.forwarding_state, line.facts.verified_by, line.facts.verified_call_id],
+      ["verified", "carrier", w.CALL_ID],
+      `${why}: the carrier's headers, read as the call arrives, prove the test`,
+    );
+  }
+});
+
 test("a caller from abroad is recognised and their thread held: the door hands the number on whole, + and all, so ten digits after it are never read as an American number", async () => {
   // Sequential digits, nobody's number. The door stripped the + before the judgement read the number, so this caller
   // was looked up as +1 479 123 4567: told as new, their history unread, and their thread left unheld.

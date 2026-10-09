@@ -368,6 +368,36 @@ test("REGRESSION: a contact table that will not answer costs the caller their re
   assert.equal(r.variables.caller_context, CALLER_UNKNOWN);
 });
 
+test("the workspace is known the moment the call routes: a withheld number and a memory that could not be read carry it as a read memory does, and only a call that routed nowhere carries none", async () => {
+  // The door keeps the delivery under it and proves a test of "keep my number" with it (inbound-call.ts). Set only
+  // beside a memory that read, a withheld caller's call was kept under no workspace and its forwarding never proven.
+  const cases = [
+    ["a caller on file", {}, CALLER, "known"],
+    ["a withheld number", {}, "", "none"],
+    ["a memory that could not be read", { "contacts.select": { message: "permission denied" } }, CALLER, "unread"],
+  ];
+  for (const [why, faults, from, memory] of cases) {
+    const w = fresh();
+    const r = await planCallStart({
+      agentId: w.agent,
+      from,
+      db: world(w, { faults }),
+      now: NOW,
+      calendar: calendar().port,
+    });
+    assert.deepEqual([r.memory, r.tenantId], [memory, w.tenant], why);
+    assert.equal(r.conversationId, memory === "known" ? C1 : null, `${why}: a thread to hold only when one was read`);
+  }
+  const nobody = fresh();
+  const db = world(nobody, { channels: [voiceChannel(nobody, { status: "disabled" })] });
+  const r = await planCallStart({ agentId: nobody.agent, from: CALLER, db, now: NOW, calendar: calendar().port });
+  assert.deepEqual([r.facts, r.tenantId], ["unrouted", null], "routed nowhere: nobody's");
+  const blip = fresh();
+  const down = world(blip, { faults: { "tenant_channels.select": { message: "connection reset" } } });
+  const b = await planCallStart({ agentId: blip.agent, from: CALLER, db: down, now: NOW, calendar: calendar().port });
+  assert.deepEqual([b.facts, b.tenantId], ["unreadable", null], "a routing that could not be read: nobody's either");
+});
+
 test("routed and read, and no persona: told there are no facts rather than told nothing; a config that does not parse says so", async () => {
   const a = fresh();
   const none = await planCallStart({
