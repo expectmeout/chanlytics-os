@@ -10,6 +10,7 @@
  */
 import { clockDate } from "../shared/clock";
 import { agoWords } from "../shared/time";
+import { recordOrNull } from "../shared/unknown";
 import { WHATSAPP_LANGUAGES } from "./template-languages";
 
 /**
@@ -537,6 +538,22 @@ export function templateSends(src: TemplateSendSource): Record<string, TemplateS
   }
   for (const m of src.inbox) {
     if (m.template_name && m.external_id) went(m.template_name, m.created_at);
+  }
+  return out;
+}
+
+/**
+ * template_sends' answer (00362), by message name: storage's `last_at` read into memory's `lastAt`. Null when it is not
+ * that shape, which the reader says as a read that failed, never as a message nothing sent.
+ */
+export function templateSendsOf(answer: unknown): Record<string, TemplateSends> | null {
+  const byName = recordOrNull(answer);
+  if (!byName) return null;
+  const out: Record<string, TemplateSends> = {};
+  for (const [name, raw] of Object.entries(byName)) {
+    const s = recordOrNull(raw);
+    if (!s || typeof s.count !== "number" || !(s.last_at === null || typeof s.last_at === "string")) return null;
+    out[name] = { count: s.count, lastAt: s.last_at };
   }
   return out;
 }

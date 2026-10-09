@@ -18,6 +18,7 @@ export {
   templateUseNote,
   templateUnused,
   templateSends,
+  templateSendsOf,
   templateSentWords,
   TEMPLATE_LANGUAGES,
   TEMPLATE_CATEGORIES,

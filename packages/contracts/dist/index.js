@@ -11919,6 +11919,17 @@ var ASK_ANSWER_FORMAT = {
   additionalProperties: false
 };
 
+// src/shared/unknown.ts
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var lineOrNull = (s) => {
+  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
+  return t ? t.slice(0, 200) : null;
+};
+
 // src/templates/starter-templates.ts
 var STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
@@ -13300,6 +13311,17 @@ function templateSends(src) {
   }
   return out;
 }
+function templateSendsOf(answer) {
+  const byName = recordOrNull(answer);
+  if (!byName) return null;
+  const out = {};
+  for (const [name, raw] of Object.entries(byName)) {
+    const s = recordOrNull(raw);
+    if (!s || typeof s.count !== "number" || !(s.last_at === null || typeof s.last_at === "string")) return null;
+    out[name] = { count: s.count, lastAt: s.last_at };
+  }
+  return out;
+}
 function templateSentWords(s, tz, nowMs) {
   if (!s || s.count === 0) return { count: null, when: "Never sent" };
   const at3 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
@@ -13916,6 +13938,29 @@ function cleanParam(raw) {
 function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title) {
   const day = clockDate(now.getTime(), tz, now.getTime());
   return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
+}
+var RUN_COUNTED = ["queued", "sent", "skipped", "failed", "delivered", "read", "replied"];
+function runCountsOf(answer) {
+  const byRun = recordOrNull(answer);
+  if (!byRun) return null;
+  const out = {};
+  for (const [id, raw] of Object.entries(byRun)) {
+    const c = recordOrNull(raw);
+    const by = recordOrNull(c?.sent_by);
+    if (!c || !by) return null;
+    const counts = { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
+    for (const k of RUN_COUNTED) {
+      const n = finiteOrNull(c[k]);
+      if (n === null) return null;
+      counts[k] = n;
+    }
+    const whatsapp = finiteOrNull(by.whatsapp);
+    const sms = finiteOrNull(by.sms);
+    const email = finiteOrNull(by.email);
+    if (whatsapp === null || sms === null || email === null) return null;
+    out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
+  }
+  return out;
 }
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
@@ -27645,6 +27690,31 @@ function campaignsHomeOf(input) {
   };
 }
 
+// src/playbooks/playbook-totals.ts
+var isCount2 = (v) => typeof v === "number" && Number.isFinite(v);
+var isText = (v) => typeof v === "string";
+var isTextOrNull = (v) => v === null || typeof v === "string";
+function isHistoryRun(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isText(r2.id) && isTextOrNull(r2.run_for) && isText(r2.state) && isText(r2.scheduled_for) && isCount2(r2.recipient_count) && isCount2(r2.sent) && isCount2(r2.held) && isCount2(r2.delivered) && isCount2(r2.replied);
+}
+function isLastRun(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isText(r2.id) && isText(r2.state) && isTextOrNull(r2.run_for) && isCount2(r2.recipient_count);
+}
+function isWaiting(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isText(r2.id) && isCount2(r2.recipient_count) && isText(r2.name) && isTextOrNull(r2.run_for) && isTextOrNull(r2.trigger);
+}
+function isTotalsRow(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isCount2(r2.runs) && isCount2(r2.sent) && isCount2(r2.delivered) && isCount2(r2.replied) && isCount2(r2.held) && isLastRun(r2.last_run) && (r2.waiting === null || isWaiting(r2.waiting)) && Array.isArray(r2.history) && r2.history.every(isHistoryRun);
+}
+function isPlaybookTotalsDto(answer) {
+  const byId = recordOrNull(answer);
+  return !!byId && Object.values(byId).every(isTotalsRow);
+}
+
 // src/reach-out/reach-out.ts
 var WHY_FROM_MAPS = "I found your business on Google Maps.";
 function whyFrom(source) {
@@ -32122,17 +32192,6 @@ var EDGE_ERROR_CODES = [
   "workspace_mismatch",
   "write_failed"
 ];
-
-// src/shared/unknown.ts
-var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
-var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
-var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
-var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var lineOrNull = (s) => {
-  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
-  return t ? t.slice(0, 200) : null;
-};
 
 // src/shared/bytes.ts
 var encoder = null;
@@ -38955,6 +39014,7 @@ export {
   isPersonRow,
   isPersonsWords,
   isPipelineView,
+  isPlaybookTotalsDto,
   isProductFallback,
   isPushKind,
   isReachOutHold,
@@ -39541,6 +39601,7 @@ export {
   rulesLine,
   rulesWithoutFieldsWords,
   runApprovalRefusal,
+  runCountsOf,
   runDayPassed,
   runDueNow,
   runStoppedWords,
@@ -39688,6 +39749,7 @@ export {
   templatePreview,
   templatePreviewValues,
   templateSends,
+  templateSendsOf,
   templateSentWords,
   templateSlots,
   templateTitle,

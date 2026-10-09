@@ -23,6 +23,7 @@
  * exactly the rows most likely to matter.
  */
 import { MIN_MS } from "../shared/time";
+import { finiteOrNull, recordOrNull } from "../shared/unknown";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-titles";
 import { clockDate, clockWhen } from "../shared/clock";
@@ -218,6 +219,37 @@ export interface BroadcastCounts {
    * count them.
    */
   sent_by?: Record<ConsentChannel, number>;
+}
+
+/** What run_counts says of each run (00362), in the order Sent writes a run's counts. */
+const RUN_COUNTED = ["queued", "sent", "skipped", "failed", "delivered", "read", "replied"] as const;
+
+/**
+ * run_counts' answer (00362), by run id, read into Sent's counts in the order the page has always written them (a run
+ * nobody is on is absent, and the caller says it as zeros). Null when the answer is not that shape: a read that failed,
+ * never a run with nothing in it.
+ */
+export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | null {
+  const byRun = recordOrNull(answer);
+  if (!byRun) return null;
+  const out: Record<string, BroadcastCounts> = {};
+  for (const [id, raw] of Object.entries(byRun)) {
+    const c = recordOrNull(raw);
+    const by = recordOrNull(c?.sent_by);
+    if (!c || !by) return null;
+    const counts: BroadcastCounts = { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
+    for (const k of RUN_COUNTED) {
+      const n = finiteOrNull(c[k]);
+      if (n === null) return null;
+      counts[k] = n;
+    }
+    const whatsapp = finiteOrNull(by.whatsapp);
+    const sms = finiteOrNull(by.sms);
+    const email = finiteOrNull(by.email);
+    if (whatsapp === null || sms === null || email === null) return null;
+    out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
+  }
+  return out;
 }
 
 export interface BroadcastDto {

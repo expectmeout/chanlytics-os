@@ -113,6 +113,8 @@ export type {
   ReachCounts,
 } from "./lifecycle-types";
 export type { RunMessage } from "./playbook-purpose";
+export { isPlaybookTotalsDto } from "./playbook-totals";
+export type { PlaybookTotalsDto } from "./playbook-totals";
 export type {
   PlaybookDto,
   PlaybookTrigger,
