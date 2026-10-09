@@ -1646,7 +1646,10 @@ interface CarrierConsent {
     optIn: boolean;
 }
 declare function carrierConsent(s: Pick<SmsInbound, "optOutType">): CarrierConsent | null;
-/** The carriers' opt-out words, whole-message. Opt-in words stay the product's own (START, UNSTOP, RESUME). */
+/**
+ * The carriers' opt-out words, and the same request written as a sentence (stop-request.ts), whole-message. Opt-in
+ * words stay the product's own (START, UNSTOP, RESUME).
+ */
 declare function smsKeywordConsent(body: string | null | undefined): CarrierConsent | null;
 declare function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null): CarrierConsent | null;
 /** The normalized message with the carrier's verdict added to its own. Either source is enough. */

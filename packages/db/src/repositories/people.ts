@@ -5,7 +5,7 @@
  * the same function, with its own page size and its own rule for when to name the page arguments. And the names of a
  * few people by their ids, for a read that holds their ids and not their names (Ask's message search).
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import {
   openDealsFromJson,
   type DoubtSeen,
@@ -469,4 +469,40 @@ export async function markContact(
     unread_at: stampOf(o.unread_at),
     marked_at: stampOf(o.marked_at),
   };
+}
+
+/**
+ * A member records a person's answer and its line in their history together (00356 record_consent), on the member's
+ * own session: the purpose's own door (visit messages, or offers), then the consent_change decision as theirs, in one
+ * transaction. The door's answer with `decision_id` beside it, or the door's refusal with its SQLSTATE, which the
+ * caller words (a route's dbRefusal): nothing is thrown here, since a refusal for one person of a batch is an answer.
+ */
+export async function recordConsent(
+  db: Db,
+  p: {
+    contactId: string;
+    purpose: "conversational" | "marketing";
+    consent: string;
+    source: string;
+    note: string | null;
+    /** The message an answer "in their own message" names; none otherwise. */
+    messageId: string | null;
+    /** How many people the answer was recorded for at once; none for one person's own. */
+    batch: number | null;
+    via: string | null;
+    undoOf: string | null;
+  },
+): Promise<{ data: Json | null; error: PostgrestError | null }> {
+  const { data, error } = await db.rpc("record_consent", {
+    p_contact_id: p.contactId,
+    p_purpose: p.purpose,
+    p_consent: p.consent,
+    p_source: p.source,
+    ...(p.note ? { p_note: p.note } : {}),
+    ...(p.messageId ? { p_message_id: p.messageId } : {}),
+    ...(p.batch ? { p_batch: p.batch } : {}),
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  return { data, error };
 }

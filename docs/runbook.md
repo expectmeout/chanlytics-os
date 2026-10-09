@@ -1122,6 +1122,23 @@ The day's numbers are in the back office ("Each workspace's day", `platform_metr
 before); the health sweep pages `answer_rate_zero` when a workspace's customers wrote all day and nobody answered. Who
 played a call's recording is a decision (`open_recording`, one per member per call per hour) on Settings, Activity.
 
+## Answer WhatsApp after the acknowledgement
+
+A WhatsApp message is answered inside Meta's request, under the function's sixty seconds. A workspace named in the
+edge's `WHATSAPP_ANSWERS_AS_JOBS` (workspace ids, comma-separated, or `all`) takes the road a text takes instead:
+the webhook records the message, schedules its answer as an `inbound_answer` job and answers 200, and the job answers
+it (`apps/edge/lib/whatsapp/answer-later.ts`). Unset is the default, and changes nothing.
+
+To try it: name one workspace on the edge's production environment and redeploy the edge (an environment variable is
+read by a new deployment). Write to that workspace's number. In the logs, `wa_inbound` then `wa_answer_taken_up`
+under one request id, and the reply's own lines after it; in the ledger, one `inbound_answer` row for the message,
+`done`. To go back: remove the workspace from the variable and redeploy. A message recorded before the change is
+still answered by its job.
+
+What to watch while it is on: `wa_answer_unscheduled` (the job could not be written: the message is the deadman
+sweep's to hand to a person, within a quarter of an hour), and a reply's lateness on the heartbeat's line
+(`reply_late_ms`), which pages past a minute.
+
 ## Read the jobs ledger
 
 Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's
@@ -1189,6 +1206,21 @@ differently on the next fresh database than it ran in production.
    pull request's ledger to main's (`migration-ledger.mjs --base origin/main`): an entry main recorded may not change,
    which a folder and a ledger edited together would hide from the test. A number renumbered before it
    lands is recorded again by the same command, which also lets go of the reserved gaps the new number now covers.
+
+   **An index on a table that is always being written** (`messages`, `events`, `calls`, `contacts`,
+   `broadcast_recipients`, `jobs`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
+   not even a `lock_timeout`: a plain build holds every write to the table for as long as it takes, and an index made
+   concurrently cannot share a transaction, which is how the runner sends a file of several statements
+   (`00355_a_person_s_runs_are_found_by_the_person.sql` is the shape; `database/migrations.test.mjs` fails any other).
+   A concurrent build that is interrupted leaves the index behind marked invalid, and `if not exists` then skips it
+   for ever. After the push, ask production for any:
+
+   ```sql
+   select c.relname from pg_index i join pg_class c on c.oid = i.indexrelid where not i.indisvalid;
+   ```
+
+   None is the answer wanted. One named: `drop index concurrently public.<name>;` in the SQL editor, then run the
+   migration's statement again there by hand (the ledger already holds its version, and the file is unchanged).
 
 2. **Replay it locally**: `supabase db reset` (a worktree uses a stack of its own, `project_id` and ports moved, so it
    touches no one else's). Then regenerate what the schema drives, `corepack pnpm gen:schema-sets` and
@@ -1262,6 +1294,57 @@ while an older build is live:
 4. Promote the current release's deployments back, and confirm `/api/version` answers its commit again.
 
 Rehearsed: never yet (29 Sep 2026). The first rehearsal is Ruben's, with a deploy that carried no migration.
+
+## Restore the database
+
+Written on 8 October 2026 from the architecture review, which found no backup or restore page anywhere in `docs/`.
+**Rehearsed: never yet.** Until it has been, every step below is a plan and every time a guess.
+
+**What a restore brings back, and what it does not.** The database is the system of record: every workspace, person,
+message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the
+clocks (`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings
+and other files (Storage is kept apart from the database's backups), anything a provider holds (a WhatsApp template's
+review, a Twilio line, a Resend domain), or the two apps' environment (Vercel's, listed in each `.env.example`).
+
+**Which backups there are** is a fact of the project's plan, read on the project's Database, Backups page, and
+written here by whoever reads it (Ruben, with the console open):
+
+- Daily backups kept for: `<days>`, the newest at about `<hour>` UTC. Everything since the newest is lost by a
+  restore from it.
+- Point-in-time recovery: `<on, kept for N days | off>`. Off, the loss in a bad hour is up to a day of messages
+  and bookings; on, minutes. It is the add-on that buys the difference, and the review recommends it for a product
+  whose customers' conversations are its only memory.
+
+**When to restore, and when not.** A bad migration is undone by a migration (Roll back, above), and a bad write by a
+script with its backup (Scripts that touch production, below): neither is a restore, and a restore to undo either
+takes every workspace back with it. A restore is for a database that is gone, or wrong in a way nothing narrower
+reaches: a dropped table, a mass update with no backup file, the project lost.
+
+**How.** Prefer a copy to an overwrite, so the damaged database is still there to read and to compare with:
+
+1. **Stop the writers**, so nothing more is written to a database that is about to be left behind, and write down
+   the minute. How is settled at the first rehearsal and written here; it has not been tried. The candidates: pausing
+   each Vercel project from its settings, if the plan offers it (a provider whose webhook is refused sends it again
+   for hours, so a paused edge loses no message that arrives after the restore point); failing that, removing the
+   edge's production domain for the length of the restore.
+2. **Restore to a new project** from the Backups page (a daily backup, or the minute just before the damage with
+   point-in-time recovery), if the plan offers it. In place is the fallback: it overwrites the project, and everything
+   written since the chosen moment is gone the moment it starts.
+3. **Check the copy before anything points at it**: `supabase migration list` against it ends at main's head
+   (`migration-ledger.mjs --compare`); the newest `messages.created_at` and `events.created_at` are the moment
+   chosen; `select count(*) from tenants` is what it was; `cron.job` holds the sweeps and
+   `vault.decrypted_secrets` names the edge's key and base URL.
+4. **Point the apps at it**: both Vercel projects' `SUPABASE_URL` and keys (a new project has new ones), the
+   Supabase Auth settings the old project held (site URL, redirect URLs, the Google provider, the SMTP sender), and
+   the base URL the clocks call (`vault`, 00018: a copy keeps the original's, which is right only when the edge's
+   address did not change). Redeploy both, the edge first.
+5. **Bring the writers back** the way they were stopped, then read `/api/cron/health`, the jobs ledger (Read the
+   jobs ledger, above) for what was due while it was down, and the Inbox of one real workspace.
+6. **Tell the workspaces** what window was lost, in their own words: a message a customer sent in it is gone from
+   the Inbox though the customer still has it on their phone.
+
+**Rehearse it** before it is needed, on a copy that nothing points at: step 2 and step 3 alone, timed. Write the
+date, how long the restore took and what step 3 found here.
 
 **A workspace, not the platform.** The levers in `docs/system-prd.md` S-23:
 silence one receptionist (`tenant_channels.status = 'disabled'`), hold one

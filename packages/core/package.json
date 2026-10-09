@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm",
+    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup src/index.ts --format esm",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

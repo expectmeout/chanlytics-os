@@ -1,4 +1,5 @@
 import "server-only";
+import { fenced } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
 
 /**
@@ -190,12 +191,16 @@ export interface CallOutcome {
  * under each call's id, in the order of the calls, an error marked as one. The
  * loop sends them back when the round goes on; a turn that ends on its round
  * keeps them for the next turn to send (memory.ts, the raw turn).
+ *
+ * Each result is fenced here, where it becomes something the model reads (contracts ai/fence.ts): a read's rows
+ * carry what customers wrote, what a listing says and what a profile calls itself, and inside the fence none of it
+ * can close a tag or open one. The tools themselves answer plain JSON, so what a tool said is still read as it was.
  */
 export function resultBlocks(outcomes: CallOutcome[]): unknown[] {
   return outcomes.map(({ block, out }) => ({
     type: "tool_result",
     tool_use_id: block.id,
-    content: out.result,
+    content: fenced("record", out.result),
     is_error: out.isError,
   }));
 }

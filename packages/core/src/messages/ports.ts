@@ -30,6 +30,17 @@ export interface SendQueuedPorts {
   } | null>;
   /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
   purposeOf(template: { name: string; language: string } | undefined): Promise<SendPurpose>;
+  /**
+   * The row claimed for this run before anything reaches a wire (db claimQueuedSend, messages.sending_at): false when
+   * another run holds it or it is no longer queued, and this run sends nothing. Two jobs naming one message, however
+   * the second came to be scheduled, are never both answered yes. Throws when it could not be asked.
+   */
+  claim(messageId: string): Promise<boolean>;
+  /**
+   * The claim given back, when the provider provably did not take the message (db releaseQueuedSend): asked before
+   * `retry`, so the fresh job may claim the row. Throws when it could not be written, and no fresh job is asked for.
+   */
+  release(messageId: string): Promise<void>;
   deliver: Door;
   /** The thread flagged for a person, with why; how it landed (jobs upsertEscalation: a hold is told once). */
   escalate(

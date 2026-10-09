@@ -1,4 +1,4 @@
-import { parseLeadsRoute, type AskScope, type AskSurface } from "@chanlytics/contracts";
+import { fenced, parseLeadsRoute, type AskScope, type AskSurface } from "@chanlytics/contracts";
 import type { SearchResultBlock } from "./context";
 import { calledName, type ToolRun } from "./tools";
 
@@ -151,14 +151,15 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
 
 /**
  * One read as the model reads it: data in a block of its own, never in `system` (customers' words are in it), its
- * source the tool and action that read it (`read://calendar.week`), its title the call as it was made.
+ * source the tool and action that read it (`read://calendar.week`), its title the call as it was made. Fenced, as a
+ * tool's result is (round.ts resultBlocks): the same rows, read ahead of the question.
  */
 export function readBlock(run: ToolRun, result: string): SearchResultBlock {
   return {
     type: "search_result",
     source: `read://${calledName(run.name, run.input)}`,
     title: `${run.name} ${JSON.stringify(run.input)}`,
-    content: [{ type: "text", text: result }],
+    content: [{ type: "text", text: fenced("record", result) }],
     citations: { enabled: false },
   };
 }

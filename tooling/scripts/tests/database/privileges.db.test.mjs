@@ -193,6 +193,14 @@ select 'policy_ungranted', coalesce(array_agg(x order by x), '{}') from (
            else has_table_privilege('authenticated', c.oid, 'SELECT') end
 ) s
 union all
+select 'session_holds_unused_right', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname::text as x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind in ('r', 'p')
+     and (has_table_privilege('authenticated', c.oid, 'TRUNCATE,TRIGGER,REFERENCES,MAINTAIN')
+          or has_table_privilege('anon', c.oid, 'TRUNCATE,TRIGGER,REFERENCES,MAINTAIN'))
+) s
+union all
 select 'anon_executes', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -360,6 +368,21 @@ test("a table with no policy grants anon and authenticated nothing", { skip }, (
   // someone writes a policy (00120).
   assert.deepEqual(rules.no_policy_but_granted, [], "revoke all from anon, authenticated beside every deny-all table");
 });
+
+test(
+  "a session holds no table right the Data API never uses: no TRUNCATE, TRIGGER, REFERENCES or MAINTAIN on any table",
+  { skip },
+  () => {
+    // Row security does not apply to TRUNCATE, and none of the four is anything a member does. About fifty tables
+    // granted them to authenticated by an early `grant all` or the platform's old default (00354 took them back). A
+    // later migration that writes `grant all on <table> to authenticated` lands here.
+    assert.deepEqual(
+      rules.session_holds_unused_right,
+      [],
+      "grant a session select, insert, update or delete by name, never all: revoke truncate, trigger, references, maintain",
+    );
+  },
+);
 
 test("every table in public has row-level security on", { skip }, () => {
   assert.deepEqual(rules.rls_off, []);

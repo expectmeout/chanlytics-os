@@ -19,7 +19,7 @@ const Body = z.object({
  * The sibling of ../consent/route.ts, shaped the same way and kept apart for
  * the same reason the single doors are: a yes to offers must be written (the
  * batch is refused before any row is touched if it is not), and this door
- * never touches dnc. set_marketing_consent per person, a decision per person.
+ * never touches dnc. One call per person (record_consent, 00356): the answer and its history line together.
  */
 export const PUT = write({
   scope: workspace,

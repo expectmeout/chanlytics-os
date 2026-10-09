@@ -17,9 +17,6 @@
   "apps/dashboard/app/api/v1/lead-searches/[id]/more/route.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/app/api/v1/playbooks/route.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/app/api/v1/reach-outs/leads/route.ts": {
     "nonNull": 1
   },
@@ -128,7 +125,6 @@
     "nonNull": 2
   },
   "apps/dashboard/src/server/campaigns/playbook-row.ts": {
-    "unknownAs": 1,
     "nonNull": 1
   },
   "apps/dashboard/src/server/campaigns/playbooks.ts": {

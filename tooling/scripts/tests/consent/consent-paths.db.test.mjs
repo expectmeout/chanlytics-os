@@ -296,3 +296,191 @@ test("ACCEPTANCE: no member policy lets anyone write a contact's row directly", 
     [],
   );
 });
+
+/* ---- A person's answer and its line in their history are one write (00356 record_consent) ---- */
+
+const record = (client, args) =>
+  client.rpc("record_consent", { p_contact_id: anyoneElse, p_purpose: "conversational", ...args });
+const linesOf = async (contactId) =>
+  ok(
+    await db
+      .from("decisions")
+      .select("verb, actor_type, actor_user_id, payload, undo_of")
+      .eq("tenant_id", A)
+      .eq("subject_type", "contact")
+      .eq("subject_id", contactId)
+      .order("created_at", { ascending: true }),
+  );
+const changesOf = async (contactId) =>
+  ok(
+    await db
+      .from("events")
+      .select("kind")
+      .eq("tenant_id", A)
+      .eq("subject_id", contactId)
+      .in("kind", ["contact.consent_changed", "contact.marketing_consent_changed"]),
+  ).length;
+
+test(
+  "a member's one call records the answer, its event and the line in the person's history as theirs, for each purpose",
+  { skip },
+  async () => {
+    const person = ok(
+      await db
+        .from("contacts")
+        .insert({ tenant_id: A, phone_e164: "+15125550161", display_name: "At the desk" })
+        .select("id")
+        .single(),
+    ).id;
+    const visit = ok(
+      await owner.client.rpc("record_consent", {
+        p_contact_id: person,
+        p_purpose: "conversational",
+        p_consent: "opted_in",
+        p_source: "in_person",
+        p_note: "said yes at the desk",
+        p_via: "ask",
+      }),
+    );
+    // What the door answers, with the decision beside it.
+    assert.equal(visit.consent, "opted_in");
+    assert.equal(visit.previous, "unknown");
+    assert.match(visit.decision_id, /^[0-9a-f-]{36}$/);
+    const offers = ok(
+      await owner.client.rpc("record_consent", {
+        p_contact_id: person,
+        p_purpose: "marketing",
+        p_consent: "opted_out",
+        p_source: "phone",
+        p_batch: 12,
+      }),
+    );
+    assert.equal(offers.marketing_consent, "opted_out");
+    assert.deepEqual(
+      ok(await db.from("contacts").select("consent, marketing_consent, dnc").eq("id", person).single()),
+      { consent: "opted_in", marketing_consent: "opted_out", dnc: false },
+      "each answer in its own column; a no to offers is no request to stop hearing about a visit",
+    );
+    assert.equal(await changesOf(person), 2, "each door kept its event");
+    assert.deepEqual(await linesOf(person), [
+      {
+        verb: "consent_change",
+        actor_type: "user",
+        actor_user_id: owner.userId,
+        payload: {
+          consent: "opted_in",
+          source: "in_person",
+          note: "said yes at the desk",
+          previous: "unknown",
+          via: "ask",
+        },
+        undo_of: null,
+      },
+      {
+        verb: "consent_change",
+        actor_type: "user",
+        actor_user_id: owner.userId,
+        payload: {
+          consent: "opted_out",
+          source: "phone",
+          note: null,
+          previous: "unknown",
+          purpose: "marketing",
+          batch: 12,
+        },
+        undo_of: null,
+      },
+    ]);
+  },
+);
+
+test(
+  "an answer the door refuses writes nothing at all: no change, no event and no line; a stranger and a purpose nobody asks are refused before the door",
+  { skip },
+  async () => {
+    // A converted lead's yes, by either purpose: the door's own sentence, and the person as they were.
+    const before = {
+      row: ok(await db.from("contacts").select("consent, marketing_consent").eq("id", fromALead).single()),
+      lines: (await linesOf(fromALead)).length,
+      changes: await changesOf(fromALead),
+    };
+    for (const purpose of ["conversational", "marketing"]) {
+      const res = await owner.client.rpc("record_consent", {
+        p_contact_id: fromALead,
+        p_purpose: purpose,
+        p_consent: "opted_in",
+        p_source: "form",
+      });
+      assert.equal(res.error?.message, LEAD_CONSENT_REFUSAL, purpose);
+      assert.equal(res.error?.code, "42501", "the door's own code travels, so the route words it as the door did");
+    }
+    assert.deepEqual(
+      ok(await db.from("contacts").select("consent, marketing_consent").eq("id", fromALead).single()),
+      before.row,
+    );
+    assert.equal((await linesOf(fromALead)).length, before.lines, "a refused answer is not a decision");
+    assert.equal(await changesOf(fromALead), before.changes, "and kept no event");
+
+    // A spoken yes to offers is the offers door's to refuse, and it does, through this call as through its own.
+    const spoken = await record(owner.client, { p_purpose: "marketing", p_consent: "opted_in", p_source: "phone" });
+    assert.notEqual(spoken.error, null, "a yes to offers is written or it is not recorded");
+
+    assert.equal(
+      (await record(owner.client, { p_purpose: "offers", p_consent: "opted_out", p_source: "phone" })).error?.code,
+      "22023",
+      "a purpose that is neither question",
+    );
+    const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    assert.equal(
+      (await record(anon, { p_consent: "opted_out", p_source: "phone" })).error?.code,
+      "42501",
+      "signed out: no right to call it",
+    );
+    // A member of another workspace is a stranger to this person: not found, and nothing learned.
+    const B = ok(
+      await db
+        .from("tenants")
+        .insert({ slug: `consent-other-${Date.now()}`, name: "Another" })
+        .select("id")
+        .single(),
+    ).id;
+    const email = `consent-stranger-${Date.now()}@example.com`;
+    const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
+    const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.equal(made.error, null, made.error?.message);
+    users.push(made.data.user.id);
+    ok(await db.from("memberships").insert({ tenant_id: B, user_id: made.data.user.id, role: "owner" }));
+    const stranger = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    assert.equal((await stranger.auth.signInWithPassword({ email, password })).error, null);
+    assert.equal((await record(stranger, { p_consent: "opted_out", p_source: "phone" })).error?.code, "P0002");
+    await db.from("tenants").delete().eq("id", B);
+  },
+);
+
+test(
+  "an undo names the line it reverses, and one that names a line nobody holds is recorded without it",
+  { skip },
+  async () => {
+    const first = ok(await record(owner.client, { p_consent: "opted_out", p_source: "phone" }));
+    const back = ok(
+      await record(owner.client, { p_consent: "unknown", p_source: "operator", p_undo_of: first.decision_id }),
+    );
+    assert.equal(back.undo_dropped, false);
+    const lost = ok(
+      await record(owner.client, {
+        p_consent: "opted_out",
+        p_source: "phone",
+        p_undo_of: "00000000-0000-4000-8000-0000000000ff",
+      }),
+    );
+    assert.equal(lost.undo_dropped, true);
+    const lines = await linesOf(anyoneElse);
+    assert.deepEqual(
+      lines.slice(-2).map((l) => [l.payload.consent, l.undo_of]),
+      [
+        ["unknown", first.decision_id],
+        ["opted_out", null],
+      ],
+    );
+  },
+);

@@ -512,9 +512,8 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
   // The card's mode chip is run in playbook-composer.test.mjs.
   const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
   assert.ok(
-    routes.includes('role: "operator",') &&
-      routes.includes('rate: "playbook",') &&
-      routes.includes('"start_playbook", {'),
+    routes.includes('role: "operator",') && routes.includes('rate: "playbook",'),
+    "who may start a playbook and how often; that a start is on the ledger is run in outbound-routes.test.mjs",
   );
   const one = readCode(
     "apps/dashboard/app/api/v1/playbooks/[id]/route.ts",
