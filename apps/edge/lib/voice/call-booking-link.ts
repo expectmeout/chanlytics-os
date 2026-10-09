@@ -346,10 +346,9 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
       businessName: brain.business_name,
       bookingLink: brain.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
     });
-    // The door every send leaves through. It re-reads consent, the pause and
-    // the workspace's status at the wire, sends on the TENANT's credentials
-    // (none is a refusal, said to the caller as a policy hold: the agent must
-    // never text on another business's line), and records the row either way.
+    // The door every send leaves through: it re-reads consent, the pause and the workspace's status at the wire, sends
+    // on the TENANT's credentials (none is a refusal, said as a policy hold: never another business's line), records
+    // the row either way, and is told this call (onCall), whose own hold on the caller's thread is no person's.
     const out = await deliver(
       { db, wire: { whatsapp: whatsappSender(waCfgFor(rt)) } },
       {
@@ -363,6 +362,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
         ...onTheCall(isCaller),
         body: renderTemplate(booking.body_preview, params) || `[booking link] ${params.join(" — ")}`,
         template: { name: booking.name, language: booking.language, params },
+        onCall: call.call_id,
         meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null },
       },
     );

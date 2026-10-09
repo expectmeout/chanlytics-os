@@ -303,6 +303,47 @@ test("a hold that has run out holds nothing: the fact expires, which is what the
   );
 });
 
+test("a call's own hold does not refuse what that call sends: the link the phone receptionist texts the caller mid-call goes, while a person's hold and another call's still refuse it", async () => {
+  // The inbound door takes the caller's thread for the call (00132), and the call's tool then texts the booking link
+  // into that same thread. Held against itself, the link was refused as "human_has_it" and the agent told the caller a
+  // person was on it, with no person and no escalation anywhere.
+  const until = new Date(NOW + 600_000).toISOString();
+  const byCall = (ref) => thread({ control_kind: "call", control_ref: ref, control_until: until });
+  const byPerson = () => thread({ control_kind: "person", control_by: "u1", control_until: until });
+  const onTheCall = (over = {}) =>
+    words({ sender: "ai", onCall: "call_this", meta: { call_id: "call_this" }, ...over });
+  const send = async (conversation, d) => {
+    const w = wireOf();
+    const out = await deliver(ports(tables({ conversations: [conversation] }), w), d);
+    return [out.outcome, out.outcome === "refused" ? out.reason : null, w.calls.length];
+  };
+  assert.deepEqual(await send(byCall("call_this"), onTheCall()), ["sent", null, 1], "the call's own hold: it goes");
+  assert.deepEqual(
+    await send(byCall("call_other"), onTheCall()),
+    ["refused", "human_has_it", 0],
+    "another call's hold holds it",
+  );
+  assert.deepEqual(await send(byPerson(), onTheCall()), ["refused", "human_has_it", 0], "a person's hold holds it");
+  assert.deepEqual(
+    await send(byCall("call_this"), words({ sender: "ai" })),
+    ["refused", "human_has_it", 0],
+    "a send that names no call is held by the call: the text receptionist does not talk over it",
+  );
+  assert.deepEqual(
+    await send(byCall("call_this"), onTheCall({ onCall: null })),
+    ["refused", "human_has_it", 0],
+    "nor does a send whose call has no id",
+  );
+  // The hold is passed, never the pause: a thread a person paused still holds what the call sends.
+  const pausedToo = thread({
+    control_kind: "call",
+    control_ref: "call_this",
+    control_until: until,
+    paused_until: until,
+  });
+  assert.deepEqual(await send(pausedToo, onTheCall()), ["refused", "human_has_it", 0], "the pause still holds");
+});
+
 test("a queued row is finalized in place: sent with its id, or canceled with its reason and an event that says why", async () => {
   const queued = {
     id: "m1",

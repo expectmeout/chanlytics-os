@@ -510,7 +510,8 @@ export async function resolveOutboundTargetForContact(
  * before its migration must keep every reply, answer and booking link going.
  */
 export async function wireRowOf(db: Db, p: { tenantId: string; conversationId: string; relationship: boolean }) {
-  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const head =
+    "paused_until, control_kind, control_ref, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
   const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
   const read = (columns: string) =>
     db
