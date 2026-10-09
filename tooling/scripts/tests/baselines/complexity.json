@@ -4,16 +4,6 @@
     "branches": 36,
     "depth": 2
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
-    "lines": 49,
-    "branches": 34,
-    "depth": 2
-  },
-  "apps/dashboard/app/api/v1/contacts/[id]/details/route.ts::handle#1": {
-    "lines": 57,
-    "branches": 31,
-    "depth": 2
-  },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
     "branches": 1,
@@ -415,8 +405,8 @@
     "depth": 2
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
-    "lines": 162,
-    "branches": 40,
+    "lines": 151,
+    "branches": 37,
     "depth": 2
   }
 }

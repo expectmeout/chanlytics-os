@@ -23,7 +23,7 @@ var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["inbound_answer"]);
 var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 function verdictFor(job) {
   if (job.attempts <= 1) return "run";
-  if (SPEAKS_TO_A_PERSON.has(job.kind)) return "give_up";
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.spoke_at) return "give_up";
   return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
 }
 var RETRY_WAITS_MS = {
@@ -64,7 +64,7 @@ var RETRY_WAITS_MS = {
   inbound_answer: [2 * MIN_MS]
 };
 function retryWait(job, random = Math.random) {
-  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.spoke_at || job.attempts >= MAX_ATTEMPTS) return null;
   const wait = RETRY_WAITS_MS[job.kind]?.[job.attempts - 1];
   return wait === void 0 ? null : jittered(wait, random);
 }
@@ -75,6 +75,17 @@ async function claimNext(db, leaseSeconds) {
   if (error) throw new Error(`claim_due_jobs: ${error.message}`);
   const rows = data ?? [];
   return rows[0] ?? null;
+}
+var NO_SUCH_COLUMN = "PGRST204";
+async function markSpoke(db, job) {
+  if (job.spoke_at) return;
+  const at = (/* @__PURE__ */ new Date()).toISOString();
+  let write = db.from("jobs").update({ spoke_at: at }).eq("id", job.id).eq("state", "fired");
+  if (job.attempts !== void 0) write = write.eq("attempts", job.attempts);
+  const { data, error } = await write.select("id");
+  if (error && error.code !== NO_SUCH_COLUMN) throw new Error(`mark_spoke: ${error.message}`);
+  if (!error && (data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
+  job.spoke_at = at;
 }
 async function completeJob(db, job) {
   const { data, error } = await db.from("jobs").update({ state: "done", lease_until: null }).eq("id", job.id).eq("state", "fired").eq("attempts", job.attempts).select("id");
@@ -210,7 +221,9 @@ import {
   settleDelivery,
   memberHasAddress,
   keepForwardingConfirmation,
-  getTenantConfig
+  getTenantConfig,
+  claimQueuedSend,
+  releaseQueuedSend
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -950,6 +963,8 @@ async function outboundSend(ctx, job) {
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
+      claim: (id) => claimQueuedSend(ctx.db, job.tenant_id, id),
+      release: (id) => releaseQueuedSend(ctx.db, job.tenant_id, id),
       deliver: (d) => deliver2({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
@@ -1227,7 +1242,7 @@ async function dispatchJob(ctx, job) {
 // src/settle.ts
 import { isCampaignEmail } from "../../contracts/dist/index.js";
 import { logger as logger7 } from "../../channels/dist/index.js";
-import { emitEvent as emitEvent4 } from "../../db/dist/index.js";
+import { emitEvent as emitEvent4, failQueuedSend } from "../../db/dist/index.js";
 var NEVER_SENT = "the job that would have sent this never ran";
 var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 var MAY_HAVE_SENT = "the run that was sending this did not finish";
@@ -1272,11 +1287,11 @@ async function settleJob(db, job, certain) {
   if (job.kind === "outbound_send") {
     const messageId = idFrom(job.payload, "message_id");
     if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
-    const { data, error } = await db.from("messages").update({
-      status: "failed",
+    const { row, error } = await failQueuedSend(db, {
+      tenantId: job.tenant_id,
+      messageId,
       error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT, ...certain ? {} : { outcome: "unknown" } }
-    }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender, channel, meta");
-    const row = data?.[0] ?? null;
+    });
     const campaign = row?.channel === "email" && isCampaignEmail(row.meta?.email?.request);
     const flagged = !error && row?.conversation_id && !campaign ? await upsertEscalation(
       db,
@@ -1288,9 +1303,9 @@ async function settleJob(db, job, certain) {
     return [
       {
         what: "message",
-        changed: !!data?.length,
+        changed: !!row,
         ...flagged ? { flagged } : {},
-        ...error ? { error: error.message } : {}
+        ...error ? { error } : {}
       }
     ];
   }
@@ -1548,6 +1563,7 @@ export {
   failJob,
   incomingEmailOf,
   lateFields,
+  markSpoke,
   requeueFailedJob,
   retryWait,
   runTick,

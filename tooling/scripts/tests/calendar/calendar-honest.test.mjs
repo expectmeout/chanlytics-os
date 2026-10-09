@@ -421,6 +421,38 @@ test("REGRESSION (D14): an appointment opens as a dialog named by its title; Esc
   assert.equal(range(), "Sep 14 – 20", "with nothing open the arrows move the board again");
 });
 
+test("on a phone a pull down on an open appointment lets it go, as a sheet's does; a short drag keeps it, and a desk pulls nothing", () => {
+  // On a phone the card stands at the screen's foot, and Close, the wash and Escape were its only ways out (Ruben,
+  // 8 October 2026: everything that rises from the bottom edge goes back down by a pull).
+  fresh();
+  let tree = page();
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  const el = { dataset: {} };
+  const pull = (dy) => {
+    const panel = byTestId(tree, "cal-panel");
+    panel.props.onTouchStart({ touches: [{ clientX: 180, clientY: 300 }], currentTarget: el, target: null });
+    panel.props.onTouchEnd({ changedTouches: [{ clientX: 184, clientY: 300 + dy }], currentTarget: el });
+    tree = page();
+  };
+  pull(140);
+  assert.ok(byTestId(tree, "cal-panel"), "on a desk the card stands in the page's middle, and nothing is pulled");
+  globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
+  try {
+    tree = page();
+    pull(40);
+    assert.ok(byTestId(tree, "cal-panel"), "a short drag keeps it");
+    pull(140);
+    assert.equal(
+      byTestId(tree, "cal-panel"),
+      null,
+      "REGRESSION: a pull down did nothing to a card at the screen's foot",
+    );
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+});
+
 /**
  * An appointment's dialog, its controls in the order Tab walks them, for a consultation that is over, for someone in
  * People with no proposal since and no thread to text the booking link into, where deals are on and the deal sheet is

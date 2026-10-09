@@ -270,6 +270,9 @@ const card = async (name, input) => {
 
 /* ------------------------------------------------- 1. a dial we placed is not "missed" */
 
+/** A page block's text as its provider wrote it: the model is sent it inside a fence (server/ask/context.ts). */
+const pageText = (block) => block.content[0].text.replace(/^<record>\n/, "").replace(/\n<\/record>$/, "");
+
 test("missedCall is the one rule: a dial that never connected is missed only where the customer dialled, and a row that does not say who dialled is a customer's; callAttemptWords says it by the same rule", () => {
   assert.equal(missedCall({ missed: true, direction: "inbound" }), true);
   assert.equal(missedCall({ missed: true }), true, "a row with no direction is a customer's, as the bell reads it");
@@ -417,7 +420,7 @@ test("the page context's call lines say a dial we placed 'not_connected', and a 
     ],
     askedAt: 1,
   });
-  const lines = b.blocks.map((x) => x.content[0].text);
+  const lines = b.blocks.map(pageText);
   assert.match(lines.find((l) => l.includes(K_MISSED)) ?? "", /· missed ·/);
   assert.match(lines.find((l) => l.includes(K_PLACED)) ?? "", /· not_connected ·/);
   assert.ok(!lines.find((l) => l.includes(K_PLACED))?.includes("missed"));
@@ -505,7 +508,7 @@ test("inbox.list held: a draft still inside its hold window, and no queued draft
     ],
     askedAt: 1,
   });
-  const texts = b.blocks.map((x) => x.content[0].text);
+  const texts = b.blocks.map(pageText);
   assert.match(texts[0], /· held: 1 ·/);
   assert.match(texts.find((t) => t.startsWith("Rosa")) ?? "", /draft held/);
   assert.ok(!(texts.find((t) => t.startsWith("+1 (555) 555-0103")) ?? "").includes("draft held"));

@@ -18,6 +18,7 @@ import { Icon } from "../../kit/icon/icon";
 import type { FocusOn } from "../../kit/record/focus";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
+import { focusAsDrawn } from "../../legacy-verbs";
 import { JOB_CANCEL } from "../sheets/phone-sheet";
 import { plFace, plMatcher } from "../words";
 import { P } from "./pipe";
@@ -188,7 +189,7 @@ export const PipelineNew = (
     return (
       <Sheet open={open} shape="job" title={W.title} close={JOB_CANCEL} onClose={onClose} testid="pipeline-new-sheet">
         {/* eslint-disable-next-line jsx-a11y-x/no-autofocus -- the kit's sheet keeps a field focused as it opens */}
-        <PipelineNewBody {...body} autoFocus />
+        <PipelineNewBody {...body} autoFocus={focusAsDrawn()} />
       </Sheet>
     );
   }

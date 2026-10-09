@@ -3,9 +3,11 @@
  * or ended since -- with their two days, for contracts dealPaceFrom. The edge's playbook sweep (the proposal
  * follow-up, 0006) and the dashboard's People reads read them alike, so the two never judge "waiting" by two paces.
  * Paged, so a busy year is read whole. A read that fails THROWS: each caller says what no pace costs it.
+ *
+ * And the member's one call that records a deal with its line in the ledger (recordDeal, 00357).
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.types";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Json } from "../database.types";
 import { readAllRows } from "../paged";
 
 type Db = SupabaseClient<Database>;
@@ -30,4 +32,40 @@ export async function yesesSince(db: Db, tenantId: string, since: Date): Promise
       .range(from, to),
   );
   return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
+}
+
+/** What a move may name beside its stage: deal_record's own arguments, by their names without the `p_`. */
+export type DealMove = {
+  deal_id?: string;
+  version?: number;
+  service?: string;
+  when?: string;
+  amount_cents?: number;
+  per?: string;
+  note?: string;
+  evidence?: { message_id: string } | { form: string };
+  proposal_url?: string;
+  valid_until?: string;
+  lost_reason?: string;
+  clear?: string[];
+};
+
+/**
+ * A member records a deal and its line in the ledger together (00357 record_deal), on the member's own session:
+ * deal_record with what the move names, then the record_deal decision as theirs, in one transaction. The door's
+ * answer with `decision_id` beside it, a refusal it answers (`{ error }`, and then nothing was recorded), or the
+ * database's own refusal with its SQLSTATE, which the caller words.
+ */
+export async function recordDeal(
+  db: Db,
+  p: { contactId: string; stage: string; move: DealMove; via: string | null; undoOf: string | null },
+): Promise<{ data: Json | null; error: PostgrestError | null }> {
+  const { data, error } = await db.rpc("record_deal", {
+    p_contact_id: p.contactId,
+    p_stage: p.stage,
+    p_move: p.move,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  return { data, error };
 }

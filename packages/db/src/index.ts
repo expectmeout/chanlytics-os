@@ -275,7 +275,15 @@ export {
   keepIdempotencyReceipt,
 } from "./repositories/idempotency";
 export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
-export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
+export {
+  readJobToRequeue,
+  hasNewerCopy,
+  assembleBroadcast,
+  approveBroadcast,
+  claimQueuedSend,
+  releaseQueuedSend,
+  failQueuedSend,
+} from "./jobs";
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export type { JobToRequeue } from "./jobs";
@@ -318,6 +326,7 @@ export {
   setPlaybookState,
   updatePlaybook,
   removePlaybook,
+  startPlaybook,
 } from "./repositories/control-plane";
 export type {
   TenantConfigRow,
@@ -326,6 +335,7 @@ export type {
   CreateWorkspaceArgs,
   LineForwardingArgs,
   PlaybookPatch,
+  PlaybookToStart,
 } from "./repositories/control-plane";
 export {
   PEOPLE_PAGE,
@@ -340,6 +350,7 @@ export {
   erasureDigests,
   scrubPersonNotes,
   mergePeople,
+  recordConsent,
   resolvePerson,
   PERSON_FORGOTTEN,
   openDoubtsOf,
@@ -368,8 +379,8 @@ export { activitySubjects } from "./events";
 export type { ActivitySubject, ActivitySubjects } from "./events";
 export { touchesSince, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
-export { yesesSince } from "./repositories/deals";
-export type { YesRow } from "./repositories/deals";
+export { yesesSince, recordDeal } from "./repositories/deals";
+export type { YesRow, DealMove } from "./repositories/deals";
 export {
   getOwnPartner,
   sessionHoldsPartnerSeat,

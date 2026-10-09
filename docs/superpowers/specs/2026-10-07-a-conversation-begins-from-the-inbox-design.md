@@ -153,6 +153,10 @@ briefed at the top of an inbound call. Every system already in place is used bef
 - On a phone (at or under 900px) the act beside a strip that is not People's is a 44px coral circle, and every `span`
   directly inside it is clipped to one pixel (`legacy/styles/components.css:2419-2439`). `ActWords` draws its mark inside
   such a span, so it would leave an empty circle: the mark must be the button's own child. No page uses that rule yet.
+  Changed on 8 October 2026 (Ruben, after it was live: a bare plus said nothing of what it makes): the Inbox's act
+  says its words through `ActWords`, and the frame draws an act that does as a 36px capsule with its mark and its
+  first word, "+ New". The circle stays for an act that does not. On a touch screen the sheet opens with no field in
+  focus (`focusAsDrawn`, `surfaces/legacy-verbs.ts`).
 - "N drafts about to send · Hold all" is fixed at the right end of that row on a desk (`components.css:2111-2117`;
   `legacy/styles/inbox.css:1790`), drawn by the page (`surfaces/inbox/pages/inbox-page.tsx:293-348`).
 

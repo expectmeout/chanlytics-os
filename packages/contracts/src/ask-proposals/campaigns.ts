@@ -19,6 +19,7 @@ import {
   idIn,
   rec,
   refuseWith,
+  wasIn,
   type ProposalCall,
   type ProposalSpec,
 } from "./spec";
@@ -149,7 +150,9 @@ export const playbookChannelsSpec: ProposalSpec = {
   undo: {
     label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
     window: "ten_minutes",
-    record: (p) => ({ playbook_id: p.payload.playbook_id, was: p.payload.was }),
+    // The channels the route found when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => ({ playbook_id: p.payload.playbook_id, was: wasIn(data, "channels") ?? p.payload.was }),
     call: (u) => {
       const was = channelsIn(u.was);
       return was.length === 0 || !asText(u.playbook_id)

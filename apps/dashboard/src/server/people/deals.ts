@@ -1,9 +1,11 @@
 import "server-only";
-import type { RouteContext } from "@/server/with-route";
-import { yesesSince } from "@chanlytics/db";
+import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { recordDeal, yesesSince, type DealMove } from "@chanlytics/db";
 import {
+  AppError,
   DAY_MS,
   DEAL_LOST_REASONS,
+  DEAL_REFUSALS,
   PERSON_CAME_FROM_WORDS,
   cameFromOf,
   dealPaceFrom,
@@ -178,4 +180,37 @@ export async function dealReport(
       DEAL_LOST_REASONS,
     ).map(({ key, count }) => ({ reason: key, count })),
   };
+}
+
+/**
+ * Record a deal on a person's word, with its line in the ledger (00357 record_deal). The SQL door decides and writes
+ * the stage's event, and the decision is written in the same transaction on the member's own session, so a deal is
+ * never moved with no line saying who moved it, and a move answered with an error did not happen. The deal as
+ * recorded, the stage it came from and the decision's id; a move the door refuses is said in its own sentence.
+ */
+export async function recordDealMove(
+  ctx: Pick<RouteContext, "supabase" | "via" | "undoOf">,
+  contactId: string,
+  stage: string,
+  move: DealMove,
+): Promise<{ deal: DealDto; from: string | null; decision_id: string }> {
+  const { data, error } = await recordDeal(ctx.supabase, {
+    contactId,
+    stage,
+    move,
+    via: ctx.via ?? null,
+    undoOf: ctx.undoOf ?? null,
+  });
+  if (error) throw dbRefusal(error);
+  const r = (data ?? {}) as { error?: string; deal?: DealDto; from?: string | null; decision_id?: string };
+  if (r.error || !r.deal) {
+    // A key the sentences lack, or no deal and no error: an answer this verb does not know. Logged raw before the
+    // generic sentence, so a new refusal is found in the log rather than by its blandness.
+    if (!(r.error && DEAL_REFUSALS[r.error])) {
+      log.error("deal_door_unknown_answer", { contact: contactId, error: r.error ?? null, deal: !!r.deal });
+    }
+    throw new AppError("validation", DEAL_REFUSALS[r.error ?? ""] ?? "Could not record this.");
+  }
+  if (typeof r.decision_id !== "string") throw new Error("record_deal: the door answered without its decision");
+  return { deal: r.deal, from: r.from ?? null, decision_id: r.decision_id };
 }

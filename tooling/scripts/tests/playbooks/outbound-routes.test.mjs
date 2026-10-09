@@ -64,8 +64,44 @@ const both = (harbor, bayside) => [
   membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"),
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
+/**
+ * `start_playbook` (00357) for a database in memory: the row the function writes from what the caller named (running,
+ * the caller's, a moment, in the workspace named) into `tables.playbooks`, then the start_playbook decision as theirs
+ * in `tables.decisions`; the row's id with the decision's. A database that refuses the row (`refusal`: a check, the
+ * one-follow-up index) refuses the function, and neither is written, as its one transaction leaves it.
+ */
+const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
+  ...rpcs,
+  start_playbook: (a) => {
+    if (refusal) throw Object.assign(new Error(refusal.message), { code: refusal.code });
+    const row = {
+      id: crypto.randomUUID(),
+      tenant_id: a.p_tenant_id,
+      ...a.p_playbook,
+      state: "running",
+      kind: "moment",
+      created_by: USER,
+      created_at: new Date().toISOString(),
+    };
+    (tables.playbooks ??= []).push(row);
+    const decisions = (tables.decisions ??= []);
+    const decision = {
+      id: `decision-${decisions.length + 1}`,
+      tenant_id: a.p_tenant_id,
+      subject_type: "playbook",
+      subject_id: row.id,
+      verb: "start_playbook",
+      actor_type: "user",
+      actor_user_id: USER,
+      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
+      undo_of: a.p_undo_of ?? null,
+    };
+    decisions.push(decision);
+    return { id: row.id, decision_id: decision.id, undo_dropped: false };
+  },
+});
 const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
-  supabase: fakeDb(tables, {}, rpcs, opts),
+  supabase: fakeDb(tables, {}, withStartDoor(tables, rpcs), opts),
   userId: USER,
   email: "ada@example.com",
   params,
@@ -1084,12 +1120,15 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
   };
   const second = {
     ...ctxFor(tables),
-    supabase: fakeDb(tables, {
-      "playbooks.insert": {
-        code: "23505",
-        message: 'duplicate key value violates unique constraint "playbooks_one_follow_up"',
-      },
-    }),
+    supabase: fakeDb(
+      tables,
+      {},
+      withStartDoor(
+        tables,
+        {},
+        { code: "23505", message: 'duplicate key value violates unique constraint "playbooks_one_follow_up"' },
+      ),
+    ),
   };
   await refused(playbooks.POST.run(send("POST", body, inB), second), "conflict", 409, FOLLOW_UP_ONE);
   // The first is made, under its own class.
@@ -1363,7 +1402,8 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
   const before = { ...rowOf(K1) };
   let ctx = ctxFor(tables, { id: K1 });
   const out = await playbook.PUT.run(send("PUT", { channels: ["email", "whatsapp"] }), ctx);
-  assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running" });
+  // What it went by before this write rides back, for an undo that puts back what was there now.
+  assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running", was: { channels: ["whatsapp"] } });
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "in the product's order");
   assert.deepEqual({ ...rowOf(K1), channels: null }, { ...before, channels: null }, "nothing else of it moved");
   const written = ctx.supabase.seen.filter((s) => s.table === "playbooks" && s.op === "update").map((s) => s.values);
@@ -1431,10 +1471,11 @@ test("a playbook ticks channels: made with them, kept by an edit that names none
   const row = tables.playbooks.find((p) => p.id === made.id);
   assert.deepEqual(row.channels, ["whatsapp", "email"]);
   assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp", "email"], "the ledger says the channels");
-  // Naming none is WhatsApp alone, and the column is not even named: a database 00298 has not reached takes it as before.
+  // Naming none is WhatsApp alone, and the door is told so: it lands with its migration (00357), long after the column's
+  // (00298), so a start names every column it writes.
   const plain = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
   const before = tables.playbooks.find((p) => p.id === plain.id);
-  assert.ok(!("channels" in before), "WhatsApp alone is the column's default, written as every playbook always was");
+  assert.deepEqual(before.channels, ["whatsapp"], "WhatsApp alone when none is named");
   assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp"]);
   // An offer is by WhatsApp alone.
   await refused(

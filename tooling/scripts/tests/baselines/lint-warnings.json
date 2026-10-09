@@ -53,9 +53,6 @@
   "apps/dashboard/app/api/v1/leads/[id]/put-back/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
-  "apps/dashboard/app/api/v1/playbooks/route.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
   "apps/dashboard/app/api/v1/reach-outs/leads/route.ts": {
     "@typescript-eslint/no-deprecated": 2
   },

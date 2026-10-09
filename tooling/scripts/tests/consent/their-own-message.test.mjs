@@ -21,6 +21,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { consentDoor } from "./_person-row.mjs";
 
 // A namespace, not named imports: what this slice adds is missing from the module until it lands, and a
 // named import of it would fail the whole file rather than the test that needs it.
@@ -270,8 +271,9 @@ const doors = (refuse = null) => {
     },
   };
 };
+// Each answer goes through record_consent (00356), which calls the door the case fakes and writes the decision.
 const ctxFor = (t, rpcs, params = {}) => ({
-  supabase: fakeDb(t, {}, rpcs),
+  supabase: fakeDb(t, {}, consentDoor(t, rpcs, USER)),
   userId: USER,
   email: "ada@example.com",
   params,

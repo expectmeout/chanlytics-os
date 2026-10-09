@@ -10,6 +10,7 @@ export {
   completeJob,
   failJob,
   deferJob,
+  markSpoke,
   LEASE_SECONDS,
   CLAIM_FOR_MS,
   CLAIM_SLOTS,

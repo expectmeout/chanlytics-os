@@ -31,6 +31,7 @@ jobs:
   compare:
     name: Production's ledger against main's
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       PROD_READ_URL: ${{ secrets.SUPABASE_PROD_READ_URL }}
     steps:

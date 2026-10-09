@@ -371,6 +371,83 @@ export function hasTouchSwipe(): boolean {
   return !!window.touchSwipe;
 }
 
+/*
+ * What the app knows of a finger (Ruben, 8 October 2026: on a phone nothing that opens puts a person in a field by
+ * itself, and everything that rises from the bottom edge goes back down by a pull). These are the app's own and no
+ * page's. They stand here, with the verbs every page already loads, and not in a file of their own: a small module
+ * shared by the frame's kit and by the pages' own sheets made the build regroup its chunks, and People and Templates
+ * were handed a second copy of the record kit (13 KB each, measured against main's own build).
+ */
+
+/** Whether the window's media answers a query; none does where the window has none (a test's stand-in). */
+function mediaSays(query: string): boolean {
+  return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(query).matches;
+}
+
+/**
+ * Whether the pointer a person mostly uses is a finger: the house's one test for a touch screen, the one
+ * app/globals.css sizes every field by (`pointer: coarse`). It is not a width: a narrow window on a desk still has its
+ * keys, and a tablet held wide still has a keyboard that rises.
+ */
+function onTouchScreen(): boolean {
+  return mediaSays("(pointer: coarse)");
+}
+
+/**
+ * Whether a text field may take focus as it is drawn. Not on a touch screen: a field that took focus by itself raised
+ * the keyboard over a sheet the person had not read yet, and the phone moved the page to it. There a sheet opens with
+ * itself in focus (the kit's Sheet, RecordSheet), and a tap on a field begins the typing. A mouse and keys keep the
+ * field ready. An editor a press opened in place (a rename, a search its button reveals) asks it too, and its box
+ * takes the focus there (`editorBox`).
+ */
+export function focusAsDrawn(): boolean {
+  return !onTouchScreen();
+}
+
+/** On a touch screen, focus on an editor's own box as it is drawn, unless focus is already inside it. */
+function focusBoxOnTouch(el: HTMLElement | null): void {
+  if (!el || !onTouchScreen() || el.contains(document.activeElement)) return;
+  el.focus({ preventScroll: true });
+}
+
+/**
+ * What the box of an editor a press opened in place spreads: a rename, a search its button reveals, a name asked in
+ * the row (Ruben, 9 October 2026: these open as a sheet does, with no keyboard until the field is tapped; its field
+ * asks `focusAsDrawn`). On a touch screen the box takes focus as it is drawn, since its field does not: the control
+ * that was pressed is gone by then, and focus left on the page's body sends the next Tab, and a screen reader, back
+ * to the top of the page. Under a mouse the field has focus and this does nothing.
+ */
+export const editorBox = { tabIndex: -1, ref: focusBoxOnTouch } as const;
+
+/** The kit's one phone width (kit.css, 900px), where its Sheet and its Menu rise from the bottom edge. */
+export function onAPhone(): boolean {
+  return mediaSays("(max-width: 900px)");
+}
+
+/** What a touch handler is handed, as far as keeping it needs to know. */
+interface Touched {
+  stopPropagation?: () => void;
+}
+
+/**
+ * A gesture's handlers, keeping each touch to themselves. What is drawn on the document's body is still the child, to
+ * React, of whatever drew it, so its touch reaches that one's handlers too: a pull on a menu opened from inside a
+ * sheet, a drawer or an open thread was read by the sheet, the drawer or the thread as well.
+ */
+export function keepTouch<H extends object>(handlers: H): H {
+  const kept: Record<string, unknown> = {};
+  for (const [name, handle] of Object.entries(handlers)) {
+    kept[name] =
+      typeof handle === "function"
+        ? (e: Touched) => {
+            e.stopPropagation?.();
+            (handle as (e: Touched) => void)(e);
+          }
+        : handle;
+  }
+  return kept as H;
+}
+
 /** The ref that plays an overlay out as React lets go of it (data-bits `leaving`), one per key. */
 export function leaving(key: string): RefCallback<HTMLElement> | undefined {
   return window.leaving ? window.leaving(key) : undefined;

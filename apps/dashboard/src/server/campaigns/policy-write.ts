@@ -100,6 +100,21 @@ export const PolicyChange = z.preprocess(
   }),
 );
 
+/**
+ * What a class's row held before a change, for the answer: its mode and its confidence dial, each null where it held
+ * none (or there was no row). The row is read once at the head of the change, where a delay edit takes its mode from
+ * too, so an undo puts back what was there at the write and not what a card read when it was proposed.
+ */
+function policyWas(row: { mode: string; limits: unknown } | undefined): {
+  mode: string | null;
+  min_confidence: number | null;
+} {
+  const dial =
+    row && row.limits !== null && typeof row.limits === "object" && !Array.isArray(row.limits) ? row.limits : {};
+  const confidence = "min_confidence" in dial && typeof dial.min_confidence === "number" ? dial.min_confidence : null;
+  return { mode: row?.mode ?? null, min_confidence: confidence };
+}
+
 export async function changePolicy(ctx: RouteContext, input: z.infer<typeof PolicyChange>, member: Member) {
   const cls = input.class;
   if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
@@ -115,8 +130,8 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     input.max_replies_day,
     input.pause_hours,
   ];
+  const current = (await listPolicies(ctx.supabase, member.tenantId)).find((p) => p.class === cls);
   if (mode === "" && dials.some((d) => d !== undefined)) {
-    const current = (await listPolicies(ctx.supabase, member.tenantId)).find((p) => p.class === cls);
     if (!current) throw new AppError("not_found", "Policy row not found.", 404);
     mode = current.mode;
   }
@@ -180,7 +195,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);
     if (!row) throw new AppError("not_found", "Policy row not found.", 404);
     await recordPolicyChanged(ctx, member.tenantId, cls, mode, Object.keys(limits));
-    return { policy: row };
+    return { policy: row, was: policyWas(current) };
   } catch (e) {
     if (e instanceof AppError) throw e;
     const msg = e instanceof Error ? e.message : String(e);

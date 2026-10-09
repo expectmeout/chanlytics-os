@@ -20,6 +20,9 @@ function fakes(over = {}) {
   const answers = {
     queued: { status: "queued", body: "See you at 3", channel: "whatsapp", sender: "human" },
     purposeOf: "conversational",
+    // The row is this run's to send (messages.sending_at) unless a case says another run holds it.
+    claim: true,
+    release: undefined,
     deliver: { outcome: "sent", messageId: "m1", externalId: "wamid.1" },
     escalate: "opened",
     alert: undefined,
@@ -644,4 +647,64 @@ test("a person's own start is judged as a start and held as their own words; a r
   await core.sendQueued(bot.ports, send({ starts: true }));
   assert.equal("kind" in bot.log[0][1], false);
   assert.equal(bot.log[0][1].proactive, false);
+});
+
+test("a queued row is claimed before the wire: a row another run holds is not sent, and a claim that cannot be asked fails the job", async () => {
+  // Two jobs naming one message each read `queued` and each sent. The row is claimed first now, in one statement, so
+  // the second finds it held and sends nothing: its job is done, and the row is the first run's to finish.
+  const held = fakes({ claim: false });
+  await core.sendQueued(held.ports, send());
+  assert.deepEqual(held.log, [], "nothing reaches the door, nobody is flagged or told, no fresh job");
+
+  // What is asked, and when: after the row was read as queued, before the door.
+  const order = [];
+  const mine = fakes({
+    claim: (id) => (order.push(["claim", id]), true),
+    deliver: () => (order.push(["deliver"]), { outcome: "sent", messageId: "m1", externalId: "wamid.1" }),
+  });
+  await core.sendQueued(mine.ports, send());
+  assert.deepEqual(order, [["claim", "m1"], ["deliver"]]);
+
+  // A row that is gone or already handled is never claimed.
+  const gone = fakes({ queued: null, claim: () => assert.fail("a row that is gone is not claimed") });
+  await core.sendQueued(gone.ports, send());
+
+  // "Could not claim" is not a yes: the job fails, and the ledger settles the row.
+  const unasked = fakes({ claim: new Error("claim_queued_send: connection reset") });
+  await assert.rejects(core.sendQueued(unasked.ports, send()), /claim_queued_send/);
+  assert.deepEqual(unasked.log, [], "nothing was sent");
+});
+
+test("a send the provider did not take gives its claim back before the fresh job is asked for; one that cannot be given back asks for none", async () => {
+  const notTaken = () =>
+    new NotTakenError("whatsapp", {
+      ok: false,
+      wamid: null,
+      status: 429,
+      outcome: "retryable",
+      errorBody: "slow down",
+    });
+  for (const thrown of [notTaken(), new WireUnavailableError("whatsapp", "vault unavailable")]) {
+    const order = [];
+    const { ports } = fakes({
+      deliver: thrown,
+      release: (id) => void order.push(["release", id]),
+      retry: () => void order.push(["retry"]),
+    });
+    await core.sendQueued(ports, send());
+    assert.deepEqual(
+      order,
+      [["release", "m1"], ["retry"]],
+      "the row is the fresh job's to claim before that job exists",
+    );
+  }
+  // The claim could not be given back: no fresh job is asked for (it would find the row held and send nothing), the job
+  // fails, and the ledger settles the row as a send that did not finish.
+  const stuck = fakes({ deliver: notTaken(), release: new Error("release_queued_send: timeout") });
+  await assert.rejects(core.sendQueued(stuck.ports, send()), /release_queued_send/);
+  assert.deepEqual(stuck.ops(), ["deliver"], "no fresh job, no page");
+
+  // A send that left, was refused or failed at the provider keeps its claim: the row has moved, and nothing follows it.
+  const sent = fakes({ release: () => assert.fail("a send that left gives nothing back") });
+  await core.sendQueued(sent.ports, send());
 });

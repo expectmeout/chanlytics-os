@@ -1,8 +1,4 @@
 {
-  "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts::rpc": 1,
-  "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::rpc": 1,
-  "apps/dashboard/app/api/v1/contacts/[id]/details/route.ts::rpc": 4,
-  "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/decide/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/done/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts::rpc": 1,
@@ -23,7 +19,6 @@
   "apps/dashboard/app/api/v1/me/route.ts::rpc": 2,
   "apps/dashboard/app/api/v1/messages/[id]/cancel-send/route.ts": 1,
   "apps/dashboard/app/api/v1/notifications/route.ts::rpc": 2,
-  "apps/dashboard/app/api/v1/playbooks/route.ts": 1,
   "apps/dashboard/app/api/v1/setup/request/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/views/[page]/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/views/route.ts": 1,
@@ -72,7 +67,6 @@
   "apps/dashboard/src/server/metrics/metrics.ts::rpc": 1,
   "apps/dashboard/src/server/people/consent-qr.ts": 1,
   "apps/dashboard/src/server/people/consent.ts": 1,
-  "apps/dashboard/src/server/people/consent.ts::rpc": 2,
   "apps/dashboard/src/server/people/deals.ts": 3,
   "apps/dashboard/src/server/people/erase-contact.ts": 4,
   "apps/dashboard/src/server/people/erase-contact.ts::rpc": 2,
@@ -87,7 +81,7 @@
   "apps/dashboard/src/server/platform/platform.ts": 2,
   "apps/dashboard/src/server/platform/platform.ts::rpc": 4,
   "apps/dashboard/src/server/platform/vitals.ts::rpc": 2,
-  "apps/dashboard/src/server/ports/campaign-ports.ts": 4,
+  "apps/dashboard/src/server/ports/campaign-ports.ts": 2,
   "apps/dashboard/src/server/ports/core-ports.ts": 13,
   "apps/dashboard/src/server/public/business-page.ts": 4,
   "apps/dashboard/src/server/public/consent-page.ts": 3,
@@ -197,8 +191,8 @@
   "packages/jobs/src/broadcast-send.ts": 11,
   "packages/jobs/src/escalate.ts": 3,
   "packages/jobs/src/handlers.ts": 9,
-  "packages/jobs/src/ledger.ts": 3,
+  "packages/jobs/src/ledger.ts": 4,
   "packages/jobs/src/ledger.ts::rpc": 1,
   "packages/jobs/src/schedule.ts": 3,
-  "packages/jobs/src/settle.ts": 7
+  "packages/jobs/src/settle.ts": 6
 }

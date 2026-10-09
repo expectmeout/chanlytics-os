@@ -32,8 +32,9 @@ const ST_GROUPS = {
       // The same count the sidebar badge and the phone tab show, from the one
       // rule that owns it (ixWaitsOnYou) — never a second reading of it.
       // It counts people who need you, so it is amber, as the Needs you pill is (tone.ts warn).
-      { id: "inbox", label: "Needs you", to: "inbox", tone: "warn", badge: () => (window.sbNeedsCount ? window.sbNeedsCount() : 0) || null, tip: "Waiting on a decision from you" },
-      { id: "conversations", label: "Conversations", to: "conversations", tip: "Every chat and call, answered or not" },
+      // None of the three says a tip under a pointer: the names stand alone (Ruben, 8 Oct 2026).
+      { id: "inbox", label: "Needs you", to: "inbox", tone: "warn", badge: () => (window.sbNeedsCount ? window.sbNeedsCount() : 0) || null },
+      { id: "conversations", label: "Conversations", to: "conversations" },
       // pulse is demo-only: it advertised a call in progress for an invented
       // caller, always on, beside the REAL Conversations tab.
       // With the bridge running the pulse is the real thing: a call in
@@ -42,7 +43,7 @@ const ST_GROUPS = {
         // The same heartbeat rule the page applies between refreshes, so the
         // tab does not pulse for a phantom the page has already dropped.
         ? window.__LIVE.now.some((c) => window.__chrome.liveStillUp(c, window.__LIVE.heartbeatMs, Date.now()))
-        : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))), tip: "Calls on your line, as they happen" },
+        : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))) },
     ],
   },
   // Campaigns is one page, its home (surfaces/campaigns/home, canvas A), and Sent (broadcasts) and the Library (messages) are its

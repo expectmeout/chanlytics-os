@@ -12,6 +12,7 @@
  */
 import type { ReactNode, RefObject } from "react";
 import { Icon } from "../../kit/icon/icon";
+import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 
 type SearchRef = RefObject<HTMLInputElement | null> | null;
 
@@ -50,7 +51,7 @@ function PeoplePhoneSearch({
     );
   }
   return (
-    <div className="pp-lookup is-open">
+    <div className="pp-lookup is-open" {...editorBox}>
       <label className="pp-lookup-box">
         <Icon name="search" size={15} />
         <input
@@ -59,7 +60,7 @@ function PeoplePhoneSearch({
           inputMode="search"
           enterKeyHint="search"
           autoComplete="off"
-          autoFocus={searchOpen}
+          autoFocus={searchOpen && focusAsDrawn()}
           value={q}
           placeholder={searchLabel}
           aria-label={searchLabel}

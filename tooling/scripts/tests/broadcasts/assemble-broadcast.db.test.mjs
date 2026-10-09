@@ -310,3 +310,132 @@ test("a claim goes back to the queue as not_taken when WhatsApp was never reache
   const unnamed = await mark(people.a1, { state: "queued", reason: "retry" });
   assert.match(unnamed.error?.message ?? "", /terminal/);
 });
+
+/* ---- A run that waited is approved whole (00353 approve_broadcast) ---- */
+
+/** A member signed in, as the approve door needs: it asks who is calling. */
+async function memberOf(tenant, role) {
+  const email = `approve-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
+  const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
+  const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.equal(made.error, null, made.error?.message);
+  users.push(made.data.user.id);
+  const m = await db.from("memberships").insert({ tenant_id: tenant, user_id: made.data.user.id, role });
+  assert.equal(m.error, null, m.error?.message);
+  const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  const s = await client.auth.signInWithPassword({ email, password });
+  assert.equal(s.error, null, s.error?.message);
+  return { client, id: made.data.user.id };
+}
+/** A run of A that waits for a person, with its people and no job. */
+async function waiting(name) {
+  const { data: id, error } = await assemble(db, A, run(name, { state: "pending_approval", created_by: null }), [
+    { contact_id: people.a1, facts: null },
+    { contact_id: people.a2, facts: null },
+  ]);
+  assert.equal(error, null, error?.message);
+  return id;
+}
+const approve = (client, tenant, id, at, over = {}) =>
+  client.rpc("approve_broadcast", {
+    p_tenant_id: tenant,
+    p_broadcast_id: id,
+    p_send_at: at,
+    p_job: { request_id: "req-1" },
+    p_decision: { name: "the run", approved: true },
+    ...over,
+  });
+const decisionsOf = async (id) =>
+  (
+    await db
+      .from("decisions")
+      .select("id, verb, actor_type, actor_user_id, payload, undo_of")
+      .eq("tenant_id", A)
+      .eq("subject_type", "broadcast")
+      .eq("subject_id", id)
+  ).data ?? [];
+
+test("a run that waited is released, its send job written and the approval recorded as the member's, together", async (t) => {
+  if (skip) return t.skip(skip);
+  if (!ANON) return t.skip("no SUPABASE_ANON_KEY in env: the door asks who is calling");
+  const operator = await memberOf(A, "operator");
+  const id = await waiting("Approved whole");
+  const when = far();
+  const { data, error } = await approve(operator.client, A, id, when, { p_via: "ask" });
+  assert.equal(error, null, error?.message);
+  assert.match(data.decision_id, /^[0-9a-f-]{36}$/);
+  assert.equal(data.undo_dropped, false);
+  const held = await heldFor("Approved whole");
+  assert.deepEqual(
+    held.rows.map((r) => r.state),
+    ["scheduled"],
+  );
+  assert.equal(held.jobs.length, 1, "one send job");
+  assert.equal(Date.parse(held.jobs[0].due_at), Date.parse(when), "due when the run says it goes");
+  assert.deepEqual(held.jobs[0].payload, { request_id: "req-1", broadcast_id: id }, "the run is named by the door");
+  assert.equal(held.jobs[0].lane, 2);
+  const { data: row } = await db.from("broadcasts").select("scheduled_for").eq("id", id).single();
+  assert.equal(Date.parse(row.scheduled_for), Date.parse(when), "the row carries the time its job carries");
+  assert.deepEqual(await decisionsOf(id), [
+    {
+      id: data.decision_id,
+      verb: "send_broadcast",
+      actor_type: "user",
+      actor_user_id: operator.id,
+      payload: { name: "the run", approved: true, via: "ask" },
+      undo_of: null,
+    },
+  ]);
+
+  // Approved once: a second press, or a second person, finds it no longer waiting and writes nothing.
+  const again = await approve(operator.client, A, id, far());
+  assert.equal(again.error, null, again.error?.message);
+  assert.equal(again.data, null, "no longer waiting");
+  assert.equal((await heldFor("Approved whole")).jobs.length, 1, "no second job");
+  assert.equal((await decisionsOf(id)).length, 1, "no second decision");
+});
+
+test("a reach-out's run is approved with no job; a payload cannot name another run; an undo link nobody holds is dropped", async (t) => {
+  if (skip) return t.skip(skip);
+  if (!ANON) return t.skip("no SUPABASE_ANON_KEY in env: the door asks who is calling");
+  const owner = await memberOf(A, "owner");
+  const quiet = await waiting("Approved with no job");
+  const r = await approve(owner.client, A, quiet, far(), { p_job: null });
+  assert.equal(r.error, null, r.error?.message);
+  const held = await heldFor("Approved with no job");
+  assert.deepEqual([held.rows[0].state, held.jobs.length], ["scheduled", 0], "released, and nothing on the ledger");
+  assert.equal((await decisionsOf(quiet)).length, 1);
+
+  const named = await waiting("Names itself");
+  const other = "00000000-0000-4000-8000-000000000001";
+  const n = await approve(owner.client, A, named, far(), { p_job: { broadcast_id: other }, p_undo_of: other });
+  assert.equal(n.error, null, n.error?.message);
+  assert.equal(n.data.undo_dropped, true, "the link named a decision nobody holds");
+  assert.equal(
+    (await heldFor("Names itself")).jobs[0].payload.broadcast_id,
+    named,
+    "the door names the run, never the caller",
+  );
+  assert.equal((await decisionsOf(named))[0].undo_of, null);
+});
+
+test("only a member who may act approves, and only a run of their own workspace that still waits; a refusal writes nothing", async (t) => {
+  if (skip) return t.skip(skip);
+  if (!ANON) return t.skip("no SUPABASE_ANON_KEY in env: the door asks who is calling");
+  const id = await waiting("Not theirs to approve");
+  const viewer = await memberOf(A, "viewer");
+  const stranger = await memberOf(B, "owner");
+  const operator = await memberOf(A, "operator");
+  const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  assert.equal((await approve(anon, A, id, far())).error?.code, "42501", "signed out: no right to call it");
+  assert.equal((await approve(viewer.client, A, id, far())).error?.code, "P0002", "a viewer reads only");
+  assert.equal((await approve(stranger.client, A, id, far())).error?.code, "P0002", "another workspace's owner");
+  // Their own workspace, another's run: nothing of theirs is waiting under that id.
+  const elsewhere = await approve(stranger.client, B, id, far());
+  assert.equal(elsewhere.error, null, elsewhere.error?.message);
+  assert.equal(elsewhere.data, null);
+  assert.equal((await approve(operator.client, A, id, null)).error?.code, "22004", "a run is released for a moment");
+  const held = await heldFor("Not theirs to approve");
+  assert.deepEqual([held.rows[0].state, held.jobs.length], ["pending_approval", 0], "still waiting, nothing scheduled");
+  assert.deepEqual(await decisionsOf(id), [], "and nothing recorded");
+});

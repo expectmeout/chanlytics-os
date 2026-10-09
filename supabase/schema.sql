@@ -390,6 +390,57 @@ COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uui
 
 
 --
+-- Name: approve_broadcast(uuid, uuid, timestamp with time zone, jsonb, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_released uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_send_at is null then
+    raise exception 'approve_broadcast: a run is released for a moment' using errcode = '22004';
+  end if;
+  -- Only a run still waiting, and this workspace's: the row carries the time its job carries (00119). No row is a run
+  -- that moved while the person looked (approved by someone else, skipped, canceled), and nothing else is written.
+  update public.broadcasts
+     set state = 'scheduled', scheduled_for = p_send_at
+   where id = p_broadcast_id and tenant_id = p_tenant_id and state = 'pending_approval'
+  returning id into v_released;
+  if v_released is null then
+    return null;
+  end if;
+  -- The send, on the ledger no session may write: what the caller carries with it (the request it was approved in)
+  -- rides in the payload, and the run it sends is named here, never by the caller.
+  if p_job is not null then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'broadcast_send', p_send_at,
+            (case when jsonb_typeof(p_job) = 'object' then p_job else '{}'::jsonb end)
+              || jsonb_build_object('broadcast_id', p_broadcast_id));
+  end if;
+  return public.team_decision(p_tenant_id, v_actor, 'broadcast', p_broadcast_id, 'send_broadcast',
+                              coalesce(p_decision, '{}'::jsonb), p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): the run released to scheduled for p_send_at, its broadcast_send job written when p_job is given (null for a reach-out''s run, whose sends keep their own times), and the send_broadcast decision recorded as theirs, in one transaction (00353). Returns the decision''s id and whether an undo link was dropped; null when the run was no longer waiting, with nothing written. The rules (the pause, the sending hours, a run approved too late) are core''s approveRun, judged before the call.';
+
+
+--
 -- Name: ask_for_tick(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1219,6 +1270,7 @@ CASE
     END
     ELSE NULL::integer
 END) STORED,
+    spoke_at timestamp with time zone,
     CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
@@ -1243,6 +1295,13 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 --
 
 COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+
+
+--
+-- Name: COLUMN jobs.spoke_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.jobs.spoke_at IS 'When this job put words on a wire (00352): written the moment before the provider is called. A job that spoke is never run again, whatever its kind: a second claim gives up and a throw is not retried, because a second run could reach the person a second time. Null for a job that has not, and for a kind that speaks on every run (outbound_send, broadcast_send), which the ledger never runs twice anyway.';
 
 
 --
@@ -8139,6 +8198,38 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: member_decision(uuid, text, uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the decision is theirs.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who the insert policy lets
+  -- write a decision. A stranger learns nothing.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  return public.team_decision(p_tenant_id, v_actor, p_subject_type, p_subject_id, p_verb,
+                              coalesce(p_payload, '{}'::jsonb), p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) IS 'A decision written as the caller''s own (00357): auth.uid(), in a workspace they act in. What the insert policy on decisions lets a member write, as a function, so a door on the member''s own rights can end with it in the same transaction. team_decision writes the row. Returns decision_id and undo_dropped.';
 
 
 --
@@ -16142,6 +16233,121 @@ COMMENT ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace 
 
 
 --
+-- Name: record_consent(uuid, text, text, text, text, uuid, integer, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text DEFAULT NULL::text, p_message_id uuid DEFAULT NULL::uuid, p_batch integer DEFAULT NULL::integer, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+  v_before text;
+  v_door   jsonb;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the decision below is theirs.
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_purpose is null or p_purpose not in ('conversational', 'marketing') then
+    raise exception 'record_consent: the answer is about their visit (conversational) or about offers (marketing)'
+      using errcode = '22023';
+  end if;
+  -- The person's workspace, and the answer they had before the door changes it: the history line says what it was.
+  select c.tenant_id, case when p_purpose = 'marketing' then c.marketing_consent else c.consent end
+    into v_tenant, v_before
+    from public.contacts c
+   where c.id = p_contact_id;
+  -- A stranger learns nothing (00027's rule); the door below says the same to anyone this let past.
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Contact not found.' using errcode = 'P0002';
+  end if;
+  if p_purpose = 'marketing' then
+    v_door := public.set_marketing_consent(v_tenant, p_contact_id, p_consent, p_source, p_note, null, p_message_id);
+  else
+    v_door := public.set_contact_consent(p_contact_id, p_consent, p_source, p_note, p_message_id);
+  end if;
+  -- The line the route used to write after the door, with the fields it wrote: the purpose only for offers, the
+  -- message only where one was named, the size of the batch only for an answer recorded for many at once.
+  return v_door || public.team_decision(
+    v_tenant, v_user, 'contact', p_contact_id, 'consent_change',
+    jsonb_build_object('consent', p_consent, 'source', p_source, 'note', p_note, 'previous', v_before)
+      || jsonb_strip_nulls(jsonb_build_object(
+           'purpose', case when p_purpose = 'marketing' then 'marketing' end,
+           'message_id', p_message_id,
+           'batch', p_batch)),
+    p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) IS 'A member records a person''s answer and its line in their history together (00356): the purpose''s own door (set_contact_consent, or set_marketing_consent for offers), then the consent_change decision as theirs, in one transaction. The doors'' rules are unchanged and asked there; this decides none of them. Returns what the door returns with decision_id and undo_dropped. The edge and the yes page keep calling the doors themselves and write no decision.';
+
+
+--
+-- Name: record_deal(uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_move   jsonb := case when jsonb_typeof(p_move) = 'object' then p_move else '{}'::jsonb end;
+  v_door   jsonb;
+  v_tenant uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- The door, with what the caller named and nothing it did not: a key `p_move` lacks is the null the door's own
+  -- default is, so this calls it as the route did.
+  v_door := public.deal_record(
+    p_contact_id   => p_contact_id,
+    p_stage        => p_stage,
+    p_deal_id      => (v_move ->> 'deal_id')::uuid,
+    p_version      => (v_move ->> 'version')::integer,
+    p_service      => v_move ->> 'service',
+    p_when         => (v_move ->> 'when')::timestamptz,
+    p_amount_cents => (v_move ->> 'amount_cents')::integer,
+    p_per          => v_move ->> 'per',
+    p_note         => v_move ->> 'note',
+    p_evidence     => case when jsonb_typeof(v_move -> 'evidence') = 'object' then v_move -> 'evidence' end,
+    p_proposal_url => v_move ->> 'proposal_url',
+    p_valid_until  => (v_move ->> 'valid_until')::date,
+    p_lost_reason  => v_move ->> 'lost_reason',
+    p_clear        => case when jsonb_typeof(v_move -> 'clear') = 'array'
+                           then array(select jsonb_array_elements_text(v_move -> 'clear')) end
+  );
+  -- Refused (the door wrote nothing and says why), or an answer with no deal in it: the door's own answer, and no
+  -- line for a move that did not happen.
+  if v_door is null or v_door ? 'error' or jsonb_typeof(v_door -> 'deal') is distinct from 'object' then
+    return v_door;
+  end if;
+  -- The door let them past, so the person is one of a workspace they act in.
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id;
+  -- The line the route used to write after the door, with the fields it wrote.
+  return v_door || public.team_decision(
+    v_tenant, v_actor, 'deal', (v_door -> 'deal' ->> 'id')::uuid, 'record_deal',
+    jsonb_build_object('contact_id', p_contact_id, 'stage', p_stage,
+                       'from', v_door -> 'from', 'service', v_door -> 'deal' -> 'service'),
+    p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) IS 'A member records a deal and its line in the ledger together (00357): deal_record with what the caller named (p_move, by the door''s parameter names without the p_), then the record_deal decision as theirs, in one transaction. deal_record''s rules are unchanged and asked there; a move it refuses is answered as it answers it and nothing is recorded. Returns what the door returns with decision_id and undo_dropped.';
+
+
+--
 -- Name: record_workspace_created(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -18518,6 +18724,47 @@ CREATE FUNCTION public.stamp_email_sent(p_tenant_id uuid, p_message_id uuid, p_p
      and m.direction = 'outbound'
   returning m.status, m.conversation_id;
 $$;
+
+
+--
+-- Name: start_playbook(uuid, jsonb, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or jsonb_typeof(p_playbook) is distinct from 'object' then
+    raise exception 'start_playbook: a playbook is named whole' using errcode = '22004';
+  end if;
+  -- On the caller's rights: the table's insert policy judges the row (an acting member, as themselves, a moment, a
+  -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
+  -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment.
+  insert into public.playbooks (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
+                                template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
+                                cadence_days, channels, created_by)
+  select p_tenant_id, r.name, r.trigger, r.list_id, r.list_key, r.template_id, r.template_name,
+         r.template_language, r.params, r.policy_class, 'running', r.run_hour, r.cap_per_run, r.gap_days,
+         r.cadence_days, r.channels, v_actor
+    from jsonb_populate_record(null::public.playbooks, p_playbook) r
+  returning id into v_id;
+  return jsonb_build_object('id', v_id)
+      || public.member_decision(p_tenant_id, 'playbook', v_id, 'start_playbook', p_decision, p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Returns id, decision_id and undo_dropped.';
 
 
 --
@@ -21821,12 +22068,20 @@ CREATE TABLE public.messages (
     status_updated_at timestamp with time zone,
     meta jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sending_at timestamp with time zone,
     CONSTRAINT messages_channel_check CHECK ((channel = ANY (ARRAY['whatsapp'::text, 'voice'::text, 'sms'::text, 'email'::text, 'system'::text]))),
     CONSTRAINT messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text]))),
     CONSTRAINT messages_sender_check CHECK ((sender = ANY (ARRAY['customer'::text, 'ai'::text, 'human'::text, 'system'::text]))),
     CONSTRAINT messages_status_check CHECK ((status = ANY (ARRAY['received'::text, 'queued'::text, 'sent'::text, 'delivered'::text, 'read'::text, 'failed'::text, 'canceled'::text]))),
     CONSTRAINT messages_type_check CHECK ((type = ANY (ARRAY['text'::text, 'template'::text, 'media'::text, 'call_summary'::text, 'note'::text])))
 );
+
+
+--
+-- Name: COLUMN messages.sending_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.messages.sending_at IS 'When the one run that took this queued row to the wire claimed it (00352): set where status = ''queued'' and it is null, so a second job naming the row sends nothing. Cleared only when the provider provably did not take the message. Null on a row no job sent (an inbound message, a direct answer, a broadcast''s).';
 
 
 --
@@ -24412,6 +24667,13 @@ CREATE INDEX broadcast_recipients_message ON public.broadcast_recipients USING b
 
 
 --
+-- Name: broadcast_recipients_person; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX broadcast_recipients_person ON public.broadcast_recipients USING btree (tenant_id, contact_id);
+
+
+--
 -- Name: broadcast_recipients_queued; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -26791,7 +27053,7 @@ ALTER TABLE ONLY public.ask_messages
 --
 
 ALTER TABLE ONLY public.ask_messages
-    ADD CONSTRAINT ask_messages_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT ask_messages_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -26831,7 +27093,7 @@ ALTER TABLE ONLY public.ask_voice_sessions
 --
 
 ALTER TABLE ONLY public.ask_voice_sessions
-    ADD CONSTRAINT ask_voice_sessions_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT ask_voice_sessions_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -26863,7 +27125,7 @@ ALTER TABLE ONLY public.billing_events
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT broadcast_recipients_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -26871,7 +27133,7 @@ ALTER TABLE ONLY public.broadcast_recipients
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT broadcast_recipients_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -26879,7 +27141,7 @@ ALTER TABLE ONLY public.broadcast_recipients
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
+    ADD CONSTRAINT broadcast_recipients_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
 
 
 --
@@ -26903,7 +27165,7 @@ ALTER TABLE ONLY public.broadcasts
 --
 
 ALTER TABLE ONLY public.broadcasts
-    ADD CONSTRAINT broadcasts_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id) NOT VALID;
+    ADD CONSTRAINT broadcasts_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id);
 
 
 --
@@ -26911,7 +27173,7 @@ ALTER TABLE ONLY public.broadcasts
 --
 
 ALTER TABLE ONLY public.broadcasts
-    ADD CONSTRAINT broadcasts_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT broadcasts_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id);
 
 
 --
@@ -26935,7 +27197,7 @@ ALTER TABLE ONLY public.business_records
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_channel_id_same_workspace FOREIGN KEY (tenant_id, channel_id) REFERENCES public.tenant_channels(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT calls_channel_id_same_workspace FOREIGN KEY (tenant_id, channel_id) REFERENCES public.tenant_channels(tenant_id, id);
 
 
 --
@@ -26943,7 +27205,7 @@ ALTER TABLE ONLY public.calls
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT calls_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -26951,7 +27213,7 @@ ALTER TABLE ONLY public.calls
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id) NOT VALID;
+    ADD CONSTRAINT calls_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id);
 
 
 --
@@ -26959,7 +27221,7 @@ ALTER TABLE ONLY public.calls
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
+    ADD CONSTRAINT calls_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
 
 
 --
@@ -26991,7 +27253,7 @@ ALTER TABLE ONLY public.capability_activations
 --
 
 ALTER TABLE ONLY public.contact_identities
-    ADD CONSTRAINT contact_identities_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT contact_identities_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27047,7 +27309,7 @@ ALTER TABLE ONLY public.contact_reads
 --
 
 ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_merged_into_contact_id_same_workspace FOREIGN KEY (tenant_id, merged_into_contact_id) REFERENCES public.contacts(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT contacts_merged_into_contact_id_same_workspace FOREIGN KEY (tenant_id, merged_into_contact_id) REFERENCES public.contacts(tenant_id, id);
 
 
 --
@@ -27071,7 +27333,7 @@ ALTER TABLE ONLY public.conversations
 --
 
 ALTER TABLE ONLY public.conversations
-    ADD CONSTRAINT conversations_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT conversations_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27095,7 +27357,7 @@ ALTER TABLE ONLY public.conversations
 --
 
 ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT deals_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27111,7 +27373,7 @@ ALTER TABLE ONLY public.deals
 --
 
 ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id) NOT VALID;
+    ADD CONSTRAINT deals_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id);
 
 
 --
@@ -27143,7 +27405,7 @@ ALTER TABLE ONLY public.decisions
 --
 
 ALTER TABLE ONLY public.decisions
-    ADD CONSTRAINT decisions_undo_of_same_workspace FOREIGN KEY (tenant_id, undo_of) REFERENCES public.decisions(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT decisions_undo_of_same_workspace FOREIGN KEY (tenant_id, undo_of) REFERENCES public.decisions(tenant_id, id);
 
 
 --
@@ -27151,7 +27413,7 @@ ALTER TABLE ONLY public.decisions
 --
 
 ALTER TABLE ONLY public.escalations
-    ADD CONSTRAINT escalations_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT escalations_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27263,7 +27525,7 @@ ALTER TABLE ONLY public.lead_counters
 --
 
 ALTER TABLE ONLY public.lead_judgments
-    ADD CONSTRAINT lead_judgments_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_judgments_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27279,7 +27541,7 @@ ALTER TABLE ONLY public.lead_judgments
 --
 
 ALTER TABLE ONLY public.lead_operations
-    ADD CONSTRAINT lead_operations_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_operations_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27295,7 +27557,7 @@ ALTER TABLE ONLY public.lead_operations
 --
 
 ALTER TABLE ONLY public.lead_places
-    ADD CONSTRAINT lead_places_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_places_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27311,7 +27573,7 @@ ALTER TABLE ONLY public.lead_places
 --
 
 ALTER TABLE ONLY public.lead_preferences
-    ADD CONSTRAINT lead_preferences_from_lead_id_same_workspace FOREIGN KEY (tenant_id, from_lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (from_lead_id) NOT VALID;
+    ADD CONSTRAINT lead_preferences_from_lead_id_same_workspace FOREIGN KEY (tenant_id, from_lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (from_lead_id);
 
 
 --
@@ -27327,7 +27589,7 @@ ALTER TABLE ONLY public.lead_preferences
 --
 
 ALTER TABLE ONLY public.lead_rounds
-    ADD CONSTRAINT lead_rounds_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_rounds_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27343,7 +27605,7 @@ ALTER TABLE ONLY public.lead_rounds
 --
 
 ALTER TABLE ONLY public.lead_runs
-    ADD CONSTRAINT lead_runs_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_runs_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27359,7 +27621,7 @@ ALTER TABLE ONLY public.lead_runs
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_search_members_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27367,7 +27629,7 @@ ALTER TABLE ONLY public.lead_search_members
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE SET NULL (round_id) NOT VALID;
+    ADD CONSTRAINT lead_search_members_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE SET NULL (round_id);
 
 
 --
@@ -27375,7 +27637,7 @@ ALTER TABLE ONLY public.lead_search_members
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT lead_search_members_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27407,7 +27669,7 @@ ALTER TABLE ONLY public.lead_searches
 --
 
 ALTER TABLE ONLY public.lead_searches
-    ADD CONSTRAINT lead_searches_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE SET NULL (thread_id) NOT VALID;
+    ADD CONSTRAINT lead_searches_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE SET NULL (thread_id);
 
 
 --
@@ -27431,7 +27693,7 @@ ALTER TABLE ONLY public.lead_suppressions
 --
 
 ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT leads_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -27479,7 +27741,7 @@ ALTER TABLE ONLY public.memberships
 --
 
 ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT messages_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id);
 
 
 --
@@ -27487,7 +27749,7 @@ ALTER TABLE ONLY public.messages
 --
 
 ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT messages_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27695,7 +27957,7 @@ ALTER TABLE ONLY public.person_doubts
 --
 
 ALTER TABLE ONLY public.person_moments
-    ADD CONSTRAINT person_moments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT person_moments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27719,7 +27981,7 @@ ALTER TABLE ONLY public.person_notes
 --
 
 ALTER TABLE ONLY public.person_notes
-    ADD CONSTRAINT person_notes_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT person_notes_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27727,7 +27989,7 @@ ALTER TABLE ONLY public.person_notes
 --
 
 ALTER TABLE ONLY public.person_notes
-    ADD CONSTRAINT person_notes_deal_id_same_workspace FOREIGN KEY (tenant_id, deal_id) REFERENCES public.deals(tenant_id, id) ON DELETE SET NULL (deal_id) NOT VALID;
+    ADD CONSTRAINT person_notes_deal_id_same_workspace FOREIGN KEY (tenant_id, deal_id) REFERENCES public.deals(tenant_id, id) ON DELETE SET NULL (deal_id);
 
 
 --
@@ -27799,7 +28061,7 @@ ALTER TABLE ONLY public.playbooks
 --
 
 ALTER TABLE ONLY public.playbooks
-    ADD CONSTRAINT playbooks_list_id_same_workspace FOREIGN KEY (tenant_id, list_id) REFERENCES public.segments(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT playbooks_list_id_same_workspace FOREIGN KEY (tenant_id, list_id) REFERENCES public.segments(tenant_id, id);
 
 
 --
@@ -27815,7 +28077,7 @@ ALTER TABLE ONLY public.playbooks
 --
 
 ALTER TABLE ONLY public.playbooks
-    ADD CONSTRAINT playbooks_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id) NOT VALID;
+    ADD CONSTRAINT playbooks_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id);
 
 
 --
@@ -27871,7 +28133,7 @@ ALTER TABLE ONLY public.reach_out_check_spend
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_answered_message_id_same_workspace FOREIGN KEY (tenant_id, answered_message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (answered_message_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_answered_message_id_same_workspace FOREIGN KEY (tenant_id, answered_message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (answered_message_id);
 
 
 --
@@ -27879,7 +28141,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -27887,7 +28149,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_replies_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27895,7 +28157,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_lead_contact_id_same_workspace FOREIGN KEY (tenant_id, lead_contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (lead_contact_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_lead_contact_id_same_workspace FOREIGN KEY (tenant_id, lead_contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (lead_contact_id);
 
 
 --
@@ -27903,7 +28165,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id);
 
 
 --
@@ -27911,7 +28173,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_replies_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27919,7 +28181,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_send_id_same_workspace FOREIGN KEY (tenant_id, send_id) REFERENCES public.reach_out_sends(tenant_id, id) ON DELETE SET NULL (send_id) NOT VALID;
+    ADD CONSTRAINT reach_out_replies_send_id_same_workspace FOREIGN KEY (tenant_id, send_id) REFERENCES public.reach_out_sends(tenant_id, id) ON DELETE SET NULL (send_id);
 
 
 --
@@ -27943,7 +28205,7 @@ ALTER TABLE ONLY public.reach_out_replies
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_sends_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27951,7 +28213,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
 
 
 --
@@ -27959,7 +28221,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_domain_id_same_workspace FOREIGN KEY (tenant_id, domain_id) REFERENCES public.sending_domains(tenant_id, id) ON DELETE SET NULL (domain_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_domain_id_same_workspace FOREIGN KEY (tenant_id, domain_id) REFERENCES public.sending_domains(tenant_id, id) ON DELETE SET NULL (domain_id);
 
 
 --
@@ -27967,7 +28229,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_sends_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -27975,7 +28237,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id);
 
 
 --
@@ -27983,7 +28245,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id) NOT VALID;
+    ADD CONSTRAINT reach_out_sends_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id);
 
 
 --
@@ -27991,7 +28253,7 @@ ALTER TABLE ONLY public.reach_out_sends
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_root_id_same_workspace FOREIGN KEY (tenant_id, root_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT reach_out_sends_root_id_same_workspace FOREIGN KEY (tenant_id, root_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28031,7 +28293,7 @@ ALTER TABLE ONLY public.segment_members
 --
 
 ALTER TABLE ONLY public.segment_members
-    ADD CONSTRAINT segment_members_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT segment_members_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -28039,7 +28301,7 @@ ALTER TABLE ONLY public.segment_members
 --
 
 ALTER TABLE ONLY public.segment_members
-    ADD CONSTRAINT segment_members_segment_id_same_workspace FOREIGN KEY (tenant_id, segment_id) REFERENCES public.segments(tenant_id, id) ON DELETE CASCADE NOT VALID;
+    ADD CONSTRAINT segment_members_segment_id_same_workspace FOREIGN KEY (tenant_id, segment_id) REFERENCES public.segments(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -29614,6 +29876,15 @@ GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id u
 
 
 --
+-- Name: FUNCTION approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION ask_for_tick(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -30337,7 +30608,7 @@ GRANT ALL ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_per
 -- Name: TABLE contacts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.contacts TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.contacts TO authenticated;
 GRANT ALL ON TABLE public.contacts TO service_role;
 
 
@@ -31020,6 +31291,15 @@ GRANT ALL ON FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid)
 
 REVOKE ALL ON FUNCTION public.marketing_consent_on_erase() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.marketing_consent_on_erase() TO service_role;
+
+
+--
+-- Name: FUNCTION member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) TO service_role;
 
 
 --
@@ -32257,6 +32537,24 @@ GRANT ALL ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspac
 
 
 --
+-- Name: FUNCTION record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.record_consent(p_contact_id uuid, p_purpose text, p_consent text, p_source text, p_note text, p_message_id uuid, p_batch integer, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.record_deal(p_contact_id uuid, p_stage text, p_move jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION record_workspace_created(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32598,6 +32896,15 @@ GRANT ALL ON FUNCTION public.stamp_email_sent(p_tenant_id uuid, p_message_id uui
 
 
 --
+-- Name: FUNCTION start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION stop_all_messages(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32933,7 +33240,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
 -- Name: TABLE ask_messages; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_messages TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.ask_messages TO authenticated;
 GRANT ALL ON TABLE public.ask_messages TO service_role;
 
 
@@ -32976,7 +33283,7 @@ GRANT INSERT(content),UPDATE(content) ON TABLE public.ask_messages TO authentica
 -- Name: TABLE ask_threads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_threads TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.ask_threads TO authenticated;
 GRANT ALL ON TABLE public.ask_threads TO service_role;
 
 
@@ -33132,7 +33439,7 @@ GRANT UPDATE(first_audio_ms) ON TABLE public.ask_voice_sessions TO authenticated
 -- Name: TABLE billing_accounts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.billing_accounts TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_accounts TO authenticated;
 GRANT ALL ON TABLE public.billing_accounts TO service_role;
 
 
@@ -33154,7 +33461,7 @@ GRANT ALL ON TABLE public.billing_events TO service_role;
 -- Name: TABLE broadcast_recipients; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.broadcast_recipients TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.broadcast_recipients TO authenticated;
 GRANT ALL ON TABLE public.broadcast_recipients TO service_role;
 
 
@@ -33190,7 +33497,7 @@ GRANT INSERT(facts) ON TABLE public.broadcast_recipients TO authenticated;
 -- Name: TABLE broadcasts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcasts TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.broadcasts TO authenticated;
 GRANT ALL ON TABLE public.broadcasts TO service_role;
 
 
@@ -33289,7 +33596,7 @@ GRANT INSERT(run_for) ON TABLE public.broadcasts TO authenticated;
 -- Name: TABLE business_records; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.business_records TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.business_records TO authenticated;
 GRANT ALL ON TABLE public.business_records TO service_role;
 
 
@@ -33297,7 +33604,7 @@ GRANT ALL ON TABLE public.business_records TO service_role;
 -- Name: TABLE calls; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.calls TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.calls TO authenticated;
 GRANT ALL ON TABLE public.calls TO service_role;
 
 
@@ -33305,7 +33612,7 @@ GRANT ALL ON TABLE public.calls TO service_role;
 -- Name: TABLE capability_activations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.capability_activations TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.capability_activations TO authenticated;
 GRANT ALL ON TABLE public.capability_activations TO service_role;
 
 
@@ -33355,7 +33662,7 @@ GRANT INSERT(note) ON TABLE public.capability_activations TO authenticated;
 -- Name: TABLE contact_identities; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.contact_identities TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.contact_identities TO authenticated;
 GRANT ALL ON TABLE public.contact_identities TO service_role;
 
 
@@ -33379,7 +33686,7 @@ GRANT ALL ON TABLE public.contact_reads TO service_role;
 -- Name: TABLE conversations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.conversations TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.conversations TO authenticated;
 GRANT ALL ON TABLE public.conversations TO service_role;
 
 
@@ -33422,7 +33729,7 @@ GRANT UPDATE(last_message_at) ON TABLE public.conversations TO authenticated;
 -- Name: TABLE deals; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.deals TO authenticated;
+GRANT SELECT ON TABLE public.deals TO authenticated;
 GRANT ALL ON TABLE public.deals TO service_role;
 
 
@@ -33430,7 +33737,7 @@ GRANT ALL ON TABLE public.deals TO service_role;
 -- Name: TABLE decisions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.decisions TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.decisions TO authenticated;
 GRANT ALL ON TABLE public.decisions TO service_role;
 
 
@@ -33501,7 +33808,7 @@ GRANT ALL ON TABLE public.erasure_keying TO service_role;
 -- Name: TABLE escalations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.escalations TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.escalations TO authenticated;
 GRANT ALL ON TABLE public.escalations TO service_role;
 
 
@@ -33551,7 +33858,7 @@ GRANT ALL ON TABLE public.event_subscriptions TO service_role;
 -- Name: TABLE events; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.events TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.events TO authenticated;
 GRANT ALL ON TABLE public.events TO service_role;
 
 
@@ -33566,7 +33873,7 @@ GRANT ALL ON TABLE public.events_default TO service_role;
 -- Name: TABLE google_connections; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_connections TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_connections TO authenticated;
 GRANT ALL ON TABLE public.google_connections TO service_role;
 
 
@@ -33574,7 +33881,7 @@ GRANT ALL ON TABLE public.google_connections TO service_role;
 -- Name: TABLE google_listing_days; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_listing_days TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_listing_days TO authenticated;
 GRANT ALL ON TABLE public.google_listing_days TO service_role;
 
 
@@ -33582,7 +33889,7 @@ GRANT ALL ON TABLE public.google_listing_days TO service_role;
 -- Name: TABLE google_listings; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_listings TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_listings TO authenticated;
 GRANT ALL ON TABLE public.google_listings TO service_role;
 
 
@@ -33590,7 +33897,7 @@ GRANT ALL ON TABLE public.google_listings TO service_role;
 -- Name: TABLE google_reviews; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.google_reviews TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_reviews TO authenticated;
 GRANT ALL ON TABLE public.google_reviews TO service_role;
 
 
@@ -33598,7 +33905,7 @@ GRANT ALL ON TABLE public.google_reviews TO service_role;
 -- Name: TABLE idempotency_keys; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.idempotency_keys TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.idempotency_keys TO authenticated;
 GRANT ALL ON TABLE public.idempotency_keys TO service_role;
 
 
@@ -33648,7 +33955,7 @@ GRANT INSERT(created_at) ON TABLE public.idempotency_keys TO authenticated;
 -- Name: TABLE invitations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.invitations TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.invitations TO authenticated;
 GRANT ALL ON TABLE public.invitations TO service_role;
 
 
@@ -33677,7 +33984,7 @@ GRANT ALL ON TABLE public.lead_niche_priors TO service_role;
 -- Name: TABLE lead_operations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_operations TO authenticated;
+GRANT SELECT ON TABLE public.lead_operations TO authenticated;
 GRANT ALL ON TABLE public.lead_operations TO service_role;
 
 
@@ -33685,7 +33992,7 @@ GRANT ALL ON TABLE public.lead_operations TO service_role;
 -- Name: TABLE lead_places; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_places TO authenticated;
+GRANT SELECT ON TABLE public.lead_places TO authenticated;
 GRANT ALL ON TABLE public.lead_places TO service_role;
 
 
@@ -33700,7 +34007,7 @@ GRANT ALL ON TABLE public.lead_platform TO service_role;
 -- Name: TABLE lead_preferences; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_preferences TO authenticated;
+GRANT SELECT ON TABLE public.lead_preferences TO authenticated;
 GRANT ALL ON TABLE public.lead_preferences TO service_role;
 
 
@@ -33708,7 +34015,7 @@ GRANT ALL ON TABLE public.lead_preferences TO service_role;
 -- Name: TABLE lead_rounds; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_rounds TO authenticated;
+GRANT SELECT ON TABLE public.lead_rounds TO authenticated;
 GRANT ALL ON TABLE public.lead_rounds TO service_role;
 
 
@@ -33716,7 +34023,7 @@ GRANT ALL ON TABLE public.lead_rounds TO service_role;
 -- Name: TABLE lead_runs; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_runs TO authenticated;
+GRANT SELECT ON TABLE public.lead_runs TO authenticated;
 GRANT ALL ON TABLE public.lead_runs TO service_role;
 
 
@@ -33724,7 +34031,7 @@ GRANT ALL ON TABLE public.lead_runs TO service_role;
 -- Name: TABLE lead_search_members; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_search_members TO authenticated;
+GRANT SELECT ON TABLE public.lead_search_members TO authenticated;
 GRANT ALL ON TABLE public.lead_search_members TO service_role;
 
 
@@ -33732,7 +34039,7 @@ GRANT ALL ON TABLE public.lead_search_members TO service_role;
 -- Name: TABLE lead_searches; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_searches TO authenticated;
+GRANT SELECT ON TABLE public.lead_searches TO authenticated;
 GRANT ALL ON TABLE public.lead_searches TO service_role;
 
 
@@ -33740,7 +34047,7 @@ GRANT ALL ON TABLE public.lead_searches TO service_role;
 -- Name: TABLE leads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.leads TO authenticated;
+GRANT SELECT ON TABLE public.leads TO authenticated;
 GRANT ALL ON TABLE public.leads TO service_role;
 
 
@@ -33748,7 +34055,7 @@ GRANT ALL ON TABLE public.leads TO service_role;
 -- Name: TABLE lead_searches_view; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.lead_searches_view TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lead_searches_view TO authenticated;
 GRANT ALL ON TABLE public.lead_searches_view TO service_role;
 
 
@@ -33756,7 +34063,7 @@ GRANT ALL ON TABLE public.lead_searches_view TO service_role;
 -- Name: TABLE lead_suggestions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_suggestions TO authenticated;
+GRANT SELECT ON TABLE public.lead_suggestions TO authenticated;
 GRANT ALL ON TABLE public.lead_suggestions TO service_role;
 
 
@@ -33764,7 +34071,7 @@ GRANT ALL ON TABLE public.lead_suggestions TO service_role;
 -- Name: TABLE lead_suppressions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.lead_suppressions TO authenticated;
+GRANT SELECT ON TABLE public.lead_suppressions TO authenticated;
 GRANT ALL ON TABLE public.lead_suppressions TO service_role;
 
 
@@ -33772,7 +34079,7 @@ GRANT ALL ON TABLE public.lead_suppressions TO service_role;
 -- Name: TABLE lines; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.lines TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lines TO authenticated;
 GRANT ALL ON TABLE public.lines TO service_role;
 
 
@@ -33780,7 +34087,7 @@ GRANT ALL ON TABLE public.lines TO service_role;
 -- Name: TABLE mailboxes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.mailboxes TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailboxes TO authenticated;
 GRANT ALL ON TABLE public.mailboxes TO service_role;
 
 
@@ -33788,7 +34095,7 @@ GRANT ALL ON TABLE public.mailboxes TO service_role;
 -- Name: TABLE memberships; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.memberships TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.memberships TO authenticated;
 GRANT ALL ON TABLE public.memberships TO service_role;
 
 
@@ -33796,7 +34103,7 @@ GRANT ALL ON TABLE public.memberships TO service_role;
 -- Name: TABLE messages; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.messages TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.messages TO authenticated;
 GRANT ALL ON TABLE public.messages TO service_role;
 
 
@@ -33916,7 +34223,7 @@ GRANT INSERT(meta) ON TABLE public.messages TO authenticated;
 -- Name: TABLE notification_marks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.notification_marks TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_marks TO authenticated;
 GRANT ALL ON TABLE public.notification_marks TO service_role;
 
 
@@ -33924,7 +34231,7 @@ GRANT ALL ON TABLE public.notification_marks TO service_role;
 -- Name: TABLE notification_reads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.notification_reads TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_reads TO authenticated;
 GRANT ALL ON TABLE public.notification_reads TO service_role;
 
 
@@ -33932,7 +34239,7 @@ GRANT ALL ON TABLE public.notification_reads TO service_role;
 -- Name: TABLE notifications; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.notifications TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO authenticated;
 GRANT ALL ON TABLE public.notifications TO service_role;
 
 
@@ -34017,7 +34324,7 @@ GRANT SELECT ON TABLE public.person_moments TO authenticated;
 -- Name: TABLE person_notes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.person_notes TO authenticated;
+GRANT SELECT ON TABLE public.person_notes TO authenticated;
 GRANT ALL ON TABLE public.person_notes TO service_role;
 
 
@@ -34039,7 +34346,7 @@ GRANT ALL ON TABLE public.platform_metrics TO service_role;
 -- Name: TABLE playbooks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.playbooks TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.playbooks TO authenticated;
 GRANT ALL ON TABLE public.playbooks TO service_role;
 
 
@@ -34166,7 +34473,7 @@ GRANT INSERT(channels),UPDATE(channels) ON TABLE public.playbooks TO authenticat
 -- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.policies TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
 GRANT ALL ON TABLE public.policies TO service_role;
 
 
@@ -34216,7 +34523,7 @@ GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
 -- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.profiles TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.profiles TO authenticated;
 GRANT ALL ON TABLE public.profiles TO service_role;
 
 
@@ -34231,7 +34538,7 @@ GRANT ALL ON TABLE public.provider_events TO service_role;
 -- Name: TABLE push_devices; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.push_devices TO authenticated;
+GRANT SELECT ON TABLE public.push_devices TO authenticated;
 GRANT ALL ON TABLE public.push_devices TO service_role;
 
 
@@ -34268,7 +34575,7 @@ GRANT ALL ON TABLE public.reply_turns TO service_role;
 -- Name: TABLE segment_members; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.segment_members TO authenticated;
+GRANT SELECT,DELETE,UPDATE ON TABLE public.segment_members TO authenticated;
 GRANT ALL ON TABLE public.segment_members TO service_role;
 
 
@@ -34304,7 +34611,7 @@ GRANT INSERT(added_by) ON TABLE public.segment_members TO authenticated;
 -- Name: TABLE segments; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.segments TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.segments TO authenticated;
 GRANT ALL ON TABLE public.segments TO service_role;
 
 
@@ -34355,7 +34662,7 @@ GRANT SELECT ON TABLE public.sending_domain_days TO authenticated;
 -- Name: TABLE sending_domains; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.sending_domains TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sending_domains TO authenticated;
 GRANT ALL ON TABLE public.sending_domains TO service_role;
 
 
@@ -34370,7 +34677,7 @@ GRANT ALL ON TABLE public.sweep_status TO service_role;
 -- Name: TABLE templates; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.templates TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.templates TO authenticated;
 GRANT ALL ON TABLE public.templates TO service_role;
 
 
@@ -34378,7 +34685,7 @@ GRANT ALL ON TABLE public.templates TO service_role;
 -- Name: TABLE tenant_channels; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.tenant_channels TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenant_channels TO authenticated;
 GRANT ALL ON TABLE public.tenant_channels TO service_role;
 
 
@@ -34386,7 +34693,7 @@ GRANT ALL ON TABLE public.tenant_channels TO service_role;
 -- Name: TABLE tenant_config; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.tenant_config TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.tenant_config TO authenticated;
 GRANT ALL ON TABLE public.tenant_config TO service_role;
 
 
@@ -34415,7 +34722,7 @@ GRANT UPDATE(updated_by) ON TABLE public.tenant_config TO authenticated;
 -- Name: TABLE tenants; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.tenants TO authenticated;
+GRANT SELECT,INSERT,DELETE ON TABLE public.tenants TO authenticated;
 GRANT ALL ON TABLE public.tenants TO service_role;
 
 

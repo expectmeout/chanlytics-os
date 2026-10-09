@@ -858,6 +858,20 @@ async function markContact(db, contactId, mark) {
     marked_at: stampOf(o.marked_at)
   };
 }
+async function recordConsent(db, p) {
+  const { data, error } = await db.rpc("record_consent", {
+    p_contact_id: p.contactId,
+    p_purpose: p.purpose,
+    p_consent: p.consent,
+    p_source: p.source,
+    ...p.note ? { p_note: p.note } : {},
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    ...p.batch ? { p_batch: p.batch } : {},
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
+}
 
 // src/repositories/ingest.ts
 import {
@@ -3209,6 +3223,51 @@ async function assembleBroadcast(db, args) {
   if (error || !data) throw new Error(error?.message ?? "broadcast not created");
   return data;
 }
+var NO_SUCH_COLUMN = /* @__PURE__ */ new Set(["PGRST204", "42703"]);
+async function claimQueuedSend(db, tenantId, messageId) {
+  const { data, error } = await db.from("messages").update({ sending_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", messageId).eq("tenant_id", tenantId).eq("status", "queued").is("sending_at", null).select("id");
+  if (error && NO_SUCH_COLUMN.has(error.code)) return true;
+  if (error) throw new Error(`claim_queued_send: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function releaseQueuedSend(db, tenantId, messageId) {
+  const { error } = await db.from("messages").update({ sending_at: null }).eq("id", messageId).eq("tenant_id", tenantId).eq("status", "queued");
+  if (error && !NO_SUCH_COLUMN.has(error.code)) throw new Error(`release_queued_send: ${error.message}`);
+}
+async function approveBroadcast(db, args) {
+  const { data, error } = await db.rpc("approve_broadcast", {
+    p_tenant_id: args.tenantId,
+    p_broadcast_id: args.broadcastId,
+    p_send_at: args.sendAt.toISOString(),
+    p_job: args.job,
+    p_decision: args.decision,
+    ...args.via ? { p_via: args.via } : {},
+    ...args.undoOf ? { p_undo_of: args.undoOf } : {}
+  });
+  if (error) throw new Error(`approve_broadcast: ${error.message}`);
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string") throw new Error("approve_broadcast: the door answered without its decision");
+  return { decisionId: id, undoDropped: data.undo_dropped === true };
+}
+async function failQueuedSend(db, p) {
+  const { data, error } = await db.from("messages").update({ status: "failed", error: p.error }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("status", "queued").select("conversation_id, sender, channel, meta");
+  if (error) return { row: null, error: error.message };
+  const row = data?.[0];
+  if (!row) return { row: null, error: null };
+  const meta = row.meta !== null && typeof row.meta === "object" && !Array.isArray(row.meta) ? row.meta : null;
+  const email = meta?.email;
+  const request = email !== null && typeof email === "object" && !Array.isArray(email) ? email.request : void 0;
+  return {
+    row: {
+      conversation_id: row.conversation_id,
+      sender: row.sender,
+      channel: row.channel,
+      meta: request === void 0 ? null : { email: { request } }
+    },
+    error: null
+  };
+}
 
 // src/provider-events.ts
 async function keepProviderEvent(db, d) {
@@ -3299,15 +3358,18 @@ async function personReplyMode(db, tenantId, contactId) {
 }
 async function setPersonReplyMode(db, tenantId, contactId, mode) {
   if (mode === null) {
-    const { error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId);
+    const { data, error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).select("mode");
     if (error2) throw new Error(error2.message);
-    return;
+    return data?.[0]?.mode ?? null;
   }
+  const { data: was, error: readError } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).maybeSingle();
+  if (readError) throw new Error(readError.message);
   const { error } = await db.from("policies").upsert(
     { tenant_id: tenantId, class: "reply", mode, subject_type: "contact", subject_id: contactId },
     { onConflict: "tenant_id,class,subject_type,subject_id" }
   );
   if (error) throw new Error(error.message);
+  return was?.mode ?? null;
 }
 async function workspaceAnswersOnItsOwn(db, tenantId) {
   const [tenant, billing] = await Promise.all([
@@ -3346,6 +3408,20 @@ async function updatePlaybook(db, id, patch) {
 async function removePlaybook(db, id) {
   const { error, count: count2 } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
   return { error, count: count2 };
+}
+async function startPlaybook(db, p) {
+  const { data, error } = await db.rpc("start_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook: p.playbook,
+    p_decision: p.decision,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) return { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (typeof made.id !== "string" || typeof made.decision_id !== "string")
+    throw new Error("start_playbook: the door answered without its row and its decision");
+  return { data: { id: made.id, decisionId: made.decision_id }, error: null };
 }
 
 // src/paged.ts
@@ -3604,6 +3680,16 @@ async function yesesSince(db, tenantId, since) {
     (from, to) => db.from("deals").select("id, stage, proposed_at, decided_at").eq("tenant_id", tenantId).in("stage", ["won", "ended"]).gte("decided_at", since.toISOString()).order("id").range(from, to)
   );
   return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
+}
+async function recordDeal(db, p) {
+  const { data, error } = await db.rpc("record_deal", {
+    p_contact_id: p.contactId,
+    p_stage: p.stage,
+    p_move: p.move,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
 }
 
 // src/repositories/partner.ts
@@ -4354,6 +4440,7 @@ export {
   appointmentsBetween,
   appointmentsForClient,
   appointmentsScrub,
+  approveBroadcast,
   archiveConversation,
   archiveList,
   assembleBroadcast,
@@ -4367,6 +4454,7 @@ export {
   claimCallNotification,
   claimControl,
   claimIdempotencyKey,
+  claimQueuedSend,
   claimReplyTell,
   claimReplyTurn,
   claimSends,
@@ -4413,6 +4501,7 @@ export {
   erasureDigests,
   eventOfDelivery,
   everyoneIn,
+  failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
   finishableRuns,
@@ -4549,6 +4638,8 @@ export {
   recordCallNote,
   recordCarrierOptOut,
   recordCheck,
+  recordConsent,
+  recordDeal,
   recordEchoAndPause,
   recordEmailNo,
   recordEmailStatus,
@@ -4564,6 +4655,7 @@ export {
   relayEvents,
   releaseControl,
   releaseIdempotencyKey,
+  releaseQueuedSend,
   releaseUnavailableHolds,
   removePlaybook,
   removeTemplateVersion,
@@ -4625,6 +4717,7 @@ export {
   stampMailboxReceived,
   stampPlaybooksTried,
   stampReachOutStep,
+  startPlaybook,
   stopAllMessages,
   strandedRuns,
   stuckClaims,

@@ -3,7 +3,7 @@
  * first (`lead`: the Pipeline's Mark as passed), then what a selection can become -- people on a list, a yes on record,
  * a receptionist mode, a note, a file -- each drawn where the role allows and says why when it does not.
  */
-import { gateTitle } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, gateTitle } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { PL_MODES, plModeWord } from "../words";
 import { addToListMenu as addMenu, barMenu } from "./bar-menu";
@@ -17,9 +17,9 @@ function namingBox(b: BulkCtx, a: BulkActs) {
   return (
     canEdit &&
     naming && (
-      <span className="cl-bulk-naming">
+      <span className="cl-bulk-naming" {...editorBox}>
         <input
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={name}
           placeholder="Name the list"
           maxLength={60}
@@ -48,9 +48,9 @@ function slipsBox(b: BulkCtx, a: BulkActs) {
   return (
     canEdit &&
     slips && (
-      <span className="cl-bulk-naming">
+      <span className="cl-bulk-naming" {...editorBox}>
         <input
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={slipsNote}
           placeholder="Which slips, e.g. Saturday's"
           maxLength={200}
@@ -85,9 +85,9 @@ function noteBox(b: BulkCtx, a: BulkActs) {
   return (
     canEdit &&
     noting && (
-      <span className="cl-bulk-naming">
+      <span className="cl-bulk-naming" {...editorBox}>
         <input
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={note}
           placeholder="One line, under their notes"
           maxLength={200}

@@ -20,6 +20,7 @@
  */
 import {
   PROPOSAL_WORDS,
+  askCardLapsed,
   proposalSpec,
   type AskProposal,
   type AskProposalOutcome,
@@ -68,9 +69,16 @@ function tell(win: Window, c: ProposalCall): void {
     win.dispatchEvent(e.detail ? new CustomEvent(e.type, { detail: e.detail }) : new CustomEvent(e.type));
 }
 
-export async function commitProposal(win: Window, p: AskProposal, client: Api = apiFor(win)): Promise<CommitResult> {
+export async function commitProposal(
+  win: Window,
+  p: AskProposal,
+  client: Api = apiFor(win),
+  nowMs: number = Date.now(),
+): Promise<CommitResult> {
   const spec = proposalSpec(p.kind);
   if (!spec) return { ok: false, message: PROPOSAL_WORDS.cannotApprove };
+  // A card is approved while it is fresh: past a day nothing is sent, and it is asked for again (askCardLapsed).
+  if (askCardLapsed(p, nowMs)) return { ok: false, message: PROPOSAL_WORDS.lapsed };
   const tab = tabOf(win);
   const call = spec.commit(p, tab);
   if (isRefusal(call)) return { ok: false, message: call.refused };

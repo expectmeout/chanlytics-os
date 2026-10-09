@@ -910,6 +910,12 @@ const envelope = (data) =>
  */
 function doors(world) {
   const contact = (id) => world.contacts.find((c) => c.id === id);
+  // The details route reads the person as they stand before it writes (people_list narrowed to them), for what its
+  // answer says each field was.
+  const asListed = (a) =>
+    world.contacts
+      .filter((c) => c.tenant_id === a.p_tenant_id && (!a.p_contact_id || c.id === a.p_contact_id))
+      .map((c) => personRow(c.id, c.display_name, { email: c.email ?? null }));
   let n = 0;
   return {
     person_note_add: (a) => {
@@ -942,6 +948,7 @@ function doors(world) {
       world.person_notes.splice(i, 1);
       return { removed: a.p_note_id };
     },
+    people_list: asListed,
     set_person_name: (a) => {
       const name =
         String(a.p_name ?? "")

@@ -159,25 +159,36 @@ export async function personReplyMode(db: Db, tenantId: string, contactId: strin
  * Set or clear one person's receptionist mode. `null` removes the row, so the
  * person follows the workspace policy again. Insert and delete are owner-only
  * under RLS (00029); a forbidden insert raises, and the route decides the
- * role before getting here.
+ * role before getting here. Answers the mode the person had before this write, null when they followed the workspace
+ * policy: what an undo puts back (the row a delete took, or the row as it was read just before it was replaced).
  */
 export async function setPersonReplyMode(
   db: Db,
   tenantId: string,
   contactId: string,
   mode: string | null,
-): Promise<void> {
+): Promise<string | null> {
   if (mode === null) {
-    const { error } = await db
+    const { data, error } = await db
       .from("policies")
       .delete()
       .eq("tenant_id", tenantId)
       .eq("class", "reply")
       .eq("subject_type", "contact")
-      .eq("subject_id", contactId);
+      .eq("subject_id", contactId)
+      .select("mode");
     if (error) throw new Error(error.message);
-    return;
+    return data?.[0]?.mode ?? null;
   }
+  const { data: was, error: readError } = await db
+    .from("policies")
+    .select("mode")
+    .eq("tenant_id", tenantId)
+    .eq("class", "reply")
+    .eq("subject_type", "contact")
+    .eq("subject_id", contactId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
   const { error } = await db
     .from("policies")
     .upsert(
@@ -185,6 +196,7 @@ export async function setPersonReplyMode(
       { onConflict: "tenant_id,class,subject_type,subject_id" },
     );
   if (error) throw new Error(error.message);
+  return was?.mode ?? null;
 }
 
 /**
@@ -269,4 +281,49 @@ export async function removePlaybook(
 ): Promise<{ error: PostgrestError | null; count: number | null }> {
   const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
   return { error, count };
+}
+
+/** What a new playbook names: the columns the door writes from, as the table types them. */
+export type PlaybookToStart = Required<
+  Pick<
+    Database["public"]["Tables"]["playbooks"]["Insert"],
+    | "name"
+    | "trigger"
+    | "list_id"
+    | "list_key"
+    | "template_id"
+    | "template_name"
+    | "template_language"
+    | "params"
+    | "policy_class"
+    | "run_hour"
+    | "cap_per_run"
+    | "gap_days"
+    | "cadence_days"
+    | "channels"
+  >
+>;
+
+/**
+ * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running
+ * and theirs, then the start_playbook decision, in one transaction. The door runs on the caller's rights, so the
+ * table's policy, checks and unique indexes judge the row. The new row's id with its decision's, or the database's
+ * refusal, which the caller words; an answer with neither id is a door that is not this one, and throws.
+ */
+export async function startPlaybook(
+  db: Db,
+  p: { tenantId: string; playbook: PlaybookToStart; decision: Json; via: string | null; undoOf: string | null },
+): Promise<{ data: { id: string; decisionId: string } | null; error: PostgrestError | null }> {
+  const { data, error } = await db.rpc("start_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook: p.playbook,
+    p_decision: p.decision,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) return { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (typeof made.id !== "string" || typeof made.decision_id !== "string")
+    throw new Error("start_playbook: the door answered without its row and its decision");
+  return { data: { id: made.id, decisionId: made.decision_id }, error: null };
 }

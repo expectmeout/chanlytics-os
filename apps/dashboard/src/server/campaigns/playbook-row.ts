@@ -1,5 +1,6 @@
 /**
- * One playbook, changed or removed (app/api/v1/playbooks/:id): { state } pauses or resumes it (the ledger records
+ * One playbook, started (app/api/v1/playbooks: checked whole, then written running with its line in the ledger in one
+ * transaction, startNewPlaybook), and changed or removed (app/api/v1/playbooks/:id): { state } pauses or resumes it (the ledger records
  * which); { channels } changes the channels it goes by, judged against the playbook as it stands, and writes nothing
  * else; any other body re-checks the whole playbook the way a new one is checked and rewrites it
  * (campaigns/playbooks.ts); the rule can go, its runs staying as broadcasts with their numbers, recorded as a pause
@@ -13,7 +14,7 @@ import {
   REACH_OUT_REFUSALS,
   triggerOf,
 } from "@chanlytics/contracts";
-import { emitEvent, removePlaybook, setPlaybookState, updatePlaybook, type Json } from "@chanlytics/db";
+import { emitEvent, removePlaybook, setPlaybookState, startPlaybook, updatePlaybook } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision, type playbookScope } from "@/server/verbs";
@@ -28,6 +29,51 @@ import type { RouteContext } from "@/server/with-route";
 
 /** The playbook a playbookScope route acts on, as the scope read it. */
 type PlaybookRow = Awaited<ReturnType<typeof playbookScope.load>>;
+
+/**
+ * A new playbook (POST /api/v1/playbooks): everything it names checked the way the send route checks a broadcast
+ * (checkPlaybookInput, in its own words, so the body is this verb's to read), then started with its line in the
+ * ledger in one transaction (00357 start_playbook). The door runs on the member's own session, so the table's policy
+ * judges the row as it judged the insert this replaced, and a start that cannot be recorded starts nothing: no
+ * playbook sends with nobody on record as having started it, and a person who presses Start again makes one.
+ */
+export async function startNewPlaybook(ctx: RouteContext, req: Request, tenantId: string) {
+  const body = (await jsonBody(req)) as Record<string, unknown> | null;
+  const v = await checkPlaybookInput(ctx, tenantId, body, null);
+  const { data: made, error } = await startPlaybook(ctx.supabase, {
+    tenantId,
+    playbook: {
+      name: v.name,
+      trigger: v.trigger,
+      list_id: v.list_id,
+      list_key: v.list_key,
+      template_id: v.template_id,
+      template_name: v.template_name,
+      template_language: v.template_language,
+      params: v.params,
+      policy_class: v.policy_class,
+      run_hour: v.run_hour,
+      cap_per_run: v.cap_per_run,
+      gap_days: v.gap_days,
+      cadence_days: v.cadence_days,
+      channels: v.channels,
+    },
+    decision: {
+      name: v.name,
+      trigger: v.trigger,
+      template: `${v.template_name}/${v.template_language}`,
+      policy_class: v.policy_class,
+      run_hour: v.run_hour,
+      cap_per_run: v.cap_per_run,
+      channels: v.channels,
+    },
+    via: ctx.via ?? null,
+    undoOf: ctx.undoOf ?? null,
+  });
+  if (error) throw playbookWriteError(error);
+  if (!made) throw new Error("playbook not created");
+  return { id: made.id, name: v.name, state: "running", decision_id: made.decisionId };
+}
 
 export async function changePlaybook(ctx: RouteContext, req: Request, p: PlaybookRow) {
   const id = p.id;
@@ -68,7 +114,8 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
       if (error) throw playbookWriteError(error);
       await playbookEdited(ctx, p, p.name, ["channels"]);
     }
-    return { id, name: p.name, state: p.state };
+    // What it went by before this write, for an undo: the channels as this request found them, never a card's copy.
+    return { id, name: p.name, state: p.state, was: { channels: kept } };
   }
   const v = await checkPlaybookInput(ctx, p.tenant_id, body, { ...p, channels: kept });
   const { error } = await updatePlaybook(ctx.supabase, id, {
@@ -80,7 +127,7 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
     template_id: v.template_id,
     template_name: v.template_name,
     template_language: v.template_language,
-    params: v.params as unknown as Json,
+    params: v.params,
     policy_class: v.policy_class,
     run_hour: v.run_hour,
     cap_per_run: v.cap_per_run,
