@@ -277,13 +277,16 @@ function stepLineOf(root: string, s: ReachOutReportStepDto): ReachOutSourceLine 
 function linesOf(dto: ReachOutReportDto): ReachOutReportVM["lines"] {
   const t = dto.totals;
   const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
+  // A period of one day (This month so far, on the 1st) is today, as withinWords says it; any other is "these days".
+  const today = dto.days === 1;
+  const these = today ? "today" : "in these days";
   return {
     funnel: t.written
-      ? `Of ${plural(t.written, "email")} written ${dto.days === 1 ? "today" : `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
-      : "Nothing was written in these days.",
+      ? `Of ${plural(t.written, "email")} written ${today ? "today" : `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
+      : `Nothing was written ${these}.`,
     angles: angled
       ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}`
-      : "No email in these days had an opening, so there is no angle to compare.",
+      : `No email ${these} had an opening, so there is no angle to compare.`,
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
     empty: `No reach-out wrote ${withinWords(dto.days)}.`,

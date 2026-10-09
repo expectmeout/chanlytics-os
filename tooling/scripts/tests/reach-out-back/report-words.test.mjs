@@ -210,7 +210,17 @@ test("a period of one day (This month so far, on the 1st) is today, never 'these
     NOW,
   );
   assert.equal(empty.lines.empty, "No reach-out wrote today.");
-  assert.doesNotMatch(JSON.stringify([vm.lines, empty.lines]), /\b1 day\b/);
+  assert.equal(empty.lines.funnel, "Nothing was written today.");
+  const unangled = toReachOutReportVM(report({ ...day, angles: [], other_angles: { written: 0, wrote_back: 0 } }), NOW);
+  assert.equal(unangled.lines.angles, "No email today had an opening, so there is no angle to compare.");
+  assert.doesNotMatch(JSON.stringify([vm.lines, empty.lines, unangled.lines]), /\b1 day\b|these days/);
+  // Any other period keeps its words.
+  const week = report({ totals: counts(), chains: [], angles: [], other_angles: { written: 0, wrote_back: 0 } });
+  assert.equal(toReachOutReportVM(week, NOW).lines.funnel, "Nothing was written in these days.");
+  assert.equal(
+    toReachOutReportVM(week, NOW).lines.angles,
+    "No email in these days had an opening, so there is no angle to compare.",
+  );
 });
 
 test("the day's line at 6 PM says what happened, and nothing it did not count", () => {
