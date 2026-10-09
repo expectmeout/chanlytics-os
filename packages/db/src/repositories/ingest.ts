@@ -121,9 +121,16 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data as unknown as IngestResult;
 
+  // A delivery this workspace already holds says nothing new, as the email door's own check says it (email.ts): the
+  // call that kept the message wrote its answers, and ingest_inbound writes a STOP or a START only then (00360). A text
+  // is taken in twice by design (its door, then the job that answers it), and a WhatsApp message again on Meta's
+  // redelivery, an operator's replay and an answer taken up later; a yes written again there would stand over a no the
+  // person has given since.
+  if (!out?.contact_id || !out.is_new) return out;
+
   // A START is a yes on the channel it came on (contracts consent-channels.ts): see noteYesOnChannel. After the ingest,
   // using the contact it returned.
-  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
+  if (p.optIn) await noteYesOnChannel(db, p, out.contact_id);
 
   // The OTHER answer, if that is what arrived. Separate call, separate column,
   // separate ledger entry -- which is the whole point: the carriers refused a
@@ -133,9 +140,9 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   // and answered by the time this runs; failing their message because a second
   // write did not land would be a worse outcome than a consent record that has
   // to be repaired. It is logged loudly instead.
-  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+  if (p.optInMarketing && stoppedNow(out)) {
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
-  } else if (p.optInMarketing && out?.contact_id) {
+  } else if (p.optInMarketing) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
