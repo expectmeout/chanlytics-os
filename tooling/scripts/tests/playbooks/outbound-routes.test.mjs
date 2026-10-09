@@ -1460,6 +1460,10 @@ test("a playbook ticks channels: made with them, kept by an edit that names none
       tpl("77777777-7777-4777-8777-777777777778", B, { channel: "email", name: "month_offer", category: "marketing" }),
     ],
     tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    // A calendar is connected: a new reminder is made only where one is (D44).
+    tenant_config: [
+      { tenant_id: B, config: { calendar: { ical_url: "https://calendar.example/bayside.ics" } }, version: 1 },
+    ],
     decisions: [],
   };
   const body = { trigger: "visit_tomorrow", template_id: T1, params: [] };

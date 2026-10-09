@@ -2809,6 +2809,101 @@ function sweepTickAtOrAfter(ms2) {
   return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
 }
 
+// src/deals/sells-by.ts
+var SELLS_BY = ["booking", "proposal"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+function isSellsBy(s) {
+  return typeof s === "string" && SELLS_BY.includes(s);
+}
+var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
+function bookingLinkOptional(sellsBy) {
+  return dealsAreOn(sellsBy);
+}
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+var SELLS_BY_FIRST = "booking";
+var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+function sellsByVM(answer) {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+  };
+}
+function sellsBySaved(was, now) {
+  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
+  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+}
+
+// src/journey/appointment-word.ts
+var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
+function isAppointmentWord(value) {
+  return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
+}
+function appointmentWordOf(o) {
+  if (isAppointmentWord(o.stored)) return o.stored;
+  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
+}
+var FORMS = {
+  appointment: {
+    a: "an appointment",
+    has: "has an appointment",
+    have: "have an appointment",
+    had: "had an appointment"
+  },
+  visit: { a: "a visit", has: "visits", have: "visit", had: "visited" },
+  // trade-word: the word's own forms, said once
+  meeting: { a: "a meeting", has: "has a meeting", have: "have a meeting", had: "had a meeting" },
+  session: { a: "a session", has: "has a session", have: "have a session", had: "had a session" },
+  lesson: { a: "a lesson", has: "has a lesson", have: "have a lesson", had: "had a lesson" }
+};
+function appointmentWords(word) {
+  const f = FORMS[word];
+  const Title = capitalize(word);
+  const many = `${word}s`;
+  const people = (n) => plural(n, "person", "people");
+  return {
+    word,
+    one: word,
+    many,
+    a: f.a,
+    Title,
+    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
+    after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
+    lapsedHint: `No ${word} in 45 days, and nothing booked`,
+    tomorrowWho: `everyone with ${f.a} tomorrow`,
+    yesterdayWho: `everyone who ${f.had} yesterday`,
+    withTomorrow: `with ${f.a} tomorrow`,
+    whoYesterday: `who ${f.had} yesterday`,
+    eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
+    eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
+    offTomorrow: (n) => `Off \xB7 ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
+    offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
+    startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
+    byMany: `by ${many}`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`
+  };
+}
+
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -2838,24 +2933,23 @@ var PLAYBOOK_TRIGGERS = [
   },
   {
     id: "visit_tomorrow",
-    label: "Visit reminder",
+    label: "Appointment reminder",
     list: null,
     cls: "booking",
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
-  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
-  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer. Its label
-  // is also the NAME a playbook made on it was given and keeps (the composer names a new playbook after its moment, and
-  // the name is stored): a new label here would say one thing on the moment and another on every playbook already
-  // made, so a rename is a product decision with a migration of the stored names, never a constant's change alone.
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the appointment went and offers
+  // nothing, so it reaches a yes to texts. The labels here are the default word's (contracts appointmentWords, D42); a
+  // page and a new campaign's name say the workspace's own (triggerWords), and a name already stored keeps its words
+  // until its owner renames it (D43). The id never changes.
   {
     id: "visited",
-    label: "After the visit",
+    label: "After the appointment",
     list: null,
     cls: "booking",
     kind: "visit",
-    hint: "The day after a visit, when nothing is booked next"
+    hint: "The day after an appointment, when nothing is booked next"
   },
   // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
   // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
@@ -2866,7 +2960,7 @@ var PLAYBOOK_TRIGGERS = [
     list: "lapsed",
     cls: "reengage",
     kind: "list",
-    hint: "No visit in 45 days, and nothing booked"
+    hint: "No appointment in 45 days, and nothing booked"
   },
   // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
   // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
@@ -2952,16 +3046,26 @@ var WIN_BACKS = ["quiet_30", "lapsed"];
 function isWinBack(id) {
   return WIN_BACKS.includes(id);
 }
-var hintOf = (id) => (triggerOf(id)?.hint ?? "").toLowerCase();
-var WIN_BACK_WORDS = {
-  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf("lapsed")}. Start that one.`,
-  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf("quiet_30")}.`
-};
+function triggerWords(t, word) {
+  const W = appointmentWords(word);
+  if (t.id === "visit_tomorrow") return { label: W.before.name, hint: W.before.hint };
+  if (t.id === "visited") return { label: W.after.caps, hint: W.after.hint };
+  if (t.id === "lapsed") return { label: t.label, hint: W.lapsedHint };
+  return { label: t.label, hint: t.hint };
+}
+function winBackWords(word) {
+  const W = appointmentWords(word);
+  const silence = (triggerOf("quiet_30")?.hint ?? "").toLowerCase();
+  return {
+    quiet_30: `A calendar is connected here, so the win-back goes ${W.byMany}: ${W.lapsedHint.toLowerCase()}. Start that one.`,
+    lapsed: `The win-back ${W.byMany} needs your calendar, and none is connected. Start the one that goes by silence: ${silence}.`
+  };
+}
 function momentOffered(t, o) {
   if (!triggerOffered(t, o.dealsOn)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
   if (t.id === "quiet_30") return !o.calendarOn;
-  if (t.id === "lapsed") return o.calendarOn;
+  if (t.id === "lapsed" || t.kind === "visit") return o.calendarOn;
   return true;
 }
 function policyClassOffered(cls, dealsOn) {
@@ -7681,51 +7785,6 @@ var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
 function roleAtLeast(role, atLeast) {
   const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
   return have !== void 0 && have >= ROLE_RANK[atLeast];
-}
-
-// src/deals/sells-by.ts
-var SELLS_BY = ["booking", "proposal"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-function isSellsBy(s) {
-  return typeof s === "string" && SELLS_BY.includes(s);
-}
-var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
-}
-function bookingLinkOptional(sellsBy) {
-  return dealsAreOn(sellsBy);
-}
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-var SELLS_BY_FIRST = "booking";
-var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-function sellsByVM(answer) {
-  const said = isSellsBy(answer) ? answer : null;
-  const on = dealsAreOn(said);
-  const verb = said ? "Change" : "Choose";
-  return {
-    question: SELLS_BY_QUESTION,
-    value: said ? SELLS_BY_WORDS[said].label : null,
-    empty: "Not said yet",
-    act: said ? "Change" : "Choose one",
-    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
-    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
-    refusal: SELLS_BY_REFUSAL,
-    first: said ?? SELLS_BY_FIRST,
-    dealsOn: on,
-    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
-  };
-}
-function sellsBySaved(was, now) {
-  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
-  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
 }
 
 // src/reports/report-speed.ts
@@ -23831,56 +23890,6 @@ function toGoogleVM(dto, period, nowMs, tz) {
   };
 }
 
-// src/journey/appointment-word.ts
-var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
-function isAppointmentWord(value) {
-  return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
-}
-function appointmentWordOf(o) {
-  if (isAppointmentWord(o.stored)) return o.stored;
-  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
-}
-var FORMS = {
-  appointment: {
-    a: "an appointment",
-    has: "has an appointment",
-    have: "have an appointment",
-    had: "had an appointment"
-  },
-  visit: { a: "a visit", has: "visits", have: "visit", had: "visited" },
-  // trade-word: the word's own forms, said once
-  meeting: { a: "a meeting", has: "has a meeting", have: "have a meeting", had: "had a meeting" },
-  session: { a: "a session", has: "has a session", have: "have a session", had: "had a session" },
-  lesson: { a: "a lesson", has: "has a lesson", have: "have a lesson", had: "had a lesson" }
-};
-function appointmentWords(word) {
-  const f = FORMS[word];
-  const Title = capitalize(word);
-  const many = `${word}s`;
-  const people = (n) => plural(n, "person", "people");
-  return {
-    word,
-    one: word,
-    many,
-    a: f.a,
-    Title,
-    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
-    after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
-    lapsedHint: `No ${word} in 45 days, and nothing booked`,
-    tomorrowWho: `everyone with ${f.a} tomorrow`,
-    yesterdayWho: `everyone who ${f.had} yesterday`,
-    withTomorrow: `with ${f.a} tomorrow`,
-    whoYesterday: `who ${f.had} yesterday`,
-    eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
-    eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
-    offTomorrow: (n) => `Off \xB7 ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
-    offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
-    startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
-    byMany: `by ${many}`,
-    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`
-  };
-}
-
 // src/journey/journey.ts
 var JOURNEY_STAGE_IDS = ["first_contact", "before", "after", "proposal", "quiet"];
 var HOLDS = {
@@ -37284,7 +37293,6 @@ export {
   WHATSAPP_LANGUAGES,
   WHATSAPP_VERSION_ALONE,
   WHY_FROM_MAPS,
-  WIN_BACK_WORDS,
   WRITE_HOLDS,
   WRITE_HOLD_WORDS,
   abandonedCall,
@@ -38596,6 +38604,7 @@ export {
   trialWords,
   triggerOf,
   triggerOffered,
+  triggerWords,
   trimmedOrNull,
   tzClock,
   tzSince,
@@ -38676,6 +38685,7 @@ export {
   whyNotForward,
   whyNotLook,
   whyNotReceive,
+  winBackWords,
   windowFor,
   wireFailure,
   withReplies,

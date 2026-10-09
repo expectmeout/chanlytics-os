@@ -2685,7 +2685,7 @@ async function templateValues(ports, cmd) {
     if (!spec)
       throw new AppError11(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, a visit's time or service, or a proposal's link."
+        "Each value is typed text, their first name, the business name, the booking link, the booked time or service, or a proposal's link."
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -2699,7 +2699,7 @@ async function templateValues(ports, cmd) {
       if ((spec.kind === "visit_when" || spec.kind === "visit_service") && !cmd.visits) {
         throw new AppError11(
           "validation",
-          "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service."
+          "Only a reminder the day before or the check the day after can fill in the booked time or service."
         );
       }
       if (spec.kind === "proposal_link" && !cmd.proposal) {
@@ -3002,7 +3002,7 @@ import {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_NAME_MAX,
-  WIN_BACK_WORDS,
+  appointmentWords,
   channelNeverCarries as channelNeverCarries2,
   enrolPurpose as enrolPurpose2,
   isWinBack,
@@ -3014,7 +3014,9 @@ import {
   ruleNeeds,
   triggerOf as triggerOf3,
   triggerOffered as triggerOffered2,
-  UUID as UUID3
+  triggerWords,
+  UUID as UUID3,
+  winBackWords
 } from "../../contracts/dist/index.js";
 function int(v, { fallback, min, max, what }) {
   if (v === void 0 || v === null || v === "") return fallback;
@@ -3029,9 +3031,17 @@ async function refuseMoment(ports, trig, existing) {
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError15("validation", retired);
-  const calendarOn = isWinBack(trig.id) ? await ports.calendarOn() : false;
-  if (!momentOffered(trig, { dealsOn, calendarOn }))
-    throw new AppError15("validation", WIN_BACK_WORDS[trig.id]);
+  const calendarOn = isWinBack(trig.id) || trig.kind === "visit" ? await ports.calendarOn() : false;
+  if (momentOffered(trig, { dealsOn, calendarOn })) return;
+  const word = await ports.appointmentWord();
+  throw new AppError15(
+    "validation",
+    trig.kind === "visit" ? appointmentWords(word).needsCalendar : winBackWords(word)[trig.id]
+  );
+}
+async function defaultLabel(ports, trig, listName) {
+  if (listName) return listName;
+  return trig.kind === "visit" ? triggerWords(trig, await ports.appointmentWord()).label : trig.label;
 }
 async function listOf(ports, trig, body) {
   if (trig.kind !== "saved") return { listName: null, listKey: null, listId: null };
@@ -3081,7 +3091,7 @@ async function checkPlaybook(ports, body, existing) {
   if (!trig)
     throw new AppError15(
       "validation",
-      "Pick what starts it: win-back, the month's offer, a visit tomorrow, a visit yesterday, one of your lists, or a proposal waiting."
+      `Pick what starts it: win-back, the month's offer, ${appointmentWords(await ports.appointmentWord()).startsWith}, one of your lists, or a proposal waiting.`
     );
   if (trig.kind === "reach_out") throw new AppError15("validation", REACH_OUT_IS_NOT_A_MOMENT);
   await refuseMoment(ports, trig, existing);
@@ -3099,9 +3109,12 @@ async function checkPlaybook(ports, body, existing) {
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
     throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
   return {
-    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
-    // list's own name for a playbook on a list.
-    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, message).slice(0, PLAYBOOK_NAME_MAX),
+    // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
+    // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).
+    name: (name || playbookName({ id: trig.id, label: await defaultLabel(ports, trig, listName) }, message)).slice(
+      0,
+      PLAYBOOK_NAME_MAX
+    ),
     trigger: trig.id,
     list_id: listId,
     list_key: listKey,

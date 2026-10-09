@@ -9,7 +9,7 @@ import {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_NAME_MAX,
-  WIN_BACK_WORDS,
+  appointmentWords,
   channelNeverCarries,
   enrolPurpose,
   isWinBack,
@@ -21,7 +21,10 @@ import {
   ruleNeeds,
   triggerOf,
   triggerOffered,
+  triggerWords,
   UUID,
+  winBackWords,
+  type AppointmentWord,
   type CampaignMessage,
   type ConsentChannel,
   type ParamSpec,
@@ -79,13 +82,19 @@ export interface CheckPlaybookPorts extends TemplateValuesPorts {
    * "none"): which of the two win-backs a new playbook may be (contracts momentOffered).
    */
   calendarOn(): Promise<boolean>;
+  /**
+   * What the workspace calls an appointment (contracts appointmentWordOf): the words a refusal says, and the name a new
+   * campaign on an appointment moment takes when it is given none. Asked only where one of those is said.
+   */
+  appointmentWord(): Promise<AppointmentWord>;
 }
 
 /**
  * The moment a playbook names: where it may run at all, and where it may be made new. A proposal follow-up where deals
  * are off has no proposal to follow (0006), whether it is made or changed; a playbook kept on its moment is not new,
- * so a retired moment's and the other win-back's keep running and may be changed. A new one is held to what is offered
- * now (contracts momentOffered), in the words for each. Each fact is asked only of the moment it decides.
+ * so a retired moment's, the other win-back's and an appointment moment's made before a calendar was required keep
+ * running and may be changed. A new one is held to what is offered now (contracts momentOffered), in the words for each
+ * and in the workspace's word. Each fact is asked only of the moment it decides.
  */
 async function refuseMoment(
   ports: CheckPlaybookPorts,
@@ -97,9 +106,23 @@ async function refuseMoment(
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError("validation", retired);
-  const calendarOn = isWinBack(trig.id) ? await ports.calendarOn() : false;
-  if (!momentOffered(trig, { dealsOn, calendarOn }))
-    throw new AppError("validation", WIN_BACK_WORDS[trig.id as keyof typeof WIN_BACK_WORDS]);
+  const calendarOn = isWinBack(trig.id) || trig.kind === "visit" ? await ports.calendarOn() : false;
+  if (momentOffered(trig, { dealsOn, calendarOn })) return;
+  const word = await ports.appointmentWord();
+  throw new AppError(
+    "validation",
+    trig.kind === "visit" ? appointmentWords(word).needsCalendar : winBackWords(word)[trig.id as "quiet_30" | "lapsed"],
+  );
+}
+
+/** The name a campaign given none takes: its list's, an appointment moment's in the workspace's word, else its moment's. */
+async function defaultLabel(
+  ports: CheckPlaybookPorts,
+  trig: NonNullable<ReturnType<typeof triggerOf>>,
+  listName: string | null,
+): Promise<string> {
+  if (listName) return listName;
+  return trig.kind === "visit" ? triggerWords(trig, await ports.appointmentWord()).label : trig.label;
 }
 
 /**
@@ -205,7 +228,7 @@ export async function checkPlaybook(
   if (!trig)
     throw new AppError(
       "validation",
-      "Pick what starts it: win-back, the month's offer, a visit tomorrow, a visit yesterday, one of your lists, or a proposal waiting.",
+      `Pick what starts it: win-back, the month's offer, ${appointmentWords(await ports.appointmentWord()).startsWith}, one of your lists, or a proposal waiting.`,
     );
   // A reach-out's steps are not moments (Reach out, Part 3): they are made on the reach-out sheet, over a lead search.
   if (trig.kind === "reach_out") throw new AppError("validation", REACH_OUT_IS_NOT_A_MOMENT);
@@ -230,9 +253,12 @@ export async function checkPlaybook(
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
     throw new AppError("validation", FOLLOW_UP_NEEDS_LINK);
   return {
-    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
-    // list's own name for a playbook on a list.
-    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, message).slice(0, PLAYBOOK_NAME_MAX),
+    // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
+    // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).
+    name: (name || playbookName({ id: trig.id, label: await defaultLabel(ports, trig, listName) }, message)).slice(
+      0,
+      PLAYBOOK_NAME_MAX,
+    ),
     trigger: trig.id,
     list_id: listId,
     list_key: listKey,

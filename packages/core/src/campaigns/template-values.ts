@@ -57,7 +57,7 @@ export async function templateValues(
     if (!spec)
       throw new AppError(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, a visit's time or service, or a proposal's link.",
+        "Each value is typed text, their first name, the business name, the booking link, the booked time or service, or a proposal's link.",
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -73,7 +73,7 @@ export async function templateValues(
       if ((spec.kind === "visit_when" || spec.kind === "visit_service") && !cmd.visits) {
         throw new AppError(
           "validation",
-          "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.",
+          "Only a reminder the day before or the check the day after can fill in the booked time or service.",
         );
       }
       // A proposal's link exists only on the follow-up's run, one proposal at a time (0006).

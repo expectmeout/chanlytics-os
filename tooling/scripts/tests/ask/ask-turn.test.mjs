@@ -2968,8 +2968,9 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
     [2, 1],
     "REGRESSION: it read 'said_yes_now: 1', and Ana's yes was nobody's",
   );
-  // The visit reminder names tomorrow's visits, and there is no calendar here: nobody, either way.
-  assert.deepEqual(counts("visit_tomorrow"), [0, 0]);
+  // The visit reminder names tomorrow's visits, and there is no calendar here: since 9 Oct 2026 (D44) it is not offered
+  // at all, so it says no count, rather than nobody either way.
+  assert.equal(counts("visit_tomorrow"), undefined);
   assert.ok(read.note.includes(NO_NUMBER_REACH), read.note);
   for (const name of ["said_yes_now", "can_be_sent_now"]) {
     assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
@@ -4377,7 +4378,9 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
 
 test("the assistant offers the moments a new playbook may start from (2 Oct 2026): the win-back is the one the workspace can read, welcome and save our number are not offered though a playbook made on one is still listed, and a proposal for the win-back it cannot read is refused in words", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
-  const { WIN_BACK_WORDS } = await import("@chanlytics/contracts");
+  const { winBackWords } = await import("@chanlytics/contracts");
+  // This world never said how its customers buy: its word is the default (contracts appointmentWordOf).
+  const WIN_BACK_WORDS = winBackWords("appointment");
   const ICS = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//test//EN", "END:VCALENDAR"].join("\r\n");
   // A workspace with a calendar address on file: its feed read, or not.
   const connected = (over = {}) => {
@@ -4419,7 +4422,8 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     return JSON.parse(out.result);
   };
   const offered = (read) => read.triggers.map((x) => x.trigger);
-  const SILENCE = ["quiet_30", "everyone_monthly", "visit_tomorrow", "visited", "saved_list"];
+  // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing.
+  const SILENCE = ["quiet_30", "everyone_monthly", "saved_list"];
   const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"];
   const feed = (status) => async () => new Response(status === 200 ? ICS : "down", { status });
   const fetchWas = globalThis.fetch;

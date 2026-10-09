@@ -176,7 +176,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   assert.equal(vm.nextOpening, "Mon 9:30 AM");
   assert.deepEqual(
     vm.reminders,
-    { text: "Visit reminder: 2 people · next run today 10:00 AM", to: "outbound" },
+    { text: "Appointment reminder: 2 people · next run today 10:00 AM", to: "outbound" },
     "only the visit playbooks speak here",
   );
 });
@@ -211,7 +211,7 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   ]);
   assert.equal(
     uncounted.reminders.text,
-    "Visit reminder: next run today 10:00 AM · After the visit: 1 person · next run today 6:00 PM",
+    "Appointment reminder: next run today 10:00 AM · After the appointment: 1 person · next run today 6:00 PM",
   );
 });
 

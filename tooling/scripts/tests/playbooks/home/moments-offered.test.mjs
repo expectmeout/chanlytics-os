@@ -13,7 +13,8 @@ import assert from "node:assert/strict";
 import {
   MOMENTS_RETIRED,
   PLAYBOOK_TRIGGERS,
-  WIN_BACK_WORDS,
+  triggerWords,
+  winBackWords,
   campaignsHomeOf,
   isWinBack,
   momentOffered,
@@ -39,8 +40,8 @@ const OFFERED = (calendarOn, dealsOn = false) =>
   PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { dealsOn, calendarOn })).map((t) => t.id);
 
 test("which moments a new playbook may start from: none retired, the proposal's only where deals are on, and of the two win-backs the one the workspace can read -- while a playbook already on any of them may exist and run (triggerOffered)", () => {
-  // Without a calendar: the win-back by silence. With one: by visits.
-  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "visit_tomorrow", "visited", "saved_list"]);
+  // Without a calendar: the win-back by silence, and no appointment moment (D44). With one: by visits, and both.
+  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "saved_list"]);
   assert.deepEqual(OFFERED(true), ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"]);
   // Deals on add the proposal follow-up, in its place; a reach-out's two steps are never moments.
   assert.deepEqual(
@@ -60,7 +61,7 @@ test("which moments a new playbook may start from: none retired, the proposal's 
   // The two retired moments each carry their words, and are the whole set retired.
   assert.deepEqual(Object.keys(MOMENTS_RETIRED).sort(), ["new_week", "phoned_only"]);
   for (const words of Object.values(MOMENTS_RETIRED)) assert.ok(words.length > 40, words);
-  assert.deepEqual(Object.keys(WIN_BACK_WORDS).sort(), ["lapsed", "quiet_30"]);
+  assert.deepEqual(Object.keys(winBackWords("appointment")).sort(), ["lapsed", "quiet_30"]);
   // May exist and run is a wider question: a retired moment and the other win-back keep running.
   for (const id of ["new_week", "phoned_only", "quiet_30", "lapsed"])
     assert.equal(triggerOffered(triggerOf(id), false), true, `${id}: a playbook on it still runs`);
@@ -73,6 +74,56 @@ test("which moments a new playbook may start from: none retired, the proposal's 
     PLAYBOOK_TRIGGERS.filter((t) => triggerOf(t.id).label === "Win-back").map((t) => t.id),
     ["quiet_30", "lapsed"],
     "both are called Win-back: one moment, read two ways",
+  );
+});
+
+test("an appointment moment is offered only where a calendar is connected: without one it would skip every day (D44)", () => {
+  for (const dealsOn of [false, true]) {
+    assert.equal(
+      OFFERED(false, dealsOn).some((id) => triggerOf(id).kind === "visit"),
+      false,
+      `deals ${dealsOn}: no calendar, no appointment moment`,
+    );
+    assert.deepEqual(
+      OFFERED(true, dealsOn).filter((id) => triggerOf(id).kind === "visit"),
+      ["visit_tomorrow", "visited"],
+    );
+  }
+  assert.equal(
+    triggerOffered(triggerOf("visit_tomorrow"), false),
+    true,
+    "one made before keeps running: the run never asks",
+  );
+});
+
+test("a trigger says its label and hint in the workspace's word, and so do the win-back's refusals", () => {
+  const t = (id) => triggerOf(id);
+  assert.deepEqual(triggerWords(t("visit_tomorrow"), "meeting"), {
+    label: "Meeting reminder",
+    hint: "The day before a meeting on the calendar",
+  });
+  assert.deepEqual(triggerWords(t("visited"), "lesson"), {
+    label: "After the lesson",
+    hint: "The day after a lesson, when nothing is booked next",
+  });
+  assert.deepEqual(triggerWords(t("lapsed"), "session"), {
+    label: "Win-back",
+    hint: "No session in 45 days, and nothing booked",
+  });
+  assert.deepEqual(triggerWords(t("quiet_30"), "session"), { label: "Win-back", hint: "Nothing heard in 30 days" });
+  assert.deepEqual(
+    [t("visit_tomorrow").label, t("visited").label, t("lapsed").hint],
+    ["Appointment reminder", "After the appointment", "No appointment in 45 days, and nothing booked"],
+    "the constant says the default word: a workspace that never picked reads appointment (D42)",
+  );
+  const visits = winBackWords("visit");
+  assert.equal(
+    visits.lapsed,
+    "The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: nothing heard in 30 days.",
+  );
+  assert.equal(
+    visits.quiet_30,
+    "A calendar is connected here, so the win-back goes by visits: no visit in 45 days, and nothing booked. Start that one.",
   );
 });
 

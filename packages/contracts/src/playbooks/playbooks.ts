@@ -35,7 +35,8 @@ export {
   momentOffered,
   MOMENTS_RETIRED,
   isWinBack,
-  WIN_BACK_WORDS,
+  triggerWords,
+  winBackWords,
   policyClassOffered,
 } from "./playbook-triggers";
 export type { PlaybookTrigger, PlaybookTriggerKind, PlaybookPolicyClass, PlaybookState } from "./playbook-triggers";
