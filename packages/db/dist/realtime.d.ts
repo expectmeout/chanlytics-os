@@ -6242,6 +6242,10 @@ type Database = {
                 };
                 Returns: number;
             };
+            campaign_reply_window: {
+                Args: never;
+                Returns: string;
+            };
             campaign_series: {
                 Args: {
                     p_days?: number;
@@ -7289,6 +7293,12 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            may_read_workspace: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: boolean;
+            };
             member_decision: {
                 Args: {
                     p_payload?: Json;
@@ -8135,6 +8145,13 @@ type Database = {
                     tenant_id: string;
                 }[];
             };
+            playbook_totals: {
+                Args: {
+                    p_history?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             playbooks_due: {
                 Args: {
                     p_at: string;
@@ -8294,6 +8311,13 @@ type Database = {
             reach_out_chain_report: {
                 Args: {
                     p_root_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            reach_out_chain_totals: {
+                Args: {
+                    p_days: number;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -8853,6 +8877,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            run_counts: {
+                Args: {
+                    p_run_ids: string[];
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             runtime_stamp: {
                 Args: {
                     p_tenant_id: string;
@@ -9224,6 +9255,12 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            template_sends: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             trigger_calendar_sweep: {
                 Args: never;
