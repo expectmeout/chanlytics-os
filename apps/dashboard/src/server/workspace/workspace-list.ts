@@ -29,6 +29,7 @@ import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
 import { env } from "@/server/env";
 import { log } from "@/server/log";
+import { settled } from "@/server/lazy";
 import type { Member } from "@/server/route";
 
 /** A workspace as the list says it: its zone, and how its customers buy (0008), null when it was never asked. */
@@ -68,13 +69,6 @@ async function tenantsOf(
 /** The caller's role in each of their workspaces: their own memberships, by RLS. */
 const rolesOf = (supabase: RouteContext["supabase"], userId: string) =>
   supabase.from("memberships").select("tenant_id, role").eq("user_id", userId);
-
-/** A promise that answers how it settled, so one read among several that may refuse is weighed after the rest. */
-const settled = <T>(p: Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> =>
-  p.then(
-    (value) => ({ ok: true as const, value }),
-    (error: unknown) => ({ ok: false as const, error }),
-  );
 
 export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   const { supabase, userId, email } = ctx;

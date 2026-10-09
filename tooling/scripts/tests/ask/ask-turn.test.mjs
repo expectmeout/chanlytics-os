@@ -2679,11 +2679,14 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
       [["Estimate", null]],
       "the appointment, naming nobody People holds",
     );
+    const weekAsked = ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
     assert.deepEqual(
-      ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
       // Since 00345 the board's read holds the record too: the bookings that arrived by email over the span, the
       // notices' health line (two reads) and the workspace's mailbox, before everyone; and, once the feed has read,
-      // the record's taken time over the days on offer, which a week alone does not cover.
+      // the record's taken time over the days on offer, which a week alone does not cover. The record's reads are
+      // asked together (9 Oct 2026, calendar-week.ts recordOverSpan), so they reach the database in no one order:
+      // each, as often.
+      [...weekAsked].sort(),
       [
         "appointments.select",
         "appointment_notices.select",
@@ -2692,9 +2695,10 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
         "rpc:people_list",
         "policies.select",
         "appointments.select",
-      ],
+      ].sort(),
       "the record, everyone to match the appointments to, and nothing the turn already read: no tenants, no tenant_config",
     );
+    assert.equal(weekAsked.at(-1), "appointments.select", "the taken time last, once the feed has read");
     assert.deepEqual(made, [], "nobody put in People: Ask never writes");
     assert.ok(
       !ctx.supabase.seen.some(
@@ -2878,23 +2882,28 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
   try {
     forgetFeeds();
     const { read, asked, rc, ctx } = await turnOver(world(true));
-    assert.deepEqual(asked, [
-      "rpc:report_series",
-      // The Reviews lens's own read, beside it (7 Oct 2026, Reports phase C, lens 1): the ledger the database counts, and
-      // Google as GET google reads it at once -- the listing, the connection, the newest reviews and the daily readings;
-      // the Autonomy row for reviews is the turn's policies, read once below for every reader that asks.
-      "rpc:reviews_ledger",
-      "google_listings.select",
-      "google_connections.select",
-      "google_reviews.select",
-      "google_listing_days.select",
-      // Everyone, once, for the booking line and the deals alike.
-      "rpc:people_list",
-      "policies.select",
-      // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
-      // turn's: none read again. The deals.
-      "deals.select",
-    ]);
+    // The series, the booking line and the deals are asked together (9 Oct 2026, readers/report.ts): each read, as
+    // often, in no one order.
+    assert.deepEqual(
+      [...asked].sort(),
+      [
+        "rpc:report_series",
+        // The Reviews lens's own read, beside it (7 Oct 2026, Reports phase C, lens 1): the ledger the database counts, and
+        // Google as GET google reads it at once -- the listing, the connection, the newest reviews and the daily readings;
+        // the Autonomy row for reviews is the turn's policies, read once below for every reader that asks.
+        "rpc:reviews_ledger",
+        "google_listings.select",
+        "google_connections.select",
+        "google_reviews.select",
+        "google_listing_days.select",
+        // Everyone, once, for the booking line and the deals alike.
+        "rpc:people_list",
+        "policies.select",
+        // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
+        // turn's: none read again. The deals.
+        "deals.select",
+      ].sort(),
+    );
     assert.equal(
       asked.filter((x) => x === "tenants.select" || x === "tenant_config.select").length,
       0,

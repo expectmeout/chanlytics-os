@@ -3670,7 +3670,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       k === "tenant_config.select" ? CONFIG_READER_COLUMNS : cols,
     ]);
     // 2 Oct 2026: a playbook on a moment under Bookings or the follow-ups is counted by its message's yes when that is
-    // stricter than its moment's (server/campaigns/playbooks.ts strictMessagePools), so the templates are read once,
+    // stricter than its moment's (server/campaigns/playbook-pools.ts strictMessagePools), so the templates are read once,
     // after the pools and before the lists.
     want.splice(
       want.findIndex(([k]) => k === "segments.select"),
@@ -3692,23 +3692,30 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       ["lines.select", "sms_state, reg_mock"],
       ["tenants.select", "status"],
     );
+    // 9 Oct 2026: the pools' reads leave with the page's first ones (server/campaigns/playbook-pools.ts poolReads), so the
+    // reads no longer reach the database one behind another: the same reads, each as often, the door before them all.
     const w = playbooksWorld();
     const routed = worldCtx(w);
     const page = await playbooksRoute.GET.run(req(`?workspace=${A}`), routed);
-    assert.deepEqual(askedWith(routed), want, "the workspace's door, then the reads");
+    assert.deepEqual(askedWith(routed)[0], want[0], "the workspace's door, before any read");
+    assert.deepEqual(bagOf(askedWith(routed)), bagOf(want), "no read added and none lost");
     const ctx = worldCtx(w);
     const r = await kernel.load(turnIn(ctx), playbooksReader, undefined);
     assert.deepEqual(r.data, page);
-    assert.deepEqual(askedWith(ctx), want.slice(1));
+    assert.deepEqual(bagOf(askedWith(ctx)), bagOf(want.slice(1)));
     const turn = turnIn(worldCtx(w));
     await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
     const held = turn.ctx.supabase.seen.length;
     await kernel.load(turn, playbooksReader, undefined);
     assert.deepEqual(
-      askedWith(turn.ctx).slice(held),
-      want
-        .slice(1)
-        .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols))),
+      bagOf(askedWith(turn.ctx).slice(held)),
+      bagOf(
+        want
+          .slice(1)
+          .filter(
+            ([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols)),
+          ),
+      ),
       "the zone, the settings and sells_by were the turn's",
     );
     const down = { "tenant_config.select": { message: "config down" } };
@@ -3726,6 +3733,77 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       kernel.load(turnIn(worldCtx(w, down)), playbooksReader, undefined),
     );
     assert.deepEqual(r2.data, blind);
+  });
+});
+
+/**
+ * A request's database whose reads of one table are not answered until `open()`: what a reader has asked for while one of
+ * its reads is still out. The query is recorded as it is answered (fakeDb), so a table held here is in `seen` only after.
+ */
+function heldAt(ctx, table) {
+  let open;
+  const gate = new Promise((go) => (open = go));
+  const from = ctx.supabase.from.bind(ctx.supabase);
+  ctx.supabase.from = (t) => {
+    const q = from(t);
+    if (t !== table) return q;
+    for (const answer of ["then", "single", "maybeSingle"]) {
+      const was = q[answer].bind(q);
+      q[answer] = (...args) => gate.then(() => was(...args));
+    }
+    return q;
+  };
+  return open;
+}
+/** Long enough for every read that waits on nothing held to have reached the database. */
+const idle = async () => {
+  for (let i = 0; i < 25; i++) await new Promise((go) => setImmediate(go));
+};
+
+test("GET playbooks asks for the pools' reads with its first ones, not behind them: with the playbooks' own rows still out, everyone, the reply modes, the settings, the proposals out and their follow-ups and the lists have all been asked for, and only the templates wait, which are read for the playbooks; the page is the one it was; and where deals are off, no deal is read at all", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    const w = playbooksWorld();
+    const page = await playbooksRoute.GET.run(req(`?workspace=${A}`), worldCtx(w));
+    const ctx = worldCtx(w);
+    const open = heldAt(ctx, "playbooks");
+    let answered = false;
+    const waiting = playbooksRoute.GET.run(req(`?workspace=${A}`), ctx).then((p) => ((answered = true), p));
+    await idle();
+    assert.equal(answered, false, "the page waits for its playbooks");
+    const before = askedWith(ctx).map(([k, cols]) => `${k} ${cols ?? ""}`.trim());
+    for (const read of [
+      "rpc:people_list",
+      "policies.select subject_type, subject_id, mode",
+      `tenant_config.select ${CONFIG_READER_COLUMNS}`,
+      "deals.select id, contact_id, proposed_at",
+      "segments.select id, name, rule, archived_at",
+      "segment_members.select segment_id, contact_id",
+    ])
+      assert.ok(
+        before.includes(read),
+        `REGRESSION: the pools' ${read} waited for the page's first reads to answer (asked: ${before.join(" | ")})`,
+      );
+    // The follow-ups' touches are two reads deep, behind the proposals out: both of theirs and the week's own.
+    assert.equal(
+      before.filter((k) => k.startsWith("broadcast_recipients.select") && /proposal_link/.test(k)).length,
+      2,
+    );
+    assert.ok(
+      !before.some((k) => /^(playbooks|templates)\.select/.test(k)),
+      "the templates are read for the playbooks",
+    );
+    open();
+    assert.deepEqual(await waiting, page, "the page it always answered");
+    assert.equal(selects(ctx, "templates").length, 1, "and the templates once, when the playbooks are in");
+
+    // Deals off: the pace is counted by nothing and no proposal is out, so neither is read.
+    const off = worldCtx(countsWorld(pagedPeople([poolPerson(1), poolPerson(2)])));
+    const quiet = await playbooksRoute.GET.run(req(`?workspace=${A}`), off);
+    assert.deepEqual(
+      [quiet.deals_on, quiet.pools.proposal_waiting, quiet.pools.everyone_monthly.pool],
+      [false, null, 2],
+    );
+    assert.deepEqual(selects(off, "deals"), [], "REGRESSION: a workspace with deals off read its deals for a pace");
   });
 });
 

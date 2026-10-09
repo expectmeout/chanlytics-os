@@ -119,7 +119,7 @@ export interface PlaybookNamed {
 }
 
 /**
- * One moment's count as the route makes it (server/campaigns/playbooks.ts TriggerPool): the figures for WhatsApp alone,
+ * One moment's count as the route makes it (server/campaigns/playbook-pools.ts TriggerPool): the figures for WhatsApp alone,
  * as every playbook went before, and, beside them, the same figures for each other set of channels a playbook on it may
  * tick, so the composer reads the count for the set in front of it as the owner ticks and unticks.
  */

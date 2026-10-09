@@ -360,6 +360,7 @@
     "00355_a_person_s_runs_are_found_by_the_person.sql": "892acd500027cf6794355a6ee82b1a8f9b75191364c33ba058bd7c3fed821599",
     "00356_an_answer_and_its_history_line_are_one_write.sql": "38ae84945bb34cf0abfb5135d0449154f474248c4a8730404134e8a75788dd4e",
     "00357_a_deal_and_a_playbook_s_start_are_one_write.sql": "57e4ec5679ed153539e8d79e68420ca46bc8dd18b323572c9a780e8e3f19e39d",
-    "00358_every_same_workspace_key_is_validated.sql": "91e4caeb8a7ca3c7837ebd28154491cd408285d68499f9e99d52bf791c97d13b"
+    "00358_every_same_workspace_key_is_validated.sql": "91e4caeb8a7ca3c7837ebd28154491cd408285d68499f9e99d52bf791c97d13b",
+    "00359_the_days_replies_ride_with_the_days_numbers.sql": "d1106399e7f5c126fd00725bfbe8f1212e521d1e51ea7cb8621e7dad394c0874"
   }
 }

@@ -463,7 +463,8 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
   try {
     // The order the reads reach the database: those that ask at once (the config, the last message and call, the
     // calendar's zone, the listing and its facts, the Google connection, billing, the team), then the rest as they
-    // are awaited, and last the calendar's own read of the settings.
+    // are awaited. The calendar's row is read from that config: its own read of the settings came last, a second
+    // time, until 9 Oct 2026 (setup-reads.test.mjs).
     const READS = [
       "tenant_config.select",
       "messages.select",
@@ -482,7 +483,6 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "contacts.select",
       "events.select",
       "capability_activations.select",
-      "tenant_config.select",
     ];
     const member = fakeDb({}, {}, { team_roster: () => [] });
     await setupDtoFor(member, T, { kind: "member" }, new Date(NOW));

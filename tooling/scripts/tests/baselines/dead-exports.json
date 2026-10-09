@@ -15,7 +15,7 @@
   "apps/dashboard/src/server/calendar/feed-preview.ts": 1,
   "apps/dashboard/src/server/calendar/filler-calendar.ts": 1,
   "apps/dashboard/src/server/campaigns/broadcasts.ts": 2,
-  "apps/dashboard/src/server/campaigns/playbooks.ts": 5,
+  "apps/dashboard/src/server/campaigns/playbooks.ts": 3,
   "apps/dashboard/src/server/campaigns/templates.ts": 7,
   "apps/dashboard/src/server/connections/google.ts": 1,
   "apps/dashboard/src/server/connections/sending-domains.ts": 1,

@@ -131,7 +131,7 @@ const playbook = (over = {}) => ({
   next: "tomorrow 10:00 AM",
   candidates: 4,
   held: 0,
-  // Everyone its moment names, as the route counts them (server/campaigns/playbooks.ts triggerPools); null only when it could not.
+  // Everyone its moment names, as the route counts them (server/campaigns/playbook-pools.ts triggerPools); null only when it could not.
   named: { pool: 6, noYes: 2, stopped: 0, noNumber: 0, saidYes: 4 },
   totals: {
     runs: 2,
@@ -821,7 +821,7 @@ test("A playbook's detail leads with what it sends, not with how it is configure
 });
 
 test("REGRESSION: a playbook whose yes has no number says so and offers no QR -- its card said '0 people on the list said yes' and sent the owner for an answer they had", async () => {
-  // The chain, run: the route's pools (server/campaigns/playbooks.ts triggerPools), the surface the bridge builds from them,
+  // The chain, run: the route's pools (server/campaigns/playbook-pools.ts triggerPools), the surface the bridge builds from them,
   // the words and the door the detail imports (playbooks/words.tsx), and the pane that draws them.
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = {
@@ -981,7 +981,7 @@ test("a playbook on an archived list says so in its detail, one press from its l
 });
 
 test("REGRESSION: counts that could not be read are said as such, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
-  // The route's answer when its People read failed (server/campaigns/playbooks.ts triggerPools): no moment was counted.
+  // The route's answer when its People read failed (server/campaigns/playbook-pools.ts triggerPools): no moment was counted.
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null]));
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
   const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
@@ -1076,7 +1076,7 @@ test("a proposal follow-up's detail (0006): where deals are on, who it reaches w
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
   const kept = globalThis.fetch;
-  // The route's answer (server/campaigns/playbooks.ts triggerPools): the moment counted where deals are on, and not where they
+  // The route's answer (server/campaigns/playbook-pools.ts triggerPools): the moment counted where deals are on, and not where they
   // are off, when it runs nothing.
   const read = async (dealsOn) => {
     const pools = {

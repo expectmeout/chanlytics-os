@@ -31,7 +31,7 @@ import {
   type ReplyFrom,
   type SendingDomainDto,
 } from "@chanlytics/contracts";
-import { answeredReachOutEmail, mailboxOfTenant, type Database, type Json } from "@chanlytics/db";
+import { answeredReachOutEmail, mailboxOfTenant, type Database, type Json, type MailboxRow } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import { dbRefusal, type RouteContext } from "../with-route";
 import { domainsReadiness, sendingDomainsFor } from "./sending-domains";
@@ -186,22 +186,43 @@ function mailboxDto(
 }
 
 /**
+ * The workspace's email line and nothing of how it sends: whether this deployment has email, and the mailbox the owner
+ * made. What Today counts as a wire (contracts emailWires), which is all its read asks of email. It took the whole of
+ * emailSetupFor, so every read of Today from a workspace with a mailbox also read its sending domains and asked the
+ * edge whether own domains are switched on, an answer kept for five minutes by each instance and waited on for up to
+ * four seconds by the first read after that (9 Oct 2026). One read, of one row: `mailbox`, where the caller reads the
+ * row for more than this (workspace/setup.ts), is how to ask for it, so it is asked once.
+ */
+export async function emailLineFor(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  mailbox: () => Promise<MailboxRow | null> = () => mailboxOfTenant(supabase, tenantId),
+): Promise<EmailSetupDto> {
+  const domain = emailDomain();
+  if (!domain) return { ready: false, domain: null, mailbox: null, sending: null };
+  const row = await mailbox();
+  return { ready: true, domain, mailbox: row ? mailboxDto(row, domain) : null, sending: null };
+}
+
+/**
  * Email, as Setup and Connections are told it. One function for both readers
  * (a member on the session client, the back office on the service client): it
  * calls nothing that asks who is signed in.
  */
-export async function emailSetupFor(supabase: SupabaseClient<Database>, tenantId: string): Promise<EmailSetupDto> {
-  const domain = emailDomain();
-  if (!domain) return { ready: false, domain: null, mailbox: null, sending: null };
-  const row = await mailboxOfTenant(supabase, tenantId);
-  if (!row) return { ready: true, domain, mailbox: null, sending: null };
+export async function emailSetupFor(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  mailbox?: () => Promise<MailboxRow | null>,
+): Promise<EmailSetupDto> {
+  const line = await emailLineFor(supabase, tenantId, mailbox);
+  if (!line.mailbox) return line;
   // The block draws only under a mailbox, so nothing else waits on the edge. A domains read that fails draws no
   // block rather than failing Setup (and Today's email line with it).
   const [domains, ready] = await Promise.all([
     sendingDomainsFor(supabase, tenantId).catch(() => null),
     domainsReadiness().catch(() => false),
   ]);
-  return { ready: true, domain, mailbox: mailboxDto(row, domain), sending: domains ? { ready, domains } : null };
+  return { ...line, sending: domains ? { ready, domains } : null };
 }
 
 /** An owner gives the workspace its address (00129). Judged here first, so the refusal says which kind of not-an-address it was. */

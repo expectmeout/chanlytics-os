@@ -36,7 +36,7 @@ import "server-only";
  * crosses the tenant boundary, which is the right answer on privacy grounds too.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database, MailboxRow } from "@chanlytics/db";
 import { getTenantConfig, mailboxOfTenant, offersEmailReach } from "@chanlytics/db";
 import {
   emailOffersOpen,
@@ -61,6 +61,8 @@ import { listingFor, listingFactsFor, connectionFor, googleReadiness } from "../
 import { billingFor, billingReadiness } from "./billing";
 import { emailSetupFor } from "../connections/email";
 import { emailWire } from "../connections/email-readiness";
+import { tenantFacts } from "../tenant";
+import { once } from "@/server/lazy";
 import { log } from "@/server/log";
 
 /**
@@ -213,16 +215,21 @@ function offersReachCount(supabase: SupabaseClient<Database>, tenantId: string) 
  * verified, the business's address on file, a mailbox whose offers are not paused). Null otherwise, and where the count
  * could not be read or the database has none (00299): Setup then says nothing of offers by email, never a zero for it. A
  * read that fails is said in the log (`setup_offers_by_email_failed`), so a Setup that says nothing has a reason on record.
+ *
+ * Asked with Setup's first reads, of the settings and the mailbox they ask for themselves. It was asked after the last
+ * of them had answered, and began by asking the edge whether the wire can send, an answer a deployment keeps a few
+ * minutes and waits up to four seconds for: the whole of Setup stood behind that wait (9 Oct 2026).
  */
 async function offersByEmailOf(
   supabase: SupabaseClient<Database>,
   tenantId: string,
-  cfgRow: { config: unknown } | null,
+  settings: Promise<{ config: unknown } | null>,
+  mailboxRead: () => Promise<MailboxRow | null>,
 ): Promise<number | null> {
   try {
     const wire = await emailWire();
     if (wire.ready !== true) return null;
-    const mailbox = await mailboxOfTenant(supabase, tenantId);
+    const [mailbox, cfgRow] = await Promise.all([mailboxRead(), settings]);
     const address = parseTenantConfig(cfgRow?.config ?? null)?.brain?.profile?.address?.trim();
     const paused = offerPauseOf(mailbox?.offers_paused_at, mailbox?.offers_paused_reason);
     if (!mailbox || !emailOffersOpen({ campaigns: wire.offers, address: !!address, paused }, "").ok) return null;
@@ -259,18 +266,45 @@ function activationRows(supabase: SupabaseClient<Database>, tenantId: string) {
     .eq("tenant_id", tenantId);
 }
 
+/**
+ * Where the calendar stands, for Setup's row: whether the feed reads, and no more (feedOnly: nothing of the record is
+ * read for it, and nobody in People). From the settings Setup reads anyway, with the zone read beside them: the lookup
+ * read the workspace's row and then the settings again, one behind the other, before it could ask for the feed (9 Oct
+ * 2026). A week that could not be read is its own fact (null), never Setup's failure.
+ */
+function calendarStands(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  now: Date,
+  from: { settings: Promise<{ config: unknown } | null>; mailbox: () => Promise<MailboxRow | null> },
+) {
+  return Promise.all([from.settings, tenantFacts(supabase, tenantId)])
+    .then(([row, { timezone }]) =>
+      calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, {
+        canAct: false,
+        feedOnly: true,
+        timezone,
+        config: row?.config ?? null,
+        mailbox: from.mailbox,
+      }),
+    )
+    .catch(() => null);
+}
+
 /** Every source Setup reads, asked at once and in this order. */
 function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: SetupViewer, now: Date) {
+  // The settings, which the calendar's row and the offers' count are read from too: asked once, and handed to both.
+  const settings = getTenantConfig(supabase, tenantId);
+  // The workspace's mailbox, which the email line, the calendar's notices and the offers' count each want: asked once,
+  // by whichever of them asks first, and by none where none does (email off, no booking tool named).
+  const mailbox = once(() => mailboxOfTenant(supabase, tenantId));
   return Promise.all([
-    getTenantConfig(supabase, tenantId),
+    settings,
     channelRows(supabase, tenantId),
     lastWhatsAppIn(supabase, tenantId),
     lastInboundCall(supabase, tenantId),
     templateVerdicts(supabase, tenantId),
-    // Setup's row says whether the feed reads, and no more: nothing of the record is read for it (feedOnly).
-    calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, { canAct: false, feedOnly: true }).catch(
-      () => null,
-    ),
+    calendarStands(supabase, tenantId, now, { settings, mailbox }),
     viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId),
     saidYesCount(supabase, tenantId),
     offersSaidYesCount(supabase, tenantId),
@@ -287,7 +321,8 @@ function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: 
     billingReadiness(),
     activationRows(supabase, tenantId),
     // Whether this deployment has email, and the workspace's mailbox when it has one. No query at all where it is off.
-    emailSetupFor(supabase, tenantId),
+    emailSetupFor(supabase, tenantId, mailbox),
+    offersByEmailOf(supabase, tenantId, settings, mailbox),
   ]);
 }
 
@@ -318,8 +353,8 @@ async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, 
     billingReady,
     activations,
     email,
+    offersByEmail,
   ] = await askSetup(supabase, tenantId, viewer, now);
-  const offersByEmail = await offersByEmailOf(supabase, tenantId, cfgRow);
   // A count that could not be read is not a zero: read as one, the row says nobody has said yes.
   for (const read of [channels, lastMsg, lastCall, templates, yes, offersSaid, offersReach, requested, activations])
     if (read.error) throw new Error(read.error.message);
