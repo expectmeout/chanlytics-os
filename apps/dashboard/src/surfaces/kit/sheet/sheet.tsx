@@ -29,6 +29,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import type { ReactElement, ReactNode, Ref, RefObject } from "react";
 import { useCallback, useRef } from "react";
 import { touchSwipe } from "../../legacy-verbs";
+import { onAPhone } from "../touch";
 import { cx } from "../variants";
 
 /** A step inside a job: the way back to the one it came from, named for a screen reader, its glyph drawn. */
@@ -81,9 +82,6 @@ export type SheetProps = SheetShape & {
 /** Base UI's closing state, in the kit's word for it: a sheet on its way out (kit.css, `[data-leaving]`). */
 const closingWord = (state: { transitionStatus: "starting" | "ending" | "idle" | undefined }) =>
   state.transitionStatus === "ending" ? "true" : undefined;
-
-/** Under the kit's one breakpoint, where it stands from the bottom edge and a thumb pulls it down. */
-const onAPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
 
 /** A test id of one of its parts, where the sheet has one. */
 const partId = (testid: string | undefined, part: string) => (testid ? `${testid}-${part}` : undefined);

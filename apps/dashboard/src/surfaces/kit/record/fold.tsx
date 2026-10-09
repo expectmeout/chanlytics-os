@@ -195,6 +195,8 @@ function foldSheetNode(props: RecordFoldProps, d: FoldDraw) {
         ref={d.box}
         className="rec-sheet rec-fold-sheet"
         role="dialog"
+        // Focusable by the fold's own rule and never by Tab: on a touch screen the sheet opens on itself (focus.ts).
+        tabIndex={-1}
         aria-modal={true}
         aria-labelledby={labelId}
         aria-describedby={hintId}

@@ -2071,6 +2071,59 @@ test("a fold open when the window crosses the phone's width is drawn again in th
   }
 });
 
+test("on a touch screen a fold drawn as a sheet opens on the sheet itself, and its first field waits for a tap", () => {
+  // Ruben, 8 October 2026: a sheet that put a person in its first field as it rose raised the keyboard over what
+  // they had not read yet, and the phone moved the page to the field. A touch screen is the pointer (kit/touch.ts),
+  // never the width: the sheet takes focus itself there, as RecordSheet does, and Tab and a tap go on from it. A fold
+  // under its row is what a press asked to type in, and keeps its first field; so does every frame under a mouse.
+  const width = atWidth(true);
+  const narrow = globalThis.matchMedia;
+  let touch = true;
+  globalThis.matchMedia = (q) =>
+    q === "(pointer: coarse)"
+      ? { media: q, matches: touch, addEventListener() {}, removeEventListener() {} }
+      : narrow(q);
+  const focused = [];
+  const field = {
+    tabIndex: 0,
+    disabled: false,
+    getClientRects: () => [{}],
+    classList: { contains: () => false },
+    closest: () => null,
+    focus: () => focused.push("field"),
+  };
+  const inner = { querySelectorAll: () => [field] };
+  const cross = (props) => {
+    width.resize(false);
+    again(() => W.React.createElement(W.RecordFold, props));
+    width.resize(true);
+    return again(() => W.React.createElement(W.RecordFold, props));
+  };
+  try {
+    const props = bookingRules({ open: true });
+    let tree = drawFold(props);
+    assert.equal(dialogOf(tree).props.tabIndex, -1, "the sheet can hold focus itself, and Tab never lands on it");
+    dialogOf(tree).props.ref.current = {
+      querySelector: (sel) => (sel === ".rec-fold-inner" ? inner : null),
+      contains: () => true,
+      focus: () => focused.push("sheet"),
+    };
+    tree = cross(props);
+    assert.ok(dialogOf(tree), "a sheet again");
+    assert.deepEqual(focused, ["field", "sheet"], "under its row the field is ready; as a sheet, the sheet is");
+    touch = false;
+    cross(props);
+    assert.deepEqual(
+      focused.slice(2),
+      ["field", "field"],
+      "a narrow window on a desk has its keys: the field, in both",
+    );
+  } finally {
+    width.put();
+    unmount();
+  }
+});
+
 /* ------------------------------------ the inline editor ------------------------------------ */
 
 const website = (over = {}) => ({

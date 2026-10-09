@@ -2429,8 +2429,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     align-self: center;
     justify-content: flex-end;
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child,
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:not(:has(> .pg-act-fit)),
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child:not(:has(> .pg-act-fit)) {
     width: 44px;
     height: 44px;
     min-height: 44px;
@@ -2442,7 +2442,31 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     box-shadow: var(--primary-depth);
     color: var(--primary-ink);
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :first-child > span {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :first-child:not(:has(> .pg-act-fit)) > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* An act that says its words through the kit's part for them (kit/head/act-words.tsx: the Inbox's New conversation)
+     is no bare circle: it keeps its mark and its first word, "+ New", in the capsule People's scopes draw theirs in on a
+     phone, 36px and 44 to a finger by a margin no one sees (Ruben, 8 Oct 2026: a plus alone said nothing). The rest of
+     its name is kept for a screen reader, as the circle keeps the whole of one. */
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit) {
+    position: relative;
+    height: var(--control-h-lg);
+    min-height: var(--control-h-lg);
+    padding: 0 14px 0 12px;
+    font-size: var(--text-base);
+  }
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit)::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child > .pg-act-fit > .pg-act-rest {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -2453,6 +2477,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* Beside the act the strip has 44px less: its tabs give up 4px of padding each side, and the three still fit a phone. */
   .pg-slot:has(> nav) > nav > a {
     padding-inline: 10px;
+  }
+  /* Beside a capsule that says a word the strip has 76px less, not 44: its tabs give up 2px more each side, so the
+     Inbox's three still stand on one line on a phone 360 wide ("Needs you" wrapped onto two). */
+  .pg-slot:has(> nav):not([data-strip="people"]):has(> .pg-act-slot .pg-act-fit) > nav > a {
+    padding-inline: 8px;
   }
   /* And a phone's strip says the views' names alone: the counts beside them pushed "Templates 7" past the strip's end,
      and the list under it says them again. */

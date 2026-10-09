@@ -24,6 +24,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Sheet } from "../../kit/sheet/sheet";
+import { focusAsDrawn } from "../../kit/touch";
 import { gate } from "../shell";
 import { NewCall } from "./call";
 import { NewMessage } from "./message";
@@ -65,7 +66,7 @@ function aboutPart(s: SheetState) {
         onValueChange={(about) => s.patch({ about })}
         maxLength={DRAFT_ABOUT_MAX}
         // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the plan is the next thing to write once a person is picked
-        autoFocus
+        autoFocus={focusAsDrawn()}
         data-testid="ix-new-about"
       />
       {askable ? (

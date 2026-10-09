@@ -1,7 +1,7 @@
 /**
  * The Inbox's one act and its doors (a conversation begins from the Inbox, the design's 4.1 and 4.7), drawn on the stub
- * React: the Inbox says New conversation to the frame's head, with its mark the button's own child, so a phone's circle
- * keeps it; a press asks for the sheet, a pointer reaching it warms the sheet, and a role that may not write is told why
+ * React: the Inbox says New conversation to the frame's head through the kit's part for an act's words, its mark kept
+ * with its first word, so a phone's capsule says "+ New"; a press asks for the sheet, a pointer reaching it warms the sheet, and a role that may not write is told why
  * and opens nothing; the frame's host answers N on the Inbox's tabs alone, and leaves it alone wherever a page leaves a
  * key alone; and an address that names the sheet is its door.
  */
@@ -49,21 +49,24 @@ const at = (route) => {
   globalThis.window.CHANLY = { ...globalThis.window.CHANLY, address: { route: () => route } };
 };
 
-test("the Inbox says its one act to the head: New conversation, filled, its mark the button's own child", () => {
+test("the Inbox says its one act to the head: New conversation, filled, its mark kept with its first word", () => {
   delete globalThis.window.gate;
   const act = actSaid();
   assert.ok(act, "the act is the head's, at the right of the row of views");
   assert.equal(standingSaid().title, "Inbox");
   assert.ok(act.props.className.includes("btn-primary"), "the page's one filled button");
   assert.ok(act.props.className.includes("btn-lg"), "the head's size, the row of views' own height");
-  const kids = [act.props.children].flat().filter((k) => k && typeof k === "object");
-  const words = kids.filter((k) => k.type === "span");
-  assert.deepEqual(
-    words.map((k) => textOf(k)),
-    [NEW_CONVERSATION_WORDS.act],
-    "the words are one span: a phone's circle keeps them for a screen reader alone",
+  assert.equal(textOf(act), NEW_CONVERSATION_WORDS.act, "the whole name is the button's own words, at every width");
+  // The kit's part for an act's words (kit/head/act-words.tsx), which the frame's phone rules read by its classes
+  // (components.css): a bare plus said nothing of what it makes (Ruben, 8 October 2026).
+  const part = (name) => find(act, (n) => n.props?.className === name);
+  assert.ok(part("pg-act-fit"), "said through the kit's part, so a phone draws a capsule and not the bare circle");
+  assert.equal(textOf(part("pg-act-keep")), "New", "the first word is kept with the mark: + New");
+  assert.ok(
+    find(part("pg-act-keep"), (n) => n.props?.name === "plus"),
+    "the mark stands inside what is kept, so the capsule is never words alone",
   );
-  assert.equal(kids.length - words.length, 1, "and the mark stands outside it, so the circle is never empty");
+  assert.equal(textOf(part("pg-act-rest")), " conversation", "the rest follows, heard by a screen reader on a phone");
 });
 
 test("a press asks for the sheet, on the pick; a pointer warms it; a role that may not write is told why and opens nothing", () => {

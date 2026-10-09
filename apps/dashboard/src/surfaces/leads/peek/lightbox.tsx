@@ -6,7 +6,8 @@
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { leaving } from "../../legacy-verbs";
+import { keepTouch, onAPhone } from "../../kit/touch";
+import { leaving, touchSwipe } from "../../legacy-verbs";
 
 interface LightboxProps {
   vm: LeadPeekVM;
@@ -114,6 +115,9 @@ export const LeadLightbox = ({ vm, onClose }: LightboxProps) => (
       aria-label={`${W.photos}: ${vm.name}`}
       data-testid="lead-lightbox"
       ref={leaving("lead-lightbox")}
+      // On a phone the photos take the whole screen, and a pull down from the top lets them go, as the peek under them
+      // does (data-bits touchSwipe; Ruben, 8 October 2026: only Close did). The touch stays the photos' own.
+      {...keepTouch(touchSwipe({ onDown: onClose, when: onAPhone }))}
     >
       {lightboxHead({ vm, onClose })}
       <div className="ld-lb-body">

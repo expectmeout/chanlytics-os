@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import type { ListRule } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { focusAsDrawn } from "../../kit/touch";
 import { lists } from "../people-lists";
 import type { ApiResult } from "@/client/api";
 
@@ -101,7 +102,7 @@ function describeBox(p: {
     <div className="cl-rail-foot">
       <div className="cl-rail-newlist">
         <input
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={words}
           placeholder="Describe who — “haven’t visited in two months”"
           maxLength={300}
@@ -182,7 +183,7 @@ function nameBox(p: {
       )}
       <div className="cl-rail-newlist">
         <input
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={name}
           placeholder="Name the list"
           maxLength={60}

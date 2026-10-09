@@ -7,7 +7,7 @@ import { routeOf } from "../address";
  * (docs/superpowers/specs/2026-10-07-a-conversation-begins-from-the-inbox-design.md, 4.1, 4.2 and 4.7).
  *
  * What only a browser can say: the act stands at the right of the row of views on each of the Inbox's three tabs, a
- * filled button on a desk and a circle with its mark on a phone, where its name is still a screen reader's; a press
+ * filled button on a desk and a capsule that says "+ New" on a phone, where its whole name is a screen reader's; a press
  * opens the sheet, and so does N; a person picked is read for how they can be reached, each wire said with what it
  * carries or why it cannot; and an address that names the sheet opens it and gives the Inbox its own address back.
  *
@@ -94,7 +94,7 @@ test.describe("A conversation begins from the Inbox, on a phone", () => {
     await signIn(page);
   });
 
-  test("the act is a circle with its mark beside the row of views, named for a screen reader, and opens the sheet", async ({
+  test("the act says + New beside the row of views, its whole name a screen reader's, and the sheet opens with no field in focus", async ({
     page,
   }) => {
     const slug = await slugOfHome(page);
@@ -103,16 +103,29 @@ test.describe("A conversation begins from the Inbox, on a phone", () => {
     await expect(act).toBeVisible({ timeout: 30_000 });
     const box = await act.boundingBox();
     if (!box) throw new Error("the act has no box");
-    expect([Math.round(box.width), Math.round(box.height)], "a 44px circle").toEqual([44, 44]);
-    // The mark is in it, at its middle: a circle with nothing in it is the fault this holds.
+    // A capsule with its mark and its first word, 36px as People's scopes draw theirs: a bare plus in a circle said
+    // nothing of what it makes (Ruben, 8 October 2026). The rest of the name is kept for a screen reader alone.
+    expect(Math.round(box.height), "a 36px capsule").toBe(36);
+    expect(box.width, "it holds a word, so it is wider than the circle it was").toBeGreaterThan(60);
+    await expect(act.locator(".pg-act-keep")).toHaveText("New");
+    const rest = await act.locator(".pg-act-rest").boundingBox();
+    expect(rest ? Math.round(rest.width) : 0, "the rest of its name is drawn").toBeLessThanOrEqual(1);
     const mark = await act.locator("svg").boundingBox();
     if (!mark) throw new Error("the act's mark is not drawn");
-    expect(Math.abs(mark.x + mark.width / 2 - (box.x + box.width / 2))).toBeLessThan(2);
-    expect(Math.abs(mark.y + mark.height / 2 - (box.y + box.height / 2))).toBeLessThan(2);
+    expect(mark.x, "the mark stands outside the capsule").toBeGreaterThanOrEqual(box.x);
+    expect(mark.x + mark.width, "the mark stands outside the capsule").toBeLessThanOrEqual(box.x + box.width);
     // The row of views still fits beside it: nothing scrolls sideways.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await act.tap();
     await expect(page.getByTestId("ix-new")).toBeVisible();
     await expect(page.getByTestId("ix-new")).toContainText("Who is it for?");
+    // On a touch screen no field takes focus as the sheet rises: the keyboard waits for a tap on the field.
+    expect(
+      await page.evaluate(() => {
+        const at = document.activeElement;
+        return !!at && at.matches("input, textarea, select, [contenteditable='true']");
+      }),
+      "a field took focus as the sheet rose, which raises a phone's keyboard over it",
+    ).toBe(false);
   });
 });

@@ -1292,7 +1292,8 @@ test.describe("Settings › Business on a real workspace", () => {
       const top = await scrolled();
       await actOf(page, "tone").tap();
 
-      // A modal dialog rising from the bottom, named by the row's label, with focus in its field.
+      // A modal dialog rising from the bottom, named by the row's label. On a touch screen the sheet itself holds
+      // focus and its field waits for a tap: a field that took focus as the sheet rose raised the keyboard over it.
       const sheet = page.locator('[role="dialog"][data-testid="rec-fold-tone"]');
       await expect(sheet).toBeVisible();
       await expect(sheet).toHaveAttribute("aria-modal", "true");
@@ -1306,7 +1307,8 @@ test.describe("Settings › Business on a real workspace", () => {
         ),
       );
       const box = sheet.locator("textarea").first();
-      await expect(box, "focus is not in the sheet's field").toBeFocused();
+      await expect(sheet, "the sheet itself does not hold focus").toBeFocused();
+      await expect(box, "the field took focus as the sheet rose").not.toBeFocused();
       const rise = await boxOf(sheet, "the sheet");
       expect(Math.round(rise.y + rise.h), "the sheet does not stand on the bottom of the screen").toBe(844);
       expect(Math.round(rise.w), "the sheet is not the screen's width").toBe(390);
