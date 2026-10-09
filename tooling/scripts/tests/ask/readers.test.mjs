@@ -4612,6 +4612,15 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
   "messages.select",
   "playbooks.select",
 ];
+/**
+ * 9 Oct 2026 (00362): how many of each went out is the database's count, one call (template_sends), where every sent
+ * person and every templated message was paged here; it is asked as the reads start, ahead of the runs it no longer waits on.
+ */
+const TEMPLATES_ALL_ASKED = [
+  "templates.select",
+  "rpc:template_sends",
+  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(1).filter((k) => k !== "broadcast_recipients.select" && k !== "messages.select"),
+];
 
 test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
   for (const [q, all, names, keys, reads] of [
@@ -4622,7 +4631,7 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
       true,
       ["hello_world", "offer", "visit_reminder"],
       ["templates", "held", "messages", "usedBy", "sends"],
-      TEMPLATES_ALL_ASKED_AT_MAIN,
+      TEMPLATES_ALL_ASKED,
     ],
     ["&all=0", false, ["visit_reminder"], ["templates", "held", "messages"], ["templates.select"]],
   ]) {

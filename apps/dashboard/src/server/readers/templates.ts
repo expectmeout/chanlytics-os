@@ -7,8 +7,13 @@ import {
   templateHolds,
   templateParts,
   templateSends,
+  templateSendsOf,
   templateUsage,
+  type TemplateSends,
 } from "@chanlytics/contracts";
+// The database's count of the same sends (00362); contracts' templateSends is the fold it replaced, read below for a
+// database before it.
+import { templateSends as sendsByTemplate } from "@chanlytics/db";
 import { stamp, type Reader, type ReaderContext } from "./index";
 
 /**
@@ -42,6 +47,59 @@ async function everyRow<T>(
     out.push(...(data ?? []));
     if ((data ?? []).length < TEMPLATES_PAGE) return out;
   }
+}
+
+/**
+ * How many of each message went out, and when the latest did, by its name: the database's count (template_sends, 00362),
+ * one call whatever the history, or, on a database before it, for one release, the fold over every person a run sent
+ * and every template the Inbox sent that WhatsApp took (contracts templateSends), as this reader read them. `runs` is
+ * the reader's own read of every run, which the fold names each send's message by.
+ */
+async function templateSendsRead(
+  rc: ReaderContext,
+  runs: PromiseLike<readonly { id: string; template_name: string | null }[]>,
+): Promise<Record<string, TemplateSends>> {
+  const tenantId = rc.tenantId;
+  const read = await sendsByTemplate(rc.ctx.supabase, tenantId);
+  if (read !== "missing") {
+    const sends = templateSendsOf(read);
+    if (!sends) throw new Error("template_sends answered a shape it does not know");
+    return sends;
+  }
+  const [runRows, recipients, inbox] = await Promise.all([
+    runs,
+    // What LEFT, person by person. A broadcast's `recipient_count` is the
+    // audience it was scheduled for; the wire holds people back from it and a
+    // run can stop part-way, and Reports › Campaigns counts "Messages sent"
+    // from these rows, apart from "Delivered". Counted the way that page counts.
+    everyRow("broadcast_recipients", (from, to) =>
+      rc.ctx.supabase
+        .from("broadcast_recipients")
+        .select("broadcast_id, state, sent_at")
+        .eq("tenant_id", tenantId)
+        .eq("state", "sent")
+        .order("broadcast_id")
+        .order("contact_id")
+        .range(from, to),
+    ),
+    // The one door a run does not cover: a template the Inbox sent into a closed
+    // window, on its own message row. It left when WhatsApp took it -- the
+    // wamid; a row still in its veto window, withdrawn or refused has none. A
+    // run's own messages name no template (deliver records them without one),
+    // so nothing counted on a recipient row above is counted again here.
+    everyRow("messages", (from, to) =>
+      rc.ctx.supabase
+        .from("messages")
+        .select("template_name, external_id, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("direction", "outbound")
+        .not("template_name", "is", null)
+        .not("external_id", "is", null)
+        .order("id")
+        .range(from, to),
+    ),
+  ]);
+  return templateSends({ runs: runRows, recipients, inbox });
 }
 
 /**
@@ -84,64 +142,35 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // nothing has ever sent -- one written in WhatsApp Manager, or a starter added
   // and never wired up -- and this list was the one place that could not say so.
   if (!all) return { templates, held, messages };
-  const [pb, runs, recipients, inbox] = await Promise.all([
+  // Every run, a page at a time: a daily playbook alone passes a thousand of
+  // them in three years, and a run cut off the end sent messages nobody is
+  // credited with. A run's state says whether its playbook is waiting on the
+  // owner; a name and a date let a message people send by hand name the latest
+  // two.
+  const runs = everyRow("broadcasts", (from, to) =>
+    rc.ctx.supabase
+      .from("broadcasts")
+      .select("id, template_name, playbook_id, name, state, created_at")
+      .eq("tenant_id", tenantId)
+      .order("id")
+      .range(from, to),
+  );
+  const [pb, runRows, sends] = await Promise.all([
     // Its clock, for the line under what sends it ("runs daily at 10:00").
     rc.ctx.supabase
       .from("playbooks")
       .select("id, name, template_name, state, trigger, run_hour, cadence_days")
       .eq("tenant_id", tenantId),
-    // Every run, a page at a time: a daily playbook alone passes a thousand of
-    // them in three years, and a run cut off the end sent messages nobody is
-    // credited with.
-    everyRow("broadcasts", (from, to) =>
-      // A run's state says whether its playbook is waiting on the owner; a name and a
-      // date let a message people send by hand name the latest two.
-      rc.ctx.supabase
-        .from("broadcasts")
-        .select("id, template_name, playbook_id, name, state, created_at")
-        .eq("tenant_id", tenantId)
-        .order("id")
-        .range(from, to),
-    ),
-    // What LEFT, person by person. A broadcast's `recipient_count` is the
-    // audience it was scheduled for; the wire holds people back from it and a
-    // run can stop part-way, and Reports › Campaigns counts "Messages sent"
-    // from these rows, apart from "Delivered". Counted the way that page counts.
-    everyRow("broadcast_recipients", (from, to) =>
-      rc.ctx.supabase
-        .from("broadcast_recipients")
-        .select("broadcast_id, state, sent_at")
-        .eq("tenant_id", tenantId)
-        .eq("state", "sent")
-        .order("broadcast_id")
-        .order("contact_id")
-        .range(from, to),
-    ),
-    // The one door a run does not cover: a template the Inbox sent into a closed
-    // window, on its own message row. It left when WhatsApp took it -- the
-    // wamid; a row still in its veto window, withdrawn or refused has none. A
-    // run's own messages name no template (deliver records them without one),
-    // so nothing counted on a recipient row above is counted again here.
-    everyRow("messages", (from, to) =>
-      rc.ctx.supabase
-        .from("messages")
-        .select("template_name, external_id, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("direction", "outbound")
-        .not("template_name", "is", null)
-        .not("external_id", "is", null)
-        .order("id")
-        .range(from, to),
-    ),
+    runs,
+    templateSendsRead(rc, runs),
   ]);
   if (pb.error) throw new Error(pb.error.message);
   const usedBy = templateUsage({
     playbooks: (pb.data ?? []).map((p) => ({ ...p, runs: runsWords(p) })),
-    broadcasts: runs,
+    broadcasts: runRows,
     // The booking message is a WhatsApp template the receptionist sends: an email or a text of the same name is none.
     bookingName: bookingTemplate(every.filter((t) => t.channel === "whatsapp"))?.name ?? null,
   });
-  const sends = templateSends({ runs, recipients, inbox });
   return { templates, held, messages, usedBy, sends };
 }
 

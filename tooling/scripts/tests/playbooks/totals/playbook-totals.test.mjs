@@ -393,3 +393,41 @@ test("GET playbooks' rows: the database's count read in one call, the same bytes
     "and nothing of a run",
   );
 });
+
+const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { templates: templatesReader } = await import(at("apps/dashboard/src/server/readers/templates.ts"));
+const turn = (db) =>
+  kernel.readerContext(
+    { supabase: db, userId: "u1", email: "ada@example.com", params: {} },
+    { tenantId: T, role: "viewer" },
+  );
+
+test("Settings' templates: how many of each went out is template_sends', one call where every sent person and every templated message was paged, and the same the fold says on a database before it", async () => {
+  const sql = fakeDb(harbor());
+  const read = (await kernel.load(turn(sql), templatesReader, { all: true })).data;
+  assert.deepEqual(read.sends, { winback_offer: { count: 7, lastAt: iso(T0 + 200 * H) } });
+  assert.ok(
+    sql.seen.some((q) => q.rpc === "template_sends"),
+    "the database's count",
+  );
+  assert.equal(
+    sql.seen.some((q) => q.table === "broadcast_recipients"),
+    false,
+    "no sent person paged",
+  );
+  assert.equal(
+    sql.seen.some((q) => q.table === "messages"),
+    false,
+    "no templated message paged",
+  );
+  const folded = (await kernel.load(turn(before00362(harbor())), templatesReader, { all: true })).data;
+  assert.deepEqual(folded.sends, read.sends);
+  assert.deepEqual(folded.usedBy, read.usedBy, "what sends each is read the same way");
+  const composers = fakeDb(harbor());
+  await kernel.load(turn(composers), templatesReader, { all: false });
+  assert.equal(
+    composers.seen.some((q) => q.rpc === "template_sends"),
+    false,
+    "the composers never ask, and never pay for it",
+  );
+});
