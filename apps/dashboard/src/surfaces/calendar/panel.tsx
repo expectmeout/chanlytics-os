@@ -8,7 +8,8 @@ import { useEffect, useReducer, useRef } from "react";
 import type { CalendarBlockVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
-import { gate, leaving, navigate, trapFocus } from "../legacy-verbs";
+import { gate, leaving, navigate, touchSwipe, trapFocus } from "../legacy-verbs";
+import { crPhone } from "./board-dom";
 import { askDealSheet, dealSheetInstalled, onPeopleMoved, peopleRead, routeTo, statePill } from "./shell-verbs";
 import type { CalendarFrame } from "./types";
 import { calendar } from "./verbs";
@@ -226,6 +227,9 @@ export function CrPanel({
         aria-labelledby="cal-panel-title"
         tabIndex={-1}
         data-testid="cal-panel"
+        // On a phone the card stands at the screen's foot, and a pull down from its top lets it go, as every sheet's
+        // does (data-bits touchSwipe; Ruben, 8 October 2026). Close, a press on the wash and Escape are as they were.
+        {...touchSwipe({ onDown: onClose, when: crPhone })}
       >
         <section className="st-modal-section">
           <div className="st-modal-name" id="cal-panel-title">

@@ -12,6 +12,7 @@ import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { focusAsDrawn } from "../../legacy-verbs";
 import type { SheetState } from "./state";
 
 /** Who was found: each a press that picks them, with where their deal stands or when they were last heard. */
@@ -58,7 +59,7 @@ function adding(s: SheetState) {
         maxLength={80}
         readOnly={add.busy}
         // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the fields open on a press that asked for them
-        autoFocus
+        autoFocus={focusAsDrawn()}
         data-testid="ix-new-who-name"
       />
       <Field
@@ -106,8 +107,8 @@ export function NewWho({ s }: { s: SheetState }) {
           e.preventDefault();
           s.choose(first.id);
         }}
-        // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the sheet opens on its one question
-        autoFocus
+        // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the sheet opens on its one question; not on a touch screen
+        autoFocus={focusAsDrawn()}
         data-testid="ix-new-who-search"
       />
       {found(s)}

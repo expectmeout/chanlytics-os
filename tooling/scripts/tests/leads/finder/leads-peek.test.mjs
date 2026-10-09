@@ -1842,6 +1842,34 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
   assert.equal(byTestId(box, "lightbox-maps").props.href, "https://maps.example/?cid=1");
   byTestId(box, "lightbox-close").props.onClick();
   assert.deepEqual(closed, [1]);
+  // On a phone the photos are the whole screen: a pull down from their top lets them go, as the peek under them does
+  // (Ruben, 8 October 2026: only Close did). The touch stays the photos' own: the peek that drew them reads a pull
+  // as its own Close, and it would have gone with them.
+  const el = { dataset: {} };
+  let stopped = 0;
+  const pull = (dy) => {
+    const stopPropagation = () => (stopped += 1);
+    box.props.onTouchStart({
+      touches: [{ clientX: 180, clientY: 60 }],
+      currentTarget: el,
+      target: null,
+      stopPropagation,
+    });
+    box.props.onTouchEnd({ changedTouches: [{ clientX: 184, clientY: 60 + dy }], currentTarget: el, stopPropagation });
+  };
+  pull(140);
+  assert.deepEqual(closed, [1], "beside a desk's table nothing is pulled");
+  const media = globalThis.window.matchMedia;
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
+  try {
+    pull(40);
+    assert.deepEqual(closed, [1], "a short drag keeps them");
+    pull(140);
+    assert.deepEqual(closed, [1, 1], "REGRESSION: Close was the only way out of the photos on a phone");
+  } finally {
+    globalThis.window.matchMedia = media;
+  }
+  assert.equal(stopped, 6, "and every touch stayed the photos' own");
   // A lead with no photo draws the tile, and says so.
   const noPhoto = LeadLightbox({ vm: vmOf({ hours: [] }), onClose: () => {} });
   assert.match(textOf(byTestId(noPhoto, "lightbox-photo")), /No photo on the listing/);

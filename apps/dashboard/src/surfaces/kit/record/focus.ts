@@ -36,7 +36,7 @@ import type { FocusEvent, KeyboardEvent, RefObject } from "react";
 import { can, pick } from "./dom";
 import { recFolds } from "./registry";
 import type { FoldId } from "./registry";
-import { listen, mediaQuery, tabStops, unlisten } from "./shell-verbs";
+import { listen, mediaQuery, onTouchScreen, tabStops, unlisten } from "./shell-verbs";
 
 /** The element a gesture is drawn in, held by a ref. */
 type Box = RefObject<HTMLElement | null>;
@@ -161,7 +161,12 @@ export function useRecFocus(id: FoldId, open: boolean, box: Box, area: FocusArea
       return undefined;
     }
     const el = box.current;
-    recFocusIn(el, inner, fallback);
+    // A fold drawn as a sheet, on a touch screen, opens with the sheet itself in focus, as RecordSheet does: its first
+    // field taking focus raised the keyboard over a sheet nobody had read yet (Ruben, 8 October 2026). A tap on a field
+    // begins the typing. An inline editor, and a fold under its row, are what a press asked to type in, and keep
+    // their first field; so does every frame where the pointer is a mouse.
+    if (frame === true && onTouchScreen() && el && typeof el.focus === "function") el.focus();
+    else recFocusIn(el, inner, fallback);
     return () => recFocusBack(id, el);
     // a new opening, a new id or a new frame: not each draw
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -9,6 +9,7 @@
 import { FieldError } from "../../kit/field-error/field-error";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Sheet } from "../../kit/sheet/sheet";
+import { focusAsDrawn } from "../../legacy-verbs";
 import type { ListRule } from "@chanlytics/contracts";
 import { RuleEditor } from "../lists/rule-editor";
 import { SaveModes } from "../lists/save-shown";
@@ -37,7 +38,7 @@ export function PeopleAddSheet({
         </span>
         <input
           className="pp-input"
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={draft.name}
           maxLength={80}
           autoComplete="name"
@@ -151,7 +152,7 @@ export function PeopleListActSheet({
         <span className="pp-field-label">{renaming ? "Its name" : "Name the list"}</span>
         <input
           className="pp-input"
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={draft.name}
           maxLength={60}
           disabled={draft.busy}

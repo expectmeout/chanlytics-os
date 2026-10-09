@@ -24,6 +24,7 @@ import type { ReactNode } from "react";
 import type { PersonVM } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { focusAsDrawn } from "../../legacy-verbs";
 
 /** A way an answer may have been given. */
 interface Source {
@@ -150,7 +151,7 @@ function formPanel(a: AskProps, d: Doing) {
       <div className="cl-prof-note">
         <input
           // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the form was just chosen: the note is what is asked next
-          autoFocus
+          autoFocus={focusAsDrawn()}
           value={st.note}
           maxLength={200}
           placeholder="Slip 12, or on Instagram"
