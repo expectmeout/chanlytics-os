@@ -176,12 +176,15 @@ test("the counts' doors (00362, 00363) ask by name for the workspace, answer wha
   assert.deepEqual(await playbookTotals(db, W, 10), { p1: {} });
   assert.deepEqual(await runCounts(db, W, ["b1", "b2"]), {});
   assert.deepEqual(await templateSends(db, W), {});
-  assert.deepEqual(await reachOutChainTotals(db, W, 30), {});
+  assert.deepEqual(await reachOutChainTotals(db, W, live(30)), {});
+  // The chains read the report's window: its last day named only where it ended before today (00360).
+  assert.deepEqual(await reachOutChainTotals(db, W, ended(20, "2026-09-20")), {});
   assert.deepEqual(asked, [
     ["playbook_totals", { p_tenant_id: W, p_history: 10 }],
     ["run_counts", { p_tenant_id: W, p_run_ids: ["b1", "b2"] }],
     ["template_sends", { p_tenant_id: W }],
     ["reach_out_chain_totals", { p_tenant_id: W, p_days: 30 }],
+    ["reach_out_chain_totals", { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" }],
   ]);
   for (const code of ["PGRST202", "42883"]) {
     const gone = { data: null, error: { message: "Could not find the function", code } };
@@ -194,7 +197,8 @@ test("the counts' doors (00362, 00363) ask by name for the workspace, answer wha
     assert.equal(await playbookTotals(missing, W, 10), "missing", code);
     assert.equal(await runCounts(missing, W, []), "missing", code);
     assert.equal(await templateSends(missing, W), "missing", code);
-    assert.equal(await reachOutChainTotals(missing, W, 30), "missing", code);
+    assert.equal(await reachOutChainTotals(missing, W, live(30)), "missing", code);
+    assert.equal(await reachOutChainTotals(missing, W, ended(20, "2026-09-20")), "missing", code);
   }
   const down = { data: null, error: { message: "canceling statement due to statement timeout", code: "57014" } };
   const slow = dbWith({
@@ -206,7 +210,7 @@ test("the counts' doors (00362, 00363) ask by name for the workspace, answer wha
   await assert.rejects(playbookTotals(slow, W, 10), /playbook_totals: canceling statement/);
   await assert.rejects(runCounts(slow, W, []), /run_counts: canceling statement/);
   await assert.rejects(templateSends(slow, W), /template_sends: canceling statement/);
-  await assert.rejects(reachOutChainTotals(slow, W, 30), /reach_out_chain_totals: canceling statement/);
+  await assert.rejects(reachOutChainTotals(slow, W, live(30)), /reach_out_chain_totals: canceling statement/);
   // Each function answers one object (an empty one when nothing is counted), so any other answer is a read that failed,
   // never a value "missing" could be mistaken for.
   for (const odd of [null, [], "missing", 3]) {

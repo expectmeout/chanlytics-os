@@ -1,15 +1,16 @@
 /**
- * Reports' Reach-outs section for "This month so far" (00361), on a real Postgres. reach_out_report took 7, 30 or 90
+ * Reports' Reach-outs section for "This month so far" (00360), on a real Postgres. reach_out_report took 7, 30 or 90
  * days and raised for any other, and the month sends the day of the month, so the section answered 422 on every day but
- * the 7th and the 30th. It reads any period of 1 to 90 days now, one outside them held to them as campaign_series holds
- * its own, and still only for a member of the workspace.
+ * the 7th and the 30th. It reads any period of 1 to 90 days now, refuses any other in contracts' words, and still only
+ * for a member of the workspace. Every day of a month is asked here, as Reports asks it; a window that ended before
+ * today is reach-out-back/what-comes-back.db.test.mjs's.
  *
  * Local stack only: it makes workspaces, members, a chain and its emails.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { monthDaysAt, zoneDayKey } from "@chanlytics/contracts";
+import { REACH_OUT_REFUSALS, monthDaysAt, zoneDayKey } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -160,11 +161,14 @@ test(
 );
 
 test(
-  "a period outside 1 to 90 days is held to them, as campaign_series holds its own; 7, 30 and 90 read as they did",
+  "a period outside 1 to 90 days is refused in contracts' words; 7, 30 and 90 read as they did",
   { skip },
   async () => {
-    const days = async (p) => ok(await viewer.rpc("reach_out_report", { p_tenant_id: A, p_days: p }), `${p} days`).days;
-    assert.deepEqual([await days(0), await days(-3), await days(91), await days(365)], [1, 1, 90, 90]);
+    for (const p of [0, -3, 91, 365]) {
+      const r = await viewer.rpc("reach_out_report", { p_tenant_id: A, p_days: p });
+      assert.equal(r.error?.code, "22023", `${p} days: ${r.error?.message}`);
+      assert.equal(r.error.message, REACH_OUT_REFUSALS.period, `${p} days: the refusal contracts words`);
+    }
     assert.equal(
       ok(await viewer.rpc("reach_out_report", { p_tenant_id: A, p_days: 90 })).totals.written,
       2,

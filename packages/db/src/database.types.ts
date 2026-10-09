@@ -7696,7 +7696,7 @@ export type Database = {
         Returns: Json
       }
       reach_out_chain_totals: {
-        Args: { p_days: number; p_tenant_id: string }
+        Args: { p_days: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       reach_out_check_take: {

@@ -8,7 +8,9 @@
 --
 --   campaign_reply_window  the 72 hours a reply to a campaign is counted in (contracts REPLY_WINDOW_HOURS and isReplyTo),
 --                          said once in SQL; not WhatsApp's service window (contracts replyWindow). campaign_series reads
---                          it: its 00329 body with that one change.
+--                          it: the body 00360 left it (three arguments, the window's last day `p_end`) with that one
+--                          change, its grants and its comment restated. It keeps 00360's signature, so create or replace
+--                          takes it and makes no second one for PostgREST to choose between.
 --   run_counts             a run's queued, sent, skipped, failed, delivered, read (WhatsApp's own receipt), replied and
 --                          sent by channel, by run id: what Sent, a run's sheet and a playbook's card all say. Replied is
 --                          each thread the run reached, once, from its first send there, where the customer wrote words
@@ -215,7 +217,7 @@ grant execute on function public.template_sends(uuid) to authenticated, service_
 comment on function public.template_sends(uuid) is
   'How many times each message went out (a person a run marked sent; a template the Inbox sent that WhatsApp took, its wamid) and when the latest did, by name; a message never sent is absent. What Settings'' templates say (00362). Security invoker: row security decides what is read.';
 
-create or replace function public.campaign_series(p_tenant_id uuid, p_days integer default 30)
+create or replace function public.campaign_series(p_tenant_id uuid, p_days integer default 30, p_end date default null)
 returns jsonb
 language plpgsql
 stable
@@ -226,7 +228,9 @@ declare
   v_days   integer := least(greatest(coalesce(p_days, 30), 1), 90);
   v_span   integer;
   v_today  date;
+  v_end    date;
   v_start  timestamptz;
+  v_stop   timestamptz;
   v_cur    date;
   v_result jsonb;
 begin
@@ -237,11 +241,14 @@ begin
 
   v_span  := v_days * 2;
   v_today := (now() at time zone v_tz)::date;
-  v_start := ((v_today - (v_span - 1))::timestamp) at time zone v_tz;
-  v_cur   := v_today - (v_days - 1);
+  -- The window's last day and where it stops, as report_series reads them (00360).
+  v_end   := least(coalesce(p_end, v_today), v_today);
+  v_start := ((v_end - (v_span - 1))::timestamp) at time zone v_tz;
+  v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
+  v_cur   := v_end - (v_days - 1);
 
   with days as (
-    select (v_today - (v_span - 1) + g)::date as day
+    select (v_end - (v_span - 1) + g)::date as day
       from generate_series(0, v_span - 1) g
   ),
   -- Every message a broadcast or a playbook run actually sent in the span,
@@ -258,7 +265,7 @@ begin
       left join messages m on m.id = r.message_id
      where r.tenant_id = p_tenant_id
        and r.state = 'sent'
-       and r.sent_at >= v_start
+       and r.sent_at >= v_start and r.sent_at < v_stop
   ),
   -- Replied: the customer wrote in that thread after the message went out, in their own words: not a call's note
   -- (an inbound row the system wrote) and not a program writing from their address (message_is_a_persons_words, 00299).
@@ -286,7 +293,7 @@ begin
       from events e
      where e.tenant_id = p_tenant_id
        and e.kind = 'contact.consent_changed'
-       and e.created_at >= v_start
+       and e.created_at >= v_start and e.created_at < v_stop
   ),
   -- Each day from one pass over each source, grouped by the day (00251), where a scalar subquery per day and per
   -- count scanned both again for every day.
@@ -344,6 +351,7 @@ begin
     'days', v_days,
     'span_days', v_span,
     'today', to_char(v_today, 'YYYY-MM-DD'),
+    'end', to_char(v_end, 'YYYY-MM-DD'),
     'series', (select jsonb_agg(jsonb_build_object(
                  'day', to_char(p.day, 'YYYY-MM-DD'),
                  'sent', p.sent,
@@ -377,8 +385,8 @@ begin
   return v_result;
 end $$;
 
-revoke all on function public.campaign_series(uuid, integer) from public, anon;
-grant execute on function public.campaign_series(uuid, integer) to authenticated;
+revoke all on function public.campaign_series(uuid, integer, date) from public, anon;
+grant execute on function public.campaign_series(uuid, integer, date) to authenticated, service_role;
 
-comment on function public.campaign_series(uuid, integer) is
-  'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp).';
+comment on function public.campaign_series(uuid, integer, date) is
+  'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';

@@ -2,7 +2,7 @@
  * Every chain's numbers (00363 reach_out_chain_totals), behind one question of who may read a workspace
  * (may_read_workspace), on a real Postgres. Reports' reach_out_report lists twenty chains, the ones that wrote in the
  * period, so the twenty-first and a chain that sent nothing were both absent; this answers every chain, by its id, and
- * says of each chain the report lists what the report says.
+ * says of each chain the report lists what the report says, over the report's own window (its last day, 00360).
  *
  * Local stack only: it makes workspaces, members, chains, leads and their emails.
  */
@@ -242,13 +242,53 @@ test(
 );
 
 test(
+  "a window that ended before today is the report's window: each chain counts what it wrote in those days and nothing after, and a day to come is today",
+  { skip },
+  async () => {
+    // The days to two days ago in the workspace's zone: chains 0-21 wrote in the last day, after the window ended, and
+    // chain 22's email forty days ago is inside ninety days to it.
+    const today = ok(await viewer.rpc("reach_out_report", { p_tenant_id: A, p_days: 7 }), "today's report").today;
+    const dayBefore = (k) => new Date(Date.parse(`${today}T00:00:00Z`) - k * DAY).toISOString().slice(0, 10);
+    const window = { p_tenant_id: A, p_days: 90, p_end: dayBefore(2) };
+    const report = ok(await viewer.rpc("reach_out_report", window), "the report, ended");
+    const ended = ok(await viewer.rpc("reach_out_chain_totals", window), "the chains, ended");
+    assert.deepEqual([report.end, report.today], [dayBefore(2), today], "the report's window ended two days ago");
+    assert.deepEqual(Object.keys(ended).sort(), [...roots].sort(), "every chain of the workspace, still");
+    for (const r of roots.slice(0, 22))
+      assert.deepEqual(ended[r], { written: 0, wrote_back: 0, last_at: null }, "REGRESSION: counted what came after");
+    assert.equal(ended[roots[22]].written, 1, "the email forty days ago is in its days");
+    assert.deepEqual(
+      report.chains.map((c) => c.root_id),
+      [roots[22]],
+      "the report lists the one chain that wrote in them",
+    );
+    for (const c of report.chains) {
+      const sum = (k) => c.steps.reduce((t, s) => t + s[k], 0);
+      assert.deepEqual([ended[c.root_id].written, ended[c.root_id].wrote_back], [sum("written"), sum("wrote_back")]);
+      assert.equal(Date.parse(ended[c.root_id].last_at), Date.parse(c.last_at), `${c.name}: when it last wrote`);
+    }
+    const now = ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 30 }), "no day named");
+    for (const end of [today, dayBefore(-3)])
+      assert.deepEqual(
+        ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 30, p_end: end }), end),
+        now,
+        `named ${end}: the days to today, as no day named reads them`,
+      );
+    assert.deepEqual(await reachOutChainTotals(viewer, A, { days: 90, end: dayBefore(2) }), ended, "through the door");
+  },
+);
+
+test(
   "the dashboard reads every chain through packages/db's door, as the member it is signed in as",
   { skip },
   async () => {
     assert.deepEqual(
-      await reachOutChainTotals(viewer, A, 30),
+      await reachOutChainTotals(viewer, A, { days: 30, end: null }),
       ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 30 })),
     );
-    await assert.rejects(reachOutChainTotals(stranger, A, 30), /reach_out_chain_totals: Workspace not found/);
+    await assert.rejects(
+      reachOutChainTotals(stranger, A, { days: 30, end: null }),
+      /reach_out_chain_totals: Workspace not found/,
+    );
   },
 );

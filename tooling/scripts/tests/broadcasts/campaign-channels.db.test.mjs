@@ -444,7 +444,7 @@ test("the two rules a message's meta decides are said the same way in TypeScript
     );
   }
   // Each claim is what EMAIL_CLAIMS marks it, in SQL too: a booking tool's notice and Gmail's forwarding confirmation are
-  // no person's words (00360, decision 5), so Reports' replies and People's "last wrote" stop counting them.
+  // no person's words (00361, decision 5), so Reports' replies and People's "last wrote" stop counting them.
   for (const { claim, personsWords } of EMAIL_CLAIMS)
     assert.equal(
       ok(await db.rpc("message_is_a_persons_words", { p_meta: { email: { claim } } }), claim),

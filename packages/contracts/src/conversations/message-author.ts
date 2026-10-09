@@ -39,7 +39,7 @@ export function isAutomatedSend(meta: unknown): boolean {
  * What the email intake reads a received email as (channels email/intake.ts classifyReceived, from headers anyone can
  * write), each marked whether its words are a person's own. THE one statement of the set: channels' and core's
  * EmailClaim are its names, isPersonsWords reads its marks, and broadcasts/campaign-channels.db.test.mjs runs every claim
- * through public.message_is_a_persons_words (00360), its twin in SQL, so a claim added here and not there fails.
+ * through public.message_is_a_persons_words (00361), its twin in SQL, so a claim added here and not there fails.
  *
  *   report                   a bounce or a delivery status notification
  *   booking_notice           a booking tool writing about one of the business's appointments (bookingNoticeOf)
@@ -68,7 +68,7 @@ const NOT_A_PERSONS_CLAIMS: readonly string[] = EMAIL_CLAIMS.filter((c) => !c.pe
  * (`meta.email.claim`), and a message of any other kind has no claim and is somebody's words: an out-of-office, a
  * list's mail or a form's notification is a program writing from their address, which is not the person answering.
  * THE statement of it in TypeScript, read where a run counts who replied (the dashboard's broadcasts reader) and where
- * a reply is addressed (replyChannelOf); public.message_is_a_persons_words (00360) is its twin in SQL, read by
+ * a reply is addressed (replyChannelOf); public.message_is_a_persons_words (00361) is its twin in SQL, read by
  * has_relationship, the people list and the campaign counts: the two change together through EMAIL_CLAIMS.
  */
 export function isPersonsWords(meta: unknown): boolean {

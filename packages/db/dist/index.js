@@ -2688,8 +2688,8 @@ async function templateSends(db, tenantId) {
   const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
   return answerOrMissing("template_sends", data, error);
 }
-async function reachOutChainTotals(db, tenantId, days) {
-  const { data, error } = await db.rpc("reach_out_chain_totals", { p_tenant_id: tenantId, p_days: days });
+async function reachOutChainTotals(db, tenantId, window) {
+  const { data, error } = await db.rpc("reach_out_chain_totals", windowArgs(tenantId, window));
   return answerOrMissing("reach_out_chain_totals", data, error);
 }
 

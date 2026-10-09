@@ -8322,6 +8322,7 @@ type Database = {
             reach_out_chain_totals: {
                 Args: {
                     p_days: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -18121,6 +18122,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         reach_out_chain_totals: {
             Args: {
                 p_days: number;
+                p_end?: string;
                 p_tenant_id: string;
             };
             Returns: Json;
@@ -38029,10 +38031,13 @@ declare function runCounts(db: Db$m, tenantId: string, runIds: readonly string[]
 /** How many of each message went out, and when the latest did, by name (`template_sends`, 00362). */
 declare function templateSends(db: Db$m, tenantId: string): Promise<JsonObject | "missing">;
 /**
- * Every chain's last `days`, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how many wrote
- * back, when it last wrote. A definer behind may_read_workspace: a caller who is no member is refused (P0002), thrown.
+ * Every chain's numbers over the window, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how
+ * many wrote back, when it last wrote. The window is read as `reachOutReport` reads it, its last day named only where it
+ * is not today, so Reports' chains and its report count the same days; the function takes a last day from its first
+ * migration, so a database without it answers "missing", never ReportWindowNotReadable. A definer behind
+ * may_read_workspace: a caller who is no member is refused (P0002), thrown.
  */
-declare function reachOutChainTotals(db: Db$m, tenantId: string, days: number): Promise<JsonObject | "missing">;
+declare function reachOutChainTotals(db: Db$m, tenantId: string, window: ReportWindow): Promise<JsonObject | "missing">;
 
 /**
  * The receptionist's first replies (`first_replies`, 00303): the one rule for who answered and how fast, which `report_series` and

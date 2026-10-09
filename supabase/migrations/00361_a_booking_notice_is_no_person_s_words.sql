@@ -1,4 +1,4 @@
--- 00360 · A booking tool's notice is no person's words, nor is Gmail's forwarding confirmation.
+-- 00361 · A booking tool's notice is no person's words, nor is Gmail's forwarding confirmation.
 --
 -- public.message_is_a_persons_words (00299) is the one statement in SQL of whether an inbound message's words are a
 -- person's own, and contracts' isPersonsWords its twin in TypeScript. They drifted on 7 October (#1469, bookings by

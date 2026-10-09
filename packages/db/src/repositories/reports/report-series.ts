@@ -138,10 +138,17 @@ export async function templateSends(db: Db, tenantId: string): Promise<JsonObjec
 }
 
 /**
- * Every chain's last `days`, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how many wrote
- * back, when it last wrote. A definer behind may_read_workspace: a caller who is no member is refused (P0002), thrown.
+ * Every chain's numbers over the window, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how
+ * many wrote back, when it last wrote. The window is read as `reachOutReport` reads it, its last day named only where it
+ * is not today, so Reports' chains and its report count the same days; the function takes a last day from its first
+ * migration, so a database without it answers "missing", never ReportWindowNotReadable. A definer behind
+ * may_read_workspace: a caller who is no member is refused (P0002), thrown.
  */
-export async function reachOutChainTotals(db: Db, tenantId: string, days: number): Promise<JsonObject | "missing"> {
-  const { data, error } = await db.rpc("reach_out_chain_totals", { p_tenant_id: tenantId, p_days: days });
+export async function reachOutChainTotals(
+  db: Db,
+  tenantId: string,
+  window: ReportWindow,
+): Promise<JsonObject | "missing"> {
+  const { data, error } = await db.rpc("reach_out_chain_totals", windowArgs(tenantId, window));
   return answerOrMissing("reach_out_chain_totals", data, error);
 }

@@ -369,7 +369,7 @@ async function salon() {
   wrote(slots[0].first, slots[0].at + HOUR); // a reply: counted
   wrote(slots[1].first, slots[1].at + 73 * HOUR); // past the 72 hours: not
   wrote(slots[2].first, slots[2].at + 2 * HOUR, { channel: "email", meta: { email: { claim: "auto_reply" } } }); // an out-of-office: not
-  wrote(slots[3].first, slots[3].at + 2 * HOUR, { channel: "email", meta: { email: { claim: "booking_notice" } } }); // a booking tool's notice: not (00360)
+  wrote(slots[3].first, slots[3].at + 2 * HOUR, { channel: "email", meta: { email: { claim: "booking_notice" } } }); // a booking tool's notice: not (00361)
   wrote(slots[4].first, slots[4].at + REPLY_WINDOW_MS); // at the window's edge: counted
   wrote(slots[5].first, slots[5].at + REPLY_WINDOW_MS + 1000); // a second past it: not
   wrote(slots[6].first, slots[6].at + HOUR); // twice on one thread: counted once

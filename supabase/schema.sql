@@ -921,7 +921,7 @@ COMMENT ON FUNCTION public.campaign_reply_window() IS 'The window a reply to a c
 
 
 --
--- Name: campaign_series(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: campaign_series(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
@@ -1095,7 +1095,7 @@ end $$;
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp).';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -14161,24 +14161,32 @@ end $$;
 
 
 --
--- Name: reach_out_chain_totals(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: reach_out_chain_totals(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) RETURNS jsonb
+CREATE FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date DEFAULT NULL::date) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO ''
     AS $$
 declare
   v_days  integer := least(greatest(coalesce(p_days, 30), 1), 90);
   v_tz    text;
+  v_today date;
+  v_end   date;
   v_since timestamptz;
+  v_stop  timestamptz;
 begin
   if not public.may_read_workspace(p_tenant_id) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
   select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
   v_tz := coalesce(v_tz, 'America/New_York');
-  v_since := (((now() at time zone v_tz)::date - (v_days - 1))::timestamp) at time zone v_tz;
+  v_today := (now() at time zone v_tz)::date;
+  -- The window's last day and where it stops, as reach_out_report reads them (00360): today, or the earlier day a member
+  -- picked, never a day that has not come; and the midnight after it, so a window that ended counts nothing after it.
+  v_end   := least(coalesce(p_end, v_today), v_today);
+  v_since := ((v_end - (v_days - 1))::timestamp) at time zone v_tz;
+  v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
   return (
     -- An email that left (email_left), dated by when it left (email_sent_at), as reach_out_report counts it.
     with sent as (
@@ -14190,7 +14198,7 @@ begin
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
     ),
     period as (
-      select x.* from sent x where x.sent_at >= v_since
+      select x.* from sent x where x.sent_at >= v_since and x.sent_at < v_stop
     ),
     -- Each business once a chain, at its last email of the period.
     last_sent as (
@@ -14227,10 +14235,10 @@ end $$;
 
 
 --
--- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over the last p_days days in the workspace''s zone (1 to 90), how many businesses it wrote to wrote back (outreach_wrote_back, each once a chain at its last email) and when it last wrote; a chain that wrote nothing is { written: 0, wrote_back: 0, last_at: null } (00363).';
+COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, how many businesses it wrote to wrote back (outreach_wrote_back, each once a chain at its last email) and when it last wrote in it; a chain that wrote nothing is { written: 0, wrote_back: 0, last_at: null } (00363). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -15745,9 +15753,11 @@ begin
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  -- Any period of 1 to 90 days, one outside them held to them as campaign_series holds its own (00361): Reports'
-  -- "This month so far" is the day of the month.
-  p_days := least(greatest(coalesce(p_days, 30), 1), 90);
+  -- Any count of days Reports reads, as its other functions take them (00360): a month so far and a window a member
+  -- picked are neither 7, 30 nor 90, and this refused both.
+  if p_days is null or p_days < 1 or p_days > 90 then
+    raise exception 'A period is 1 to 90 days.' using errcode = '22023';
+  end if;
   select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
   v_tz := coalesce(v_tz, 'America/New_York');
   v_today := (now() at time zone v_tz)::date;
@@ -15904,7 +15914,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over the last p_days days in the workspace''s zone (1 to 90; one outside them is held to them, as campaign_series holds its own, 00361), the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00363), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -30413,7 +30423,7 @@ GRANT ALL ON FUNCTION public.campaign_reply_window() TO service_role;
 
 
 --
--- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
@@ -32623,12 +32633,12 @@ GRANT ALL ON FUNCTION public.reach_out_chain_report(p_tenant_id uuid, p_root_id 
 
 
 --
--- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) TO authenticated;
-GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer) TO service_role;
+REVOKE ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
 
 
 --
