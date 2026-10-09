@@ -37,6 +37,7 @@ import {
   notePayment,
   noteTrialEnding,
   readSubscription,
+  saysGone,
   STRIPE_READ_OPTIONS,
   stripe,
   subscriptionFacts,
@@ -213,8 +214,19 @@ async function onSubscription(event: SubscriptionEvent, d: Delivery): Promise<An
   // is a 500, never the event's stale copy applied as if it were fresh;
   // it runs under the guard's budget too, so a slow Stripe is a 500
   // Stripe retries, not a kill inside the function's thirty seconds.
-  const full = await d.s.subscriptions.retrieve(sub.id, { expand: ["default_payment_method"] }, STRIPE_READ_OPTIONS);
-  const unapplied = await answerIfSuperseded(d, row.stripe_subscription_id, full);
+  //
+  // Stripe's word that the event's own subscription is gone is a dead reading too: about a subscription the row has
+  // already left, it is judged as one, and the row's own live plan stands; only otherwise is it the 500 it always was.
+  const named = row.stripe_subscription_id;
+  let full: Stripe.Subscription;
+  try {
+    full = await d.s.subscriptions.retrieve(sub.id, { expand: ["default_payment_method"] }, STRIPE_READ_OPTIONS);
+  } catch (e) {
+    const stale = saysGone(e) && named && named !== sub.id ? await answerIfRowStands(d, sub.id, named) : null;
+    if (stale) return stale;
+    throw e;
+  }
+  const unapplied = await answerIfSuperseded(d, named, full);
   if (unapplied) return unapplied;
   const r = await applySubscription(d.db, row, full, event.type);
   return () => d.done(json(200, { ok: true, status: r.status, switched: r.switched }));

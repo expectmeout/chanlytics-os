@@ -616,7 +616,7 @@ type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "u
  * Stripe not answering, which says nothing about the subscription. A false
  * "gone" applies a dead event, so the test is as narrow as it can be.
  */
-function saysGone(e: unknown): boolean {
+export function saysGone(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
   const { statusCode, code } = e as { statusCode?: unknown; code?: unknown };
   return statusCode === 404 && code === "resource_missing";

@@ -313,6 +313,23 @@ test("a late word whose own copy still says active is judged by what Stripe says
   );
 });
 
+test("a late word about a subscription Stripe no longer holds, while the workspace is on another, is superseded rather than a 500 Stripe retries for days", async () => {
+  // Judging the fresh read means reading the event's own subscription first, and Stripe answers 404 for one it does
+  // not hold. That is a dead reading about a subscription the row has left, so the row's live plan stands and the
+  // delivery is answered, not failed until Stripe gives up on it.
+  const state = tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_2" })] });
+  const db = fakeDb(state, {}, {}, { unique: ["billing_events"] });
+  setPg(db);
+  subs.delete("sub_9");
+  subs.set("sub_2", sub({ id: "sub_2", status: "active" }));
+  const late = await deliver("customer.subscription.updated", sub({ id: "sub_9", status: "active" }));
+  assert.equal(late.status, 200);
+  assert.deepEqual(await late.json(), { ok: true, superseded: true });
+  assert.equal(writes(db, "billing_accounts").length, 0, "the row keeps the subscription the workspace is on");
+  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once, so it is not reconsidered");
+});
+
 test("a paused subscription pauses the workspace and rings once; resuming turns it back on and rings again", async () => {
   const db = fakeDb(tables({ billing_accounts: [row({ status: "active" })] }));
   setPg(db);
