@@ -936,8 +936,8 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   );
   assert.equal(
     ASK_TOKENS_DAY,
-    1_500_000,
-    "sized for a workspace's day with the page's context in every round; 400k was spent by one day of eval runs",
+    3_000_000,
+    "sized for a workspace's day with its cache writes counted (1.5M before they were); 400k was spent by one day of eval runs",
   );
   // What the dashboard's call names and binds is run in edge/dashboard-names-its-callers.test.mjs.
   assert.ok(

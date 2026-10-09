@@ -578,7 +578,7 @@ test("a round cut short is counted all the same: the dashboard abandoning the an
 
 test("the budget spent: the day's rows add up to the cap, so the knock is refused with 429 before the key is spent -- no request to the model, no row written -- and stays refused within the minute even once the rows are gone: the count kept is the count believed; another workspace is another count", async () => {
   const ws = T(2);
-  const tables = { events: [usage(ws, 1_000_000, 400_000, 3 * HOUR), usage(ws, 100_000, 0, 10 * HOUR)] };
+  const tables = { events: [usage(ws, 2_000_000, 900_000, 3 * HOUR), usage(ws, 100_000, 0, 10 * HOUR)] };
   const db = use(tables);
   const net = silent("a spent budget costs no model call");
   assert.deepEqual(
@@ -588,7 +588,7 @@ test("the budget spent: the day's rows add up to the cap, so the knock is refuse
   );
   assert.equal(net.calls.length, 0);
   assert.equal(tables.events.length, 2, "no usage row for a turn that did not happen");
-  assert.equal(ASK_TOKENS_DAY, 1_500_000, "sized for a workspace's day with the page's context in every round");
+  assert.equal(ASK_TOKENS_DAY, 3_000_000, "sized for a workspace's day with its cache writes counted");
 
   tables.events.length = 0;
   assert.deepEqual(
