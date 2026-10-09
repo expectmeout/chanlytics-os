@@ -14,6 +14,7 @@ import { useState, type MouseEvent, type ReactNode } from "react";
 import type { ConnectionRow as Row, ConnectionVerb } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
@@ -332,9 +333,12 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
       data-asking={armed ? "true" : undefined}
       onClick={offers === "one" ? connRowPress : undefined}
     >
-      <span className={`st-tile ${r.group === "connected" ? "installed " : ""}set-int-tile`} data-kind={r.kind}>
-        <Icon name={r.icon} size={15} />
-      </span>
+      <Face
+        className="set-int-tile"
+        data-kind={r.kind}
+        data-on={r.group === "connected" ? "true" : undefined}
+        glyph={<Icon name={r.icon} size={15} />}
+      />
       {connectionWords(r, wants, { open: aboutOpen, toggle: () => setAboutOpen((v) => !v) })}
       <StatePill kind="tone" value={r.tone} label={r.stateWords} />
       {rowActs({ ...props, owner, armed, loud })}

@@ -6,9 +6,12 @@ import { Fragment, useState } from "react";
 import { stateOf, type PlatformLineActionVM, type SetupDto } from "@chanlytics/contracts";
 import type { PlatformApi, PlatformTenantDetail } from "@/legacy-bridge/platform";
 import { AttnRow } from "../../kit/attention/attn-row";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
-import { showTip, type LegacyFlash } from "../../legacy-verbs";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { RecordTip } from "../../kit/record/field";
+import type { LegacyFlash } from "../../legacy-verbs";
 import { backOffice } from "@/legacy-bridge/platform";
 
 type Flash = (f: LegacyFlash) => void;
@@ -93,17 +96,7 @@ export function PlatformLine({
               {line.reg_step}
             </span>
           )}
-          {aside && (
-            <button
-              type="button"
-              className="set-mark"
-              data-tip={aside}
-              aria-label={`What else is on this line: ${aside}`}
-              onClick={(e) => showTip(e.currentTarget)}
-            >
-              <Icon name="info" size={12} />
-            </button>
-          )}
+          {aside && <RecordTip text={aside} label={`What else is on this line: ${aside}`} />}
         </span>
         {line.last_error && (
           <span className="pf-line-error">
@@ -129,15 +122,15 @@ export function PlatformLine({
       {actions.length > 0 && !arm && (
         <span className="bc-chips">
           {actions.map((a) => (
-            <button
+            <Button
               key={a.action}
-              className="btn btn-sm"
+              size="sm"
               onClick={() => setArm(a)}
               disabled={busy}
               data-testid={`platform-act-${a.action}`}
             >
               {a.label}
-            </button>
+            </Button>
           ))}
         </span>
       )}
@@ -201,15 +194,15 @@ export function PlatformDetail({
   // Every stamp on this card is this workspace's, and the header names the zone.
   const tz = detail.tenant.timezone;
   return (
-    <section className="fl-card set-card" data-testid="platform-detail">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">{detail.tenant.name}</h2>
-        <span className="fl-card-sub">
+    <section className="rec-card set-card" data-testid="platform-detail">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">{detail.tenant.name}</h2>
+        <span className="rec-card-sub">
           {detail.tenant.slug} · {tz} · since {when(detail.tenant.created_at, tz)}
         </span>
-        <button className="cl-bucket-link" onClick={onClose} data-testid="platform-close">
+        <LinkButton onClick={onClose} data-testid="platform-close">
           Close
-        </button>
+        </LinkButton>
       </div>
 
       <div className="set-row">

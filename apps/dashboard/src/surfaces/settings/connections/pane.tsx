@@ -20,6 +20,7 @@ import {
 import type { GoogleSurface } from "@/legacy-bridge/google";
 import { googleVerbs } from "@/legacy-bridge/google";
 import { FailedRead } from "../../kit/empty/empty";
+import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import type { SetupSurface } from "../../setup/surface";
@@ -200,27 +201,34 @@ function groupCard(o: {
   const { g, list, note, setNote, row } = o;
   const W = CONNECTION_GROUP_WORDS;
   return (
-    <section key={g} className="fl-card set-card set-conn" data-testid={`connections-${g}`}>
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">{W[g].title}</h2>
-        <span className="fl-card-sub">{list.length ? W[g].sub(list) : "nothing yet"}</span>
+    <section
+      key={g}
+      className="rec-card set-card set-conn"
+      data-testid={`connections-${g}`}
+      aria-labelledby={`connections-${g}-title`}
+    >
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id={`connections-${g}-title`}>
+          {W[g].title}
+        </h2>
+        <span className="rec-card-sub">{list.length ? W[g].sub(list) : "nothing yet"}</span>
       </div>
       {note && list.some((r) => r.kind === "google_profile") && (
-        <div className="set-row" data-testid="google-note">
-          <div className="set-row-info">
-            <span className="set-row-hint">{note}</span>
-          </div>
-          <button className="cl-bucket-link" onClick={() => setNote(null)}>
-            Ok
-          </button>
-        </div>
+        <RecordRow
+          id="google-note"
+          testid="google-note"
+          label="Google"
+          value={note}
+          act={{ label: "Ok", onClick: () => setNote(null) }}
+        />
       )}
       {list.length === 0 && g === "connected" && (
-        <div className="set-row">
-          <div className="set-row-info">
-            <span className="set-row-hint">Nothing is connected yet — start below.</span>
-          </div>
-        </div>
+        <RecordRow
+          id="connections-none"
+          label={W[g].title}
+          empty="Nothing is connected yet — start below."
+          value={null}
+        />
       )}
       {list.map(row)}
     </section>

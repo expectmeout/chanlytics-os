@@ -7,7 +7,9 @@
 import { useEffect, useState, type SyntheticEvent } from "react";
 import type { PartnerHandoverVM, PartnerWorkspacesVM } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
+import { RecordField } from "../../kit/record/field";
 import type { LegacyFlash } from "../../legacy-verbs";
 import type { PartnerApi } from "./surface";
 
@@ -67,65 +69,60 @@ function PartnerSetUp({
         </p>
       ) : null}
       {!full && !open ? (
-        <button type="button" className="btn" onClick={() => setOpen(true)} data-testid="partner-setup-open">
+        <Button size="sm" variant="primary" onClick={() => setOpen(true)} data-testid="partner-setup-open">
           {H.start}
-        </button>
+        </Button>
       ) : null}
       {!full && open ? (
         <form onSubmit={make} className="set-form" data-testid="partner-setup-form">
-          <label className="set-field">
-            <span className="set-field-label">{H.nameLabel}</span>
-            <input
-              className="input"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setError(null);
-              }}
-              autoComplete="organization"
-              data-testid="partner-setup-name"
-            />
-          </label>
-          <label className="set-field">
-            <span className="set-field-label">{H.emailLabel}</span>
-            <input
-              className="input"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError(null);
-              }}
-              autoComplete="off"
-              spellCheck={false}
-              data-testid="partner-setup-email"
-            />
-            <span className="set-row-hint">{H.emailHint}</span>
-          </label>
+          <RecordField
+            label={H.nameLabel}
+            value={name}
+            onChange={(words) => {
+              setName(words);
+              setError(null);
+            }}
+            autoComplete="organization"
+            data-testid="partner-setup-name"
+          />
+          <RecordField
+            label={H.emailLabel}
+            type="email"
+            value={email}
+            onChange={(words) => {
+              setEmail(words);
+              setError(null);
+            }}
+            hint={H.emailHint}
+            autoComplete="off"
+            spellCheck={false}
+            data-testid="partner-setup-email"
+          />
           {error ? (
             <p className="set-error" role="alert" data-testid="partner-setup-error">
               {error}
             </p>
           ) : null}
           <div className="set-form-actions">
-            <button
+            <Button
               type="submit"
-              className="btn"
+              size="sm"
+              variant="primary"
               disabled={busy || name.trim().length < 2 || !email.trim()}
               aria-busy={busy || undefined}
               data-testid="partner-setup-make"
             >
               {busy ? H.making : H.make}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
+            </Button>
+            <Button
+              size="sm"
+              variant="quiet"
               onClick={() => setOpen(false)}
               disabled={busy}
               data-testid="partner-setup-cancel"
             >
               {H.cancel}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
@@ -152,14 +149,9 @@ function HandoverResend({
   if (!h.canResend) return null;
   if (!open) {
     return (
-      <button
-        type="button"
-        className="btn btn-sm btn-ghost"
-        onClick={() => setOpen(true)}
-        data-testid={`partner-resend-open-${h.tenantId}`}
-      >
+      <Button size="sm" variant="quiet" onClick={() => setOpen(true)} data-testid={`partner-resend-open-${h.tenantId}`}>
         {H.resend}
-      </button>
+      </Button>
     );
   }
   const send = async (e: SyntheticEvent) => {
@@ -185,26 +177,24 @@ function HandoverResend({
   };
   return (
     <form onSubmit={send} className="set-form" data-testid={`partner-resend-${h.tenantId}`}>
-      <label className="set-field">
-        <span className="set-field-label">{H.resendTo}</span>
-        <input
-          className="input"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          spellCheck={false}
-          data-testid={`partner-resend-email-${h.tenantId}`}
-        />
-      </label>
-      <button
+      <RecordField
+        label={H.resendTo}
+        type="email"
+        value={email}
+        onChange={setEmail}
+        spellCheck={false}
+        data-testid={`partner-resend-email-${h.tenantId}`}
+      />
+      <Button
         type="submit"
-        className="btn btn-sm"
+        size="sm"
+        variant="primary"
         disabled={busy || !email.trim()}
         aria-busy={busy || undefined}
         data-testid={`partner-resend-send-${h.tenantId}`}
       >
         {busy ? H.resending : H.resend}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -287,7 +277,7 @@ export function PartnerWorkspaces({ api, flash, active }: { api: PartnerApi; fla
   }
   if (!state.vm) {
     return (
-      <section className="fl-card set-card" data-testid="partner-workspaces-reading">
+      <section className="rec-card set-card" data-testid="partner-workspaces-reading">
         <div className="set-row">
           <div className="set-row-info">
             <span className="set-row-hint">{W.readingWorkspaces}</span>

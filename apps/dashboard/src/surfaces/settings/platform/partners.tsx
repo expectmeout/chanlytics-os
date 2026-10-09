@@ -5,6 +5,7 @@
 import { useState } from "react";
 import type { PlatformPartnerRowVM, PlatformPartnerWorkspaceDto } from "@chanlytics/contracts";
 import type { PlatformApi } from "@/legacy-bridge/platform";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import type { LegacyFlash } from "../../legacy-verbs";
 
@@ -60,14 +61,15 @@ function PartnerFactorReset({ row, P, flash }: { row: PlatformPartnerRowVM; P: P
         )}
       </div>
       {!arm && (
-        <button
-          className="btn btn-sm btn-ghost"
+        <Button
+          size="sm"
+          variant="quiet"
           onClick={() => setArm(true)}
           disabled={busy}
           data-testid={`platform-partner-factor-arm-${row.code}`}
         >
           {W.resetLabel}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -197,26 +199,26 @@ export function PartnerRow({
       {!arm && !armStatus && (
         <span className="cl-row-actions">
           {row.canPay && (
-            <button
-              className="btn btn-sm"
+            <Button
+              size="sm"
               onClick={() => setArm(true)}
               disabled={busy}
               data-testid={`platform-partner-mark-${row.code}`}
             >
               {row.payLabel}
-            </button>
+            </Button>
           )}
           {row.first &&
             row.statusChoices.map((c) => (
-              <button
+              <Button
                 key={c.status}
-                className="btn btn-sm"
+                size="sm"
                 onClick={() => setArmStatus(c.status)}
                 disabled={busy}
                 data-testid={`platform-partner-arm-${c.status}-${row.code}`}
               >
                 {c.label}
-              </button>
+              </Button>
             ))}
         </span>
       )}
@@ -300,15 +302,15 @@ export function PartnerStandingRow({
       {!arm && (
         <span className="cl-row-actions">
           {vm.choices.map((c) => (
-            <button
+            <Button
               key={c.standing}
-              className="btn btn-sm"
+              size="sm"
               onClick={() => setArm(c.standing)}
               disabled={busy}
               data-testid={`platform-standing-arm-${c.standing}-${ws.tenant_id}`}
             >
               {c.label}
-            </button>
+            </Button>
           ))}
         </span>
       )}

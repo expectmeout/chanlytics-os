@@ -5,6 +5,8 @@
 import { useEffect, useState } from "react";
 import type { GoogleLocationDto } from "@chanlytics/contracts";
 import { googleVerbs } from "@/legacy-bridge/google";
+import { Button } from "../../kit/button/button";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { canDo, gate, type LegacyFlash } from "../../legacy-verbs";
 
 interface GoogleChooseProps {
@@ -67,29 +69,27 @@ export const GoogleChoose = ({ busy, setBusy, flash, onDisconnect }: GoogleChoos
                   {p.account_title ? ` · ${p.account_title}` : ""}
                 </span>
               </span>
-              <button
-                className="btn btn-primary btn-sm"
+              <Button
+                size="sm"
+                variant="primary"
                 onClick={() => void choose(p)}
                 disabled={busy}
                 data-testid="google-place-choose"
                 {...gate("team", "choose the listing")}
               >
                 This is it
-              </button>
+              </Button>
             </div>
           ))}
         </div>
       )}
       {/* It asks first, through the row's own Confirm, as the row's Disconnect does. It disconnected at once (S17). */}
       {owner && (
-        <button
-          className="cl-bucket-link"
-          onClick={onDisconnect}
-          disabled={busy}
-          data-testid="google-choose-disconnect"
-        >
-          Disconnect instead
-        </button>
+        <div className="set-acts">
+          <LinkButton onClick={onDisconnect} disabled={busy} data-testid="google-choose-disconnect">
+            Disconnect instead
+          </LinkButton>
+        </div>
       )}
     </div>
   );
