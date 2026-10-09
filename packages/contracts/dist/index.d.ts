@@ -26925,9 +26925,14 @@ interface ReportWindowVM {
 declare function reportWindowOf(range: ReportRange, today: string): ReportWindowVM;
 /**
  * What the month a member picks days on says under itself (the kit's DayRangePicker `hint`): how to pick, then the
- * first day pressed, then the days the band covers and how many they are, while the last is still to be pressed.
+ * first day pressed, then the days the band covers and how many they are, while the last is still to be pressed. A day
+ * the month could not choose (`refused`: one to come, or too far from the first day) is said, and why, until a press
+ * chooses.
  */
-declare function reportPickWords(first: string | null, band: ReportDays): string;
+declare function reportPickWords(first: string | null, band: ReportDays, refused: {
+    day: string;
+    why: "to-come" | "too-far";
+} | null): string;
 
 /**
  * Worth knowing: the facts the Reports page leads with. At most three, in the order an owner should act on them:

@@ -548,7 +548,7 @@ const kitDayRange = ({ month, first = null, reach = null, most = 90 }) => {
     ].join("");
     const name = `${full[w]}, ${months[d.getUTCMonth()]} ${d.getUTCDate()}, 2026${inBand ? ", in the range" : ""}`;
     return (
-      `<div role="gridcell" class="date-pick-cell" aria-selected="${k === band.from || k === band.to}"${marks}>` +
+      `<div role="gridcell" class="date-pick-cell" data-day="${k}" aria-selected="${k === band.from || k === band.to}"${marks}>` +
       `<button type="button" class="date-pick-day" tabindex="${k === stop ? 0 : -1}" aria-label="${name}"` +
       `${k === today ? ' aria-current="date"' : ""}${open ? "" : ' aria-disabled="true"'}>` +
       `<span class="date-pick-num">${d.getUTCDate()}</span></button></div>`

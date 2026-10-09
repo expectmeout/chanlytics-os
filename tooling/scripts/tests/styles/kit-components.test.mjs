@@ -810,6 +810,25 @@ const key = (name, over = {}) => {
   event.stopPropagation = () => (event.stopped = true);
   return event;
 };
+/** A pointer's move, release or cancel, told to the window: a month hears the release there, not on the day pressed. */
+const tell = (type, event) => globalThis.dispatchEvent({ type, pointerId: 1, ...event });
+/** A pointer going down on a day. */
+const down = (day, pointerType = "mouse", over = {}) =>
+  day.props.onPointerDown({
+    isPrimary: true,
+    pointerType,
+    button: 0,
+    pointerId: 1,
+    clientX: 100,
+    clientY: 100,
+    ...over,
+  });
+/** A pointer pressed on a day and let go where it was pressed, then the click a browser fires: a mouse's, or a tap. */
+const tap = (day, pointerType = "mouse") => {
+  down(day, pointerType);
+  tell("pointerup", { target: null, clientX: 100, clientY: 100 });
+  day.props.onClick({ detail: 1 });
+};
 
 const DAY_RANGES = {
   "day-range": () => monthOf().draw(),
@@ -818,7 +837,7 @@ const DAY_RANGES = {
     // range may be fourteen days here, so the days too far to be the other end stand down.
     const month = monthOf({ most: 14 });
     press(arrowsOf(month.root())[0]);
-    press(dayOf(month.root(), "Monday, September 14"));
+    tap(dayOf(month.root(), "Monday, September 14"));
     dayOf(month.root(), "Friday, September 25").props.onPointerEnter();
     return again(month.draw);
   },
@@ -860,7 +879,14 @@ test("DayRangePicker draws the gallery's Day range picker family: a range on the
   assert.equal(arrowsOf(root)[1].props.disabled, true, "nothing after the month that holds today can be chosen");
   assert.equal(arrowsOf(root)[0].props.disabled, undefined);
   // What it says under the grid is the page's, handed what is chosen so far.
-  assert.deepEqual(month.said.at(-1), { first: null, band: { from: "2026-09-07", to: "2026-10-06" } });
+  assert.deepEqual(month.said.at(-1), { first: null, band: { from: "2026-09-07", to: "2026-10-06" }, refused: null });
+  assert.deepEqual(
+    cellsOf(root)
+      .slice(0, 2)
+      .map((c) => c.props["data-day"]),
+    ["2026-09-28", "2026-09-29"],
+    "a cell says its day, for a pointer let go on it",
+  );
   assert.equal(root.props.children[2].props.role, "status");
   const placed = drawn(h(DayRangePicker, { ...monthOf().props, className: "rpt-when-month" }));
   assert.equal(placed.props.className, "date-pick-month rpt-when-month", "the page's layout class comes last");
@@ -869,12 +895,16 @@ test("DayRangePicker draws the gallery's Day range picker family: a range on the
 test("DayRangePicker: two presses choose a range, in whichever order, and nothing is chosen until the second", () => {
   const month = monthOf();
   press(arrowsOf(month.root())[0]);
-  press(dayOf(month.root(), "Monday, September 14"));
+  tap(dayOf(month.root(), "Monday, September 14"));
   assert.deepEqual(month.chose, [], "a first press chooses nothing: a press on the wrong day costs nothing");
   let root = month.root();
   assert.equal(root.props["data-pending"], "true");
   assert.deepEqual(bandOf(root), { in: 1, start: [14], end: [14], today: [6] }, "the band is the day pressed");
-  assert.deepEqual(month.said.at(-1), { first: "2026-09-14", band: { from: "2026-09-14", to: "2026-09-14" } });
+  assert.deepEqual(month.said.at(-1), {
+    first: "2026-09-14",
+    band: { from: "2026-09-14", to: "2026-09-14" },
+    refused: null,
+  });
   // The pointer on a later day, then on an earlier one: the band is what a press there would choose, in its order.
   dayOf(root, "Friday, September 25").props.onPointerEnter();
   assert.deepEqual(bandOf(month.root()), { in: 12, start: [14], end: [25], today: [6] });
@@ -883,24 +913,73 @@ test("DayRangePicker: two presses choose a range, in whichever order, and nothin
   // The pointer leaves the grid: the band goes back to the day pressed, which is still pressed.
   gridOf(month.root()).props.onPointerLeave();
   assert.deepEqual(bandOf(month.root()), { in: 1, start: [14], end: [14], today: [6] });
-  press(dayOf(month.root(), "Thursday, September 10"));
+  tap(dayOf(month.root(), "Thursday, September 10"));
   assert.deepEqual(month.chose, [{ from: "2026-09-10", to: "2026-09-14" }], "the last day pressed first, in order");
   root = month.root();
   assert.equal(root.props["data-pending"], undefined, "and the month waits for a first day again");
   // The same day twice is a range of that day.
-  press(dayOf(month.root(), "Tuesday, September 1"));
-  press(dayOf(month.root(), "Tuesday, September 1"));
+  tap(dayOf(month.root(), "Tuesday, September 1"));
+  tap(dayOf(month.root(), "Tuesday, September 1"));
   assert.deepEqual(month.chose.at(-1), { from: "2026-09-01", to: "2026-09-01" });
+});
+
+test("DayRangePicker: a mouse presses as it goes down, a finger as it lifts and only if it did not scroll, and a click no pointer made is a key's", () => {
+  const month = monthOf();
+  press(arrowsOf(month.root())[0]);
+  // A mouse: the day is pressed as the button goes down, and a release that slipped off it leaves it pressed (the
+  // click a browser fires only on the same button never comes, and is not waited for).
+  down(dayOf(month.root(), "Monday, September 14"));
+  assert.equal(month.root().props["data-pending"], "true", "pressed as it went down");
+  tell("pointerup", { target: null, clientX: 105, clientY: 100 });
+  assert.equal(month.root().props["data-pending"], "true", "and still pressed after a slip");
+  // Another button than the main one presses nothing.
+  down(dayOf(month.root(), "Friday, September 18"), "mouse", { button: 2 });
+  assert.deepEqual(month.chose, []);
+  // A pointer's own click is not read again: the second press chose, its click did nothing more.
+  tap(dayOf(month.root(), "Friday, September 18"));
+  assert.deepEqual(month.chose, [{ from: "2026-09-14", to: "2026-09-18" }]);
+  // A finger: nothing until it lifts, and a finger that travelled was scrolling.
+  down(dayOf(month.root(), "Monday, September 21"), "touch", { clientX: 50, clientY: 50 });
+  assert.equal(month.root().props["data-pending"], undefined, "a finger down presses nothing yet");
+  tell("pointermove", { clientX: 50, clientY: 90 });
+  tell("pointerup", { target: null, clientX: 50, clientY: 90 });
+  assert.equal(month.root().props["data-pending"], undefined, "a finger that travelled was a scroll");
+  down(dayOf(month.root(), "Monday, September 21"), "touch");
+  tell("pointercancel", {});
+  assert.equal(month.root().props["data-pending"], undefined, "the browser took it for a scroll");
+  tap(dayOf(month.root(), "Monday, September 21"), "touch");
+  tap(dayOf(month.root(), "Wednesday, September 23"), "touch");
+  assert.deepEqual(month.chose.at(-1), { from: "2026-09-21", to: "2026-09-23" }, "two taps, a range");
+  // A click no pointer made (Enter, Space, a screen reader's): a press.
+  dayOf(month.root(), "Thursday, September 24").props.onClick({ detail: 0 });
+  dayOf(month.root(), "Friday, September 25").props.onClick({ detail: 0 });
+  assert.deepEqual(month.chose.at(-1), { from: "2026-09-24", to: "2026-09-25" });
+});
+
+test("DayRangePicker: a first day pressed is let go once the range changes from beside the month", () => {
+  const month = monthOf();
+  press(arrowsOf(month.root())[0]);
+  tap(dayOf(month.root(), "Wednesday, September 2"));
+  assert.equal(month.root().props["data-pending"], "true");
+  // "Last week" pressed beside the month: the page hands it another range.
+  month.props.from = "2026-09-28";
+  month.props.to = "2026-10-04";
+  assert.equal(month.root().props["data-pending"], undefined, "the first day pressed is not of this range");
+  tap(dayOf(month.root(), "Thursday, October 1"));
+  assert.deepEqual(month.chose, [], "one press after it is a first day, never the end of a range begun before");
 });
 
 test("DayRangePicker: a day to come is never chosen, a range is no longer than the page says, and Escape lets go of the first day", () => {
   const month = monthOf({ most: 14 });
   // A day after today presses nothing, with or without a first day pressed.
-  press(dayOf(month.root(), "Wednesday, October 7"));
+  tap(dayOf(month.root(), "Wednesday, October 7"));
   assert.equal(month.root().props["data-pending"], undefined, "a day to come starts no range");
+  assert.deepEqual(month.said.at(-1).refused, { day: "2026-10-07", why: "to-come" }, "and the month says why");
   press(arrowsOf(month.root())[0]);
-  press(dayOf(month.root(), "Friday, September 18"));
-  press(dayOf(month.root(), "Wednesday, October 7"));
+  tap(dayOf(month.root(), "Friday, September 18"));
+  month.root();
+  assert.equal(month.said.at(-1).refused, null, "a press that acts lets go of the words");
+  tap(dayOf(month.root(), "Wednesday, October 7"));
   assert.deepEqual(month.chose, [], "and ends none");
   // With the first day pressed, the days too far to be the other end stand down: fourteen days, the first included.
   let root = month.root();
@@ -915,8 +994,10 @@ test("DayRangePicker: a day to come is never chosen, a range is no longer than t
     [undefined, "true"],
     "and forward the same",
   );
-  press(dayOf(root, "Friday, September 4"));
+  tap(dayOf(root, "Friday, September 4"));
   assert.deepEqual(month.chose, [], "a day too far chooses nothing");
+  month.root();
+  assert.deepEqual(month.said.at(-1).refused, { day: "2026-09-04", why: "too-far" });
   assert.equal(month.root().props["data-pending"], "true", "and the first day stays pressed");
   dayOf(month.root(), "Friday, September 4").props.onPointerEnter();
   assert.deepEqual(bandOf(month.root()).start, [18], "nor does the band reach to it");
@@ -958,12 +1039,13 @@ test("DayRangePicker: the keys walk the days as the date picker's do, the band f
   walk("ArrowUp");
   assert.deepEqual(stops(), ["Monday, September 21, 2026"]);
   assert.equal(walk("a").prevented, false, "a key that walks nothing is left alone");
-  // Enter is the button's own press: the day under the keys is the first day, and the band follows the keys from it.
-  press(dayOf(month.root(), "Monday, September 21"));
+  // Enter is the button's own press, a click no pointer made: the day under the keys is the first day, and the band
+  // follows the keys from it.
+  dayOf(month.root(), "Monday, September 21").props.onClick({ detail: 0 });
   walk("ArrowRight");
   walk("ArrowRight");
   assert.deepEqual(bandOf(month.root()), { in: 3, start: [21], end: [23], today: [6] });
-  press(dayOf(month.root(), "Wednesday, September 23"));
+  dayOf(month.root(), "Wednesday, September 23").props.onClick({ detail: 0 });
   assert.deepEqual(month.chose, [{ from: "2026-09-21", to: "2026-09-23" }]);
   // A month by Page Up, a year with Shift.
   walk("PageUp");
