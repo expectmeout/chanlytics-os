@@ -778,6 +778,24 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,
+    // The configuration row's doors for a session (00364). A world has no row policy and no session, so the row reads as
+    // its owner reads it (nothing hidden), and the write is the versioned compare-and-swap, by nobody in particular. Who
+    // sees the feed's address and who may write are SQL's, proved on a stack in
+    // workspace/config/the-feed-address-is-the-owner-s.db.test.mjs; a suite that models a member who is not the owner
+    // gives its own.
+    tenant_config_read: ({ p_tenant_id }) => {
+      const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
+      if (!row) return null;
+      const { tenant_id, config, version, updated_at, updated_by } = row;
+      return { tenant_id, config, version, updated_at, updated_by: updated_by ?? null, feed_hidden: false };
+    },
+    tenant_config_write: ({ p_tenant_id, p_config, p_version }) => {
+      const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
+      if (!row) return { outcome: "missing", version: null, updated_at: null, updated_by: null };
+      if (row.version !== p_version) return { outcome: "stale", version: null, updated_at: null, updated_by: null };
+      Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: null });
+      return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: null };
+    },
     // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are

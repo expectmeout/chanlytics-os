@@ -11,12 +11,25 @@
  *     know is UTC, where it raised and held every email and text of that workspace's campaigns.
  *
  * (The gates' hard bounces are held in consent/email-offers.db.test.mjs.) Runs against the database `supabase start`
- * builds on this machine, never production.
+ * builds on this machine, never production. A zone Postgres does not know is refused when written since 00364, so the
+ * workspace is given one as a row written before it holds one, through the Supabase CLI (SUPABASE_CLI names the binary
+ * when `supabase` is not on PATH, SUPABASE_DB_URL the database here).
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { queuedRecipients } from "@chanlytics/db";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+const DB_URL = process.env.SUPABASE_DB_URL;
+const CLI_TARGET =
+  DB_URL && /^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL)
+    ? ["--db-url", `${DB_URL}${DB_URL.includes("?") ? "&" : "?"}sslmode=disable`]
+    : ["--local"];
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -189,8 +202,13 @@ test("a call they placed that connected is a relationship only with a start, as 
 
 test("the month's counts read a zone Postgres does not know as UTC, where they raised", async (t) => {
   if (skip) return t.skip(skip);
-  // Accepted by the browser's Intl when it was saved, unknown to Postgres: the counts used to raise on it.
-  ok(await db.from("tenants").update({ timezone: "Mars/Olympus_Mons" }).eq("id", A), "an unknown zone");
+  // Accepted by the browser's Intl when it was saved, unknown to Postgres: the counts used to raise on it. Such a zone is
+  // refused when written since 00364, so it is put in as a row from before then holds it: the triggers off for the one
+  // statement.
+  const sql = `do $$ begin execute 'set local session_replication_role = replica'; update public.tenants set timezone = 'Mars/Olympus_Mons' where id = '${A}'; end $$`;
+  const r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], { cwd: ROOT, encoding: "utf8" });
+  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  assert.equal(r.status, 0, `an unknown zone: ${[r.stderr, r.stdout].join("\n").slice(-600)}`);
   try {
     for (const channel of ["email", "sms"]) {
       const sent = await db.rpc("campaign_month_sent", { p_tenant_id: A, p_channel: channel });

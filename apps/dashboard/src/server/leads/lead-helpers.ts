@@ -5,6 +5,7 @@ import { clockDate, leadMonth, parseTenantConfig, wallClockAt } from "@chanlytic
 import type { Database } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import type { RouteContext } from "../with-route";
+import { storedConfigOf } from "../workspace/config-row";
 
 /**
  * One door's arguments, with null where the owner named nothing.
@@ -72,12 +73,11 @@ export async function workspaceOffer(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
 ): Promise<{ name: string; address: string; services: string[] }> {
-  const [facts, cfg] = await Promise.all([
+  const [facts, config] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
-    ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    storedConfigOf(ctx.supabase, tenantId),
   ]);
-  if (cfg.error) throw new Error(cfg.error.message);
-  const profile = parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile ?? null;
+  const profile = parseTenantConfig(config)?.brain?.profile ?? null;
   return {
     name: facts.name,
     address: (profile?.address ?? "").trim(),

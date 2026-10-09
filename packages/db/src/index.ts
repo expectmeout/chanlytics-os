@@ -311,6 +311,7 @@ export type {
 } from "./repositories/templates";
 export {
   getTenantConfig,
+  getTenantConfigAsMember,
   putTenantConfig,
   listPolicies,
   setPolicyMode,

@@ -255,6 +255,56 @@ test("where only the merged record had a thread, the kept person takes it whole"
 });
 
 test(
+  "the merged record's visits are the kept person's, whatever source made them, and the counts say how many (00364)",
+  { skip },
+  async () => {
+    const k = await bare({ phone_e164: phone(), display_name: "Kept" });
+    const m = await bare({ email: address(), display_name: "Merged" });
+    const visit = (contact, source, day, extra = {}) => ({
+      tenant_id: A,
+      contact_id: contact,
+      source,
+      external_id: `${source}:${RUN}:${++serial}`,
+      starts_at: `${day}T15:00:00.000Z`,
+      ends_at: `${day}T16:00:00.000Z`,
+      timezone: "America/New_York",
+      status: "booked",
+      ...extra,
+    });
+    const made = ok(
+      await db
+        .from("appointments")
+        .insert([
+          visit(m, "booking_email", "2026-10-20"),
+          visit(m, "calendar_feed", "2026-09-01", { status: "kept" }),
+          visit(k, "person", "2026-10-21"),
+        ])
+        .select("id"),
+    );
+    const answered = ok(await merge(owner, k, m));
+    assert.equal(answered.counts.appointments, 2, "the merged record's two");
+    const visits = ok(
+      await db
+        .from("appointments")
+        .select("contact_id, status")
+        .in(
+          "id",
+          made.map((r) => r.id),
+        ),
+    );
+    assert.deepEqual(
+      visits.map((v) => [v.contact_id, v.status]).sort(),
+      [
+        [k, "booked"],
+        [k, "booked"],
+        [k, "kept"],
+      ],
+      "every visit is the kept person's, and none changed but its person",
+    );
+  },
+);
+
+test(
   "the kept thread is as open as the more open of the two, and where both waited on a person the kept one's question stands",
   { skip },
   async () => {

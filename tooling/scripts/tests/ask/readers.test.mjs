@@ -1422,8 +1422,8 @@ test("GET contacts/:id through its reader reads what it read at origin/main, in 
       .sort();
   assert.deepEqual(
     columns("tenant_config"),
-    ["config", "tenant_id, config, version, updated_at, updated_by"],
-    "the calendar's own lookup, and the config through its reader (getTenantConfig)",
+    ["tenant_id, config, version, updated_at, updated_by", "tenant_id, config, version, updated_at, updated_by"],
+    "the calendar's own lookup, and the config through its reader: each the row as the server reads it for a member (workspace/config-row.ts)",
   );
   assert.deepEqual(
     columns("tenants"),
@@ -1786,6 +1786,9 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
     // lookup read them at origin/main.
     "tenants.select",
     "tenant_config.select",
+    // This workspace has no settings row, so the door is asked after the table: from 00365 a member who is not the
+    // owner reads the row only there (workspace/config-row.ts).
+    "rpc:tenant_config_read",
     // How the workspace's customers buy, after the booking line, then the deals.
     "tenants.select",
     "deals.select",
@@ -2630,12 +2633,14 @@ test("GET ask/openings through its reader asks what it asked at origin/main, in 
   const ctx = dayCtx(bare);
   await openingsRoute.GET.run(req(`?workspace=${A}`), ctx);
   assert.deepEqual(
-    ctx.supabase.seen.map((q) => [`${q.table}.${q.op}`, q.columns]),
+    ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
     [
       ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
       ["tenants.select", "name, timezone"],
       // At origin/main (c39ce689), the one column: config.
       ["tenant_config.select", "tenant_id, config, version, updated_at, updated_by"],
+      // No settings row in this world, so the door after the table (00365, workspace/config-row.ts).
+      ["rpc:tenant_config_read", null],
     ],
   );
   const turn = turnIn(dayCtx(bare));
@@ -3981,7 +3986,8 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   };
   const none = dayCtx(settingsWorld({ tenant_config: [] }));
   await assert.rejects(kernel.load(memberIn(none, A, "viewer"), settingsReader, undefined), noRow);
-  assert.deepEqual(asked(none), ["tenant_config.select"]);
+  // The table, then the door: from 00365 a viewer reads the row only through tenant_config_read, and neither has it.
+  assert.deepEqual(asked(none), ["tenant_config.select", "rpc:tenant_config_read"]);
   await assert.rejects(
     settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(settingsWorld({ tenant_config: [] }))),
     noRow,

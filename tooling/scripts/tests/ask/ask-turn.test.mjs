@@ -3619,8 +3619,8 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   const columns = (table) => seen.filter((q) => q.table === table).map((q) => q.columns);
   assert.deepEqual(
     [columns("tenants"), columns("tenant_config")],
-    [["name, timezone"], ["config"]],
-    "the config and sells_by are the turn's; only the calendar's own lookup, which is not a reader, reads the zone and the config, as the page's read does",
+    [["name, timezone"], ["tenant_id, config, version, updated_at, updated_by"]],
+    "the config and sells_by are the turn's; only the calendar's own lookup, which is not a reader, reads the zone and the config (the row, as the server reads it for a member: workspace/config-row.ts), as the page's read does",
   );
   const reads = ctx.supabase.seen.length;
   await runTool(tc, { name: "people", input: { action: "get", contact_id: P1 } });

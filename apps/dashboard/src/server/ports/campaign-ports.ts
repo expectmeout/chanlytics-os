@@ -34,6 +34,7 @@ import { changed } from "./core-ports";
 import { recordDecision } from "../verbs";
 import { cancelKindFor } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
+import { storedConfigOf } from "../workspace/config-row";
 import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
 import { channelsReadyOf, channelsReadyOrNull, whatsappHealthOf } from "../campaigns/channels-ready";
@@ -43,12 +44,9 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
     // The message the version names, as every row the workspace holds of it on any channel (a message needs no WhatsApp row).
     message: (id) => messageVersionRowsOf(ctx.supabase, tenantId, { id }),
     bookingLink: async () => {
-      const { data } = await ctx.supabase
-        .from("tenant_config")
-        .select("config")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      return parseTenantConfig(data?.config ?? null)?.brain?.booking_link ?? null;
+      // A read that fails is no link, as it always was: the step that needs one says so.
+      const config = await storedConfigOf(ctx.supabase, tenantId).catch(() => null);
+      return parseTenantConfig(config)?.brain?.booking_link ?? null;
     },
   };
 }

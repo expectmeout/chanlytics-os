@@ -223,6 +223,18 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
     "validation",
     400,
   );
+  // A zone this server's Intl knows and the database refuses (00364 tenants_zone_guard, its words): the owner's to
+  // choose again, in the refusal's own words, never a failure of ours.
+  const databaseRefuses = {
+    ...ctxFor(tables),
+    supabase: fakeDb(tables, { "tenants.update": { code: "22023", message: "Unknown timezone: America/Chicago" } }),
+  };
+  await refused(
+    workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), databaseRefuses),
+    "validation",
+    400,
+    "America/Chicago is not a timezone this system knows.",
+  );
   const changed = await workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor(tables));
   assert.deepEqual(changed, {
     workspace: { id: B, slug: "bayside", name: "Bayside", status: "active", timezone: "America/Chicago" },
