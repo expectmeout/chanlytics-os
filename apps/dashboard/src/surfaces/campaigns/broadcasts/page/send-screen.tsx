@@ -527,7 +527,7 @@ function bcSendFoot(v: BcV) {
         </div>
       )}
       <span className="bc-actions-spacer" />
-      <div className="bc-actions">
+      <div className="bc-actions" data-foot-pair="">
         {/* Schedule stays one press: a scheduled run is cancelled from the row above,
                 and nothing has left. Send now does not -- it is the only act on this
                 surface that cannot be taken back, and it was the only one that was not
