@@ -361,6 +361,16 @@
     "00356_an_answer_and_its_history_line_are_one_write.sql": "38ae84945bb34cf0abfb5135d0449154f474248c4a8730404134e8a75788dd4e",
     "00357_a_deal_and_a_playbook_s_start_are_one_write.sql": "57e4ec5679ed153539e8d79e68420ca46bc8dd18b323572c9a780e8e3f19e39d",
     "00358_every_same_workspace_key_is_validated.sql": "91e4caeb8a7ca3c7837ebd28154491cd408285d68499f9e99d52bf791c97d13b",
-    "00359_the_days_replies_ride_with_the_days_numbers.sql": "d1106399e7f5c126fd00725bfbe8f1212e521d1e51ea7cb8621e7dad394c0874"
+    "00359_the_days_replies_ride_with_the_days_numbers.sql": "d1106399e7f5c126fd00725bfbe8f1212e521d1e51ea7cb8621e7dad394c0874",
+    "00360_a_message_taken_in_again_changes_no_consent.sql": "9682bf82c1b62c1a850e193540f76e1f839cadb06f6eb17459ef08ba9add6e24",
+    "00361_a_member_calls_back_only_a_send_that_has_not_started.sql": "46cf0d52bda3dd389f1188248588ff47db118db407f4303237aa61d09a2e3dd9",
+    "00362_every_sweep_waits_past_its_own_minute.sql": "5dc39bf1e08906bc5359df899d6fb51da1ab5119a40b145276020844fb9d5399",
+    "00363_a_search_is_paid_for_a_listed_lead_comes_back_and_a_reconnect_stands.sql": "b73a3b761a0287aa75f14833cf61b13c53dcbe1a45996e62825244d63324eab1",
+    "00364_a_member_reads_the_config_as_their_role_may_and_four_writes_hold.sql": "72b21292d7597234e87a07cdf65de5a54b6085cfef017b56a059e20496cbac0c",
+    "00365_only_the_owner_reads_the_config_row_whole.sql": "4a74ca0df6a6cdbb56b5710ff28e002f7f3d9cf5e1fe64bac51f8df7f7e91c56",
+    "00366_a_number_written_with_its_plus_keeps_its_country.sql": "59dfd8795c35b0c03f3166727647116dbaf1404184a6c6e1e45a71d1c2da1d9e",
+    "00367_ask_counts_the_cache_it_writes.sql": "ec52f308ea49c59022fbbedfcf07f07376ab5c086d99b29c05c1a57906f06b66",
+    "00368_a_broadcast_s_email_is_claimed_as_it_is_written.sql": "9d3cf8d4888a33940882307521ca8a17d15d987c4021abb53a622aa40bd38f01",
+    "00369_a_partner_s_share_is_read_by_the_owner_alone.sql": "dc3da2f645733e1afa459e413dc2b2266db56d5720a2ea9e4e37c5bc78e93dd1"
   }
 }
