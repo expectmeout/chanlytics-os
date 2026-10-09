@@ -51,7 +51,7 @@ import { planCallStart } from "./call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../packages/db.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { logger } from "../log.js";
-import { voiceDoorAuth } from "./voice-door-auth.js";
+import { keptUrl, voiceDoorAuth } from "./voice-door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
@@ -87,14 +87,15 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
   const L = logger({ from_tail: phoneTail(from), agent_id: agentId, call_id: inbound.call_id });
 
   const start = await planCallStart({ agentId, from, db: pg() });
-  // Kept under the call's id, before the answer (decision 0032, 00336); a call with no id is nothing to replay.
+  // Kept under the call's id, before the answer (decision 0032, 00336); a call with no id is nothing to replay. Kept
+  // without the ?key= it may have come in on (keptUrl): a ledger row is no place for the secret to every voice door.
   const ledger = pg();
   if (ledger && inbound.call_id)
     await keepDelivery(ledger, {
       provider: "retell",
       id: `call_inbound:${inbound.call_id}`,
       door: "/api/retell-inbound",
-      url: request.url,
+      url: keptUrl(request),
       tenantId: start.tenantId ?? null,
       headers: signatureHeaders(request, ["x-retell-signature"]),
       body: raw,

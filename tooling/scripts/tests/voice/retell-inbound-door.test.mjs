@@ -688,6 +688,18 @@ test("(C3) a test of \"keep my number\" is proven as the call arrives: the carri
   }
 });
 
+test("the delivery is kept on the door's own URL, never with the ?key= it came in on: the secret opens the voice doors of every workspace, and the ledger keeps a row for a week", async () => {
+  const w = world();
+  w.open();
+  assert.equal((await knock(w.call())).status, 200, "let in by the secret on the URL");
+  assert.deepEqual(
+    w.tables.provider_events.map((r) => [r.provider, r.provider_event_id, r.door, r.url, r.tenant_id]),
+    [["retell", `call_inbound:${w.CALL_ID}`, "/api/retell-inbound", DOOR, w.T]],
+    "kept under the call, on the door's URL with no query string",
+  );
+  assert.ok(!JSON.stringify(w.tables.provider_events).includes(SECRET), "the secret is nowhere in the row");
+});
+
 test("a caller from abroad is recognised and their thread held: the door hands the number on whole, + and all, so ten digits after it are never read as an American number", async () => {
   // Sequential digits, nobody's number. The door stripped the + before the judgement read the number, so this caller
   // was looked up as +1 479 123 4567: told as new, their history unread, and their thread left unheld.
