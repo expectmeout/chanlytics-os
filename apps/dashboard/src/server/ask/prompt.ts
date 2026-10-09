@@ -12,9 +12,11 @@ import {
   bookingToolName,
   clip as answerClip,
   describeNow,
+  fencedInline,
   guardrailsInForce,
   hoursRuns,
   parseTenantConfig,
+  promptSafeName,
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
@@ -379,6 +381,16 @@ const SPOKEN_LINE =
   "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
 
 /**
+ * A row as the turn's words name it: by the label the page gave it, which is often someone else's (a customer's name,
+ * a caller's, a lead's listing), set in a sentence the model is told. So it is a name as a prompt may show one and
+ * fenced as a record's words (contracts ai/fence.ts); a label with nothing left names the row by its kind.
+ */
+function rowName(r: AskScope): string {
+  const name = promptSafeName(r.label);
+  return name ? fencedInline("record", name) : `this ${r.kind}`;
+}
+
+/**
  * This turn's words, in the user's message after the page's data and before
  * the question: the clock, on a live turn what happened since, who is asking,
  * where they are and the row their words point at, the language, and that the
@@ -422,7 +434,7 @@ export function turnWords(t: TurnFacts): string {
     : "Read it before answering about it.";
   if (t.scope)
     lines.push(
-      `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,
+      `They are looking at ${rowName(t.scope)} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,
     );
   // The row their words point at, when it is not the scope: an earlier answer's item (in the read set, D5) or the page's
   // -- opened or named without a read only when the read set holds it (focusRead), else read first.
@@ -431,7 +443,7 @@ export function turnWords(t: TurnFacts): string {
     ? "open or name it without a read; read it for anything about it"
     : "read it first, to open or name it and for anything about it";
   if (f && (f.kind !== t.scope?.kind || f.id !== t.scope?.id))
-    lines.push(`Their words point at ${f.label} (${f.kind} ${f.id}): ${then}.`);
+    lines.push(`Their words point at ${rowName(f)} (${f.kind} ${f.id}): ${then}.`);
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");
   if (t.spoken) lines.push(SPOKEN_LINE);

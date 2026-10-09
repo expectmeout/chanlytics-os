@@ -7465,15 +7465,15 @@ test("the row the words point at is said in the turn's words when it is not the 
   const rosa = { kind: "thread", id: C1, label: "Rosa" };
   const sam = { kind: "person", id: P1, label: "Sam Ortiz" };
   const held = (f) =>
-    `Their words point at ${f.label} (${f.kind} ${f.id}): open or name it without a read; read it for anything about it.`;
+    `Their words point at <record>${f.label}</record> (${f.kind} ${f.id}): open or name it without a read; read it for anything about it.`;
   const unheld = (f) =>
-    `Their words point at ${f.label} (${f.kind} ${f.id}): read it first, to open or name it and for anything about it.`;
+    `Their words point at <record>${f.label}</record> (${f.kind} ${f.id}): read it first, to open or name it and for anything about it.`;
   const linesOf = (over) => turnWords({ ...facts, ...over }).split("\n");
   assert.ok(linesOf({ focus: sam, focusRead: true }).includes(held(sam)), "no scope, the row in the read set");
   assert.ok(linesOf({ focus: sam }).includes(unheld(sam)), "not in the read set: read it first");
   const scoped = linesOf({ scope: rosa, focus: sam, focusRead: true });
   assert.equal(
-    scoped[scoped.findIndex((l) => l.startsWith("They are looking at Rosa")) + 1],
+    scoped[scoped.findIndex((l) => l.startsWith("They are looking at <record>Rosa</record>")) + 1],
     held(sam),
     "after the scope",
   );
