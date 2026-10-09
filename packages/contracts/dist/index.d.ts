@@ -30076,9 +30076,10 @@ interface MetricsSummaryDto {
     /**
      * How the day's replies sat against the hold the owner set: the hold most replies waited, in words, and how many went out as it
      * ended, later than it, and with none (`holdOf`, the one rule both reports read; four numbers, however long the day). What
-     * `metrics_summary` does not carry (it answers the median, and the median of a held reply is the hold): added beside the
-     * function's answer by the server (server/metrics/metrics.ts) from `first_replies`. Absent from an older server's answer, from a
-     * longer window, from a read that failed and from a day on which no reply waited a hold, and the sentences then say the median.
+     * `metrics_summary` does not say (it answers the median, and the median of a held reply is the hold): counted by the server
+     * (server/metrics/metrics.ts) from the day's replies the function answers for it (00359), or from `first_replies` on a database
+     * before that. Absent from an older server's answer, from a longer window, from a read that failed and from a day on which no
+     * reply waited a hold, and the sentences then say the median.
      */
     reply_hold?: ReplyHoldDto;
     window: {

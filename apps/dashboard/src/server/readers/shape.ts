@@ -1,7 +1,7 @@
 import "server-only";
 import { dealsAreOn, parseTenantConfig, MIN_MS } from "@chanlytics/contracts";
 import { connectionFor } from "../connections/google";
-import { emailSetupFor } from "../connections/email";
+import { emailLineFor } from "../connections/email";
 import { listPlaybooks } from "../campaigns/playbooks";
 import { load, stamp, type Reader } from "./index";
 import * as facts from "./facts";
@@ -40,7 +40,8 @@ export const shape: Reader<undefined, WorkspaceShape> = {
       load(rc, facts.config, undefined).then((r) => r.data),
       load(rc, facts.sellsBy, undefined).then((r) => r.data),
       load(rc, channels, undefined).then((r) => r.data.channels),
-      emailSetupFor(rc.ctx.supabase, rc.tenantId),
+      // The line alone: the shape says whether there is a mailbox, and nothing of how the workspace sends.
+      emailLineFor(rc.ctx.supabase, rc.tenantId),
       connectionFor(rc.ctx.supabase, rc.tenantId),
       load(rc, lists, undefined).then((r) => r.data.lists),
       listPlaybooks(rc.ctx, rc.tenantId),

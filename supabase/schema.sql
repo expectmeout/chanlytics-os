@@ -9146,7 +9146,20 @@ begin
           select sentiment, count(*) as n from calls_win group by sentiment) s), '{}'::jsonb),
       'calls_voicemail', (select count(*) from calls_win where in_voicemail),
 
-      'new_contacts', (select count(*) from fresh_contacts))
+      'new_contacts', (select count(*) from fresh_contacts)),
+
+    -- The day's replies the receptionist answered, each with the seconds it took and the seconds it was held, whole as
+    -- report_series rounds them: what Today's sentence about speed is counted from (contracts holdOf). They are the
+    -- rows this function already read to count who answered; the page asked first_replies for them a second time.
+    -- A day only: a longer window's replies are Reports', and null says this answer carries none.
+    'replies', case when v_days = 1 then coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'asked_at', r.asked_at,
+               's', round(r.ai_seconds),
+               'hold', round(coalesce(r.ai_hold_s, 0)))
+             order by r.asked_at)
+        from replies r
+       where r.ai_seconds is not null), '[]'::jsonb) end
   ) into v_result;
 
   return v_result;

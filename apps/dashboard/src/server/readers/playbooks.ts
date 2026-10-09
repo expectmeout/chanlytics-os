@@ -2,7 +2,8 @@ import "server-only";
 import { dealPaceOf, dealsAreOn, type ChannelsReady, type MonthSent } from "@chanlytics/contracts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { monthSentOrNull } from "../campaigns/month-sent";
-import { listPlaybooks, recentTouches, triggerPools, type PlaybookListRow } from "../campaigns/playbooks";
+import { listPlaybooks, recentTouches, type PlaybookListRow } from "../campaigns/playbooks";
+import { poolReads, triggerPools } from "../campaigns/playbook-pools";
 import { dealPaceRead } from "../people/deals";
 import { load, stamp, type Reader } from "./index";
 import * as readers from "./facts";
@@ -36,6 +37,10 @@ interface PlaybooksPage {
  * turn: the pools' calendar lookup reads neither the zone nor the settings again. Everyone the pools count is the
  * turn's own read too (readers/everyone.ts), which the audience pool shares. Each playbook is a row a citation names,
  * opened on Playbooks at its card.
+ *
+ * One wave of reads, not two. The pools' reads waited for the page's first reads to answer and then went one behind
+ * another, though only two of them hang on anything those answer; all of them are asked at the start now, and the
+ * pools are counted when the last is in (9 Oct 2026: this was the slowest read Campaigns opens on).
  */
 export const playbooks: Reader<undefined, PlaybooksPage> = {
   name: "playbooks",
@@ -43,13 +48,27 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
     const now = rc.now;
+    const listed = listPlaybooks(ctx, tenantId);
+    const howTheyBuy = load(rc, readers.sellsBy, undefined).then((r) => r.data);
+    const dealsOnRead = howTheyBuy.then(dealsAreOn);
+    // The pools' own reads leave with the page's first ones, not behind them (campaigns/playbook-pools.ts poolReads): everyone
+    // and the zone and settings from the turn (everyone once a turn, shared with the audience pool; a settings read that
+    // fails costs the visit moments, never the page), the proposals' follow-ups once it is known deals are on, and a
+    // stricter message's templates once the playbooks are in.
+    const reads = poolReads(ctx, tenantId, now, {
+      people: () => load(rc, everyone, undefined).then((r) => r.data),
+      known: readers.zoneAndSettings(rc),
+      dealsOn: dealsOnRead,
+      playbooks: listed,
+    });
     const [playbooks, facts, touched, sellsBy, paceRead, ready, month_sent] = await Promise.all([
-      listPlaybooks(ctx, tenantId),
+      listed,
       load(rc, readers.facts, undefined).then((r) => r.data),
       recentTouches(ctx, tenantId, now),
-      load(rc, readers.sellsBy, undefined).then((r) => r.data),
-      // The pace the edge's sweep reads (packages/db yesesSince): the follow-up's pool is the run's own.
-      dealPaceRead(ctx, tenantId, now),
+      howTheyBuy,
+      // The pace the edge's sweep reads (packages/db yesesSince): the follow-up's pool is the run's own. Read where
+      // deals are on, which is the only place it is counted by.
+      dealsOnRead.then((on) => (on ? dealPaceRead(ctx, tenantId, now) : null)),
       // Whether each channel can send now: the pools are counted against it, and the composer draws its ticks from it.
       channelsReadyOrNull(ctx, tenantId, { withPause: true }),
       // The month's emails and texts already sent, which the composer says before a send and the head from half used.
@@ -63,15 +82,9 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       facts.timezone,
       now,
       { on: dealsOn, pace: dealsOn ? dealPaceOf(paceRead) : null },
-      // Everyone, and the zone and settings, from the turn, each read just where the pools read their own: everyone
-      // once a turn, shared with the audience pool; a settings read that fails costs the visit moments, never the page.
-      // And the playbooks, so one whose message is stricter than its moment is counted by the message (strictMessagePools).
-      {
-        people: () => load(rc, everyone, undefined).then((r) => r.data),
-        known: readers.zoneAndSettings(rc),
-        playbooks,
-        ready,
-      },
+      // The reads the pools count from, already asked; and the playbooks, so one whose message is stricter than its
+      // moment is counted by the message (strictMessagePools).
+      { reads, playbooks, ready },
     );
     return {
       data: {

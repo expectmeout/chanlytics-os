@@ -563,7 +563,7 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
       ],
       `${k}: every write re-fetches both surfaces`,
     );
-  const pools = readCode("apps/dashboard/src/server/campaigns/playbooks.ts");
+  const pools = readCode("apps/dashboard/src/server/campaigns/playbook-pools.ts");
   assert.ok(
     // 2 Oct 2026: the pool is counted with the message in view (null for a moment), as the run's enrolment reads it; 3 Oct:
     // for the channels it goes by and what the workspace can send on (poolCounter, over the turn's breath, clock and pace).

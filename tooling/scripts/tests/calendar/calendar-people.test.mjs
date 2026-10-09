@@ -1435,7 +1435,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     .join("\n");
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
-      svc.includes("export async function peopleVisits(") &&
+      // The calendar's read and everyone's visits off it, apart since 9 Oct 2026 so the pools ask for both at once.
+      svc.includes("export async function calendarRead(") &&
+      svc.includes("export function visitsIn(") &&
       svc.includes(
         "peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime())",
       ),

@@ -279,6 +279,12 @@ test("Today counts the workspace's email line beside the routing rows, and only 
     "REGRESSION: Today said '1 of 1 line connected' on a workspace with two",
   );
   assert.equal(m.linesRead, undefined, "every line was read");
+  // The line is one row: Today asks nothing of how the workspace sends (its own domains, the edge's switch for them).
+  assert.deepEqual(
+    [...new Set(withBox.seen.filter((q) => q.table).map((q) => q.table))],
+    ["mailboxes"],
+    "REGRESSION: every read of Today from a workspace with a mailbox read its sending domains and asked the edge too",
+  );
 
   // A workspace that has not made its mailbox has no email line...
   const noBox = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [] }, {}, rpcs);

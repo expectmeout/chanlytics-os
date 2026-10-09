@@ -42,6 +42,57 @@ export interface PeopleVisits {
 export type ZoneAndSettings = Lazy<{ timezone: string; config: unknown }>;
 
 /**
+ * The calendar everyone's visits are read from, before anyone's rows: its lookup (calendarOf) and its parsed feed, null
+ * where the workspace names no calendar. Read apart from the rows, so a caller that reads everyone too asks for both
+ * at once (campaigns/playbook-pools.ts poolReads): the feed never waited on who is in People.
+ */
+export interface CalendarRead {
+  lookup: Awaited<ReturnType<typeof calendarOf>>;
+  feed: ParsedRead | null;
+}
+
+/** The lookup, then the feed it names. `known` and `stale` as peopleVisits takes them. */
+export async function calendarRead(
+  ctx: RouteContext,
+  tenantId: string,
+  now = new Date(),
+  known?: ZoneAndSettings,
+  opts: { stale?: boolean } = {},
+): Promise<CalendarRead> {
+  const lookup = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
+  if (!lookup.url) return { lookup, feed: null };
+  try {
+    const feed = await parsedFeedFor(tenantId, lookup.url, lookup.timezone, now, { stale: opts.stale === true });
+    return { lookup, feed };
+  } catch (e) {
+    log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return { lookup, feed: { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null } };
+  }
+}
+
+/** Everyone's visits off a calendar already read: the rows indexed against its feed, once. */
+export function visitsIn({ lookup, feed }: CalendarRead, rows: PersonRowDto[], now: Date): PeopleVisits {
+  const { lostCalendar, timezone, source, bookingLink, own, profile } = lookup;
+  const services = profile?.services ?? [];
+  const rules = profile?.booking_rules ?? null;
+  const visits = new Map<string, PersonVisitsDto>();
+  if (!feed)
+    return {
+      calendar: { state: lostCalendar ? "unavailable" : "none", source, timezone },
+      visits,
+      bookingLink,
+      services,
+      rules,
+    };
+  if (!feed.parsed)
+    return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink, services, rules };
+  // Everyone's visits, each marked a consultation or not, by the pool's one rule (contracts peopleVisitsOf): what the
+  // edge's playbook runner reads too.
+  const marked = peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime());
+  return { calendar: { state: "ok", source, timezone }, visits: marked, bookingLink, services, rules };
+}
+
+/**
  * The next and last appointment of everyone on the list, from one parsed
  * feed indexed once — the number first, the whole name second — so a list
  * of hundreds costs one read of the calendar, not hundreds. `known`: the
@@ -51,7 +102,7 @@ export type ZoneAndSettings = Lazy<{ timezone: string; config: unknown }>;
  * that says what was booked and decides nothing from it: never a pool that
  * chooses who is sent something.
  */
-export async function peopleVisits(
+async function peopleVisits(
   ctx: RouteContext,
   tenantId: string,
   rows: PersonRowDto[],
@@ -59,35 +110,7 @@ export async function peopleVisits(
   known?: ZoneAndSettings,
   opts: { stale?: boolean } = {},
 ): Promise<PeopleVisits> {
-  const { url, lostCalendar, timezone, source, bookingLink, own, profile } = await calendarOf(
-    ctx,
-    tenantId,
-    known === undefined ? undefined : await lazily(known),
-  );
-  const services = profile?.services ?? [];
-  const rules = profile?.booking_rules ?? null;
-  const visits = new Map<string, PersonVisitsDto>();
-  if (!url)
-    return {
-      calendar: { state: lostCalendar ? "unavailable" : "none", source, timezone },
-      visits,
-      bookingLink,
-      services,
-      rules,
-    };
-  let feed: ParsedRead;
-  try {
-    feed = await parsedFeedFor(tenantId, url, timezone, now, { stale: opts.stale === true });
-  } catch (e) {
-    log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
-    feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
-  }
-  if (!feed.parsed)
-    return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink, services, rules };
-  // Everyone's visits, each marked a consultation or not, by the pool's one rule (contracts peopleVisitsOf): what the
-  // edge's playbook runner reads too.
-  const marked = peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime());
-  return { calendar: { state: "ok", source, timezone }, visits: marked, bookingLink, services, rules };
+  return visitsIn(await calendarRead(ctx, tenantId, now, known, opts), rows, now);
 }
 
 /**
