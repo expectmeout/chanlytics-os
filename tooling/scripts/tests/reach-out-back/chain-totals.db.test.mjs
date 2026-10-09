@@ -10,6 +10,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { showSecondFactor } from "../_second-factor.mjs";
+import { reachOutChainTotals } from "@chanlytics/db";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -237,5 +238,17 @@ test(
       true,
       "and once the session showed its code",
     );
+  },
+);
+
+test(
+  "the dashboard reads every chain through packages/db's door, as the member it is signed in as",
+  { skip },
+  async () => {
+    assert.deepEqual(
+      await reachOutChainTotals(viewer, A, 30),
+      ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 30 })),
+    );
+    await assert.rejects(reachOutChainTotals(stranger, A, 30), /reach_out_chain_totals: Workspace not found/);
   },
 );

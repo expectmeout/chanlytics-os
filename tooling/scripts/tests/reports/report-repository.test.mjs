@@ -3,12 +3,22 @@
  * over whatever client the caller holds (the session's, so RLS decides what a member reads). A read that fails throws;
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
- * google/google-reviews-ledger.db.test.mjs over a real database. It alone answers null where the database does not have
- * its function yet (00350 is applied after the dashboard deploys).
+ * google/google-reviews-ledger.db.test.mjs over a real database. It answers null where the database does not have its
+ * function yet (00350 is applied after the dashboard deploys), and the counts beside it (00362, 00363) answer "missing",
+ * for one release.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { campaignSeries, reachOutReport, reportSeries, reviewsLedger } from "@chanlytics/db";
+import {
+  campaignSeries,
+  playbookTotals,
+  reachOutChainTotals,
+  reachOutReport,
+  reportSeries,
+  reviewsLedger,
+  runCounts,
+  templateSends,
+} from "@chanlytics/db";
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** A database that answers a function by name and keeps what it was asked. */
@@ -68,4 +78,47 @@ test("a database that does not have the reviews' ledger yet (00350 not applied) 
     /report_series: Could not find the function/,
     "the series is the report's own: a database without it is a failure, not a lens that draws less",
   );
+});
+
+test("the counts' doors (00362, 00363) ask by name for the workspace, answer what the database says, answer 'missing' for a database without the function -- PostgREST's PGRST202, Postgres's 42883 -- so the dashboard reads the old way for one release, and throw every other failure", async () => {
+  const { db, asked } = dbWith({
+    playbook_totals: { data: { p1: {} }, error: null },
+    run_counts: { data: {}, error: null },
+    template_sends: { data: {}, error: null },
+    reach_out_chain_totals: { data: {}, error: null },
+  });
+  assert.deepEqual(await playbookTotals(db, W, 10), { p1: {} });
+  assert.deepEqual(await runCounts(db, W, ["b1", "b2"]), {});
+  assert.deepEqual(await templateSends(db, W), {});
+  assert.deepEqual(await reachOutChainTotals(db, W, 30), {});
+  assert.deepEqual(asked, [
+    ["playbook_totals", { p_tenant_id: W, p_history: 10 }],
+    ["run_counts", { p_tenant_id: W, p_run_ids: ["b1", "b2"] }],
+    ["template_sends", { p_tenant_id: W }],
+    ["reach_out_chain_totals", { p_tenant_id: W, p_days: 30 }],
+  ]);
+  for (const code of ["PGRST202", "42883"]) {
+    const gone = { data: null, error: { message: "Could not find the function", code } };
+    const missing = dbWith({
+      playbook_totals: gone,
+      run_counts: gone,
+      template_sends: gone,
+      reach_out_chain_totals: gone,
+    }).db;
+    assert.equal(await playbookTotals(missing, W, 10), "missing", code);
+    assert.equal(await runCounts(missing, W, []), "missing", code);
+    assert.equal(await templateSends(missing, W), "missing", code);
+    assert.equal(await reachOutChainTotals(missing, W, 30), "missing", code);
+  }
+  const down = { data: null, error: { message: "canceling statement due to statement timeout", code: "57014" } };
+  const slow = dbWith({
+    playbook_totals: down,
+    run_counts: down,
+    template_sends: down,
+    reach_out_chain_totals: down,
+  }).db;
+  await assert.rejects(playbookTotals(slow, W, 10), /playbook_totals: canceling statement/);
+  await assert.rejects(runCounts(slow, W, []), /run_counts: canceling statement/);
+  await assert.rejects(templateSends(slow, W), /template_sends: canceling statement/);
+  await assert.rejects(reachOutChainTotals(slow, W, 30), /reach_out_chain_totals: canceling statement/);
 });

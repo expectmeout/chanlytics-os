@@ -1,9 +1,10 @@
 /**
  * The report functions Reports reads (00251, 00304, 00241, 00350): the receptionist's series, the campaigns', the reviews'
- * and the reach-outs', each over a period of days and the period before it. The one place they are called by name; the
- * dashboard asks on the session client, so RLS decides what a member reads (`report_series`, `campaign_series` and
- * `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member again). A read that
- * fails throws: "we could not read" is never "none".
+ * and the reach-outs', each over a period of days and the period before it; and the counts Campaigns reads (00362,
+ * 00363): a playbook's totals, a run's counts, a message's sends and every chain's numbers. The one place they are
+ * called by name; the dashboard asks on the session client, so RLS decides what a member reads (`report_series`,
+ * `campaign_series` and `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member
+ * again). A read that fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
@@ -53,4 +54,45 @@ export async function reachOutReport(
   const { data, error } = await db.rpc("reach_out_report", { p_tenant_id: tenantId, p_days: days });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, data };
+}
+
+/**
+ * A door's answer where the database may not have the function yet: its data, or "missing" on a database before its
+ * migration (isMissingDoor), where the dashboard reads the old way for one release so either deploy order works. Any
+ * other failure throws: "we could not read" is never "none", nor "missing".
+ */
+function answerOrMissing(name: string, data: Json, error: { code: string; message: string } | null): Json | "missing" {
+  if (!error) return data;
+  if (isMissingDoor(error)) return "missing";
+  throw new Error(`${name}: ${error.message}`);
+}
+
+/**
+ * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00362): one jsonb by
+ * playbook id, which PostgREST's row cap never cuts; contracts' isPlaybookTotalsDto reads it.
+ */
+export async function playbookTotals(db: Db, tenantId: string, history: number): Promise<Json | "missing"> {
+  const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
+  return answerOrMissing("playbook_totals", data, error);
+}
+
+/** Each run's people, receipts and replies, by run id (`run_counts`, 00362): what Sent, a run's sheet and a card say. */
+export async function runCounts(db: Db, tenantId: string, runIds: readonly string[]): Promise<Json | "missing"> {
+  const { data, error } = await db.rpc("run_counts", { p_tenant_id: tenantId, p_run_ids: [...runIds] });
+  return answerOrMissing("run_counts", data, error);
+}
+
+/** How many of each message went out, and when the latest did, by name (`template_sends`, 00362). */
+export async function templateSends(db: Db, tenantId: string): Promise<Json | "missing"> {
+  const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
+  return answerOrMissing("template_sends", data, error);
+}
+
+/**
+ * Every chain's last `days`, by its first step's id (`reach_out_chain_totals`, 00363): what it wrote, how many wrote
+ * back, when it last wrote. A definer behind may_read_workspace: a caller who is no member is refused (P0002), thrown.
+ */
+export async function reachOutChainTotals(db: Db, tenantId: string, days: number): Promise<Json | "missing"> {
+  const { data, error } = await db.rpc("reach_out_chain_totals", { p_tenant_id: tenantId, p_days: days });
+  return answerOrMissing("reach_out_chain_totals", data, error);
 }

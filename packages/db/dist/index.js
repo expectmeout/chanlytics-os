@@ -2651,6 +2651,27 @@ async function reachOutReport(db, tenantId, days) {
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, data };
 }
+function answerOrMissing(name, data, error) {
+  if (!error) return data;
+  if (isMissingDoor(error)) return "missing";
+  throw new Error(`${name}: ${error.message}`);
+}
+async function playbookTotals(db, tenantId, history) {
+  const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
+  return answerOrMissing("playbook_totals", data, error);
+}
+async function runCounts(db, tenantId, runIds) {
+  const { data, error } = await db.rpc("run_counts", { p_tenant_id: tenantId, p_run_ids: [...runIds] });
+  return answerOrMissing("run_counts", data, error);
+}
+async function templateSends(db, tenantId) {
+  const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
+  return answerOrMissing("template_sends", data, error);
+}
+async function reachOutChainTotals(db, tenantId, days) {
+  const { data, error } = await db.rpc("reach_out_chain_totals", { p_tenant_id: tenantId, p_days: days });
+  return answerOrMissing("reach_out_chain_totals", data, error);
+}
 
 // src/repositories/reports/first-replies.ts
 async function firstReplies(db, tenantId, since) {
@@ -4612,6 +4633,7 @@ export {
   platformWide,
   playbookChannels,
   playbookForChannels,
+  playbookTotals,
   playbooksOnList,
   providerEventOf,
   purgeAiUsage,
@@ -4619,6 +4641,7 @@ export {
   queuedOutcomes,
   queuedRecipients,
   reachOutAudience,
+  reachOutChainTotals,
   reachOutDayDue,
   reachOutFollowers,
   reachOutPerson,
@@ -4681,6 +4704,7 @@ export {
   resolveOutboundTargetForContact,
   resolvePerson,
   reviewsLedger,
+  runCounts,
   runGoesByOthers,
   runSending,
   runsWaitingOf,
@@ -4735,6 +4759,7 @@ export {
   takeIdempotencyKey,
   takeReplyRead,
   templateIdOf,
+  templateSends,
   templateStatusOf,
   templatesFor,
   templatesNamed,
