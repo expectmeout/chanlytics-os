@@ -3,7 +3,6 @@
  * then open Live; text it, then open the Inbox.
  */
 import type { SetupVM } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { navigate } from "../../legacy-verbs";
 
@@ -18,21 +17,21 @@ export const SetupTry = ({ tryIt }: { tryIt: NonNullable<SetupVM["tryIt"]> }) =>
         <div className="setup-try-row">
           <Icon name="phone" size={13} />
           <span className="setup-try-num">{tryIt.voiceLabel}</span>
-          <Button size="sm" href={`tel:${tryIt.voice}`}>
+          <a className="btn btn-sm" href={`tel:${tryIt.voice}`}>
             Call it
-          </Button>
-          <Button size="sm" variant="quiet" onClick={() => navigate("live")}>
+          </a>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate("live")}>
             Then open Live <Icon name="arrow-right" size={10} />
-          </Button>
+          </button>
         </div>
       )}
       {tryIt.whatsapp && (
         <div className="setup-try-row">
           <Icon name="chat" size={13} />
           <span className="setup-try-num">{tryIt.whatsappLabel}</span>
-          <Button size="sm" variant="quiet" onClick={() => navigate("inbox")}>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate("inbox")}>
             Text it, then open the Inbox <Icon name="arrow-right" size={10} />
-          </Button>
+          </button>
         </div>
       )}
     </div>
