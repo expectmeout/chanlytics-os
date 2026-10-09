@@ -227,8 +227,11 @@ installRoleStore();
 const { SettingsPage } = await import("../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { activity } = await import("../../../../apps/dashboard/src/legacy-bridge/activity.ts");
 const { pageClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
-// The log's lists are the kit's Select (Base UI's, which the suite stands in for): a test finds one by its type.
+// The log's lists are the kit's Select (Base UI's, which the suite stands in for): a test finds one by its type. The
+// boxes are their own chunk, asked for as the pane is drawn; loaded once here, the pane finds them at its first draw.
 const { Select } = await import("../../../../apps/dashboard/src/surfaces/kit/select/select.tsx");
+const { loadBoxes } = await import("../../../../apps/dashboard/src/surfaces/settings/activity/narrowing.tsx");
+await loadBoxes();
 /** The log's reads answered by `f`: the module's object, which the pane imports. */
 const stand = (f) => Object.assign(activity, f);
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");

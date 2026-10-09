@@ -253,6 +253,8 @@
 /* The box that finds a person gives way first: it is read at 96px, and a named kind beside it is not at less than its words. */
 .set-filter-person { display: flex; flex: 1 1 96px; max-width: 220px; }
 .set-filter-find { flex: 1 1 auto; min-width: 0; }
+/* The row at the boxes' height while their chunk is on its way (narrowing.tsx BoxesWaiting): the log under it does not move when they land. */
+.set-filters-waiting { flex: 1 1 100%; height: var(--control-h-md); }
 /* Back to the whole log, at the end of the card's head: words, where a box more would be one too many. */
 .set-filters-clear { margin-left: auto; white-space: nowrap; }
 /* A finger's 44px comes from around the words, not from the head: the head stood 21px taller while a filter was set,

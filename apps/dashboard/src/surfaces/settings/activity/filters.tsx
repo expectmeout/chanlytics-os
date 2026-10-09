@@ -1,7 +1,10 @@
 /**
  * The log's filters: what kind of thing, who did it, when, and about whom. The kit's lists in a row (its Select, whose
  * list pops over the page on the panel's pop as the sidebar's menus and the Inbox's do; its date picker; its Combobox
- * for a person), and on a phone the one control they wait behind, which the card draws at the end of its head.
+ * for a person); on a phone they wait behind the one control the card draws at the end of its head (narrowing.tsx).
+ * This module is its own chunk, asked for as the pane is first drawn (narrowing.tsx loadBoxes): the three kit parts
+ * stand on Base UI, and imported with the pane they rode on every Settings tab's load, 76 KB gzipped more on the
+ * page's own JS (CI's build, 9 October 2026).
  *
  * The lists were the browser's own selects in the kit's box until 8 Oct 2026, which drew their open list in the
  * system's colours whatever the look (Ruben's screenshot: a flat list with the system's blue on the row under the
@@ -21,40 +24,15 @@ import {
   activityKindGroups,
   zoneMidnight,
   type ActivityMemberDto,
-  type ActivitySpan,
 } from "@chanlytics/contracts";
 import { activity } from "@/legacy-bridge/activity";
 import { pageClock } from "@/legacy-bridge/zone";
-import { holdStill } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Combobox } from "../../kit/combobox/combobox";
 import { DatePicker } from "../../kit/datepicker/datepicker";
 import { Icon } from "../../kit/icon/icon";
 import { Select } from "../../kit/select/select";
-
-export type Person = { id: string; name: string };
-
-/** What the log is narrowed to, as the boxes hold it. */
-export interface Narrowing {
-  /** The kind box: nothing, `only:problems`, `family:<family>` or `kind:<kind>`. */
-  pick: string;
-  /** Who did it: nobody picked, a member's id, `receptionist` or `system`. */
-  who: string;
-  /** When: any time, one of the spans, or `day` for the one day in `day`. */
-  when: "" | ActivitySpan | "day";
-  /** The day picked, "YYYY-MM-DD", read only while `when` is `day`. */
-  day: string;
-  person: Person | null;
-}
-
-export const NO_NARROWING: Narrowing = { pick: "", who: "", when: "", day: "", person: null };
-
-/**
- * How many of the four are set, for the phone's one control and the way back to the whole log. One day with no day
- * picked yet counts: the box says it, its picker stands beside it, and a reader who went that far is offered the way
- * back (it counted only a day picked, so Clear stood hidden while the row showed two boxes more).
- */
-export const narrowedCount = (n: Narrowing): number => [n.pick, n.who, n.when, n.person].filter(Boolean).length;
+import type { Narrowing, Person } from "./narrowing";
 
 /** How long the person box waits after a key before it asks who matches. */
 const PERSON_SEARCH_MS = 250;
@@ -252,29 +230,6 @@ function PersonBox({ n, set }: { n: Narrowing; set: (over: Partial<Narrowing>) =
         data-testid="act-person-q"
       />
     </span>
-  );
-}
-
-/**
- * The phone's one control: the boxes stand between a reader and the log there, so they wait behind it until asked
- * for, and it says how many are set. The card draws it at the end of its head, beside the way back to the whole log,
- * so the head is one height whatever is set (under the head, on a line of its own, it pushed the log a row down). A
- * desktop does not draw it.
- */
-export function FiltersAsk({ narrowed, open, onToggle }: { narrowed: number; open: boolean; onToggle: () => void }) {
-  return (
-    <Button
-      variant="quiet"
-      size="sm"
-      className="set-filters-ask"
-      aria-expanded={open}
-      onClick={(e) => holdStill(e.currentTarget, onToggle)}
-      data-testid="act-filters-ask"
-    >
-      <Icon name="filter" size={12} />
-      {W.narrow}
-      {narrowed > 0 && <span className="set-filters-ask-n">{narrowed}</span>}
-    </Button>
   );
 }
 
