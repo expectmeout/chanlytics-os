@@ -18,6 +18,7 @@ import {
   campaignsHomeOf,
   isWinBack,
   momentOffered,
+  momentReadsCalendar,
   channelsReady,
   numberHealth,
   playbookPoolKey,
@@ -94,6 +95,17 @@ test("an appointment moment is offered only where a calendar is connected: witho
     true,
     "one made before keeps running: the run never asks",
   );
+});
+
+test("the moments a calendar decides are one set: the two win-backs and the appointment moments, and no other moment's offer turns on it", () => {
+  assert.deepEqual(
+    PLAYBOOK_TRIGGERS.filter(momentReadsCalendar).map((t) => t.id),
+    ["quiet_30", "visit_tomorrow", "visited", "lapsed"],
+  );
+  for (const dealsOn of [false, true]) {
+    const outside = (calendarOn) => OFFERED(calendarOn, dealsOn).filter((id) => !momentReadsCalendar(triggerOf(id)));
+    assert.deepEqual(outside(false), outside(true), `deals ${dealsOn}: the calendar changes nothing else`);
+  }
 });
 
 test("a trigger says its label and hint in the workspace's word, and so do the win-back's refusals", () => {

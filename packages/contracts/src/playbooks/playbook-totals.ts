@@ -14,7 +14,7 @@ interface PlaybookHistoryRunDto {
   scheduled_for: string;
   recipient_count: number;
   sent: number;
-  /** Its people skipped or failed: a run's "held", the glossary's first sense of the word. */
+  /** Its people skipped or failed: a run's "held", the glossary's Held (a run's people). */
   held: number;
   delivered: number;
   replied: number;

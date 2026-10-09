@@ -2969,8 +2969,12 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
     "REGRESSION: it read 'said_yes_now: 1', and Ana's yes was nobody's",
   );
   // The visit reminder names tomorrow's visits, and there is no calendar here: since 9 Oct 2026 (D44) it is not offered
-  // at all, so it says no count, rather than nobody either way.
-  assert.equal(counts("visit_tomorrow"), undefined);
+  // at all, so the read leaves it out, rather than saying nobody either way.
+  assert.equal(
+    read.triggers.some((y) => y.trigger === "visit_tomorrow"),
+    false,
+    "no calendar: the appointment reminder is not among the triggers",
+  );
   assert.ok(read.note.includes(NO_NUMBER_REACH), read.note);
   for (const name of ["said_yes_now", "can_be_sent_now"]) {
     assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);

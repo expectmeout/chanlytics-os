@@ -246,6 +246,16 @@ export function winBackWords(word: AppointmentWord): { quiet_30: string; lapsed:
 }
 
 /**
+ * Whether a new campaign on a moment is offered by whether a calendar is connected here: the two win-backs (by visits
+ * only with one, by silence only without) and the appointment moments (only with one). The calendar set, declared once:
+ * momentOffered reads it, and so does the check that makes a campaign, which asks for the calendar only here and says
+ * why a moment of it is refused.
+ */
+export function momentReadsCalendar(t: { id: string; kind: string }): boolean {
+  return isWinBack(t.id) || t.kind === "visit";
+}
+
+/**
  * Whether a moment is offered for a NEW campaign (2 Oct 2026, the lifecycle set): offered here at all
  * (triggerOffered), not retired (MOMENTS_RETIRED), of the two win-backs the one this workspace can read (by visits where
  * a calendar is connected, by silence where none is), and an appointment moment only where a calendar is connected
@@ -257,9 +267,8 @@ export function winBackWords(word: AppointmentWord): { quiet_30: string; lapsed:
 export function momentOffered(t: { id: string; kind: string }, o: { dealsOn: boolean; calendarOn: boolean }): boolean {
   if (!triggerOffered(t, o.dealsOn)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
-  if (t.id === "quiet_30") return !o.calendarOn;
-  if (t.id === "lapsed" || t.kind === "visit") return o.calendarOn;
-  return true;
+  if (!momentReadsCalendar(t)) return true;
+  return t.id === "quiet_30" ? !o.calendarOn : o.calendarOn;
 }
 
 /**

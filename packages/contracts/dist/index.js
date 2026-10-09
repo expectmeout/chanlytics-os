@@ -511,12 +511,14 @@ function winBackWords(word) {
     lapsed: `The win-back ${W.byMany} needs your calendar, and none is connected. Start the one that goes by silence: ${silence}.`
   };
 }
+function momentReadsCalendar(t) {
+  return isWinBack(t.id) || t.kind === "visit";
+}
 function momentOffered(t, o) {
   if (!triggerOffered(t, o.dealsOn)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
-  if (t.id === "quiet_30") return !o.calendarOn;
-  if (t.id === "lapsed" || t.kind === "visit") return o.calendarOn;
-  return true;
+  if (!momentReadsCalendar(t)) return true;
+  return t.id === "quiet_30" ? !o.calendarOn : o.calendarOn;
 }
 function policyClassOffered(cls, dealsOn) {
   if (cls === "outreach") return true;
@@ -39527,6 +39529,7 @@ export {
   mmss,
   modelRoute,
   momentOffered,
+  momentReadsCalendar,
   mondayOf,
   moneyWords,
   monthDaysAt,

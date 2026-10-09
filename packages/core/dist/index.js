@@ -3010,6 +3010,7 @@ import {
   messageHolds as messageHolds3,
   messageWhyNot,
   momentOffered,
+  momentReadsCalendar,
   playbookName,
   ruleNeeds,
   triggerOf as triggerOf3,
@@ -3031,13 +3032,12 @@ async function refuseMoment(ports, trig, existing) {
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError15("validation", retired);
-  const calendarOn = isWinBack(trig.id) || trig.kind === "visit" ? await ports.calendarOn() : false;
+  const calendarOn = momentReadsCalendar(trig) ? await ports.calendarOn() : false;
   if (momentOffered(trig, { dealsOn, calendarOn })) return;
   const word = await ports.appointmentWord();
-  throw new AppError15(
-    "validation",
-    trig.kind === "visit" ? appointmentWords(word).needsCalendar : winBackWords(word)[trig.id]
-  );
+  if (!isWinBack(trig.id)) throw new AppError15("validation", appointmentWords(word).needsCalendar);
+  const w = winBackWords(word);
+  throw new AppError15("validation", trig.id === "lapsed" ? w.lapsed : w.quiet_30);
 }
 async function defaultLabel(ports, trig, listName) {
   if (listName) return listName;

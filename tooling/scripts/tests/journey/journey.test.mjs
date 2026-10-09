@@ -117,8 +117,9 @@ test("journeyOf: the moments in the journey's order for each shape, Proposal wai
   );
   assert.deepEqual([off.after.hint, off.after.when], ["yesterday", { day: "The day", at: "after" }]);
   assert.deepEqual(
-    [off.proposal.why(1), off.quiet.why(2)],
-    ["Off · 1 proposal waiting", "Off · 2 people have gone quiet"],
+    [off.proposal.why(1), off.quiet.why(2), off.quiet.why(1)],
+    ["Off · 1 proposal waiting", "Off · 2 people have gone quiet", "Off · 1 person has gone quiet"],
+    "one person has gone quiet, in the singular",
   );
 });
 

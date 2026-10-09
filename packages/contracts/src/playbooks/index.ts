@@ -8,6 +8,7 @@ export {
   triggerOf,
   triggerOffered,
   momentOffered,
+  momentReadsCalendar,
   MOMENTS_RETIRED,
   isWinBack,
   triggerWords,

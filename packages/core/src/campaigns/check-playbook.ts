@@ -17,6 +17,7 @@ import {
   messageHolds,
   messageWhyNot,
   momentOffered,
+  momentReadsCalendar,
   playbookName,
   ruleNeeds,
   triggerOf,
@@ -106,13 +107,12 @@ async function refuseMoment(
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError("validation", retired);
-  const calendarOn = isWinBack(trig.id) || trig.kind === "visit" ? await ports.calendarOn() : false;
+  const calendarOn = momentReadsCalendar(trig) ? await ports.calendarOn() : false;
   if (momentOffered(trig, { dealsOn, calendarOn })) return;
   const word = await ports.appointmentWord();
-  throw new AppError(
-    "validation",
-    trig.kind === "visit" ? appointmentWords(word).needsCalendar : winBackWords(word)[trig.id as "quiet_30" | "lapsed"],
-  );
+  if (!isWinBack(trig.id)) throw new AppError("validation", appointmentWords(word).needsCalendar);
+  const w = winBackWords(word);
+  throw new AppError("validation", trig.id === "lapsed" ? w.lapsed : w.quiet_30);
 }
 
 /** The name a campaign given none takes: its list's, an appointment moment's in the workspace's word, else its moment's. */

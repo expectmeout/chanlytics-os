@@ -7,6 +7,7 @@
 import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import {
+  CAMPAIGNS_RESULTS_PERIOD,
   CONSENT_LIST_IDS,
   PEOPLE_LISTS,
   savedListIds,
@@ -165,8 +166,8 @@ export interface BroadcastsSurface {
   fetchedAt: number;
 }
 
-/** The period Campaigns' home reports over (the route's `period`): thirty days, which the document head starts too (contracts PREFETCH_READS). */
-const HOME_REPORT_PERIOD = "30d";
+/** The period Campaigns' home reports over (the route's `period`): Campaigns' one, which the document head starts too (contracts PREFETCH_READS). */
+const HOME_REPORT_PERIOD = CAMPAIGNS_RESULTS_PERIOD;
 
 /** The month's emails and texts the read carries; null where it could not be counted, and on a server from before it was. */
 const monthSentOf = (read: { month_sent?: MonthSent | null }): MonthSent | null => read.month_sent ?? null;
@@ -219,7 +220,8 @@ function reportOf(read: { report: Parameters<typeof toCampaignReportVM>[0] } | E
   return {
     days: vm.days,
     totals: vm.totals,
-    sources: read.report.sources.map((s) => ({
+    // None from a server from before a report carried them, as toCampaignReportVM reads them.
+    sources: (read.report.sources ?? []).map((s) => ({
       id: s.id,
       kind: s.kind,
       name: s.name,
