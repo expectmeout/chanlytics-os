@@ -8484,10 +8484,13 @@ function toReportVM(dto, opts) {
 // src/reports/report-periods.ts
 var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
 var REPORT_PERIOD_DEFAULT = "30d";
+var CAMPAIGNS_RESULTS_PERIOD = "30d";
 var REPORT_PERIOD_STORAGE = "chanlytics.report.period";
 var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
 var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
-var fixedDaysOf = (period) => REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
+function fixedDaysOf(period) {
+  return REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
+}
 var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
 var periodSince = (today, days) => shiftKey(today, -(days - 1));
 function reportPeriodOf(asked) {
@@ -29077,6 +29080,27 @@ function lensAnswerOf(lens, parts2) {
 }
 
 // src/reports/reach-out-report.ts
+function chainTotalsOf(answer) {
+  const roots = recordOrNull(answer);
+  if (!roots) return null;
+  const by_root = {};
+  for (const [root, value] of Object.entries(roots)) {
+    const v = recordOrNull(value);
+    if (!v || !isCount(v.written) || !isCount(v.wrote_back)) return null;
+    by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+  }
+  return { complete: true, by_root };
+}
+function chainTotalsFromReport(report) {
+  const by_root = {};
+  for (const c of report.chains) {
+    by_root[c.root_id] = {
+      written: c.steps.reduce((sum2, s) => sum2 + s.written, 0),
+      wrote_back: c.steps.reduce((sum2, s) => sum2 + s.wrote_back, 0)
+    };
+  }
+  return { complete: false, by_root };
+}
 var pctText = (n, d) => {
   const share = pct(n, d);
   return share === null ? "\u2014" : `${share}%`;
@@ -36563,6 +36587,7 @@ export {
   CALL_OUTCOME_WORDS,
   CALL_UNANSWERED_WORDS,
   CAMPAIGNS_PAUSED_WORDS,
+  CAMPAIGNS_RESULTS_PERIOD,
   CAMPAIGN_EMAIL_TAG,
   CAMPAIGN_MONTH_ALLOWANCE,
   CAMPAIGN_ROOMS,
@@ -37418,6 +37443,8 @@ export {
   chainPaceOf,
   chainPathWords,
   chainReportWordsOf,
+  chainTotalsFromReport,
+  chainTotalsOf,
   changedConfigFields,
   channelChoices,
   channelFor,

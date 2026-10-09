@@ -202,7 +202,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     // The same people the audiences count over: 26 in People, 24 to message and 22 who said yes to offers (Everyone, above).
     reach: { people: 26, canHear: 24, saidMessages: 24, saidOffers: 22 },
     // The one run that went out (above), as the campaign report would count it over the last thirty days.
-    report: { days: 30, totals: { sent: 18, delivered: 17, read: 11, replied: 3, optIns: 4, optOuts: 1 } },
+    report: { days: 30, totals: { sent: 18, delivered: 17, read: 11, replied: 3, optIns: 4, optOuts: 1 }, sources: [] },
     number: {
       present: true,
       display: "+1 305-555-0100",

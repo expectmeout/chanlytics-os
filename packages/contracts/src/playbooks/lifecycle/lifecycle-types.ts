@@ -10,6 +10,7 @@
 import type { ChannelStandingPart } from "../../broadcasts/channels-standing";
 import type { ChannelsReady } from "../../broadcasts/reach-for";
 import type { ConsentChannel } from "../../consent/consent-channels";
+import type { AppointmentWord } from "../../journey/appointment-word";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import type { CampaignMessage } from "../../templates/campaign-message";
 import type { ChannelStand } from "../playbook-channels";
@@ -176,6 +177,42 @@ export interface LifecycleReport {
   };
   /** What each channel sent in the period, the most first (0030); absent from a database before the channels were counted. */
   byChannel?: readonly { channel: ConsentChannel; sent: number }[];
+  /** Each campaign's own numbers over the period (campaign_series' `sources`): the ledger's "Last 30 days" per row. */
+  sources: readonly LifecycleSource[];
+}
+
+/**
+ * One campaign's last 30 days as campaign_series counts them (its `sources`): a playbook's by its id; a one-off send's,
+ * and each run of a playbook since deleted (broadcasts.playbook_id is set null), by its run's id.
+ */
+export interface LifecycleSource {
+  id: string;
+  kind: "playbook" | "broadcast";
+  name: string;
+  sent: number;
+  replied: number;
+  /** When it last sent, an ISO time; null where it never did. */
+  lastAt: string | null;
+}
+
+/**
+ * Each reach-out's last 30 days, by its root (GET reports/reach-outs' `chains`). `complete`: every chain was counted, so
+ * one absent wrote nothing; false where they come from the report's twenty, so one absent may be past them and says "—".
+ */
+export interface LifecycleChains {
+  complete: boolean;
+  byRoot: Readonly<Partial<Record<string, { written: number; wroteBack: number }>>>;
+}
+
+/** How the business works, as the home reads it (the playbooks surface's, from GET playbooks' businessShape). */
+export interface LifecycleShape {
+  /**
+   * "feed": a calendar is connected, its feed readable now or not; "email": none, but a booking tool's notices arrive by
+   * email; "none": neither. The appointment moments are counted only from a feed (decision 0002's readers lane owes the rest).
+   */
+  calendar: "feed" | "email" | "none";
+  dealsOn: boolean;
+  word: AppointmentWord;
 }
 
 /** The broadcasts surface, as the home reads it. */

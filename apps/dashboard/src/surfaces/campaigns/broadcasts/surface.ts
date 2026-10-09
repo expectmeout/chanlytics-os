@@ -216,7 +216,19 @@ function reportOf(read: { report: Parameters<typeof toCampaignReportVM>[0] } | E
   const vm = toCampaignReportVM(read.report);
   // What each channel sent (0030), the most first, for the home's line under its funnel; none from a database before it.
   const byChannel = vm.channels.map((c) => ({ channel: c.channel, sent: c.sent }));
-  return { days: vm.days, totals: vm.totals, ...(byChannel.length > 0 ? { byChannel } : {}) };
+  return {
+    days: vm.days,
+    totals: vm.totals,
+    sources: read.report.sources.map((s) => ({
+      id: s.id,
+      kind: s.kind,
+      name: s.name,
+      sent: s.sent,
+      replied: s.replied,
+      lastAt: s.last_at,
+    })),
+    ...(byChannel.length > 0 ? { byChannel } : {}),
+  };
 }
 
 /**

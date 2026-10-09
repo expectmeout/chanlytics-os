@@ -229,12 +229,12 @@ export { BOOKED_NEEDS_TODAY, toBookingReportVM } from "./reports/booking-report"
 export { toCampaignReportVM } from "./reports/campaign-report";
 export { lensAnswerOf } from "./reports/lens-answer";
 export { REPORT_LENSES, LENS_ROUTES, lensRoute, isLensParam, lensOfRoute, reportsParamParts, reportsRouteParts, lensOf, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
-export { toReachOutReportVM, reachOutDayWords } from "./reports/reach-out-report";
+export { toReachOutReportVM, reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reports/reach-out-report";
 export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";
 export { toHeadlineVM, isReportDto } from "./reports/report-headline";
 export { metricWordsOf } from "./reports/report-metrics";
-export { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, REPORT_MOST_DAYS, isReportPeriod, isReportDays, fixedDaysOf, monthDaysAt, reportPeriodOf, reportRangeAsked, reportRangeKey, reportRangeOfKey, sameReportRange, reportDaysCount, reportDaysRefusal, reportDaysAsked } from "./reports/report-periods";
+export { CAMPAIGNS_RESULTS_PERIOD, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, REPORT_MOST_DAYS, isReportPeriod, isReportDays, fixedDaysOf, monthDaysAt, reportPeriodOf, reportRangeAsked, reportRangeKey, reportRangeOfKey, sameReportRange, reportDaysCount, reportDaysRefusal, reportDaysAsked } from "./reports/report-periods";
 export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
 export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./reports/report-tiles";
 export { reportShortcuts, reportWindowOf, reportPickWords } from "./reports/report-window";

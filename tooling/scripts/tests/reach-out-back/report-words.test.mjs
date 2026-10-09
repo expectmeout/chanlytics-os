@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reachOutDayWords, toReachOutReportVM } from "@chanlytics/contracts";
+import { chainTotalsFromReport, chainTotalsOf, reachOutDayWords, toReachOutReportVM } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-28T22:00:00.000Z");
 const counts = (over = {}) => ({
@@ -247,4 +247,35 @@ test("the day's line at 6 PM says what happened, and nothing it did not count", 
     reachOutDayWords({ written: 0, wrote_back: 0, interested: 0, said_no: 0, bounced: 0, held: 0 }).body,
     "Nothing happened today.",
   );
+});
+
+test("a chain's own totals: every chain counted by the function, each by its root; a report's twenty are not every chain", () => {
+  const ROOT_A = "11111111-1111-4111-8111-111111111111";
+  const ROOT_B = "22222222-2222-4222-8222-222222222222";
+  assert.deepEqual(
+    chainTotalsOf({
+      [ROOT_A]: { written: 40, wrote_back: 6, last_at: "2026-09-28T15:00:00Z" },
+      [ROOT_B]: { written: 0, wrote_back: 0, last_at: null },
+    }),
+    { complete: true, by_root: { [ROOT_A]: { written: 40, wrote_back: 6 }, [ROOT_B]: { written: 0, wrote_back: 0 } } },
+  );
+  assert.deepEqual(chainTotalsOf({}), { complete: true, by_root: {} }, "a workspace with no chain");
+  for (const bad of [null, "x", [], { [ROOT_A]: { written: "40" } }, { [ROOT_A]: null }])
+    assert.equal(chainTotalsOf(bad), null, `${JSON.stringify(bad)} is no answer of the function`);
+  // A database before the function: the report's own chains, its steps summed, and not every chain.
+  const step = (written, wrote_back) => ({ ...counts({ written, wrote_back }), id: "s", n: 1, hand: null });
+  const fromReport = chainTotalsFromReport({
+    chains: [
+      {
+        root_id: ROOT_A,
+        name: "A",
+        state: "running",
+        search: null,
+        last_at: null,
+        runs: 2,
+        steps: [step(30, 4), step(10, 2)],
+      },
+    ],
+  });
+  assert.deepEqual(fromReport, { complete: false, by_root: { [ROOT_A]: { written: 40, wrote_back: 6 } } });
 });
