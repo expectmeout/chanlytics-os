@@ -23,7 +23,8 @@ import {
   type SellsBy,
 } from "@chanlytics/contracts";
 import { acceptOpenInvites, openInvitesFor } from "@/server/workspace/team";
-import { getOpenHandovers, getOwnPartner } from "@chanlytics/db";
+import { emitEvent, getOpenHandovers, getOwnPartner } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
 import { env } from "@/server/env";
@@ -253,5 +254,13 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
   // on the next read.
   const what = zone ? "That workspace's timezone" : "How that workspace's customers buy";
   if (!data?.length) throw new AppError("forbidden", `${what} could not be changed.`, 403);
+  // On the ledger as every other setting is (settings-write.ts): which of the two moved and who by, never the value.
+  // They live on the tenant's row, not in its config, so a save of them left no trace. As the service role: a session
+  // may not insert into events.
+  await emitEvent(serviceDb(), member.tenantId, "settings.changed", "workspace", member.tenantId, {
+    fields: Object.keys(patch).sort(),
+    by: ctx.userId,
+    version: null,
+  });
   return { workspace: data[0] };
 }

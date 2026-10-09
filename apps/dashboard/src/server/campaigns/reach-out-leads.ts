@@ -12,6 +12,8 @@ import type {
   ReachOutSearchLinesDto,
   ReachOutStopDto,
 } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import type { RouteContext } from "@/server/with-route";
 import { chainsOf, dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs";
 
@@ -43,8 +45,13 @@ export async function leadTimelineOf(
 }
 
 /** "Stop writing to them", as the caller: the door's answer, or its refusal in contracts' words. */
-export async function stopLead(ctx: Pick<RouteContext, "supabase">, leadId: string): Promise<ReachOutStopDto> {
-  const { data, error } = await ctx.supabase.rpc("reach_out_lead_stop", { p_lead_id: leadId });
+export async function stopLead(
+  ctx: Pick<RouteContext, "supabase" | "userId">,
+  lead: { id: string; tenant_id: string },
+): Promise<ReachOutStopDto> {
+  const { data, error } = await ctx.supabase.rpc("reach_out_lead_stop", { p_lead_id: lead.id });
   if (error) throw reachOutRefusal(error);
+  // On the ledger: a business stops hearing from the workspace because a member said so, and nothing recorded who.
+  await emitEvent(serviceDb(), lead.tenant_id, "reach_out.lead_stopped", "lead", lead.id, { by: ctx.userId });
   return dtoOf<ReachOutStopDto>(data);
 }

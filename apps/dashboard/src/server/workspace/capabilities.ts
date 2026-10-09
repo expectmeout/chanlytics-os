@@ -5,6 +5,8 @@
  */
 import { z } from "zod";
 import { AppError, CAPABILITY_KINDS, capabilityStatus, type CapabilityKind } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import { setupDtoFor } from "@/server/workspace/setup";
 import { tellOwnerLive } from "@/server/workspace/tell";
 import type { Member, Params } from "@/server/route";
@@ -49,6 +51,11 @@ export async function activateCapability(
     { onConflict: "tenant_id,capability" },
   );
   if (error) throw new Error(error.message);
+  // The row says who switched it on last; the ledger says each time, beside everything else an owner did.
+  await emitEvent(serviceDb(), member.tenantId, "capability.activated", "workspace", member.tenantId, {
+    capability: kind,
+    by: ctx.userId,
+  });
   const activations = [
     ...(dto.activations ?? []).filter((a) => a.capability !== kind),
     { capability: kind, activated_at: now, activated_by: ctx.userId, deactivated_at: null },
@@ -69,5 +76,9 @@ export async function deactivateCapability(ctx: RouteContext & { params: Params 
     .select("capability");
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) throw new AppError("conflict", "This capability was not activated.", 409);
+  await emitEvent(serviceDb(), member.tenantId, "capability.deactivated", "workspace", member.tenantId, {
+    capability: kind,
+    by: ctx.userId,
+  });
   return { capability: kind, deactivated_at: now };
 }

@@ -146,9 +146,6 @@
   "apps/dashboard/src/server/leads/lead-searches.ts": {
     "unknownAs": 3
   },
-  "apps/dashboard/src/server/metrics/activity.ts": {
-    "nonNull": 4
-  },
   "apps/dashboard/src/server/metrics/metrics.ts": {
     "unknownAs": 2
   },

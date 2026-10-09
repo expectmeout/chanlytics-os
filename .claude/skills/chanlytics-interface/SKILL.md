@@ -186,6 +186,23 @@ The badges (`docs/superpowers/specs/2026-09-23-one-badge-system-design.md`, and 
 "Needs you" is amber on every badge and in every sentence, red is for what failed, and the coral accent is for live
 and now alone. Words in a tone take its `-ink` token.
 
+Where the keys are, in two shapes (`tokens.css`):
+
+- a **box that is typed in or picked from** (an input, a textarea, a select's box, a combobox, a search capsule) turns
+  its hairline the accent and wears `--focus-field`, a soft wash of the accent; a capsule with no border of its own
+  wears `--focus-field-edged`, which draws the hairline too. One quiet line: a box takes focus from a pointer as well,
+  so it never wears the keyboard's ring (Ruben, 8 Oct 2026: two coral outlines on every list pressed);
+- a **button, a row, a tab, a chip or a door** wears `--focus-ring`, on `:focus-visible` alone, so only a keyboard
+  draws it.
+
+What pops from a control (a `Panel variant="pop"`: the Select's, Combobox's and Picker's list, a date picker's month, a
+Popover) is lit glass on `--surface-pop-glass`: the control layer's sheen, blur, specular edge and depth, no hairline,
+on the pop's fill at 88%. Not the control layer's own fill (the capsules' and the action menu's, 8.5 to 50%): over a
+list of rows it lets their amber and red through as a smear, and over Reports' headline it read through the period's
+month. An option under a pointer or a key is a lozenge in `--accent-soft`, as a menu's item is; a box that opens a list
+lifts to `--selected-fill` under a pointer and while its list is open. Both fall back to the solid where the browser
+draws no blur or less transparency is asked for (`tokens.css`).
+
 ## What the kit already answers
 
 The families the plan found built more than once (its Appendix A), with what a page takes instead. A legacy page draws

@@ -14,5 +14,5 @@ export const POST = write({
   role: "operator",
   rate: "playbook",
   input: ReachOutDecideSchema,
-  handle: ({ ctx, row, input }) => decideSend(ctx, row.id, input.decision),
+  handle: ({ ctx, row, input }) => decideSend(ctx, row, input.decision),
 });

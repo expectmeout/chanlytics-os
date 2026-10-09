@@ -2643,9 +2643,9 @@ function reachOutStepOf(name) {
   const parts2 = /^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/.exec(hex);
   return parts2 ? parts2.slice(1).join("-") : null;
 }
-function versionsOf(rows, name) {
+function versionsOf(rows2, name) {
   const out = { whatsapp: [], email: [], sms: [] };
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (r2.name !== name || isReachOutRow(r2)) continue;
     if (VERSION_CHANNELS.includes(r2.channel)) out[r2.channel].push(r2);
   }
@@ -4963,8 +4963,8 @@ function stepDays(nowMs, tz) {
   return out;
 }
 var TODAY_STEPS_MAX = 3;
-function todayStepsDue(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
-  const due = rows.map((row2) => {
+function todayStepsDue(rows2, nowMs, tz, max = TODAY_STEPS_MAX) {
+  const due = rows2.map((row2) => {
     const s = row2.nextStep;
     const day = dueStepDay(s, tz, nowMs);
     return s && day ? { row: row2, step: { ...s, day, due: day.due } } : null;
@@ -5018,14 +5018,14 @@ function waitingOnProposal(r2, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r2);
 }
-function eachOpenProposal(rows) {
-  return rows.flatMap((r2) => {
+function eachOpenProposal(rows2) {
+  return rows2.flatMap((r2) => {
     const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
     return open.filter((d) => d.stage === "proposed").map((d) => ({ ...r2, deal: d }));
   });
 }
-function proposalsWaiting(rows, nowMs, pace) {
-  return rows.filter((r2) => waitingOnProposal(r2, nowMs, pace));
+function proposalsWaiting(rows2, nowMs, pace) {
+  return rows2.filter((r2) => waitingOnProposal(r2, nowMs, pace));
 }
 
 // src/deals/pipeline/pipeline-vm.ts
@@ -5034,11 +5034,11 @@ function pipelineRowId(personId, dealKey) {
   return dealKey === null ? personId : `${personId}_${dealKey}`;
 }
 function pipelineRowNow(vm, rowId) {
-  const rows = vm.groups.flatMap((g) => g.rows);
-  if (rows.some((row2) => row2.id === rowId)) return rowId;
+  const rows2 = vm.groups.flatMap((g) => g.rows);
+  if (rows2.some((row2) => row2.id === rowId)) return rowId;
   const at3 = rowId.indexOf("_");
   const deal = at3 < 0 ? null : rowId.slice(at3 + 1);
-  return deal && rows.find((row2) => row2.deal?.id === deal)?.id || null;
+  return deal && rows2.find((row2) => row2.deal?.id === deal)?.id || null;
 }
 function pipelinePersonOf(rowId) {
   const at3 = rowId.indexOf("_");
@@ -7837,9 +7837,9 @@ function leadAskedFor(search) {
     ...plan.exclusions.map((e) => ({ text: e.text, kind: "exclusion" }))
   ];
 }
-function leadReviewGroups(rows, search) {
+function leadReviewGroups(rows2, search) {
   const by = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (r2.cls !== "review") continue;
     const reasons = r2.reasons ?? [];
     const held = reasons.map(reviewGroupOf).filter((g2) => g2 !== null && g2 !== "checks_out");
@@ -7857,8 +7857,8 @@ function leadReviewGroups(rows, search) {
 }
 var M_PER_DEG_LAT = 111320;
 var LEAD_MAP_MAX_SPAN_M = 8e4;
-function leadMapPlot(rows, area) {
-  const placed = rows.filter((r2) => !!r2.point);
+function leadMapPlot(rows2, area) {
+  const placed = rows2.filter((r2) => !!r2.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
   if (!anchor || !placed.length && !area?.center)
     return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
@@ -7905,7 +7905,7 @@ function delimiterOf(text) {
 function parseCsv(text) {
   const s = text.charCodeAt(0) === 65279 ? text.slice(1) : text;
   const sep = delimiterOf(s);
-  const rows = [];
+  const rows2 = [];
   let row2 = [];
   let cell = "";
   let quoted = false;
@@ -7913,7 +7913,7 @@ function parseCsv(text) {
   let rowStartLine = 1;
   const pushRow = () => {
     Object.defineProperty(row2, "line", { value: rowStartLine, enumerable: false });
-    rows.push(row2);
+    rows2.push(row2);
   };
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
@@ -7958,7 +7958,7 @@ function parseCsv(text) {
     row2.push(cell);
     pushRow();
   }
-  return rows.filter((r2) => r2.some((c) => c.trim() !== ""));
+  return rows2.filter((r2) => r2.some((c) => c.trim() !== ""));
 }
 var NAME_WORDS = /^(name|full ?name|client|client ?name|customer|customer ?name|first ?name|given ?name|nombre)$/i;
 var LAST_WORDS = /^(last ?name|surname|family ?name|apellidos?)$/i;
@@ -7971,10 +7971,10 @@ function isHeaderRow(first) {
   return first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
 }
 var COLUMN_SHARE = 0.6;
-function columnShare(rows, col, is) {
+function columnShare(rows2, col, is) {
   let seen = 0;
   let hit = 0;
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const v = (r2[col] ?? "").trim();
     if (!v) continue;
     seen += 1;
@@ -7982,11 +7982,11 @@ function columnShare(rows, col, is) {
   }
   return seen ? hit / seen : 0;
 }
-function matchColumns(rows) {
-  const first = rows[0] ?? [];
-  const width = rows.reduce((w, r2) => Math.max(w, r2.length), 0);
+function matchColumns(rows2) {
+  const first = rows2[0] ?? [];
+  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
   const header = isHeaderRow(first);
-  const body = header ? rows.slice(1) : rows;
+  const body = header ? rows2.slice(1) : rows2;
   const columns = { name: null, last: null, phone: null, email: null };
   if (header) {
     first.forEach((h, i) => {
@@ -8015,9 +8015,9 @@ function matchColumns(rows) {
   }
   return { columns, header };
 }
-function importRowsOf(rows, columns, header) {
+function importRowsOf(rows2, columns, header) {
   const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
-  return (header ? rows.slice(1) : rows).map((r2, n) => {
+  return (header ? rows2.slice(1) : rows2).map((r2, n) => {
     const name = Array.from(
       [cell(r2, columns.name), cell(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ")
     ).slice(0, 80).join("").trim();
@@ -8030,12 +8030,12 @@ function importRowsOf(rows, columns, header) {
     };
   });
 }
-function importCounts(rows) {
+function importCounts(rows2) {
   return {
-    rows: rows.length,
-    withPhone: rows.filter((r2) => r2.phone).length,
-    withEmail: rows.filter((r2) => r2.email).length,
-    unreadable: rows.filter((r2) => !r2.phone && !r2.email).length
+    rows: rows2.length,
+    withPhone: rows2.filter((r2) => r2.phone).length,
+    withEmail: rows2.filter((r2) => r2.email).length,
+    unreadable: rows2.filter((r2) => !r2.phone && !r2.email).length
   };
 }
 
@@ -8066,11 +8066,11 @@ function regionOf(raw) {
   if (/^[A-Za-z]{2}$/.test(s) && codes.has(s.toUpperCase())) return s.toUpperCase();
   return US_STATES[s.toLowerCase()] ?? null;
 }
-function leadImportColumns(rows) {
-  const first = rows[0] ?? [];
-  const width = rows.reduce((w, r2) => Math.max(w, r2.length), 0);
+function leadImportColumns(rows2) {
+  const first = rows2[0] ?? [];
+  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
   const header = isHeaderRow(first);
-  const body = header ? rows.slice(1) : rows;
+  const body = header ? rows2.slice(1) : rows2;
   const columns = {
     name: null,
     email: null,
@@ -8111,7 +8111,7 @@ function leadImportPlanOf(text) {
   const { columns, header } = leadImportColumns(cells);
   const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
   const words3 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
-  const rows = (header ? cells.slice(1) : cells).map((r2, n) => {
+  const rows2 = (header ? cells.slice(1) : cells).map((r2, n) => {
     const carried = r2.line;
     return {
       line: carried ?? n + (header ? 2 : 1),
@@ -8128,12 +8128,12 @@ function leadImportPlanOf(text) {
     columns,
     header,
     headers: header ? cells[0] ?? [] : [],
-    rows,
+    rows: rows2,
     counts: {
-      rows: rows.length,
-      ready: rows.filter(leadImportReady).length,
-      noEmail: rows.filter((r2) => !r2.email).length,
-      noName: rows.filter((r2) => !!r2.email && !r2.name).length
+      rows: rows2.length,
+      ready: rows2.filter(leadImportReady).length,
+      noEmail: rows2.filter((r2) => !r2.email).length,
+      noName: rows2.filter((r2) => !!r2.email && !r2.name).length
     }
   };
 }
@@ -9231,10 +9231,10 @@ var builtinByToken = (token2) => {
   const ref = parseListToken(token2);
   return ref && ref.kind === "builtin" ? BUILTIN_LISTS.find((l) => l.id === ref.id) ?? null : null;
 };
-function listMembers(list2, rows, ctx, lookup = () => null) {
+function listMembers(list2, rows2, ctx, lookup = () => null) {
   if (list2.rule == null) {
     const on = new Set(list2.ids);
-    return { state: "ok", ids: new Set(rows.filter((v) => on.has(v.id)).map((v) => v.id)) };
+    return { state: "ok", ids: new Set(rows2.filter((v) => on.has(v.id)).map((v) => v.id)) };
   }
   const rule2 = asListRule(list2.rule);
   if (!rule2) return { state: "unknown", reason: "rule" };
@@ -9246,15 +9246,15 @@ function listMembers(list2, rows, ctx, lookup = () => null) {
     const other = b ? { rule: b.rule, ids: [], readable: true } : lookup(token2);
     if (!other || !other.readable) return { state: "unknown", reason: "list" };
     if (other.rule && ruleLists(other.rule).length) return { state: "unknown", reason: "list" };
-    const m = listMembers(other, rows, ctx);
+    const m = listMembers(other, rows2, ctx);
     if (m.state === "unknown") return m;
     read.set(token2, m.ids);
   }
   const inList = (token2, id) => read.get(token2)?.has(id) ?? false;
-  return { state: "ok", ids: new Set(rows.filter((v) => listRuleMatches(rule2, v, inList)).map((v) => v.id)) };
+  return { state: "ok", ids: new Set(rows2.filter((v) => listRuleMatches(rule2, v, inList)).map((v) => v.id)) };
 }
-function savedListIds(list2, rows, ctx, lookup = () => null) {
-  const m = listMembers(list2, rows, ctx, lookup);
+function savedListIds(list2, rows2, ctx, lookup = () => null) {
+  const m = listMembers(list2, rows2, ctx, lookup);
   return m.state === "ok" ? m.ids : /* @__PURE__ */ new Set();
 }
 function savedListLookup(saved) {
@@ -9333,9 +9333,9 @@ function resolveList(ref, saved) {
   const l = saved.find((x) => x.id.toLowerCase() === ref.id.toLowerCase());
   return l ? savedDef(l, savedListLookup(saved)) : null;
 }
-function membersOf(def, rows, ctx, saved = []) {
+function membersOf(def, rows2, ctx, saved = []) {
   if (!def.readable) return { state: "unknown", reason: "rule" };
-  return listMembers(def.byHand ? { ids: def.ids } : { ids: [], rule: def.rule }, rows, ctx, savedListLookup(saved));
+  return listMembers(def.byHand ? { ids: def.ids } : { ids: [], rule: def.rule }, rows2, ctx, savedListLookup(saved));
 }
 function listUnknownWords(reason, calendar) {
   switch (reason) {
@@ -12467,7 +12467,7 @@ function broadcastStep(cta, to, members) {
     enabled: true
   };
 }
-function peopleAggregates(rows, nowMs) {
+function peopleAggregates(rows2, nowMs) {
   let needsYou = 0;
   let oldest = null;
   let newThisMonth = 0;
@@ -12475,7 +12475,7 @@ function peopleAggregates(rows, nowMs) {
   let reachedWeekNew = 0;
   let booked = 0;
   let askedNotBooked = 0;
-  for (const v of rows) {
+  for (const v of rows2) {
     if (v.booked) booked++;
     if (v.askedNotBooked) askedNotBooked++;
     if (v.state === "needs_you") {
@@ -12489,7 +12489,7 @@ function peopleAggregates(rows, nowMs) {
     }
   }
   return {
-    total: rows.length,
+    total: rows2.length,
     needsYou,
     needsYouOldestMs: oldest,
     newThisMonth,
@@ -12509,9 +12509,9 @@ var RECENCY_BUCKETS = [
   { label: "3m", max: 90 },
   { label: "older", max: Infinity }
 ];
-function recencyCells(rows, nowMs) {
+function recencyCells(rows2, nowMs) {
   const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
-  for (const v of rows) {
+  for (const v of rows2) {
     const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
     let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
     if (i === -1) i = cells.length - 1;
@@ -12899,9 +12899,9 @@ function reachFor(r2, purpose, o) {
   }
   return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
 }
-function reachSplit(rows, purpose, o) {
+function reachSplit(rows2, purpose, o) {
   const out = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const p = reachFor(r2, purpose, o);
     if (p.channel) {
       out.reached += 1;
@@ -13293,12 +13293,12 @@ function doorNamesNoAudience(to, audiences) {
   return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
 }
 var UNKNOWN_AUDIENCE_WORDS = "That list can't be messaged right now, so check who this is addressed to before you send.";
-function eligibleFor(rows, kind, id, savedIds, purpose, how) {
-  return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
+function eligibleFor(rows2, kind, id, savedIds, purpose, how) {
+  return enrolFor(rows2, kind, id, savedIds, purpose, how).map((e) => e.row);
 }
-function enrolFor(rows, kind, id, savedIds, purpose, how) {
+function enrolFor(rows2, kind, id, savedIds, purpose, how) {
   const out = [];
-  for (const row2 of audienceMembers(rows, kind, id, savedIds)) {
+  for (const row2 of audienceMembers(rows2, kind, id, savedIds)) {
     const p = reachFor(row2, purpose, how);
     if (p.channel) out.push({ row: row2, channel: p.channel });
   }
@@ -13343,13 +13343,13 @@ function heldBackWords(channels) {
   const reach = lacks.length > 0 ? [`have ${lacks.join(" or ")}`] : [];
   return `people who ${["asked to stop", ...reach].join(", ")}, or are mid-thread with a person are held back at the wire`;
 }
-function audienceMembers(rows, kind, id, savedIds) {
+function audienceMembers(rows2, kind, id, savedIds) {
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
-    return l ? rows.filter(l.test) : [];
+    return l ? rows2.filter(l.test) : [];
   }
-  if (kind === "saved") return savedIds ? rows.filter((r2) => savedIds.has(r2.id)) : [];
-  return rows;
+  if (kind === "saved") return savedIds ? rows2.filter((r2) => savedIds.has(r2.id)) : [];
+  return rows2;
 }
 function heardWords(n) {
   if (n <= 0) return null;
@@ -13359,8 +13359,8 @@ function previewPerson(r2, refusal, channel) {
   return { id: r2.id, label: r2.name, firstName: firstNameOf(r2.givenName, r2.waName), refusal, channel };
 }
 var NO_ONE = /* @__PURE__ */ new Set();
-function audiencePreview(rows, kind, id, savedIds, purpose, how, limit = 5, touched = NO_ONE) {
-  const pool = audienceMembers(rows, kind, id, savedIds);
+function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touched = NO_ONE) {
+  const pool = audienceMembers(rows2, kind, id, savedIds);
   const picks = pool.map((r2) => ({ r: r2, p: reachFor(r2, purpose, how) }));
   const sending = picks.filter((x) => x.p.channel !== null);
   const held = picks.filter((x) => x.p.channel === null);
@@ -13545,10 +13545,10 @@ function consentAnswerWords(consent, purpose) {
   if (consent === "opted_in") return purpose === "marketing" ? "said yes to offers" : "said yes to hearing from you";
   return purpose === "marketing" ? "stopped offers, not messages" : "asked to stop hearing from you";
 }
-function answersWords(rows, consent) {
-  const byEmail = rows.filter((r2) => r2.consent_purpose === "email_marketing").length;
-  const offers = byEmail + rows.filter((r2) => r2.consent_purpose === "marketing").length;
-  const rest = rows.length - offers;
+function answersWords(rows2, consent) {
+  const byEmail = rows2.filter((r2) => r2.consent_purpose === "email_marketing").length;
+  const offers = byEmail + rows2.filter((r2) => r2.consent_purpose === "marketing").length;
+  const rest = rows2.length - offers;
   if (rest === 0 && byEmail === offers) return consentAnswerWords(consent, "email_marketing");
   if (offers === 0 || rest === 0) return consentAnswerWords(consent, offers > 0 ? "marketing" : "conversational");
   return consent === "opted_in" ? `${offers} to offers \xB7 ${rest} to hearing from you` : `${offers} stopped offers \xB7 ${rest} stopped everything`;
@@ -14003,10 +14003,10 @@ var PREVIEW_CHANNEL_WORDS = {
   sms: capitalised2(CONSENT_CHANNEL_WORDS.sms),
   email: capitalised2(CONSENT_CHANNEL_WORDS.email)
 };
-function previewVersionsOf(rows, name, language) {
+function previewVersionsOf(rows2, name, language) {
   const out = {};
   for (const channel of OWN_VERSION_CHANNELS) {
-    const row2 = rows.find((r2) => r2.channel === channel && r2.name === name && r2.language === language);
+    const row2 = rows2.find((r2) => r2.channel === channel && r2.name === name && r2.language === language);
     if (row2) out[channel] = versionWords(row2);
   }
   return out;
@@ -15143,8 +15143,8 @@ function dealFactsOf(r2) {
     lost_reason: r2.deal_lost_reason ?? null
   };
 }
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
+function pickCurrentDeal(rows2) {
+  const sorted = [...rows2].sort(
     (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
   );
   return sorted[0] ?? null;
@@ -15319,9 +15319,9 @@ function dealStagesOf(stage, open) {
   const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
   return [...new Set(stage ? [stage, ...theirs] : theirs)];
 }
-function consultationsWithoutProposal(rows, nowMs) {
+function consultationsWithoutProposal(rows2, nowMs) {
   const endOf = (r2) => r2.consultedMs;
-  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
+  return rows2.filter((r2) => consultationHeld(r2, nowMs)).sort(
     (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
   );
 }
@@ -15353,10 +15353,10 @@ function feedAppointmentRows(items, o) {
   return [...out.values()];
 }
 var OFF = /* @__PURE__ */ new Set(["missed", "cancelled"]);
-function appointmentHolds(rows, facts) {
+function appointmentHolds(rows2, facts) {
   const key = typeof facts.appointment === "string" ? facts.appointment : null;
   const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
-  const row2 = key ? rows.get(key) : void 0;
+  const row2 = key ? rows2.get(key) : void 0;
   if (!row2 || !Number.isFinite(start)) return true;
   if (OFF.has(row2.status)) return false;
   const read = typeof facts.appointment_read_at === "string" ? Date.parse(facts.appointment_read_at) : NaN;
@@ -15364,9 +15364,9 @@ function appointmentHolds(rows, facts) {
   if (row2.vanished_at !== null && Date.parse(row2.vanished_at) > read) return false;
   return Date.parse(row2.starts_at) === start || !(Date.parse(row2.updated_at) > read);
 }
-function appointmentKeysOf(rows) {
+function appointmentKeysOf(rows2) {
   const keys = /* @__PURE__ */ new Set();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const f = r2.facts;
     if (f && typeof f === "object" && !Array.isArray(f)) {
       const k = f.appointment;
@@ -15481,8 +15481,8 @@ function appointmentTitle(row2) {
   const parts2 = [row2.service, row2.client_name].map((s) => s?.trim()).filter((s) => !!s);
   return parts2.length ? parts2.join(" \xB7 ") : APPOINTMENT_UNTITLED;
 }
-function busyOfAppointments(rows) {
-  return rows.map((r2) => ({ start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) }));
+function busyOfAppointments(rows2) {
+  return rows2.map((r2) => ({ start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) }));
 }
 function feedItemOfAppointment(row2) {
   return {
@@ -15531,11 +15531,11 @@ function itemOfAppointment(row2, people) {
     price: row2.price
   };
 }
-function withoutVisitsRowsDraw(items, rows, own) {
-  if (!rows.length) return items;
+function withoutVisitsRowsDraw(items, rows2, own) {
+  if (!rows2.length) return items;
   const byPhone = /* @__PURE__ */ new Map();
   const byEmail = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const at3 = Date.parse(r2.starts_at);
     if (r2.client_phone) byPhone.set(r2.client_phone, [...byPhone.get(r2.client_phone) ?? [], at3]);
     if (r2.client_email) byEmail.set(r2.client_email.toLowerCase(), [...byEmail.get(r2.client_email) ?? [], at3]);
@@ -15548,9 +15548,9 @@ function withoutVisitsRowsDraw(items, rows, own) {
     return !same2;
   });
 }
-function daysWithAppointments(days, rows, tz, people) {
-  if (!rows.length) return days;
-  const items = rows.map((r2) => ({
+function daysWithAppointments(days, rows2, tz, people) {
+  if (!rows2.length) return days;
+  const items = rows2.map((r2) => ({
     at: { start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) },
     item: itemOfAppointment(r2, people)
   }));
@@ -16171,7 +16171,56 @@ var EVENT_KINDS = [
    * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
    * log unless asked for by name, since a calendar read writes one per appointment.
    */
-  "appointment.changed"
+  "appointment.changed",
+  /**
+   * What a member did, or the receptionist, that neither ledger kept (the activity log's review, 8 Oct 2026). Each
+   * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
+   *
+   * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
+   * thread writes it (packages/jobs upsertEscalation, the one writer), once per hold; a reason that changes under an
+   * open hold is escalation.changed.
+   */
+  "escalation.opened",
+  /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
+  "member.joined",
+  /** A playbook, or a reach-out's chain, edited ({ name, by, fields }: which parts moved, never their words). */
+  "playbook.changed",
+  /** A message sent to WhatsApp for approval, and one deleted from the Library ({ name, language, by }). */
+  "template.submitted",
+  "template.removed",
+  /** The owner switched what the workspace answers on or off ({ capability, by }: calls, WhatsApp or texts). */
+  "capability.activated",
+  "capability.deactivated",
+  /** A person left the workspace by deleting their account ({ by, how }): the seat is gone, and so is its name. */
+  "member.left",
+  /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
+  "reach_out.lead_stopped",
+  "reach_out.send_decided",
+  /** A place in Needs review kept (it counts against the month), left out, or put back ({ by, search_id }), on the lead. */
+  "lead.kept",
+  "lead.excluded",
+  "lead.put_back",
+  /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
+  "lead.search_renamed",
+  "lead.search_removed",
+  /** Two records a doubt named, said to be two people ({ by }), on the person. */
+  "contact.kept_apart",
+  /** The number a business keeps set to forward to its line ({ carrier, mode, by }: never the number), on the line. */
+  "line.forwarding_set",
+  /**
+   * A booking tool's email, read into the calendar (packages/jobs booking-read): a visit booked, moved or cancelled
+   * ({ source: "booking_email", tool }), on the appointment. Shown, where appointment.changed (the calendar's hourly
+   * read) is a kept record: an email is one thing that happened, said once.
+   */
+  "appointment.booked",
+  "appointment.moved",
+  "appointment.cancelled",
+  /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
+  "conversation.owner_replied",
+  /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */
+  "billing.payment_failed",
+  "billing.paid",
+  "billing.trial_ending"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
@@ -16569,14 +16618,14 @@ var trimmed = (v) => {
   return s || null;
 };
 var activeChannel = (known, kind) => {
-  const rows = known?.channels ?? [];
-  const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
+  const rows2 = known?.channels ?? [];
+  const row2 = rows2.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
 var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r2) => trimmed(r2.from_e164) && samePhone(r2.to_e164, line))?.from_e164) : null;
-function knownForwarding(rows) {
+function knownForwarding(rows2) {
   const out = [];
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const from = trimmed(r2.e164);
     if (r2.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r2.forwarding?.destination_e164 ?? null });
   }
@@ -17904,7 +17953,7 @@ function abilityRows(i) {
   const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = !i.hasBookingLink ? i.linkOptional ? "No booking link, so it takes their details for you to follow up with a quote." : "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  const rows = [
+  const rows2 = [
     {
       id: "answer",
       title: "Answer from your facts",
@@ -17985,7 +18034,7 @@ function abilityRows(i) {
     door: "Your Autonomy tab",
     to: "admin/autonomy"
   } : null;
-  return { rows, held };
+  return { rows: rows2, held };
 }
 var CANNOT_ROWS = [
   {
@@ -18206,8 +18255,8 @@ function promptBlocks(text, channel, from) {
 }
 
 // src/google/review-reply.ts
-function reviewReplyModeOf(rows) {
-  const m = rows?.find((r2) => r2.class === "reviews")?.mode;
+function reviewReplyModeOf(rows2) {
+  const m = rows2?.find((r2) => r2.class === "reviews")?.mode;
   return m === "auto" || m === "never" ? m : "ask";
 }
 var REVIEW_REPLY_MAX_WORDS = 60;
@@ -18272,10 +18321,10 @@ var REVIEW_HELD_WORDS = { price: "it named a price", money: "it named money" };
 function reviewHeldWords(why) {
   return why != null && Object.hasOwn(REVIEW_HELD_WORDS, why) ? REVIEW_HELD_WORDS[why] ?? null : null;
 }
-function autoReplyCandidates(rows, connectedAt, nowMs, cap2 = REVIEW_AUTO_REPLIES_PER_SYNC) {
+function autoReplyCandidates(rows2, connectedAt, nowMs, cap2 = REVIEW_AUTO_REPLIES_PER_SYNC) {
   const connected = connectedAt ? Date.parse(connectedAt) : NaN;
   if (Number.isNaN(connected)) return [];
-  return rows.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at3 }) => !Number.isNaN(at3) && at3 > connected && nowMs - at3 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap2)).map(({ r: r2 }) => r2);
+  return rows2.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at3 }) => !Number.isNaN(at3) && at3 > connected && nowMs - at3 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap2)).map(({ r: r2 }) => r2);
 }
 function autoReplyBell(answered) {
   if (!answered.length) return null;
@@ -18342,13 +18391,13 @@ function holdOf(replies) {
 }
 function spanCounts(spans, seconds2) {
   const rounded = seconds2.map(Math.round);
-  const rows = [];
+  const rows2 = [];
   let lo = -Infinity;
   for (const { id, label, max } of spans) {
-    rows.push([id, label, rounded.filter((s) => s > lo && s <= max).length]);
+    rows2.push([id, label, rounded.filter((s) => s > lo && s <= max).length]);
     lo = max;
   }
-  return rows;
+  return rows2;
 }
 function holdBuckets(replies) {
   const all = classified(replies);
@@ -19024,10 +19073,10 @@ function toGoogleReviewVM(r2, linkedAt, tz, nowMs) {
     fromProfile: r2.origin === "profile"
   };
 }
-function googleReviewsTable(rows) {
+function googleReviewsTable(rows2) {
   return {
     columns: ["Reviewer", "Stars", "Written", "Words"],
-    rows: rows.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"])
+    rows: rows2.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"])
   };
 }
 var NEEDS_SECOND_READING = "needs a second day of reading";
@@ -20395,16 +20444,16 @@ function toDealReportVM(dto, rangeLabel) {
 
 // src/deals/pace.ts
 var SAME_SITTING_MS = HOUR_MS;
-function yesWaits(rows) {
-  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS)).sort((a, b) => a - b);
+function yesWaits(rows2) {
+  return rows2.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS)).sort((a, b) => a - b);
 }
 function medianWait(waits) {
   const m = quantile([...waits], 0.5);
   return m === null ? null : Math.round(m);
 }
-function dealPaceFrom(rows, nowMs) {
+function dealPaceFrom(rows2, nowMs) {
   const since = nowMs - PACE_WINDOW_DAYS * DAY_MS;
-  const waits = yesWaits(rows.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
+  const waits = yesWaits(rows2.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
   return { median_days: medianWait(waits), yeses: waits.length };
 }
 
@@ -21063,8 +21112,8 @@ var LEAD_MAP_STATE_WORDS = {
   ready: LEAD_STAGE_WORDS.ready,
   out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
 };
-function leadMapLegend(rows) {
-  const present = new Set(rows.map((r2) => r2.state));
+function leadMapLegend(rows2) {
+  const present = new Set(rows2.map((r2) => r2.state));
   return LEAD_MAP_LEGEND_ORDER.filter((s) => present.has(s)).map((state) => ({
     state,
     tone: leadPinTone({ state }),
@@ -21325,13 +21374,13 @@ function touchesAfterRun(touches, run, people) {
   byThis.set(run.playbookId, mine);
   return { byThis, byAny, followUps, followUpKeys };
 }
-function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
-  return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
+function eligibleForPlaybook(rows2, p, touches, nowMs, pace, listIds = null) {
+  return playbookRunReach(rows2, p, touches, nowMs, pace, listIds).eligible;
 }
 var savedNameOf = (r2) => r2.givenName ?? r2.waName;
-function fullNameHolders(rows) {
+function fullNameHolders(rows2) {
   const holders = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const key = fullNameKey(savedNameOf(r2));
     if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
   }
@@ -21347,8 +21396,8 @@ function visitOnDay(v, day, side, theirs) {
   );
   return (side === "next" ? onDay[0] : onDay[onDay.length - 1]) ?? null;
 }
-function theirVisitTest(rows) {
-  const holders = fullNameHolders(rows);
+function theirVisitTest(rows2) {
+  const holders = fullNameHolders(rows2);
   return (r2, via) => visitIsTheirs(r2, via, holders);
 }
 function visitIsTheirs(r2, via, holders) {
@@ -21356,7 +21405,7 @@ function visitIsTheirs(r2, via, holders) {
   const key = fullNameKey(savedNameOf(r2));
   return key !== null && holders.get(key) === 1;
 }
-function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
+function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
     will: 0,
@@ -21383,21 +21432,21 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
     at: touches.followUps.get(id),
     keys: touches.followUpKeys.get(id)
   });
-  const theirs = theirVisitTest(t.kind === "visit" ? rows : []);
+  const theirs = theirVisitTest(t.kind === "visit" ? rows2 : []);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
     // theirs (visitIsTheirs).
-    rows.filter((r2) => {
+    rows2.filter((r2) => {
       if (!r2.calendarTz) return false;
       const day = visitMomentDay(p.trigger, r2.calendarTz, nowMs);
       const onDay = r2.visitDays.some((d) => d.date === day && theirs(r2, d.via));
       if (p.trigger === "visit_tomorrow") return onDay;
       return onDay && !r2.booked;
     })
-  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.flatMap((r2) => {
+  ) : t.kind === "saved" ? audienceMembers(rows2, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows2.flatMap((r2) => {
     const d = followUpDealOf(r2, nowMs, pace, hadOf(r2.id));
     return d ? [{ ...r2, deal: d }] : [];
-  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  }) : audienceMembers(rows2, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r2) => saidYesOnAny(r2, purpose, how)).length;
   const done = (eligible2) => {
@@ -22335,9 +22384,9 @@ function openOf(r2) {
   return r2.deal && dealIsOpen(r2.deal) ? [r2.deal] : [];
 }
 var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
-function bandsOf(rows, heldSet, nowMs) {
+function bandsOf(rows2, heldSet, nowMs) {
   const out = { ahead: [], proposals: [], clients: [], closed: [] };
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const held = heldSet.has(r2);
     const stage = held ? "consultation" : dealStageOf(r2, nowMs);
     const aheadOf = !held && stage === "consultation" ? r2.consultAhead : null;
@@ -22355,9 +22404,9 @@ function bandsOf(rows, heldSet, nowMs) {
   }
   return out;
 }
-function pipelineOf(rows, nowMs, tz, pace, view = "all") {
-  const held = consultationsWithoutProposal(rows, nowMs);
-  const { ahead, proposals, clients, closed } = bandsOf(rows, new Set(held), nowMs);
+function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
+  const held = consultationsWithoutProposal(rows2, nowMs);
+  const { ahead, proposals, clients, closed } = bandsOf(rows2, new Set(held), nowMs);
   const lapsed = proposals.filter((x) => !!x.d.validUntil?.lapsed);
   const waits = (x) => waitingOnProposal({ deal: x.d, askedMs: x.r.askedMs }, nowMs, pace);
   const waiting = proposals.filter(waits).length;
@@ -22516,11 +22565,11 @@ function pipelineSorted(vm, by, dir) {
   return { ...vm, groups };
 }
 var PIPELINE_PASS_MAX = 50;
-function pipelinePassMany(rows) {
-  const out = rows.filter((r2) => r2.deal && r2.deal.stage === "proposed" && r2.deal.id).map((r2) => ({ personId: r2.id, dealId: r2.deal.id, rowId: r2.rowId ?? r2.id }));
+function pipelinePassMany(rows2) {
+  const out = rows2.filter((r2) => r2.deal && r2.deal.stage === "proposed" && r2.deal.id).map((r2) => ({ personId: r2.id, dealId: r2.deal.id, rowId: r2.rowId ?? r2.id }));
   const deals = out.slice(0, PIPELINE_PASS_MAX);
   const later = out.length - deals.length;
-  const k = rows.length - out.length;
+  const k = rows2.length - out.length;
   return {
     deals,
     button: deals.length ? `${PIPELINE_WORDS.pass.button} \xB7 ${deals.length}` : null,
@@ -22883,7 +22932,7 @@ function domainRecordRows(d) {
     if (n === host) return "@";
     return n.endsWith(`.${host}`) ? n.slice(0, -(host.length + 1)) : n;
   };
-  const rows = d.records.map((r2) => {
+  const rows2 = d.records.map((r2) => {
     const name = relative(r2.name);
     return {
       kind: r2.type === "MX" ? "Return path" : KIND_OF_RECORD[r2.label] ?? r2.label,
@@ -22896,7 +22945,7 @@ function domainRecordRows(d) {
     };
   });
   if (d.dmarc !== "found")
-    rows.push({
+    rows2.push({
       kind: "Policy (DMARC)",
       type: "TXT",
       name: "_dmarc",
@@ -22905,7 +22954,7 @@ function domainRecordRows(d) {
       found: false,
       key: "_dmarc-TXT"
     });
-  return rows;
+  return rows2;
 }
 function domainRecordsIntro(host) {
   return `These records tell Gmail and others that Chanlytics may send as ${host}. Add each one where you bought the domain, then press Check.`;
@@ -23265,8 +23314,8 @@ var LeadChooseSchema = z12.object({
 
 // src/lines/channels.ts
 var channelIsOn = (c) => typeof c.on === "boolean" ? c.on : (c.status ?? "active") === "active";
-function channelFor(rows, kind) {
-  const mine = rows.filter((c) => c.kind === kind);
+function channelFor(rows2, kind) {
+  const mine = rows2.filter((c) => c.kind === kind);
   if (mine.length === 0) return null;
   const on = mine.filter(channelIsOn);
   const pool = on.length > 0 ? on : mine;
@@ -24487,7 +24536,7 @@ function titleWithoutLanguage(title, code2) {
   return title;
 }
 function inboxTemplates(templates, to) {
-  const rows = [];
+  const rows2 = [];
   let promotions = 0;
   let unfillable = 0;
   const refused = [];
@@ -24505,14 +24554,14 @@ function inboxTemplates(templates, to) {
       promotions += 1;
       continue;
     }
-    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
+    rows2.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
   }
   const isDefault = (r2) => languageBase(r2.template.language) === "en";
-  const named = [...new Set(rows.map((r2) => r2.template.name))];
-  const inDefault = (name) => rows.some((r2) => r2.template.name === name && isDefault(r2));
+  const named = [...new Set(rows2.map((r2) => r2.template.name))];
+  const inDefault = (name) => rows2.some((r2) => r2.template.name === name && isDefault(r2));
   const names3 = [...named.filter(inDefault), ...named.filter((name) => !inDefault(name))];
   const ordered = names3.flatMap((name) => {
-    const own = rows.filter((r2) => r2.template.name === name);
+    const own = rows2.filter((r2) => r2.template.name === name);
     return [...own.filter(isDefault), ...own.filter((r2) => !isDefault(r2))];
   });
   const reads = (title) => ordered.filter((r2) => r2.title === title).length;
@@ -26825,12 +26874,12 @@ function whatsappVersionOf(row2) {
     reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
   };
 }
-function messageFrom(name, language, rows) {
+function messageFrom(name, language, rows2) {
   const {
     whatsapp: [w = null],
     email: [e = null],
     sms: [s = null]
-  } = versionsOf(rows, name);
+  } = versionsOf(rows2, name);
   const anchorRow = w ?? e ?? s;
   if (anchorRow === null) return null;
   const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
@@ -26855,16 +26904,16 @@ function messageFrom(name, language, rows) {
     versions
   };
 }
-function campaignMessageOf(rows, name, language) {
+function campaignMessageOf(rows2, name, language) {
   return messageFrom(
     name,
     language,
-    rows.filter((r2) => r2.language === language)
+    rows2.filter((r2) => r2.language === language)
   );
 }
-function campaignMessagesOf(rows) {
+function campaignMessagesOf(rows2) {
   const groups = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (isReachOutRow(r2)) continue;
     const key = JSON.stringify([r2.name, r2.language]);
     const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
@@ -27069,16 +27118,16 @@ var COMING_DAYS = 7;
 var RESULTS_DAYS = 30;
 var RUNS_SHOWN = 3;
 var outOf = (b) => b === void 0 ? "reading" : "failed";
-function reachCountsOf(rows) {
+function reachCountsOf(rows2) {
   const byChannel = Object.fromEntries(
-    CONSENT_CHANNELS.map((c) => [c, rows.filter((r2) => r2.reachedOn === c).length])
+    CONSENT_CHANNELS.map((c) => [c, rows2.filter((r2) => r2.reachedOn === c).length])
   );
   return {
-    people: rows.length,
-    canHear: rows.filter((r2) => r2.canReceive.messages).length,
-    saidMessages: rows.filter((r2) => r2.saidYes.messages).length,
-    saidOffers: rows.filter((r2) => r2.saidYes.offers).length,
-    ...rows.some((r2) => r2.reachedOn !== void 0) ? { byChannel } : {}
+    people: rows2.length,
+    canHear: rows2.filter((r2) => r2.canReceive.messages).length,
+    saidMessages: rows2.filter((r2) => r2.saidYes.messages).length,
+    saidOffers: rows2.filter((r2) => r2.saidYes.offers).length,
+    ...rows2.some((r2) => r2.reachedOn !== void 0) ? { byChannel } : {}
   };
 }
 function opensOf(stages, needs2, more) {
@@ -27277,8 +27326,8 @@ function lifecycleComing(input, stages) {
   );
   const moments = playbooks.rows.filter((p) => !covered.has(p.id)).flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
   const timed = [...moments, ...runs].sort((a, b) => a.atMs - b.atMs);
-  const rows = [...timed, ...offRows(stages, nowMs)];
-  return { read: "read", rows, empty: LIFECYCLE_WORDS.coming.empty, rules };
+  const rows2 = [...timed, ...offRows(stages, nowMs)];
+  return { read: "read", rows: rows2, empty: LIFECYCLE_WORDS.coming.empty, rules };
 }
 function wentAt(r2) {
   return Date.parse(r2.finished_at ?? r2.started_at ?? r2.scheduled_for);
@@ -27407,10 +27456,10 @@ var STAGE_TRIGGER = {
   proposal: "proposal_waiting"
 };
 var FIRST_CONTACT_POOL = "new_week";
-function playbookOf(id, rows) {
+function playbookOf(id, rows2) {
   const trigger = STAGE_TRIGGER[id];
   if (trigger === null) return null;
-  const own = rows.filter((p) => id === "quiet" ? isWinBack(p.trigger) : p.trigger === trigger);
+  const own = rows2.filter((p) => id === "quiet" ? isWinBack(p.trigger) : p.trigger === trigger);
   return own.find((p) => p.state === "running") ?? own[0] ?? null;
 }
 function winBackMoment(playbooks) {
@@ -28309,9 +28358,9 @@ function withoutWrongPerson(waiting, readings) {
   for (const [thread, r2] of newestReadings(readings)) if (r2.intent === "wrong_person" && !r2.undone) gone.add(thread);
   return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
 }
-function withReplies(rows, readings) {
+function withReplies(rows2, readings) {
   const newest = newestReadings(readings);
-  return rows.map((row2) => {
+  return rows2.map((row2) => {
     const r2 = row2.kind === "handoff" && row2.conversationId ? newest.get(row2.conversationId) : void 0;
     return r2 && rowWorthy(r2) ? replyRowOf(row2, r2) : row2;
   });
@@ -28342,8 +28391,8 @@ var CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
   (c) => c.key !== "voice"
 );
 var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
-function campaignChannelsOf2(rows) {
-  return (rows ?? []).flatMap((r2) => {
+function campaignChannelsOf2(rows2) {
+  return (rows2 ?? []).flatMap((r2) => {
     const known = CAMPAIGN_CHANNELS.find((c) => c.key === r2.channel);
     if (!known || !(r2.sent > 0)) return [];
     const whatsapp = known.key === "whatsapp";
@@ -28743,14 +28792,14 @@ function reviewsWeeklyLine(p, weeks, since) {
   return p.exact && !p.written ? NOTHING_WRITTEN : null;
 }
 function reviewsWaitingOf(ledger, linkedAt, tz, nowMs) {
-  const rows = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r2) => {
+  const rows2 = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r2) => {
     const why = reviewHeldWords(r2.held);
     return {
       ...toGoogleReviewVM(r2, linkedAt, tz, nowMs),
       held: why ? `The receptionist wrote a reply and held it: ${why}.` : null
     };
   });
-  return { total: ledger.waiting_total, rows };
+  return { total: ledger.waiting_total, rows: rows2 };
 }
 var latestEmptyWords = (google, latest) => latest.length ? null : google.latest.length ? LATEST_ALL_WAIT_WORDS : LATEST_NONE_WORDS;
 function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
@@ -29006,7 +29055,7 @@ function funnelOf(t) {
   };
 }
 function anglesOf(dto) {
-  const rows = dto.angles.map((a) => ({
+  const rows2 = dto.angles.map((a) => ({
     id: a.angle,
     label: a.angle,
     value: pct(a.wrote_back, a.written) ?? 0,
@@ -29014,13 +29063,13 @@ function anglesOf(dto) {
   }));
   const o = dto.other_angles;
   if (o.written > 0)
-    rows.push({
+    rows2.push({
       id: "other",
       label: "Other angles",
       value: pct(o.wrote_back, o.written) ?? 0,
       display: `${o.wrote_back} of ${o.written}  ${pctText(o.wrote_back, o.written)}`
     });
-  return { rows, max: Math.max(1, ...rows.map((r2) => r2.value)) };
+  return { rows: rows2, max: Math.max(1, ...rows2.map((r2) => r2.value)) };
 }
 function domainStateWords(d, nowMs, tz) {
   if (d.host === null) return "Since removed";
@@ -30146,20 +30195,20 @@ function setupSteps(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const ctx = rowContextOf(i, nowMs);
   const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
-  const rows = [];
+  const rows2 = [];
   for (const build of SETUP_ROWS) {
     const r2 = build(i, ctx);
     if (r2)
-      rows.push({
+      rows2.push({
         ...r2,
         stateWords: r2.stateWords ?? SETUP_STATE_WORDS[r2.state],
         later: !r2.required && later.has(r2.id)
       });
   }
-  const open = rows.filter((r2) => r2.state !== "ready" && !r2.later);
+  const open = rows2.filter((r2) => r2.state !== "ready" && !r2.later);
   const nextRow = open.find((r2) => r2.verb) ?? null;
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
-  const done = rows.filter((r2) => r2.state === "ready").length;
+  const done = rows2.filter((r2) => r2.state === "ready").length;
   const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
   const sentence2 = seriousConflict ? (
     // "Answering" and "answering correctly" are different claims, and the top
@@ -30167,11 +30216,11 @@ function setupSteps(i, nowMs = Date.now()) {
     seriousConflict.sentence
   ) : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
   return {
-    rows,
+    rows: rows2,
     readiness: { answering, sentence: sentence2 },
     next,
     done,
-    total: rows.length,
+    total: rows2.length,
     tryIt: answering ? {
       voice: voiceReady ? voice.number : null,
       voiceLabel: voiceReady ? voiceNum : null,
@@ -31315,16 +31364,16 @@ function setupCardOf(vm) {
       skip: CARD_SKIP
     };
   }
-  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
+  const rows2 = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
     (r2) => r2 !== null && r2.state !== "ready" && !r2.later && !!r2.verb
   );
-  if (!rows.length) return null;
-  const said = rows.length === 1 ? CARD_SKIP.said : `All ${rows.length} put off. They stay in Setting up for when you're ready.`;
+  if (!rows2.length) return null;
+  const said = rows2.length === 1 ? CARD_SKIP.said : `All ${rows2.length} put off. They stay in Setting up for when you're ready.`;
   return {
     title: FINISH_SETTING_UP,
-    left: `${rows.length} left`,
+    left: `${rows2.length} left`,
     start: null,
-    rows,
+    rows: rows2,
     hide: { put: "Hide", said },
     skip: CARD_SKIP
   };
@@ -31898,14 +31947,14 @@ function connectionRows(i, nowMs = Date.now()) {
 var CONNECTION_GROUP_WORDS = {
   connected: {
     title: "Connected",
-    sub: (rows) => {
-      const bad = rows.filter((r2) => r2.state !== "connected").length;
-      return `${rows.length} connected${bad ? ` \xB7 ${bad} need${bad === 1 ? "s" : ""} attention` : ""}`;
+    sub: (rows2) => {
+      const bad = rows2.filter((r2) => r2.state !== "connected").length;
+      return `${rows2.length} connected${bad ? ` \xB7 ${bad} need${bad === 1 ? "s" : ""} attention` : ""}`;
     }
   },
   available: {
     title: "Available",
-    sub: (rows) => rows.some((r2) => r2.state === "waiting_you") ? "something here waits on you" : rows.some((r2) => r2.state === "waiting_them") ? "in progress" : "ready when you are"
+    sub: (rows2) => rows2.some((r2) => r2.state === "waiting_you") ? "something here waits on you" : rows2.some((r2) => r2.state === "waiting_them") ? "in progress" : "ready when you are"
   },
   later: { title: "Later", sub: () => "not yet: nothing here is connected" }
 };
@@ -32982,9 +33031,9 @@ function sentenceOf(overall) {
   ].filter(Boolean);
   return said.length ? `Of ${counted2}, three in four ${said.join(" and ")}.` : `${counted2}; none has drawn its page yet.`;
 }
-function pagesOf(rows) {
+function pagesOf(rows2) {
   const byPage = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (r2.page === null || r2.metric !== "LCP" && r2.metric !== "INP") continue;
     const held = byPage.get(r2.page) ?? {};
     if (r2.metric === "LCP") held.drawn = r2;
@@ -33000,10 +33049,10 @@ function pagesOf(rows) {
     return { page: p.page, loads: p.drawn.samples, drawn, tap, hint: `${said} \xB7 ${loadsWords(p.drawn.samples)}` };
   });
 }
-function pageVitalsWords(rows) {
-  if (rows === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
+function pageVitalsWords(rows2) {
+  if (rows2 === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
   const overall = /* @__PURE__ */ new Map();
-  for (const r2 of rows) if (r2.page === null && isVital(r2.metric)) overall.set(r2.metric, r2);
+  for (const r2 of rows2) if (r2.page === null && isVital(r2.metric)) overall.set(r2.metric, r2);
   if (overall.size === 0) {
     return {
       sentence: `No page has sent its timings in the last ${PAGE_VITALS_READ.days} days.`,
@@ -33011,7 +33060,7 @@ function pageVitalsWords(rows) {
       pages: []
     };
   }
-  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
+  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows2) };
 }
 
 // src/shell/vitals-schema.ts
@@ -33762,19 +33811,19 @@ function todayNeedsRows(f) {
   }));
 }
 function todayNeedsYou(f) {
-  const rows = todayNeedsRows(f);
+  const rows2 = todayNeedsRows(f);
   const { period } = f;
   return {
     count: f.needsYouCount,
     hint: "The receptionist stopped and asked for a human.",
-    rows,
+    rows: rows2,
     // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
     empty: f.needsYouCount ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
   };
 }
 function todayWindowClosing(f) {
   const { closingConvs, tz, now } = f;
-  const rows = closingConvs.map((c) => {
+  const rows2 = closingConvs.map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
     const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / MIN_MS)) : 0;
     return {
@@ -33783,10 +33832,10 @@ function todayWindowClosing(f) {
       to: `inbox/th-${c.id}`
     };
   });
-  return rows.length ? {
+  return rows2.length ? {
     label: "Reply window closing",
     hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
-    rows
+    rows: rows2
   } : null;
 }
 var NO_REPLY_AFTER_MS = HOUR_MS;
@@ -33850,11 +33899,11 @@ function todayCallRows(f) {
     };
   });
 }
-function todayCalls(f, rows) {
+function todayCalls(f, rows2) {
   const { period, callMinutes } = f;
   return period.calls ? {
     line: `${period.calls} call${period.calls === 1 ? "" : "s"} today${callMinutes ? ` \xB7 ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}.`,
-    rows
+    rows: rows2
   } : null;
 }
 
@@ -34115,8 +34164,8 @@ function names2(who, rest) {
   return out;
 }
 function needsSentences(vm) {
-  const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter(isPersonRow).map((r2) => r2.who))];
+  const rows2 = vm.queue.rows;
+  const people = [...new Set(rows2.filter(isPersonRow).map((r2) => r2.who))];
   const { calls, searches } = vm.queue;
   const out = [];
   if (people.length) {
@@ -34516,10 +34565,10 @@ var PUSH_KINDS = [
   "reach_out_replied"
 ];
 var isPushKind = (kind) => PUSH_KINDS.includes(kind);
-function unreadFor(rows, seenAt, marks) {
+function unreadFor(rows2, seenAt, marks) {
   const seen = seenAt ? Date.parse(seenAt) : 0;
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
-  return rows.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
+  return rows2.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
 }
 var isForReader = (row2, userId) => row2.recipient_user_id === null || row2.recipient_user_id === userId;
 function firstLine(body, max = 160) {
@@ -34624,8 +34673,8 @@ function applyReadState(items, state) {
   const gone = new Set(state.dismissed);
   return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
 }
-function unreadCount(rows) {
-  return rows.filter((r2) => r2.unread).length;
+function unreadCount(rows2) {
+  return rows2.filter((r2) => r2.unread).length;
 }
 function agoLabel(atMs, now) {
   return agoShort(atMs, now);
@@ -34822,16 +34871,16 @@ function serverNotificationRows(dto) {
     };
   });
 }
-function dedupeFeed(rows) {
+function dedupeFeed(rows2) {
   const covered = new Set(
-    rows.flatMap((r2) => r2.kind === "needs_you" ? [conversationOfNeedsKey(r2.key)] : []).filter((id) => !!id)
+    rows2.flatMap((r2) => r2.kind === "needs_you" ? [conversationOfNeedsKey(r2.key)] : []).filter((id) => !!id)
   );
-  return rows.filter(
+  return rows2.filter(
     (r2) => !(r2.key.startsWith(SERVER_KEY_PREFIX) && r2.about?.type === "conversation" && covered.has(r2.about.id))
   );
 }
 var NUMBER_IN_WORDS = /\+\d{8,15}\b|(?:\+\d{1,3}\s?)?\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b|(?:\+\d{1,3}\s)?\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/;
-function nameKnownCustomers(rows, threads, calls) {
+function nameKnownCustomers(rows2, threads, calls) {
   const named = (who) => who && !/\d{4}/.test(who) ? who.trim() : null;
   const byConversation = /* @__PURE__ */ new Map();
   for (const t of threads ?? []) {
@@ -34843,7 +34892,7 @@ function nameKnownCustomers(rows, threads, calls) {
     const who = named(c.who);
     if (who) byCall.set(c.callId, who);
   }
-  return rows.map((r2) => {
+  return rows2.map((r2) => {
     if (!r2.about || !NUMBER_IN_WORDS.test(r2.title)) return r2;
     const who = r2.about.type === "conversation" ? byConversation.get(r2.about.id) : r2.about.type === "call" ? byCall.get(r2.about.id) : void 0;
     return who ? { ...r2, title: r2.title.replace(NUMBER_IN_WORDS, who) } : r2;
@@ -34878,8 +34927,8 @@ var AWAY_NOUN = {
   reach_out_replied: ["reply to a reach-out", "replies to a reach-out"]
 };
 function groupTitle(members, noun, idOf) {
-  const subjects = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
-  return `${subjects} ${noun[subjects === 1 ? 0 : 1]}`;
+  const subjects2 = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
+  return `${subjects2} ${noun[subjects2 === 1 ? 0 : 1]}`;
 }
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
@@ -34891,7 +34940,7 @@ function awayFoot(more, queued, drew) {
   if (queued <= 0) return head;
   return queued === more ? `${head}, already in the queue above` : `${head}, ${queued} of them already in the queue above`;
 }
-function todayAwayGrouped(rows, inQueue = [], max = 5) {
+function todayAwayGrouped(rows2, inQueue = [], max = 5) {
   const convs = new Set(
     inQueue.flatMap((q) => {
       const id = typeof q === "string" ? q : q.conversationId;
@@ -34915,7 +34964,7 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
     const to = door(r2);
     return !!to && to.startsWith("inbox/th-") && convs.has(to.slice("inbox/th-".length));
   };
-  const fresh = rows.filter((r2) => r2.unread && !aboutQueued(r2));
+  const fresh = rows2.filter((r2) => r2.unread && !aboutQueued(r2));
   const order = [];
   const byKind = /* @__PURE__ */ new Map();
   for (const r2 of fresh) {
@@ -34947,13 +34996,13 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const sorted = groups.map((g, i) => ({ g, i })).sort((x, y) => rank(x.g) - rank(y.g) || x.i - y.i).map((x) => x.g);
   const shown = sorted.slice(0, max);
   const stoodFor = shown.reduce((n, g) => n + g.count, 0);
-  const total = unreadCount(rows);
+  const total = unreadCount(rows2);
   const queued = total - fresh.length;
   const more = Math.max(0, total - stoodFor);
   const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
 }
-function bellSections(rows) {
+function bellSections(rows2) {
   const idOf = (r2) => r2.id ?? r2.key ?? "";
   const part = (label, list2) => {
     const order = [];
@@ -34987,18 +35036,18 @@ function bellSections(rows) {
   return [
     part(
       "New",
-      rows.filter((r2) => r2.unread)
+      rows2.filter((r2) => r2.unread)
     ),
     part(
       "Earlier",
-      rows.filter((r2) => !r2.unread)
+      rows2.filter((r2) => !r2.unread)
     )
   ].filter((s) => s.lines.length > 0);
 }
 
 // src/today/today-steps.ts
-function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
-  const due = todayStepsDue(rows ?? [], nowMs, tz, max);
+function todaySteps(rows2, nowMs, tz, max = TODAY_STEPS_MAX) {
+  const due = todayStepsDue(rows2 ?? [], nowMs, tz, max);
   if (!due.count) return null;
   return {
     title: NOTE_WORDS.stepsDue,
@@ -35479,8 +35528,8 @@ function factsFor(r2, nowMs) {
   const at_ = at2(r2.last_inbound_at);
   return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
 }
-function platformRows(rows, nowMs = Date.now()) {
-  return rows.map((r2) => {
+function platformRows(rows2, nowMs = Date.now()) {
+  return rows2.map((r2) => {
     const verdict = verdictFor(r2, nowMs);
     return {
       tenantId: r2.tenant_id,
@@ -35498,8 +35547,8 @@ function platformRows(rows, nowMs = Date.now()) {
     return a.name.localeCompare(b.name);
   });
 }
-function platformSummary(rows) {
-  const customers = rows.filter((r2) => r2.verdict !== "test");
+function platformSummary(rows2) {
+  const customers = rows2.filter((r2) => r2.verdict !== "test");
   const needsUs = customers.filter((r2) => r2.verdict === "broken" || r2.verdict === "rehearsal").length;
   const needsThem = customers.filter(
     (r2) => r2.verdict === "billing" || r2.verdict === "waiting_owner" || r2.verdict === "stalled"
@@ -35569,8 +35618,8 @@ function platformLineActions(l, nowMs = Date.now()) {
   }
   return out;
 }
-function platformHealthOf(rows, backlog, now = /* @__PURE__ */ new Date()) {
-  const unhealthy = (rows ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
+function platformHealthOf(rows2, backlog, now = /* @__PURE__ */ new Date()) {
+  const unhealthy = (rows2 ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
   return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
 }
 function platformHealthWords(h) {
@@ -35604,16 +35653,16 @@ function sourceWords(source) {
 function platformQueue(q, nowMs = Date.now()) {
   const note = QUEUE_SENDS_NOTHING;
   if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
-  const rows = q.waiting.map((r2) => ({
+  const rows2 = q.waiting.map((r2) => ({
     id: r2.id,
     email: r2.email,
     detail: waitingDetail(r2),
     waited: `asked ${agoWords(Date.parse(r2.created_at), nowMs)}`
   }));
-  const total = q.total ?? rows.length;
+  const total = q.total ?? rows2.length;
   const oldest = q.waiting[0];
-  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
-  return { rows, sentence: sentence2, unreadable: false, note };
+  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows2.length ? ` \xB7 showing the first ${rows2.length}` : ""}.`;
+  return { rows: rows2, sentence: sentence2, unreadable: false, note };
 }
 
 // src/workspace/partner.ts
@@ -35709,16 +35758,16 @@ function broughtWords(count2) {
   return `${count2} workspaces have you as their partner.`;
 }
 var dayWords2 = (at3) => new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-function sumWords(rows, state) {
-  const of = rows.filter((r2) => r2.state === state && r2.earned_cents !== 0);
-  if (!of.length) return { words: moneyWords(0, rows[0]?.currency ?? "usd"), cents: 0 };
+function sumWords(rows2, state) {
+  const of = rows2.filter((r2) => r2.state === state && r2.earned_cents !== 0);
+  if (!of.length) return { words: moneyWords(0, rows2[0]?.currency ?? "usd"), cents: 0 };
   return {
     words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
     cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
   };
 }
-function partnerEarningsWords(rows, nowMs = Date.now()) {
-  const list2 = rows ?? [];
+function partnerEarningsWords(rows2, nowMs = Date.now()) {
+  const list2 = rows2 ?? [];
   const held = sumWords(list2, "held");
   const payable = sumWords(list2, "payable");
   const paid = sumWords(list2, "paid");
@@ -35766,7 +35815,7 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
     const s = moneyOf(id)[0]?.standing ?? "pending";
     return PARTNER_STANDING_WORDS[s] ?? null;
   };
-  const rows = judged.map((r2) => {
+  const rows2 = judged.map((r2) => {
     const v = PLATFORM_VERDICTS[r2.verdict];
     return {
       tenantId: r2.tenantId,
@@ -35782,10 +35831,10 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
       onTeam: true
     };
   });
-  const seen = new Set(rows.map((r2) => r2.tenantId));
+  const seen = new Set(rows2.map((r2) => r2.tenantId));
   const off = [...new Map(money2.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
   for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
-    rows.push({
+    rows2.push({
       tenantId: m.tenant_id,
       slug: null,
       name: m.name,
@@ -35799,12 +35848,12 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
       onTeam: m.on_team
     });
   }
-  const total = rows.length;
-  const live = rows.filter((r2) => r2.verdict === "live").length;
-  const needs2 = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
+  const total = rows2.length;
+  const live = rows2.filter((r2) => r2.verdict === "live").length;
+  const needs2 = rows2.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
   const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs2) parts2.push(`${needs2} need${needs2 === 1 ? "s" : ""} you`);
-  return { rows, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
+  return { rows: rows2, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
 }
 var PARTNER_STANDING_VERBS = {
   qualified: "Qualify",
@@ -35829,9 +35878,9 @@ function partnerStatusOutcomeWords(code2, r2) {
   const what = r2.status === "closed" ? "closed" : "paused";
   return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
 }
-function platformPartnerRows(rows) {
+function platformPartnerRows(rows2) {
   const seen = /* @__PURE__ */ new Set();
-  return rows.map((r2) => {
+  return rows2.map((r2) => {
     const first = !seen.has(r2.partner_id);
     seen.add(r2.partner_id);
     const cur = r2.currency ?? "usd";
@@ -35865,13 +35914,13 @@ function platformPartnerRows(rows) {
     };
   });
 }
-function platformPartnerSummary(rows) {
-  const partners = new Set(rows.map((r2) => r2.partner_id)).size;
+function platformPartnerSummary(rows2) {
+  const partners = new Set(rows2.map((r2) => r2.partner_id)).size;
   if (!partners) return "No partners yet.";
   const byCur = /* @__PURE__ */ new Map();
-  for (const r2 of rows)
+  for (const r2 of rows2)
     if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
-  const review = [...new Map(rows.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
+  const review = [...new Map(rows2.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
   const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
   parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
   if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
@@ -35953,7 +36002,7 @@ function partnerStandingOutcomeWords(r2) {
   return `Now ${label}. What it holds waits until a person decides.`;
 }
 var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
-var money = (rows) => rows.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
+var money = (rows2) => rows2.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
 var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
 var setUpWords = (name) => name && name.trim() ? name.trim() : "A workspace you set up";
 var whyWords = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
@@ -35999,8 +36048,8 @@ function partnerLetter(news, opts) {
   return { subject: letterSubject(news), body };
 }
 var sharesOf = (news) => news.written.filter((w) => w.kind === "share");
-var countOf2 = (rows) => rows.reduce((k, w) => k + w.count, 0);
-var nonZero = (rows) => rows.filter((r2) => r2.cents !== 0);
+var countOf2 = (rows2) => rows2.reduce((k, w) => k + w.count, 0);
+var nonZero = (rows2) => rows2.filter((r2) => r2.cents !== 0);
 function letterLines(news) {
   const lines = [];
   if (news.status) lines.push(statusLine(news.status));
@@ -36139,13 +36188,45 @@ var WORDS2 = {
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
   "escalation.changed": "A handover's reason changed",
+  "escalation.opened": "A thread was handed to the team",
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "broadcast.stopped": "A broadcast stopped",
   "playbook.run": "A playbook ran",
+  "playbook.changed": "A playbook was edited",
+  "template.submitted": "A message was sent to WhatsApp for approval",
+  "template.removed": "A message was deleted from the Library",
+  "member.joined": "Joined the workspace",
+  "member.left": "Left the workspace",
+  "reach_out.lead_stopped": "A reach-out stopped writing to a lead",
+  "reach_out.send_decided": "A held reach-out email was decided",
+  "lead.kept": "A lead was kept from Needs review",
+  "lead.excluded": "A lead was left out of Needs review",
+  "lead.put_back": "A lead was put back in Needs review",
+  "lead.search_renamed": "A search was renamed",
+  "lead.search_removed": "A search was removed",
+  "contact.kept_apart": "Two records were kept as two people",
+  "line.forwarding_set": "Call forwarding was set up",
+  "appointment.booked": "A booking arrived by email",
+  "appointment.moved": "A booking was changed by email",
+  "appointment.cancelled": "A booking was cancelled by email",
+  "conversation.owner_replied": "The owner replied from the WhatsApp Business app, and the receptionist stepped back",
+  "billing.payment_failed": "A payment did not go through",
+  "billing.paid": "A payment went through",
+  "billing.trial_ending": "The trial ends in three days",
+  "capability.activated": "Answering was switched on",
+  "capability.deactivated": "Answering was switched off",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
+  // Meta's own news of the account (contracts WABA_FIELDS), one kind per field: said as what Meta did, never as its field.
+  "channel.phone_number_quality_update": "Meta changed a WhatsApp number's quality",
+  "channel.account_update": "Meta updated the WhatsApp account",
+  "channel.message_template_status_update": "Meta reviewed a message",
+  "channel.account_review_update": "Meta reviewed the WhatsApp account",
+  "channel.message_template_quality_update": "Meta changed a message's quality",
+  "channel.template_category_update": "Meta changed a message's category",
+  "channel.phone_number_name_update": "Meta reviewed a WhatsApp number's name",
   "channel.standing": "A WhatsApp number's standing with Meta changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
@@ -36224,6 +36305,7 @@ function humanize(kind) {
   const tail = (rest ?? "").replace(/_/g, " ");
   return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` \xB7 ${tail}` : ""}`;
 }
+var activityKindWords = (kind) => WORDS2[kind] ?? humanize(kind);
 var textAt = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
 var numberAt = (o, k) => typeof o[k] === "number" ? o[k] : null;
 function importWords(p) {
@@ -36272,8 +36354,9 @@ function leadNotAFitWords(p, base) {
   const head = p.bulk === true && n !== null ? `${plural(n, "lead")} ${n === 1 ? "was" : "were"} marked not a fit` : base;
   return joinBits(head, [wordOf(LEAD_NOT_A_FIT_WORDS, textAt(p, "why"))]);
 }
+var REACH_OUT_EMAILED_WORDS = "A reach-out email went to a lead";
 function leadEmailedWords(p, base) {
-  return textAt(p, "by") === "reach_out" ? "A reach-out email went to a lead" : base;
+  return textAt(p, "by") === "reach_out" ? REACH_OUT_EMAILED_WORDS : base;
 }
 var ACTIVATED_WORDS = {
   line_live: "its first line is answering",
@@ -36309,6 +36392,28 @@ function runEndWords(kind, p, base) {
   return [base, ...bits2].join(" \xB7 ");
 }
 var replyWords = (p, base) => p.starts === true ? "Began a conversation from the dashboard" : base;
+var CALL_MISSED_WORDS = "A call was missed";
+var CALL_UNANSWERED_WORDS = "A call we placed did not connect";
+function callRecordedWords(p, base) {
+  if (textAt(p, "status") !== "not_connected") return base;
+  return textAt(p, "direction") === "outbound" ? CALL_UNANSWERED_WORDS : CALL_MISSED_WORDS;
+}
+var SEND_DECIDED_WORDS = {
+  include: "A held reach-out email was sent as written",
+  rewrite: "A held reach-out email was sent back to be written again",
+  skip: "A held reach-out email was skipped",
+  not_a_fit: "A held reach-out email was dropped: the lead is not a fit"
+};
+var FORWARDING_WORDS = { unanswered: "the calls not answered", always: "every call" };
+function searchRemovedWords(p, base) {
+  const kept = numberAt(p, "kept");
+  return joinBits(base, [textAt(p, "name"), kept !== null ? `${kept} kept` : null]);
+}
+var CAPABILITY_WORDS = { voice: "calls", whatsapp: "WhatsApp", sms: "texts" };
+var wordsAt = (o, k) => {
+  const list2 = Array.isArray(o[k]) ? o[k].filter((f) => typeof f === "string") : [];
+  return list2.length ? list2.slice(0, 4).join(", ") : null;
+};
 var WHOLE_SENTENCE = new Map([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
   ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
@@ -36326,6 +36431,25 @@ var WHOLE_SENTENCE = new Map([
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
   ["google.reply_held", (p, base) => joinBits(base, [reviewHeldWords(textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],
+  ["escalation.opened", (p, base) => joinBits(base, [textAt(p, "reason") ? reasonShort(textAt(p, "reason")) : null])],
+  ["member.joined", (p, base) => joinBits(base, [textAt(p, "role") ? `as ${textAt(p, "role")}` : null])],
+  [
+    "member.left",
+    (p, base) => joinBits(base, [textAt(p, "how") === "account_deleted" ? "deleted their account" : null])
+  ],
+  ["call.recorded", callRecordedWords],
+  ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
+  ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["lead.search_removed", searchRemovedWords],
+  ["line.forwarding_set", (p, base) => joinBits(base, [wordOf(FORWARDING_WORDS, textAt(p, "mode"))])],
+  ["appointment.booked", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["appointment.moved", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["appointment.cancelled", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["playbook.changed", (p, base) => joinBits(base, [textAt(p, "name"), wordsAt(p, "fields")])],
+  ["template.submitted", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["template.removed", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["capability.activated", (p, base) => joinBits(base, [wordOf(CAPABILITY_WORDS, textAt(p, "capability"))])],
+  ["capability.deactivated", (p, base) => joinBits(base, [wordOf(CAPABILITY_WORDS, textAt(p, "capability"))])],
   ["message.send_failed", sendFailedWords],
   // A partner's standing is between the platform and the partner: the owner reads that it was judged, never the
   // verdict or who gave it (the raw label said no more before these words).
@@ -36378,8 +36502,8 @@ function activityWords(kind, payload) {
     case "export": {
       const what = textAt(p, "what");
       if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
-      const rows = numberAt(p, "rows");
-      if (rows !== null) bits2.push(`${rows} rows`);
+      const rows2 = numberAt(p, "rows");
+      if (rows2 !== null) bits2.push(`${rows2} rows`);
       break;
     }
     case "pause_agent":
@@ -36455,67 +36579,11 @@ function activityWords(kind, payload) {
   }
   return bits2.length ? `${base} \xB7 ${bits2.join(" \xB7 ")}` : base;
 }
-var TONES2 = {
-  // danger -- it failed, it was refused, or something is gone
-  "message.send_failed": "danger",
-  "message.send_blocked": "danger",
-  "line.failed": "danger",
-  "broadcast.stopped": "danger",
-  "line.texting_rejected": "danger",
-  "contact.erased": "danger",
-  "contact.blob_erased": "danger",
-  "ingest.unroutable": "danger",
-  "ingest.unreachable_sender": "danger",
-  erase: "danger",
-  decline: "danger",
-  remove_member: "danger",
-  // ok -- it completed, it connected, it is answering
-  "line.answering": "ok",
-  "line.texting_approved": "ok",
-  "line.forwarding_verified": "ok",
-  "voice.provisioned": "ok",
-  "google.linked": "ok",
-  "google.connected": "ok",
-  "broadcast.sent": "ok",
-  "billing.resumed": "ok",
-  "mailbox.created": "ok",
-  "mailbox.offers_resumed": "ok",
-  "sending_domain.verified": "ok",
-  "sending_domain.released": "ok",
-  "sending_domain.resumed": "ok",
-  "workspace.created": "ok",
-  approve: "ok",
-  resolve: "ok",
-  connect_channel: "ok",
-  "deal.won": "ok",
-  // warn -- somebody stopped something, or a rule was stepped around
-  "billing.paused": "warn",
-  "policy.veto_window_skipped": "warn",
-  "line.released": "warn",
-  "google.unlinked": "warn",
-  "google.disconnected": "warn",
-  "sending_domain.held": "warn",
-  "mailbox.offers_paused": "warn",
-  "message.send_raced_cancel": "warn",
-  "ingest.allowlist_skip": "warn",
-  pause_agent: "warn",
-  pause_playbook: "warn",
-  cancel_send: "warn",
-  cancel_broadcast: "warn",
-  revoke_invite: "warn",
-  snooze: "warn",
-  // info -- it is on its way, or a person took it on
-  "message.received": "info",
-  "conversation.reopened": "info",
-  "line.texting_on": "info",
-  take_over: "info",
-  hand_back: "info",
-  reply: "info"
-};
-function activityTone(kind) {
-  return TONES2[kind] ?? "plain";
-}
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var ACTIVITY_KINDS = [
+  ...DECISION_VERBS,
+  ...EVENT_KINDS,
+  ...WABA_FIELDS.map((field) => `channel.${field}`)
+];
 function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || ACTIVITY_NOISE_KINDS.includes(kind);
 }
@@ -36735,8 +36803,8 @@ function partnerHandoverVM(h, nowMs = Date.now()) {
     return of("expired", `The invitation to ${to} expired on ${dayWords2(h.expiresAt)}. Send it again.`);
   return of("waiting", `Waiting for its owner: sent to ${to}, open until ${dayWords2(h.expiresAt)}.`);
 }
-function handoverRoom(rows) {
-  const waiting = rows.filter((r2) => !r2.acceptedAt).length;
+function handoverRoom(rows2) {
+  const waiting = rows2.filter((r2) => !r2.acceptedAt).length;
   const full = waiting >= HANDOVER_WAITING_MAX;
   return {
     waiting,
@@ -37001,11 +37069,11 @@ function receptionistLine(r2) {
   const pace = r2.brain_p95_ms === null ? "" : ` \xB7 95% within ${(r2.brain_p95_ms / 1e3).toFixed(1)} s`;
   return `${parts2.join(", ")}${pace}`;
 }
-function platformDaysWords(rows) {
-  if (!rows) return { day: null, sentence: "Could not be read just now.", lines: [] };
-  const day = rows.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
+function platformDaysWords(rows2) {
+  if (!rows2) return { day: null, sentence: "Could not be read just now.", lines: [] };
+  const day = rows2.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
   if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
-  const lines = rows.filter((r2) => r2.day === day).map((r2) => ({
+  const lines = rows2.filter((r2) => r2.day === day).map((r2) => ({
     tenantId: r2.tenant_id,
     name: r2.name,
     day: r2.day,
@@ -37021,15 +37089,430 @@ function platformDaysWords(rows) {
   const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
   return { day, sentence: sentence2, lines };
 }
+
+// src/activity/tones.ts
+var TONES2 = {
+  // danger -- it failed, it was refused, or something is gone
+  "message.send_failed": "danger",
+  "message.send_blocked": "danger",
+  "line.failed": "danger",
+  "billing.payment_failed": "danger",
+  "broadcast.stopped": "danger",
+  "line.texting_rejected": "danger",
+  "contact.erased": "danger",
+  "contact.blob_erased": "danger",
+  "ingest.unroutable": "danger",
+  "ingest.unreachable_sender": "danger",
+  erase: "danger",
+  decline: "danger",
+  remove_member: "danger",
+  // ok -- it completed, it connected, it is answering
+  "line.answering": "ok",
+  "line.texting_approved": "ok",
+  "line.forwarding_verified": "ok",
+  "voice.provisioned": "ok",
+  "google.linked": "ok",
+  "google.connected": "ok",
+  "broadcast.sent": "ok",
+  "billing.resumed": "ok",
+  "mailbox.created": "ok",
+  "mailbox.offers_resumed": "ok",
+  "sending_domain.verified": "ok",
+  "sending_domain.released": "ok",
+  "sending_domain.resumed": "ok",
+  "workspace.created": "ok",
+  approve: "ok",
+  resolve: "ok",
+  connect_channel: "ok",
+  "deal.won": "ok",
+  "member.joined": "ok",
+  "appointment.booked": "ok",
+  "billing.paid": "ok",
+  "capability.activated": "ok",
+  // warn -- somebody stopped something, or a rule was stepped around
+  "billing.paused": "warn",
+  "policy.veto_window_skipped": "warn",
+  "line.released": "warn",
+  "google.unlinked": "warn",
+  "google.disconnected": "warn",
+  "sending_domain.held": "warn",
+  "mailbox.offers_paused": "warn",
+  "capability.deactivated": "warn",
+  "member.left": "warn",
+  "appointment.cancelled": "warn",
+  "reach_out.lead_stopped": "warn",
+  "message.send_raced_cancel": "warn",
+  "ingest.allowlist_skip": "warn",
+  pause_agent: "warn",
+  pause_playbook: "warn",
+  cancel_send: "warn",
+  cancel_broadcast: "warn",
+  revoke_invite: "warn",
+  snooze: "warn",
+  // info -- it is on its way, or a person took it on
+  "message.received": "info",
+  "conversation.reopened": "info",
+  "escalation.opened": "info",
+  "conversation.owner_replied": "info",
+  "line.texting_on": "info",
+  take_over: "info",
+  hand_back: "info",
+  reply: "info"
+};
+function activityTone(kind) {
+  return TONES2[kind] ?? "plain";
+}
+
+// src/activity/families.ts
+var ACTIVITY_FAMILIES = [
+  "conversations",
+  "calls",
+  "people",
+  "lists",
+  "leads",
+  "deals",
+  "campaigns",
+  "calendar",
+  "google",
+  "connections",
+  "team",
+  "settings",
+  "billing",
+  "partner",
+  "records"
+];
+var FAMILY_WORDS = {
+  conversations: "Conversations",
+  calls: "Calls",
+  people: "People",
+  lists: "Lists",
+  leads: "Leads",
+  deals: "Deals",
+  campaigns: "Campaigns",
+  calendar: "Calendar",
+  google: "Google",
+  connections: "Connections",
+  team: "Team",
+  settings: "Settings",
+  billing: "Billing",
+  partner: "Partner",
+  records: "Kept records"
+};
+var VERB_FAMILY = {
+  approve: "conversations",
+  edit: "conversations",
+  decline: "conversations",
+  snooze: "conversations",
+  wake: "conversations",
+  take_over: "conversations",
+  hand_back: "conversations",
+  resolve: "conversations",
+  archive: "conversations",
+  reply: "conversations",
+  cancel_send: "conversations",
+  pause_agent: "conversations",
+  resume_agent: "conversations",
+  invite: "team",
+  revoke_invite: "team",
+  change_role: "team",
+  remove_member: "team",
+  erase: "people",
+  merge: "people",
+  whisper: "calls",
+  connect_channel: "connections",
+  consent_change: "people",
+  send_broadcast: "campaigns",
+  cancel_broadcast: "campaigns",
+  start_playbook: "campaigns",
+  pause_playbook: "campaigns",
+  reply_review: "google",
+  export: "settings",
+  end_call: "calls",
+  record_deal: "deals",
+  make_list: "lists",
+  rename_list: "lists",
+  change_list_rule: "lists",
+  add_to_list: "lists",
+  drop_from_list: "lists",
+  archive_list: "lists",
+  restore_list: "lists",
+  delete_list: "lists",
+  import: "people",
+  open_recording: "calls"
+};
+var PREFIX_FAMILY = {
+  message: "conversations",
+  conversation: "conversations",
+  escalation: "conversations",
+  member: "team",
+  template: "campaigns",
+  capability: "connections",
+  booking_link: "conversations",
+  policy: "settings",
+  contact: "people",
+  person: "people",
+  call: "calls",
+  voice: "connections",
+  line: "connections",
+  channel: "connections",
+  mailbox: "connections",
+  sending_domain: "connections",
+  setup: "connections",
+  google: "google",
+  lead: "leads",
+  reach_out: "leads",
+  deal: "deals",
+  broadcast: "campaigns",
+  playbook: "campaigns",
+  appointment: "calendar",
+  business: "settings",
+  settings: "settings",
+  workspace: "settings",
+  platform: "settings",
+  billing: "billing",
+  partner: "partner",
+  usage: "records",
+  webhook: "records",
+  ingest: "records"
+};
+var KIND_FAMILY = {
+  // A reply held past its window is a conversation's news, though the rule that held it is a setting.
+  "policy.veto_window_skipped": "conversations"
+};
+function activityFamily(kind) {
+  if (Object.hasOwn(VERB_FAMILY, kind)) return VERB_FAMILY[kind];
+  if (Object.hasOwn(KIND_FAMILY, kind)) return KIND_FAMILY[kind] ?? null;
+  const dot = kind.indexOf(".");
+  const prefix = dot > 0 ? kind.slice(0, dot) : "";
+  return Object.hasOwn(PREFIX_FAMILY, prefix) ? PREFIX_FAMILY[prefix] : null;
+}
+var isActivityFamily = (v) => typeof v === "string" && ACTIVITY_FAMILIES.includes(v);
+function activityFamilyKinds(family) {
+  return ACTIVITY_KINDS.filter((k) => activityFamily(k) === family);
+}
+var ACTIVITY_PROBLEM_KINDS = ACTIVITY_KINDS.filter((k) => {
+  const tone = activityTone(k);
+  return (tone === "danger" || tone === "warn") && !isActivityNoise(k);
+});
+function activityKindGroups(kinds) {
+  return ACTIVITY_FAMILIES.map((family) => ({
+    family,
+    label: FAMILY_WORDS[family],
+    kinds: kinds.filter((k) => activityFamily(k) === family).map((k) => ({ kind: k, label: activityKindWords(k) }))
+  })).filter((g) => g.kinds.length > 0);
+}
+var ACTIVITY_SPANS = ["today", "yesterday", "week", "month"];
+var ACTIVITY_SPAN_DAYS = { today: 1, yesterday: 1, week: 7, month: 30 };
+var ACTIVITY_ACTORS = ["receptionist", "system"];
+var ACTIVITY_PAGE_WORDS = {
+  title: "Activity",
+  sub: "What happened, and who did it \xB7 newest first",
+  narrow: "Narrow it",
+  /** The first box: every part of the product, or what went wrong. The second, once a part is picked: its kinds. */
+  area: { label: "Part of the product", any: "All activity", problems: "What went wrong or was stopped" },
+  kind: { label: "Kind of activity", any: "All kinds" },
+  who: { label: "Who did it", any: "Anyone", receptionist: "Receptionist", system: "System" },
+  when: {
+    label: "When",
+    any: "Any time",
+    today: "Today",
+    yesterday: "Yesterday",
+    week: "Last 7 days",
+    month: "Last 30 days",
+    day: "One day",
+    pick: "Pick the day"
+  },
+  person: {
+    label: "A person, by name or number",
+    find: "Find a person",
+    everyone: (name) => `Everyone, not only ${name}`
+  },
+  reading: "Reading the activity log\u2026",
+  /** An empty log: narrowed, the filters are why; whole, nothing has happened in the workspace yet. */
+  none: "Nothing here for that.",
+  noneYet: "Nothing has happened yet.",
+  clear: "Clear the filters",
+  clearShort: "Clear",
+  more: "Show more",
+  moreReading: "Reading\u2026",
+  soFar: (n) => `${n} so far`,
+  /** A fold's name to a screen reader: its sentence, then what a press on it does. */
+  fold: {
+    show: (said) => `${said}: show them`,
+    hide: (said) => `${said}: hide them`
+  },
+  since: (time) => `since ${time}`,
+  member: "A member",
+  foot: "Model usage, webhook receipts and unplaced messages are kept out of the log. Pick Kept records to see them.",
+  ownerOnly: "Only an owner can read the activity log: it is the whole record of the workspace, including what every member did."
+};
+
+// src/activity/lines.ts
+var rows = (many) => ({ counts: "rows", many });
+var subjects = (many) => ({ counts: "subjects", many });
+var FOLD_WORDS = {
+  // decisions: what one member, or the receptionist, did again and again
+  approve: rows((n) => `Approved ${n} replies`),
+  edit: rows((n) => `Edited ${n} replies`),
+  reply: rows((n) => `Replied ${n} times from the dashboard`),
+  archive: subjects((n) => `Archived ${n} threads`),
+  wake: subjects((n) => `Woke ${n} threads`),
+  resolve: rows((n) => `Resolved ${n} escalations`),
+  open_recording: subjects((n) => `Listened to ${n} calls' recordings`),
+  whisper: rows((n) => `Whispered to the phone receptionist ${n} times`),
+  consent_change: rows((n) => `Recorded ${n} consent answers`),
+  // One row per part of fifty (00170): the parts are one import, and each part's counts are a press away.
+  import: rows((n) => `Imported people from a spreadsheet, in ${n} parts`),
+  // events: the day's routine
+  "message.received": rows((n) => `${n} messages came in`),
+  "message.sent": rows((n) => `${n} messages went out`),
+  "contact.added": subjects((n) => `${n} people were added`),
+  "contact.named": subjects((n) => `${n} people were named`),
+  "contact.noted": rows((n) => `${n} notes were written`),
+  "contact.note_changed": rows((n) => `${n} notes were changed`),
+  "contact.note_removed": rows((n) => `${n} notes were taken away`),
+  "contact.note_suggested": rows((n) => `The receptionist suggested ${n} notes`),
+  "contact.note_kept": rows((n) => `${n} suggested notes were kept`),
+  "contact.note_dismissed": rows((n) => `${n} suggested notes were dismissed`),
+  "contact.note_done": rows((n) => `${n} steps were done`),
+  "contact.note_undone": rows((n) => `${n} steps were opened again`),
+  "contact.consent_changed": rows((n) => `${n} consent answers changed`),
+  "contact.email_set": subjects((n) => `${n} people's email addresses changed`),
+  "conversation.reopened": subjects((n) => `${n} threads reopened`),
+  "conversation.pause_expired": rows((n) => `${n} pauses ended`),
+  "conversation.snooze_expired": rows((n) => `${n} snoozes ended`),
+  // A call that never connected is not one that was recorded: each says its own, and folds with its own.
+  "call.recorded": {
+    counts: "subjects",
+    split: (row2) => row2.text,
+    many: (n, newest) => newest.text === CALL_MISSED_WORDS ? `${n} calls were missed` : newest.text === CALL_UNANSWERED_WORDS ? `${n} calls we placed did not connect` : `${n} calls were recorded`
+  },
+  "lead.kept": subjects((n) => `${n} leads were kept from Needs review`),
+  "lead.excluded": subjects((n) => `${n} leads were left out of Needs review`),
+  "lead.put_back": subjects((n) => `${n} leads were put back in Needs review`),
+  // What was decided is the sentence, so each decision folds with its own: "… was skipped · 40 times".
+  "reach_out.send_decided": {
+    counts: "rows",
+    split: (row2) => row2.text,
+    many: (n, newest) => `${newest.text} \xB7 ${n} times`
+  },
+  "appointment.booked": rows((n) => `${n} bookings arrived by email`),
+  "lead.emailed": {
+    counts: "subjects",
+    split: (row2) => row2.text,
+    many: (n, newest) => newest.text === REACH_OUT_EMAILED_WORDS ? `${n} reach-out emails went to leads` : `${n} leads were marked as emailed`
+  },
+  "lead.call": rows((n) => `${n} calls to leads were logged`),
+  "google.reviews": rows((n) => `New Google reviews were read ${n} times`),
+  "playbook.run": rows((n) => `Playbooks ran ${n} times`)
+};
+var ACTIVITY_FOLD_KINDS = Object.keys(FOLD_WORDS);
+var FOLD_MIN = 2;
+var handOf2 = (r2) => r2.actor_user_id ?? r2.actor_type ?? "";
+function lineKey(r2, day) {
+  const words3 = FOLD_WORDS[r2.kind];
+  if (!words3) return `@${r2.id}`;
+  return [day, r2.kind, handOf2(r2), words3.split ? words3.split(r2) : ""].join("|");
+}
+function foldTitle(members, words3) {
+  const newest = members[0];
+  if (!newest) return "";
+  const n = words3.counts === "rows" ? members.length : new Set(members.map((m) => m.subject_id ? `${m.subject_type ?? ""}:${m.subject_id}` : `@${m.id}`)).size;
+  return n === 1 ? `${activityKindWords(newest.kind)} \xB7 ${members.length} times` : words3.many(n, newest);
+}
+function activityLines(list2, dayOf2, fold2 = true) {
+  const order = [];
+  const byKey = /* @__PURE__ */ new Map();
+  for (const r2 of list2) {
+    const k = fold2 ? lineKey(r2, dayOf2(r2.at)) : `@${r2.id}`;
+    const bucket = byKey.get(k);
+    if (bucket) bucket.push(r2);
+    else {
+      byKey.set(k, [r2]);
+      order.push(k);
+    }
+  }
+  const lines = [];
+  for (const k of order) {
+    const members = byKey.get(k) ?? [];
+    const newest = members[0];
+    if (!newest) continue;
+    const words3 = FOLD_WORDS[newest.kind];
+    if (!words3 || members.length < FOLD_MIN) {
+      for (const r2 of members) lines.push({ key: r2.id, row: r2, count: 1, title: null, members: [r2], since: null });
+      continue;
+    }
+    lines.push({
+      key: k,
+      row: newest,
+      count: members.length,
+      title: foldTitle(members, words3),
+      members,
+      since: members[members.length - 1]?.at ?? null
+    });
+  }
+  return lines;
+}
+function activityRowsForLines(list2, dayOf2, max, fold2 = true) {
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < list2.length; i += 1) {
+    const r2 = list2[i];
+    if (!r2) continue;
+    const k = fold2 ? lineKey(r2, dayOf2(r2.at)) : `@${r2.id}`;
+    if (seen.has(k)) continue;
+    if (seen.size >= max) return i;
+    seen.add(k);
+  }
+  return list2.length;
+}
+function activityDoor(r2) {
+  const id = r2.subject_id;
+  switch (r2.subject_type) {
+    case "contact":
+      return id ? `clients/${id}` : null;
+    case "conversation":
+      return id ? `inbox/th-${id}` : null;
+    case "call":
+      return id ? `conversations/cv-${id}` : null;
+    case "lead":
+      return id ? leadsRoute({ peek: id }) : null;
+    case "broadcast":
+      return id ? `broadcasts/run:${id}` : null;
+    case "appointment":
+      return id ? `calendar/a-${id}` : null;
+    case "lead_search":
+      return id ? leadsRoute({ searchId: id }) : null;
+    case "membership":
+    case "invitation":
+      return "admin/team";
+    case "channel":
+      return "admin/integrations";
+    case "review":
+      return lensRoute("reviews");
+    default:
+      return null;
+  }
+}
+function activityMemberWords(row2, about) {
+  if (!about) return row2.text;
+  return row2.text === activityKindWords(row2.kind) ? about : `${row2.text} \xB7 ${about}`;
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
   ABOUT_MAX,
   ABOUT_MIN,
   ACTIVATION_MILESTONES,
+  ACTIVITY_ACTORS,
+  ACTIVITY_FAMILIES,
+  ACTIVITY_FOLD_KINDS,
   ACTIVITY_KINDS,
   ACTIVITY_NOISE_KINDS,
   ACTIVITY_NOISE_PREFIXES,
+  ACTIVITY_PAGE_WORDS,
+  ACTIVITY_PROBLEM_KINDS,
+  ACTIVITY_SPANS,
+  ACTIVITY_SPAN_DAYS,
   ACTOR_TYPES,
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
@@ -37125,8 +37608,10 @@ export {
   CALL_ACTIVITY_ROLES,
   CALL_ACTIVITY_STALE_MS,
   CALL_HEARTBEAT_MS,
+  CALL_MISSED_WORDS,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
+  CALL_UNANSWERED_WORDS,
   CAMPAIGNS_PAUSED_WORDS,
   CAMPAIGN_EMAIL_TAG,
   CAMPAIGN_MONTH_ALLOWANCE,
@@ -37666,6 +38151,7 @@ export {
   REACH_OUT_BODY_MAX,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_DECISIONS,
+  REACH_OUT_EMAILED_WORDS,
   REACH_OUT_FIRST_WORDS,
   REACH_OUT_GAP_FIRST,
   REACH_OUT_GAP_MINUTES,
@@ -37889,6 +38375,14 @@ export {
   WRITE_HOLD_WORDS,
   abandonedCall,
   abilityRows,
+  activityDoor,
+  activityFamily,
+  activityFamilyKinds,
+  activityKindGroups,
+  activityKindWords,
+  activityLines,
+  activityMemberWords,
+  activityRowsForLines,
   activityTone,
   activityWords,
   addressAlreadyKnown,
@@ -38343,6 +38837,7 @@ export {
   instructionsWords,
   inviteState,
   invoiceStatusWords,
+  isActivityFamily,
   isActivityMoney,
   isActivityNoise,
   isAutomatedSend,

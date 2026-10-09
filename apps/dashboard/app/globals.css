@@ -227,7 +227,7 @@ body {
 .auth-card input:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-field);
 }
 .auth-card button {
   width: 100%;

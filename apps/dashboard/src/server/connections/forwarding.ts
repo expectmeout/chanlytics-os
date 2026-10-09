@@ -14,7 +14,8 @@ import {
   parseTenantConfig,
   whyNotForward,
 } from "@chanlytics/contracts";
-import { getTenantConfig, lineForwardingSet } from "@chanlytics/db";
+import { emitEvent, getTenantConfig, lineForwardingSet } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 
@@ -46,5 +47,11 @@ export async function setLineForwarding(ctx: RouteContext, req: Request, member:
     p_test_from: NO_TEST_PHONE as string,
   });
   if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
+  // Where a business's calls go changed on a member's word: the ledger says who and which calls, never the number.
+  await emitEvent(serviceDb(), member.tenantId, "line.forwarding_set", "line", data, {
+    carrier: body.carrier,
+    mode: body.mode,
+    by: ctx.userId,
+  });
   return { line_id: data };
 }

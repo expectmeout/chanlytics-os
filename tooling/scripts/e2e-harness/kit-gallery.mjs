@@ -601,7 +601,7 @@ const kitOption = (label, meta, { chosen = false, walked = false, focus = null }
 const kitSelect = () =>
   `<div class="rec-field"><label><span class="rec-field-label">Service</span></label>` +
   `<button type="button" tabindex="0" role="combobox" aria-expanded="true" aria-haspopup="listbox" ` +
-  `class="rec-input rec-select"><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
+  `class="rec-input rec-select" data-popup-open=""><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
   `</button><span class="rec-hint">What the proposal is for.</span></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 88px; left: 16px; --anchor-width: 240px;")}>` +
   `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1">` +

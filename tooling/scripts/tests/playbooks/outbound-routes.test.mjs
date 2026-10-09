@@ -6,7 +6,7 @@
  * production guard on this machine, which is itself the proof that nothing
  * is written for a verb that did not happen.
  */
-import { test, beforeEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -33,6 +33,9 @@ const run = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/run/route.
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
+// The ledger is written as the service role (a session may not insert into events): a test that reads it stands one in.
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -998,9 +1001,11 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     playbooks: [pb(K1, A), pb(K2, B)],
     templates: [tpl(T1, B, { name: "winback_offer", category: "marketing" })],
     decisions: [],
+    events: [],
     broadcasts: [],
     broadcast_recipients: [],
   };
+  setServiceClient(fakeDb(tables));
   await refused(playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K1 })), "forbidden", 403);
   await refused(
     playbook.PUT.run(send("PUT", { state: "sleeping" }), ctxFor(tables, { id: K2 })),
@@ -1024,6 +1029,11 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     { id: K2, name: "Renamed", state: "paused" },
   );
   assert.equal(tables.playbooks.find((p) => p.id === K2).name, "Renamed");
+  assert.deepEqual(
+    tables.events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]),
+    [["playbook.changed", "playbook", K2, { name: "Renamed", by: USER, fields: ["name"] }]],
+    "REGRESSION: the ledger kept a playbook starting and pausing and never that what it sends was changed; a pause is its decision and no edit",
+  );
   await refused(run.POST.run(send("POST"), ctxFor(tables, { id: K1 })), "forbidden", 403);
   await refused(
     run.POST.run(send("POST"), ctxFor(tables, { id: K2 })),
@@ -1346,7 +1356,9 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
     ],
     tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
     decisions: [],
+    events: [],
   };
+  setServiceClient(fakeDb(tables));
   const rowOf = (id) => tables.playbooks.find((p) => p.id === id);
   const before = { ...rowOf(K1) };
   let ctx = ctxFor(tables, { id: K1 });
@@ -1360,6 +1372,11 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
   ctx = ctxFor(tables, { id: K1 });
   await playbook.PUT.run(send("PUT", { channels: ["whatsapp", "email"] }), ctx);
   assert.equal(writes(ctx), 0);
+  assert.deepEqual(
+    tables.events.map((e) => [e.kind, e.subject_id, e.data]),
+    [["playbook.changed", K1, { name: "Visit reminder", by: USER, fields: ["channels"] }]],
+    "the change of channels is on the ledger once; the save that changed nothing says nothing",
+  );
   // Judged as a save judges them, by its own class and message: a text carries no offer, and a tick is of the three.
   await refused(
     playbook.PUT.run(send("PUT", { channels: ["whatsapp", "sms"] }), ctxFor(tables, { id: K2 })),

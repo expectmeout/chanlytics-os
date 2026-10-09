@@ -312,6 +312,7 @@ export {
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
   membershipCountOf,
+  workspaceIdsOf,
   createWorkspaceFn,
   lineForwardingSet,
   setPlaybookState,
@@ -363,6 +364,8 @@ export {
   deleteList,
 } from "./repositories/lists";
 export type { SavedListRow, ListRow, WriteError } from "./repositories/lists";
+export { activitySubjects } from "./events";
+export type { ActivitySubject, ActivitySubjects } from "./events";
 export { touchesSince, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
 export { yesesSince } from "./repositories/deals";

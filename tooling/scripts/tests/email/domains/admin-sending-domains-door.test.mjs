@@ -298,7 +298,7 @@ test("a host another workspace reserved and never verified is taken over after t
       w.tables.events.map((e) => [e.tenant_id, e.kind, e.data]),
       [
         [B, "sending_domain.removed", { host: "getharbor.com", why: "unverified" }],
-        [A, "sending_domain.added", { host: "getharbor.com" }],
+        [A, "sending_domain.added", { host: "getharbor.com", by: USER }],
       ],
     );
   } finally {
@@ -390,7 +390,7 @@ test("an owner adds a domain: held for the workspace, created with tracking off,
     assert.deepEqual([stored.provider_domain_id, stored.created_by, stored.tenant_id], ["pd-new", USER, A]);
     assert.deepEqual(
       w.tables.events.map((e) => [e.kind, e.data]),
-      [["sending_domain.added", { host: "getharbor.com" }]],
+      [["sending_domain.added", { host: "getharbor.com", by: USER }]],
     );
   } finally {
     net.restore();

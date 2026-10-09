@@ -137,7 +137,7 @@ export async function addSendingDomain(
     await deleteSendingDomain(p.db, i.tenantId, reservation.id).catch(() => false);
     throw e;
   }
-  await emitEvent(p.db, i.tenantId, "sending_domain.added", "sending_domain", row.id, { host });
+  await emitEvent(p.db, i.tenantId, "sending_domain.added", "sending_domain", row.id, { host, by: i.by });
   return { ok: true, domain: domainDto(row) };
 }
 
@@ -189,7 +189,11 @@ export async function resumeSendingDomain(
  * touched first, so a check already in flight -- which would read the provider's 404 as a domain that stopped
  * verifying, and hold it, and tell the owner -- finds it moved and writes nothing.
  */
-export async function removeSendingDomain(p: DomainPorts, row: SendingDomainRow): Promise<DoorAnswer | { ok: true }> {
+export async function removeSendingDomain(
+  p: DomainPorts,
+  row: SendingDomainRow,
+  by: string | null = null,
+): Promise<DoorAnswer | { ok: true }> {
   await touchSendingDomain(p.db, row);
   let providerId = row.provider_domain_id;
   if (!providerId) {
@@ -205,7 +209,7 @@ export async function removeSendingDomain(p: DomainPorts, row: SendingDomainRow)
     if (!gone.ok) return say(502, "provider", `The mail provider could not remove ${row.host} just now. Try again.`);
   }
   if (await deleteSendingDomain(p.db, row.tenant_id, row.id)) {
-    const data = { host: row.host };
+    const data = { host: row.host, by };
     await emitEvent(p.db, row.tenant_id, "sending_domain.removed", "sending_domain", row.id, data);
   }
   return { ok: true };

@@ -13,7 +13,8 @@ import {
   REACH_OUT_REFUSALS,
   triggerOf,
 } from "@chanlytics/contracts";
-import { removePlaybook, setPlaybookState, updatePlaybook, type Json } from "@chanlytics/db";
+import { emitEvent, removePlaybook, setPlaybookState, updatePlaybook, type Json } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision, type playbookScope } from "@/server/verbs";
 import {
@@ -65,6 +66,7 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
     if (channelsChanged(channels, kept)) {
       const { error } = await updatePlaybook(ctx.supabase, id, { channels });
       if (error) throw playbookWriteError(error);
+      await playbookEdited(ctx, p, p.name, ["channels"]);
     }
     return { id, name: p.name, state: p.state };
   }
@@ -87,7 +89,22 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
     ...(channelsChanged(v.channels, kept) ? { channels: v.channels } : {}),
   });
   if (error) throw playbookWriteError(error);
+  await playbookEdited(ctx, p, v.name, [
+    ...(v.name !== p.name ? ["name"] : []),
+    ...(v.trigger !== p.trigger ? ["moment"] : []),
+    ...(v.template_id !== p.template_id ? ["message"] : []),
+    ...(channelsChanged(v.channels, kept) ? ["channels"] : []),
+  ]);
   return { id, name: v.name, state: p.state };
+}
+
+/**
+ * An edit, on the ledger: the ledger kept a playbook starting and pausing and never that what it sends, or when, was
+ * changed. Which parts moved, of the ones the scope read before the write (its name, its moment, its message, its
+ * channels), and who by; never the words. As the service role: a session may not insert into events.
+ */
+async function playbookEdited(ctx: RouteContext, p: PlaybookRow, name: string, fields: string[]): Promise<void> {
+  await emitEvent(serviceDb(), p.tenant_id, "playbook.changed", "playbook", p.id, { name, by: ctx.userId, fields });
 }
 
 export async function deletePlaybook(ctx: RouteContext, p: PlaybookRow) {

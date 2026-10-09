@@ -3,7 +3,7 @@
  * called with a database in memory. What is proved is the policy each
  * declares and what the handler answers, not its text.
  */
-import { test, beforeEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -16,6 +16,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const me = await import(at("apps/dashboard/app/api/v1/me/route.ts"));
 const workspaces = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
 const create = await import(at("apps/dashboard/app/api/v1/workspaces/create/route.ts"));
@@ -23,6 +24,7 @@ const team = await import(at("apps/dashboard/app/api/v1/team/route.ts"));
 const devices = await import(at("apps/dashboard/app/api/v1/me/devices/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -203,6 +205,8 @@ test("where you are: every workspace with who is signed in; the active one by me
 
 test("the zone: the owner's, the workspace named, checked against Intl, and a change that landed on no row is a refusal rather than a success", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
+  // The save is recorded as the service role (settings.changed): a ledger for it to land in.
+  setServiceClient(fakeDb({ events: [] }));
   await refused(
     workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }), ctxFor(tables)),
     "choose_workspace",
@@ -234,6 +238,8 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
 
 test("how customers buy: the owner's, one of the two answers, only what was sent written and read back, and a change that landed on no row is a refusal (0008)", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
+  // The save is recorded as the service role (settings.changed): a ledger for it to land in.
+  setServiceClient(fakeDb({ events: [] }));
   const ctx = () => ctxFor(tables);
   await refused(
     workspaces.PATCH.run(send("PATCH", { sells_by: "proposal" }, inA), ctx()),
@@ -707,4 +713,29 @@ test("a phone is registered on the account through the definer door, and forgott
     "iPhone or an Android",
   );
   await refused(devices.DELETE.run(send("DELETE", {}), ctxFor(tables, {}, rpcs)), "validation", 400, "push token");
+});
+
+test("REGRESSION: the zone and how customers buy are settings, and a save of either is on the ledger with who made it -- they live on the tenant's row, and left no trace", async () => {
+  const tables = { memberships: both("viewer", "owner"), tenants: tenants(), events: [] };
+  // The ledger is written as the service role: a session may not insert into events.
+  setServiceClient(fakeDb(tables));
+  try {
+    await workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor(tables));
+    await workspaces.PATCH.run(
+      send("PATCH", { sells_by: "proposal", timezone: "America/Denver" }, inB),
+      ctxFor(tables),
+    );
+    assert.deepEqual(
+      tables.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.data]),
+      [
+        [B, "settings.changed", "workspace", { fields: ["timezone"], by: USER, version: null }],
+        [B, "settings.changed", "workspace", { fields: ["sells_by", "timezone"], by: USER, version: null }],
+      ],
+      "which of the two moved and who by, never the value",
+    );
+    await assert.rejects(workspaces.PATCH.run(send("PATCH", { timezone: "Mars/Olympus" }, inB), ctxFor(tables)));
+    assert.equal(tables.events.length, 2, "a refused save says nothing");
+  } finally {
+    setServiceClient(null);
+  }
 });

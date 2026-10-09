@@ -26,6 +26,7 @@ import {
   POLICY_MODE_WORDS,
   NOTIFICATION_KIND_GROUPS,
   NOTIFICATION_PANE_WORDS,
+  ACTIVITY_PAGE_WORDS,
 } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
@@ -225,6 +226,9 @@ installRoleStore();
 // test stands a door in on; Team's roster is the seam's settings value.
 const { SettingsPage } = await import("../../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
 const { activity } = await import("../../../../apps/dashboard/src/legacy-bridge/activity.ts");
+const { pageClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
+// The log's lists are the kit's Select (Base UI's, which the suite stands in for): a test finds one by its type.
+const { Select } = await import("../../../../apps/dashboard/src/surfaces/kit/select/select.tsx");
 /** The log's reads answered by `f`: the module's object, which the pane imports. */
 const stand = (f) => Object.assign(activity, f);
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -362,8 +366,9 @@ const feed = (people = []) => {
     people: async () => people,
   };
 };
-const answer = (resolve, rows, kinds = ["message.sent", "call.ended"]) =>
-  resolve({ ok: true, message: "", data: { rows, actors: {}, kinds, page: { has_more: false } } });
+/** An answer as this tab may still hold one from before the log said names and members: `over` adds them. */
+const answer = (resolve, rows, kinds = ["message.sent", "call.ended"], over = {}) =>
+  resolve({ ok: true, message: "", data: { rows, actors: {}, kinds, page: { has_more: false }, ...over } });
 const entry = (id, text) => ({
   id,
   at: "2026-09-15T14:00:00Z",
@@ -463,57 +468,190 @@ test("REGRESSION (one gate): Activity follows an owner's View-as preview like ev
 
 /* ------------------------------ Activity ------------------------------ */
 
+/** Pick an option of one of the log's lists (the kit's Select, or its Combobox), as a person does. */
+const pick = (tree, id, value) => byTestId(tree, id).props.onValueChange(value);
+/** Every option a list offers, with its value and its words. */
+const optionsOf = (box) => box.props.options.map((o) => [o.value, o.label]);
+/** The day picker (the kit's), drawn only while one day is what was asked for. */
+const dayPicker = (tree) => find(tree, (n) => n.props?.label === ACTIVITY_PAGE_WORDS.when.pick && !!n.props?.today);
+
 test("REGRESSION (S21): Activity says it is reading and names its filters -- the first load showed nothing, and three filters had no name", async () => {
   workspace("owner");
   const A = stand(feed([{ id: "c-ana", name: "Ana Ruiz", phone: null }]));
   let tree = settings("activity");
   assert.equal(A.asked.length, 1, "the log is read once");
-  assert.ok(byTestId(tree, "act-loading"), "REGRESSION: the pane was blank while it read");
-  for (const id of ["act-kind", "act-day", "act-person-q"]) {
-    assert.ok(String(byTestId(tree, id)?.props["aria-label"] || "").length > 2, `REGRESSION: ${id} had no name`);
+  const reading = () => byTestId(tree, "act-loading");
+  const card = () => byTestId(tree, "set-activity");
+  assert.equal(textOf(reading()), "Reading the activity log…", "REGRESSION: the pane was blank while it read");
+  assert.deepEqual(
+    [reading().props.role, reading().props.className],
+    ["status", "rec-sr"],
+    "REGRESSION (8 Oct): the sentence came and went above the rows and moved every one of them twice; it is said to a screen reader alone",
+  );
+  assert.equal(card().props["data-loading"], "", "the card says it is reading, and what it marks dims in place");
+  assert.equal(byTestId(tree, "act-rows").props["data-dims"], "", "the rows are what dims");
+  assert.ok(
+    String(card().props.className).split(" ").includes("rec-card"),
+    "the kit's record card, as Profile's and Partner's are: it stood on the older flat card",
+  );
+  for (const id of ["act-area", "act-who", "act-when", "act-person-q"]) {
+    assert.ok(String(byTestId(tree, id)?.props.label || "").length > 2, `REGRESSION: ${id} had no name`);
   }
   answer(A.waiting[0], [entry("e1", "Dana changed the business details")]);
   await flush();
   tree = settle("activity");
-  assert.equal(byTestId(tree, "act-loading"), null, "and stops saying so when the answer lands");
+  assert.equal(textOf(reading()), "", "and stops saying so when the answer lands");
+  assert.equal(card().props["data-loading"], undefined);
   assert.equal(rowsOn(tree).length, 1);
+  assert.equal(byTestId(tree, "act-clear"), null, "nothing narrows the log, so there is nothing to clear");
 
-  // Narrowed to one person, the way back to everyone is named too.
-  type(byTestId(tree, "act-person-q"), "Ana");
+  // Narrowed to one person, the way back to everyone is named too. The box is the kit's Combobox, and what it lists
+  // is the workspace's answer to the words typed (its onQuery), not the kit's own narrowing of a list it was given.
+  byTestId(tree, "act-person-q").props.onQuery("Ana");
   settle("activity");
   await new Promise((r) => setTimeout(r, 300));
   await flush();
   tree = settle("activity");
-  press(buttonSaying(tree, "Ana Ruiz"));
+  assert.deepEqual(optionsOf(byTestId(tree, "act-person-q")), [["c-ana", "Ana Ruiz"]], "who matches, as its list");
+  pick(tree, "act-person-q", "c-ana");
   tree = settle("activity");
+  assert.equal(A.asked[A.asked.length - 1].person, "c-ana", "and the log is read for them");
   const clear = find(byTestId(tree, "act-person"), (n) => n.type === "button");
   assert.ok(
     String(clear?.props["aria-label"] || "").length > 2,
     "REGRESSION: the chip's clear button had only a title",
   );
+
+  // The way back to the whole log is at the card's head, beside its title, only while something narrows it: under
+  // the boxes it wrapped onto a line of its own.
+  const head = find(tree, (n) => n.props?.className === "rec-card-head");
+  const back = byTestId(head, "act-clear");
+  assert.equal(textOf(back), "Clear");
+  press(back);
+  tree = settle("activity");
+  assert.equal(A.asked[A.asked.length - 1].person, undefined, "one press, and the whole log is read again");
+  assert.equal(byTestId(tree, "act-clear"), null);
+  assert.equal(byTestId(tree, "act-person"), null, "the chip went with it");
 });
 
-test("REGRESSION (S21): the kind filter asks when a kind is chosen, not on every keystroke, and keeps what was typed", async () => {
+test("what kind of thing is two short lists -- the part of the product, then its kinds in the rows' words -- and a pick reads the log once", async () => {
   workspace("owner");
   const A = stand(feed());
   settings("activity");
-  answer(A.waiting[0], []);
+  answer(A.waiting[0], [], ["open_recording", "call.recorded", "message.sent", "appointment.changed"]);
   await flush();
   let tree = settle("activity");
-  for (const v of ["c", "ca", "call ", "call e"]) {
-    type(byTestId(tree, "act-kind"), v);
-    tree = settle("activity");
-  }
-  assert.equal(A.asked.length, 1, "REGRESSION: every keystroke read the log again");
-  assert.equal(byTestId(tree, "act-kind").props.value, "call e", "REGRESSION: a typed space was eaten");
-  byTestId(tree, "act-kind").props.onKeyDown({ key: "Enter", preventDefault() {} });
+  const area = byTestId(tree, "act-area");
+  assert.equal(
+    area.type,
+    Select,
+    "REGRESSION (8 Oct): the kit's Select, its list on the panel's pop as every menu's is; the browser's own list drew itself in the system's colours, whatever the look",
+  );
+  assert.deepEqual(
+    optionsOf(area),
+    [
+      ["", "All activity"],
+      ["only:problems", "What went wrong or was stopped"],
+      ["family:conversations", "Conversations"],
+      ["family:calls", "Calls"],
+      ["family:calendar", "Calendar"],
+    ],
+    "REGRESSION (8 Oct): one list held every kind of every part, two hundred lines of it; the first holds the parts alone",
+  );
+  assert.equal(byTestId(tree, "act-kind"), null, "no second box until a part is picked: it would have nothing to list");
+
+  pick(tree, "act-area", "family:calls");
   tree = settle("activity");
-  assert.equal(A.asked.length, 2, "Enter asks");
-  assert.equal(A.asked[1].kind, "call e");
-  type(byTestId(tree, "act-kind"), "call.ended");
+  assert.equal(A.asked.length, 2, "a pick asks once");
+  assert.deepEqual([A.asked[1].kind, A.asked[1].family], [undefined, "calls"]);
+  const kinds = byTestId(tree, "act-kind");
+  assert.deepEqual(
+    optionsOf(kinds),
+    [
+      ["family:calls", "All kinds"],
+      ["kind:open_recording", "Listened to a call's recording"],
+      ["kind:call.recorded", "A call was recorded"],
+    ],
+    "REGRESSION: the picker listed kinds as the ledgers spell them, in a browser's datalist",
+  );
+  assert.ok(String(kinds.props.label || "").length > 2, "and the second list has a name of its own");
+  pick(tree, "act-kind", "kind:open_recording");
+  tree = settle("activity");
+  assert.equal(A.asked.length, 3);
+  assert.deepEqual([A.asked[2].kind, A.asked[2].family], ["open_recording", undefined]);
+  assert.deepEqual(
+    [byTestId(tree, "act-area").props.value, byTestId(tree, "act-kind").props.value],
+    ["family:calls", "kind:open_recording"],
+    "the first box still says the part its kind is in",
+  );
+  pick(tree, "act-kind", "family:calls");
+  tree = settle("activity");
+  assert.deepEqual([A.asked[3].kind, A.asked[3].family], [undefined, "calls"], "All kinds is the part whole again");
+  pick(tree, "act-area", "only:problems");
+  tree = settle("activity");
+  assert.deepEqual([A.asked[4].family, A.asked[4].only], [undefined, "problems"]);
+  assert.equal(byTestId(tree, "act-kind"), null, "what went wrong is not a part: it has no kinds to list");
+
+  // An empty log says why: narrowed, the filters are, and the way back is offered; whole, nothing has happened yet.
+  answer(A.waiting[4], []);
+  await flush();
+  tree = settle("activity");
+  assert.ok(textOf(tree).includes("Nothing here for that."), "narrowed to nothing");
+  assert.ok(buttonSaying(tree, "Clear the filters"), "with the way back");
+  pick(tree, "act-area", "");
   settle("activity");
-  assert.equal(A.asked.length, 3, "a kind the log offers asks as soon as it is picked");
-  assert.equal(A.asked[2].kind, "call.ended");
+  answer(A.waiting[5], []);
+  await flush();
+  tree = settle("activity");
+  assert.ok(
+    textOf(tree).includes("Nothing has happened yet."),
+    "REGRESSION: a new workspace read 'Nothing here for that'",
+  );
+  assert.equal(buttonSaying(tree, "Clear the filters"), null, "and nothing to clear");
+});
+
+test("the log is narrowed to who did it and to a span of days; one day asks for its day before it narrows", async () => {
+  workspace("owner");
+  const A = stand(feed());
+  settings("activity");
+  answer(A.waiting[0], [], undefined, { members: [{ id: "u-lee", name: "Lee" }] });
+  await flush();
+  let tree = settle("activity");
+  assert.deepEqual(optionsOf(byTestId(tree, "act-who")), [
+    ["", "Anyone"],
+    ["u-lee", "Lee"],
+    ["receptionist", "Receptionist"],
+    ["system", "System"],
+  ]);
+  pick(tree, "act-who", "u-lee");
+  tree = settle("activity");
+  assert.equal(A.asked[1].actor, "u-lee", "REGRESSION: the log named who did it and could not be read for one of them");
+
+  assert.equal(dayPicker(tree), null, "no day picker until one day is what was asked for");
+  pick(tree, "act-when", "week");
+  tree = settle("activity");
+  const { from, to } = A.asked[2];
+  assert.match(String(from), /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal((Date.parse(to) - Date.parse(from)) / 86_400_000, 6, "seven days, today among them");
+  pick(tree, "act-when", "yesterday");
+  tree = settle("activity");
+  assert.equal(A.asked[3].from, A.asked[3].to, "one day");
+  assert.equal((Date.parse(to) - Date.parse(A.asked[3].to)) / 86_400_000, 1, "the one before today");
+  pick(tree, "act-when", "day");
+  tree = settle("activity");
+  assert.deepEqual([A.asked[4].day, A.asked[4].from], [undefined, undefined], "any day, until one is picked");
+  assert.ok(
+    byTestId(tree, "act-clear"),
+    "One day is a narrowing begun: the way back is offered before a day is picked",
+  );
+  assert.equal(
+    dayPicker(tree).props.today,
+    pageClock().dayKey(Date.now()),
+    "the kit's date picker, told today in the workspace's zone",
+  );
+  dayPicker(tree).props.onValueChange("2026-09-15");
+  settle("activity");
+  assert.equal(A.asked[5].day, "2026-09-15");
 });
 
 test("REGRESSION (S21): a slow answer never lands over a newer one", async () => {
@@ -523,9 +661,9 @@ test("REGRESSION (S21): a slow answer never lands over a newer one", async () =>
   answer(A.waiting[0], [entry("e0", "The first page")]);
   await flush();
   let tree = settle("activity");
-  type(byTestId(tree, "act-kind"), "message.sent");
+  pick(tree, "act-area", "family:conversations");
   tree = settle("activity");
-  type(byTestId(tree, "act-kind"), "call.ended");
+  pick(tree, "act-area", "family:calls");
   settle("activity");
   assert.equal(A.asked.length, 3);
   answer(A.waiting[2], [entry("e2", "A call ended")]);
@@ -539,6 +677,90 @@ test("REGRESSION (S21): a slow answer never lands over a newer one", async () =>
     [true],
     "REGRESSION: the older answer replaced the newer one",
   );
+});
+
+test("REGRESSION (8 Oct): a hundred recordings opened in a minute were a hundred lines -- rows of one kind by one hand on one day are one, and open with a press", async () => {
+  workspace("owner");
+  const A = stand(feed());
+  settings("activity");
+  const heard = (i) => ({
+    ...entry(`d-${i}`, "Listened to a call's recording"),
+    kind: "open_recording",
+    at: `2026-09-15T14:0${i}:00Z`,
+    actor_type: "user",
+    actor_user_id: "u-dana",
+    subject_type: "call",
+    subject_id: `k${i}`,
+  });
+  const failed = {
+    ...entry("e-9", "A message could not be sent"),
+    kind: "message.send_failed",
+    source: "event",
+    actor_type: null,
+    subject_type: "conversation",
+    subject_id: "cv9",
+  };
+  answer(A.waiting[0], [heard(3), heard(2), heard(1), failed], ["open_recording", "message.send_failed"], {
+    actors: { "u-dana": "Dana" },
+    subjects: { "call:k3": "Ana Ruiz", "call:k2": "Lee Park", "conversation:cv9": "Ana Ruiz" },
+  });
+  await flush();
+  let tree = settle("activity");
+  assert.deepEqual(
+    rowsOn(tree).map((r) => textOf(find(r, (n) => n.props?.className === "act-what"))),
+    [
+      `Dana · Listened to 3 calls' recordings · since ${pageClock().time(Date.parse("2026-09-15T14:01:00Z"))}`,
+      "A message could not be sent · Ana Ruiz",
+    ],
+    "one line for the three, in the bell's own way of saying several; a row says who it was about, by name",
+  );
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "act-member").length, 0, "shut until asked");
+  // A row is one press, as a bell's note is: its door where it has a page, its fold where it stands for several.
+  const [foldRow, failedRow] = rowsOn(tree);
+  assert.equal(failedRow.type, "a", "a row with a page is its own door, and a door is a link");
+  assert.ok(String(failedRow.props.href).endsWith("inbox/th-cv9"), failedRow.props.href);
+  assert.deepEqual(
+    [foldRow.type, foldRow.props["aria-expanded"], foldRow.props["aria-label"]],
+    ["button", false, "Dana · Listened to 3 calls' recordings: show them"],
+    "the whole row is the press that shows them, and says so",
+  );
+  press(foldRow);
+  tree = settle("activity");
+  assert.deepEqual(
+    [rowsOn(tree)[0].props["aria-expanded"], rowsOn(tree)[0].props["aria-label"]],
+    [true, "Dana · Listened to 3 calls' recordings: hide them"],
+  );
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "act-member").map((m) => [m.type, String(m.props.href ?? "")]),
+    [
+      ["a", failedRow.props.href.replace("inbox/th-cv9", "conversations/cv-k3")],
+      ["a", failedRow.props.href.replace("inbox/th-cv9", "conversations/cv-k2")],
+      ["a", failedRow.props.href.replace("inbox/th-cv9", "conversations/cv-k1")],
+    ],
+    "each row under it opens its own call",
+  );
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "act-member").map((m) =>
+      textOf(find(m, (n) => n.props?.className === "act-what")),
+    ),
+    ["Ana Ruiz", "Lee Park", "Listened to a call's recording"],
+    "each row under it says what the line has not: whose call, or its own sentence where no name was read",
+  );
+  assert.equal(
+    textOf(find(tree, (n) => n.props?.className === "act-day-n tally")),
+    "4",
+    "the day says how many things happened, folded or not",
+  );
+
+  // Asked for by name, its rows are what the reader came to read: none is folded.
+  pick(tree, "act-area", "family:calls");
+  tree = settle("activity");
+  pick(tree, "act-kind", "kind:open_recording");
+  settle("activity");
+  answer(A.waiting[2], [heard(3), heard(2), heard(1)]);
+  await flush();
+  tree = settle("activity");
+  assert.equal(rowsOn(tree).length, 3);
 });
 
 /* ------------------------------- Autonomy ------------------------------- */

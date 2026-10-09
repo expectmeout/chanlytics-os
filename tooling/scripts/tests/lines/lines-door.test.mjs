@@ -1064,7 +1064,8 @@ test("record validates the row it is about to write and reports the first proble
   assert.equal(row.contact_phone, "+1 917 555 0123");
   assert.deepEqual(
     tables.events.map((e) => [e.kind, e.category, e.subject_type, e.subject_id, e.data]),
-    [["business.recorded", "setup", "tenant", A, { legal_name: "Harbor Moving LLC", path: "standard" }]],
+    // Who saved it, as the dashboard's token names them: the ledger said the record changed and never whose hand it was.
+    [["business.recorded", "setup", "tenant", A, { legal_name: "Harbor Moving LLC", path: "standard", by: "u1" }]],
   );
 
   // Said twice makes one row.

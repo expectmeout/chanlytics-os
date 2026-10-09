@@ -604,6 +604,7 @@ packages/channels/src/
   tokens/
   voice/
 packages/contracts/src/
+  activity/
   ai/
   ask/
   ask-proposals/

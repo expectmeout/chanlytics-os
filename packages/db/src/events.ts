@@ -15,6 +15,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  personName,
   SHARED_EVENT_VERSIONS,
   type ActivationMilestone,
   type ContactAddedData,
@@ -32,18 +33,39 @@ type Open = { [key: string]: Json | undefined };
 /** A kind that carries nothing but its subject. */
 type Nothing = Record<string, never>;
 
-type BillingData = { source: string; status: string; subscription?: string; price_id?: string | null };
+type BillingData = {
+  source: string;
+  status: string;
+  subscription?: string;
+  price_id?: string | null;
+  /** The member who asked (a resume, a plan started now); absent where Stripe's own event moved it. */
+  by?: string | null;
+};
+/** A booking tool's email read into the calendar: where it came from, and which tool sent it. */
+type BookingData = { source: "booking_email"; tool: string };
+/** A member's act on a lead in Needs review: who, and in which search. */
+type LeadTriageData = { by: string; search_id: string };
 type TextingData = { e164: string | null; from: string | null; to: string; mock: boolean };
 
 /** Each kind the product writes from TypeScript, and the data it carries: the table's own kinds. */
 interface TableData {
+  "appointment.booked": BookingData;
+  "appointment.cancelled": BookingData;
+  "appointment.moved": BookingData;
+  /** Stripe's own news of a payment, and of a trial about to end: never an amount. */
+  "billing.paid": Nothing;
+  "billing.payment_failed": Nothing;
+  "billing.trial_ending": { trial_end: string | null };
   "billing.paused": BillingData;
   "billing.resumed": BillingData;
   "billing.updated": BillingData;
   "broadcast.sent": Open;
   /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
   "broadcast.stopped": { failure: string; sent: number | null };
-  "business.recorded": { legal_name: string | null; path: string };
+  "business.recorded": { legal_name: string | null; path: string; by?: string | null };
+  /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
+  "capability.activated": { capability: string; by: string };
+  "capability.deactivated": { capability: string; by: string };
   "channel.connected": {
     kind: "whatsapp";
     phone_number_id: string;
@@ -56,8 +78,13 @@ interface TableData {
   "contact.added": ContactAddedData;
   "contact.consent_changed": ContactConsentChangedData;
   "contact.email_suppressed": { reason: string };
+  "contact.kept_apart": { by: string; doubt_id: string };
+  /** The owner answered from the WhatsApp Business app: the receptionist is quiet on the thread until then. */
+  "conversation.owner_replied": { until: string };
+  /** A thread handed to the team: why (an escalation's reason), on the conversation. Once per hold. */
+  "escalation.opened": { reason: string };
   "google.connected": { email: string | null; accounts: number; locations: number; on_maps: number; by: string | null };
-  "google.disconnected": { email: string | null; location: string | null; revoked: boolean };
+  "google.disconnected": { email: string | null; location: string | null; revoked: boolean; by?: string | null };
   "google.linked": { place_id: string; name: string | null; by: string | null; read: boolean };
   "google.replied": { review_id: string; chars: number; by?: "receptionist"; usage?: Open | null };
   /** An automatic reply the receptionist wrote and did not post: it named a price or money (contracts autoReplyHold). */
@@ -69,13 +96,24 @@ interface TableData {
     rating: number | null;
     review_count: number | null;
   };
-  "google.unlinked": { place_id: string; name: string | null; had_profile: boolean };
+  "google.unlinked": { place_id: string; name: string | null; had_profile: boolean; by?: string | null };
   "ingest.allowlist_skip": Nothing;
   "ingest.unreachable_sender": Nothing;
   "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" } & Open;
   "lead.emailed": { by: "reach_out"; send_id: string };
+  "lead.excluded": LeadTriageData;
+  "lead.kept": LeadTriageData;
+  "lead.put_back": LeadTriageData;
+  "lead.search_removed": { name: string; kept: number; archived: number; by: string };
+  "lead.search_renamed": { name: string; by: string };
+  /** A person accepted an invitation: who, and the role they joined at. */
+  "member.joined": { by: string; role: string };
+  /** A person left by deleting their account: who (an id no row names any more), and how. */
+  "member.left": { by: string; how: "account_deleted" };
   "line.answering": { e164: string | null; provider: string; agent_id: string | null; by: string | null };
   "line.failed": { step: string; error: string; provider: string; by: string | null };
+  /** The number a business keeps, set to forward to its line: its carrier and which calls, never the number. */
+  "line.forwarding_set": { carrier: string; mode: string; by: string };
   "line.forwarding_verified": { from: string | null; call_id: string; proof: string };
   "line.released": { e164: string | null; provider: string } & Open;
   "line.texting_approved": TextingData;
@@ -87,16 +125,23 @@ interface TableData {
   "message.send_raced_cancel": { wamid: string | null };
   "message.sent": { sender: string };
   "platform.acted": PlatformActedData;
+  /** A playbook, or a reach-out's chain, edited: its name, who, and which parts moved (never their words). */
+  "playbook.changed": { name: string; by: string; fields: string[] };
   "playbook.run": Record<string, unknown>;
   "policy.changed": { class: string; mode: string; fields: string[]; by: string; via?: string };
+  "reach_out.lead_stopped": { by: string };
+  "reach_out.send_decided": { decision: string; by: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
-  "sending_domain.added": { host: string };
+  "sending_domain.added": { host: string; by?: string | null };
   "sending_domain.held": { host: string } & Open;
   "sending_domain.released": { host: string } & Open;
-  "sending_domain.removed": { host: string; why?: string };
+  "sending_domain.removed": { host: string; why?: string; by?: string | null };
   "sending_domain.resumed": { host: string; why?: string; by: string };
   "sending_domain.verified": { host: string } & Open;
   "settings.changed": { fields: string[]; by: string; version: number | string | null; via?: string };
+  /** A message deleted from the Library, and one sent to WhatsApp for approval: its name, its language, and who. */
+  "template.removed": { name: string; language: string; by: string };
+  "template.submitted": { name: string; language: string; by: string };
   "usage.ask_tokens": Open;
   "usage.llm_tokens": Record<string, unknown>;
   "voice.provisioned": Open & { agent_id: string; llm_id: string };
@@ -115,16 +160,27 @@ export type EmittedKind = keyof EventData;
 
 /** Where each kind files in the ledger, and the version its data is written at. */
 const WRITES: { readonly [K in keyof TableData]: { category: string; version: number } } = {
+  "appointment.booked": { category: "appointment", version: 1 },
+  "appointment.cancelled": { category: "appointment", version: 1 },
+  "appointment.moved": { category: "appointment", version: 1 },
+  "billing.paid": { category: "billing", version: 1 },
+  "billing.payment_failed": { category: "billing", version: 1 },
+  "billing.trial_ending": { category: "billing", version: 1 },
   "billing.paused": { category: "billing", version: 1 },
   "billing.resumed": { category: "billing", version: 1 },
   "billing.updated": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
   "broadcast.stopped": { category: "message", version: 1 },
   "business.recorded": { category: "setup", version: 1 },
+  "capability.activated": { category: "setup", version: 1 },
+  "capability.deactivated": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "contact.email_suppressed": { category: "contact", version: 1 },
+  "contact.kept_apart": { category: "contact", version: 1 },
+  "conversation.owner_replied": { category: "message", version: 1 },
+  "escalation.opened": { category: "message", version: 1 },
   "google.connected": { category: "google", version: 1 },
   "google.disconnected": { category: "google", version: 1 },
   "google.linked": { category: "google", version: 1 },
@@ -136,8 +192,16 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "ingest.unreachable_sender": { category: "ingest", version: 1 },
   "ingest.unroutable": { category: "ingest", version: 1 },
   "lead.emailed": { category: "lead", version: 1 },
+  "lead.excluded": { category: "lead", version: 1 },
+  "lead.kept": { category: "lead", version: 1 },
+  "lead.put_back": { category: "lead", version: 1 },
+  "lead.search_removed": { category: "lead", version: 1 },
+  "lead.search_renamed": { category: "lead", version: 1 },
+  "member.joined": { category: "system", version: 1 },
+  "member.left": { category: "system", version: 1 },
   "line.answering": { category: "setup", version: 1 },
   "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_set": { category: "setup", version: 1 },
   "line.forwarding_verified": { category: "setup", version: 1 },
   "line.released": { category: "setup", version: 1 },
   "line.texting_approved": { category: "setup", version: 1 },
@@ -148,9 +212,12 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "message.send_raced_cancel": { category: "message", version: 1 },
   "message.sent": { category: "message", version: 1 },
   "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
+  "playbook.changed": { category: "message", version: 1 },
   "playbook.run": { category: "message", version: 1 },
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "reach_out.lead_stopped": { category: "lead", version: 1 },
+  "reach_out.send_decided": { category: "lead", version: 1 },
   "sending_domain.added": { category: "setup", version: 1 },
   "sending_domain.held": { category: "setup", version: 1 },
   "sending_domain.released": { category: "setup", version: 1 },
@@ -158,6 +225,8 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "sending_domain.resumed": { category: "setup", version: 1 },
   "sending_domain.verified": { category: "setup", version: 1 },
   "settings.changed": { category: "system", version: 1 },
+  "template.removed": { category: "message", version: 1 },
+  "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
   "voice.provisioned": { category: "setup", version: 1 },
@@ -374,4 +443,186 @@ export async function settleDelivery(
     .eq("event_id", d.eventId)
     .eq("subscriber", d.subscriber);
   if (error) throw new Error(`event_deliveries: ${error.message}`);
+}
+
+/* ------------------------------------------------ what the ledgers' rows are about ------------------------------------------------ */
+
+/**
+ * What the activity log's rows are about (apps/dashboard/src/server/metrics/activity.ts): each subject's name, and
+ * whose thread or person it is, so a line can say and open it.
+ *
+ * A decision or an event names its subject by type and id, and the log printed neither: "Listened to a call's
+ * recording" said whose call only behind its Open, and "A message could not be sent" opened nothing. This reads what a
+ * page of the log needs, in rounds: the rows that name themselves (a list, a broadcast, a playbook, a lead) and the
+ * ones that are a person's (a thread, a call, a deal, a message) or a thread's (an escalation); then an escalation's
+ * thread; then every person those and the rows name. A person is named by the one rule (contracts personName).
+ *
+ * Workspace scope: every statement is filtered by tenant_id, on the member's own client, so row security decides what
+ * is read and a subject of another workspace is no subject. Ids go out a hundred to a statement: a page may hold five
+ * hundred rows, and five hundred ids in one address is past what the wire carries.
+ */
+
+/** A row's subject, as the ledgers name it. */
+export interface ActivitySubject {
+  type: string;
+  id: string;
+}
+
+/** What a page's subjects are, each keyed `<type>:<id>`; a subject with no answer is absent from that answer. */
+export interface ActivitySubjects {
+  /** The name: a person's (their own, their thread's, call's, deal's, message's or escalation's), a list's, a run's, a lead's. */
+  names: Record<string, string>;
+  /** The thread a message or an escalation is on: its conversation's id. */
+  threads: Record<string, string>;
+  /** The person a deal is with: their id. */
+  people: Record<string, string>;
+}
+
+/** How many ids one statement names. */
+const IDS_PER_READ = 100;
+
+const chunks = (ids: readonly string[]): string[][] => {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) out.push(ids.slice(i, i + IDS_PER_READ));
+  return out;
+};
+
+/** Every row of one table whose id is one of `ids`, a hundred ids to a statement; the first error is thrown. */
+async function readByIds<R>(
+  ids: readonly string[],
+  read: (some: string[]) => PromiseLike<{ data: R[] | null; error: { message: string } | null }>,
+): Promise<R[]> {
+  const answers = await Promise.all(chunks(ids).map((some) => read(some)));
+  const out: R[] = [];
+  for (const a of answers) {
+    if (a.error) throw new Error(a.error.message);
+    out.push(...(a.data ?? []));
+  }
+  return out;
+}
+
+/** A row that is a person's, or a thread's: which. */
+interface Theirs {
+  id: string;
+  contact_id?: string | null;
+  conversation_id?: string | null;
+  /** A visit's own name for who it is with, where no person of the workspace is on it (a booking tool's email). */
+  client_name?: string | null;
+}
+
+/** The subjects that are a person's or a thread's, read by type: the first round. */
+async function theirsOf(
+  db: Db,
+  tenantId: string,
+  idsOf: (type: string) => string[],
+): Promise<Record<string, Theirs[]>> {
+  const [conversation, call, deal, message, escalation, appointment] = await Promise.all([
+    readByIds<Theirs>(idsOf("conversation"), (some) =>
+      db.from("conversations").select("id, contact_id").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds<Theirs>(idsOf("call"), (some) =>
+      db.from("calls").select("id, contact_id").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds<Theirs>(idsOf("deal"), (some) =>
+      db.from("deals").select("id, contact_id").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds<Theirs>(idsOf("message"), (some) =>
+      db.from("messages").select("id, contact_id, conversation_id").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds<Theirs>(idsOf("escalation"), (some) =>
+      db.from("escalations").select("id, conversation_id").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds<Theirs>(idsOf("appointment"), (some) =>
+      db.from("appointments").select("id, contact_id, client_name").eq("tenant_id", tenantId).in("id", some),
+    ),
+  ]);
+  return { conversation, call, deal, message, escalation, appointment };
+}
+
+/** The subjects that name themselves: a list, a broadcast, a playbook, a lead, a search. */
+async function ownNames(db: Db, tenantId: string, idsOf: (type: string) => string[]): Promise<Record<string, string>> {
+  const [lists, broadcasts, playbooks, leads, searches] = await Promise.all([
+    readByIds(idsOf("list"), (some) => db.from("segments").select("id, name").eq("tenant_id", tenantId).in("id", some)),
+    readByIds(idsOf("broadcast"), (some) =>
+      db.from("broadcasts").select("id, name").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds(idsOf("playbook"), (some) =>
+      db.from("playbooks").select("id, name").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds(idsOf("lead"), (some) =>
+      db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", some),
+    ),
+    readByIds(idsOf("lead_search"), (some) =>
+      db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", some),
+    ),
+  ]);
+  const names: Record<string, string> = {};
+  for (const r of lists) if (r.name) names[`list:${r.id}`] = r.name;
+  for (const r of broadcasts) if (r.name) names[`broadcast:${r.id}`] = r.name;
+  for (const r of playbooks) if (r.name) names[`playbook:${r.id}`] = r.name;
+  for (const r of leads) if (r.business_name) names[`lead:${r.id}`] = r.business_name;
+  for (const r of searches) if (r.name) names[`lead_search:${r.id}`] = r.name;
+  return names;
+}
+
+/**
+ * Every subject of a page of the log: its name, and whose thread or person it is. A subject of a type with no name (a
+ * workspace, a channel, a review), one row security hides, and a person with nothing to call them by are absent.
+ */
+export async function activitySubjects(
+  db: Db,
+  tenantId: string,
+  subjects: readonly ActivitySubject[],
+): Promise<ActivitySubjects> {
+  const idsOf = (type: string): string[] => [...new Set(subjects.filter((s) => s.type === type).map((s) => s.id))];
+  const [names, theirs] = await Promise.all([ownNames(db, tenantId, idsOf), theirsOf(db, tenantId, idsOf)]);
+  const threads: Record<string, string> = {};
+  const people: Record<string, string> = {};
+
+  // An escalation is a thread's: the thread says whose. Only the threads the first round did not read are asked for.
+  const known = new Map((theirs.conversation ?? []).map((c) => [c.id, c.contact_id ?? null]));
+  const asked = [
+    ...new Set((theirs.escalation ?? []).map((e) => e.conversation_id).filter((id): id is string => !!id)),
+  ];
+  const more = await readByIds<Theirs>(
+    asked.filter((id) => !known.has(id)),
+    (some) => db.from("conversations").select("id, contact_id").eq("tenant_id", tenantId).in("id", some),
+  );
+  for (const c of more) known.set(c.id, c.contact_id ?? null);
+
+  /** The person a subject is, by its key. */
+  const personOf = new Map<string, string>();
+  for (const id of idsOf("contact")) personOf.set(`contact:${id}`, id);
+  for (const [type, rows] of Object.entries(theirs))
+    for (const r of rows) {
+      const key = `${type}:${r.id}`;
+      if (type !== "conversation" && r.conversation_id) threads[key] = r.conversation_id;
+      const person = r.contact_id ?? (r.conversation_id ? known.get(r.conversation_id) : null) ?? null;
+      if (!person) continue;
+      personOf.set(key, person);
+      if (type === "deal") people[key] = person;
+    }
+
+  const rows = await readByIds([...new Set(personOf.values())], (some) =>
+    db
+      .from("contacts")
+      .select("id, display_name, wa_profile_name, phone_e164, email")
+      .eq("tenant_id", tenantId)
+      .in("id", some),
+  );
+  const nameOf = new Map<string, string>();
+  for (const p of rows) {
+    // A person with none of the four is "Unknown" to the one rule, and a log line gains nothing from saying so.
+    if (p.display_name || p.wa_profile_name || p.phone_e164 || p.email) nameOf.set(p.id, personName(p));
+  }
+  for (const [key, person] of personOf) {
+    const name = nameOf.get(person);
+    if (name) names[key] = name;
+  }
+  // A visit nobody of the workspace is on yet is named as its booking said it.
+  for (const a of theirs.appointment ?? []) {
+    const key = `appointment:${a.id}`;
+    if (!names[key] && a.client_name) names[key] = a.client_name;
+  }
+  return { names, threads, people };
 }

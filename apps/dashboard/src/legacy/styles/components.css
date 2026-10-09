@@ -1388,7 +1388,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* ---------- The text whisper: rewrite a held draft ---------- */
 .ix-steer { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-dim); }
 .ix-steer-input { flex: 1; min-width: 0; font: inherit; font-size: var(--text-sm); padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
-.ix-steer-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.ix-steer-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-field); }
 
 /* ---------- The bell's foot: device alerts ---------- */
 .tbn-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }

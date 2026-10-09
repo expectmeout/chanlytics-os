@@ -274,6 +274,7 @@ export async function bindLocation(
 export async function disconnectProfile(
   db: Db,
   tenantId: string,
+  by: string | null = null,
 ): Promise<{ ok: true; removed: boolean; revoked: boolean }> {
   const conn = await connectionOf(db, tenantId);
   if (!conn) return { ok: true, removed: false, revoked: false };
@@ -292,6 +293,7 @@ export async function disconnectProfile(
     email: conn.google_email,
     location: conn.location_name,
     revoked,
+    by,
   }).catch(() => {});
   return { ok: true, removed: true, revoked };
 }

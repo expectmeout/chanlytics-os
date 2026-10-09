@@ -8,6 +8,9 @@
  */
 // First, before any schema below is built: zod-config.ts says why the order matters.
 import "./zod-config";
+export { ACTIVITY_FAMILIES, ACTIVITY_PROBLEM_KINDS, ACTIVITY_SPANS, ACTIVITY_SPAN_DAYS, ACTIVITY_ACTORS, ACTIVITY_PAGE_WORDS, activityFamily, activityFamilyKinds, activityKindGroups, isActivityFamily } from "./activity/families";
+export { ACTIVITY_FOLD_KINDS, activityDoor, activityLines, activityMemberWords, activityRowsForLines } from "./activity/lines";
+export { activityTone } from "./activity/tones";
 export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInline, injectionQuestion, promptSafeName } from "./ai/fence";
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel } from "./ai/models";
@@ -311,7 +314,7 @@ export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./voice/greeti
 export { fmtClock, liveStillUp, callsStillUp, liveBar, toLiveCallVM, toLiveVM, missedCallIsNews, LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX } from "./voice/live";
 export { frameWhisper, frameGuardrail, frameSteer, whisperText, frameHandOver, injectedTurn } from "./voice/whisper";
 export { ACTIVATION_MILESTONES } from "./workspace/activation";
-export { activityWords, activityTone, isActivityMoney, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_NOISE_KINDS, ACTIVITY_KINDS } from "./workspace/activity";
+export { activityWords, activityKindWords, REACH_OUT_EMAILED_WORDS, CALL_MISSED_WORDS, CALL_UNANSWERED_WORDS, isActivityMoney, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_NOISE_KINDS, ACTIVITY_KINDS } from "./workspace/activity";
 export { receptionistOn, billingDoorOpen, maySpend, mayUseModels, whyCannotSpend, tenantStatusFor, planBilling, dayWords, trialOffer, trialWords, priceWords, toBillingVM, billingPill, invoiceStatusWords, isCheckoutReturn, moneyWords, billingAccountDto, pausedVoiceFacts, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, SPEND_NUMBER, SPEND_LEADS, SPEND_TEXTING, PAUSED_WORDS, CAMPAIGNS_PAUSED_WORDS, BILLING_TEST_MODE_CLAUSE, TRIAL_COVERS, START_PLAN_WORDS, INVOICE_STATUS_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHECKOUT_OUTCOME_WORDS } from "./workspace/billing";
 export { HANDOVER_DAYS, HANDOVER_WAITING_MAX, HANDOVER_WORDS, handoverInviteEmail, handoverRoom, handoverUntilWords, maskedEmail, partnerHandoverVM } from "./workspace/handover";
 export { PARTNER_STATUSES, PARTNER_SHARE_BP_DEFAULT, PARTNER_STANDINGS, PARTNER_EARNING_KINDS, PARTNER_EARNING_STATES, PARTNER_HOLD_DAYS, PARTNER_CODE_MIN, PARTNER_CODE_MAX, PARTNER_CODES_RESERVED, cleanPartnerCode, isPartnerCode, partnerPathFor, partnerLinkFor, PARTNER_COOKIE, PARTNER_COOKIE_DAYS, partnerCodeFromCookie, PARTNER_WORDS, shareWords, broughtWords, partnerEarningsWords, partnerVM, PARTNER_STANDING_WORDS, partnerWorkspacesVM, PARTNER_REVERSAL_KINDS, PARTNER_STANDING_VERBS, partnerStandingChoices, PARTNER_STATUS_VERBS, partnerStatusChoices, partnerStatusOutcomeWords, platformPartnerRows, platformPartnerSummary, platformPartnerStanding, partnerPayoutOutcomeWords, partnerStandingOutcomeWords, partnerPaneUrl, partnerLetter } from "./workspace/partner";

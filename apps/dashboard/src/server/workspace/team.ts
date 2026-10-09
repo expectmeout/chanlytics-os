@@ -1,5 +1,5 @@
 import "server-only";
-import { inviteUserByEmail, type Database } from "@chanlytics/db";
+import { emitEvent, inviteUserByEmail, workspaceIdsOf, type Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
@@ -280,8 +280,31 @@ export async function acceptOpenInvites(
       .insert({ tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
     if (!mErr || mErr.code === "23505") {
       await db.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", inv.id);
+      // The seat is the news, and only the read that took it says so: a seat already held (23505) joined before. The
+      // ledger kept the invitation and its role and never that anybody arrived.
+      if (!mErr)
+        await emitEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, { by: userId, role: inv.role });
       n++;
     }
   }
   return n;
+}
+
+/**
+ * The workspaces a person is in, read before their account goes: its rows go with it, and each of those workspaces
+ * is told a member left (saidLeft). A read that fails is no list, and the deletion goes on without the record.
+ */
+export async function seatsOf(db: SupabaseClient<Database>, userId: string): Promise<string[]> {
+  return workspaceIdsOf(db, userId).catch(() => []);
+}
+
+/**
+ * A person deleted their account: said on the ledger of each workspace they sat in, so the team that reads the log
+ * sees a seat go rather than a name vanish from the roster with no trace. Who they were is not kept: the account is
+ * gone, and the id names no row. As the service role: their own session ended with the account.
+ */
+export async function saidLeft(tenantIds: readonly string[], userId: string): Promise<void> {
+  const db = serviceDb();
+  for (const tenantId of tenantIds)
+    await emitEvent(db, tenantId, "member.left", "workspace", tenantId, { by: userId, how: "account_deleted" });
 }

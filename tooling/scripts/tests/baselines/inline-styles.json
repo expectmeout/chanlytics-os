@@ -46,7 +46,6 @@
   "apps/dashboard/src/surfaces/people/person/frame.tsx": 1,
   "apps/dashboard/src/surfaces/people/person/hero.tsx": 1,
   "apps/dashboard/src/surfaces/people/pipeline/board.tsx": 1,
-  "apps/dashboard/src/surfaces/settings/activity/pane.tsx": 2,
   "apps/dashboard/src/surfaces/settings/billing/pane.tsx": 2,
   "apps/dashboard/src/surfaces/settings/frame/workspace.tsx": 1,
   "apps/dashboard/src/surfaces/settings/notifications/pane.tsx": 1,
