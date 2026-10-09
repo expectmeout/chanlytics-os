@@ -928,3 +928,27 @@ test("the relay runs first in every tick (00334): what it relayed rides on the h
     );
   });
 });
+
+test("the tick's clock is the door's: a relay that took the claim window leaves a due reply to the next heartbeat, unclaimed and unsent", async (t) => {
+  // The loop started its clock after the relay (up to RELAY_LIMIT events), so its claim window and every deadline were
+  // measured from a moment the function's own ceiling was not: a send started at the yield ran past the ceiling by as
+  // long as the relay took.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const L = ledger({
+    relay: () => {
+      t.mock.timers.tick(25_000);
+      return 500;
+    },
+  });
+  const { job, message } = L.workspace().queue();
+  await listening(async (log) => {
+    assert.equal((await answer(await knock()))[0], 200);
+    assert.deepEqual(
+      log.said("jobs_tick").map((l) => [l.relayed, l.claimed]),
+      [[500, 0]],
+      "twenty-five seconds in, the claim window the door opened has closed",
+    );
+  });
+  assert.deepEqual([job.state, job.attempts, message.status], ["scheduled", 0, "queued"], "the next heartbeat's");
+  assert.deepEqual(L.left().graph, [], "nothing left for WhatsApp");
+});

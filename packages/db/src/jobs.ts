@@ -11,23 +11,38 @@ import type { Database, Json } from "./database.types";
 
 type Db = SupabaseClient<Database>;
 
-/** What a requeue needs of a job: what it was, how it ended, what it carried and when it was made. */
+/**
+ * What a requeue needs of a job: what it was, how it ended, what it carried, when it was made, and whether a run of it
+ * put words on a wire (jobs.spoke_at, 00352; null when none did, and on a database 00352 has not reached).
+ */
 export interface JobToRequeue {
   id: string;
   kind: string;
   state: string;
   payload: Json;
   created_at: string;
+  spoke_at: string | null;
 }
 
 /** The job with this id in this workspace, or null when there is none. */
 export async function readJobToRequeue(db: Db, tenantId: string, jobId: string): Promise<JobToRequeue | null> {
   const { data, error } = await db
     .from("jobs")
-    .select("id, kind, state, payload, created_at")
+    .select("id, kind, state, payload, created_at, spoke_at")
     .eq("id", jobId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+  // A database 00352 has not reached keeps no such fact, and no job there said it spoke: read without it.
+  if (error && NO_SUCH_COLUMN.has(error.code)) {
+    const older = await db
+      .from("jobs")
+      .select("id, kind, state, payload, created_at")
+      .eq("id", jobId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (older.error) throw new Error(`read_job: ${older.error.message}`);
+    return older.data ? { ...older.data, spoke_at: null } : null;
+  }
   if (error) throw new Error(`read_job: ${error.message}`);
   return data;
 }

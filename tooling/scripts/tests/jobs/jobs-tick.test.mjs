@@ -564,6 +564,22 @@ test("claiming stops when the window closes, and every handler gets the same yie
   );
 });
 
+test("the windows are the door's when the tick is told when its door was reached: the work before the loop is inside the claim window and every deadline", async () => {
+  // The door was reached at 1_000; the vault's key and the outbox's relay took until 15_000, the loop's first reading.
+  // Measured from there, a send started at the yield ran past the function's ceiling by as long as they took.
+  const readings = [15_000, 21_001];
+  const { ports, calls, queue } = fakes([job("a"), job("b")], {
+    clock: (i) => readings[Math.min(i, readings.length - 1)],
+  });
+  await runTick(ports, { ...OPTS, startedAt: 1_000 });
+  assert.deepEqual(calls.dispatch, [["a", 46_000]], "the door's moment plus yieldAtMs");
+  assert.deepEqual(
+    queue.map((j) => j.id),
+    ["b"],
+    "twenty seconds after the door, not after the loop began, nothing more is claimed",
+  );
+});
+
 test("a completion that matched no row is logged, not thrown, and not counted done", async () => {
   const { ports, calls, logged } = fakes([job("a")], { completeLost: new Set(["a"]) });
   const counts = await runTick(ports, OPTS);

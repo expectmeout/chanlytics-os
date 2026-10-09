@@ -127,6 +127,30 @@ test("work that speaks to a person is refused before anything is recorded, and a
   assert.equal(recorded, 0);
 });
 
+test("a job whose run said it spoke before it failed is refused as work that speaks to a person; one that never spoke is run again", async (t) => {
+  if (skip) return t.skip(skip);
+  // A text's answer says so on its row the moment before it speaks (markSpoke, jobs.spoke_at, 00352), while it is fired.
+  const spoke = await job("inbound_answer", { message_id: "m-requeue-3" }, "fired");
+  const said = await db.from("jobs").update({ spoke_at: new Date().toISOString() }).eq("id", spoke);
+  assert.equal(said.error, null, said.error?.message);
+  const ended = await db.from("jobs").update({ state: "failed", last_error: "the send threw" }).eq("id", spoke);
+  assert.equal(ended.error, null, ended.error?.message);
+  const quiet = await job("inbound_answer", { message_id: "m-requeue-4" });
+  let recorded = 0;
+  const count = async () => void (recorded += 1);
+  assert.deepEqual(await requeueFailedJob(db, T, spoke, count), {
+    outcome: "speaks_to_a_person",
+    kind: "inbound_answer",
+  });
+  assert.equal(recorded, 0, "nothing recorded for the one refused");
+  assert.deepEqual(await requeueFailedJob(db, T, quiet, count), { outcome: "requeued", kind: "inbound_answer" });
+  assert.deepEqual(
+    (await rowsOf("inbound_answer")).map((r) => r.payload.message_id).sort(),
+    ["m-requeue-3", "m-requeue-4", "m-requeue-4"],
+    "a fresh row for the one that never spoke, and none for the one that did",
+  );
+});
+
 test("a kept row whose kind is unknown gives its claim back on a row still fired, and only on the claim that holds it", async (t) => {
   if (skip) return t.skip(skip);
   const id = await job("push_receipts", { ids: ["t-1"] }, "fired");

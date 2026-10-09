@@ -13,7 +13,8 @@
  * it: jobs are claimed one at a time, in CLAIM_SLOTS slots side by side, for
  * the first CLAIM_FOR_MS, a looping handler yields at YIELD_AT_MS, and a
  * claim's lease outlives the whole function (ops-hygiene.test.mjs holds that
- * last one to the ceiling).
+ * last one to the ceiling). Each is measured from the moment the door was
+ * reached (sweepDoor's `started`), as the ceiling is.
  */
 import { json, refuse } from "../http.js";
 import { errField } from "../log.js";
@@ -80,7 +81,7 @@ function replyLateBody(worstMs: number): string {
   );
 }
 
-export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
+export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
     // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
     // claims. A relay that fails is said and costs the tick nothing else: the next knock, or the poll, drains it.
@@ -182,6 +183,10 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
         random: Math.random,
       },
       {
+        // The tick's clock is the door's: the key's read and the relay above (up to RELAY_LIMIT events) are inside the
+        // function's sixty seconds, so they are inside the claim window and every deadline too. Started after them, a
+        // send begun at the yield ran past the ceiling by as long as they took.
+        startedAt: started,
         claimForMs: CLAIM_FOR_MS,
         slots: CLAIM_SLOTS,
         yieldAtMs: YIELD_AT_MS,
