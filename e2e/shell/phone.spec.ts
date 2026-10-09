@@ -1093,6 +1093,56 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * A touch under a strip keeps the axis it began on (9 Oct 2026, Ruben's recording of Reports): a swipe across that
+   * drifts down walks the strip and scrolls nothing, and a scroll down that drifts across scrolls and walks nothing.
+   * The reader chose one axis at 8px from the start (data-bits touchSwipe), but the browser was told nothing of it and
+   * panned the page's list under a page already moving sideways, so a thumb could carry the page in circles. Each
+   * strip page's phone scroller says `touch-action: pan-y` (components.css; swipe-axis.test.mjs holds the list), and
+   * the browser keeps to the axis it was given, as a phone's own pagers do. Real touches through CDP, as the swipe
+   * above; the scroll is read while the finger is still down, before the page the swipe lands on is drawn.
+   */
+  test("a touch under a strip keeps its axis: a swipe that drifts down scrolls nothing, a scroll that drifts across walks nothing", async ({
+    page,
+  }) => {
+    await page.goto("/#/reports");
+    await page.waitForLoadState("networkidle");
+    const body = page.locator(".rpt-body");
+    test.skip((await body.count()) === 0, "no Reports on this workspace");
+    const room = await body.evaluate((el) => el.scrollHeight - el.clientHeight);
+    test.skip(room < 60, "Reports' Overview does not scroll on this workspace");
+    const lit = page.getByTestId("reports-lenses").locator(".stabs-tab.active");
+    await expect(lit).toHaveText(/^Overview/);
+    /** A thumb from one point to another through the browser's own input, in eight moves; `read` before it lets go. */
+    const drift = async (from: [number, number], to: [number, number], read: () => Promise<number>) => {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from[0], y: from[1] }] });
+      for (let i = 1; i <= 8; i += 1) {
+        const x = from[0] + ((to[0] - from[0]) * i) / 8;
+        const y = from[1] + ((to[1] - from[1]) * i) / 8;
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
+      }
+      const held = await read();
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      return held;
+    };
+    const scrolled = () => body.evaluate((el) => el.scrollTop);
+    // Across first (the first move is wider than it is tall), then down by two thirds as much: the page walks, the
+    // body stands.
+    const whileAcross = await drift([300, 420], [96, 560], scrolled);
+    expect(whileAcross, "a swipe that drifts down scrolls nothing while the finger is down").toBe(0);
+    await expect(lit, "and still walks the strip").toHaveText(/^Receptionist/);
+    await page.goto("/#/reports");
+    await page.waitForLoadState("networkidle");
+    await expect(lit).toHaveText(/^Overview/);
+    // Down first (the first move is taller than it is wide), then across by half as much: the body scrolls, the page
+    // stands.
+    const whileDown = await drift([300, 560], [200, 380], scrolled);
+    expect(whileDown, "a scroll that drifts across still scrolls").toBeGreaterThan(20);
+    await page.waitForTimeout(600);
+    await expect(lit, "and walks nothing").toHaveText(/^Overview/);
+  });
+
+  /**
    * Settings holds still under a pull (25 Sep, Ruben): a thumb moves a Settings page sideways, to the tab beside it,
    * and never down. Each page still scrolls through what it holds, but none stretches past its top or its foot, and
    * while Settings is open the screen around it does not either (a short page, or the strip, would otherwise hand the
