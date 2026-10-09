@@ -26,8 +26,11 @@ import { playbooks } from "@/server/readers/playbooks";
  *
  * The GET's body is its reader's (readers/playbooks.ts), which Ask's campaigns.playbooks reads too.
  */
+// The report routes' bucket (rate-limit.ts `aggregate`): the page's counts are SQL aggregates now (00362), and a script
+// that hammers this read hammers them.
 export const GET = read({
   scope: workspace,
+  rate: "aggregate",
   handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), playbooks, undefined)).data,
 });
 

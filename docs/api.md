@@ -1315,7 +1315,7 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `GET /api/v1/playbooks`
 
-Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/playbooks/route.ts`).
 
