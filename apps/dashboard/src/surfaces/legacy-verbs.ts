@@ -373,8 +373,8 @@ export function hasTouchSwipe(): boolean {
 
 /*
  * What the app knows of a finger (Ruben, 8 October 2026: on a phone nothing that opens puts a person in a field by
- * itself, and everything that rises from the bottom edge goes back down by a pull). These four are the app's own and
- * no page's. They stand here, with the verbs every page already loads, and not in a file of their own: a small module
+ * itself, and everything that rises from the bottom edge goes back down by a pull). These are the app's own and no
+ * page's. They stand here, with the verbs every page already loads, and not in a file of their own: a small module
  * shared by the frame's kit and by the pages' own sheets made the build regroup its chunks, and People and Templates
  * were handed a second copy of the record kit (13 KB each, measured against main's own build).
  */
@@ -389,7 +389,7 @@ function mediaSays(query: string): boolean {
  * app/globals.css sizes every field by (`pointer: coarse`). It is not a width: a narrow window on a desk still has its
  * keys, and a tablet held wide still has a keyboard that rises.
  */
-export function onTouchScreen(): boolean {
+function onTouchScreen(): boolean {
   return mediaSays("(pointer: coarse)");
 }
 

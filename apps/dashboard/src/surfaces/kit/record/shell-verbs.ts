@@ -62,7 +62,7 @@ export function mediaQuery(query: string): MediaQueryList | null {
 
 /**
  * Whether the pointer a person mostly uses is a finger: the house's one test for a touch screen (legacy-verbs
- * `onTouchScreen` says what it is and why), asked through the kit's own verb for a query.
+ * `focusAsDrawn` says what it is and why), asked through the kit's own verb for a query.
  */
 export function onTouchScreen(): boolean {
   return !!mediaQuery("(pointer: coarse)")?.matches;

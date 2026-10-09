@@ -10,9 +10,7 @@ import { installLegacyReact } from "../../_legacy-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 installLegacyReact();
-const { focusAsDrawn, keepTouch, onAPhone, onTouchScreen } = await importSrc(
-  "apps/dashboard/src/surfaces/legacy-verbs.ts",
-);
+const { focusAsDrawn, keepTouch, onAPhone } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
 
 /** A window that answers these queries with yes, and every other with no. */
 const answering = (yes, run) => {
@@ -31,7 +29,6 @@ const answering = (yes, run) => {
 
 test("a touch screen is the pointer a person mostly uses, and there no field takes focus as it is drawn", () => {
   answering(["(pointer: coarse)"], (asked) => {
-    assert.equal(onTouchScreen(), true);
     assert.equal(focusAsDrawn(), false, "the keyboard waits for a tap");
     assert.deepEqual(
       [...new Set(asked)],
@@ -40,8 +37,7 @@ test("a touch screen is the pointer a person mostly uses, and there no field tak
     );
   });
   answering(["(max-width: 900px)"], () => {
-    assert.equal(onTouchScreen(), false, "a narrow window on a desk still has its keys");
-    assert.equal(focusAsDrawn(), true, "so its field is ready: N, then type");
+    assert.equal(focusAsDrawn(), true, "a narrow window on a desk still has its keys: N, then type");
   });
 });
 
@@ -54,7 +50,7 @@ test("where a window answers no query at all, nothing is a touch screen or a pho
   const was = globalThis.matchMedia;
   globalThis.matchMedia = undefined;
   try {
-    assert.deepEqual([onTouchScreen(), focusAsDrawn(), onAPhone()], [false, true, false]);
+    assert.deepEqual([focusAsDrawn(), onAPhone()], [true, false]);
   } finally {
     globalThis.matchMedia = was;
   }
