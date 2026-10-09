@@ -265,6 +265,22 @@ export function warmSoon(routes: readonly string[], win: AddressWindow = window)
   routes.forEach((route, at) => later(() => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at)));
 }
 
+/**
+ * What else a page reached for warms beside its page: its data, where it reads that only when drawn (surface-registry
+ * warmWhatItDraws, said by the frame as it mounts). A reach is a pointer or a finger at a door; a page warmed because the
+ * frame was idle (warmSoon) is nobody's reach, and reads nothing of its own.
+ */
+let reachedFor: ((route: string) => void) | null = null;
+export function onRouteReachedFor(fn: ((route: string) => void) | null): void {
+  reachedFor = fn;
+}
+
+/** A page reached for, said by whatever stands at its door: its page warmed, and what it reads only when drawn begun. */
+export function reachFor(route: string, win: AddressWindow = window): void {
+  warmRoute(route, win);
+  reachedFor?.(doorOf(route) ?? route);
+}
+
 /** The four of them on `window.__shell`, for the pages that cannot import (shell.ts installShell). */
 export function addressApi(win: AddressWindow = window) {
   return {
@@ -272,7 +288,7 @@ export function addressApi(win: AddressWindow = window) {
     href: (route: string) => hrefOfRoute(route, win),
     go: (route: string, opts?: GoOptions) => goToRoute(route, opts, win),
     hear: (fn: () => void) => hearAddress(fn, win),
-    warm: (route: string) => warmRoute(route, win),
+    warm: (route: string) => reachFor(route, win),
     warmSoon: (routes: readonly string[]) => warmSoon(routes, win),
   };
 }

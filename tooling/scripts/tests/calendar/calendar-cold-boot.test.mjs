@@ -10,6 +10,10 @@ import assert from "node:assert/strict";
 import { windowFor } from "@chanlytics/contracts";
 
 const asked = [];
+/** Every read as it was spelled: the path and its own query, the workspace aside. */
+const spelled = [];
+/** The weeks the route answers `around=today` with, by the business's clock: its to work out, not the page's. */
+const AROUND = windowFor("2026-09-08");
 globalThis.window = {
   location: {
     pathname: "/w/harbor",
@@ -26,16 +30,20 @@ globalThis.window = {
     return true;
   },
   fetch: async (url) => {
-    const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
+    const at = new URL(String(url), "https://app.chanlytics.com");
+    const q = Object.fromEntries(at.searchParams);
     asked.push(q.from);
-    const days = Array.from({ length: Number(q.days) }, () => ({ key: q.from, items: [], windows: [] }));
+    at.searchParams.delete("workspace");
+    spelled.push(at.pathname.replace("/api/v1/", "") + at.search);
+    const span = q.around === "today" ? AROUND : { from: q.from, days: Number(q.days) };
+    const days = Array.from({ length: span.days }, () => ({ key: span.from, items: [], windows: [] }));
     return new Response(
       JSON.stringify({
         ok: true,
         data: {
           calendar: {
             timezone: "America/New_York",
-            from: q.from,
+            from: span.from,
             days,
             feed: { present: false, state: "none" },
             hours: [],
@@ -56,7 +64,7 @@ globalThis.CustomEvent = class CustomEvent {
     this.type = type;
   }
 };
-const { calendarOverride, getCalendarSpan } =
+const { calendarOverride, getCalendarSpan, setCalendarSpan, setCalendarFresh, paintHeldCalendar } =
   await import("../../../../apps/dashboard/src/surfaces/calendar/surface.ts");
 
 test("a refresh on a day reads the weeks around that day, not today's first", async () => {
@@ -68,4 +76,24 @@ test("a refresh on a day reads the weeks around that day, not today's first", as
   globalThis.window.location.hash = "#/calendar/2027-02-01";
   await calendarOverride.apply().catch(() => {});
   assert.equal(asked.at(-1), w.from, "the address is the boot's, not every read's");
+});
+
+test("the weeks around today are asked for by that word, before anyone knows the zone: the route works the days out", async () => {
+  // The page asked by the first day of its window, which it could not say until it knew the business's zone: its first
+  // read waited for who is looking, and the document's head, which knows no zone, could not start it (9 Oct 2026: the
+  // Calendar's read left 600 ms into a load whose Inbox's had left at 150). Nobody has said who is looking here.
+  delete globalThis.window.__WORKSPACES;
+  setCalendarSpan(null);
+  spelled.length = 0;
+  await calendarOverride.apply();
+  assert.deepEqual(spelled, ["calendar?around=today"], "one read, as the head spells it, and none for the zone first");
+  // A Refresh is the same read with its own word after it.
+  setCalendarFresh(true);
+  await calendarOverride.apply();
+  assert.equal(spelled.at(-1), "calendar?around=today&fresh=1");
+  // Held under the weeks the answer covers: a move back to them by their day paints at once.
+  setCalendarSpan(AROUND.from, AROUND.days);
+  assert.equal(paintHeldCalendar(), true, "the window the route answered is the one held");
+  setCalendarSpan("2027-06-07", 63);
+  assert.equal(paintHeldCalendar(), false, "and weeks nobody read are not");
 });

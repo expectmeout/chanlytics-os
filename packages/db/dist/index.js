@@ -4381,9 +4381,11 @@ async function keepAppointmentNotice(db, row) {
   if (error) throw new Error(`appointment_notice_keep: ${error.message}`);
 }
 async function appointmentNoticesOf(db, tenantId) {
-  const latest = await db.from("appointment_notices").select("tool, received_at").eq("tenant_id", tenantId).in("outcome", ["booked", "changed", "cancelled"]).order("received_at", { ascending: false }).limit(1).maybeSingle();
+  const [latest, held] = await Promise.all([
+    db.from("appointment_notices").select("tool, received_at").eq("tenant_id", tenantId).in("outcome", ["booked", "changed", "cancelled"]).order("received_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("appointment_notices").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("outcome", "held")
+  ]);
   if (latest.error) throw new Error(`appointment_notices_latest: ${latest.error.message}`);
-  const held = await db.from("appointment_notices").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("outcome", "held");
   if (held.error) throw new Error(`appointment_notices_held: ${held.error.message}`);
   return { tool: latest.data?.tool ?? null, last_at: latest.data?.received_at ?? null, held: held.count ?? 0 };
 }

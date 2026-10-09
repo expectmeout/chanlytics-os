@@ -14,7 +14,7 @@ import { RecordRow } from "../../kit/record/row";
 import { ViewTabs } from "../../kit/view-tabs/view-tabs";
 import { activity } from "@/legacy-bridge/activity";
 import { backOffice } from "@/legacy-bridge/platform";
-import { hrefOfRoute } from "@/legacy-bridge/workspace";
+import { hrefOfRoute, reachFor } from "@/legacy-bridge/workspace";
 import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { PaneActivity } from "../activity/pane";
 import { PaneAutonomyReal } from "../autonomy/pane";
@@ -38,6 +38,8 @@ type Flash = (f: LegacyFlash) => void;
 const WARM: Partial<Record<string, () => void>> = {
   activity: () => activity.warm({}),
   platform: () => backOffice.verbs.warmList?.(),
+  // Connections draws Google's listing, which is read only where it is drawn: reached for, it is read before the press.
+  integrations: () => reachFor("admin/integrations"),
 };
 
 // ---------- Not built yet: AI memory, said in the pane ----------

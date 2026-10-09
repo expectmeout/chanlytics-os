@@ -88,6 +88,11 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   palette in `charts.css` is counted, and kept), and may only fall. `inline-styles.json` counts the `style` props in
   the shell's markup, and may only fall too. A page stylesheet with its layout alone is the plan's Phase 4 target, and
   no test holds it yet.
+- **Every page says what it opens on.** A page's first reads are named in
+  `packages/contracts/src/shell/route-prefetch.ts` (`PREFETCH_READS`), started from the document's head and taken by the
+  page's own read, and a surface read only where it is drawn is read as its page is reached for. `tooling/scripts/tests/shell/surfaces/route-prefetch.test.mjs` runs
+  each page's surfaces against the list and fails a page with no entry. `docs/architecture.md`, "How a page opens",
+  says the five things a new page takes.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
 - **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
   declared once. The tests it names hold it, and it marks the ones still owed.

@@ -19837,69 +19837,6 @@ var ROLE_PERMS = {
   }
 };
 
-// src/shell/address.ts
-var ROUTE_WORDS = {
-  clients: "people",
-  segments: "lists",
-  outbound: "playbooks",
-  messages: "templates",
-  admin: "settings"
-};
-var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
-function doorOf(route) {
-  const head = headOf(route);
-  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
-  if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
-  }
-  if (head !== "outbound") return null;
-  return word ? `campaigns/moment:${word}` : "campaigns";
-}
-function shellRoute(route) {
-  const head = headOf(route);
-  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
-  return name === void 0 ? route : name + route.slice(head.length);
-}
-function pathRoute(route) {
-  const head = headOf(route);
-  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
-  return word === void 0 ? route : word + route.slice(head.length);
-}
-var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
-function routeOfPath(pathname) {
-  const m = WORKSPACE_PATH.exec(pathname ?? "");
-  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
-}
-function routeOfHash(hash) {
-  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
-}
-function routeOfAddress(address) {
-  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
-}
-function movedAddress(address) {
-  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
-  if (m?.[2]) {
-    const written = m[2].replace(/\/+$/, "");
-    const door = doorOf(shellRoute(written));
-    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
-    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
-      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
-    }
-  }
-  const route = routeOfHash(address.hash);
-  if (!m || route === null || m[2]) return null;
-  const at3 = route.indexOf("?");
-  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
-  if (!name) return null;
-  const own = at3 < 0 ? "" : route.slice(at3 + 1);
-  const search = address.search ?? "";
-  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
-}
-function workspacePath(slug, route = "") {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
-}
-
 // src/shell/chrome.ts
 var THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
@@ -19975,61 +19912,6 @@ function inAppBootScript() {
     `if(m){document.documentElement.classList.add(${JSON.stringify(IN_APP_CLASS)});`,
     'window.__IN_APP={version:m[1],platform:(m[2]||"unknown").toLowerCase()}}',
     "}catch(e){}"
-  ].join("");
-}
-var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
-var PREFETCH_SLOT = "__prefetched";
-var PREFETCH_READS = {
-  today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
-  inbox: ["conversations", "escalations?state=open", "templates"],
-  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
-  conversations: ["conversations", "calls", "escalations?state=open"],
-  // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
-  clients: ["contacts", "segments", "views"],
-  segments: ["contacts", "segments", "views"],
-  live: ["calls", "channels"],
-  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
-  broadcasts: [
-    "broadcasts",
-    "contacts",
-    "segments",
-    "templates",
-    "channels",
-    "settings",
-    "reports/campaigns?period=30d"
-  ],
-  outbound: ["playbooks", "templates", "channels", "settings"],
-  // Templates and every pane of Settings are drawn from the settings surface.
-  messages: ["settings", "team", "policies", "channels", "templates?all=1"],
-  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
-  start: ["setup", "views"]
-};
-var PREFETCH_ROUTE_OF_WORD = Object.fromEntries(
-  Object.entries(ROUTE_WORDS).map(([route, word]) => [word, route])
-);
-var PREFETCH_TIMEOUT_MS = 15e3;
-function routePrefetchScript() {
-  return [
-    "try{",
-    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
-    "if(p){",
-    "var w=encodeURIComponent(decodeURIComponent(p[1]));",
-    'var u=["/api/v1/workspaces?workspace="+w];',
-    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
-    'var h=r.split("/"),l=h[1]||"";',
-    `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)};`,
-    `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
-    // Leads is People's scope with a surface of its own, and opens on the view it remembers.
-    'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
-    'for(var j=0;j<t[s].length;j++)u.push("/api/v1/"+t[s][j]+(t[s][j].indexOf("?")<0?"?":"&")+"workspace="+w);',
-    `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
-    "var M=window.AbortController;",
-    "var g=function(x){",
-    `var a=M?new M():null,k=a?setTimeout(function(){a.abort()},${PREFETCH_TIMEOUT_MS}):0;`,
-    'var q=fetch(x,{credentials:"same-origin",signal:a?a.signal:undefined});',
-    "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
-    "for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
-    "}}catch(e){}"
   ].join("");
 }
 var isSidebarPref = (v) => v === "open" || v === "rail";
@@ -29211,6 +29093,7 @@ var metricWordsOf = (metric) => METRIC_WORDS[metric];
 // src/reports/report-periods.ts
 var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
 var REPORT_PERIOD_DEFAULT = "30d";
+var REPORT_PERIOD_STORAGE = "chanlytics.report.period";
 var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
 var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
 var fixedDaysOf = (period) => REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
@@ -33095,6 +32978,69 @@ var lineOrNull = (s) => {
   return t ? t.slice(0, 200) : null;
 };
 
+// src/shell/address.ts
+var ROUTE_WORDS = {
+  clients: "people",
+  segments: "lists",
+  outbound: "playbooks",
+  messages: "templates",
+  admin: "settings"
+};
+var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
+function doorOf(route) {
+  const head = headOf(route);
+  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "broadcasts") {
+    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
+  }
+  if (head !== "outbound") return null;
+  return word ? `campaigns/moment:${word}` : "campaigns";
+}
+function shellRoute(route) {
+  const head = headOf(route);
+  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
+  return name === void 0 ? route : name + route.slice(head.length);
+}
+function pathRoute(route) {
+  const head = headOf(route);
+  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
+  return word === void 0 ? route : word + route.slice(head.length);
+}
+var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
+function routeOfPath(pathname) {
+  const m = WORKSPACE_PATH.exec(pathname ?? "");
+  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
+}
+function routeOfHash(hash) {
+  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
+}
+function routeOfAddress(address) {
+  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
+}
+function movedAddress(address) {
+  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
+  if (m?.[2]) {
+    const written = m[2].replace(/\/+$/, "");
+    const door = doorOf(shellRoute(written));
+    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
+    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
+      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
+    }
+  }
+  const route = routeOfHash(address.hash);
+  if (!m || route === null || m[2]) return null;
+  const at3 = route.indexOf("?");
+  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
+  if (!name) return null;
+  const own = at3 < 0 ? "" : route.slice(at3 + 1);
+  const search = address.search ?? "";
+  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
+}
+function workspacePath(slug, route = "") {
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
+}
+
 // src/shell/client-error.ts
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
 var CLIENT_ERROR_LIMITS = {
@@ -33274,6 +33220,98 @@ function roleGate(role, perm, doing) {
     title: NEEDS_TITLE[needs2],
     reason: needs2 === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.`
   };
+}
+
+// src/shell/route-prefetch.ts
+var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
+var PREFETCH_SLOT = "__prefetched";
+var PREFETCH_READS = {
+  // Today's strip (the next visit, the next opening) is drawn from the calendar's weeks, the read the Calendar opens on.
+  today: [
+    "metrics?days=1",
+    "conversations",
+    "escalations?state=open",
+    "calls",
+    "lead-searches",
+    "setup",
+    "views",
+    "calendar?around=today"
+  ],
+  inbox: ["conversations", "escalations?state=open", "templates"],
+  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
+  conversations: ["conversations", "calls", "escalations?state=open"],
+  // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
+  clients: ["contacts", "segments", "views"],
+  segments: ["contacts", "segments", "views"],
+  // Leads is a scope of People with a surface of its own: its searches, and the first page of everyone in its order.
+  leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
+  // The weeks around the business's today, by the route's clock (GET calendar `around`).
+  calendar: ["calendar?around=today"],
+  // The report, the offers' and the reach-outs' over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head.
+  reports: ["reports?period=30d", "reports/campaigns?period=30d", "reports/reach-outs?period=30d"],
+  live: ["calls", "channels"],
+  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
+  broadcasts: [
+    "broadcasts",
+    "contacts",
+    "segments",
+    "templates",
+    "channels",
+    "settings",
+    "reports/campaigns?period=30d"
+  ],
+  outbound: ["playbooks", "templates", "channels", "settings"],
+  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them who can hear you,
+  // what is coming and what came back, which it draws from the broadcasts (ROUTE_DRAWS): both surfaces' first reads. It
+  // had no entry under its own word, so its reads left after the mount while the old Playbooks address's left from the head.
+  campaigns: [
+    "playbooks",
+    "templates",
+    "channels",
+    "settings",
+    "broadcasts",
+    "contacts",
+    "segments",
+    "reports/campaigns?period=30d"
+  ],
+  // Templates and every pane of Settings are drawn from the settings surface.
+  messages: ["settings", "team", "policies", "channels", "templates?all=1"],
+  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
+  start: ["setup", "views"]
+};
+var PREFETCH_ROUTE_OF_WORD = Object.fromEntries(
+  Object.entries(ROUTE_WORDS).map(([route, word]) => [word, route])
+);
+var PREFETCH_TIMEOUT_MS = 15e3;
+function routePrefetchScript() {
+  return [
+    "try{",
+    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
+    "if(p){",
+    "var w=encodeURIComponent(decodeURIComponent(p[1]));",
+    'var u=["/api/v1/workspaces?workspace="+w];',
+    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
+    'var h=r.split("/"),l=h[1]||"";',
+    `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)};`,
+    // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
+    'if(s==="clients"&&l==="leads")s="leads";',
+    // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here.
+    'if(s==="calendar"&&l)s="";',
+    // Reports is read over the period this device last picked, as the page reads it; one it does not know is the default's.
+    `var P=null;if(s==="reports")try{var o=localStorage.getItem(${JSON.stringify(REPORT_PERIOD_STORAGE)});if(${JSON.stringify(REPORT_PERIOD_IDS)}.indexOf(o)>=0)P=o}catch(e){}`,
+    `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
+    // A view of Leads the address names (a search, a list) is the page's to read: it opens on who is looking alone.
+    'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
+    `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},"period="+P):t[s][j];u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}`,
+    `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
+    "var M=window.AbortController;",
+    "var g=function(x){",
+    `var a=M?new M():null,k=a?setTimeout(function(){a.abort()},${PREFETCH_TIMEOUT_MS}):0;`,
+    'var q=fetch(x,{credentials:"same-origin",signal:a?a.signal:undefined});',
+    "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
+    "for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
+    "}}catch(e){}"
+  ].join("");
 }
 
 // src/shell/vitals.ts
@@ -36737,6 +36775,7 @@ export {
   REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
+  REPORT_PERIOD_STORAGE,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,

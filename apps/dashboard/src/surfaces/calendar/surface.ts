@@ -7,7 +7,7 @@ import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
-import { knownZone, workspaceZone } from "@/legacy-bridge/zone";
+import { knownZone } from "@/legacy-bridge/zone";
 import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 
@@ -122,15 +122,21 @@ export const calendarOverride: SurfaceOverride = {
     // A Refresh asks once: the flag goes with the read that takes it.
     const fresh = calendarFresh;
     calendarFresh = false;
-    // The window around the business's today, not the browser's (zone.ts).
-    const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));
+    // The window around the business's today, not the browser's, is the route's to work out (`around`): the page asked
+    // for it by its first day, which it could not say until it knew the zone, so its first read waited for who is
+    // looking and the document's head could not start it (contracts PREFETCH_READS). A day the board moved to is said.
     const data = await read("GET calendar", {
-      query: { from: w.from, days: String(w.days), ...(fresh ? { fresh: "1" as const } : {}) },
+      query: {
+        ...(from ? { from, days: String(days) } : { around: "today" as const }),
+        ...(fresh ? { fresh: "1" as const } : {}),
+      },
     });
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;
     const surface: CalendarSurface = { vm: toCalendarVM(data.calendar, new Date()), fetchedAt: Date.now() };
+    // Held under the span the answer covers, which is the one a later move back to these weeks asks for by its day.
+    const w = from ? { from, days } : { from: data.calendar.from, days: data.calendar.days.length };
     calendarHeld.hold(calendarSpanKey(w), surface);
     setSurfaceValue("calendar", surface);
   },

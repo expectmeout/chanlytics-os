@@ -17,6 +17,13 @@ export const REPORT_PERIOD_IDS = REPORT_RANGES.map((r) => r.id);
 /** The period a report is read over when none is named. */
 export const REPORT_PERIOD_DEFAULT: ReportPeriodId = "30d";
 
+/**
+ * Where a device keeps the period it last picked: the page reads it as it loads (surfaces/reports/surface.ts), and so
+ * does the document's head, which starts the report's reads over that period before the page exists
+ * (shell/route-prefetch.ts routePrefetchScript). One name, so the two ask for the same report.
+ */
+export const REPORT_PERIOD_STORAGE = "chanlytics.report.period";
+
 /** The most days the report reads: the SQL clamps its `p_days` there. */
 const MOST_DAYS = Math.max(...REPORT_RANGES.map((r) => r.days ?? 0));
 

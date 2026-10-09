@@ -11,16 +11,19 @@ import * as facts from "./facts";
  * answer: `calendar` below and the calendar route assemble what is answered from it. It writes nothing (D7): the
  * route puts the feed's people in People between this read and the board, when its caller may act.
  */
-export const sources: Reader<{ from: string | null; days: number; fresh: boolean }, CalendarSources> = {
+export const sources: Reader<
+  { from: string | null; days: number; fresh: boolean; around?: "today" | null },
+  CalendarSources
+> = {
   name: "calendarSources",
-  async read(rc, { from, days, fresh }) {
+  async read(rc, { from, days, fresh, around }) {
     // Together: neither waits on the other, and each is a round trip to the database.
     const [{ data: known }, { data: settings }] = await Promise.all([
       load(rc, facts.facts, undefined),
       load(rc, facts.config, undefined),
     ]);
     const { timezone } = known;
-    const data = await calendarSources(rc.ctx, rc.tenantId, { from, days }, rc.now, {
+    const data = await calendarSources(rc.ctx, rc.tenantId, { from, days, around }, rc.now, {
       fresh,
       timezone,
       config: settings?.config ?? null,

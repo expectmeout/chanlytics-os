@@ -1527,9 +1527,11 @@ test("a window the board has read paints at once on the way back, and is read ag
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
-      seen.push(q.from);
+      // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      seen.push(w.from);
       await new Promise((r) => parked.push(r));
-      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -1651,9 +1653,11 @@ test("a window read ahead is held and paints at once when the board gets there; 
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
-      seen.push(q.from);
+      // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      seen.push(w.from);
       await new Promise((r) => parked.push(r));
-      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });

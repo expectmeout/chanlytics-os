@@ -162,6 +162,8 @@ const PHONE_TABS = [
   { id: "calendar", route: "calendar", icon: "calendar", label: "Calendar" },
   { id: "people", route: "clients", icon: "users", label: "People" },
 ];
+// Where the phone's drawer goes that its tab bar does not.
+const DRAWER_ONLY = ["campaigns", "reports", "admin/workspace"];
 // A pointer that reaches a sidebar item warms its page (workspace.ts warmRoute), so the press that follows asks the server
 // for nothing. The item says which it is (sidebar.jsx data-nav).
 const sideWarm = (e) => {
@@ -408,6 +410,10 @@ const useNavDrawer = () => {
   }, []);
   useShellEffect(() => {
     if (!navOpen) return;
+    // The pages only the drawer leads to (the tab bar holds the other four) are reached for as it opens, a beat before a
+    // thumb picks one: their pages warmed, and what Reports reads only when drawn begun (workspace.ts addressApi warm).
+    const a = window.CHANLY && window.CHANLY.address;
+    if (a && a.warm) DRAWER_ONLY.forEach((route) => a.warm(route));
     const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };
     const onResize = () => { if (window.innerWidth > 900) setNavOpen(false); };
     const prevOverflow = document.body.style.overflow;

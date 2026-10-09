@@ -351,6 +351,38 @@ export function readWhatWasMissed(
 }
 
 /**
+ * A page somebody is reaching for (a pointer over its row in the sidebar, a thumb on it, the phone's drawer opening over
+ * the pages only it leads to): what that page draws and reads only where it is drawn (`onDemand`), and has not read this
+ * session, is read now through the runner, so the move that follows finds it in or on its way. Reports is read on no
+ * other page's boot (6 Oct 2026: three reads Today never drew), so its first press in a session read all three behind
+ * "Reading…": 470 to 700 ms on a desk, where every page read at boot answered in under 60 (9 Oct 2026, production).
+ * One never read is asked for once a session: a warm that failed leaves it unread, and its page reads it as it comes
+ * on screen (readWhatWasMissed), as it always did. One a pass left for its page (keepForItsPage) is read as its page
+ * is reached for, and is no longer owed when the page arrives, or the press would read it twice. Answers the function
+ * a reach calls with the route reached for.
+ */
+export function warmWhatItDraws(
+  overrides: readonly { key: string; onDemand?: boolean }[],
+  read: (keys: string[]) => void,
+): (route: string) => void {
+  const asked = new Set<string>();
+  return (route) => {
+    const { page, param } = pageOfRoute(route);
+    const drawn = routeSurfaces(page, param);
+    const due = overrides.filter((o) => {
+      if (!o.onDemand || !drawn.includes(o.key)) return false;
+      if (missedWhileAway.has(o.key)) return true;
+      return !asked.has(o.key) && getSurfaceStatuses().get(o.key) !== "live";
+    });
+    for (const o of due) {
+      asked.add(o.key);
+      missedWhileAway.delete(o.key);
+    }
+    if (due.length) read(due.map((o) => o.key));
+  };
+}
+
+/**
  * Published for the mockup shell (a classic script that cannot import).
  * Absent — the standalone mockup opened without the bridge — everything
  * renders, which is correct there: the whole artifact is a demo.

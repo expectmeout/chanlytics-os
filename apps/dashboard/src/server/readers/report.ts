@@ -67,7 +67,8 @@ async function bookingOf(
  * refuses any other), then the booking line and the deals beside them -- the route's body, moved here whole, so the
  * Reports page and Ask's report tool read the same rows the same way. One SECURITY INVOKER function computes the series
  * in the tenant's own zone under the caller's RLS; a function that answers nothing is the route's 404, in its words,
- * before anything else is read. The calendar's zone and settings, and how the workspace's customers buy, come through
+ * whatever was asked beside it (the series, the booking line and the deals are read together, as the headline's are,
+ * and nothing of the others is answered without it). The calendar's zone and settings, and how the workspace's customers buy, come through
  * their readers, once in a turn. It returns the workspace's profile too: the hours and closures the while-you-were-closed
  * count is made from, `{}` where it was read with none, null where it could not be read. The page is the row a citation
  * names.
@@ -80,19 +81,26 @@ export const report: Reader<
   async read(rc, { days }) {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
-    const report = (await reportSeries(ctx.supabase, tenantId, days)) as unknown as ReportDto;
-    if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
+    // The series, the booking line and the deals are asked for together, as the headline's are (below): none needs
+    // another's answer, and one after the other the page stood behind each in turn (9 Oct 2026, production: 240 to
+    // 330 ms on the server for a workspace of a few conversations, the slowest read the dashboard makes). The series
+    // is still what decides there is a report at all: its answer is waited for first, and a function that answers
+    // nothing is the route's 404 whatever the others found, each of which keeps its own failure to itself.
+    const series = reportSeries(ctx.supabase, tenantId, days);
     // Asked, then booked — the one conversion line, from the calendar. Read once: the deals below say where the new
     // clients came from out of the same rows.
     const people = everyone(ctx, tenantId);
-    const booking = await bookingOf(rc, days, people);
+    const bookingRead = bookingOf(rc, days, people);
     // The deals of the period and the stock (0004), only where deals are on (0008) and a deal was recorded. Never
     // fatal either: a table that cannot be read costs the section, and People that cannot be read cost only the line
     // that says where the new clients came from. How the workspace's customers buy is the turn's (readers/facts.ts).
-    const deals = await load(rc, facts.sellsBy, undefined)
+    const dealsRead = load(rc, facts.sellsBy, undefined)
       .then((r) => r.data)
       .then(async (sellsBy) => dealReport(ctx, tenantId, days, dealsAreOn(sellsBy), await people.catch(() => [])))
       .catch(() => null);
+    const report = (await series) as unknown as ReportDto;
+    if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
+    const [booking, deals] = await Promise.all([bookingRead, dealsRead]);
     // The workspace's hours and closures, which Reports' while-you-were-closed counts against (spec A2): the turn's
     // config, which the booking line above already read, parsed as the calendar parses it, without its log line. Null
     // is a profile that could not be read (no row, a config the parser refuses, a read that failed): the report then
