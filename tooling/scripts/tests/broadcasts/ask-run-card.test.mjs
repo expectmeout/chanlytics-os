@@ -137,8 +137,11 @@ async function runCall(input, { role = "operator", now = NOW } = {}) {
   };
 }
 
-/** A run as the run's sheet reads it (getBroadcast): the run, every person on it, and its counts (run_counts, 00362). */
-const RUN_READ = ["broadcasts.select", "broadcast_recipients.select", "rpc.run_counts"];
+/**
+ * A run as the run's sheet reads it (getBroadcast): the run, then its counts (run_counts, 00362) asked as its people are,
+ * not after them, then every person on it.
+ */
+const RUN_READ = ["broadcasts.select", "rpc.run_counts", "broadcast_recipients.select"];
 const payload = (id, verb, name, people) => ({ broadcast_id: id, verb, name, people, timezone: TZ });
 
 /** Each call and what it comes to: a refusal in the model's words (and what was read before it), or the card. */

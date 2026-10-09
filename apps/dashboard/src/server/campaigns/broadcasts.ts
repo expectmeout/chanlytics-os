@@ -372,15 +372,15 @@ async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRo
 
 /**
  * A run's sheet's numbers: run_counts' (00362), the same a list of runs says of it; on a database before it, for one
- * release, what the sheet counted of its own people (`own`).
+ * release, what the sheet counted of its own people (`own`). `counting` is that call, started beside the sheet's people
+ * (getBroadcast), so the sheet pays no round trip at its end for it.
  */
 async function sheetCountsOf(
-  ctx: RouteContext,
-  tenantId: string,
+  counting: ReturnType<typeof runCounts>,
   id: string,
   own: BroadcastCounts,
 ): Promise<BroadcastCounts> {
-  const read = await runCounts(ctx.supabase, tenantId, [id]);
+  const read = await counting;
   if (read === "missing") return own;
   const counted = runCountsOf(read);
   if (!counted) throw new Error("run_counts answered a shape it does not know");
@@ -536,6 +536,10 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   if (error) throw new Error(error.message);
   if (!row) throw new AppError("not_found", "Broadcast not found.", 404);
 
+  // Its numbers as the database counts them go out WITH its people, not after every read below; read where the sheet
+  // says them (sheetCountsOf). The catch is for a sheet that fails first and never reads them: one that does still throws.
+  const counting = runCounts(ctx.supabase, tenantId, [id]);
+  counting.catch(() => {});
   // Every person on it, a page at a time: an unbounded read answers with PostgREST's first 1,000, and a broadcast may
   // hold BROADCAST_MAX_RECIPIENTS (2,000), so a large run's counts and rows stopped at the thousandth.
   const rows = await recipientsOf(ctx, tenantId, id);
@@ -574,7 +578,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     waiting_on_you: !!(r.messages?.conversation_id && waiting.has(r.messages.conversation_id)),
   }));
   return {
-    broadcast: toDto(row as BroadcastRow, await sheetCountsOf(ctx, tenantId, id, own)),
+    broadcast: toDto(row as BroadcastRow, await sheetCountsOf(counting, id, own)),
     recipients: people,
     reach_out: await reachOutRunOf(ctx, tenantId, row),
   };
