@@ -119,6 +119,31 @@ export function listRoute(id: string): string {
   return window.__listRoute ? window.__listRoute(id) : "clients";
 }
 
+/*
+ * The Booking tool's sheet, on the page a door to it was pressed on (settings/booking-tool/, Ruben, 9 October 2026).
+ * The door's verb stands here, with the verbs every page already loads, and not beside the sheet: a module of its own
+ * imported by pages with chunks of their own (Reports, the first run) made the build hand each a second copy of a
+ * chunk the route shares (Reports +9.9 KB gzipped, measured against the budget main banked).
+ */
+let bookingToolHost: (() => void) | null = null;
+
+/** The frame's host says how the sheet is opened; what it answers takes that back. */
+export function hostBookingTool(open: () => void): () => void {
+  bookingToolHost = open;
+  return () => {
+    if (bookingToolHost === open) bookingToolHost = null;
+  };
+}
+
+/**
+ * Open what the business books with, where the person is. At `orAt`, the row's own address in Settings, where there
+ * is no host to draw the sheet or the role may not change the business and so only reads the row.
+ */
+export function openBookingTool(orAt: string): void {
+  if (bookingToolHost && canDo("settings")) bookingToolHost();
+  else navigate(orAt);
+}
+
 /** Read one surface again by its key (a failed read's Retry): the runner's own, which the cache, the status and the pill follow. */
 export function refreshSurface(key: string): Promise<void> | undefined {
   return window.__refreshSurface?.(key);

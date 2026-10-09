@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
 import { FrameHead } from "@/surfaces/kit/head/frame-head";
 import { NewConversationHost } from "@/surfaces/inbox/new-conversation/host";
+import { BookingToolHost } from "@/surfaces/settings/booking-tool/host";
 import { loadPrefs, choosePref, documentStamps, type Prefs, type ChosenPref } from "./device-prefs";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
@@ -368,6 +369,8 @@ function useShellApp(
           <FrameHead look={look} />
           {/* What New conversation opens, held once for every page that asks for it (inbox/new-conversation/host.tsx). */}
           <NewConversationHost />
+          {/* The Booking tool's sheet, on whichever page a door to it was pressed (settings/booking-tool/host.tsx). */}
+          <BookingToolHost route={route} />
         </>
       ) : null,
     [

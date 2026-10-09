@@ -59,6 +59,8 @@ interface BtFoldProps<D = unknown> {
   after?: ((draft: D) => void) | null;
   /** A fold of one value (an address pasted, a tool picked): its own Cancel closes it without asking (common.tsx). */
   light?: boolean;
+  /** Drawn where there is no row to state it (the Booking tool's sheet on another page): the sheet alone, nothing at rest. */
+  bare?: boolean;
   body: (fields: BtFields<D>) => ReactNode;
 }
 
@@ -84,6 +86,7 @@ function btFoldProps<D>(p: BtFoldProps<D>) {
     door: dflt(p.door, null),
     after: dflt(p.after, null),
     light: dflt(p.light, false),
+    bare: dflt(p.bare, false),
     body: p.body,
   };
 }
@@ -230,7 +233,7 @@ export function BtFold<D = unknown>(props: BtFoldProps<D>) {
   const says = will ? (lines ? will.added : will.whole) : null;
   const changed = useBtChanged(says);
   const goneChanged = useBtChanged(will ? will.removed : null);
-  const atRest = btFoldAtRest(r, e, has);
+  const atRest = r.bare ? null : btFoldAtRest(r, e, has);
   return (
     <>
       {e.open ? null : atRest}

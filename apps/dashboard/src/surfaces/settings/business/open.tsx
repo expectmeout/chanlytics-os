@@ -22,7 +22,6 @@
 //
 // The rows that come and go inside a fold (the closed days) are drawn hookless, as plain boxes wearing the kit's class.
 import type { ComponentProps, ReactNode } from "react";
-import { BOOKING_TOOL_WORDS, bookingToolName, bookingToolOfLink, booksWithOf } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { TzApi } from "@/legacy-bridge/identity";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
@@ -35,9 +34,7 @@ import { gate as roleGate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { BtRow } from "./gestures/row";
 import { BtFold } from "./gestures/fold";
-import { BtoFeedRead } from "./open-calendar";
-import { BtoBookingsRead, BtoBooksWith, BtoSourceBody } from "./open-bookings";
-import type { CalendarDraft } from "./fold-shapes";
+import { BtBookingTool } from "./open-bookings";
 import { BtoWeek } from "./open-week";
 import type { Week } from "./open-week";
 import { businessTabSave } from "./saver";
@@ -362,9 +359,7 @@ export const BtOpenCard = ({
   flash: Flash;
   saver: Saver;
 }) => {
-  // Whether it sends a link at all, by the resolver's own test; without the bridge, the words that have one.
   const tab = BUSINESS_TAB;
-  const offers = !tab.offersBookingLink || tab.offersBookingLink(brain);
   const profile = brain.profile || {};
   const wsZone = btoWorkspaceZone();
   const gate = (thing: string) => roleGate("settings", `change ${thing}`);
@@ -373,10 +368,6 @@ export const BtOpenCard = ({
   const ahead = tab.closuresAheadWords
     ? tab.closuresAheadWords(profile.closures as ClosuresIn, wsZone, new Date())
     : { count: 0, line: null };
-  const feed = (config && config.calendar && config.calendar.ical_url) || "";
-  // What the owner books with, as the fold's picker holds it; and, with nothing said yet, the tool its booking link is on.
-  const booksWith = booksWithOf({ ...((config && config.bookings) || {}), ical_url: feed });
-  const guess = booksWith ? null : bookingToolName(bookingToolOfLink(brain.booking_link));
 
   return (
     <section className="rec-card" data-testid="rec-card-open" aria-labelledby="bt-open-title">
@@ -407,45 +398,9 @@ export const BtOpenCard = ({
         body={(f) => <BtoClosures {...f} />}
       />
 
-      {/* What the business books with, one row (7 Oct 2026; it was "Calendar it reads" and "Where your bookings come
-          from", each sending the owner to the other). The row states the owner's own fact (BtoBooksWith) and, under
-          it, a quiet signal each for the calendar link's last read and the tool's emails (the Calendar page's own
-          read); the fold asks what they book with and draws only what that answer has (open-bookings.tsx). Its id
-          stays `calendar`: every door on another page opens it by that name (contracts CALENDAR_SETTING_ROUTE). */}
-      <BtFold<CalendarDraft>
-        {...shared}
-        id="calendar"
-        light
-        label={BOOKING_TOOL_WORDS.label}
-        hint={BOOKING_TOOL_WORDS.hint}
-        channel={null}
-        gate={gate("what you book with")}
-        row={{
-          value: booksWith ? <BtoBooksWith withWhat={booksWith} feed={feed} /> : null,
-          empty: BOOKING_TOOL_WORDS.empty,
-          hint: booksWith
-            ? null
-            : guess
-              ? `Your booking link is on ${guess}. Set it up to fill your calendar.`
-              : BOOKING_TOOL_WORDS.hint,
-          children: (
-            <>
-              <BtoFeedRead stored={!!feed} whole={!canEdit} />
-              <BtoBookingsRead />
-            </>
-          ),
-          name: booksWith ? "Change what you book with" : "Set up: what you book with",
-        }}
-        body={(f) => (
-          <BtoSourceBody
-            f={f}
-            stored={feed}
-            offers={offers}
-            bookingLink={String(brain.booking_link || "")}
-            name={String(brain.business_name || "")}
-          />
-        )}
-      />
+      {/* What the business books with: one row and its fold (open-bookings.tsx), which a door on another page draws
+          as a sheet where it was pressed (booking-tool/). */}
+      <BtBookingTool brain={brain} config={config} {...shared} />
     </section>
   );
 };

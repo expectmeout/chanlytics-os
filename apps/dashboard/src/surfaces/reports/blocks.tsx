@@ -19,7 +19,7 @@ import {
   type ReportStripTile,
   type ReportVM,
 } from "@chanlytics/contracts";
-import { listRoute, routeDoor } from "../legacy-verbs";
+import { listRoute, openBookingTool, routeDoor } from "../legacy-verbs";
 import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Figure } from "../kit/figure/figure";
@@ -228,7 +228,7 @@ export function RptBooked({ bk, phone }: { bk: BookingReportVM | null; phone: bo
       <EmptyState
         kind="line"
         title={bk ? bk.sub : BOOKED_NEEDS_A_LINK}
-        action={{ label: "Add a calendar link", to: CALENDAR_SETTING_ROUTE }}
+        action={{ label: "Add a calendar link", onClick: () => openBookingTool(CALENDAR_SETTING_ROUTE) }}
       />
     );
   }
