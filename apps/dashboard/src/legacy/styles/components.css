@@ -634,6 +634,12 @@
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* Its leaving, the way it came (a still copy plays it: data-bits leaveOverlay). A copy that kept route-in as its own
+   animation came in again from nothing as the popover went, so the bell's closed twice (Ruben, 9 Oct 2026). */
+@keyframes route-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(4px); }
+}
 @media (prefers-reduced-motion: reduce) {
   .route-view { animation: none; }
 }
@@ -995,7 +1001,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   z-index: 250;
   overflow: hidden;
   animation: route-in 180ms var(--ease-out);
+  /* What it plays as it goes (below): the entrance's mirror, and on a phone the sheet going down as it came up. */
+  --tbn-out: route-out;
+  --tbn-out-ms: var(--duration-fast);
 }
+/* At every width it leaves by one rule, its own mirror: a copy that kept its entrance as its animation came in again
+   from nothing as the popover went. Its wash is clear off a phone and plays nothing; a phone's is the veil, below. */
+.tbn-pop[data-leaving="true"] { animation: var(--tbn-out) var(--tbn-out-ms) var(--ease-in) forwards; }
 .tbn-head {
   display: flex;
   align-items: center;
@@ -1096,13 +1108,14 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
     border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px); overscroll-behavior-y: none;
     animation: sheet-in 260ms var(--ease-out);
+    --tbn-out: sheet-out;
+    --tbn-out-ms: 180ms;
   }
   .tbn-handle { display: block; flex: none; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: var(--radius-full); background: var(--line-strong); }
   .tbn-head { padding: 6px 16px 10px; }
   .tbn-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
   /* The sheet moves under a pull at the top, not its list, and the list has no rubber band at either end (#1063). */
   .tbn-list { overscroll-behavior: none; }
-  .tbn-pop[data-leaving="true"] { animation: sheet-out 180ms var(--ease-in) forwards; }
   .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
 .tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: var(--bg-raised); border-bottom: 1px solid var(--line); }
@@ -2016,7 +2029,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   width: 40px;
   color: var(--ink-muted);
 }
-.topbar :is(.tb-bell, .tb-theme):hover {
+/* The bell held open wears what a pointer on it does: the wash over the page keeps the pointer off it, so it read idle. */
+.topbar :is(.tb-bell, .tb-theme):is(:hover, [aria-expanded="true"]) {
   background-color: var(--surface-control-fill);
   color: var(--ink);
 }
@@ -2244,6 +2258,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 #pg-act {
   display: contents;
+}
+/* Reports' head is the container its period measures itself against (reports.css): the capsule says its word where the
+   head has the room and is the glyph's circle where it has not, by the head's own width, as the Calendar's bar does it
+   (calendar.css `cal-bar`). `--rpt-when-w` is the capsule's one width, which the place for it keeps before it is drawn. */
+.pg-slot[data-strip="reports"] {
+  container: rpt-head / inline-size;
+  --rpt-when-w: 6.5rem;
 }
 /* An act's words (kit/head/act-words.tsx): the mark and the first word kept together, 6px apart as a button's mark and
    words are, and the rest after them, its own space kept (it leads the rest, and a flex item drops a leading space). On a
@@ -2513,10 +2534,17 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      place empty the column was 0 wide, the strip spanned the screen, and shrank 52px as the period came (Ruben, 7 Oct
      2026). The place keeps the period's width and nothing is drawn in it. It held a circle of the period's glass, a
      pseudo-element taken away by `:has(> #pg-act:empty)`, which an iPhone's Safari did not ask again as the period was
-     drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). */
+     drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). The period is a capsule
+     with its word now (reports.css), one width whichever word it says, which is what the place keeps; on a row too short
+     for the word it is the circle's 44 and the place keeps that. */
   .pg-slot[data-strip="reports"] > .pg-act-slot {
-    min-width: 44px;
+    min-width: var(--rpt-when-w);
     min-height: 44px;
+  }
+  @container rpt-head (max-width: 319px) {
+    .pg-slot[data-strip="reports"] > .pg-act-slot {
+      min-width: 44px;
+    }
   }
   /* People's scopes (People, Leads, the Pipeline) keep their act on a phone with its words, on the strip's row at its
      right, as a desk draws it (Ruben, 7 Oct 2026). It was hidden, each scope's act left to its own bar or menu, and a

@@ -19,7 +19,7 @@
  * (window.__DEMO_MODE). Flipping a surface to real later is a one-line change
  * here, made in the same directory as the override that makes it true.
  */
-import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
+import { FIRST_RUN_ROUTE, reportsParamParts } from "@chanlytics/contracts";
 
 import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
 import { hearAddress, routeOnScreen } from "./workspace";
@@ -233,6 +233,12 @@ export const ROUTE_WAIT_MS = 3000;
  * would not have waited for the settings read at all.
  */
 function paneOf(page: string, param?: string | null): string | null | undefined {
+  // Reports' param may say the days a member picked, alone or after its lens (`reviews:2026-09-01~2026-09-20`, contracts
+  // lensRoute): the lens is what is classified and fed, and days alone are the Overview, which is the bare page.
+  if (page === "reports" && param) {
+    const at = reportsParamParts(param);
+    if (at) return at.lens === "overview" ? null : at.lens;
+  }
   return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;
 }
 

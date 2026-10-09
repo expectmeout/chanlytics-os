@@ -149,6 +149,16 @@ test("Reports: the period; Campaigns: the tab's own rows; Settings: the pane; St
   assert.equal(ctx({}, "reports").view, null);
   setSurfaceValue("reports", { days: 90 });
   assert.deepEqual(ctx({}, "reports").view, "90");
+  // A period by name is the days it is, as a count (Month on the 5th is five); days a member picked are their one
+  // name, so Ask reads the numbers of the days on screen and not of as many days up to today.
+  setSurfaceValue("reports", { days: 5, period: "month", key: "month" });
+  assert.deepEqual(ctx({}, "reports").view, "5");
+  setSurfaceValue("reports", { days: 20, period: null, key: "2026-09-01~2026-09-20" });
+  assert.deepEqual(
+    ctx({}, "reports").view,
+    "2026-09-01~2026-09-20",
+    "REGRESSION: twenty days picked in September were read as the last twenty days",
+  );
   setSurfaceValue("reports", undefined);
   const g = {
     __PLAYBOOKS: { rows: [{ id: U(1), name: "Win back" }] },

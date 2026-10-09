@@ -182,6 +182,43 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     );
 });
 
+test("on an address that says days Reports is read over them, by their first and last day, whatever period the device keeps; anything else after a lens is the period's", () => {
+  const DAYS = "2026-09-01~2026-09-20";
+  const over = (route, saved = "7d") =>
+    headRuns({
+      pathname: `/w/acme/${route}`,
+      hash: "",
+      globals: { localStorage: { getItem: (k) => (k === REPORT_PERIOD_STORAGE ? saved : null) } },
+    }).calls.map(([u]) => u);
+  const days = [
+    "/api/v1/workspaces?workspace=acme",
+    "/api/v1/reports?from=2026-09-01&to=2026-09-20&workspace=acme",
+    "/api/v1/reports/campaigns?from=2026-09-01&to=2026-09-20&workspace=acme",
+    "/api/v1/reports/reach-outs?from=2026-09-01&to=2026-09-20&workspace=acme",
+  ];
+  // A link someone sent: the Overview over the days, a lens over them, and with nothing kept on the device at all.
+  assert.deepEqual(
+    over(`reports/${DAYS}`),
+    days,
+    "REGRESSION: the head read the device's period, and the page read the days after it",
+  );
+  assert.deepEqual(over(`reports/people:${DAYS}`), days);
+  assert.deepEqual(over(`reports/reviews:${DAYS}`, null), days);
+  // The address the frame has not moved yet says them in the hash.
+  assert.deepEqual(
+    headRuns({
+      pathname: "/w/acme",
+      hash: `#/reports/people:${DAYS}`,
+      globals: { localStorage: { getItem: () => "90d" } },
+    }).calls.map(([u]) => u),
+    days,
+  );
+  // A lens alone, and words that are not days, are read over the period kept.
+  const kept = days.map((u) => u.replace("from=2026-09-01&to=2026-09-20", "period=7d"));
+  for (const route of ["reports/people", "reports/people:30d", "reports/2026-09-01", "reports/people:2026-09-01~x"])
+    assert.deepEqual(over(route), kept, route);
+});
+
 test("Reports is read over the period this device last picked, as the page reads it; a period nobody offers is the default's", () => {
   const over = (saved) =>
     headRuns({
@@ -503,6 +540,23 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     const head = opensOn("harbor", route).slice(1).sort();
     assert.deepEqual(head, theirs, `${route}: the head starts what ${keys.join(" and ")} ask for first`);
   }
+  // Reports over days a member picked, which only its address says: the head reads the address as the page's surface
+  // does, so the two spell one read (first day, then last) and the surface's own takes what the head started.
+  for (const route of ["reports/2026-09-01~2026-09-20", "reports/people:2026-09-01~2026-09-20"]) {
+    win.location.pathname = `/w/harbor/${route}`;
+    api().forget();
+    asked.length = 0;
+    for (const k of ["reports", "workspace"]) void overrides[k].apply().catch(() => {});
+    await settle();
+    const theirs = [...new Set(asked)].filter((u) => !u.startsWith("/api/v1/workspaces")).sort();
+    const head = headRuns({ pathname: win.location.pathname, hash: "" })
+      .calls.map(([u]) => u)
+      .slice(1)
+      .sort();
+    assert.equal(head.length, 3, `${route}: the report, the offers' and the reach-outs'`);
+    assert.deepEqual(head, theirs, `${route}: the head starts what Reports asks for over the days`);
+  }
+  win.location.pathname = "/w/harbor";
   api().forget();
 });
 

@@ -214,7 +214,14 @@ export type {
   HeldNoticeRun,
   HandItem,
 } from "./repositories/reach-out-sheet";
-export { reportSeries, campaignSeries, reviewsLedger, reachOutReport } from "./repositories/reports/report-series";
+export {
+  reportSeries,
+  campaignSeries,
+  reviewsLedger,
+  reachOutReport,
+  ReportWindowNotReadable,
+} from "./repositories/reports/report-series";
+export type { ReportWindow } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
 export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";

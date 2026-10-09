@@ -902,10 +902,10 @@ COMMENT ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text,
 
 
 --
--- Name: campaign_series(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: campaign_series(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer DEFAULT 30) RETURNS jsonb
+CREATE FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
     LANGUAGE plpgsql STABLE
     SET search_path TO 'public'
     AS $$
@@ -914,7 +914,9 @@ declare
   v_days   integer := least(greatest(coalesce(p_days, 30), 1), 90);
   v_span   integer;
   v_today  date;
+  v_end    date;
   v_start  timestamptz;
+  v_stop   timestamptz;
   v_cur    date;
   v_result jsonb;
 begin
@@ -925,11 +927,14 @@ begin
 
   v_span  := v_days * 2;
   v_today := (now() at time zone v_tz)::date;
-  v_start := ((v_today - (v_span - 1))::timestamp) at time zone v_tz;
-  v_cur   := v_today - (v_days - 1);
+  -- The window's last day and where it stops, as report_series reads them (00360).
+  v_end   := least(coalesce(p_end, v_today), v_today);
+  v_start := ((v_end - (v_span - 1))::timestamp) at time zone v_tz;
+  v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
+  v_cur   := v_end - (v_days - 1);
 
   with days as (
-    select (v_today - (v_span - 1) + g)::date as day
+    select (v_end - (v_span - 1) + g)::date as day
       from generate_series(0, v_span - 1) g
   ),
   -- Every message a broadcast or a playbook run actually sent in the span,
@@ -946,7 +951,7 @@ begin
       left join messages m on m.id = r.message_id
      where r.tenant_id = p_tenant_id
        and r.state = 'sent'
-       and r.sent_at >= v_start
+       and r.sent_at >= v_start and r.sent_at < v_stop
   ),
   -- Replied: the customer wrote in that thread after the message went out, in their own words: not a call's note
   -- (an inbound row the system wrote) and not a program writing from their address (message_is_a_persons_words, 00299).
@@ -974,7 +979,7 @@ begin
       from events e
      where e.tenant_id = p_tenant_id
        and e.kind = 'contact.consent_changed'
-       and e.created_at >= v_start
+       and e.created_at >= v_start and e.created_at < v_stop
   ),
   -- Each day from one pass over each source, grouped by the day (00251), where a scalar subquery per day and per
   -- count scanned both again for every day.
@@ -1032,6 +1037,7 @@ begin
     'days', v_days,
     'span_days', v_span,
     'today', to_char(v_today, 'YYYY-MM-DD'),
+    'end', to_char(v_end, 'YYYY-MM-DD'),
     'series', (select jsonb_agg(jsonb_build_object(
                  'day', to_char(p.day, 'YYYY-MM-DD'),
                  'sent', p.sent,
@@ -1067,10 +1073,10 @@ end $$;
 
 
 --
--- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp).';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -15537,30 +15543,37 @@ COMMENT ON FUNCTION public.reach_out_reply_undoable(p_message_id uuid) IS 'Wheth
 
 
 --
--- Name: reach_out_report(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: reach_out_report(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) RETURNS jsonb
+CREATE FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date DEFAULT NULL::date) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_tz    text;
   v_today date;
+  v_end   date;
   v_since timestamptz;
+  v_stop  timestamptz;
 begin
   if auth.uid() is null or not exists (
        select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  if p_days is null or p_days not in (7, 30, 90) then
-    raise exception 'A period is 7, 30 or 90 days.' using errcode = '22023';
+  -- Any count of days Reports reads, as its other functions take them (00360): a month so far and a window a member
+  -- picked are neither 7, 30 nor 90, and this refused both.
+  if p_days is null or p_days < 1 or p_days > 90 then
+    raise exception 'A period is 1 to 90 days.' using errcode = '22023';
   end if;
   select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
   v_tz := coalesce(v_tz, 'America/New_York');
   v_today := (now() at time zone v_tz)::date;
-  v_since := (v_today - (p_days - 1))::timestamp at time zone v_tz;
+  -- The window's last day and where it stops, as report_series reads them (00360).
+  v_end   := least(coalesce(p_end, v_today), v_today);
+  v_since := (v_end - (p_days - 1))::timestamp at time zone v_tz;
+  v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
   return (
     -- An email that left (00179's one spelling, email_left): sent, or failed by a receipt after it left, which is how
     -- the clock settles a send whose email bounced before it was read sent. Dated by when it left.
@@ -15574,12 +15587,12 @@ begin
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
     ),
     sent as (
-      select * from left_ x where x.sent_at >= v_since
+      select * from left_ x where x.sent_at >= v_since and x.sent_at < v_stop
     ),
     handed as (
       select s.root_id, s.playbook_id, count(*) as n
         from public.reach_out_sends s
-       where s.tenant_id = p_tenant_id and s.state = 'handed' and s.sent_at >= v_since
+       where s.tenant_id = p_tenant_id and s.state = 'handed' and s.sent_at >= v_since and s.sent_at < v_stop
        group by s.root_id, s.playbook_id
     ),
     last_sent as (
@@ -15625,7 +15638,8 @@ begin
       'timezone', v_tz,
       'days', p_days,
       'today', v_today,
-      'since', v_today - (p_days - 1),
+      'end', v_end,
+      'since', v_end - (p_days - 1),
       'has_reach_out', exists (select 1 from public.playbooks p
                                where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'),
       'totals', jsonb_build_object(
@@ -15639,7 +15653,7 @@ begin
         'handed', coalesce((select sum(n) from handed), 0)),
       'series', (
         select coalesce(jsonb_agg(jsonb_build_object('day', g.day, 'written', coalesce(c.n, 0)) order by g.day), '[]'::jsonb)
-          from (select (v_today - k) as day from generate_series(0, p_days - 1) k) g
+          from (select (v_end - k) as day from generate_series(0, p_days - 1) k) g
           left join (select (x.sent_at at time zone v_tz)::date as day, count(*) as n from sent x group by 1) c
             on c.day = g.day),
       'chains', coalesce((
@@ -15656,7 +15670,8 @@ begin
                      'last_at', (select max(x.sent_at) from sent x where x.root_id = r.id),
                      'runs', (select count(*) from public.broadcasts b
                                where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
-                                 and b.audience->>'root_id' = r.id::text and b.run_for >= v_today - (p_days - 1)),
+                                 and b.audience->>'root_id' = r.id::text and b.run_for >= v_end - (p_days - 1)
+                                 and b.run_for <= v_end),
                      'steps', (
                        with recursive c as (
                          select p.id, 0 as n from public.playbooks p where p.id = r.id
@@ -15705,10 +15720,10 @@ end $$;
 
 
 --
--- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over the last p_days (7, 30 or 90) days in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over the last p_days (7, 30 or 90) days in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -16599,10 +16614,10 @@ COMMENT ON FUNCTION public.rename_mailbox(p_mailbox_id uuid, p_from_name text) I
 
 
 --
--- Name: report_series(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: report_series(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.report_series(p_tenant_id uuid, p_days integer DEFAULT 30) RETURNS jsonb
+CREATE FUNCTION public.report_series(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
     LANGUAGE plpgsql STABLE
     SET search_path TO 'public'
     AS $$
@@ -16611,7 +16626,9 @@ declare
   v_days   integer := least(greatest(coalesce(p_days, 30), 1), 90);
   v_span   integer;
   v_today  date;
+  v_end    date;
   v_start  timestamptz;
+  v_stop   timestamptz;
   v_result jsonb;
 begin
   select timezone into v_tz from tenants where id = p_tenant_id;
@@ -16621,10 +16638,15 @@ begin
 
   v_span  := v_days * 2;
   v_today := (now() at time zone v_tz)::date;
-  v_start := ((v_today - (v_span - 1))::timestamp) at time zone v_tz;
+  -- The window's last day (00360): today, or the earlier day a member picked. Never a day that has not come.
+  v_end   := least(coalesce(p_end, v_today), v_today);
+  v_start := ((v_end - (v_span - 1))::timestamp) at time zone v_tz;
+  -- Where the window stops: the midnight after its last day. Every source is read to here, so a window that ended
+  -- before today counts nothing that came after it.
+  v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
 
   with days as (
-    select (v_today - (v_span - 1) + g)::date as day
+    select (v_end - (v_span - 1) + g)::date as day
       from generate_series(0, v_span - 1) g
   ),
   -- NOT MATERIALIZED (00037): same reason as in metrics_summary.
@@ -16636,7 +16658,7 @@ begin
   msgs as (
     select m.*, (m.created_at at time zone v_tz)::date as day
       from real_msgs m
-     where m.created_at >= v_start
+     where m.created_at >= v_start and m.created_at < v_stop
   ),
   inbound as (select * from msgs where direction = 'inbound' and sender = 'customer'),
   out_sent as (
@@ -16647,24 +16669,25 @@ begin
   answered as (
     select r.*, (r.asked_at at time zone v_tz)::date as day
       from public.first_replies(p_tenant_id, v_start) r
+     where r.asked_at < v_stop
   ),
   -- A call someone spoke on (00303).
   calls_w as (
     select k.*, (k.started_at at time zone v_tz)::date as day
       from calls k
-     where k.tenant_id = p_tenant_id and k.started_at >= v_start
+     where k.tenant_id = p_tenant_id and k.started_at >= v_start and k.started_at < v_stop
        and public.call_connected(k.status, k.duration_ms)
   ),
   escs as (
     select e.*, (e.created_at at time zone v_tz)::date as day
       from escalations e
-     where e.tenant_id = p_tenant_id and e.created_at >= v_start
+     where e.tenant_id = p_tenant_id and e.created_at >= v_start and e.created_at < v_stop
   ),
   -- Each person's first moment, one rule with metrics_summary (00303).
   fresh as (
     select (f.first_at at time zone v_tz)::date as day
       from public.contact_first_moments(p_tenant_id) f
-     where f.first_at >= v_start
+     where f.first_at >= v_start and f.first_at < v_stop
   ),
   per_day as (
     select d.day,
@@ -16699,9 +16722,9 @@ begin
   ),
   -- When people reached the business this period, on the tenant's clock: one source for the hours and the arrivals.
   arrivals_now as (
-    select (i.created_at at time zone v_tz) as t from inbound i where i.day > v_today - v_days
+    select (i.created_at at time zone v_tz) as t from inbound i where i.day > v_end - v_days
     union all
-    select (k.started_at at time zone v_tz) as t from calls_w k where k.day > v_today - v_days
+    select (k.started_at at time zone v_tz) as t from calls_w k where k.day > v_end - v_days
   ),
   hour_counts as (
     select extract(isodow from x.t)::int as dow, extract(hour from x.t)::int as hr, count(*)::int as n
@@ -16728,6 +16751,7 @@ begin
     'days', v_days,
     'span_days', v_span,
     'today', to_char(v_today, 'YYYY-MM-DD'),
+    'end', to_char(v_end, 'YYYY-MM-DD'),
     'series', (select jsonb_agg(jsonb_build_object(
                  'day', to_char(p.day, 'YYYY-MM-DD'),
                  'messages_in', p.messages_in,
@@ -16744,33 +16768,33 @@ begin
                 from per_day p),
     'reasons', coalesce((select jsonb_object_agg(reason, n) from (
                  select reason, count(*) as n from escs
-                  where day > v_today - v_days
+                  where day > v_end - v_days
                   group by reason) r), '{}'::jsonb),
     'reply_seconds', coalesce((select jsonb_agg(round(ai_seconds)) from answered
-                                where day > v_today - v_days and ai_seconds is not null), '[]'::jsonb),
+                                where day > v_end - v_days and ai_seconds is not null), '[]'::jsonb),
     'sentiments', coalesce((select jsonb_object_agg(coalesce(sentiment, 'Unknown'), n) from (
                     select sentiment, count(*) as n from calls_w
-                     where day > v_today - v_days
+                     where day > v_end - v_days
                      group by sentiment) s), '{}'::jsonb),
-    'voicemail', (select count(*) from calls_w where day > v_today - v_days and in_voicemail),
+    'voicemail', (select count(*) from calls_w where day > v_end - v_days and in_voicemail),
     'replies', coalesce((select jsonb_agg(jsonb_build_object(
                                   'day', to_char(a.day, 'YYYY-MM-DD'),
                                   's', round(a.ai_seconds),
                                   'hold', round(coalesce(a.ai_hold_s, 0)))
                                 order by a.asked_at)
                            from answered a
-                          where a.day > v_today - v_days and a.ai_seconds is not null), '[]'::jsonb),
+                          where a.day > v_end - v_days and a.ai_seconds is not null), '[]'::jsonb),
     'channels', jsonb_build_object(
       'current', jsonb_build_object(
-        'whatsapp', (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'whatsapp'),
-        'sms',      (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'sms'),
-        'email',    (select count(*) from inbound i where i.day > v_today - v_days and i.channel = 'email'),
-        'voice',    (select count(*) from calls_w k where k.day > v_today - v_days)),
+        'whatsapp', (select count(*) from inbound i where i.day > v_end - v_days and i.channel = 'whatsapp'),
+        'sms',      (select count(*) from inbound i where i.day > v_end - v_days and i.channel = 'sms'),
+        'email',    (select count(*) from inbound i where i.day > v_end - v_days and i.channel = 'email'),
+        'voice',    (select count(*) from calls_w k where k.day > v_end - v_days)),
       'previous', jsonb_build_object(
-        'whatsapp', (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'whatsapp'),
-        'sms',      (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'sms'),
-        'email',    (select count(*) from inbound i where i.day <= v_today - v_days and i.channel = 'email'),
-        'voice',    (select count(*) from calls_w k where k.day <= v_today - v_days))),
+        'whatsapp', (select count(*) from inbound i where i.day <= v_end - v_days and i.channel = 'whatsapp'),
+        'sms',      (select count(*) from inbound i where i.day <= v_end - v_days and i.channel = 'sms'),
+        'email',    (select count(*) from inbound i where i.day <= v_end - v_days and i.channel = 'email'),
+        'voice',    (select count(*) from calls_w k where k.day <= v_end - v_days))),
     'hours', (select jsonb_agg(g.cells order by g.dow) from hour_grid g),
     'arrivals', coalesce((select jsonb_agg(jsonb_build_object('d', a.d, 'q', a.q, 'n', a.n) order by a.d, a.q)
                             from arrival_counts a), '[]'::jsonb)
@@ -16778,6 +16802,13 @@ begin
 
   return v_result;
 end $$;
+
+
+--
+-- Name: FUNCTION report_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports: the receptionist''s numbers day by day over p_days and the same number of days before them (customer messages, who answered and how fast, calls, the people who needed a person, new people), with the period''s reply times, reasons, moods, channels and arrivals, each on its day in the workspace''s own zone. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -17197,10 +17228,10 @@ COMMENT ON FUNCTION public.resume_email_offers(p_tenant_id uuid) IS 'The back of
 
 
 --
--- Name: reviews_ledger(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: reviews_ledger(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer DEFAULT 30) RETURNS jsonb
+CREATE FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
     LANGUAGE plpgsql STABLE
     SET search_path TO 'public'
     AS $$
@@ -17208,9 +17239,11 @@ declare
   v_tz        text;
   v_days      integer := least(greatest(coalesce(p_days, 30), 1), 92);
   v_today     date;
+  v_end       date;         -- the period's last day: today, or the earlier day a member picked (00360)
   v_since     date;         -- the period's first day
   v_prior     date;         -- the period before's first day
   v_read_from timestamptz;  -- the instant the period before begins, in the zone
+  v_stop      timestamptz;  -- the midnight after the period's last day, in the zone
   -- The most reviews that wait the answer lists: contracts REVIEWS_WAITING_SHOWN, which the database test holds to this.
   v_waiting_shown constant integer := 5;
   -- How far a receptionist's event may be from the reply it wrote: Google's updateTime on the reply moves when the owner
@@ -17224,13 +17257,16 @@ begin
   end if;
 
   v_today     := (now() at time zone v_tz)::date;
-  v_since     := v_today - (v_days - 1);
+  v_end       := least(coalesce(p_end, v_today), v_today);
+  v_since     := v_end - (v_days - 1);
   v_prior     := v_since - v_days;
   v_read_from := (v_prior::timestamp) at time zone v_tz;
+  v_stop      := ((v_end + 1)::timestamp) at time zone v_tz;
 
   select jsonb_build_object(
     'timezone', v_tz,
     'today', to_char(v_today, 'YYYY-MM-DD'),
+    'end', to_char(v_end, 'YYYY-MM-DD'),
     'days', v_days,
     'on_record', jsonb_build_object(
       'profile', c.profile,
@@ -17261,7 +17297,8 @@ begin
                             and e.subject_type = 'review' and e.subject_id = r.id
                           order by e.created_at desc, e.id desc
                           limit 1) ev on true
-                      where r.tenant_id = p_tenant_id and r.origin = 'profile' and r.published_at >= v_read_from) w), '[]'::jsonb),
+                      where r.tenant_id = p_tenant_id and r.origin = 'profile' and r.published_at >= v_read_from
+                        and r.published_at < v_stop) w), '[]'::jsonb),
     'waiting_total', c.waiting,
     -- The oldest that wait, the ones with no date last: the columns the Google read draws a review by, and why a reply
     -- written for it was held (google.reply_held), where one was.
@@ -17291,10 +17328,10 @@ end $$;
 
 
 --
--- Name: FUNCTION reviews_ledger(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION reviews_ledger(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) IS 'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with why a reply written for one was held. One statement, under the caller''s RLS.';
+COMMENT ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with why a reply written for one was held. One statement, under the caller''s RLS. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -30042,12 +30079,12 @@ GRANT ALL ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel tex
 
 
 --
--- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) TO authenticated;
-GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer) TO service_role;
+REVOKE ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
 
 
 --
@@ -32481,12 +32518,12 @@ GRANT ALL ON FUNCTION public.reach_out_reply_undoable(p_message_id uuid) TO serv
 
 
 --
--- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) TO authenticated;
-GRANT ALL ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer) TO service_role;
+REVOKE ALL ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
 
 
 --
@@ -32619,12 +32656,12 @@ GRANT ALL ON FUNCTION public.rename_mailbox(p_mailbox_id uuid, p_from_name text)
 
 
 --
--- Name: FUNCTION report_series(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION report_series(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer) TO authenticated;
-GRANT ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer) TO service_role;
+REVOKE ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
 
 
 --
@@ -32661,12 +32698,12 @@ GRANT ALL ON FUNCTION public.resume_email_offers(p_tenant_id uuid) TO service_ro
 
 
 --
--- Name: FUNCTION reviews_ledger(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION reviews_ledger(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) TO authenticated;
-GRANT ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer) TO service_role;
+REVOKE ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
 
 
 --

@@ -5,16 +5,17 @@ import "server-only";
  * The route refuses any other period; the page draws it through contracts' toReachOutReportVM.
  */
 import type { ReachOutReportDto } from "@chanlytics/contracts";
-import { reachOutReport } from "@chanlytics/db";
+import { reachOutReport, type ReportWindow } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs";
+import { windowRead } from "@/server/readers/report";
 
 export async function reachOutReportOf(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  days: number,
+  window: ReportWindow,
 ): Promise<{ report: ReachOutReportDto }> {
-  const answered = await reachOutReport(ctx.supabase, tenantId, days);
+  const answered = await windowRead(reachOutReport(ctx.supabase, tenantId, window));
   if (!answered.ok) throw reachOutRefusal({ code: answered.code, message: answered.message });
   return { report: dtoOf<ReachOutReportDto>(answered.data) };
 }

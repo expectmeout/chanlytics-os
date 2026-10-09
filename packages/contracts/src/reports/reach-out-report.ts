@@ -10,7 +10,7 @@ import { domainHoldWords } from "../email/sending-domains";
 import { stepLabelOf } from "../reach-out/reach-out-sheet";
 import { pct } from "../shared/numbers";
 import type { HandKind } from "../reach-out/reach-out-hand";
-import { dayPointOf, periodWords, rangeLabelOf } from "./reports";
+import { dayPointOf, endedOn, periodWords } from "./reports";
 
 export interface ReachOutReportCounts {
   written: number;
@@ -57,6 +57,8 @@ export interface ReachOutReportDto {
   timezone: string;
   days: number;
   today: string;
+  /** The report's last day (00360): today for a period by name, an earlier day for days a member picked. */
+  end?: string;
   since: string;
   /** The workspace has a reach-out at all: the section is drawn only then. */
   has_reach_out: boolean;
@@ -286,7 +288,7 @@ function linesOf(dto: ReachOutReportDto): ReachOutReportVM["lines"] {
       : "No email in these days had an opening, so there is no angle to compare.",
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote ${periodWords(rangeLabelOf(dto.days)).within}.`,
+    empty: `No reach-out wrote ${periodWords(dto.days, endedOn(dto)).within}.`,
   };
 }
 
@@ -310,6 +312,7 @@ function wholeOf(raw: Partial<ReachOutReportDto>): ReachOutReportDto {
     timezone: raw.timezone || "UTC",
     days: raw.days ?? 30,
     today: raw.today ?? "",
+    end: raw.end ?? raw.today ?? "",
     since: raw.since ?? "",
     has_reach_out: raw.has_reach_out === true,
     totals: { ...NO_COUNTS, ...(raw.totals ?? {}) },

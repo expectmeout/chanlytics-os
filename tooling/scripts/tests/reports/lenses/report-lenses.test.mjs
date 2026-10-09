@@ -171,7 +171,7 @@ test("the head says the lens's own sentence, from the view models that hold it",
       sources: [],
       reasons: [],
     },
-    "1 day",
+    "in the last 1 day",
   );
   const parts = { vm, campaigns, deals, reviews: null };
   assert.equal(lensAnswerOf("overview", parts), vm.lines.hero);
@@ -197,5 +197,5 @@ test("the head says the lens's own sentence, from the view models that hold it",
     undefined,
     "a campaign read that failed says nothing",
   );
-  assert.equal(lensAnswerOf("pipeline", { ...parts, deals: toDealReportVM(null, "1 day") }), undefined);
+  assert.equal(lensAnswerOf("pipeline", { ...parts, deals: toDealReportVM(null, "in the last 1 day") }), undefined);
 });

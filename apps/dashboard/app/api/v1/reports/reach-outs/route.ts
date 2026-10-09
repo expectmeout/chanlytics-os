@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/route";
 import { readerContext } from "@/server/readers";
-import { ReportQuery, reportDaysFor } from "@/server/readers/report";
+import { ReportQuery, reportWindowFor } from "@/server/readers/report";
 import { reachOutReportOf } from "@/server/campaigns/reach-out-report";
 
 /**
@@ -14,5 +14,5 @@ export const GET = read({
   rate: "aggregate",
   query: ReportQuery,
   handle: async ({ ctx, member, input }) =>
-    reachOutReportOf(ctx, member.tenantId, await reportDaysFor(readerContext(ctx, member), input)),
+    reachOutReportOf(ctx, member.tenantId, await reportWindowFor(readerContext(ctx, member), input)),
 });
