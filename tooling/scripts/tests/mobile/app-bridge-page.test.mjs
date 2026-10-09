@@ -126,22 +126,46 @@ test("the shell's navigate moves the route, as a path; menu and top become the s
   assert.equal(win.location.pathname, "/w/acme-plumbing/inbox");
 });
 
-test("a tapped push for another workspace opens that workspace's page; one for this workspace moves the route", () => {
+test("a tapped push for another workspace opens that workspace's page, sealing what this tab kept of this one; one for this workspace moves the route", async () => {
   const HERE = "11111111-1111-4111-8111-111111111111";
   const THERE = "22222222-2222-4222-8222-222222222222";
   const { win, posted } = windowOf();
   win.__ACTIVE_WORKSPACE = HERE;
-  installAppBridge(win);
-  win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
-  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1");
-  assert.equal(posted.filter((p) => p.assigned).length, 0, "this workspace: no load");
-  win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-2", workspace: THERE }));
-  assert.deepEqual(
-    posted.filter((p) => p.assigned),
-    [{ assigned: `/w/${THERE}/inbox/th-2` }],
-    "REGRESSION: a push for one workspace opened its thread in whichever workspace the phone was showing",
-  );
-  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1", "and this page's route is not moved under it");
+  // The tab's cache, which this page's reads go into (surface-cache.ts reads the page's window and storage).
+  const kept = new Map();
+  const was = { window: globalThis.window, sessionStorage: globalThis.sessionStorage };
+  globalThis.sessionStorage = {
+    getItem: (k) => (kept.has(k) ? kept.get(k) : null),
+    setItem: (k, v) => kept.set(k, String(v)),
+    removeItem: (k) => kept.delete(k),
+  };
+  globalThis.window = win;
+  const cache = await import("../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+  const CACHE = "chanlytics.surfaces.v1";
+  try {
+    installAppBridge(win);
+    win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
+    assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1");
+    assert.equal(posted.filter((p) => p.assigned).length, 0, "this workspace: no load");
+    win.INBOX_PROBE = { threads: ["acme-plumbing's"] };
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], HERE);
+    cache.flushSurfaceCache();
+    assert.ok(kept.get(CACHE), "this workspace's rows, cached, as a reload would paint them");
+    win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-2", workspace: THERE }));
+    assert.deepEqual(
+      posted.filter((p) => p.assigned),
+      [{ assigned: `/w/${THERE}/inbox/th-2` }],
+      "REGRESSION: a push for one workspace opened its thread in whichever workspace the phone was showing",
+    );
+    assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1", "and this page's route is not moved under it");
+    assert.equal(kept.get(CACHE), undefined, "REGRESSION: the other workspace's address loaded with this one's rows");
+    // A read lands before the page unloads: persisted as every read is, and written by the page's hide.
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], HERE);
+    cache.flushSurfaceCache();
+    assert.equal(kept.get(CACHE), undefined, "REGRESSION: written back into the tab the other workspace loads in");
+  } finally {
+    Object.assign(globalThis, was);
+  }
 });
 
 test("a menu ask that arrives before the shell has mounted waits for it; a scroll to the top of nothing is dropped", () => {

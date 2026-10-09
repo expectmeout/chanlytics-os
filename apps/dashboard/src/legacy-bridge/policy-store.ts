@@ -19,9 +19,13 @@ import {
  * swap, every reader truthful.
  *
  * `window.__POLICIES` has three states, and the store treats each as its own:
- *   undefined  the bridge is not running — the standalone mockup, seeds are right
+ *   undefined  not read yet: a cold tab before settings lands, or a settings read that failed twice -- no modes, as
+ *              for a failed read; the seeds only in a session that declared itself a demo (`__DEMO_MODE`), the
+ *              mockup's own, where every row is seeded
  *   null       the bridge ran and the read FAILED — no modes, never the seeds
  *   object     the workspace's real rows
+ * It answered from the seeds while undefined, so a real workspace's chips said the mockup's modes ("Replies · holds
+ * it") until settings landed, or for the whole visit when it did not: a fact the database never said.
  *
  * Honesty rule for the rows: every class here has an enforcer — the
  * receptionist for replies, questions and bookings (the prompt's rules and
@@ -170,6 +174,8 @@ interface PolicyWindow {
   POLICY?: SeedStore;
   __POLICIES?: PoliciesSurface | null;
   __setPolicy?: (cls: string, mode: string) => Promise<unknown>;
+  /** A session that declared itself a demo (seed-globals.ts): the only one whose policies are the seeds. */
+  __DEMO_MODE?: boolean;
 }
 
 /**
@@ -179,7 +185,9 @@ interface PolicyWindow {
  */
 export function installPolicyStore(win: PolicyWindow = window): void {
   const seed = win.POLICY;
-  const surface = (): PoliciesSurface | null | undefined => win.__POLICIES;
+  // Not read yet is no modes, as a failed read is, everywhere but a demo (the header above).
+  const surface = (): PoliciesSurface | null | undefined =>
+    win.__POLICIES === undefined && !win.__DEMO_MODE ? null : win.__POLICIES;
   const store = {
     get MODES(): readonly string[] {
       return surface() === undefined ? (seed?.MODES ?? UI_MODES) : UI_MODES;

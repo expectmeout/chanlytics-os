@@ -7,7 +7,7 @@ import { writeAuthCookies } from "@/server/auth-cookies";
 import { env, isProduction, servedOverHttps } from "@/server/env";
 import { publicEnv } from "@/lib/public-env";
 import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
-import { returnFragmentOf } from "@/auth/sign-in-return";
+import { returnFragmentOf, returnQueryOf } from "@/auth/sign-in-return";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -220,8 +220,10 @@ export async function proxy(request: NextRequest) {
     // route of a workspace page rides in the fragment instead (sign-in-return.ts),
     // which no server or log ever sees: a deep link at /w/acme/inbox/th-1 signs
     // in and lands there. A hash address (/w/acme#/inbox) needs nothing: the
-    // browser preserves its fragment across the redirect on its own.
-    url.search = "";
+    // browser preserves its fragment across the redirect on its own. The only
+    // query is the gate's own, the workspace the path named (`?w=acme`), so the
+    // sign-in lands in it and not in the one this browser used last.
+    url.search = returnQueryOf(path);
     url.hash = returnFragmentOf(path);
     return noStore(NextResponse.redirect(url));
   }

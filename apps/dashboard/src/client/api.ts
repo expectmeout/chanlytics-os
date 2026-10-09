@@ -10,7 +10,7 @@
  * this owns them once. Pure: no `window`, so it runs under node with a fake
  * fetch, and the bridge instantiates it with the real one.
  */
-import { refusalOf, type Refusal } from "@chanlytics/contracts";
+import { refusalOf, sessionEnded, type Refusal } from "@chanlytics/contracts";
 import type { InputOf, OutputOf } from "../server/route";
 import { ROUTES, type Routes } from "./routes.generated";
 
@@ -109,6 +109,12 @@ interface ApiDeps {
   /** A 401: the session is gone. The bridge clears the cache and goes to /login. */
   onSignedOut: () => void;
   /**
+   * A fresh route's 401 (contracts sessionEnded): the Auth server no longer knows the session, though its token still
+   * verifies where the gate looks, so /login would send the tab straight back in. The bridge ends the session first.
+   * Without it, the plain 401's way.
+   */
+  onSessionEnded?: () => void;
+  /**
    * A choose_workspace: the server could not tell which workspace this request
    * meant — the tab named none, or one this account no longer belongs to. The
    * bridge forgets its choice and boots again, asking /workspaces first.
@@ -145,6 +151,18 @@ const WRITE_TIMEOUT_MS = 30_000;
 function heard(deps: ApiDeps, code: string | undefined): void {
   if (code === "choose_workspace") deps.onChooseWorkspace?.();
   if (code === "mfa_required") deps.onSecondFactor?.();
+}
+
+/**
+ * A 401, by which kind it is: a session never shown (the gate's) signs in; one the Auth server says has ended (a fresh
+ * route's, contracts sessionEnded) is ended first, where the bridge can end it. A 401 with no envelope is the first kind.
+ */
+async function signedOut(deps: ApiDeps, res: Response): Promise<void> {
+  const said = (await Promise.resolve()
+    .then(() => res.json())
+    .catch(() => null)) as Envelope | null;
+  if (said && !said.ok && sessionEnded(said.error?.details) && deps.onSessionEnded) deps.onSessionEnded();
+  else deps.onSignedOut();
 }
 
 /**
@@ -246,7 +264,7 @@ export function createApi(deps: ApiDeps) {
         return { ok: false, ...refusalOf({ code: timedOut ? "timeout" : "network", status: 0, write: !isRead }) };
       }
       if (res.status === 401) {
-        deps.onSignedOut();
+        await signedOut(deps, res);
         return { ok: false, ...refusalOf({ code: "unauthorized", status: 401, write: !isRead }) };
       }
       const j = (await res.json().catch(() => null)) as Envelope | null;

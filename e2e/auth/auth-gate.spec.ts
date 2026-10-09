@@ -31,25 +31,27 @@ test.describe("unauthenticated", () => {
     });
   }
 
-  test("a page of a workspace sends the visitor to sign in carrying its route, in the fragment, and never the query", async ({
+  test("a page of a workspace sends the visitor to sign in carrying its route, in the fragment, and its workspace, never the page's query", async ({
     page,
   }) => {
     // A route is a path (decision 0015), which a redirect drops; the fragment reaches no server and no log, so the gate
-    // writes it there, and the sign-in page keeps it and lands on it.
+    // writes it there, and the sign-in page keeps it and lands on it. The workspace is the gate's own query value, so a
+    // member of two lands in the one the link named (sign-in-return.ts).
     await page.goto("/w/acme/inbox/th-1?private=1", { waitUntil: "domcontentloaded" });
     const at = new URL(page.url());
     expect(at.pathname).toBe("/login");
     expect(at.hash).toBe("#/inbox/th-1");
-    expect(at.search, "the query is never copied onto the sign-in page").toBe("");
+    expect(at.search, "the page's query is never copied onto the sign-in page").toBe("?w=acme");
   });
 
-  test("a hash address, which every email and bookmark says, carries its route through the same redirect", async ({
+  test("a hash address, which every email and bookmark says, carries its route and its workspace through the same redirect", async ({
     page,
   }) => {
     await page.goto("/w/acme#/reports", { waitUntil: "domcontentloaded" });
     const at = new URL(page.url());
     expect(at.pathname).toBe("/login");
     expect(at.hash, "the browser keeps a fragment across a redirect that names none").toBe("#/reports");
+    expect(at.search).toBe("?w=acme");
   });
 
   for (const path of PROTECTED_APIS) {

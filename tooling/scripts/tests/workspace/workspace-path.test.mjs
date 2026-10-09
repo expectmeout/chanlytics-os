@@ -28,6 +28,7 @@ const {
   warmSoon,
 } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { onOnePage, routeHasPage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
+const { signInReturnOf: signInReturn } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
 
 test("a path names its workspace under /w/, by slug or id, decoded; anything else names none", () => {
   assert.equal(pathWorkspace("/w/acme"), "acme");
@@ -264,11 +265,40 @@ test("the four verbs on window.__shell are these, over the window they were made
   stop();
 });
 
-test("a session that ended mid-page signs in again at the route it was on, from a path or a hash; anything else is no page to return to", () => {
-  assert.equal(signInHref({ pathname: "/w/acme/inbox/th-1", hash: "" }), "/login#/inbox/th-1");
-  assert.equal(signInHref({ pathname: "/w/acme", hash: "#/reports" }), "/login#/reports");
-  assert.equal(signInHref({ pathname: "/w/acme", hash: "" }), "/login");
-  assert.equal(signInHref({ pathname: "/w/acme", hash: "#error=access_denied" }), "/login");
+test("a session that ended mid-page signs in again at the route it was on, from a path or a hash, in its workspace; anything else is no page to return to", () => {
+  assert.equal(signInHref({ pathname: "/w/acme/inbox/th-1", hash: "" }), "/login?w=acme#/inbox/th-1");
+  assert.equal(signInHref({ pathname: "/w/acme", hash: "#/reports" }), "/login?w=acme#/reports");
+  assert.equal(signInHref({ pathname: "/w/acme", hash: "" }), "/login?w=acme", "the workspace's own page: Today");
+  assert.equal(signInHref({ pathname: "/w/acme", hash: "#error=access_denied" }), "/login?w=acme");
+  assert.equal(signInHref({ pathname: "/", hash: "" }), "/login", "off a workspace page, none rides");
+  assert.equal(
+    signInHref({ pathname: "/w/a%2F%2Fevil", hash: "" }),
+    "/login",
+    "a name no workspace has is not carried",
+  );
+});
+
+test("REGRESSION: a member of two workspaces signed out on a deep link into the second signs in and lands in the second, not the one this browser used last", () => {
+  // /w/bayside/inbox/th-1, signed out: the 401's way to /login, the sign-in page's landing, and the home, run in turn.
+  const login = new URL(signInHref({ pathname: "/w/bayside/inbox/th-1", hash: "" }), "https://app.example.com");
+  const landing = signInReturn({ search: login.search, hash: login.hash });
+  assert.equal(landing, "?w=bayside#/inbox/th-1", "the sign-in page carries the workspace and the route on");
+  assert.equal(
+    homeHref("acme", null, landing),
+    "/w/bayside/inbox/th-1",
+    "REGRESSION: the home sent it to /w/acme/inbox/th-1, a thread that is not there",
+  );
+  // The rest of a landing's query rides on without the workspace's own value.
+  assert.equal(
+    homeHref("acme", null, "?billing=success&w=bayside#/admin/billing"),
+    "/w/bayside/settings/billing?billing=success",
+  );
+  // A name no workspace could have is no workspace: the last one used, as before.
+  for (const bad of ["//evil.example", "a/b", "..", "-x", "x y", "", "https:%2F%2Fevil.example"])
+    assert.equal(homeHref("acme", null, `?w=${encodeURIComponent(bad)}#/inbox`), "/w/acme/inbox", `w=${bad}`);
+  // The sign-in page reads it again from its own address, since anyone can write a link to /login.
+  assert.equal(signInReturn({ search: "?w=%2F%2Fevil.example&email=a%40example.com", hash: "#/inbox" }), "#/inbox");
+  assert.equal(signInReturn({ search: "?email=a%40example.com&w=bayside", hash: "" }), "?w=bayside");
 });
 
 test("this address in another workspace: the same route under its slug, and the query that came with it", () => {

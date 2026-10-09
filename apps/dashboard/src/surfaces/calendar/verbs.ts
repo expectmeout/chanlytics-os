@@ -41,6 +41,7 @@ import { CALENDAR_PAGE } from "./words";
 async function goTo(from: string | null, days = 63): Promise<boolean> {
   const prev = getCalendarSpan();
   setCalendarSpan(from, days);
+  const asked = getCalendarSpan();
   api().forget();
   // A window this tab has read paints at once; the read behind it keeps it current (the loading standard's held
   // views). Only a window never read waits for its read.
@@ -49,6 +50,12 @@ async function goTo(from: string | null, days = 63): Promise<boolean> {
     return true;
   }
   await refreshSurfaces([calendarOverride]);
+  // A newer move was made while this one read: the surface dropped this answer (a span left), and the newer move
+  // decides what the board keeps and says. This one failed nothing, so it takes nothing back: putting the span back
+  // here undid the newer move, whose own answer was then dropped too, and the board said it could not read the days
+  // though every read had landed (Reports' period pick keeps the same rule).
+  const now = getCalendarSpan();
+  if (now.from !== asked.from || now.days !== asked.days) return true;
   const got = surfaceValue("calendar")?.vm;
   if ((from && got?.from !== from) || (got?.days && got.days.length !== days)) {
     setCalendarSpan(prev.from, prev.days);

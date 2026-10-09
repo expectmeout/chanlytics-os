@@ -157,6 +157,19 @@ function confirmEmailToOf(details: unknown): string | null {
   return typeof to === "string" && to.trim() ? to.trim() : null;
 }
 
+/**
+ * What a 401 says beside its code when the session has ENDED rather than was never shown: a route that declares
+ * `fresh` asked the Auth server, which no longer knows it (the dashboard's with-route.ts requireFreshSession). Its token
+ * still verifies where the gate looks (locally), so the sign-in page would send the tab straight back in, and the act
+ * would silently not happen, again and again: the client ends the session first (POST /auth/signout), then signs in.
+ */
+export const SESSION_ENDED: Readonly<{ session_ended: true }> = { session_ended: true };
+
+/** Whether a refusal's details say the session ended (SESSION_ENDED). */
+export function sessionEnded(details: unknown): boolean {
+  return !!details && typeof details === "object" && (details as { session_ended?: unknown }).session_ended === true;
+}
+
 export function refusalOf(input: RefusalInput): Refusal {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";

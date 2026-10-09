@@ -20,6 +20,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { api } from "./api";
+import { sealSurfaceCache } from "./surface-cache";
 import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
 import type { AddressParts } from "@chanlytics/contracts";
 
@@ -198,10 +199,12 @@ function answerShell({ win, doors, post, phone, shell, overlays }: Answering, ra
   if (!m) return;
   if (m.t === "navigate") {
     // A push told for another workspace opens that workspace's page: the site takes its id in the path as it takes a
-    // slug. One for this workspace, or with no workspace said, moves the route.
-    if (m.workspace && m.workspace !== win.__ACTIVE_WORKSPACE)
+    // slug. One for this workspace, or with no workspace said, moves the route. Leaving for another workspace seals the
+    // tab's cache as a switch does: a read landing before the page unloads is this workspace's, and was written back.
+    if (m.workspace && m.workspace !== win.__ACTIVE_WORKSPACE) {
+      sealSurfaceCache();
       win.location.assign(workspaceHref(m.workspace, `#/${m.route}`));
-    else goToRoute(m.route, {}, win);
+    } else goToRoute(m.route, {}, win);
     return;
   }
   if (m.t === "menu" || m.t === "top") {

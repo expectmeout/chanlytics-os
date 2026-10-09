@@ -23,6 +23,7 @@ import {
   ROLE_PERMS,
 } from "@chanlytics/contracts";
 import { api } from "./api";
+import { sealSurfaceCache } from "./surface-cache";
 import type { Me, Workspace } from "./surface-data";
 
 export interface IdentityApi {
@@ -153,7 +154,9 @@ export const meVerbs: MeApi = {
   async deleteAccount() {
     const r = await api()("DELETE me");
     if (!r.ok) return { ok: false, message: r.message };
-    // The door ended the session; the sign-in page is where a person with no account belongs.
+    // The door ended the session; the sign-in page is where a person with no account belongs. What the tab kept of
+    // theirs goes first, and stays gone (surface-cache.ts sealSurfaceCache): it waited for whoever signed in next here.
+    sealSurfaceCache();
     window.location.assign("/login");
     return { ok: true, message: "" };
   },
