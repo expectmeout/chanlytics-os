@@ -660,10 +660,11 @@ function keepDoubt(tables, tenantId, id, other, seenAs, insertRow) {
  * so the sweeps, the booking link and the email intake run their real code over it: the erasure digests first on the
  * passive paths, then the identity, the number and the address; fills what is empty and never overwrites; never
  * merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed
- * or the finder brought, person.resolved for every call. The SQL itself is proved on a stack in
+ * or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity
+ * added or raised, a doubt written; 00363). The SQL itself is proved on a stack in
  * people/doors/resolve-person.db.test.mjs; what this answers is held to the same cases there. Not modelled: the race
- * two doors run (one world, one caller at a time), and contact.email_set, which set_person_email writes beside the
- * address.
+ * two doors run (one world, one caller at a time), contact.email_set, which set_person_email writes beside the
+ * address, and the lead the door links (person_link_lead), which would be one more reason to write the row.
  */
 function resolvePersonIn(tables, args, insertRow) {
   const tenantId = args.p_tenant_id;
@@ -678,25 +679,29 @@ function resolvePersonIn(tables, args, insertRow) {
   const outcome = found ? (fill.filled.length ? "filled" : "matched") : "new";
   const identity = keepIdentity(tables, tenantId, r, id, insertRow);
   const doubt = keepDoubt(tables, tenantId, id, fill.other, fill.seenAs, insertRow);
-  insertRow("events", {
-    tenant_id: tenantId,
-    kind: "person.resolved",
-    category: "contact",
-    subject_type: "contact",
-    subject_id: id,
-    data: {
-      outcome,
-      matched_by: found?.by ?? null,
-      source: r.source,
-      channel: r.channel,
-      assurance: r.assurance,
-      by: null,
-      filled: fill.filled,
-      identity,
-      doubt: doubt.other,
-      doubt_seen: doubt.seenAs,
-    },
-  });
+  // The ledger's row, when the call changed something (00363); a call that found the person and learned nothing
+  // writes none.
+  if (outcome !== "matched" || identity === "added" || identity === "raised" || doubt.doubtId != null) {
+    insertRow("events", {
+      tenant_id: tenantId,
+      kind: "person.resolved",
+      category: "contact",
+      subject_type: "contact",
+      subject_id: id,
+      data: {
+        outcome,
+        matched_by: found?.by ?? null,
+        source: r.source,
+        channel: r.channel,
+        assurance: r.assurance,
+        by: null,
+        filled: fill.filled,
+        identity,
+        doubt: doubt.other,
+        doubt_seen: doubt.seenAs,
+      },
+    });
+  }
   return {
     contact_id: id,
     outcome,
@@ -709,6 +714,59 @@ function resolvePersonIn(tables, args, insertRow) {
     doubt_seen: doubt.seenAs,
     doubt_id: doubt.doubtId,
   };
+}
+
+/**
+ * A provider's stop and its event, one write (record_provider_stop, 00362), over the rows a world holds, so the send
+ * door (the carrier's 21610 at the wire), the status door (the same, told late) and the receipts door (WhatsApp's
+ * 131050) run their real code over it: the row's own answer is the event's `previous`; a person already stopped, or
+ * erased, is left as they are and the door answers false; the message the provider refused rides on the event when
+ * named. The SQL itself is proved on a stack in consent/a-provider-s-stop-is-one-write.db.test.mjs. Not modelled:
+ * 00297's trigger, which empties the channels the answer covered from the event.
+ */
+function recordProviderStopIn(tables, args, insertRow) {
+  const tenantId = args.p_tenant_id;
+  const contactId = args.p_contact_id;
+  const purpose = args.p_purpose;
+  const channel = String(args.p_channel ?? "").trim();
+  const source = String(args.p_source ?? "").trim();
+  if (!tenantId || !contactId) throw refusal("P0002", "Workspace not found.");
+  if (purpose !== "conversational" && purpose !== "marketing")
+    throw refusal("22023", "A stop is about messages on their own visit (conversational) or about offers (marketing).");
+  if (!channel || !source) throw refusal("22004", "A provider's stop names its channel and its source.");
+  const row = inWorkspace(tables, tenantId).find((c) => c.id === contactId);
+  if (!row || row.erased_at != null) return false;
+  const at = stampOf(tables);
+  let data;
+  if (purpose === "conversational") {
+    if (row.consent === "opted_out") return false;
+    data = { consent: "opted_out", previous: row.consent ?? "unknown", source, channel };
+    Object.assign(row, { consent: "opted_out", dnc: true, consent_source: source, consent_updated_at: at });
+  } else {
+    if (row.marketing_consent === "opted_out") return false;
+    data = {
+      purpose: "marketing",
+      consent: "opted_out",
+      previous: row.marketing_consent ?? "unknown",
+      source,
+      channel,
+    };
+    Object.assign(row, {
+      marketing_consent: "opted_out",
+      marketing_consent_source: source,
+      marketing_consent_updated_at: at,
+    });
+  }
+  if (String(args.p_message_external_id ?? "").trim()) data.message_external_id = args.p_message_external_id;
+  insertRow("events", {
+    tenant_id: tenantId,
+    kind: "contact.consent_changed",
+    category: "contact",
+    subject_type: "contact",
+    subject_id: contactId,
+    data,
+  });
+  return true;
 }
 
 /**
@@ -752,6 +810,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const derived = {
     // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
+    // The one door a provider's stop is recorded by (00362): the send, status and receipts doors call it.
+    record_provider_stop: (args) => recordProviderStopIn(tables, args, insertRow),
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
       const of = (kind) => {

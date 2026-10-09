@@ -34,7 +34,7 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             82   of which over 200 lines: 13
+functions over the limit             81   of which over 200 lines: 13
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                      100   names
@@ -50,7 +50,7 @@ edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 event-shaped clocks                   9   of the registered clocks (invariant 6)
-tables with more than one writer     58   390 writers among them
+tables with more than one writer     58   388 writers among them
 personal columns with no erasure strategy  195   in 44 tables
 breakpoints outside the set          35   in 11 files
 literal style values                927   in 22 stylesheets

@@ -4,7 +4,10 @@
  * page per condition key per six hours, stamped only after delivery -- a page
  * that did not send earns no quiet, so the next tick tries again.
  *
- * Who calls it: the heartbeat failing many jobs in one run (api/jobs/tick.ts);
+ * Who calls it: the heartbeat failing many jobs in one run (api/jobs/tick.ts),
+ * and a change's delivery to a subscriber that failed for good, whichever way
+ * (packages/jobs tick.ts and handlers.ts, through the tick's page port: the
+ * owner is never told of that one, ledger PAGES_THE_PLATFORM);
  * a provider refusing a send with 401 or 403 -- credentials, not content -- a
  * workspace's credentials that could not be READ, the reply left queued for a
  * fresh job, and the mail provider's day or month used up (core/messages/send.ts); due jobs

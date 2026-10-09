@@ -656,12 +656,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   // later send to that person failing and telling them again.
   if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
-      await recordCarrierOptOut(ports.db, {
-        tenantId: d.tenantId,
-        contactId: facts.contactId,
-        channel: d.channel,
-        previous: facts.contact.consent,
-      });
+      await recordCarrierOptOut(ports.db, { tenantId: d.tenantId, contactId: facts.contactId, channel: d.channel });
     return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
   }
 

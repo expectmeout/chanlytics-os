@@ -2,8 +2,9 @@
  * One event's delivery to one subscriber (00334, decision 0032), run through the job runner's dispatch over a database
  * in memory: the handler runs the subscriber over the event as the ledger holds it and settles the delivery row; a
  * subscriber this build does not know is kept as an unknown kind; a paused subscription pauses the delivery; an event
- * the ledger no longer holds fails it; a subscriber that throws fails it with why and the job throws on. And the
- * harness every subscriber must pass: run twice on one delivery, the same rows.
+ * the ledger no longer holds fails it, says so under its own name and pages the operator (the job is done, so the
+ * tick's own page for a delivery that fails for good never comes); a subscriber that throws fails it with why and the
+ * job throws on. And the harness every subscriber must pass: run twice on one delivery, the same rows.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,6 +15,20 @@ import { dispatchJob } from "../../../../packages/jobs/src/handlers.ts";
 // subscriber swapped here is the one the dispatch runs (repo/dist-freshness.test.mjs holds dist to src).
 import { SUBSCRIBERS } from "../../../../packages/core/dist/index.js";
 import { EVENT_SUBSCRIBERS } from "../../../../packages/contracts/src/shared/enums.ts";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+
+/** The logger's lines (one JSON object per console call) written while `fn` ran, and what it answered. */
+async function logged(fn) {
+  const lines = [];
+  const real = { log: console.log, warn: console.warn, error: console.error };
+  for (const k of Object.keys(real)) console[k] = (...args) => lines.push(args);
+  try {
+    const answer = await fn();
+    return { answer, lines: lines.map(logLineOf).filter(Boolean) };
+  } finally {
+    Object.assign(console, real);
+  }
+}
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
@@ -42,14 +57,23 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
     ],
   };
   const db = fakeDb(tables);
-  const ctx = { db, wire: { whatsapp: null, sms: null }, alert: async () => {} };
+  // The platform's pager, recorded: a delivery's failure is never an owner's (ledger PAGES_THE_PLATFORM).
+  const pages = [];
+  const ctx = {
+    db,
+    wire: { whatsapp: null, sms: null },
+    alert: async () => {},
+    page: async (key, subject, body) => {
+      pages.push({ key, subject, body });
+    },
+  };
   const job = {
     id: "j-1",
     tenant_id: T,
     kind: "event_deliver",
     payload: { event_id: E, subscriber, kind: "message.received", lane: "2" },
   };
-  return { tables, ctx, job, delivery: () => tables.event_deliveries[0] };
+  return { tables, ctx, job, pages, delivery: () => tables.event_deliveries[0] };
 }
 
 test("the audit subscriber runs and the delivery is done, counted once", async () => {
@@ -64,15 +88,53 @@ test("a subscriber this build does not know is kept, as an unknown kind is", asy
   assert.equal(w.delivery().state, "scheduled", "untouched: the runner that knows it will take it");
 });
 
-test("a paused subscription pauses the delivery for the re-drive; an event the ledger no longer holds fails it", async () => {
+test("a paused subscription pauses the delivery for the re-drive; an event the ledger no longer holds fails it, said and paged, with the job done", async () => {
   const paused = world({ paused: true });
   assert.equal(await dispatchJob(paused.ctx, paused.job), "done");
   assert.deepEqual([paused.delivery().state, paused.delivery().attempts], ["paused", 1]);
+  assert.deepEqual(paused.pages, [], "a pause is nobody's condition");
+
+  // Purged before its delivery ran (the evidence kinds, 00115): no try could change it, so the job is done, and the
+  // miss used to be nobody's. It is the platform's: said under its own name, and paged on the same condition the
+  // tick pages a delivery that fails for good (one key, so the pager sends once per window).
   const gone = world({ withEvent: false });
-  assert.equal(await dispatchJob(gone.ctx, gone.job), "done");
+  const { answer, lines } = await logged(() => dispatchJob(gone.ctx, gone.job));
+  assert.equal(answer, "done");
   assert.deepEqual(
     [gone.delivery().state, gone.delivery().last_error],
     ["failed", "the ledger no longer holds the event"],
+  );
+  assert.deepEqual(
+    lines.filter((l) => l.event === "event_deliver_event_gone").map((l) => [l.level, fieldsOf(l)]),
+    [["error", { tenant_id: T, job: "j-1", event_id: E, subscriber: "audit", kind: "message.received" }]],
+    "one line, under the name alerting greps for, with the delivery named",
+  );
+  assert.equal(gone.pages.length, 1);
+  assert.equal(
+    gone.pages[0].key,
+    "event_deliver_failed",
+    "the tick's own condition for a delivery that failed for good",
+  );
+  assert.equal(gone.pages[0].subject, "A change was not passed on to what reads it");
+  assert.match(
+    gone.pages[0].body,
+    new RegExp(
+      `^The delivery of event ${E} \\(message\\.received\\) to the audit subscriber failed for good in workspace ${T}: the ledger no longer holds the event\\.`,
+    ),
+  );
+  assert.match(gone.pages[0].body, /Reference: job j-1 \(event_deliver\)\.$/);
+
+  // A pager that cannot be reached costs the delivery nothing: the row is failed, the job done, the miss on the log.
+  const unpaged = world({ withEvent: false });
+  unpaged.ctx.page = async () => {
+    throw new Error("pager down");
+  };
+  const second = await logged(() => dispatchJob(unpaged.ctx, unpaged.job));
+  assert.equal(second.answer, "done");
+  assert.equal(unpaged.delivery().state, "failed");
+  assert.deepEqual(
+    second.lines.filter((l) => l.event === "job_page_failed").map((l) => fieldsOf(l)),
+    [{ tenant_id: T, job: "j-1", kind: "event_deliver", error: "pager down" }],
   );
 });
 

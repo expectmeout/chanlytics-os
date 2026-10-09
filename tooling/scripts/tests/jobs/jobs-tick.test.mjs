@@ -43,6 +43,7 @@ function fakes(jobs, o = {}) {
     deferUnknown: [],
     settle: [],
     alert: [],
+    page: [],
     log: [],
   };
   const has = (set, id) => (set ?? new Set()).has(id);
@@ -87,6 +88,10 @@ function fakes(jobs, o = {}) {
       if (o.alertThrows) throw new Error("mail down");
       calls.alert.push({ id: j.id, ...news });
     },
+    page: async (key, subject, body) => {
+      if (o.pageThrows) throw new Error("pager down");
+      calls.page.push({ id: j_of(key), key, subject, body });
+    },
     log: {
       info: (e, f) => calls.log.push(["info", e, f]),
       warn: (e, f) => calls.log.push(["warn", e, f]),
@@ -99,6 +104,8 @@ function fakes(jobs, o = {}) {
   const logged = (level, event) => calls.log.some(([l, e]) => l === level && e === event);
   return { ports, calls, queue, trail, logged };
 }
+/** A page names no job in its key (one condition, paged once per window); the body does. */
+const j_of = () => null;
 
 test("every due job runs once, in order, and is recorded done; the tick ends when nothing is due", async () => {
   const { ports, calls } = fakes([job("a"), job("b"), job("c")]);
@@ -353,6 +360,50 @@ test("a text's answer is tried once more after a throw, and when it fails for go
   assert.deepEqual(calls.alert, [], "and the ledger sends no notice of its own");
   assert.ok(logged("info", "job_failed"), "though the failure is said in the log");
   assert.equal(counts.failed, 1);
+});
+
+test("a change's delivery that fails for good is the platform's: the operator is paged with the job named, the owner's bell is not rung, and the row still fails", async () => {
+  // The bell used to say "A change could not be passed on to what reads it" to the workspace owner: an internal fault
+  // in the customer's words, with nothing they could do about it.
+  const delivery = (id, attempts) => ({
+    ...job(id, "event_deliver", attempts),
+    payload: { event_id: "e-1", subscriber: "audit", kind: "message.received" },
+  });
+  const { ports, calls, logged } = fakes([delivery("d", MAX_ATTEMPTS)], { throwOn: new Set(["d"]) });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(
+    calls.fail,
+    [["d", "boom d"]],
+    "the last try fails the row, so the day's dead letters count it by kind",
+  );
+  assert.deepEqual(calls.alert, [], "no notice of its own: nothing an owner can act on");
+  assert.equal(calls.page.length, 1);
+  assert.equal(calls.page[0].key, "event_deliver_failed", "one condition, paged once per window");
+  assert.equal(calls.page[0].subject, "A change was not passed on to what reads it");
+  assert.match(
+    calls.page[0].body,
+    /^The delivery of event e-1 \(message\.received\) to the audit subscriber failed for good in workspace t1: boom d\./,
+  );
+  assert.match(calls.page[0].body, /from event_deliveries where state = 'failed'/, "and where to look");
+  assert.match(calls.page[0].body, /Reference: job d \(event_deliver\)\.$/);
+  assert.ok(logged("info", "job_failed"), "the failure is said in the log");
+  assert.equal(counts.failed, 1);
+
+  // A first throw is tried again later (RETRY_WAITS_MS), and nobody is paged for a bad minute.
+  const first = fakes([delivery("f", 1)], { throwOn: new Set(["f"]) });
+  await runTick(first.ports, OPTS);
+  assert.deepEqual([first.calls.fail, first.calls.page, first.calls.alert], [[], [], []]);
+  assert.equal(first.calls.defer.length, 1);
+
+  // A pager that cannot be reached loses nothing of the recording: the failure stands, and the miss is on the log.
+  const down = fakes([delivery("e", MAX_ATTEMPTS)], { throwOn: new Set(["e"]), pageThrows: true });
+  await runTick(down.ports, OPTS);
+  assert.deepEqual(
+    down.calls.fail.map(([id]) => id),
+    ["e"],
+  );
+  assert.ok(down.logged("error", "job_page_failed"));
+  assert.deepEqual(down.calls.alert, []);
 });
 
 test("a kind this runner does not know is kept for the runner that will, its claim given back, not failed", async () => {

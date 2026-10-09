@@ -194,12 +194,13 @@ test("any other failure, and any receipt that is not a failure, records no answe
 });
 
 test("a database that refuses the answer costs the receipt nothing, and says so on the log", async () => {
+  // The answer is the door's one write (record_provider_stop, 00362): a database that refuses it refuses the rpc.
   const w = world();
-  const real = w.db.from.bind(w.db);
-  w.db.from = (table) => {
-    if (table === "contacts") throw new Error("contacts is away");
-    return real(table);
-  };
+  const real = w.db.rpc.bind(w.db);
+  w.db.rpc = (name, args) =>
+    name === "record_provider_stop"
+      ? Promise.resolve({ data: null, error: { message: "contacts is away" } })
+      : real(name, args);
   const lines = await logged(() => recordReceipts(w.db, T, [receipt("wamid.yes", "failed", { errors: STOPPED })]));
   assert.equal(w.tables.messages[0].status, "failed", "the status landed first");
   assert.deepEqual(

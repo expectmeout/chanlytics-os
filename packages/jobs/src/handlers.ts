@@ -59,6 +59,7 @@ import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
 import { replyRead } from "./reply-read";
 import { bookingRead } from "./booking-read";
+import { EVENT_DELIVER_PAGE_KEY, deliveryPage } from "./delivery-page";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "./context";
 export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "./context";
 
@@ -304,10 +305,16 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
         tickets: tickets.map((t) => ({ id: t.id, to: t.to })),
       });
-    } catch {
+    } catch (e) {
       // The alert has left; a receipts job that cannot be written (a ledger whose CHECK predates 00189, in the
       // window between the edge's deploy and the migration) is a dead phone forgotten a send later, not a reason
-      // to throw and have the ledger send the alert again.
+      // to throw and have the ledger send the alert again. Said, so it is not forgotten in silence.
+      logger().error("push_receipts_schedule_failed", {
+        tenant_id: job.tenant_id,
+        job: job.id,
+        tickets: tickets.length,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 }
@@ -437,7 +444,8 @@ function subscriberNamed(s: unknown): s is EventSubscriber {
  * subscriber runs over the event as the ledger holds it, and the row takes the verdict: done, paused when the
  * subscription was paused as it ran (a re-drive brings it back), failed with why when the subscriber threw or the
  * ledger no longer holds the event. A throw is thrown on, so the ledger tries again (RETRY_WAITS_MS) and the last try
- * fails the job and tells the owner; every subscriber may run twice on one delivery and leaves the same rows.
+ * fails the job and pages the operator (ledger PAGES_THE_PLATFORM: the fault is the platform's, never an owner's);
+ * every subscriber may run twice on one delivery and leaves the same rows.
  */
 async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const named = deliveryNamed(job.payload);
@@ -452,7 +460,32 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   }
   const event = await eventOfDelivery(ctx.db, job.tenant_id, named.eventId);
   if (!event) {
-    await settle("failed", "the ledger no longer holds the event");
+    // Purged before its delivery ran (the evidence kinds, 00115): the delivery fails with why and the job is done,
+    // since no try could change it. Nobody's bell: the miss is the platform's, said under its own name and paged on
+    // the same condition a delivery that fails for good is (tick.ts), with the job named, so it is counted and read
+    // where the rest are.
+    const why = "the ledger no longer holds the event";
+    await settle("failed", why);
+    logger().error("event_deliver_event_gone", {
+      tenant_id: job.tenant_id,
+      job: job.id,
+      event_id: named.eventId,
+      subscriber: named.subscriber,
+      kind: named.kind,
+    });
+    if (ctx.page) {
+      try {
+        const page = deliveryPage(job, why);
+        await ctx.page(EVENT_DELIVER_PAGE_KEY, page.subject, page.body);
+      } catch (e) {
+        logger().error("job_page_failed", {
+          tenant_id: job.tenant_id,
+          job: job.id,
+          kind: job.kind,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
     return;
   }
   // dispatchJob let the job through only for a subscriber this build knows.

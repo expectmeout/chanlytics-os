@@ -177,6 +177,8 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
         deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
         settle: (job, certain) => settleJob(db, job, certain),
         alert: (job, news) => alertFor(db, job)(news),
+        // A failure that is the platform's (ledger PAGES_THE_PLATFORM): the operator, never an owner.
+        page: (key, subject, body) => pageOperator({ db }, key, subject, body),
         log: L,
         now: Date.now,
         random: Math.random,

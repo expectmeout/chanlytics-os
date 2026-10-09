@@ -7,8 +7,9 @@
  * then the identity, the number and the address in that order, two numbers being two people; it fills what is empty and
  * never overwrites, a name the wire gave following the wire; keeps the identity with how sure the door was of it, and
  * raises that word, never lowers it; never merges, and writes a doubt instead, once per pair the merge could join;
- * contact.added for a new person a member, a feed or the finder brought, person.resolved for every call, in the same
- * transaction. A definer door with locks and unique keys is what reading source cannot prove. Runs against Postgres in
+ * contact.added for a new person a member, a feed or the finder brought, person.resolved for every call that changed
+ * something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00363), in
+ * the same transaction. A definer door with locks and unique keys is what reading source cannot prove. Runs against Postgres in
  * the database workflow; skipped without a local database. The service role calls it, as the doors do; a session is
  * refused, which the last case holds. The queue's own doors (dismiss, the merge's and the erasure's legs) are
  * person-doubts.db.test.mjs beside this.
@@ -145,6 +146,16 @@ test(
       [mail.contact_id, mail.outcome, mail.matched_by, mail.email],
       [wa.contact_id, "matched", "email", "kept"],
     );
+    // The same wire again, with nothing new: matched, the identity kept, and no row on the ledger (00363). The
+    // calendar's hourly read asks this of every person on the calendar.
+    const again = ok(
+      await door({ p_channel: "whatsapp", p_external: "16465550141", p_phone: phone, p_name: "Ana Ruiz" }),
+      "again",
+    );
+    assert.deepEqual(
+      [again.contact_id, again.outcome, again.identity, again.filled],
+      [wa.contact_id, "matched", "kept", []],
+    );
 
     const rows = await living();
     assert.deepEqual(
@@ -175,7 +186,7 @@ test(
         ["filled", "phone", null, "asserted", ["display_name", "email"]],
         ["matched", "email", "email", "observed", []],
       ],
-      "every call wrote its own row in the ledger",
+      "every call that changed something wrote its own row in the ledger: the fifth, which learned nothing, wrote none",
     );
     for (const e of resolved)
       assert.ok(
@@ -349,7 +360,9 @@ test(
     const rowsOf = async (id) => (await doubtsOf(id)).map((d) => [d.contact_id, d.other_id, d.seen, d.settled_as]);
     assert.deepEqual(await rowsOf(a.contact_id), expected, "the pair, the lower id first, open");
     assert.deepEqual(await rowsOf(b.contact_id), expected, "the same row from the other side");
-    // The same arrival again: named in the answer, and not a second row.
+    // The same arrival again: named in the answer, and not a second row; and no row on the ledger, since the pair
+    // was already a doubt and nothing else changed (00363).
+    const written = (await eventsOf("person.resolved", b.contact_id)).length;
     const again = ok(
       await door({ p_phone: number, p_email: email, p_assurance: "found", p_source: "calendar" }),
       "again",
@@ -360,11 +373,12 @@ test(
       "named in the answer, written once",
     );
     assert.deepEqual(await rowsOf(a.contact_id), expected);
-    const [resolved] = (await eventsOf("person.resolved", b.contact_id)).slice(-1);
+    const resolved = await eventsOf("person.resolved", b.contact_id);
+    assert.equal(resolved.length, written, "the arrival that learned nothing wrote no row");
     assert.deepEqual(
-      [resolved.data.doubt, resolved.data.doubt_seen],
+      [resolved.at(-1).data.doubt, resolved.at(-1).data.doubt_seen],
       [a.contact_id, "email"],
-      "the ledger says so too",
+      "the ledger says so too, from the arrival that raised the doubt",
     );
   },
 );
