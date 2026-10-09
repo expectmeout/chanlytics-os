@@ -40,8 +40,8 @@ export const plVisitsSort = (p: PersonRowVM, dir: string): SortValue => {
 export const plNextSort = (p: PersonRowVM, dir: string): SortValue =>
   p.nextStep ? Number(p.nextStep.day.day.replace(/\D/g, "")) : dir === "asc" ? Infinity : -Infinity;
 
-const WORDS = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+const IN_READERS_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 /** Two sort values in order: numbers as numbers, words as words in the reader's order. */
 export const plCompare = (a: SortValue, b: SortValue): number =>
-  typeof a === "string" && typeof b === "string" ? WORDS.compare(a, b) : a < b ? -1 : a > b ? 1 : 0;
+  typeof a === "string" && typeof b === "string" ? IN_READERS_ORDER.compare(a, b) : a < b ? -1 : a > b ? 1 : 0;

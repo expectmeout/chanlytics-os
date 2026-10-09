@@ -10,9 +10,9 @@
 import type { KeyboardEvent, PointerEvent } from "react";
 import { PL_DRAG_MAX_PX, PL_NUDGE_BIG_PX, PL_NUDGE_PX, plClampWidth } from "./layout";
 
-/** An edge is held: a column's heading, which is draggable, must not start its own drag from the press that began a width's. */
-let held = false;
-export const holdingEdge = (): boolean => held;
+/** An edge is held down: a column's heading, which is draggable, must not start its own drag from the press that began a width's. */
+let edgeIsHeld = false;
+export const holdingEdge = (): boolean => edgeIsHeld;
 
 interface ColumnEdgeProps {
   /** The heading's words, which name the edge to a screen reader. */
@@ -42,7 +42,7 @@ export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit
     const x0 = e.clientX;
     const w0 = width;
     let px = w0;
-    held = true;
+    edgeIsHeld = true;
     edge.setPointerCapture(e.pointerId);
     edge.setAttribute("data-dragging", "true");
     const move = (m: globalThis.PointerEvent) => {
@@ -54,7 +54,7 @@ export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit
       edge.removeEventListener("pointerup", up);
       edge.removeEventListener("pointercancel", cancel);
       edge.removeAttribute("data-dragging");
-      held = false;
+      edgeIsHeld = false;
       if (edge.hasPointerCapture(u.pointerId)) edge.releasePointerCapture(u.pointerId);
       // A width is kept only from a drag that went somewhere: a press with no movement is no choice, and a cancelled one
       // has no place to have ended.
