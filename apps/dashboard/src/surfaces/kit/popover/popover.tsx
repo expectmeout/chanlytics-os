@@ -10,7 +10,9 @@
  * kit writes none of it.
  *
  * `defaultOpen` opens it as it is first drawn: for a popover a page loads on demand, drawn in place of a control that
- * was pressed before it had loaded (Reports' period), so the press opens what it asked for.
+ * was pressed before it had loaded (Reports' period), so the press opens what it asked for. A page that closes it itself
+ * once what it holds is done (Reports' period, as a range is picked) holds `open` and hears `onOpenChange`; its control,
+ * Escape and a press outside still open and close it, through `onOpenChange`.
  *
  * It draws what the gallery's Panel family draws for a pop (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout (its width), and comes
@@ -37,7 +39,14 @@ export type PopoverProps = {
   defaultOpen?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
-};
+} & (
+  | { open?: undefined; onOpenChange?: undefined }
+  | {
+      /** Whether it is open, where the page holds that: with `onOpenChange`, which hears every opening and closing. */
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+    }
+);
 
 /** A popover, opened by the page's control and drawn on the document's body. */
 export function Popover({
@@ -48,11 +57,17 @@ export function Popover({
   side = "bottom",
   align = "center",
   defaultOpen = false,
+  open,
+  onOpenChange,
   className,
   ref,
 }: PopoverProps) {
   return (
-    <BasePopover.Root defaultOpen={defaultOpen}>
+    <BasePopover.Root
+      defaultOpen={defaultOpen}
+      open={open}
+      onOpenChange={onOpenChange && ((next) => onOpenChange(next))}
+    >
       <BasePopover.Trigger render={trigger} />
       <BasePopover.Portal>
         <BasePopover.Positioner className="pop-place" side={side} align={align} sideOffset={POP_GAP_PX}>

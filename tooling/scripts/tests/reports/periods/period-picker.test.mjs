@@ -107,16 +107,12 @@ test("a press before it has loaded opens it as it lands; drawn loaded and unpres
     (n) => n.type === Popover,
   );
   assert.ok(opened, "what it opens, in the button's place");
-  assert.equal(opened.props.defaultOpen, true, "open, as the press asked");
+  assert.equal(opened.props.open, true, "open, as the press asked");
   assert.equal(opened.props.trigger.props["data-testid"], "reports-period-open", "on the same button");
   fresh();
   const later = find(
     again(() => draw(true)),
     (n) => n.type === Popover,
   );
-  assert.equal(
-    later.props.defaultOpen,
-    false,
-    "loaded before a press (a pointer on the button), it waits to be pressed",
-  );
+  assert.equal(later.props.open, false, "loaded before a press (a pointer on the button), it waits to be pressed");
 });

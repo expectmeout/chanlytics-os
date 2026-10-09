@@ -15,6 +15,7 @@ export { DatePicker } from "./datepicker/datepicker";
 export type { DatePickerProps } from "./datepicker/datepicker";
 export { DayRangePicker } from "./datepicker/day-range-picker";
 export type { DayRange, DayRangeHint, DayRangePickerProps } from "./datepicker/day-range-picker";
+export type { PressRefusal } from "./datepicker/range-press";
 export { Face } from "./face/face";
 export type { FaceProps } from "./face/face";
 export { Figure } from "./figure/figure";

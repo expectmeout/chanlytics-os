@@ -124,7 +124,12 @@
 }
 /* What it opens: the days in words, the four periods, the days reached in one press, then the month to pick any on, at
    the width seven days need. The one-press days are a row that wraps, set close under the periods they stand with. */
-.rpt-when { display: grid; gap: 14px; width: 312px; max-width: calc(100vw - 24px); }
+/* No taller than the room under its button (Base UI's --available-height): on a phone the month's last week and its
+   words were under the screen, and nothing scrolled (10 Oct 2026). A finger that scrolls it from a day presses none
+   (range-press.ts). */
+.rpt-when { display: grid; gap: 14px; width: 312px; max-width: calc(100vw - 24px); max-height: var(--available-height, none); overflow-y: auto; overscroll-behavior: contain; }
+/* The periods' control in a wrapper of no box of its own, which hears a press on it and closes the popover. */
+.rpt-when-periods { display: contents; }
 .rpt-when-quick { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: calc(-1 * var(--space-2)); }
 .rpt-when-head { display: grid; gap: 2px; padding: 2px 4px 0; }
 .rpt-when-range { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }

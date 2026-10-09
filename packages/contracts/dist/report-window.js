@@ -105,7 +105,10 @@ function reportWindowOf(range, today) {
     before: { ...before, dates: daysWords(before.from, before.to) }
   };
 }
-function reportPickWords(first, band) {
+function reportPickWords(first, band, refused) {
+  if (refused?.why === "to-come") return `${fmtDay(refused.day)} is still to come. Press today or a day before.`;
+  if (refused && first !== null)
+    return `${fmtDay(refused.day)} is more than ${REPORT_MOST_DAYS} days from ${fmtDay(first)}. Press a nearer day.`;
   if (first === null) return `Press a first day, then a last. ${REPORT_MOST_DAYS} days at most.`;
   const days = reportDaysCount(band);
   if (days === 1) return `From ${fmtDay(first)}. Press the last day, or this one again for the day alone.`;

@@ -1,8 +1,8 @@
 /**
  * What the kit's DayRangePicker takes, proved where the compiler reads it (day-range-picker.tsx): the range chosen and
- * what it says as one is, today, the most days a range may hold, the grid's name, the words under it, the arrows' two
- * glyphs, and the day the week begins on. A month with no today, no limit, no name or no words, a range said as one
- * day, an arrow short, and a week that begins on a Tuesday stop compiling.
+ * what it says as one is, today, the most days a range may hold, the grid's name, the words under it (and a day it
+ * refused, and why), the arrows' two glyphs, and the day the week begins on. A month with no today, no limit, no name
+ * or no words, a range said as one day, an arrow short, and a week that begins on a Tuesday stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -11,7 +11,7 @@
  */
 import type { ComponentProps, ReactElement, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { DayRange, DayRangeHint, DayRangePickerProps } from "../index";
+import type { DayRange, DayRangeHint, DayRangePickerProps, PressRefusal } from "../index";
 import { DayRangePicker } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
@@ -23,7 +23,8 @@ function _dayRangePickerTakes(glyph: ReactElement, root: RefObject<HTMLDivElemen
   type _Its = [
     Holds<Exactly<ComponentProps<typeof DayRangePicker>, DayRangePickerProps>>,
     Holds<Exactly<DayRange, { from: string; to: string }>>,
-    Holds<Exactly<DayRangeHint, { first: string | null; band: DayRange }>>,
+    Holds<Exactly<DayRangeHint, { first: string | null; band: DayRange; refused: PressRefusal | null }>>,
+    Holds<Exactly<PressRefusal, { day: string; why: "to-come" | "too-far" }>>,
     Holds<Exactly<DayRangePickerProps["weekStartsOn"], 0 | 1 | undefined>>,
     Holds<Exactly<Parameters<DayRangePickerProps["onRangeChange"]>, [range: DayRange]>>,
   ];
