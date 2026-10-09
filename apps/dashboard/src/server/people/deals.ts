@@ -130,6 +130,9 @@ export async function dealReport(
   on: boolean,
   people: readonly Pick<PersonRowDto, "id" | "came_from">[],
   now = new Date(),
+  // The instants of a window that ended before today (Reports' days a member picked), its first and the one after its
+  // last; null for a period that ends today, which is the `days` up to `now`.
+  span: { since: number; until: number } | null = null,
 ): Promise<DealReportDto | null> {
   if (!on) return none();
   const { data, error } = await ctx.supabase
@@ -138,9 +141,13 @@ export async function dealReport(
     .eq("tenant_id", tenantId);
   if (error || !data) return null;
   if (!data.length) return none();
-  const since = now.getTime() - days * DAY_MS;
+  const since = span?.since ?? now.getTime() - days * DAY_MS;
+  const until = span?.until ?? Infinity;
   // The cohort is by when the proposal went, whatever became of it since; an ended engagement was won in its cohort.
-  const cohort = data.filter((d) => Date.parse(d.proposed_at) >= since);
+  const cohort = data.filter((d) => {
+    const at = Date.parse(d.proposed_at);
+    return at >= since && at < until;
+  });
   const yes = cohort.filter(isYes);
   const passed = cohort.filter((d) => d.stage === "lost");
   const running = data.filter((d) => d.stage === "won");

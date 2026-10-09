@@ -26,16 +26,15 @@ import { Button } from "../button/button";
 import { Panel } from "../panel/panel";
 import { cx } from "../variants";
 import {
+  dayForKey,
   dayLong,
   dayNumber,
   monthTitle,
   monthWeeks,
   sameMonth,
-  shiftDays,
   shiftMonths,
   weekdayLong,
   weekdayShort,
-  weekStart,
 } from "./days";
 
 /** The room between the control and the picker. */
@@ -58,30 +57,6 @@ export type DatePickerProps = {
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
-
-/** Where each key takes the day with the tab stop; null for a key that is not the grid's. */
-function target(key: string, from: string, shift: boolean, weekStartsOn: 0 | 1): string | null {
-  switch (key) {
-    case "ArrowLeft":
-      return shiftDays(from, -1);
-    case "ArrowRight":
-      return shiftDays(from, 1);
-    case "ArrowUp":
-      return shiftDays(from, -7);
-    case "ArrowDown":
-      return shiftDays(from, 7);
-    case "Home":
-      return weekStart(from, weekStartsOn);
-    case "End":
-      return shiftDays(weekStart(from, weekStartsOn), 6);
-    case "PageUp":
-      return shiftMonths(from, shift ? -12 : -1);
-    case "PageDown":
-      return shiftMonths(from, shift ? 12 : 1);
-    default:
-      return null;
-  }
-}
 
 /** A day to choose, from a month over the page. */
 export function DatePicker({
@@ -130,7 +105,7 @@ export function DatePicker({
     setStop(shiftMonths(stop, by));
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const to = target(event.key, stop, event.shiftKey, weekStartsOn);
+    const to = dayForKey(event.key, stop, event.shiftKey, weekStartsOn);
     if (to === null) return;
     event.preventDefault();
     walk(to);

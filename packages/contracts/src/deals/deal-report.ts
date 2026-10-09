@@ -5,7 +5,6 @@
  */
 import { leadAnd } from "../leads/leads";
 import { plural } from "../shared/words";
-import { periodWords } from "../reports/reports";
 import type { PersonCameFrom } from "../people/person-words";
 import { isDealLostReason, type DealLostReason } from "./deal-words";
 import { amountTotalsWords, amountWords, type AmountFact } from "./deal-amount";
@@ -166,9 +165,12 @@ function openLine(open: DealReportDto["open"]): string | null {
     : `${worth} still open across ${open.count} proposals.`;
 }
 
-export function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel: string): DealReportVM {
+/**
+ * `within` is when the report's period was, as the report itself says it (ReportVM.period.within): "in the last 30 days",
+ * or "in the 20 days to Sep 20" for days a member picked, so the deals' sentence and the report's name one period.
+ */
+export function toDealReportVM(dto: DealReportDto | null | undefined, within: string): DealReportVM {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
-  const { within } = periodWords(rangeLabel);
   const headline =
     dto.sent === 0
       ? `No proposals went out ${within}.`

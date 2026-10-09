@@ -522,7 +522,8 @@ const noGained = (): GoogleGained => ({ points: [], max: 0, total: null, sinceLa
  */
 function gainedScope(g: GoogleGained, days: number, last: string, behind: boolean): string {
   if (g.sinceLabel) return `since ${g.sinceLabel}`;
-  if (!behind) return withinWords(days);
+  // Not behind is a period that ends today, read today: its words are the report's own for one that does.
+  if (!behind) return withinWords(days, null);
   return days === 1 ? `on ${fmtDay(last)}` : `in the ${rangeLabelOf(days)} to ${fmtDay(last)}`;
 }
 
@@ -531,11 +532,13 @@ function gainedScope(g: GoogleGained, days: number, last: string, behind: boolea
  * head ends on, so the head's number is the figure's. A fall is said as one ("down 4"), never as a minus sign. `today` is
  * the workspace's day.
  */
-function gainedWords(g: GoogleGained, days: number, today: string): GoogleVM["gained"]["words"] {
+function gainedWords(g: GoogleGained, days: number, today: string, until: string | null): GoogleVM["gained"]["words"] {
   const { total, sinceLabel } = g;
   if (total === null) return noGainYet();
   const last = g.points.at(-1)?.day ?? today;
-  const behind = last < shiftKey(today, -1);
+  // Behind the day: a read was missed, or the period itself ended before today (`until`, days a member picked on
+  // Reports). Either way the count is of days up to `last`, and says so.
+  const behind = until !== null || last < shiftKey(today, -1);
   const scope = gainedScope(g, days, last, behind);
   const head =
     total < 0
@@ -589,8 +592,20 @@ export function gainedOver(
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
 
-/** The listing, the reviews and the readings as the pages draw them, in the workspace's zone (`tz`) at `nowMs`. */
-export function toGoogleVM(dto: GoogleReadDto, periodDays: number, nowMs: number, tz: string): GoogleVM {
+/** The days a listing's gain is counted over: how many, and their last day where that was before today. */
+interface GainWindow {
+  days: number;
+  /** Null for a period that ends today, which each caller says; else the day it ended (Reports' days a member picked). */
+  until: string | null;
+}
+
+/**
+ * The listing, the reviews and the readings as the pages draw them, in the workspace's zone (`tz`) at `nowMs`, over a
+ * period. Where the period ended before today the readings after its last day are not its own, and what it gained is
+ * said "to" that day.
+ */
+export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number, tz: string): GoogleVM {
+  const { days: periodDays, until } = period;
   const l = dto.listing;
   const c = dto.connection ?? null;
   const connection: GoogleVM["connection"] = c
@@ -625,9 +640,14 @@ export function toGoogleVM(dto: GoogleReadDto, periodDays: number, nowMs: number
     ? "every review, from your Business Profile"
     : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
 
-  const days = [...dto.days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  const days = dto.days
+    .filter((d) => until === null || d.day <= until)
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
   const { current, previous } = gainedOver(days, periodDays);
-  const gained: GoogleVM["gained"] = { ...current, words: gainedWords(current, periodDays, zoneDayKey(nowMs, tz)) };
+  const gained: GoogleVM["gained"] = {
+    ...current,
+    words: gainedWords(current, periodDays, zoneDayKey(nowMs, tz), until),
+  };
   const noun = plural(periodDays, "day");
   const inPeriod = days.length
     ? days.filter((d) => d.day >= shiftKey(days[days.length - 1].day, -(periodDays - 1)))

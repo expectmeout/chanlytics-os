@@ -17,6 +17,11 @@
       "import": "./dist/write-rules.js",
       "default": "./dist/write-rules.js"
     },
+    "./report-window": {
+      "types": "./dist/report-window.d.ts",
+      "import": "./dist/report-window.js",
+      "default": "./dist/report-window.js"
+    },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {

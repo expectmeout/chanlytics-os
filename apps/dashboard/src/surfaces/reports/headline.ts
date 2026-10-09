@@ -17,9 +17,14 @@
 import { read } from "@/legacy-bridge/api";
 import { toHeadlineVM } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
+import { shownReportPeriod } from "./surface";
 
 export const headline = periodSurface({
   key: "reports_headline",
+  // Today's line follows the period by name kept in this browser, never days a member picked on Reports: those are
+  // one look at one page, and a line that still said them the next morning would be a stale one.
+  shown: shownReportPeriod,
+  of: (value) => value.period,
   read: async (period) => toHeadlineVM((await read("GET reports/headline", { query: { period } })).headline),
 });
 

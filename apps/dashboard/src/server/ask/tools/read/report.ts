@@ -80,18 +80,19 @@ function reviewsSaid(rv: ReviewsReportVM) {
 
 async function getReport(t: ToolContext, input: { days: number }): Promise<unknown> {
   // The schema below refuses any other count, so the turn never gets here with one.
-  const days = Number(input.days) || 30;
+  // A period that ends today: the tool reads a count of days, never days a member picked on the page.
+  const window = { days: Number(input.days) || 30, end: null };
   // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
   // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
   // answer is the reader's 404, said as the tool always said it.
   const [r, campaignRead, reviewRead] = await Promise.all([
-    unlessNotFound(load(t.rc, report, { days })),
+    unlessNotFound(load(t.rc, report, window)),
     // The Campaigns lens's own read (readers/campaign-report.ts), beside it: one that fails is said as null, and in the log.
-    load(t.rc, campaignReport, { days }).then((x) => x.data.report, unread(t, "report", "campaigns")),
+    load(t.rc, campaignReport, window).then((x) => x.data.report, unread(t, "report", "campaigns")),
     // The Reviews lens's own read (readers/report.ts reviewsReport: Google as its page reads it, and the reviews on
     // record): one that fails, a slow edge or a ledger that cannot be read, is null too. Folded below, outside the catch:
     // a fold that throws is a bug to see, never "could not be read".
-    load(t.rc, reviewsReport, { days }).then((x) => x.data, unread(t, "report", "reviews")),
+    load(t.rc, reviewsReport, window).then((x) => x.data, unread(t, "report", "reviews")),
   ]);
   const campaigns = campaignRead ? toCampaignReportVM(campaignRead) : null;
   const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
@@ -99,7 +100,7 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
   // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
   const vm = toReportVM(r.data.report, { profile: r.data.profile });
   const booking = r.data.booking ? toBookingReportVM(r.data.booking) : null;
-  const deals = toDealReportVM(r.data.deals, vm.rangeLabel);
+  const deals = toDealReportVM(r.data.deals, vm.period.within);
   return {
     range: vm.rangeLabel,
     empty: vm.empty,

@@ -203,7 +203,7 @@ function callsCard(vm: ReportVM, days: number) {
 function receptionistSection(R: ReportsSurface, phone: boolean) {
   const { vm, days } = R;
   return (
-    <RptSection title="The receptionist">
+    <RptSection title="The receptionist" bare>
       <div className="rpt-grid">
         {answeredCard(vm, days)}
         {replyCard(vm, days)}
@@ -220,5 +220,5 @@ function receptionistSection(R: ReportsSurface, phone: boolean) {
 }
 
 export function ReceptionistLens({ R, pick, phone }: LensProps) {
-  return R.vm.empty ? nothingCameIn(R.vm, R.period, pick) : receptionistSection(R, phone);
+  return R.vm.empty ? nothingCameIn(R.vm, R.range, pick) : receptionistSection(R, phone);
 }

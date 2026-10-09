@@ -76,8 +76,16 @@ const tbnSections = (items) => {
 const TBN_FOLD_MS = 200;
 const tbnReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
+// Escape closes what is drawn, for as long as it is drawn, and leaves a key an earlier listener took (a menu or a field inside).
+const useTbnEscape = (onClose) => React.useEffect(() => {
+  const onKey = (e) => { if (e.key === "Escape" && !e.defaultPrevented) onClose(); };
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
+}, [onClose]);
+
 const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, onClose, alerts = null, onAlerts = () => {} }) => {
   const [openGroup, setOpenGroup] = React.useState(null);
+  useTbnEscape(onClose);
   // A note on its way out: dismissed by its × or slid away by a thumb, its slot folds shut (its height measured, then
   // none, over components.css's transition), then it goes; at once under reduced motion. Undo brings it back open.
   const slotEls = React.useRef(new Map());
@@ -102,10 +110,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
   // anew each time it opens, and regroups then.
   const readHere = React.useRef(new Set());
   const asIs = new Map(items.map((n) => [n.id, n]));
-  const read = (id) => {
-    readHere.current.add(id);
-    if (onRead) onRead(id);
-  };
+  const read = (id) => { readHere.current.add(id); if (onRead) onRead(id); };
   const note = (n0, inGroup) => {
     const n = asIs.get(n0.id) || n0;
     const verb = tbnVerb(n);
@@ -435,12 +440,7 @@ const Topbar = ({
     return undefined;
   }, [unread, real]);
 
-  React.useEffect(() => {
-    if (!openNotifs) return;
-    const onKey = (e) => e.key === "Escape" && setOpenNotifs(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [openNotifs]);
+  const closeBell = React.useCallback(() => setOpenNotifs(false), []);
 
   // Bell swings once when a session push lands (or an item updates in place)
   React.useEffect(() => {
@@ -457,7 +457,7 @@ const Topbar = ({
   const act = (id, to) => {
     if (real) real.read(id);
     else setNotifs(list => list.map(n => n.id === id ? { ...n, unread: false } : n));
-    setOpenNotifs(false);
+    closeBell();
     if (to) window.CHANLY.nav(to);
   };
 
@@ -591,7 +591,7 @@ const Topbar = ({
             onReadAll={readAll}
             onDismiss={dismiss}
             onRead={read}
-            onClose={() => setOpenNotifs(false)}
+            onClose={closeBell}
             alerts={real ? alertState : null}
             onAlerts={onAlerts}
           />

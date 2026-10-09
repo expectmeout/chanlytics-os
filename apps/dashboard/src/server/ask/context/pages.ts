@@ -3,6 +3,7 @@ import {
   dealsAreOn,
   nextRunLabel,
   reportDaysAsked,
+  reportRangeOfKey,
   setupSteps,
   toBookingReportVM,
   toBroadcastVM,
@@ -11,7 +12,8 @@ import {
 } from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
-import { report as reportReader } from "../../readers/report";
+import type { ReportWindow } from "@chanlytics/db";
+import { report as reportReader, reportWindowFor } from "../../readers/report";
 import { playbooks as playbooksReader } from "../../readers/playbooks";
 import { broadcasts as broadcastsReader } from "../../readers/broadcasts";
 import { templates as templatesReader } from "../../readers/templates";
@@ -28,21 +30,41 @@ import { aggregateOf, idsOf, line, pageWithView, refsOf, sourceOf, type ContextR
 
 const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
 
+/**
+ * The window the page shows, as the report routes read one. Reports' view is a count of days for a period by name (any
+ * whole count the report can read, so Month is described over the days it has run), or the days a member picked, said
+ * by their one name (`2026-09-01~2026-09-20`, contracts reportRangeKey). Days that are no window (to come, too many) are
+ * read as thirty days, as a view that says nothing is.
+ */
+async function windowShown(rc: ReaderContext, view: string | null | undefined): Promise<ReportWindow> {
+  const picked = reportRangeOfKey(view);
+  if (picked !== null && typeof picked !== "string")
+    return reportWindowFor(rc, picked).catch(() => ({ days: 30, end: null }));
+  return { days: reportDaysAsked(view) ?? 30, end: null };
+}
+
 /** Reports: the period the page shows, its tiles and its lines, as the report tool says them. */
 export const reports: Provider = async (rc, ctx) => {
-  // The days the page shows (Reports' view is a count): any whole count the report can read, so Month is described over the days it has run.
-  const days = reportDaysAsked(ctx.view) ?? 30;
-  const r = (await load(rc, reportReader, { days })).data;
+  const r = (await load(rc, reportReader, await windowShown(rc, ctx.view))).data;
   const vm = toReportVM(r.report, { profile: r.profile });
   const booking = r.booking ? toBookingReportVM(r.booking) : null;
   return {
     rows: [],
     aggregate: aggregateOf([
-      `Reports, ${vm.rangeLabel}`,
+      // A period that ends today by its count, as ever; days a member picked by their dates, so Ask says which days.
+      `Reports, ${vm.live ? vm.rangeLabel : vm.period.now}`,
       ...vm.tiles.map((t) => `${t.label}: ${t.value}${t.meta ? ` (${t.meta})` : ""}`),
       `calls: ${vm.calls.total}`,
       `new people: ${vm.people.total}`,
-      booking ? (booking.present ? booking.headline : booking.sub) : null,
+      // The booking line: its count; where none was taken, why; and for days that ended, that it is not counted for
+      // them (its reason alone, "It follows people…", names nothing here).
+      booking
+        ? booking.present
+          ? booking.headline
+          : booking.calendar === "ended"
+            ? `Booked: ${booking.headline}`
+            : booking.sub
+        : null,
     ]),
   };
 };
