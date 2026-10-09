@@ -26,6 +26,7 @@ import {
   bookingToolName,
   bookingToolOfLink,
   booksWithName,
+  booksWithOf,
   booksWithOptions,
   calendarLinkNote,
   calendarLinkShown,
@@ -33,11 +34,15 @@ import {
 } from "@chanlytics/contracts";
 import type { CalendarVM } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
+import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { RecordCombobox } from "../../kit/record/combobox";
 import { gate, navigate } from "../../legacy-verbs";
-import type { BtFold } from "./gestures/fold";
+import type { LegacyFlash } from "../../legacy-verbs";
+import { BtFold } from "./gestures/fold";
 import type { CalendarDraft } from "./fold-shapes";
-import { BtoFeedBox, btoFeedHost } from "./open-calendar";
+import { BtoFeedBox, BtoFeedRead, btoFeedHost } from "./open-calendar";
+import type { BusinessTabSave } from "./saver";
 import { calendarNow } from "./shell";
 
 /** What BtFold hands its body. */
@@ -61,7 +66,7 @@ const useNotices = (): Notices | null => {
  * read from. A calendar with no tool behind it is named by that place alone. Only the host of a link is ever stated:
  * the rest of a private address is a secret (open-calendar.tsx btoFeedHost).
  */
-export const BtoBooksWith = ({ withWhat, feed }: { withWhat: string; feed: string }) => {
+const BtoBooksWith = ({ withWhat, feed }: { withWhat: string; feed: string }) => {
   const name = booksWithName(withWhat);
   const host = feed ? btoFeedHost(feed) : "";
   const words =
@@ -81,7 +86,7 @@ export const BtoBooksWith = ({ withWhat, feed }: { withWhat: string; feed: strin
  * word (Working, Needs you, Waiting) in its accessible name and under a pointer, as the calendar link's mark does;
  * the colour rides with that word, never alone. Nothing before a tool is named or an email arrived.
  */
-export const BtoBookingsRead = () => {
+const BtoBookingsRead = () => {
   const n = useNotices();
   if (!n || !n.row) return null;
   return (
@@ -392,13 +397,7 @@ const BtoEmailsPart = ({ tool, name }: { tool: string; name: string }) => {
  * platform the product knows, the tool is offered by name (contracts bookingToolOfLink): the owner said where
  * customers book, and is not asked which tool that is.
  */
-export const BtoSourceBody = ({
-  f,
-  stored,
-  offers,
-  bookingLink,
-  name,
-}: PartProps & { bookingLink: string; name: string }) => {
+const BtoSourceBody = ({ f, stored, offers, bookingLink, name }: PartProps & { bookingLink: string; name: string }) => {
   const d = f.draft;
   const guess = d.with ? null : bookingToolOfLink(bookingLink);
   const pick = (v: string) => f.update((x) => ({ ...x, with: v }), ["with"]);
@@ -425,5 +424,83 @@ export const BtoSourceBody = ({
       {d.with ? <BtoLinkPart f={f} stored={stored} offers={offers} /> : null}
       {isBookingTool(d.with) ? <BtoEmailsPart tool={d.with} name={name} /> : null}
     </>
+  );
+};
+
+/** The fold's id: every door on another page opens it by this name (contracts CALENDAR_SETTING_ROUTE names it too). */
+export const BOOKING_TOOL_FOLD = "calendar";
+
+/**
+ * What the business books with, one row and its fold (7 Oct 2026; it was "Calendar it reads" and "Where your bookings
+ * come from", each sending the owner to the other). The row states the owner's own fact (BtoBooksWith) and, under it,
+ * a quiet signal each for the calendar link's last read and the tool's emails (the Calendar page's own read); the fold
+ * asks what they book with and draws only what that answer has (BtoSourceBody).
+ *
+ * One component, drawn twice over: by the Business tab's card, under its row (open.tsx), and `bare` by the frame's
+ * host on the page a door was pressed on (booking-tool/sheet.tsx), the sheet alone. Never both on one page: a fold's id
+ * belongs to one hook (the kit's registry).
+ */
+export const BtBookingTool = ({
+  brain,
+  config = null,
+  canEdit,
+  flash,
+  saver,
+  bare = false,
+}: {
+  brain: NonNullable<WorkspaceSettings["brain"]>;
+  config?: {
+    calendar?: { ical_url?: string | null } | null;
+    bookings?: { tool?: string | null; by_hand?: boolean | null } | null;
+  } | null;
+  canEdit: boolean;
+  flash: (flash: LegacyFlash) => void;
+  saver: BusinessTabSave["saver"];
+  bare?: boolean;
+}) => {
+  // Whether it sends a link at all, by the resolver's own test; without the bridge, the words that have one.
+  const offers = !BUSINESS_TAB.offersBookingLink || BUSINESS_TAB.offersBookingLink(brain);
+  const feed = (config && config.calendar && config.calendar.ical_url) || "";
+  // What the owner books with, as the fold's picker holds it; and, with nothing said yet, the tool its booking link is on.
+  const booksWith = booksWithOf({ ...((config && config.bookings) || {}), ical_url: feed });
+  const guess = booksWith ? null : bookingToolName(bookingToolOfLink(brain.booking_link));
+  return (
+    <BtFold<CalendarDraft>
+      canEdit={canEdit}
+      flash={flash}
+      saver={saver}
+      bare={bare}
+      id={BOOKING_TOOL_FOLD}
+      light
+      label={BOOKING_TOOL_WORDS.label}
+      hint={BOOKING_TOOL_WORDS.hint}
+      channel={null}
+      gate={gate("settings", "change what you book with")}
+      row={{
+        value: booksWith ? <BtoBooksWith withWhat={booksWith} feed={feed} /> : null,
+        empty: BOOKING_TOOL_WORDS.empty,
+        hint: booksWith
+          ? null
+          : guess
+            ? `Your booking link is on ${guess}. Set it up to fill your calendar.`
+            : BOOKING_TOOL_WORDS.hint,
+        children: (
+          <>
+            <BtoFeedRead stored={!!feed} whole={!canEdit} />
+            <BtoBookingsRead />
+          </>
+        ),
+        name: booksWith ? "Change what you book with" : "Set up: what you book with",
+      }}
+      body={(f) => (
+        <BtoSourceBody
+          f={f}
+          stored={feed}
+          offers={offers}
+          bookingLink={String(brain.booking_link || "")}
+          name={String(brain.business_name || "")}
+        />
+      )}
+    />
   );
 };

@@ -60,7 +60,7 @@ wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     288
 source-text reads in tests          760
 lint warnings                       352   in 151 files, 59 of them exhaustive-deps
-workspace route JS, KB gzipped      743   the shell included
+workspace route JS, KB gzipped      744   the shell included
 workspace route CSS, KB gzipped     147
 workspace pages' own JS, KB        1289   gzipped, beyond the route, summed over 14 pages
 trees the lint's limits hold         50   16 of them with max-params waiting

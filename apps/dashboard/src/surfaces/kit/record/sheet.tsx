@@ -257,7 +257,7 @@ export function RecordSheet(props: RecordSheetProps) {
       wash.current = el.previousElementSibling || null;
       since.current = Date.now();
       opener.current = document.activeElement;
-      if (el.focus) el.focus();
+      if (el.focus) el.focus({ preventScroll: true });
       return;
     }
     // Not from a frame mounted and let go of at once (StrictMode's check in development).

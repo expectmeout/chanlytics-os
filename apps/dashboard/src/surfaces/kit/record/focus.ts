@@ -165,7 +165,7 @@ export function useRecFocus(id: FoldId, open: boolean, box: Box, area: FocusArea
     // field taking focus raised the keyboard over a sheet nobody had read yet; Ruben, 8 October 2026), and an inline
     // editor or a fold under its row the same (the 9th). A tap on a field begins the typing. Where the pointer is a
     // mouse the first field is ready, in every frame.
-    if (onTouchScreen() && el && typeof el.focus === "function") el.focus();
+    if (onTouchScreen() && el && typeof el.focus === "function") el.focus({ preventScroll: true });
     else recFocusIn(el, inner, fallback);
     return () => recFocusBack(id, el);
     // a new opening, a new id or a new frame: not each draw

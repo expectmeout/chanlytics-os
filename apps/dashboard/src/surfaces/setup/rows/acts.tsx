@@ -4,8 +4,9 @@
  * again here so a stale row or the first run's Next cannot press past the gate. Plain functions over what the rows hold:
  * the toast, the one verb on its way (`once`), and the two panels.
  */
+import { CALENDAR_SETTING_ROUTE } from "@chanlytics/contracts";
 import type { SetupVerb } from "@chanlytics/contracts";
-import { canDo, navigate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, navigate, openBookingTool, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { billingVerbs } from "../../settings/billing/surface";
 import { setupVerbs } from "../surface";
 import { setupGated } from "./gates";
@@ -135,5 +136,7 @@ export async function pressVerb(verb: SetupVerb | null | undefined, k: RowActs):
   }
   // A route behind a gate (Google's row, Find) goes nowhere for a role that may not press it, however it is reached.
   if (setupGated(verb)) return;
+  // The Booking tool's row is a sheet on this page, not a page away (legacy-verbs.ts openBookingTool).
+  if (to === CALENDAR_SETTING_ROUTE) return openBookingTool(to);
   navigate(to);
 }

@@ -166,6 +166,28 @@ const useBtPageSubscriptions = (saver: Saver) => {
   }, [saver, zone, buys]);
 };
 
+/** Whether an element scrolls its own content up and down, by a person's hand. */
+const btScrolls = (el: HTMLElement): boolean => {
+  const y = getComputedStyle(el).overflowY;
+  return (y === "auto" || y === "scroll") && el.scrollHeight > el.clientHeight;
+};
+
+/**
+ * Bring a row to the middle of the pane that scrolls it, and move nothing else. Not `scrollIntoView`: that scrolls every
+ * ancestor it can, the frame's own boxes among them, which are `overflow: hidden` and still move for a script. A page
+ * arrives 4px low for 240ms (components.css route-in), so for that long the frame had 4px to scroll, and a door from
+ * another page pushed the whole frame up by them (measured 9 October 2026, the Calendar's card to this row). A person
+ * cannot scroll a hidden box back.
+ */
+const btRowIntoView = (key: HTMLElement): void => {
+  let pane = key.parentElement;
+  while (pane && !btScrolls(pane)) pane = pane.parentElement;
+  if (!pane) return;
+  const at = key.getBoundingClientRect();
+  const box = pane.getBoundingClientRect();
+  pane.scrollTop += at.top + at.height / 2 - (box.top + box.height / 2);
+};
+
 /**
  * A door on another page names the row it wants open (`admin/workspace/<row>`: settings/frame/tabs.ts settingsRowOf):
  * the Calendar's "Check the link", Setup's and Connections' row, Ask's "Connect a calendar". Once per arrival, when the
@@ -180,7 +202,7 @@ const useBtOpenRow = (row: string | null, drawn: boolean, canEdit: boolean) => {
     const key = document.getElementById(`rec-row-${row}-key`);
     if (!key) return;
     opened.current = row;
-    if (typeof key.scrollIntoView === "function") key.scrollIntoView({ block: "center" });
+    btRowIntoView(key);
     if (canEdit) btOpenRow(row);
   }, [row, drawn, canEdit]);
 };
