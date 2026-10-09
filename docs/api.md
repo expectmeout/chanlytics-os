@@ -237,6 +237,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | --- | --- | --- | --- |
 | `from` | string | no |  |
 | `days` | string | no |  |
+| `around` | one of `"today"` | no |  |
 | `fresh` | one of `"1"` | no |  |
 
 ### `POST /api/v1/calendar/notices/[id]/dismiss`

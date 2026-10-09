@@ -64,6 +64,7 @@ export { metricWordsOf } from "./report-metrics";
 export {
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
+  REPORT_PERIOD_STORAGE,
   isReportPeriod,
   fixedDaysOf,
   monthDaysAt,

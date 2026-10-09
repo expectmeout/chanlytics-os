@@ -17,6 +17,7 @@ import {
   matchPerson,
   mondayOf,
   shiftKey,
+  windowFor,
   zoneMidnight,
   type BookingRules,
   type BusinessProfile,
@@ -76,11 +77,23 @@ const MAX_DAYS = 63;
  */
 export const MAX_ITEMS_PER_DAY = 100;
 
-function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
+/**
+ * The span a read covers. A day named is where it starts. With none, `around` says the board's own window (contracts
+ * windowFor: the weeks around the business's today, which the page used to work out from the zone before it could ask,
+ * so its first read waited for who is looking and could not be started from the document's head); else today's week.
+ */
+function spanFor(
+  from: string | null,
+  days: number,
+  tz: string,
+  now: Date,
+  around: "today" | null = null,
+): { from: string; days: number } {
   const todayKey = ((): string => {
     const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
     return f.format(now);
   })();
+  if (!isDayKey(from) && around === "today") return windowFor(todayKey);
   const start = isDayKey(from) ? from : mondayOf(todayKey);
   return { from: start, days: Math.min(MAX_DAYS, Math.max(1, Math.round(days) || 7)) };
 }
@@ -183,9 +196,10 @@ function unreadFeed(base: CalendarFeedDto, feed: ParsedRead): CalendarFeedDto {
 
 /**
  * The record's rows over the span and the notices' health line, read beside the feed: the bookings that arrived by
- * email (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md). One read after the other, so a turn's reads are in
- * one order (ask/readers.test.mjs pins them). A failed read is an empty board side and a logged line, never a board
- * that fails to draw the feed.
+ * email (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md). Asked for in one order (ask/readers.test.mjs pins
+ * it) and waited for together: none needs another's answer, and one after the other they were four round trips the
+ * board stood behind (9 Oct 2026). A failed read is an empty board side and a logged line, never a board that fails to
+ * draw the feed.
  */
 async function recordOverSpan(
   ctx: Pick<RouteContext, "supabase">,
@@ -202,11 +216,14 @@ async function recordOverSpan(
       tenant_id: tenantId,
       error: e instanceof Error ? e.message : String(e),
     });
-  const rows: AppointmentLike[] = await appointmentsBetween(ctx.supabase, tenantId, spanFrom, spanTo).catch((e) => {
-    failed(e);
-    return [];
-  });
-  return { rows, notices: await noticesHealth(ctx, tenantId, by, true) };
+  const [rows, notices] = await Promise.all([
+    appointmentsBetween(ctx.supabase, tenantId, spanFrom, spanTo).catch((e): AppointmentLike[] => {
+      failed(e);
+      return [];
+    }),
+    noticesHealth(ctx, tenantId, by, true),
+  ]);
+  return { rows, notices };
 }
 
 /**
@@ -221,14 +238,14 @@ async function noticesHealth(
   listed: boolean,
 ): Promise<Omit<CalendarNoticesDto, "count">> {
   const { tool } = by;
-  const latest = await appointmentNoticesOf(ctx.supabase, tenantId).catch(() => ({
-    tool: null,
-    last_at: null,
-    held: 0,
-  }));
+  // The latest and the held count beside the workspace's address, as the tool is to send to, with Gmail's pending
+  // confirmation of a forward here (00345): two reads that wait for nothing of each other's.
+  const [latest, mailbox] = await Promise.all([
+    appointmentNoticesOf(ctx.supabase, tenantId).catch(() => ({ tool: null, last_at: null, held: 0 })),
+    mailboxOfTenant(ctx.supabase, tenantId).catch(() => null),
+  ]);
+  // The held ones themselves only where the count says there are any.
   const held = listed && latest.held ? await heldNoticesOf(ctx.supabase, tenantId).catch(() => []) : [];
-  // The workspace's address, as the tool is to send to, and Gmail's pending confirmation of a forward here (00345).
-  const mailbox = await mailboxOfTenant(ctx.supabase, tenantId).catch(() => null);
   const domain = emailDomain();
   const local = suggestLocalPart(by.name);
   const notices: Omit<CalendarNoticesDto, "count"> = {
@@ -322,13 +339,13 @@ function weekBeforeReading(
 export async function calendarSources(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  by: { from: string | null; days: number },
+  by: { from: string | null; days: number; around?: "today" | null },
   now: Date,
   opts: { fresh?: boolean; timezone?: string; config?: unknown; feedOnly?: boolean } = {},
 ): Promise<CalendarSources> {
   // The zone and the settings: handed in by a caller that read them this turn (readers/calendar.ts), else read here.
   const timezone = opts.timezone ?? (await tenantFacts(ctx.supabase, tenantId)).timezone;
-  const span = spanFor(by.from, by.days, timezone, now);
+  const span = spanFor(by.from, by.days, timezone, now, by.around ?? null);
   let raw = opts.config;
   if (raw === undefined) {
     const { data: row, error } = await ctx.supabase

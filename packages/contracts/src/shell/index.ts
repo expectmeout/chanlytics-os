@@ -23,7 +23,6 @@ export {
   themeBootScript,
   inAppFrom,
   inAppBootScript,
-  routePrefetchScript,
   isTypingTarget,
   pageTitle,
   notFoundPageMetadata,
@@ -46,8 +45,6 @@ export {
   IN_APP_UA_RE,
   IN_APP_CLASS,
   APP_KEYS_RESIZE_CLASS,
-  PREFETCH_SLOT,
-  PREFETCH_READS,
   isSidebarPref,
   SHORTCUTS,
   TOAST_TONES,
@@ -71,6 +68,7 @@ export type {
   ToastTone,
   ToastShape,
 } from "./chrome";
+export { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "./route-prefetch";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, doorOf, ROUTE_WORDS } from "./address";
 export type { AddressParts } from "./address";
 export {

@@ -8,6 +8,7 @@ import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import {
   REPORT_PERIOD_DEFAULT,
+  REPORT_PERIOD_STORAGE,
   isReportPeriod,
   reportFacts,
   toBookingReportVM,
@@ -30,7 +31,8 @@ import { setSurfaceValue } from "../surface-values";
 
 /* ------------------------------- Reports --------------------------------- */
 
-const REPORT_PERIOD_KEY = "chanlytics.report.period";
+// The document's head reads the same name, so the reads it starts are for the period this page asks for (contracts).
+const REPORT_PERIOD_KEY = REPORT_PERIOD_STORAGE;
 let reportPeriod: ReportPeriodId = REPORT_PERIOD_DEFAULT;
 try {
   if (typeof window !== "undefined") {

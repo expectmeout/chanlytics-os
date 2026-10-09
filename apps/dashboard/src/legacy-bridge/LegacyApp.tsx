@@ -189,6 +189,11 @@ const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
 // let a message pass while its page was elsewhere (onlyOnItsPage) or that a pass left for its page (keepForItsPage), and one read
 // only where it is drawn (onDemand) that was never read or has aged.
 readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
+// And one somebody is reaching for (a pointer at its row, the phone's drawer opening) reads the same now, so the press finds
+// it in or on its way (surface-registry.ts warmWhatItDraws): Reports, which no other page's boot reads.
+onRouteReachedFor(
+  warmWhatItDraws(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key)))),
+);
 /** The runner's live feed: the workspace's topic, over this browser's Supabase client. */
 const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeWorkspaceChanges(createClient(), onChange, opts);
 const SURFACE_LABELS: Record<string, string> = {
@@ -207,7 +212,8 @@ const SURFACE_LABELS: Record<string, string> = {
 // both live in surface-registry.ts so the classification and the wiring cannot
 // drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
 // always "ready" — the registry decides separately whether they may RENDER.
-import { installRouteGate, installSurfaceRegistry, readWhatWasMissed } from "./surface-registry";
+import { installRouteGate, installSurfaceRegistry, readWhatWasMissed, warmWhatItDraws } from "./surface-registry";
+import { onRouteReachedFor } from "./workspace";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.

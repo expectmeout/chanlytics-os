@@ -1769,7 +1769,14 @@ test("the report reader's profile reaches the view model: the closed count with 
   assert.deepEqual([unread.hours?.closed ?? null, unread.hoursUnset], [null, false]);
 });
 
-test("GET reports through its reader asks what it asked at origin/main, in its order: the series; People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar zone and settings, now through their readers; how the workspace's customers buy, once, through its reader; then the deals, and only where deals are on -- and a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
+/**
+ * What a report asked, each read once, whatever order the database stand-in heard them in: the series, the booking
+ * line and the deals are asked for together (readers/report.ts, 9 Oct 2026: one after the other they were the slowest
+ * read the dashboard makes), so only the first has a place of its own, and it is the series.
+ */
+const readTogether = (list) => [...list].sort();
+
+test("GET reports through its reader asks what it asked at origin/main, each read once, the series first: People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar zone and settings, now through their readers; how the workspace's customers buy, once, through its reader; the deals, and only where deals are on -- and a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
   const REPORT_READS = [
     "rpc:report_series",
     // Everyone, read once for the whole report: the booking line's read, which the deals take their sources from.
@@ -1785,14 +1792,16 @@ test("GET reports through its reader asks what it asked at origin/main, in its o
   ];
   const routed = worldCtx(dealsWorld("proposal"));
   await reportsRoute.GET.run(req(`?workspace=${A}`), routed);
-  assert.deepEqual(asked(routed), ["memberships.select", ...REPORT_READS], "the workspace's door, then the reads");
+  assert.deepEqual(asked(routed).slice(0, 2), ["memberships.select", "rpc:report_series"], "the door, then the series");
+  assert.deepEqual(readTogether(asked(routed).slice(1)), readTogether(REPORT_READS), "and each of the reads, once");
   const ctx = worldCtx(dealsWorld("proposal"));
   await kernel.load(turnIn(ctx), reportReader, { days: 30 });
-  assert.deepEqual(asked(ctx), REPORT_READS);
+  assert.equal(asked(ctx)[0], "rpc:report_series", "the series is asked first");
+  assert.deepEqual(readTogether(asked(ctx)), readTogether(REPORT_READS));
   assert.deepEqual(
-    selects(ctx, "tenants").map((q) => q.columns),
+    readTogether(selects(ctx, "tenants").map((q) => q.columns)),
     ["name, timezone", "sells_by"],
-    "the calendar's zone, then sells_by once",
+    "the calendar's zone and sells_by, each once",
   );
   assert.deepEqual(
     selects(ctx, "tenant_config").map((q) => q.columns),
@@ -1810,21 +1819,23 @@ test("GET reports through its reader asks what it asked at origin/main, in its o
   const held = turn.ctx.supabase.seen.length;
   await kernel.load(turn, reportReader, { days: 30 });
   assert.deepEqual(
-    asked(turn.ctx).slice(held),
-    ["rpc:report_series", "rpc:people_list", "policies.select", "deals.select"],
+    readTogether(asked(turn.ctx).slice(held)),
+    readTogether(["rpc:report_series", "rpc:people_list", "policies.select", "deals.select"]),
     "the series, everyone and the deals: the tenant, its settings and sells_by were the turn's",
   );
   // Where the workspace's customers book, the deals are not even read.
   const off = worldCtx(dealsWorld("booking"));
   await kernel.load(turnIn(off), reportReader, { days: 30 });
-  assert.deepEqual(asked(off), REPORT_READS.slice(0, -1));
+  assert.deepEqual(readTogether(asked(off)), readTogether(REPORT_READS.slice(0, -1)));
 });
 
-test("a report the function will not answer is GET reports' 404, in its sentence, and nothing else is read; the booking line is never fatal: a calendar lookup that fails is null, said once in the log, and the series and the deals stand", async () => {
+test("a report the function will not answer is GET reports' 404, in its sentence, whatever was asked beside the series; the booking line is never fatal: a calendar lookup that fails is null, said once in the log, and the series and the deals stand", async () => {
   const refused = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => ({ error: "no" }) } };
   const ctx = worldCtx(refused);
   await assert.rejects(kernel.load(turnIn(ctx), reportReader, { days: 30 }), noReport);
-  assert.deepEqual(asked(ctx), ["rpc:report_series"], "nothing read past the series");
+  // The series is asked first and its answer alone decides there is a report: the booking line and the deals are asked
+  // for beside it (as the headline's are), and what they found is answered to nobody.
+  assert.equal(asked(ctx)[0], "rpc:report_series", "the series first");
   await assert.rejects(reportsRoute.GET.run(req(`?workspace=${A}`), worldCtx(refused)), noReport);
   const empty = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => null } };
   await assert.rejects(kernel.load(turnIn(worldCtx(empty)), reportReader, { days: 30 }), noReport);
@@ -2321,6 +2332,19 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
   });
 });
 
+/**
+ * The record's four reads (its rows over the span, the notices' latest and their held count, the mailbox) are asked for
+ * together and waited for together (calendar-week.ts recordOverSpan, 9 Oct 2026: one after the other they were four
+ * round trips the board stood behind). Which of the four is heard first is the database stand-in's to say, not the
+ * route's, so the four are put in one order before what was asked is compared: every read is still there, once, with its
+ * columns, and everything before and after them is still in its own order. `at` is where the four begin.
+ */
+const recordTogether = (asked, at) => [
+  ...asked.slice(0, at),
+  ...asked.slice(at, at + 4).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+  ...asked.slice(at + 4),
+];
+
 test("the calendar's reader never writes (D7): an owner's Ask reads the board of a feed naming someone People does not hold and puts nobody in People -- no door called, nothing inserted -- and its zone and settings are the turn's: a turn that holds them reads neither again", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     const made = [];
@@ -2331,19 +2355,25 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
     const r = await kernel.load(rc, calendarReader, WEEK);
     assert.deepEqual(made, [], "nobody put in People");
     assert.deepEqual(
-      ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
+      recordTogether(
+        ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
+        0,
+      ),
       // The record's rows over the span and the notices' health line (00345) are read beside the feed, then everyone.
       // Last, once the feed has read, the record's taken time over the days on offer (record-busy.ts): this week does
       // not cover a fortnight's offer, so the board's open times ask for it rather than reuse the span's rows.
-      [
-        "appointments.select",
-        "appointment_notices.select",
-        "appointment_notices.select",
-        "mailboxes.select",
-        "rpc:people_list",
-        "policies.select",
-        "appointments.select",
-      ],
+      recordTogether(
+        [
+          "appointments.select",
+          "appointment_notices.select",
+          "appointment_notices.select",
+          "mailboxes.select",
+          "rpc:people_list",
+          "policies.select",
+          "appointments.select",
+        ],
+        0,
+      ),
       "the record, everyone, and nothing the turn already read: no door, no write",
     );
     assert.deepEqual(
@@ -2453,9 +2483,13 @@ test("GET calendar through its reader asks what it asked at origin/main, in the 
         k,
         k === "tenant_config.select" ? "tenant_id, config, version, updated_at, updated_by" : cols,
       ]);
+      // The record's four begin after the door, the zone and the settings.
       assert.deepEqual(
-        ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
-        role === "viewer" ? want.slice(0, -1) : want,
+        recordTogether(
+          ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
+          3,
+        ),
+        recordTogether(role === "viewer" ? want.slice(0, -1) : want, 3),
         role,
       );
       assert.deepEqual(
