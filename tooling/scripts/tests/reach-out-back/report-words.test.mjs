@@ -201,6 +201,18 @@ test("a period that wrote nothing says so; a workspace with no reach-out draws n
   assert.equal(toReachOutReportVM(report({ totals: counts({ handed: 2 }) }), NOW).empty, false);
 });
 
+test("a period of one day (This month so far, on the 1st) is today, never 'these 1 day'", () => {
+  const day = { days: 1, since: "2026-09-28", series: [{ day: "2026-09-28", written: 40 }] };
+  const vm = toReachOutReportVM(report(day), NOW);
+  assert.match(vm.lines.funnel, /^Of 40 emails written today\. /);
+  const empty = toReachOutReportVM(
+    report({ ...day, totals: counts(), chains: [], angles: [], domains: [], no_angle: 0 }),
+    NOW,
+  );
+  assert.equal(empty.lines.empty, "No reach-out wrote today.");
+  assert.doesNotMatch(JSON.stringify([vm.lines, empty.lines]), /\b1 day\b/);
+});
+
 test("the day's line at 6 PM says what happened, and nothing it did not count", () => {
   assert.deepEqual(reachOutDayWords({ written: 18, wrote_back: 2, interested: 1, said_no: 1, bounced: 0, held: 3 }), {
     title: "Today's reach-outs",

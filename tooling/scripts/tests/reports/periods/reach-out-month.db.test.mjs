@@ -65,16 +65,14 @@ before(async () => {
       .insert({ tenant_id: A, channel: "email", name: "reach_month", language: "en", meta_status: "approved" }),
   );
   const search = await one(
-    db
-      .from("lead_searches")
-      .insert({
-        tenant_id: A,
-        via: "people",
-        card: "movers",
-        name: "Movers · Austin",
-        asked: "movers in Austin",
-        plan: {},
-      }),
+    db.from("lead_searches").insert({
+      tenant_id: A,
+      via: "people",
+      card: "movers",
+      name: "Movers · Austin",
+      asked: "movers in Austin",
+      plan: {},
+    }),
   );
   const root = await one(
     db.from("playbooks").insert({
