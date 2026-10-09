@@ -390,6 +390,14 @@ deployment's profile (Opus 5.5 by default, low effort); the gate re-runs with sp
 >   `<audio>` the bridge owns (`legacy-bridge/ask/speech.ts`), never a pane's, so a pane drawn again finds it playing and
 >   a pane gone leaves it to finish. No agent, no microphone, no session row, no thread; the first word in about a
 >   second. The Ask line's mic alone opens a **conversation** (below), and the agent speaks its own first words.
+> - **The first sentence first (amended 9 Oct 2026).** "About a second" held for a line; a brief of 600 characters was a
+>   second and a half behind the press on a desk and more on a phone, because the whole clip was read before any of it
+>   played and the vendor begins later the more words it is handed. Words of more than one sentence are asked for as
+>   two clips at once: the first sentence, played as it lands (made in about a third of a second), and the rest, sent
+>   with `before` (the first sentence; the vendor's `previous_text`) so it carries on in the same breath, played on the
+>   same element as the first ends. The clips of the last readings are kept in the page, so a second listen asks
+>   nothing, and a mouse going down on Listen asks before the click lands. `speech` counts a hundred and twenty clips
+>   an hour a person: sixty readings, as it did.
 > - **No fallback voice.** The browser's synthesis is gone. A clip that cannot be made says why beside the button, in
 >   the server's words (a paused workspace, a vendor down), and nothing else speaks.
 > - **The row says how it went** (00300): `end_reason` (contracts `VOICE_END_REASONS`: `button`, `typed`,

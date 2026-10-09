@@ -1722,7 +1722,12 @@ async function speakText(cfg, input, deps) {
     {
       method: "POST",
       headers: { "xi-api-key": cfg.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
-      body: JSON.stringify({ text: input.text, model_id: input.modelId, apply_text_normalization: "on" }),
+      body: JSON.stringify({
+        text: input.text,
+        model_id: input.modelId,
+        apply_text_normalization: "on",
+        ...input.previousText ? { previous_text: input.previousText } : {}
+      }),
       timeoutMs: ELEVENLABS_SPEECH_TIMEOUT_MS,
       stream: true
     },

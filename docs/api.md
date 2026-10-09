@@ -64,6 +64,7 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | --- | --- | --- | --- |
 | `text` | string | yes | at least 1 characters; at most 1500 characters |
 | `purpose` | one of `"brief"`, `"answer"` | yes |  |
+| `before` | string | no | at most 1500 characters |
 
 ### `GET /api/v1/ask/threads`
 

@@ -6,6 +6,10 @@
  * with the late clip let go of; a clip that could not be made rejecting in the server's words with the state idle
  * again; and a second read superseding the first, whose late callbacks change nothing. The browser's own synthesis
  * is gone: nothing here can reach `speechSynthesis`.
+ *
+ * And the first sentence first (9 Oct 2026): words of more than one sentence asked for as two clips at once, the first
+ * played as it lands and the rest behind it on the same element; the clips of the last readings kept, so a second
+ * listen asks nothing; and a press that has begun asking before it lands.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { askSpeech } = await import(at("apps/dashboard/src/legacy-bridge/ask/speech.ts"));
+const { askSpeech, speechParts } = await import(at("apps/dashboard/src/legacy-bridge/ask/speech.ts"));
 
 /** A window with an Audio element the test drives: play() settles when the test says; src, pause and load recorded. */
 function world() {
@@ -92,8 +96,8 @@ function api() {
   const settles = [];
   return {
     calls,
-    speech: (text, purpose) => {
-      calls.push({ text, purpose });
+    speech: (text, purpose, more) => {
+      calls.push(more ? { text, purpose, more } : { text, purpose });
       return new Promise((resolve, reject) => {
         settles.push({ resolve, reject });
       });
@@ -334,7 +338,10 @@ test("words longer than a clip may be are read up to the last whole sentence tha
   const long = sentence.repeat(40);
   assert.ok(long.length > ASK_SPEECH_MAX_CHARS);
   void s.speak(long, "answer");
-  const sent = a.calls[0].text;
+  // Its first sentence and the rest, two clips: together, the words as far as one request may carry them.
+  assert.equal(a.calls.length, 2);
+  assert.equal(a.calls[0].text, sentence.trim());
+  const sent = `${a.calls[0].text} ${a.calls[1].text}`;
   assert.ok(sent.length <= ASK_SPEECH_MAX_CHARS, `within the route's bound (${sent.length})`);
   assert.ok(sent.length > ASK_SPEECH_MAX_CHARS - sentence.length, "as much as fits");
   assert.ok(sent.endsWith("waiting on a time."), "ended on a whole sentence");
@@ -342,10 +349,231 @@ test("words longer than a clip may be are read up to the last whole sentence tha
   s.stopSpeaking();
   // Words with no sentence end inside the bound are cut at a word, and short words go as they are.
   void s.speak("word ".repeat(400), "answer");
-  assert.ok(a.calls[1].text.length <= ASK_SPEECH_MAX_CHARS);
-  assert.ok(a.calls[1].text.endsWith("word"), "cut between words");
+  assert.ok(a.calls[2].text.length <= ASK_SPEECH_MAX_CHARS);
+  assert.ok(a.calls[2].text.endsWith("word"), "cut between words");
   s.stopSpeaking();
   void s.speak("  Two   people need you. ", "brief");
-  assert.equal(a.calls[2].text, "Two people need you.", "folded, as the route folds it");
+  assert.equal(a.calls[3].text, "Two people need you.", "folded, as the route folds it");
   s.stopSpeaking();
+});
+
+/* ------------------------------------------------------------------ the first sentence first (9 Oct 2026) */
+
+const FIRST = "Two people need you, and the oldest has waited forty minutes.";
+const REST = "Your calendar has five appointments today. One campaign is waiting for your word.";
+const BRIEF = `${FIRST} ${REST}`;
+
+/** The words as the clips they are asked for, in order: one where there is no rest. */
+const partsOf = (text) => {
+  const { first, rest } = speechParts(text);
+  return rest === null ? [first] : [first, rest];
+};
+
+test("the words as the clips they are asked for: the first sentence by itself where more follows, then the rest; one clip for one sentence, for a first sentence that runs long, and never a cut at a title, a figure or a time", () => {
+  assert.deepEqual(speechParts(BRIEF), { first: FIRST, rest: REST });
+  assert.deepEqual(speechParts("Nobody is waiting on you right now."), {
+    first: "Nobody is waiting on you right now.",
+    rest: null,
+  });
+  assert.deepEqual(partsOf("  Two   people need you.   3 are booked. "), ["Two people need you.", "3 are booked."]);
+  // A title's full stop, a decimal and a clock's are no sentence's end; "p.m." before a capital is one.
+  assert.deepEqual(partsOf("Dr. Reyes wrote at 3.30 about Thursday. She is waiting."), [
+    "Dr. Reyes wrote at 3.30 about Thursday.",
+    "She is waiting.",
+  ]);
+  assert.deepEqual(partsOf("The next is at 2 p.m. today and nothing after."), [
+    "The next is at 2 p.m. today and nothing after.",
+  ]);
+  assert.deepEqual(partsOf("The next is at 2 p.m. Nothing follows it."), [
+    "The next is at 2 p.m.",
+    "Nothing follows it.",
+  ]);
+  // A question, a quote closed after the mark, and words that are not English.
+  assert.deepEqual(partsOf('She asked "Can I come Friday?" We have not answered.'), [
+    'She asked "Can I come Friday?"',
+    "We have not answered.",
+  ]);
+  assert.deepEqual(partsOf("Dos personas te esperan. ¿Les respondo ahora?"), [
+    "Dos personas te esperan.",
+    "¿Les respondo ahora?",
+  ]);
+  // A first sentence too long to be worth a clip of its own: the whole, as one.
+  const long = `${"and then another thing happened, ".repeat(9)}which is all. Short end.`;
+  assert.ok(long.indexOf(". ") > 240);
+  assert.deepEqual(partsOf(long), [long]);
+  // Too short to be a sentence to stop after: the cut is at the next end.
+  assert.deepEqual(partsOf("No. We are closed on Sunday. Monday at nine."), [
+    "No. We are closed on Sunday.",
+    "Monday at nine.",
+  ]);
+});
+
+test("words of more than one sentence are asked for as two clips at once, the rest told what came before it; the first plays the moment it lands, whatever the rest is doing; the rest plays on the same element as the first ends; speaking from the first word to the last, with no move between the two", async () => {
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const seen = [];
+  s.watchSpeech(() => seen.push(s.state()));
+  const read = s.speak(BRIEF, "brief");
+  assert.deepEqual(
+    a.calls,
+    [
+      { text: FIRST, purpose: "brief" },
+      { text: REST, purpose: "brief", more: { before: FIRST } },
+    ],
+    "REGRESSION: the whole brief was one clip, read to its last byte before its first word played",
+  );
+  // The first sentence lands; the rest has not.
+  a.land(0);
+  await tick();
+  const el = w.elements[0];
+  const first = el.src;
+  assert.match(first, /audio\/mpeg$/);
+  w.plays();
+  await read;
+  assert.equal(s.state(), "speaking", "speaking on the first sentence alone");
+  // It ends before the rest is in hand: the voice waits for it, and says nothing else of itself.
+  w.ends();
+  await tick();
+  assert.equal(s.state(), "speaking", "still the one reading");
+  assert.equal(w.elements.length, 1);
+  a.land(1);
+  await tick();
+  assert.notEqual(el.src, first, "the rest, on the same element");
+  assert.match(el.src, /audio\/mpeg$/);
+  assert.ok(w.urls.revoked.includes(first), "the first sentence's clip let go of");
+  w.plays();
+  await tick();
+  assert.equal(s.state(), "speaking");
+  w.ends();
+  assert.equal(s.state(), "idle");
+  assert.deepEqual(seen, ["loading", "speaking", "idle"], "one reading: no move between its two clips");
+
+  // The rest in hand before the first ends: it starts as the first ends, with no wait.
+  const w2 = world();
+  const a2 = api();
+  const s2 = askSpeech(w2.win, { api: a2 });
+  const again = s2.speak(BRIEF, "brief");
+  a2.land(1);
+  a2.land(0);
+  await tick();
+  w2.plays();
+  await again;
+  const playing = w2.elements[0].src;
+  w2.ends();
+  await tick();
+  assert.notEqual(w2.elements[0].src, playing, "the rest started the moment the first ended");
+  assert.equal(s2.state(), "speaking");
+});
+
+test("a rest that could not be made ends the reading after its first sentence, quietly, and is not kept; a Stop on the first sentence plays nothing more when the rest lands", async () => {
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const read = s.speak(BRIEF, "brief");
+  a.land(0);
+  await tick();
+  w.plays();
+  await read;
+  a.fail("Ask's voice could not be reached just now.", 1);
+  await tick();
+  assert.equal(s.state(), "speaking", "the first sentence is still being read");
+  w.ends();
+  await tick();
+  assert.equal(s.state(), "idle", "and the reading ends there: nothing thrown, nothing else said");
+  // Not kept: the next press asks for both again.
+  void s.speak(BRIEF, "brief");
+  assert.equal(a.calls.length, 4, "a failure is never kept");
+  s.stopSpeaking();
+
+  const w2 = world();
+  const a2 = api();
+  const s2 = askSpeech(w2.win, { api: a2 });
+  const stopped = s2.speak(BRIEF, "brief");
+  a2.land(0);
+  await tick();
+  w2.plays();
+  await stopped;
+  s2.stopSpeaking();
+  assert.equal(s2.state(), "idle");
+  const plays = w2.elements[0].log.filter((l) => l.startsWith("play:")).length;
+  a2.land(1);
+  await tick();
+  assert.equal(
+    w2.elements[0].log.filter((l) => l.startsWith("play:")).length,
+    plays,
+    "the rest, landing late, never plays",
+  );
+  assert.equal(s2.state(), "idle");
+});
+
+test("the clips of the last readings are kept: Listen pressed again asks nothing and plays at once, to the end, whether or not the first reading was heard out; other words ask anew, and only the last few readings are held", async () => {
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const read = s.speak(BRIEF, "brief");
+  a.land(0);
+  a.land(1);
+  await tick();
+  w.plays();
+  await read;
+  s.stopSpeaking();
+  assert.equal(a.calls.length, 2);
+  // Again: nothing asked, and the first sentence on the element at once.
+  const again = s.speak(BRIEF, "brief");
+  assert.equal(a.calls.length, 2, "REGRESSION: a second listen made the same clips a second time");
+  await tick();
+  assert.match(w.elements[0].src, /audio\/mpeg$/, "played from what was kept, with no clip to wait for");
+  w.plays();
+  await again;
+  assert.equal(s.state(), "speaking");
+  w.ends();
+  await tick();
+  w.plays();
+  await tick();
+  w.ends();
+  assert.equal(s.state(), "idle", "and to the end of the rest");
+  // Other words are other clips.
+  void s.speak("Nobody is waiting on you right now.", "brief");
+  assert.equal(a.calls.length, 3);
+  s.stopSpeaking();
+  // Six readings are held; the seventh lets go of the oldest.
+  for (let i = 0; i < 5; i += 1) {
+    void s.speak(`Reading number ${i} is this one.`, "answer");
+    s.stopSpeaking();
+  }
+  assert.equal(a.calls.length, 8);
+  void s.speak(BRIEF, "brief");
+  assert.equal(a.calls.length, 10, "the brief, read seven readings ago, is asked for again");
+  s.stopSpeaking();
+});
+
+test("a press that has begun asks for the clips before it lands: nothing plays and nothing moves, and the read that follows asks nothing more; a device that cannot play asks nothing", async () => {
+  const w = world();
+  const a = api();
+  const s = askSpeech(w.win, { api: a });
+  const seen = [];
+  s.watchSpeech(() => seen.push(s.state()));
+  s.warmSpeech(BRIEF, "brief");
+  assert.equal(a.calls.length, 2, "both clips, asked for as the pointer went down");
+  assert.equal(s.state(), "idle");
+  assert.deepEqual(seen, []);
+  assert.equal(w.elements.length, 0, "no element: that is the press's own to make");
+  // The first sentence lands before the click does.
+  a.land(0);
+  await tick();
+  const read = s.speak(BRIEF, "brief");
+  assert.equal(a.calls.length, 2, "the press asks nothing more");
+  assert.equal(w.elements.length, 1, "the element, made and started on silence inside the press");
+  await tick();
+  w.plays();
+  await read;
+  assert.equal(s.state(), "speaking");
+  // A warm of words already on their way, or of nothing, asks nothing.
+  s.warmSpeech(BRIEF, "brief");
+  s.warmSpeech("   ", "brief");
+  assert.equal(a.calls.length, 2);
+  const bare = api();
+  askSpeech({}, { api: bare }).warmSpeech(BRIEF, "brief");
+  assert.deepEqual(bare.calls, [], "a device with no Audio is asked for no clip");
 });

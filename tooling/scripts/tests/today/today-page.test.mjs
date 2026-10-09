@@ -1925,6 +1925,49 @@ test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is
   }
 });
 
+test("Glass brief: a mouse gone down on Listen asks for the brief's clips before the click lands; a finger going down, which may be a scroll beginning, asks nothing, nor does a press on Stop, nor a bridge that does not warm", () => {
+  clear();
+  set({ today: busy(), headline: headline() });
+  const s = speechStub();
+  const warmed = [];
+  s.stub.warmSpeech = (text, purpose) => warmed.push({ text, purpose });
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
+  try {
+    fresh();
+    const tree = again(() => TodayBriefPane());
+    const listen = byTestId(tree, "today-brief-listen");
+    listen.props.onPointerDown({ pointerType: "touch", button: 0 });
+    listen.props.onPointerDown({ pointerType: "mouse", button: 2 });
+    assert.deepEqual(warmed, [], "a touch, or the mouse's other button, asks nothing");
+    listen.props.onPointerDown({ pointerType: "mouse", button: 0 });
+    assert.equal(warmed.length, 1);
+    assert.equal(warmed[0].purpose, "brief");
+    assert.ok(warmed[0].text.startsWith(textOf(byTestId(tree, "today-brief-line"))), "the words the click will read");
+    assert.equal(s.spoken.length, 0, "nothing read: that is the click's");
+    // While it reads, the button is Stop: a press going down on it asks for nothing.
+    press(listen);
+    s.land();
+    const playing = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    playing.props.onPointerDown({ pointerType: "mouse", button: 0 });
+    assert.equal(warmed.length, 1);
+    // A bridge from before the warm: the press still reads, and the pointer going down breaks nothing.
+    delete s.stub.warmSpeech;
+    s.stub.stopSpeaking();
+    const older = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.doesNotThrow(() => older.props.onPointerDown({ pointerType: "mouse", button: 0 }));
+  } finally {
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
+});
+
 test("Glass brief: a clip that could not be made says why beside Listen, in the server's words, and nothing else speaks; the next press tries again", async () => {
   clear();
   set({ today: busy(), headline: headline() });
