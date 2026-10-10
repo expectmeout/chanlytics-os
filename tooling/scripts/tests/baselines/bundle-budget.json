@@ -1,5 +1,5 @@
 {
-  "js": 767058,
+  "js": 769653,
   "css": 151340,
   "page": {
     "broadcasts": 169540,
@@ -12,13 +12,13 @@
     "people": 245771,
     "playbooks": 408,
     "reports": 78137,
-    "settings": 86037,
+    "settings": 90547,
     "start": 29798,
     "templates": 157261,
     "today": 207
   },
   "ceiling": {
-    "js": 768000,
+    "js": 769722,
     "css": 163840,
     "page": 262144
   }

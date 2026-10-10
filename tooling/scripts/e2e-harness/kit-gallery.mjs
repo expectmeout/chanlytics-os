@@ -413,6 +413,10 @@ const kitMenu = () =>
   kitItem("copy", "Copy number") +
   kitItem("calendar", "Send booking link", { after: `<span class="more-item-meta">By text</span>` }) +
   kitItem("pause", "Pause the receptionist", { after: `<span class="more-item-hint">until 10:00</span>` }) +
+  kitItem("user", "Operator", {
+    tone: " more-item-two",
+    after: `<span class="more-item-meta">Answers and approves conversations, tunes autonomy</span>`,
+  }) +
   `</div>` +
   `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
   `<a role="menuitem" tabindex="-1" href="#kit" class="more-item">${icon("user", 13)}` +

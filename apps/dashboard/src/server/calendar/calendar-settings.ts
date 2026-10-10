@@ -44,6 +44,7 @@ import {
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
 import { log } from "@/server/log";
+import { storedConfigOf } from "@/server/workspace/config-row";
 
 /**
  * Settings that will not parse are a READ THAT FAILED, not a workspace without a calendar.
@@ -98,13 +99,13 @@ export async function calendarOf(
     timezone = known.timezone;
     raw = known.config;
   } else {
-    const [facts, { data: row, error }] = await Promise.all([
+    // The settings whole, the feed's address with them, for any member: the reads in this module need it.
+    const [facts, config] = await Promise.all([
       tenantFacts(ctx.supabase, tenantId),
-      ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      storedConfigOf(ctx.supabase, tenantId),
     ]);
-    if (error) throw new Error(error.message);
     timezone = facts.timezone;
-    raw = row?.config ?? null;
+    raw = config;
   }
   const { cfg, lostCalendar } = readSettings(tenantId, raw);
   const url = cfg?.calendar?.ical_url ?? null;

@@ -352,17 +352,16 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
     assert.ok(src.includes('rate: "export",'), `${name}: rate bucket`);
     assert.ok(src.includes("scope: workspace,"), `${name}: the workspace comes from the request`);
     assert.ok(
-      src.includes('.eq("tenant_id", member.tenantId)') || src.includes("everyone(ctx, member.tenantId)"),
+      src.includes('.eq("tenant_id", member.tenantId)') || src.includes("everyoneOnce(ctx, member.tenantId)"),
       `${name}: scoped to the named workspace`,
     );
     assert.ok(src.includes("return attachment("), `${name}: a file`);
   }
   assert.ok(people.includes('role: "owner",'), "only an owner exports everyone");
-  // everyone(), not listPeople(): one people_list call is capped at 1000 rows in
-  // the database, so the CSV that says it is the whole customer list has to page.
-  assert.ok(people.includes("everyone(ctx, member.tenantId)"), "the CSV is everyone, not the first page of them");
+  // Everyone, not the first page of them, and each once: run below, over a workspace past a page whose people write
+  // while it is read.
   // Every read of a workspace refuses an account in two that named neither (plan 3.4, run in route-definition.test.mjs); the export was the first to insist.
-  assert.ok(conv.includes("for (let page = 0; page < MAX_PAGES; page++) {"), "the whole thread, not the screen's page");
+  // The whole thread, not the screen's page, nor its first 10,000 messages: run below, over a thread longer than that.
   // Offset paging under a TOTAL order, as the workspace bundle does. The old
   // `.lt(created_at, before)` cursor stepped strictly past the last row on a
   // page, so two messages written in one transaction -- identical timestamps --
@@ -475,19 +474,23 @@ test("the bundle is one JSON document: every section, every page, in order, neve
     },
   ];
   const msgs = { c1: [msg({ id: "m1" }), msg({ id: "m2" }), msg({ id: "m3" })], c2: [], c3: [msg({ id: "m4" })] };
-  // Three of them, over a page size of two: people used to be read as ONE call,
-  // whose answer people_list caps at 1000 rows in the database -- so a workspace
+  // Three of them, in two pages: people used to be read as ONE call, whose
+  // answer people_list caps at 1000 rows in the database -- so a workspace
   // above that downloaded a bundle short by everyone after the first page, with
-  // no error, no flag, and no way to tell it from the whole thing.
+  // no error, no flag, and no way to tell it from the whole thing. Their pages
+  // come as their reader reads them (everyoneOnce), not by offset: their order
+  // moves as they write.
   const people = [
     { id: "p1", display_name: "Dani", phone_e164: "+19175550100", consent: "opted_in", dnc: false },
     { id: "p2", display_name: "Sam", phone_e164: "+19175550101", consent: "opted_in", dnc: false },
     { id: "p3", display_name: "Ola", phone_e164: "+19175550102", consent: "unknown", dnc: false },
   ];
   const readers = {
-    people: async (o, l) => {
-      asked.push(["people", o, l]);
-      return people.slice(o, o + l);
+    people: async function* () {
+      asked.push(["people"]);
+      yield people.slice(0, 2);
+      yield [];
+      yield people.slice(2);
     },
     conversations: async (o, l) => {
       asked.push(["conversations", o, l]);
@@ -549,15 +552,12 @@ test("the bundle is one JSON document: every section, every page, in order, neve
   assert.deepEqual(
     doc.people.map((p) => p.id),
     ["p1", "p2", "p3"],
-    "every person, across page boundaries",
+    "every person, across page boundaries, an empty page among them",
   );
   assert.deepEqual(
     asked.filter((a) => a[0] === "people"),
-    [
-      ["people", 0, 2],
-      ["people", 2, 2],
-    ],
-    "paged like every other section",
+    [["people"]],
+    "asked once, and its pages taken as they come",
   );
   assert.deepEqual(
     doc.conversations.map((c) => [c.id, c.messages.map((m) => m.id)]),
@@ -608,7 +608,7 @@ test("the bundle is one JSON document: every section, every page, in order, neve
   assert.ok(chunks.join("").endsWith("}\n"), "ends like a file");
   // Nothing at all is still a document.
   const empty = {
-    people: async () => [],
+    people: async function* () {},
     conversations: async () => [],
     messages: async () => [],
     calls: async () => [],
@@ -1074,5 +1074,218 @@ test("everyone as a CSV: owners only, the file, and the ledger row that says who
       params: {},
     }),
     (e) => e.status === 403,
+  );
+});
+
+/* ----------------------------------------------------------------------------
+ * EVERYONE, EACH ONCE. People's order is the latest contact first, a moment
+ * that moves whenever someone writes or calls. The pages of a copy were read
+ * by offset (the bundle) or by a cursor on that moment (the CSV), so someone
+ * who wrote while they were read moved past the place the next page began:
+ * never exported, and by offset the person on the boundary exported twice.
+ * The file looked whole. Run here over a workspace past two pages whose people
+ * move while it is read, through both routes.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * A workspace of `n` people as people_list pages them (0021, 00276): in the kept order, the latest contact first,
+ * after a cursor or an offset, at most a thousand a call, or one person by their key. `places: false` is a database
+ * before 00276, whose rows carry no place and are paged by offset. `world.between(k)` runs before the k-th call answers,
+ * so someone can write, or fall quiet, between two pages; `asked` is every call's arguments.
+ */
+function peopleWorld(T, n, { places = true } = {}) {
+  const idOf = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+  const people = Array.from({ length: n }, (_, i) => ({
+    id: idOf(i + 1),
+    at: new Date(Date.UTC(2026, 8, 1) - i * 60_000).toISOString(),
+    added: "2026-01-01T00:00:00.000Z",
+  }));
+  // The order's comparison, falling: -1 when a comes first.
+  const before = (a, b) =>
+    a.at !== b.at ? (a.at > b.at ? -1 : 1) : a.added !== b.added ? (a.added > b.added ? -1 : 1) : a.id > b.id ? -1 : 1;
+  const row = (p) => ({
+    id: p.id,
+    display_name: `Person ${p.id.slice(-4)}`,
+    wa_profile_name: null,
+    phone_e164: null,
+    consent: "opted_in",
+    dnc: false,
+    ...(places ? { in_touch_at: p.at, added_at: p.added } : {}),
+  });
+  const world = {
+    idOf,
+    asked: [],
+    between: () => {},
+    contacts: people.map((p) => ({
+      id: p.id,
+      tenant_id: T,
+      display_name: `Person ${p.id.slice(-4)}`,
+      erased_at: null,
+      merged_into_contact_id: null,
+    })),
+    people_list: (a) => {
+      world.asked.push(a);
+      world.between(world.asked.length);
+      if (a.p_contact_id) return people.filter((p) => p.id === a.p_contact_id).map(row);
+      const order = [...people].sort(before);
+      const after = a.p_after_id ? { at: a.p_after_at, added: a.p_after_added, id: a.p_after_id } : null;
+      if (after && !places) throw new Error("a database before 00276 was named a cursor");
+      const from = after ? order.filter((p) => before(after, p) < 0) : order.slice(a.p_offset ?? 0);
+      return from.slice(0, Math.min(a.p_limit ?? 1000, 1000)).map(row);
+    },
+    /** They write: the latest contact in the workspace, so the top of the order. */
+    writes: (id) => {
+      people.find((p) => p.id === id).at = "2026-09-02T00:00:00.000Z";
+    },
+    /** Their one spoken message is undone (a reply that failed): never in touch, so the bottom of the order. */
+    fallsQuiet: (id) => {
+      people.find((p) => p.id === id).at = "-infinity";
+    },
+    ids: people.map((p) => p.id),
+  };
+  return world;
+}
+
+/** Between the first page and the second, one the pass has not reached writes and one it has read falls quiet. */
+const movesWhileRead = (world) => (k) => {
+  if (k !== 2) return;
+  world.writes(world.idOf(2200));
+  world.fallsQuiet(world.idOf(3));
+};
+
+test("the workspace export holds everyone exactly once when someone writes or falls quiet while its pages are read, by the cursor and, before 00276, by offset", async () => {
+  const { setRateStore, memoryStore } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/rate-limit.ts")).href
+  );
+  setRateStore(memoryStore());
+  const route = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/app/api/v1/export/route.ts")).href
+  );
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  for (const places of [true, false]) {
+    const world = peopleWorld(T, 2500, { places });
+    world.between = movesWhileRead(world);
+    const tables = {
+      memberships: [
+        {
+          user_id: "u1",
+          tenant_id: T,
+          role: "owner",
+          tenants: { slug: "marisas" },
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      tenants: [{ id: T, slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: TZ }],
+      policies: [],
+      contacts: world.contacts,
+      conversations: [],
+      messages: [],
+      calls: [],
+      events: [],
+    };
+    const ctx = {
+      supabase: fakeDb(tables, {}, { people_list: world.people_list }),
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    };
+    const res = await route.GET.run(new Request(`http://localhost/api/v1/export?workspace=${T}`), ctx);
+    const ids = JSON.parse(await res.text()).people.map((p) => p.id);
+    const by = places ? "by the cursor" : "by offset";
+    assert.equal(ids.length, 2500, `${by}: as many rows as people`);
+    assert.deepEqual([...new Set(ids)].sort(), [...world.ids].sort(), `${by}: every person, each once`);
+    assert.deepEqual(
+      world.asked.at(-1),
+      { p_tenant_id: T, p_contact_id: world.idOf(2200) },
+      `${by}: the one who wrote past the place the pages had reached is read by their own row`,
+    );
+  }
+});
+
+test("the people CSV holds everyone exactly once when someone writes or falls quiet while its pages are read", async () => {
+  const { setRateStore, memoryStore } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/rate-limit.ts")).href
+  );
+  setRateStore(memoryStore());
+  const csv = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/app/api/v1/contacts/export/route.ts")).href
+  );
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const world = peopleWorld(T, 2500);
+  world.between = movesWhileRead(world);
+  const tables = {
+    memberships: [
+      { user_id: "u1", tenant_id: T, role: "owner", tenants: { slug: "marisas" }, created_at: "2026-01-01T00:00:00Z" },
+    ],
+    tenants: [{ id: T, slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: TZ }],
+    policies: [],
+    contacts: world.contacts,
+    decisions: [],
+  };
+  const ctx = {
+    supabase: fakeDb(tables, {}, { people_list: world.people_list }),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  };
+  const res = await csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}`), ctx);
+  const text = new TextDecoder().decode(new Uint8Array(await res.arrayBuffer()).slice(3));
+  const names = text
+    .split("\r\n")
+    .slice(1, -1)
+    .map((line) => line.split(",")[0]);
+  assert.equal(names.length, 2500, "a row for each person");
+  assert.deepEqual(
+    [...new Set(names)].sort(),
+    world.ids.map((id) => `Person ${id.slice(-4)}`).sort(),
+    "every person, each once: the one who wrote mid-read is in it, the one who fell quiet is not twice",
+  );
+  assert.deepEqual(
+    tables.decisions.map((x) => x.payload),
+    [{ what: "people", rows: 2500 }],
+    "and the ledger counts what the file holds",
+  );
+});
+
+test("a conversation's file holds every message of a thread longer than 10,000, and its ledger row counts them all", async () => {
+  const { setRateStore, memoryStore } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/rate-limit.ts")).href
+  );
+  setRateStore(memoryStore());
+  const route = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/app/api/v1/conversations/[id]/export/route.ts")).href
+  );
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const C = "cccccccc-1111-4111-8111-cccccccccccc";
+  const P = "dddddddd-1111-4111-8111-dddddddddddd";
+  const N = 10_050;
+  const start = Date.UTC(2026, 0, 1);
+  const tables = {
+    memberships: [
+      { user_id: "u1", tenant_id: T, role: "viewer", tenants: { slug: "marisas" }, created_at: "2026-01-01T00:00:00Z" },
+    ],
+    tenants: [{ id: T, slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: TZ }],
+    contacts: [{ id: P, tenant_id: T, display_name: "Dani", wa_profile_name: null, phone_e164: null, email: null }],
+    conversations: [{ id: C, tenant_id: T, contact_id: P, state: "open", created_at: "2026-01-01T00:00:00Z" }],
+    messages: Array.from({ length: N }, (_, i) =>
+      msg({
+        id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
+        conversation_id: C,
+        body: `word ${i + 1}`,
+        created_at: new Date(start + i * 60_000).toISOString(),
+      }),
+    ),
+    decisions: [],
+  };
+  const ctx = { supabase: fakeDb(tables), userId: "u1", email: "ada@example.com", params: { id: C } };
+  const res = await route.GET.run(new Request(`http://localhost/api/v1/conversations/${C}/export?workspace=${T}`), ctx);
+  const text = await res.text();
+  assert.ok(text.includes(`${N} messages`), "the head counts every message");
+  assert.equal(text.split("\n").filter((l) => /word \d+$/.test(l)).length, N, "every one of them, a line each");
+  assert.ok(text.trimEnd().endsWith(`word ${N}`), "to the last");
+  assert.deepEqual(
+    tables.decisions.map((x) => [x.subject_type, x.subject_id, x.verb, x.payload]),
+    [["conversation", C, "export", { what: "conversation", messages: N }]],
+    "the ledger row counts what the file holds",
   );
 });

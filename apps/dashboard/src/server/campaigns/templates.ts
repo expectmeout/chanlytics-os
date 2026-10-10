@@ -26,6 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
+import { storedConfigOf } from "@/server/workspace/config-row";
 import { workspaceFacts, type WorkspaceFacts } from "@/server/ask/prompt";
 import { runRound } from "@/server/ask/round";
 import { GatewayRefused } from "@/server/ask/gateway";
@@ -139,13 +140,14 @@ async function workspaceFor(
   ctx: RouteContext,
   tenantId: string,
 ): Promise<{ facts: WorkspaceFacts; bookingLink: string | null }> {
-  const [{ name, timezone }, cfgRow] = await Promise.all([
+  // A configuration that could not be read is none, as it always was: the model is told the name and the zone.
+  const [{ name, timezone }, config] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
-    ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    storedConfigOf(ctx.supabase, tenantId).catch(() => null),
   ]);
-  const parsed = parseTenantConfig(cfgRow.data?.config ?? null);
+  const parsed = parseTenantConfig(config);
   return {
-    facts: workspaceFacts(name, timezone, cfgRow.data?.config ?? null),
+    facts: workspaceFacts(name, timezone, config),
     bookingLink: parsed?.brain?.booking_link ?? null,
   };
 }

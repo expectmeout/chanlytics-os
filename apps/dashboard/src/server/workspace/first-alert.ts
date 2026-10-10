@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getTenantConfig, putTenantConfig, type Database } from "@chanlytics/db";
+import { putTenantConfig, type Database } from "@chanlytics/db";
 import { withFirstAlertAddress } from "@chanlytics/contracts";
 import { log } from "@/server/log";
+import { configRowOf } from "@/server/workspace/config-row";
 
 /**
  * Give a workspace just made its creator's address as its first alert address
@@ -19,7 +20,7 @@ export async function giveFirstAlertAddress(
   by: string | null,
 ): Promise<boolean> {
   try {
-    const row = await getTenantConfig(db, tenantId);
+    const row = await configRowOf(db, tenantId);
     const next = row ? withFirstAlertAddress(row.config, email) : null;
     if (!row || !next) return false;
     const put = await putTenantConfig(db, tenantId, next, row.version, by);

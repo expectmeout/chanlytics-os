@@ -18,6 +18,7 @@
  */
 import { doorOf, movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
+import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 
 const LAST_KEY = "chanlytics.workspace";
@@ -75,31 +76,33 @@ export function rememberWorkspace(slug: string | null): void {
 }
 
 /**
- * Where the home sends a tab: the last workspace used, else the one the
- * server calls active, else nowhere (an account with no workspace stays, and
- * the app shows the create screen). The query and the hash ride along, so a
- * return from Stripe or a deep link lands where it meant to.
+ * Where the home sends a tab: the workspace a sign-in came back for (`?w=`, workspace-return.ts), else the last
+ * workspace used, else the one the server calls active, else nowhere (an account with no workspace stays, and the
+ * app shows the create screen). The rest of the query and the hash ride along, so a return from Stripe or a deep
+ * link lands where it meant to.
  */
 export function homeHref(
   last: string | null,
   answer: { workspaces: Array<{ id: string; slug: string }>; activeWorkspaceId: string | null } | null,
   after = "",
 ): string | null {
-  if (last) return workspaceHref(last, after);
+  // A deep link into one workspace, signed out and back, is that workspace's: the last one this browser used is
+  // another's for a member of two, whose thread is not there.
+  const asked = askedWorkspaceOf(after);
+  if (asked.workspace) return workspaceHref(asked.workspace, asked.rest);
+  if (last) return workspaceHref(last, asked.rest);
   const active = answer?.workspaces.find((w) => w.id === answer.activeWorkspaceId);
-  return active ? workspaceHref(active.slug, after) : null;
+  return active ? workspaceHref(active.slug, asked.rest) : null;
 }
 
 /**
- * Where a session that ended mid-page signs in again: /login, carrying the
- * page's route as a hash, which the sign-in page keeps and lands on (login's
- * landed()), and the home then carries to the workspace. The route is the
- * address's, in its path or its hash; any other fragment is not a page to
- * return to.
+ * Where a session that ended mid-page signs in again: /login, carrying the page's workspace (`?w=`) and its route as
+ * a hash, which the sign-in page keeps and lands on (login's landed()), and the home then carries to that workspace.
+ * The route is the address's, in its path or its hash; any other fragment is not a page to return to.
  */
 export function signInHref(address: AddressParts): string {
   const route = routeOfPath(address.pathname) || routeOfHash(address.hash);
-  return route ? `/login#/${route}` : "/login";
+  return `/login${returnQueryOf(address.pathname)}${route ? `#/${route}` : ""}`;
 }
 
 /** This address in another workspace: the same route under the slug, and the query that came with it. */

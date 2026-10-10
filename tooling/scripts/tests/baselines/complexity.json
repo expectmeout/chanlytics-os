@@ -190,9 +190,9 @@
     "depth": 3
   },
   "apps/edge/lib/reach-out/clock.ts::reachOutClock#1": {
-    "lines": 152,
-    "branches": 56,
-    "depth": 5
+    "lines": 130,
+    "branches": 48,
+    "depth": 4
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
     "lines": 122,
@@ -205,19 +205,14 @@
     "depth": 3
   },
   "apps/edge/lib/receptionist/eval.ts::evaluateCases#1": {
-    "lines": 95,
+    "lines": 79,
     "branches": 34,
     "depth": 2
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
-    "lines": 164,
-    "branches": 42,
-    "depth": 1
-  },
-  "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
-    "lines": 144,
+    "lines": 129,
     "branches": 35,
-    "depth": 5
+    "depth": 1
   },
   "apps/edge/lib/tenant-runtime.ts::loadTenantRuntime#1": {
     "lines": 114,
@@ -230,8 +225,8 @@
     "depth": 3
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
-    "lines": 150,
-    "branches": 35,
+    "lines": 149,
+    "branches": 34,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {
@@ -250,9 +245,9 @@
     "depth": 2
   },
   "apps/edge/lib/whatsapp/webhook.ts::receiveWhatsappEvent#1": {
-    "lines": 157,
-    "branches": 48,
-    "depth": 8
+    "lines": 135,
+    "branches": 47,
+    "depth": 7
   },
   "packages/channels/src/lines/a2p-saga.ts::runA2PSaga#1": {
     "lines": 181,
@@ -398,11 +393,6 @@
     "lines": 109,
     "branches": 31,
     "depth": 1
-  },
-  "packages/core/src/leads/runner/start.ts::startRound#1": {
-    "lines": 93,
-    "branches": 32,
-    "depth": 2
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
     "lines": 151,

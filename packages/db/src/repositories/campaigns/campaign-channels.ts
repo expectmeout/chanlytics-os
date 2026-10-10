@@ -11,7 +11,8 @@ import { IDS_PER_READ } from "../people";
 type Db = SupabaseClient<Database>;
 
 /**
- * The active WhatsApp number: its config (its quality, limit and standing, as Meta last said them) and the number itself (E.164:
+ * The active WhatsApp number (the oldest, where a workspace holds two: the one a send goes from when nothing says which
+ * its person wrote to): its config (its quality, limit and standing, as Meta last said them) and the number itself (E.164:
  * offers on it are judged by Meta's pause on marketing messages to US numbers, contracts whatsapp-offers.ts), or null with
  * none. Throws on a failed read.
  */
@@ -25,6 +26,7 @@ export async function whatsappChannelFacts(
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);

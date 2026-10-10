@@ -576,3 +576,58 @@ test("every page there is says what it opens on: a page that arrives without its
     );
   for (const page of Object.keys(NONE)) assert.ok(pages.includes(page), `${page} is a page`);
 });
+
+/* ------------------------------ what the page did not take ------------------------------ */
+
+test("REGRESSION: what the head started and the page's own reads did not take is let go of once they are in -- Leads' list in Fit order, untaken by a tab that last read another order, answered the owner's pick of Fit minutes later", async () => {
+  const LEADS_FIT = "/api/v1/leads?list=all&sort=fit&dir=asc&limit=500&workspace=acme";
+  const fetched = [];
+  const win = {
+    fetch: async (url) => {
+      fetched.push(url);
+      return json({ ok: true, data: { rows: [{ id: "read now" }] } });
+    },
+    location: { pathname: "/w/acme/people/leads", search: "", hash: "", assign() {}, replace() {}, reload() {} },
+    sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() {
+      return true;
+    },
+    // What the head started as the document began: the list in Fit order, as every Leads page opens on.
+    [PREFETCH_SLOT]: {
+      [LEADS_FIT]: Promise.resolve(json({ ok: true, data: { rows: [{ id: "from the first second" }] } })),
+    },
+  };
+  globalThis.window = win;
+  globalThis.sessionStorage = win.sessionStorage;
+  globalThis.localStorage = win.localStorage;
+  globalThis.document ??= { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+  const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
+  const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  api().forget();
+  // The page's own read is the order this tab last read (leadsBootView): not the head's URL, which it never takes.
+  const leads = {
+    key: "leads",
+    apply: async () =>
+      void (await api()("GET leads", { query: { list: "all", sort: "found", dir: "desc", limit: "500" } })),
+  };
+  const stop = startSurfaces([leads], () => () => {});
+  try {
+    for (let i = 0; i < 20; i += 1) await new Promise((r) => setTimeout(r, 0));
+    assert.ok(
+      fetched.some((u) => u.includes("sort=found")),
+      "the page's own read asked the server",
+    );
+    api().forget();
+    // Minutes on, the owner sorts by Fit.
+    const r = await api()("GET leads", { query: { list: "all", sort: "fit", dir: "asc", limit: "500" } });
+    assert.equal(r.ok, true);
+    assert.equal(r.data.rows[0].id, "read now", "REGRESSION: answered from what the document's head read as it began");
+    assert.ok(fetched.includes(LEADS_FIT), "the server was asked");
+  } finally {
+    stop();
+    api().forget();
+  }
+});

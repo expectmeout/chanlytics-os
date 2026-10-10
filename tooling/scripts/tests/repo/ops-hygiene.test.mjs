@@ -11,7 +11,15 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readRaw } from "../_source.mjs";
-import { LEASE_SECONDS, SEND_SETTLE_MS, YIELD_AT_MS, sendByAt } from "../../../../packages/jobs/src/ledger.ts";
+import {
+  LEASE_SECONDS,
+  SEND_SETTLE_MS,
+  YIELD_AT_MS,
+  sendByAt,
+  startByAt,
+} from "../../../../packages/jobs/src/ledger.ts";
+import { WHATSAPP_SEND_TIMEOUT_MS } from "../../../../packages/channels/src/whatsapp.ts";
+import { TWILIO_TIMEOUT_MS } from "../../../../packages/channels/src/lines/lines-twilio.ts";
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../../apps/edge/api/cron/domains.ts";
 import { YIELD_AT_MS as QUALITY_YIELD_AT_MS } from "../../../../apps/edge/api/cron/channel-quality.ts";
 import { GRAPH_TIMEOUT_MS } from "../../../../apps/edge/lib/whatsapp/meta-graph.ts";
@@ -202,6 +210,27 @@ test("an email send started as late as a batch may start one still ends, and its
   for (let start = 0; start <= YIELD_AT_MS; start += 500) {
     const given = Math.max(SEND_MIN_MS, Math.min(SEND_DEADLINE_MS, latest - start));
     assert.ok(start + given <= latest, `a send begun at ${start} ms is given ${given} ms and must end by ${latest}`);
+  }
+});
+
+test("a WhatsApp send or a text started as late as a batch may start one still ends, and its row is settled, inside the function's ceiling", () => {
+  // Their wires are one try each under the provider's own timeout, which no ceiling shortens (only email's takes sendBy):
+  // begun just before the yield point, a WhatsApp send ran its fifteen seconds to the ceiling itself, and the five kept
+  // for the settle were gone. So a batch starts one only until startByAt, and this holds what that comes to.
+  const ceiling = FUNCTIONS["api/jobs/tick.ts"].maxDuration * 1000;
+  const latest = sendByAt(YIELD_AT_MS);
+  for (const [wire, timeout] of [
+    ["whatsapp", WHATSAPP_SEND_TIMEOUT_MS],
+    ["sms", TWILIO_TIMEOUT_MS],
+  ]) {
+    assert.ok(
+      YIELD_AT_MS + timeout + SEND_SETTLE_MS > ceiling,
+      `${wire}: begun at the yield, it would not fit: why it waits`,
+    );
+    const startBy = startByAt(YIELD_AT_MS)[wire];
+    assert.ok(startBy + timeout <= latest, `${wire}: begun at ${startBy} ms, its ${timeout} ms end by ${latest}`);
+    assert.ok(latest + SEND_SETTLE_MS <= ceiling, "and the settle after it fits");
+    assert.ok(startBy > 0, `${wire}: a tick has a moment it may start one at all`);
   }
 });
 

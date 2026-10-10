@@ -1,5 +1,7 @@
 import { initialsOf } from "../conversations/thread-contact";
 import { DAY_MS } from "../shared/time";
+import { clockDate } from "../shared/clock";
+import { ROLES, ROLE_SAYS } from "../config/workspace-config/role-perms";
 
 /**
  * Who a person is, in words.
@@ -29,12 +31,8 @@ export interface IdentityWords {
   named: boolean;
 }
 
-export const ROLE_WORDS: Record<string, string> = {
-  owner: "Owner",
-  operator: "Operator",
-  partner: "Partner",
-  viewer: "Viewer",
-};
+/** Each role's name, by its key: the role words' own (role-perms.ts ROLE_SAYS), never typed a second time. */
+export const ROLE_WORDS: Record<string, string> = Object.fromEntries(ROLES.map((r) => [r, ROLE_SAYS[r].label]));
 
 /** Initials for a person: from the name they gave (the contacts' rule), else one letter from the email, else "?". */
 export function personInitials(name: string | null | undefined, email: string | null | undefined): string {
@@ -95,19 +93,34 @@ export function providerNameOf(metadata: unknown): string | null {
   return null;
 }
 
+/** How long a team invitation is open (00012's default, and 00371's renewal): said here, never enforced. */
+export const TEAM_INVITE_DAYS = 7;
+
 /**
- * An open invitation's state on the Team card. The roster returns every
- * invitation nobody accepted or revoked, expired ones included -- an expired
- * one is still the owner's to revoke and re-send, and a card that called it
- * "pending" for ever was lying about a door that had closed.
+ * The day a member joined, as their row's second line says it: "Joined Oct 1", with the year when it is not this one,
+ * on the workspace's calendar. Null where the roster did not say (an older server's answer).
  */
-export function inviteState(expiresAt: string | null | undefined, nowMs: number): { expired: boolean; words: string } {
-  const at = expiresAt ? Date.parse(expiresAt) : NaN;
-  if (Number.isNaN(at)) return { expired: false, words: "invite pending" };
-  if (at <= nowMs) return { expired: true, words: "invite expired — revoke it and send a new one" };
+export function joinedWords(joinedAt: string | null | undefined, tz: string, nowMs: number): string | null {
+  const at = joinedAt ? Date.parse(joinedAt) : NaN;
+  return Number.isNaN(at) ? null : `Joined ${clockDate(at, tz, nowMs)}`;
+}
+
+/**
+ * An open invitation on the Team card: when it went and how long it has, or that it expired. The roster returns every
+ * invitation nobody accepted or revoked, expired ones included: an expired one is still the owner's to send again, and
+ * a card that called it pending for ever was lying about a door that had closed. `sent` is null where the roster did
+ * not say when it went.
+ */
+export function invitationWords(
+  inv: { createdAt?: string | null; expiresAt?: string | null },
+  tz: string,
+  nowMs: number,
+): { expired: boolean; sent: string | null; left: string | null } {
+  const sentAt = inv.createdAt ? Date.parse(inv.createdAt) : NaN;
+  const sent = Number.isNaN(sentAt) ? null : `invited ${clockDate(sentAt, tz, nowMs)}`;
+  const at = inv.expiresAt ? Date.parse(inv.expiresAt) : NaN;
+  if (Number.isNaN(at)) return { expired: false, sent, left: null };
+  if (at <= nowMs) return { expired: true, sent, left: null };
   const days = Math.ceil((at - nowMs) / DAY_MS);
-  return {
-    expired: false,
-    words: days <= 1 ? "invite pending · expires today" : `invite pending · expires in ${days} days`,
-  };
+  return { expired: false, sent, left: days <= 1 ? "expires today" : `${days} days left` };
 }

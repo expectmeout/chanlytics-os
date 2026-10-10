@@ -236,6 +236,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     ];
   },
   "POST team/invite": settings,
+  "POST team/invite/[id]/resend": settings,
   "PATCH team/[id]": settings,
   "DELETE team/[id]": settings,
   // Connections repaints, and so does the Setup row that said "Connect".
@@ -340,6 +341,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST partner/invitations/[id]/decline": "the invitation leaves the pane's own list, which it reads again",
   "POST team/partner": "the team's partner card reads the workspace's partner again (settings/partner/team-card.tsx)",
   "DELETE team/partner": "the team's partner card reads the workspace's partner again (settings/partner/team-card.tsx)",
+  // The member who left is no longer in the workspace: the page takes them out of it, and nothing of it is read again.
+  "POST team/leave": "the leaver goes to their workspaces (settings/team), where this one is no longer listed",
   // The back office reads its own lists on demand (platform.ts): no surface holds them.
   "POST platform/jobs/requeue":
     "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",

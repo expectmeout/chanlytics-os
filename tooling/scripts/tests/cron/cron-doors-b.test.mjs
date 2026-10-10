@@ -1553,6 +1553,7 @@ test("google: listings not read for twenty hours are read again — never read f
     fresh: 1,
     counted: 1,
     failed: 1,
+    remaining: 0,
   });
 
   // The rotation, from what was asked.
@@ -1759,6 +1760,7 @@ test("google: a connected profile not synced for twenty hours is synced as the o
       fresh: 0,
       counted: 0,
       failed: 1,
+      remaining: 0,
     },
     "the pending profile is not due; the rejected one fails without throwing",
   );
@@ -1837,6 +1839,61 @@ test("google: a connected profile not synced for twenty hours is synced as the o
   assert.equal(s2, 200);
   assert.deepEqual([b2.profiles_due, b2.profiles_synced, b2.failed], [1, 0, 1]);
   assert.equal(net.calls.length, 4, "one more token request, for the one profile still due");
+});
+
+test("google: past the tick's budget no listing or profile is started: the rest of the page is remaining, unread and unstamped, and keeps its place for the next hour", async (t) => {
+  // Forty reads and forty syncs in turn, with no deadline, could run past the function's minute: killed part way, the
+  // sweep answered nothing, and its request read as a timeout (the calendar's sweep was cut to a budget for the same).
+  t.mock.timers.enable({ apis: ["Date"], now: NOW });
+  const tenants = [];
+  const listings = [];
+  for (let n = 0; n < 3; n++) {
+    const T = tenant(300 + n);
+    tenants.push(tenantRow(T));
+    listings.push(listing(T, 300 + n, { checked_at: ago((30 - n) * HOUR) }));
+  }
+  const tables = {
+    tenants,
+    google_listings: listings,
+    google_connections: [],
+    google_reviews: [],
+    google_listing_days: [],
+    notifications: [],
+    events: [],
+  };
+  use(tables);
+  const net = wired((req) => {
+    // The first read takes the rest of the function's minute.
+    if (net.calls.length === 1) t.mock.timers.tick(60_000);
+    return { status: 200, body: place(placeIdOf(req.url)) };
+  });
+  const before = listings.map((l) => l.checked_at);
+
+  const [status, body] = await answer(await knock("google"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(
+    [body.listings_due, body.listings_read, body.failed, body.remaining],
+    [3, 1, 0, 2],
+    "one read; the two the budget left are remaining, not failed",
+  );
+  assert.deepEqual(
+    net.calls.map((c) => placeIdOf(c.url)),
+    [listings[0].place_id],
+  );
+  assert.deepEqual(
+    listings.slice(1).map((l) => l.checked_at),
+    before.slice(1),
+    "unread and unstamped: they keep their place at the front of the next page",
+  );
+
+  // The next hour reads them, oldest first.
+  const [s2, b2] = await answer(await knock("google"));
+  assert.equal(s2, 200);
+  assert.deepEqual([b2.listings_due, b2.listings_read, b2.remaining], [2, 2, 0]);
+  assert.deepEqual(
+    net.calls.slice(1).map((c) => placeIdOf(c.url)),
+    [listings[1].place_id, listings[2].place_id],
+  );
 });
 
 /* ------------------------------------------------------------------ lines */

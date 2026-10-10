@@ -1,6 +1,6 @@
 import type { MessageDto } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { listPeople } from "@/server/people/people";
+import { everyoneOnce } from "@/server/people/people";
 import { tenantFacts } from "@/server/tenant";
 import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/dto";
 import { attachmentStream, dateTag, safeName } from "@/server/export/export";
@@ -30,10 +30,11 @@ export const GET = read({
       return data ?? [];
     };
     const readers: BundleReaders = {
-      // Paged like every other section: one people_list call is capped at 1000
-      // in the database, and this bundle is streamed precisely so a workspace
-      // of any size downloads whole.
-      people: (offset, limit) => listPeople(ctx, tenantId, { offset, limit }),
+      // Paged: one people_list call is capped at 1000 in the database, and this
+      // bundle is streamed precisely so a workspace of any size downloads whole.
+      // Not by offset, as the other sections are: People's order moves as
+      // someone writes, so each person is read exactly once (everyoneOnce).
+      people: () => everyoneOnce(ctx, tenantId),
       conversations: (offset, limit) =>
         rows(
           supabase

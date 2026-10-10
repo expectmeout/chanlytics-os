@@ -136,7 +136,10 @@ test("words that may go, go: the wire is handed them, a row records them, the th
   const out = await deliver(ports(t, w), words({ meta: { source: "test" } }));
   assert.equal(out.outcome, "sent");
   assert.equal(out.externalId, "wamid.1");
-  assert.deepEqual(w.calls, [{ to: "+13475550101", p: { body: "See you at 3", template: undefined } }]);
+  // With the thread they are for: a wire that holds two numbers reads by it which one the person wrote to.
+  assert.deepEqual(w.calls, [
+    { to: "+13475550101", p: { body: "See you at 3", template: undefined, conversationId: "c1" } },
+  ]);
   assert.equal(t.messages.length, 1);
   const row = t.messages[0];
   assert.equal(out.messageId, row.id);
@@ -301,6 +304,47 @@ test("a hold that has run out holds nothing: the fact expires, which is what the
     (await deliver(ports(tables({ conversations: [lapsed()] }), wireOf()), words({ sender: "ai" }))).outcome,
     "sent",
   );
+});
+
+test("a call's own hold does not refuse what that call sends: the link the phone receptionist texts the caller mid-call goes, while a person's hold and another call's still refuse it", async () => {
+  // The inbound door takes the caller's thread for the call (00132), and the call's tool then texts the booking link
+  // into that same thread. Held against itself, the link was refused as "human_has_it" and the agent told the caller a
+  // person was on it, with no person and no escalation anywhere.
+  const until = new Date(NOW + 600_000).toISOString();
+  const byCall = (ref) => thread({ control_kind: "call", control_ref: ref, control_until: until });
+  const byPerson = () => thread({ control_kind: "person", control_by: "u1", control_until: until });
+  const onTheCall = (over = {}) =>
+    words({ sender: "ai", onCall: "call_this", meta: { call_id: "call_this" }, ...over });
+  const send = async (conversation, d) => {
+    const w = wireOf();
+    const out = await deliver(ports(tables({ conversations: [conversation] }), w), d);
+    return [out.outcome, out.outcome === "refused" ? out.reason : null, w.calls.length];
+  };
+  assert.deepEqual(await send(byCall("call_this"), onTheCall()), ["sent", null, 1], "the call's own hold: it goes");
+  assert.deepEqual(
+    await send(byCall("call_other"), onTheCall()),
+    ["refused", "human_has_it", 0],
+    "another call's hold holds it",
+  );
+  assert.deepEqual(await send(byPerson(), onTheCall()), ["refused", "human_has_it", 0], "a person's hold holds it");
+  assert.deepEqual(
+    await send(byCall("call_this"), words({ sender: "ai" })),
+    ["refused", "human_has_it", 0],
+    "a send that names no call is held by the call: the text receptionist does not talk over it",
+  );
+  assert.deepEqual(
+    await send(byCall("call_this"), onTheCall({ onCall: null })),
+    ["refused", "human_has_it", 0],
+    "nor does a send whose call has no id",
+  );
+  // The hold is passed, never the pause: a thread a person paused still holds what the call sends.
+  const pausedToo = thread({
+    control_kind: "call",
+    control_ref: "call_this",
+    control_until: until,
+    paused_until: until,
+  });
+  assert.deepEqual(await send(pausedToo, onTheCall()), ["refused", "human_has_it", 0], "the pause still holds");
 });
 
 test("a queued row is finalized in place: sent with its id, or canceled with its reason and an event that says why", async () => {
@@ -1096,7 +1140,9 @@ test("an email is handed what is left of its caller's ceiling at the moment it i
     globalThis.fetch = realFetch;
   }
   assert.deepEqual(asked, [10_000, 3_000, 15_000, 15_000], "each try is the smaller of 15 s and what is left");
-  // A text is handed none: only the email wire has a send that can outlive the tick.
+  // A text is handed none: its wire is one try under the provider's own timeout, which a ceiling cannot shorten, so it is
+  // the batch that starts one only while that timeout still ends inside the tick (jobs ledger startByAt,
+  // broadcast-by-channel.test.mjs). Only the email wire's send is bounded by what is left.
   const texts = [];
   const sms = async (to, p) => (texts.push({ to, p }), { ok: true, wamid: "SM1", status: 200 });
   await deliver(ports(tables(), { wire: { sms } }), {
@@ -2480,8 +2526,10 @@ test("a broadcast's email through the real door (decision D1): the run's news is
       "visit_tomorrow",
     ],
     ["their visit, but they said STOP", customer({ consent: "opted_out" }), VISIT, held("opted_out"), "visit_tomorrow"],
-    // The moment, not the row, says it: a monthly offer's moment is the business's news though the row kept a visit.
-    ["news on a monthly moment, a visit kept", addressAlone(), VISIT, held("not_opted_in"), "everyone_monthly"],
+    // The moment, not the row, says it: a monthly offer's moment is the business's news though the row kept a visit. It
+    // is an offer's moment, so the door asks the stricter purpose its enrolment asked (enrolPurpose), and what it lacks
+    // is a yes to offers: held as no_marketing_consent, never sent.
+    ["news on a monthly moment, a visit kept", addressAlone(), VISIT, held("no_marketing_consent"), "everyone_monthly"],
   ];
   for (const [what, who, facts, marks, trigger] of cases) {
     const out = await broadcastBatchByEmail({ who, facts, trigger });

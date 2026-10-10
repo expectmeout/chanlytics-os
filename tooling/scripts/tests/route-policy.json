@@ -1442,6 +1442,22 @@
       "rate": "invite",
       "spend": false
     },
+    "POST team/invite/[id]/resend": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "invite",
+      "spend": false
+    },
+    "POST team/leave": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "team",
+      "spend": false
+    },
     "GET team/partner": {
       "kind": "read",
       "scope": "workspace",

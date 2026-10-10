@@ -107,7 +107,7 @@ test("the wiring: the stamp door, its grant, and the ten-minute backstop", () =>
     "a warm cache is checked, not trusted",
   );
   assert.ok(
-    src.includes("cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });"),
+    src.includes("cache.set(cacheKey(routed), { v: rt, exp: Date.now() + TTL_MS, stamp });"),
     "the stamp is stored with the load",
   );
 });

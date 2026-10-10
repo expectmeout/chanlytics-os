@@ -122,15 +122,17 @@
   .rpt-period > .rpt-when-open[data-wide] { padding-inline-start: var(--space-4); }
   .rpt-when-open[data-wide] > .rpt-when-glyph { display: none; }
 }
-/* What it opens: the days in words, the four periods, the days reached in one press, then the month to pick any on, at
-   the width seven days need. The one-press days are a row that wraps, set close under the periods they stand with. */
-/* No taller than the room under its button (Base UI's --available-height): on a phone the month's last week and its
-   words were under the screen, and nothing scrolled (10 Oct 2026). A finger that scrolls it from a day presses none
+/* What it opens: the days in words, the presets, then the month to pick any on, at the width seven days need. No taller
+   than the room under its button (Base UI's --available-height): on a phone the month's last week and its words were
+   under the screen, and nothing scrolled (10 Oct 2026). A finger that scrolls it from a day presses none
    (range-press.ts). */
-.rpt-when { display: grid; gap: 14px; width: 312px; max-width: calc(100vw - 24px); max-height: var(--available-height, none); overflow-y: auto; overscroll-behavior: contain; }
-/* The periods' control in a wrapper of no box of its own, which hears a press on it and closes the popover. */
-.rpt-when-periods { display: contents; }
-.rpt-when-quick { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: calc(-1 * var(--space-2)); }
+.rpt-when { display: grid; gap: 12px; width: 312px; max-width: calc(100vw - 24px); max-height: var(--available-height, none); overflow-y: auto; overscroll-behavior: contain; }
+/* The presets, which hear a press on them and close the popover: the four periods' track over the shortcuts', drawn
+   alike (10 Oct 2026: the shortcuts were a row of quiet words under a track, two looks for one choice). Each track runs
+   across the popover and shares itself out evenly, a preset never narrower than its words. */
+.rpt-when-periods { display: grid; gap: 6px; }
+.rpt-when .rpt-when-presets { display: flex; width: 100%; }
+.rpt-when-presets > button { flex: 1 1 0; min-width: max-content; }
 .rpt-when-head { display: grid; gap: 2px; padding: 2px 4px 0; }
 .rpt-when-range { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
 .rpt-when-said { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }

@@ -199,8 +199,32 @@ test("the words on the two doors", () => {
 });
 
 test("an account with an authenticator shows its code before it lands anywhere; Google is never the second factor (0013)", () => {
-  assert.equal(landingAfter("/#/inbox", { currentLevel: "aal1", nextLevel: "aal2" }), "/verify");
+  assert.equal(landingAfter("/", { currentLevel: "aal1", nextLevel: "aal2" }), "/verify");
   assert.equal(landingAfter("/#/inbox", { currentLevel: "aal1", nextLevel: "aal1" }), "/#/inbox", "no factor");
   assert.equal(landingAfter("/#/inbox", { currentLevel: "aal2", nextLevel: "aal2" }), "/#/inbox", "shown");
   assert.equal(landingAfter("/#/inbox", null), "/#/inbox", "unread lands as planned; the partner door asks again");
+});
+
+test("REGRESSION: the second step goes on to the workspace and the route the sign-in was carrying, as the email's landing does -- it went to /verify alone, and on to the home of the workspace used last", () => {
+  const owed = { currentLevel: "aal1", nextLevel: "aal2" };
+  assert.equal(landingAfter("/?w=bayside#/inbox/th-1", owed), "/verify?w=bayside#/inbox/th-1");
+  assert.equal(landingAfter("/#/inbox", owed), "/verify#/inbox", "the route alone");
+  assert.equal(landingAfter("/?w=bayside", owed), "/verify?w=bayside", "the workspace's own page");
+  assert.equal(
+    landingAfter("/?w=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa#/today", owed),
+    "/verify?w=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa#/today",
+    "a workspace named by its id",
+  );
+  // The workspace is checked as a workspace's name, and nothing else of the query rides on.
+  assert.equal(
+    landingAfter("/?error=oauth&w=bayside&next=%2F%2Fevil.example#/inbox", owed),
+    "/verify?w=bayside#/inbox",
+  );
+  for (const bad of ["//evil.example", "https://evil.example", "a/b", "..", "-x", "x y", ""])
+    assert.equal(landingAfter(`/?w=${encodeURIComponent(bad)}#/inbox`, owed), "/verify#/inbox", `w=${bad}`);
+  // Never anywhere but the second step's page on this site, whatever it is handed.
+  for (const bad of ["//evil.example/?w=acme#/inbox", "https://evil.example/?w=acme", "/\\evil.example", "/x\r\ny"])
+    assert.equal(landingAfter(bad, owed), "/verify", JSON.stringify(bad));
+  for (const to of ["/?w=bayside#/inbox", "/#/inbox", "//evil.example", "/?w=%2F%2Fevil#x", "/?w=a&w=b#//evil"])
+    assert.match(landingAfter(to, owed), /^\/verify(?:[?#]|$)/, to);
 });

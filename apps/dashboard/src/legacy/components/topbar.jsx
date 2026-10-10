@@ -621,7 +621,7 @@ window.Topbar = Topbar;
 // used to be a line at the sidebar's foot, which a phone keeps in its drawer
 // and the rail cut to an icon. The live region stays mounted while all is
 // well, so the next change is announced.
-const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", stale: "sparkle", degraded: "clock", disconnected: "bolt" };
+const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", preview: "eye", stale: "sparkle", degraded: "clock", disconnected: "bolt" };
 /**
  * The live-call bar: who is on the phone right now, and how long.
  *
@@ -671,15 +671,23 @@ const ShellStatusBar = () => {
   React.useEffect(() => {
     window.addEventListener("shell:status", bump);
     window.addEventListener("surface:billing", bump);
-    return () => { window.removeEventListener("shell:status", bump); window.removeEventListener("surface:billing", bump); };
+    // An owner's preview of a narrower role (Settings › Team, Preview as): the role store says so as it changes.
+    window.addEventListener("team:changed", bump);
+    return () => {
+      window.removeEventListener("shell:status", bump);
+      window.removeEventListener("surface:billing", bump);
+      window.removeEventListener("team:changed", bump);
+    };
   }, []);
   // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the line says so.
   const B = window.__BILLING_ACCOUNT;
   const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
-  const line = window.__chrome ? window.__chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused }) : null;
+  const previewing = (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
+  const line = window.__chrome ? window.__chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused, previewing }) : null;
   const press = () => {
     if (!line) return;
     if (line.action === "billing") { if (window.CHANLY) window.CHANLY.nav("admin/billing"); return; }
+    if (line.action === "exit-preview") { if (window.ST_STORE && window.ST_STORE.setViewAs) window.ST_STORE.setViewAs(null); return; }
     if (line.action === "reload") { window.location.reload(); return; }
     // Busy, not disabled: the focus stays on the button, and a second press waits for the first read.
     if (line.action === "retry" && window.__shell && !busy) {

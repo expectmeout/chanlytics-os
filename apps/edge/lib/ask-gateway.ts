@@ -44,9 +44,10 @@ export interface AskUsage {
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /**
- * Ask's tokens in the last day, this workspace: input plus output of every usage.ask_tokens event of the last 24
- * hours, summed in one statement (ask_tokens_day, 00240). A read that fails is not known, and says so (null): the door
- * holds the turn rather than let a failed count read as a day with nothing spent (the scorecard, 29 September).
+ * Ask's tokens in the last day, this workspace: input, cache writes and output of every usage.ask_tokens event of the
+ * last 24 hours, a cache read not counted, summed in one statement (ask_tokens_day, 00240, 00368). A read that fails is
+ * not known, and says so (null): the door holds the turn rather than let a failed count read as a day with nothing
+ * spent (the scorecard, 29 September).
  */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
   const L = logger({ tenant_id: tenantId });
@@ -81,6 +82,12 @@ export async function recordAskUsage(
 }
 
 /**
+ * A transformer with the cancel step the Streams standard has given it, which Node 22 (the engines' floor) runs when
+ * the readable side is cancelled or the writable side aborted. TypeScript's DOM types do not name it yet.
+ */
+type CancellableTransformer<I, O> = Transformer<I, O> & { cancel?: (reason: unknown) => Promise<void> | void };
+
+/**
  * Read the usage out of an event stream as it passes.
  *
  * The API says what a message cost in two places: message_start carries the
@@ -88,6 +95,15 @@ export async function recordAskUsage(
  * stop reason. The stream is forwarded byte for byte; only complete `data:`
  * lines are inspected, so a chunk boundary inside a JSON payload changes
  * nothing.
+ *
+ * `onDone` runs once, however the stream ends: at its end, or with what was
+ * read so far when it is cut. It used to run only at a clean end (flush), and
+ * a stream cut short never flushes: one the dashboard abandoned (its turn's
+ * budget), one its try's bound ended, one the upstream broke. The round had
+ * been spent all the same, and it was missing from Ask's day and from the
+ * ledger. A cut from either side cancels the transform, which settles the
+ * round before the cut reaches the other side. (The API says the output side
+ * only at the end, so a round cut before it counts its input side alone.)
  */
 export function teeUsage(
   upstream: ReadableStream<Uint8Array>,
@@ -139,17 +155,21 @@ export function teeUsage(
     if (carry) scan("\n");
     await onDone(usage, stopReason);
   };
-  return upstream.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        scan(decoder.decode(chunk, { stream: true }));
-        controller.enqueue(chunk);
-      },
-      async flush() {
-        await settle();
-      },
-    }),
-  );
+  const tee: CancellableTransformer<Uint8Array, Uint8Array> = {
+    transform(chunk, controller) {
+      scan(decoder.decode(chunk, { stream: true }));
+      controller.enqueue(chunk);
+    },
+    async flush() {
+      await settle();
+    },
+    // The reader cancelled (the dashboard's abort), or the upstream failed and the pipe aborted this side: flush never
+    // runs then, and the stream holds the cancel, or the error, until this returns.
+    async cancel() {
+      await settle();
+    },
+  };
+  return upstream.pipeThrough(new TransformStream(tee));
 }
 
 /** What a gateway request may ask for. Everything else is refused before the key is spent. */

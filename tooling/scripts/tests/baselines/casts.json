@@ -405,9 +405,6 @@
   "packages/db/src/repositories/reach-out-sheet.ts": {
     "nonNull": 1
   },
-  "packages/db/src/repositories/reach-out.ts": {
-    "unknownAs": 1
-  },
   "packages/db/src/repositories/sending-domains.ts": {
     "never": 1
   }

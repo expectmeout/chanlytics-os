@@ -15,9 +15,14 @@ import { twilioSignature } from "@chanlytics/channels";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setPg } = await import(at("apps/edge/lib/pg.ts"));
+const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
+const { replayProviderEvent } = await import(at("apps/edge/lib/intake/replay.ts"));
 const door = await import(at("apps/edge/api/sms-status.ts"));
 after(() => setPg(null));
+
+/** The pager's mail settings: none in this file but where a case listens for the page. */
+const MAIL = ["RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"];
+for (const k of MAIL) delete process.env[k];
 
 const DOOR = "https://chanlytics-messaging.vercel.app/api/sms-status";
 const pad = (n, width) => String(n).padStart(width, "0");
@@ -52,10 +57,12 @@ function world(over = {}) {
     ...(over.row ?? {}),
   };
   const tables = { lines: [line], messages: [row] };
-  const db = fakeDb(tables, over.faults ?? {}, {
+  const rpcs = {
     get_line_credentials: ({ p_line_id }) => (p_line_id === line.id ? { auth_token: TOKEN } : {}),
-  });
-  setPg(db);
+  };
+  setPg(fakeDb(tables, over.faults ?? {}, rpcs));
+  /** The database well again, over the same rows. */
+  const heal = () => setPg(fakeDb(tables, {}, rpcs));
   const form = (over = {}) => ({
     MessageSid: sid,
     MessageStatus: "delivered",
@@ -76,8 +83,47 @@ function world(over = {}) {
     );
     return res.status;
   };
-  return { T, LINE, TOKEN, line, row, tables, form, post };
+  return { T, LINE, TOKEN, line, row, tables, form, post, heal };
 }
+
+/**
+ * The platform's mailbox, listening: the pager's mail goes through Resend, captured here and answered as delivered.
+ * `mail()` is what it was asked to send ({ from, to, subject, text }).
+ */
+function pagerListening() {
+  const saved = Object.fromEntries(MAIL.map((k) => [k, process.env[k]]));
+  Object.assign(process.env, {
+    RESEND_API_KEY: "re_test_only",
+    LEAD_TO: "ops@platform.test",
+    LEAD_FROM: "pager@platform.test",
+  });
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  };
+  return {
+    mail: () => calls.filter((c) => c.url.includes("api.resend.com")).map((c) => JSON.parse(c.init.body)),
+    restore: () => {
+      globalThis.fetch = real;
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    },
+  };
+}
+
+/** A kept delivery knocks on this door again, as an operator's replay does (api/admin/intake/replay). */
+const replayed = async (id) => {
+  const res = await replayProviderEvent(
+    pg(),
+    { provider: "twilio", provider_event_id: id },
+    { "/api/sms-status": door.POST },
+  );
+  return (await res.json()).status;
+};
 
 test("delivered, read, and a carrier's refusal each land on the row by its sid; the refusal keeps the carrier's code", async () => {
   const w = world();
@@ -205,12 +251,49 @@ test("the receptionist's reply is said as the receptionist's, and a thread alrea
   assert.equal(bell.length, 1);
 });
 
-test("a flag the database would not take is a 503 with the row untouched, so the carrier says it again", async () => {
+test("a flag the database would not take is a 503 with the row untouched; Twilio never says it again, so the report is kept, the platform is paged with the key that replays it, and the replay lands once the database is well", async () => {
+  // The door answered 503 and waited for a retry that Twilio does not make for a 5xx: the reply the carrier refused
+  // stayed `sent`, its thread unflagged, and nobody was told.
   const w = world({ faults: { "escalations.insert": { message: "the database is down" } } });
-  assert.equal(await w.post(w.form({ MessageStatus: "undelivered", ErrorCode: "30007" })), 503);
-  assert.equal(w.row.status, "sent", "the row did not move: the next callback finds it as it was");
-  assert.equal(w.row.error, null);
-  assert.deepEqual(raised(w), { holds: [], bell: [], events: [] });
+  const pager = pagerListening();
+  try {
+    assert.equal(await w.post(w.form({ MessageStatus: "undelivered", ErrorCode: "30007" })), 503);
+    assert.equal(w.row.status, "sent", "the row did not move: the replay finds it as it was");
+    assert.equal(w.row.error, null);
+    assert.deepEqual(raised(w), { holds: [], bell: [], events: [] });
+
+    const key = `${w.row.external_id}:undelivered`;
+    assert.deepEqual(
+      w.tables.provider_events.map((e) => [e.provider, e.provider_event_id, e.door, e.tenant_id]),
+      [["twilio", key, "/api/sms-status", w.T]],
+      "kept as it came, under the key it is replayed by",
+    );
+    assert.deepEqual(
+      (w.tables.operator_pages ?? []).map((p) => p.key),
+      [`sms_status_unrecorded:${w.T}`],
+      "REGRESSION: a 503 Twilio never retries, and nobody was told",
+    );
+    const [page] = pager.mail();
+    assert.match(page.subject, /A text's delivery report could not be recorded/);
+    assert.ok(page.text.includes(`"provider_event_id":"${key}"`), "the page names the delivery to replay");
+    assert.ok(!page.text.includes(w.LINE) && !page.text.includes("6465550100"), "and never a number");
+
+    // A second report lost in the same window is on the log, and pages nobody twice.
+    w.tables.messages.push({ ...w.row, id: "m-2", external_id: "SM" + "2".repeat(32) });
+    assert.equal(await w.post(w.form({ MessageSid: "SM" + "2".repeat(32), MessageStatus: "failed" })), 503);
+    assert.equal(pager.mail().length, 1);
+
+    // The database is well again, and the kept delivery knocks on the door as it came: its signature holds, the thread
+    // is flagged and the row fails, once.
+    w.heal();
+    assert.equal(await replayed(key), 200);
+    assert.equal(w.row.status, "failed");
+    assert.deepEqual(w.row.error, { carrier: "undelivered", code: "30007" });
+    const { holds, bell, events } = raised(w);
+    assert.deepEqual([holds.length, bell.length, events.length], [1, 1, 1]);
+  } finally {
+    pager.restore();
+  }
 });
 
 test("a STOP the carrier tells us late (21610) is the person's STOP: recorded as the send door records one, and raised as nothing", async () => {
@@ -244,7 +327,7 @@ test("a STOP the carrier tells us late (21610) is the person's STOP: recorded as
   assert.equal(w.tables.events.length, 1);
 });
 
-test("a late STOP is written for our own text and its person alone: not over a newer answer, an erased person, or a row that is not ours; a database that refuses it is a 503 and the retry lands", async () => {
+test("a late STOP is written for our own text and its person alone: not over a newer answer, an erased person, or a row that is not ours; a database that refuses it is a 503 and the replay lands", async () => {
   const stop = (w) => w.form({ MessageStatus: "undelivered", ErrorCode: "21610" });
   const person = (w, id, over = {}) => ({
     id,
@@ -289,10 +372,19 @@ test("a late STOP is written for our own text and its person alone: not over a n
   assert.equal(await back.post(stop(back)), 200);
   assert.deepEqual([back.tables.contacts[0].consent, back.tables.events.length], ["opted_in", 0]);
 
-  // A database that cannot read the person: 503, with the row already moved, and the carrier's retry records the STOP.
+  // A database that cannot read the person: 503, with the row already moved, and the platform paged. Twilio does not
+  // say it again: the kept delivery's replay records the STOP.
   const down = made({ contact_id: "k-3" }, (w) => [person(w, "k-3")], {
     faults: { "contacts.select": { message: "contacts is away" } },
   });
-  assert.equal(await down.post(stop(down)), 503, "the carrier says it again");
+  assert.equal(await down.post(stop(down)), 503);
   assert.equal(down.tables.contacts[0].consent, "opted_in");
+  assert.deepEqual(
+    down.tables.operator_pages.map((p) => p.key),
+    [`sms_status_unrecorded:${down.T}`],
+    "the platform is told",
+  );
+  down.heal();
+  assert.equal(await replayed(`${down.row.external_id}:undelivered`), 200);
+  assert.deepEqual([down.tables.contacts[0].consent, down.tables.messages[0].status], ["opted_out", "failed"]);
 });

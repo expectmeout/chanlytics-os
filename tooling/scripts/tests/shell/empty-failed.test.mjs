@@ -511,7 +511,7 @@ test("a team that could not be read draws the one FailedRead, and its Retry re-r
   assert.ok(card, "REGRESSION: the card that offered a page reload");
   assert.equal(textOf(byClass(card, "empty-title")), "Couldn't read your team");
   assert.ok(textOf(card).includes("only the member list failed to load"));
-  assert.equal(byType(tree, MoreMenu), null, "no seeded strangers with menus");
+  assert.equal(byClass(tree, "set-team-row"), null, "no seeded strangers on the roster");
   byTestId(tree, "team-failed-retry").props.onClick();
   assert.deepEqual(calls.refresh, ["settings"]);
 });

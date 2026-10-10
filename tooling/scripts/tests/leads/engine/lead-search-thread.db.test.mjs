@@ -110,6 +110,8 @@ before(async () => {
       .select("id")
       .single(),
   ).id;
+  // A workspace that may spend (00364): the door asks, and a new workspace's plan has not started.
+  ok(await db.from("billing_accounts").upsert({ tenant_id: A, mode: "direct", status: "active" }));
   B = ok(
     await db
       .from("tenants")

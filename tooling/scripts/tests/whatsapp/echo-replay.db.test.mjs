@@ -72,7 +72,7 @@ test(
       });
 
     const first = new Date(Date.now() + 6 * 3_600_000).toISOString();
-    await echo(first);
+    assert.equal(await echo(first), true, "kept, and the thread paused: the door acknowledges it");
     const opened = await threadOf();
     assert.equal(opened.state, "needs_human");
     assert.equal(
@@ -84,7 +84,11 @@ test(
     // Meta, redelivering. The pause it carries is a fresh one, computed at the
     // moment of THIS delivery -- which is exactly what must not be written.
     const later = new Date(Date.now() + 6 * 3_600_000 + 90_000).toISOString();
-    await echo(later);
+    assert.equal(
+      await echo(later),
+      true,
+      "a redelivery of an echo kept whole is kept: acknowledged, nothing more written",
+    );
     const after_ = await threadOf();
     assert.equal(
       Date.parse(after_.paused_until),

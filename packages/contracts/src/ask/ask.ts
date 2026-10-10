@@ -116,14 +116,22 @@ export const ASK_MAX_TOKENS = 4000;
 export const ASK_WARM_MAX_TOKENS = 64;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
- * Counted on uncached input plus output. With the page's context riding into
- * every round behind its own cache breakpoint (a cache read is not counted),
- * a turn costs two to eight thousand such tokens; a busy owner
- * asking sixty questions stays well under this, and an eval run of the whole
- * case set fits several times over. The first cap (400k) was spent by a day
- * of eval runs and refused the palette until the window rolled.
+ * Counted on uncached input, cache writes and output (ask_tokens_day, 00368);
+ * a cache read is not counted. A write is counted because it is input the
+ * model was sent, billed above uncached input: a warm (`ask_warm`) writes a
+ * turn's head, some thirty thousand tokens, and counted under a hundred while
+ * writes were not, so warms were the one thing the day did not bound.
+ *
+ * Counting them, the number doubled with them (1.5M before). A turn costs two
+ * to eight thousand uncached input and output tokens, and about one question
+ * in three misses the head and writes it again (the fortnight to 5 October):
+ * a busy owner's sixty questions come to some 1.1M to 1.6M counted, and 1.8M
+ * when every one is more than the cache's five minutes from the last. The cap
+ * keeps that day inside it with room, and still stops a loop of warms at a
+ * hundred heads. The first cap (400k) was spent by a day of eval runs and
+ * refused the palette until the window rolled.
  */
-export const ASK_TOKENS_DAY = 1_500_000;
+export const ASK_TOKENS_DAY = 3_000_000;
 /** How much of the workspace one read may return. The words stay the pages' words. */
 export const ASK_CAPS = {
   threads: 20,

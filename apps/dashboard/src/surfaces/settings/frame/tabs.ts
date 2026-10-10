@@ -66,15 +66,18 @@ export const isPlatformAdmin = (): boolean =>
 /** The section an address under Settings names: what stands before a row it may name (`workspace/calendar` is `workspace`). */
 const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.indexOf("/")) : id);
 
+/** The sections an address may name a row of: Business's rows, and the part of the product Activity opens on. */
+const SECTIONS_WITH_ROWS = new Set(["workspace", "activity"]);
+
 /**
- * The Business row an address names after its section, or null: `workspace/calendar` names the row `calendar`
- * (contracts CALENDAR_SETTING_ROUTE). A door on another page that says "Check the link" or "Look at them" lands on the
- * row it means, open, where it landed at the top of the tab with the row a screen down (7 Oct 2026). Business alone has
- * rows; an address that names one anywhere else names none.
+ * The row an address names after its section, or null: `workspace/calendar` names Business's row `calendar`
+ * (contracts CALENDAR_SETTING_ROUTE), and `activity/team` the log of the team's changes (Team's Activity, 9 Oct 2026).
+ * A door on another page that says "Check the link" or "Look at them" lands on the row it means, open, where it landed
+ * at the top of the tab with the row a screen down (7 Oct 2026). An address that names one anywhere else names none.
  */
 export const settingsRowOf = (param: string | null | undefined): string | null => {
   const p = param || "";
-  if (sectionOf(p) !== "workspace" || !p.includes("/")) return null;
+  if (!SECTIONS_WITH_ROWS.has(sectionOf(p)) || !p.includes("/")) return null;
   return p.slice(p.indexOf("/") + 1).split("/")[0] || null;
 };
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { PROFILE_NAME_MAX } from "@chanlytics/contracts";
 import type { AskContextRowKind, AskSurface, PageContext, PageContextRow } from "@chanlytics/contracts";
 import type { ReaderContext, RowKind, RowRef } from "../../readers";
 
@@ -28,8 +29,11 @@ export interface Provided {
 
 export type Provider = (rc: ReaderContext, ctx: PageContext) => Promise<Provided>;
 
-/** The caps (the plan, D11): rows, a row's line, a title, the aggregate, and every block together, in characters. */
-export const CONTEXT_CAPS = { rows: 40, text: 160, title: 80, aggregate: 1_200, total: 8_000 } as const;
+/**
+ * The caps (the plan, D11): rows, a row's line, a title, the aggregate, and every block together, in characters. A
+ * title is a name as a prompt may show one (contracts promptSafeName), so its cap is that one's.
+ */
+export const CONTEXT_CAPS = { rows: 40, text: 160, title: PROFILE_NAME_MAX, aggregate: 1_200, total: 8_000 } as const;
 
 /** Cut to `n` characters, the cut said with an ellipsis. */
 export const clip = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, Math.max(0, n - 1))}…`);

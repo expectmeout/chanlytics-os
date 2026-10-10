@@ -20,6 +20,7 @@ import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
 import { appointmentKeyOf } from "./appointment-key";
 import { normalizeEmail } from "../shared/email-address";
+import { alertAddressesOf } from "../config/workspace-config/alerts";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { dateFormat, DAY_MS } from "../shared/time";
 
@@ -148,11 +149,7 @@ export function ownAddressesOf(
     | null
     | undefined,
 ): OwnAddresses {
-  const out = new Set<string>();
-  for (const e of cfg?.notifications?.escalation_emails ?? []) {
-    const a = String(e).trim().toLowerCase();
-    if (a) out.add(a);
-  }
+  const out = alertAddressesOf(cfg?.notifications);
   const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
   if (owner) out.add(owner);
   return out;

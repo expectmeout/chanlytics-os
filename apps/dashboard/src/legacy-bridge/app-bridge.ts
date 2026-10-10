@@ -12,6 +12,7 @@
 import {
   callsStillUp,
   IN_APP_CLASS,
+  isUuid,
   parsePageMessage,
   parseShellMessage,
   todayWidgetSnapshot,
@@ -20,6 +21,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { api } from "./api";
+import { sealSurfaceCache } from "./surface-cache";
 import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
 import type { AddressParts } from "@chanlytics/contracts";
 
@@ -107,7 +109,8 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
   const phone: Phone = { token: null };
   const shell = shellEvents(win);
   const overlays = watchOverlays(win, post);
-  const answering: Answering = { win, doors, post, phone, shell, overlays };
+  const pushes = pushedRoutes(win);
+  const answering: Answering = { doors, post, phone, shell, overlays, pushes };
   win.__appBridge = {
     receive: (raw: string) => answerShell(answering, raw),
     forgetPhone: () => forgetPhone(doors, post, phone),
@@ -145,6 +148,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
     stopTheme();
     overlays.stop();
     shell.stop();
+    pushes.stop();
     offBell();
     delete win.__appBridge;
   };
@@ -176,18 +180,89 @@ function watchTheme(win: BridgeWindow, post: Post): () => void {
   return () => watcher.disconnect();
 }
 
-/** What answering the shell needs: the page, its doors, its voice, its phone, its shell's events and its overlays. */
+/** What answering the shell needs: its doors, its voice, its phone, its shell's events, its overlays and its pushes. */
 interface Answering {
-  win: BridgeWindow;
   doors: DeviceDoors;
   post: Post;
   phone: Phone;
   shell: ShellEvents;
   overlays: Overlays;
+  pushes: Pushes;
+}
+
+/**
+ * How long a tapped push waits for the page's workspaces read before it opens its workspace's page without it: the
+ * boot's first read, which a phone has within a second or two. One that fails says nothing, and the push still opens.
+ */
+const PUSH_WAIT_MS = 5000;
+
+/** A tapped push's route, opened in its workspace (the shell's navigate); `stop` drops one still waiting. */
+interface Pushes {
+  open(route: string, workspace: string | undefined): void;
+  stop(): void;
+}
+
+/**
+ * Whether a push's workspace (always its id, contracts parseShellMessage) is the one this page is about: by the id its
+ * workspaces read resolved (`__ACTIVE_WORKSPACE`), and before that by its address, which names it by id where a push
+ * opened it (workspaceHref) and by slug everywhere else. A slug says nothing of an id, so a page at one cannot tell
+ * yet (null); off a workspace page (the home, which sends the tab on), no workspace is this page's.
+ */
+function isThisWorkspace(win: BridgeWindow, id: string): boolean | null {
+  if (win.__ACTIVE_WORKSPACE) return win.__ACTIVE_WORKSPACE === id;
+  const named = pathWorkspace(win.location.pathname ?? "");
+  if (!named) return false;
+  return isUuid(named) ? named.toLowerCase() === id.toLowerCase() : null;
+}
+
+/**
+ * A tapped push's route, in its workspace. One for this workspace, or with no workspace said, moves the route; one for
+ * another opens that workspace's page (the site takes its id in the path as it takes a slug), sealing the tab's cache
+ * as a switch does: a read landing before the page unloads is this workspace's, and was written back.
+ *
+ * The shell sends the push as soon as the page says its route, which is before the workspaces read lands on a cold
+ * page, and the push was then taken for another workspace whatever it named: the page sealed its cache and loaded
+ * again for the workspace it was already in, by id, and the read moved it back to the slug. The address answers now
+ * where it names the id, and on a slug's address the push waits for the read (`surface:workspace`); past PUSH_WAIT_MS
+ * without it, it opens its workspace's page as it did, so a push is never opened under a workspace the page cannot say
+ * is its own. The latest tap is the one opened.
+ */
+function pushedRoutes(win: BridgeWindow): Pushes {
+  let waiting: { route: string; workspace: string } | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const go = (route: string, workspace: string, mine: boolean) => {
+    if (mine) return goToRoute(route, {}, win);
+    sealSurfaceCache();
+    win.location.assign(workspaceHref(workspace, `#/${route}`));
+  };
+  function stop(): void {
+    waiting = null;
+    if (timer) clearTimeout(timer);
+    timer = null;
+    win.removeEventListener("surface:workspace", settle);
+  }
+  // The read landed, or the wait is over: a workspace the page still cannot name as the push's is another's.
+  function settle(): void {
+    const w = waiting;
+    stop();
+    if (w) go(w.route, w.workspace, isThisWorkspace(win, w.workspace) === true);
+  }
+  return {
+    open(route, workspace) {
+      stop();
+      if (!workspace) return goToRoute(route, {}, win);
+      const mine = isThisWorkspace(win, workspace);
+      if (mine !== null) return go(route, workspace, mine);
+      waiting = { route, workspace };
+      win.addEventListener("surface:workspace", settle);
+      timer = setTimeout(settle, PUSH_WAIT_MS);
+    },
+    stop,
+  };
 }
 
 /** One ask from the shell, parsed and answered; a message that does not parse does nothing. */
-function answerShell({ win, doors, post, phone, shell, overlays }: Answering, raw: string): void {
+function answerShell({ doors, post, phone, shell, overlays, pushes }: Answering, raw: string): void {
   let v: unknown;
   try {
     v = JSON.parse(raw);
@@ -197,11 +272,7 @@ function answerShell({ win, doors, post, phone, shell, overlays }: Answering, ra
   const m = parseShellMessage(v);
   if (!m) return;
   if (m.t === "navigate") {
-    // A push told for another workspace opens that workspace's page: the site takes its id in the path as it takes a
-    // slug. One for this workspace, or with no workspace said, moves the route.
-    if (m.workspace && m.workspace !== win.__ACTIVE_WORKSPACE)
-      win.location.assign(workspaceHref(m.workspace, `#/${m.route}`));
-    else goToRoute(m.route, {}, win);
+    pushes.open(m.route, m.workspace);
     return;
   }
   if (m.t === "menu" || m.t === "top") {

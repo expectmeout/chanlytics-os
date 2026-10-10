@@ -21,7 +21,7 @@ import { workspaceFor, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages, UUID } from "../packages/contracts.js";
-import type { RoutedChannel } from "../packages/db.js";
+import { oldestActiveChannel } from "../packages/db.js";
 import { brainCallOf, generateReply } from "./brain.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
@@ -80,26 +80,10 @@ export async function evaluateCases(
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  // The tenant's WhatsApp channel, as the webhook would route it.
-  const { data: ch, error } = await db
-    .from("tenant_channels")
-    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-  if (error) return refuse(500, "channel_read_failed");
-  if (!ch) return refuse(404, "no_whatsapp_channel");
-  const routed: RoutedChannel = {
-    channelId: ch.id,
-    tenantId: ch.tenant_id,
-    kind: ch.kind,
-    externalId: ch.external_id,
-    numberE164: ch.number_e164,
-    credentialsRef: ch.credentials_ref,
-    config: ch.config,
-  };
+  // The tenant's WhatsApp channel, as the webhook would route it: its oldest active one, where it holds two.
+  const routed = await oldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
+  if (routed === undefined) return refuse(500, "channel_read_failed");
+  if (!routed) return refuse(404, "no_whatsapp_channel");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);

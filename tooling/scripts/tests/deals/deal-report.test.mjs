@@ -116,10 +116,11 @@ test("the period's cohort and what became of it, how long its yeses took, where 
     median_days_to_yes: 9,
     open: {
       count: 4,
+      // In the order the deals are read, by id (d1, d10, d11 with none, d9); the page sums them by kind.
       amounts: [
         { amount_cents: 120_000, per: "once", currency: "USD" },
-        { amount_cents: 305_000, per: "once", currency: "USD" },
         { amount_cents: 60_000, per: "month", currency: "USD" },
+        { amount_cents: 305_000, per: "once", currency: "USD" },
       ],
     },
     sources: [
@@ -204,6 +205,22 @@ test("a pass with no reason, or one this build does not know, is a pass and no r
     { reason: "timing", count: 1 },
     { reason: "other", count: 1 },
   ]);
+});
+
+test("past a thousand deals every one is counted: the deals are read a page at a time", async () => {
+  // One select answers a thousand rows (PostgREST's max_rows), whatever it asks for: 1,200 deals counted as 1,000.
+  const id = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+  const deals = [
+    ...Array.from({ length: 1100 }, (_, i) => deal(id(i + 1), { amount_cents: 1_000, per: "once" })),
+    ...Array.from({ length: 100 }, (_, i) =>
+      deal(id(1101 + i), { stage: "won", proposed_at: iso(5), decided_at: iso(4), amount_cents: 2_000, per: "month" }),
+    ),
+  ];
+  const r = await dealReport(ctxFor({ deals }), T, 30, true, [], NOW);
+  assert.deepEqual(
+    [r.sent, r.waiting, r.won, r.clients, r.monthly_cents, r.open.count, r.open.amounts.length],
+    [1200, 1100, 100, 100, 200_000, 1100, 1100],
+  );
 });
 
 test("nothing ever recorded reads as none, and another workspace's deals are not this one's", async () => {

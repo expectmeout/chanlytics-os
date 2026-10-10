@@ -19,7 +19,8 @@ import {
   whyNotAHandoff,
   withStoredKeysKept,
 } from "@chanlytics/contracts";
-import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
+import { putTenantConfig } from "@chanlytics/db";
+import { configRowOf } from "@/server/workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 import { feedVisibleTo, knownFacts, withHiddenFeed } from "@/server/readers/settings";
 import type { RouteContext } from "@/server/with-route";
@@ -30,7 +31,8 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
   if (!body || typeof body.version !== "number") {
     throw new AppError("validation", "Body must be { config, version }.");
   }
-  const before = await getTenantConfig(ctx.supabase, member.tenantId);
+  // The row as stored, the feed's address whole: what withHiddenFeed puts back, and what withStoredKeysKept keeps.
+  const before = await configRowOf(ctx.supabase, member.tenantId);
   // The WRITE schema: the same shape, plus the rules that only apply on the
   // way in. They are not on the read schema because a refinement there turns
   // an already-stored bad row into configBroken, and the receptionist goes

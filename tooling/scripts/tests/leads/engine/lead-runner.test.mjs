@@ -209,6 +209,44 @@ test("the switch: a workspace no longer listed while searches are off is 'paused
   assert.deepEqual([w.round().state, w.round().ending, w.apify.calls.length], ["ended", "paused", 0]);
 });
 
+test("a workspace that stopped paying after the door reserved: a start reaches nothing at the provider, and the round ends", async () => {
+  for (const [mode, status] of [
+    ["stripe", "past_due"],
+    ["stripe", "canceled"],
+    ["stripe", "trialing"],
+  ]) {
+    const { w, p } = world();
+    w.T.billing_accounts[0] = { tenant_id: TENANT, mode, status };
+    assert.deepEqual(await startRound(p(), w.round().id, OWNER), { kind: "may_not_spend" }, status);
+    assert.deepEqual([w.round().state, w.round().ending], ["ended", "paused"], status);
+    assert.deepEqual([w.apify.calls.length, w.runs().length], [0, 0], `${status}: no run, no row, no charge`);
+  }
+  // A workspace invoiced by hand is never asked for a card: it starts.
+  const { w, p } = world();
+  w.T.billing_accounts[0] = { tenant_id: TENANT, mode: "direct", status: "none" };
+  assert.equal((await startRound(p(), w.round().id, OWNER)).kind, "started");
+  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2);
+});
+
+test("a round's runs never cap more than it reserved: with $0.60 for three terms one run starts, and the others are said", async () => {
+  const three = { ...PLAN, terms: [...PLAN.terms, "kettlebell class"] };
+  const w = leadWorld({ plan: three });
+  w.rpcs.lead_search_create({ p_tenant_id: TENANT, p_plan: three, p_via: "people", p_estimate_usd: 0.6 });
+  const out = await startRound(w.ports(OWNER, { db: leadDb(w.db) }), w.round().id, OWNER);
+  assert.deepEqual(out.runs, [
+    { term: "personal trainer", kind: "started" },
+    { term: "strength coach", kind: "no_room" },
+    { term: "kettlebell class", kind: "no_room" },
+  ]);
+  const caps = w.apify.calls.filter((c) => c.op === "startRun").map((c) => c.opts.maxTotalChargeUsd);
+  assert.deepEqual(caps, [0.5], "the actor's floor once: not three of them against $0.60");
+  assert.deepEqual(
+    w.runs().map((r) => [r.term, r.cap_usd]),
+    [["personal trainer", 0.5]],
+    "and a row only for the run that started",
+  );
+});
+
 test("nothing left of what the round reserved: nothing is started, and the round says the budget is used", async () => {
   const { w, p } = world();
   const round = w.round();
@@ -751,6 +789,23 @@ test("the switch, read before the checker too: with searches off nothing is star
     waiting,
     "every address that was waiting says it could not be checked",
   );
+});
+
+test("a plan that lapsed before the checker: nothing is started, the addresses still waiting say they could not be checked, and the round ends", async () => {
+  const { w, p } = await probed({ plan: { ...PLAN, contact: "email" } });
+  const [r1, r2] = w.runs();
+  await collect(p("c1"), r1.id, "p0", "c1");
+  w.rpcs.lead_round_stop({ p_search_id: w.search().id });
+  await collect(p("s1"), r2.id, "stop", "s1");
+  const started = w.apify.calls.filter((c) => c.op === "startRun").length;
+  const waiting = w.T.leads.filter((l) => l.email_state === "checking").length;
+  assert.ok(waiting > 0, "there are addresses to check");
+  w.T.billing_accounts[0].status = "unpaid";
+  assert.deepEqual(await check(p("k1"), w.round().id, 0, "k1"), { kind: "may_not_spend" });
+  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, started, "no checker run is started");
+  assert.equal(w.runs().filter((r) => r.purpose === "check").length, 0, "and no row to claim, lease or collect");
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "paused"]);
+  assert.equal(w.T.leads.filter((l) => l.email_state === "unknown").length, waiting);
 });
 
 test("a poll the door never cancelled, arriving after Stop: it decides nothing, the round stays stopped, and no new money reaches the provider", async () => {

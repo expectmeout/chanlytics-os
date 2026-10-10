@@ -2,7 +2,7 @@
  * The bridge's couriers that no surface has taken yet: the Live Monitor's calls (whisper, end, hand over), Settings' saves
  * and the policy row, the team's, and the address builder every download reads. The Inbox's own verbs (a thread's take-over,
  * snooze, reply and the bulk bar) moved with it to src/surfaces/inbox/verbs.ts (decision 0015, step 3). Business logic
- * stays server-side: this is a courier. The team's three doors are Settings › Team's (`teamVerbs`), by import.
+ * stays server-side: this is a courier. The team's doors are Settings › Team's (`teamVerbs`), by import.
  */
 import { liveOverride } from "@/surfaces/live/surface";
 import { settingsOverride } from "./surfaces/settings";
@@ -107,8 +107,24 @@ async function teamRemove(id: string): Promise<VerbResult> {
   return api()("DELETE team/[id]", { params: { id } });
 }
 
-/** The Team card's three doors (Settings › Team, which imports them): an object a test stands a door in on. */
-export const teamVerbs = { invite: teamInvite, setRole: teamSetRole, remove: teamRemove };
+/** Sends an open invitation again: seven more days, and the email (00371). */
+async function teamResend(invitationId: string): Promise<VerbResult> {
+  return api()("POST team/invite/[id]/resend", { params: { id: invitationId } });
+}
+
+/** The signed-in member leaves this workspace (00371); the page then takes them out of it. */
+async function teamLeave(): Promise<VerbResult> {
+  return api()("POST team/leave", {});
+}
+
+/** The Team card's doors (Settings › Team, which imports them): an object a test stands a door in on. */
+export const teamVerbs = {
+  invite: teamInvite,
+  setRole: teamSetRole,
+  remove: teamRemove,
+  resend: teamResend,
+  leave: teamLeave,
+};
 
 /** Live: re-read the calls in progress. The page calls this every 8 s while
  *  a call is up, as insurance beside the realtime channel. */

@@ -14,7 +14,6 @@ import {
   type GoogleCandidateDto,
   type GoogleDto,
 } from "@chanlytics/contracts";
-import { getTenantConfig } from "@chanlytics/db";
 import { googleReadiness, afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
 import { load, readerContext } from "@/server/readers";
 import { googleReader } from "@/server/readers/connections";
@@ -23,6 +22,7 @@ import { verifyState, authorizeUrl, newNonce, signState, STATE_TTL_MS, cleanRepl
 import { log } from "@/server/log";
 import { requireUuid } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
+import { configRowOf } from "@/server/workspace/config-row";
 import { tenantFacts } from "@/server/tenant";
 import type { Member, Params } from "@/server/route";
 
@@ -135,7 +135,7 @@ export async function searchGoogleFor(ctx: RouteContext, req: Request, member: M
   let query = typeof body.query === "string" ? placesQueryOf(body.query).slice(0, 200) : "";
   let fromFacts = false;
   if (!query) {
-    const row = await getTenantConfig(ctx.supabase, member.tenantId);
+    const row = await configRowOf(ctx.supabase, member.tenantId);
     const parsed = row ? parseTenantConfigResult(row.config) : null;
     const cfg = parsed && parsed.ok ? parsed.config : null;
     // What the business goes by (contracts businessNameOf): the receptionist's name, else the one typed at sign-up,

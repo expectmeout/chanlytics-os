@@ -9,7 +9,7 @@ import { importSrc } from "../_source.mjs";
 const { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } = await importSrc(
   "packages/core/src/messages/broadcast.ts",
 );
-const { BROADCAST_CHUNK, BROADCAST_THROTTLE_WAITS_MS, HELD_REASONS, OUTCOME_UNKNOWN } =
+const { BROADCAST_CHUNK, BROADCAST_THROTTLE_WAITS_MS, HELD_REASONS, OUTCOME_UNKNOWN, mayMessageFor } =
   await import("@chanlytics/contracts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 // An email is written before it is sent, and withdrawn when the provider did not take it (step 3): both are writes.
@@ -599,6 +599,59 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
   assert.deepEqual(
     marketing.log.filter((l) => l[0] === "deliver").map((l) => l[1].purpose),
     ["marketing"],
+  );
+});
+
+test("a playbook's run asks the door for the stricter of its moment's class and its message's category, as its enrolment did: a no to offers said after a Win-back enrolled someone holds them at the wire", async () => {
+  // The run enrolled by the stricter of the two (contracts enrolPurpose), but the door was handed the message's own
+  // category alone: a re-engage or offer moment carrying a utility message went to someone who had since said "no more
+  // offers", because a yes to hear from the business was all the door asked for.
+  const utility = rowsOf({ whatsapp: { ...approved, category: "utility" } });
+  const marketing = rowsOf({ whatsapp: { ...approved, category: "marketing" } });
+  const run = (trigger) =>
+    broadcast({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", label: "Win-back", trigger } });
+  // Ada said yes to hearing from them, and then no to offers; the door's answer is the one predicate's.
+  const ada = { ...contacts.k1, consent: "opted_in", dnc: false, marketing_consent: "opted_out" };
+  const send = async (b, message) => {
+    const f = fakes({
+      broadcast: b,
+      message,
+      batch: [{ contact_id: "k1", facts: null }],
+      contacts: () => new Map([["k1", ada]]),
+      deliver: (d) => {
+        const may = mayMessageFor(ada, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
+        return may.ok
+          ? { outcome: "sent", messageId: "m-k1", externalId: "wamid" }
+          : { outcome: "refused", reason: may.reason, messageId: null };
+      },
+    });
+    await sendBroadcastBatch(f.ports, cmd());
+    return [f.log.filter((l) => l[0] === "deliver").map((l) => l[1].purpose), f.marks().at(-1)];
+  };
+  assert.deepEqual(
+    await send(run("quiet_30"), utility),
+    [["marketing"], ["k1", "skipped", "no_marketing_consent"]],
+    "REGRESSION: a Win-back's utility message asked only the yes to hear from them, and went",
+  );
+  assert.deepEqual(
+    await send(run("visit_tomorrow"), utility),
+    [["conversational"], ["k1", "sent", null]],
+    "a reminder of their own visit asks the yes to hear from them, as it always did",
+  );
+  assert.deepEqual(
+    await send(run("visit_tomorrow"), marketing),
+    [["marketing"], ["k1", "skipped", "no_marketing_consent"]],
+    "an offer is an offer, whatever the moment",
+  );
+  assert.deepEqual(
+    await send(broadcast(), utility),
+    [["conversational"], ["k1", "sent", null]],
+    "a broadcast names no moment: its message decides, as before",
+  );
+  assert.deepEqual(
+    await send(run("a_moment_nobody_knows"), utility),
+    [["marketing"], ["k1", "skipped", "no_marketing_consent"]],
+    "a moment nobody knows fails closed",
   );
 });
 

@@ -127,10 +127,11 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
 
-  // A START is a yes, and ingest_inbound writes a yes before it knows the message is one it already holds (its replay
-  // gate is the message's own insert). An email delivered twice, or a run that resumes, would write the yes again, over
-  // a STOP the person has sent since by any wire. So a delivery this workspace already holds says nothing new: the first
-  // one wrote its answer in the same transaction that kept the message.
+  // A START is a yes, and until 00361 ingest_inbound wrote a yes before it knew the message was one it already held (its
+  // replay gate is the message's own insert). An email delivered twice, or a run that resumes, would write the yes again,
+  // over a STOP the person has sent since by any wire. So a delivery this workspace already holds says nothing new: the
+  // first one wrote its answer in the same transaction that kept the message. After 00361 the door asks this itself;
+  // this read leaves once 00361 is on production.
   let optIn = p.optIn ?? false;
   if (optIn) {
     const held = await db
