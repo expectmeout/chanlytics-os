@@ -22553,7 +22553,7 @@ CREATE TABLE public.memberships (
     role text DEFAULT 'owner'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     views jsonb DEFAULT '{}'::jsonb NOT NULL,
-    push_off text[] DEFAULT '{}'::text[] NOT NULL,
+    push_off text[] DEFAULT '{}'::text[],
     CONSTRAINT memberships_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'operator'::text, 'partner'::text, 'viewer'::text])))
 );
 
@@ -22569,7 +22569,7 @@ COMMENT ON COLUMN public.memberships.views IS 'What this member''s pages remembe
 -- Name: COLUMN memberships.push_off; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.memberships.push_off IS 'The notification kinds this member''s phones are not told in this workspace (decision 0040): ["call", ...]. Written through member_push_off_set; read by the push_send job.';
+COMMENT ON COLUMN public.memberships.push_off IS 'The notification kinds this member''s phones are not told in this workspace (decision 0040): ["call", ...]; null or empty is none. Written through member_push_off_set; read by the push_send job.';
 
 
 --

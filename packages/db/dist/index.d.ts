@@ -3907,7 +3907,7 @@ type Database = {
                 Row: {
                     created_at: string;
                     id: string;
-                    push_off: string[];
+                    push_off: string[] | null;
                     role: string;
                     tenant_id: string;
                     user_id: string;
@@ -3916,7 +3916,7 @@ type Database = {
                 Insert: {
                     created_at?: string;
                     id?: string;
-                    push_off?: string[];
+                    push_off?: string[] | null;
                     role?: string;
                     tenant_id: string;
                     user_id: string;
@@ -3925,7 +3925,7 @@ type Database = {
                 Update: {
                     created_at?: string;
                     id?: string;
-                    push_off?: string[];
+                    push_off?: string[] | null;
                     role?: string;
                     tenant_id?: string;
                     user_id?: string;
@@ -13839,7 +13839,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             Row: {
                 created_at: string;
                 id: string;
-                push_off: string[];
+                push_off: string[] | null;
                 role: string;
                 tenant_id: string;
                 user_id: string;
@@ -13848,7 +13848,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             Insert: {
                 created_at?: string;
                 id?: string;
-                push_off?: string[];
+                push_off?: string[] | null;
                 role?: string;
                 tenant_id: string;
                 user_id: string;
@@ -13857,7 +13857,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             Update: {
                 created_at?: string;
                 id?: string;
-                push_off?: string[];
+                push_off?: string[] | null;
                 role?: string;
                 tenant_id?: string;
                 user_id?: string;
@@ -22997,7 +22997,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Row: {
             created_at: string;
             id: string;
-            push_off: string[];
+            push_off: string[] | null;
             role: string;
             tenant_id: string;
             user_id: string;
@@ -23006,7 +23006,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Insert: {
             created_at?: string;
             id?: string;
-            push_off?: string[];
+            push_off?: string[] | null;
             role?: string;
             tenant_id: string;
             user_id: string;
@@ -23015,7 +23015,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Update: {
             created_at?: string;
             id?: string;
-            push_off?: string[];
+            push_off?: string[] | null;
             role?: string;
             tenant_id?: string;
             user_id?: string;
@@ -28743,7 +28743,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Row: {
             created_at: string;
             id: string;
-            push_off: string[];
+            push_off: string[] | null;
             role: string;
             tenant_id: string;
             user_id: string;
@@ -28752,7 +28752,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Insert: {
             created_at?: string;
             id?: string;
-            push_off?: string[];
+            push_off?: string[] | null;
             role?: string;
             tenant_id: string;
             user_id: string;
@@ -28761,7 +28761,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Update: {
             created_at?: string;
             id?: string;
-            push_off?: string[];
+            push_off?: string[] | null;
             role?: string;
             tenant_id?: string;
             user_id?: string;
@@ -34489,7 +34489,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Row: {
             created_at: string;
             id: string;
-            push_off: string[];
+            push_off: string[] | null;
             role: string;
             tenant_id: string;
             user_id: string;
@@ -34498,7 +34498,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Insert: {
             created_at?: string;
             id?: string;
-            push_off?: string[];
+            push_off?: string[] | null;
             role?: string;
             tenant_id: string;
             user_id: string;
@@ -34507,7 +34507,7 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         Update: {
             created_at?: string;
             id?: string;
-            push_off?: string[];
+            push_off?: string[] | null;
             role?: string;
             tenant_id?: string;
             user_id?: string;

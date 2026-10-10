@@ -20,10 +20,10 @@
 
 set local lock_timeout = '3s';
 
-alter table public.memberships add column if not exists push_off text[] not null default '{}'::text[];
+alter table public.memberships add column if not exists push_off text[] default '{}'::text[];
 
 comment on column public.memberships.push_off is
-  'The notification kinds this member''s phones are not told in this workspace (decision 0040): ["call", ...]. Written through member_push_off_set; read by the push_send job.';
+  'The notification kinds this member''s phones are not told in this workspace (decision 0040): ["call", ...]; null or empty is none. Written through member_push_off_set; read by the push_send job.';
 
 create or replace function public.member_push_off_set(p_tenant_id uuid, p_kinds text[])
 returns text[]
