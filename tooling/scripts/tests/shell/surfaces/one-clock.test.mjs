@@ -103,9 +103,9 @@ test("a playbook's hour is said as the clock says a time: one clock for a run's 
   // A playbook's own words read it: its schedule, its clock in a line, and its next run. They said "18:00" beside a
   // broadcast's "6:00 PM" in one tile (Campaigns' Coming up, 8 Oct 2026).
   const p = { trigger: "quiet_30", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 };
-  assert.equal(scheduleLine(p), "Daily 6:00 PM · up to 25 · once per person, again after 90 days");
+  assert.equal(scheduleLine(p, "visit"), "Daily 6:00 PM · up to 25 · once per person, again after 90 days");
   assert.equal(
-    scheduleLine({ ...p, trigger: "everyone_monthly", run_hour: 9 }),
+    scheduleLine({ ...p, trigger: "everyone_monthly", run_hour: 9 }, "visit"),
     "Every 30 days at 9:00 AM · up to 25 a day",
   );
   assert.equal(runsWords(p), "runs daily at 6:00 PM");

@@ -31,6 +31,7 @@ import {
   messageAboutOfTrigger,
   triggerOf,
   triggerOffered,
+  triggerWords,
   type CampaignHow,
   type CampaignMessage,
   type ConsentChannel,
@@ -46,7 +47,7 @@ import { checkPlaybookInput, noFollowUps, proposalFollowUps } from "../../../cam
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
-import { channelsReady, zoneAndSettings } from "../../../readers/facts";
+import { businessShape, channelsReady, zoneAndSettings } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { templates as templatesReader } from "../../../readers/templates";
 import {
@@ -297,6 +298,15 @@ async function proposedSaying(
   return { asked, specs: values.specs, picked };
 }
 
+/**
+ * A moment and its schedule in the workspace's word (readers/facts.ts businessShape), as the page says them: read once
+ * the check has passed, so a proposal it refuses makes no read more.
+ */
+async function wordedMoment(t: ToolContext, trig: NonNullable<ReturnType<typeof triggerOf>>) {
+  const word = (await load(t.rc, businessShape, undefined)).data.word;
+  return { word, moment: triggerWords(trig, word) };
+}
+
 async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
   if (!trig) return refuse(`trigger must be one of ${PROPOSABLE_TRIGGERS.join(", ")}`);
@@ -360,7 +370,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   } catch (e) {
     return refuse(e instanceof Error ? e.message : String(e));
   }
-
+  const { word, moment } = await wordedMoment(t, trig);
   const deal = trig.kind === "deal";
   const [pool, policies, paceRead, followUps] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
@@ -412,10 +422,10 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   return propose({
     kind: "playbook",
     title: `Playbook: ${checked.name}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${trig.label} — ${trig.hint.toLowerCase()}`} · ${scheduleLine(checked)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${said.says}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(checked, word)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${said.says}`,
     payload: {
       trigger: trig.id,
-      trigger_label: trig.label,
+      trigger_label: moment.label,
       template_id: message.anchor.id,
       template_name: message.name,
       params: specs,

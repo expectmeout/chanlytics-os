@@ -9196,7 +9196,7 @@ var NEW_MESSAGE_WORDS = {
   /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
   sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
   /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
-  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+  own: "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.",
   /** What a text says after the carriers' sentence: the way out. */
   textGoesByEmail: "This one can go by email.",
   writeAsEmail: "Write it as an email",
@@ -15442,16 +15442,16 @@ var PARAM_SOURCE_LABELS = {
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
-  visit_when: "Their visit's time",
-  visit_service: "Their visit's service",
+  visit_when: "Their booked time",
+  visit_service: "Their booked service",
   proposal_link: "Their proposal's link"
 };
 var PARAM_SOURCE_HINTS = {
   first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
   business_name: "From Settings \u203A Business",
   booking_link: "From Settings \u203A Business",
-  visit_when: "Each visit's own, from the calendar",
-  visit_service: "Each visit's own, from the calendar",
+  visit_when: "Each one's own, from the calendar",
+  visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal"
 };
 function parseParamSpec(raw) {
@@ -15972,7 +15972,7 @@ function stoppedRunFix(why, run) {
 function playbookRunNext(run, by) {
   if (!run.playbook_id) return null;
   if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+    return "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
   return by === "tomorrow" ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice." : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
 }
 var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not_approved"]);
@@ -17188,7 +17188,7 @@ function emptyAudienceRefusal(purpose, label, pool, how) {
   if (ticked.includes("email"))
     return `Nobody on \u201C${label}\u201D can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
   if (pool.some((r2) => answeredYes(r2, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 
 // src/broadcasts/channels-standing.ts
@@ -21961,10 +21961,12 @@ function runDueNow(p, tz, now) {
 function inLastSendingHour(tz, now) {
   return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
 }
-function scheduleLine(p) {
+function scheduleLine(p, word) {
   const at3 = clockHour(p.run_hour);
-  if (triggerOf(p.trigger)?.kind === "visit")
-    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
+  if (triggerOf(p.trigger)?.kind === "visit") {
+    const W = appointmentWords(word);
+    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} \xB7 up to ${p.cap_per_run}`;
+  }
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at3} \xB7 up to ${p.cap_per_run} a day`;
   if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
   return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
@@ -22092,8 +22094,8 @@ function enrolPurpose(policyClass, message) {
   return purposeOfTemplate(message.category);
 }
 var MESSAGE_MOMENT_WORDS = {
-  offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a message about their own visit or proposal.",
-  texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is about a person's own visit or proposal. Pick an offer, or a moment for visits."
+  offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a reminder, a check after, or a follow-up.",
+  texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is a reminder, a check after or a follow-up. Pick an offer, or the moment it was written for."
 };
 function messageFitsMoment(policyClass, category) {
   const moment = purposeOfPlaybook(policyClass);
@@ -22341,10 +22343,13 @@ function reachOutExampleValues(workspace) {
 }
 
 // src/playbooks/playbook-approval.ts
-function poolWords(trigger) {
+function poolWords(trigger, word) {
   const t = triggerOf(trigger);
   if (!t) return "";
-  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  if (t.kind === "visit") {
+    const W = appointmentWords(word);
+    return trigger === "visit_tomorrow" ? W.withTomorrow : W.whoYesterday;
+  }
   if (t.kind === "deal") return "with a proposal waiting";
   return t.list || t.kind === "saved" ? "on the list" : "in People";
 }
@@ -22481,9 +22486,8 @@ function toApprovalVM(d, opts) {
   if (t && opts.playbook) {
     rules.push(...consentRuleWords(by, purposeOfPlaybook(t.cls), messageAboutOfTrigger(opts.playbook.trigger)));
     if (t.kind === "visit") {
-      rules.push(
-        opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next"
-      );
+      const W = appointmentWords(opts.playbook.word);
+      rules.push(opts.playbook.trigger === "visit_tomorrow" ? W.eachTomorrow : W.eachYesterday);
     } else if (t.kind === "deal") {
       rules.push(
         "each has a proposal waiting with nothing back, and its link",
@@ -27819,7 +27823,7 @@ var STARTER_LINE_WORDS = {
   add: "Add it \u2014 its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes"
 };
 var MESSAGE_BEGIN_WORDS = {
-  customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
   starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet."
 };
@@ -35680,22 +35684,21 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     };
   });
   let reminders = null;
-  if (feed === "ok") {
-    const visit = (playbooks ?? []).filter(
+  if (feed === "ok" && playbooks) {
+    const { word } = playbooks;
+    const visit = playbooks.rows.filter(
       (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running"
     );
+    const W = appointmentWords(word);
     reminders = visit.length === 0 ? {
       // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
-      text: "No visit reminders yet \u2014 a playbook can write the day before an appointment and the day after a visit.",
+      text: `No ${W.one} reminders yet \u2014 a playbook can write the day before ${W.a} and the day after.`,
       to: "outbound"
     } : {
-      text: visit.map(
-        (p) => (
-          // The playbook's kind in its moment's own label (playbook-triggers.ts), never spelled again here.
-          // A count that could not be read is left out, never said as "null people".
-          `${triggerOf(p.trigger)?.label ?? p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`
-        )
-      ).join(" \xB7 "),
+      text: visit.map((p) => {
+        const t = triggerOf(p.trigger);
+        return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`;
+      }).join(" \xB7 "),
       to: "outbound"
     };
   }

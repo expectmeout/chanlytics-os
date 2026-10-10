@@ -57,7 +57,12 @@ const moreItem = (tree, label) => {
 };
 const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-setSurfaceValue("playbooks", { rows: [], triggers: [] });
+setSurfaceValue("playbooks", {
+  rows: [],
+  triggers: [],
+  // How the business works (the surface's shape, 9 Oct 2026), which the playbook's drawer says its word from.
+  shape: { calendar: "none", dealsOn: false, word: "appointment" },
+});
 playbooks.remove = async (id) => {
   calls.pbRemove.push(id);
   return { ok: true, data: {} };

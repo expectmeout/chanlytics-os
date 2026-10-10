@@ -7,6 +7,7 @@ import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcas
 import { purposeOfPlaybook } from "../consent/consent";
 import { consentRuleWords } from "../consent/consent-asks";
 import type { ConsentChannel } from "../consent/consent-channels";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
 import { isReachOutRun } from "../reach-out/reach-out-rules";
@@ -71,13 +72,16 @@ export interface ApprovalVM {
 }
 
 /**
- * What "of 312" counts on a playbook's card, in its moment's own words: the
- * trigger's list, everyone in People, or the day's visits.
+ * What "of 312" counts on a playbook's card, in its moment's own words: the trigger's list, everyone in People, or the
+ * day's appointments in the workspace's word.
  */
-export function poolWords(trigger: string): string {
+export function poolWords(trigger: string, word: AppointmentWord): string {
   const t = triggerOf(trigger);
   if (!t) return "";
-  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  if (t.kind === "visit") {
+    const W = appointmentWords(word);
+    return trigger === "visit_tomorrow" ? W.withTomorrow : W.whoYesterday;
+  }
   if (t.kind === "deal") return "with a proposal waiting";
   return t.list || t.kind === "saved" ? "on the list" : "in People";
 }
@@ -328,7 +332,9 @@ export function toApprovalVM(
     >;
   },
   opts: {
-    playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null;
+    /** The playbook the run is of, with what its workspace calls an appointment; null where it is gone or unread. */
+    playbook:
+      (Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> & { word: AppointmentWord }) | null;
     businessName: string;
     /** The business's day now, "2026-09-21". */
     today: string;
@@ -361,11 +367,8 @@ export function toApprovalVM(
     // visit asks no yes, and an offer by email may go on a relationship on record, so it is not one sentence for all.
     rules.push(...consentRuleWords(by, purposeOfPlaybook(t.cls), messageAboutOfTrigger(opts.playbook.trigger)));
     if (t.kind === "visit") {
-      rules.push(
-        opts.playbook.trigger === "visit_tomorrow"
-          ? "each has a visit tomorrow on the calendar"
-          : "each visited yesterday and has nothing booked next",
-      );
+      const W = appointmentWords(opts.playbook.word);
+      rules.push(opts.playbook.trigger === "visit_tomorrow" ? W.eachTomorrow : W.eachYesterday);
     } else if (t.kind === "deal") {
       // One follow-up per proposal, with its link (0006).
       rules.push(

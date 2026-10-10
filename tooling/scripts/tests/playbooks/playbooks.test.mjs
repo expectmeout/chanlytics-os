@@ -371,11 +371,14 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
   );
   assert.equal(runDueNow({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), false);
   assert.equal(
-    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
   );
   assert.equal(
-    scheduleLine({ trigger: "everyone_monthly", run_hour: 9, cap_per_run: 50, gap_days: 90, cadence_days: 30 }),
+    scheduleLine(
+      { trigger: "everyone_monthly", run_hour: 9, cap_per_run: 50, gap_days: 90, cadence_days: 30 },
+      "visit",
+    ),
     "Every 30 days at 9:00 AM · up to 50 a day",
   );
   assert.equal(
@@ -844,8 +847,8 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     ["a", "f"],
   );
   // What the card and the sheet say of it.
-  assert.equal(scheduleLine({ ...follow, run_hour: 10 }), "Daily 10:00 AM · up to 25 · once per proposal");
-  assert.equal(poolWords("proposal_waiting"), "with a proposal waiting");
+  assert.equal(scheduleLine({ ...follow, run_hour: 10 }, "visit"), "Daily 10:00 AM · up to 25 · once per proposal");
+  assert.equal(poolWords("proposal_waiting", "visit"), "with a proposal waiting");
   assert.deepEqual(
     reachLines(again.reach, follow).lines.map((l) => l.words),
     ["1 never said yes to hearing from you", "1 had this proposal's follow-up already", "1 asked you to stop"],

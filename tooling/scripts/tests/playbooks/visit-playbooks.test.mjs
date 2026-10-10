@@ -139,6 +139,8 @@ const playbooksVM = (over = {}) => {
     timezone: TZ,
     countsRead: true,
     calendar: "ok",
+    // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+    shape: { calendar: "feed", dealsOn: true, word: "visit" },
     triggers: MOMENT_TRIGGERS.map((t) => ({
       id: t.id,
       label: t.label,
@@ -215,15 +217,15 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
   assert.equal(triggerOf("visited").cls, "booking");
   assert.equal(PLAYBOOK_CLASS_LABEL.booking, "Bookings");
   assert.equal(
-    scheduleLine({ trigger: "visit_tomorrow", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "visit_tomorrow", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 10:00 AM · everyone with a visit tomorrow · up to 25",
   );
   assert.equal(
-    scheduleLine({ trigger: "visited", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "visited", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 6:00 PM · everyone who visited yesterday · up to 25",
   );
   assert.equal(
-    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
     "the old lines are the old lines",
   );
@@ -479,7 +481,7 @@ test("the visit's own words: when and what for, from the visit the run read", ()
   assert.equal(visitDateKey("2026-09-08T03:00:00Z", TZ), "2026-09-07");
   assert.deepEqual(parseParamSpec("@visit_when"), { kind: "visit_when" });
   assert.deepEqual(parseParamSpec({ kind: "visit_service" }), { kind: "visit_service" });
-  assert.equal(PARAM_SOURCE_LABELS.visit_when, "Their visit's time");
+  assert.equal(PARAM_SOURCE_LABELS.visit_when, "Their booked time");
   const specs = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "visit_when" }, { kind: "visit_service" }];
   assert.deepEqual(
     resolveParams(specs, {

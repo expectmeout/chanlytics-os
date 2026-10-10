@@ -1408,7 +1408,7 @@ test("a new message asks where it is sent first -- Email, Text, WhatsApp -- and 
   );
   assert.equal(
     textOf(byTestId(tree, "tpl-own-note")),
-    "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+    "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.",
     "one quiet line, in contracts' words",
   );
 

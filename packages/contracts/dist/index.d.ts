@@ -8990,8 +8990,8 @@ type RunMessage = {
 declare function enrolPurpose(policyClass: string | null | undefined, message: RunMessage | undefined): AskedPurpose;
 /** The two ways a moment and its message disagree, and what each says. */
 declare const MESSAGE_MOMENT_WORDS: {
-    readonly offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a message about their own visit or proposal.";
-    readonly texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is about a person's own visit or proposal. Pick an offer, or a moment for visits.";
+    readonly offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a reminder, a check after, or a follow-up.";
+    readonly texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is a reminder, a check after or a follow-up. Pick an offer, or the moment it was written for.";
 };
 /**
  * Whether a moment's class and its message's category agree, and if not which way they part. Meta's category is the
@@ -9270,9 +9270,10 @@ declare function runDueNow(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run
 declare function inLastSendingHour(tz: string, now: Date): boolean;
 /**
  * "Daily 10:00 AM · up to 25 · once per person, again after 90 days". The hour is said by the product's clock
- * (shared/clock.ts clockHour), as a broadcast's time is: it said "10:00" and "18:00" beside "6:00 PM" until 8 Oct 2026.
+ * (shared/clock.ts clockHour), as a broadcast's time is: it said "10:00" and "18:00" beside "6:00 PM" until 8 Oct 2026. An
+ * appointment moment's says who in the workspace's word (contracts appointmentWords).
  */
-declare function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">): string;
+declare function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">, word: AppointmentWord): string;
 /**
  * A playbook's clock in the fewest words -- "runs daily at 10:00 AM", "runs every
  * 30 days at 10:00 AM" -- for a line under something that names it, where
@@ -9350,10 +9351,10 @@ interface ApprovalVM {
     skip: string;
 }
 /**
- * What "of 312" counts on a playbook's card, in its moment's own words: the
- * trigger's list, everyone in People, or the day's visits.
+ * What "of 312" counts on a playbook's card, in its moment's own words: the trigger's list, everyone in People, or the
+ * day's appointments in the workspace's word.
  */
-declare function poolWords(trigger: string): string;
+declare function poolWords(trigger: string, word: AppointmentWord): string;
 /**
  * A run's reach, as the sheet says it: out of everyone its moment named, who
  * waits only for time (the bar's amber), and a line for each reason anyone was
@@ -9444,7 +9445,10 @@ declare function toApprovalVM(d: {
     };
     recipients: ReadonlyArray<Pick<BroadcastRecipientDto, "name" | "first_name"> & Partial<Pick<BroadcastRecipientDto, "state" | "reason" | "channel">>>;
 }, opts: {
-    playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null;
+    /** The playbook the run is of, with what its workspace calls an appointment; null where it is gone or unread. */
+    playbook: (Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> & {
+        word: AppointmentWord;
+    }) | null;
     businessName: string;
     /** The business's day now, "2026-09-21". */
     today: string;
@@ -24681,7 +24685,7 @@ declare const STARTER_LINE_WORDS: {
  * applies, and until it is on a database the route says so in one sentence and nothing else changes.
  */
 declare const MESSAGE_BEGIN_WORDS: {
-    readonly customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.";
+    readonly customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.";
     readonly starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.";
     readonly doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.";
 };
@@ -29540,7 +29544,7 @@ declare const NEW_MESSAGE_WORDS: {
     /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
     readonly sub: "Email is written here and ready the moment it is saved; no one reviews it first.";
     /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
-    readonly own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.";
+    readonly own: "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.";
     /** What a text says after the carriers' sentence: the way out. */
     readonly textGoesByEmail: "This one can go by email.";
     readonly writeAsEmail: "Write it as an email";
@@ -30733,7 +30737,10 @@ interface TodayDayVM {
     feed: "ok" | "unavailable" | "none";
     frames: TodayDayFrameVM[];
     nextOpening: string | null;
-    /** The visit playbooks' line — what goes out and when — or the offer to start one. */
+    /**
+     * The appointment playbooks' line — what goes out and when — or the offer to start one, in the workspace's word; null
+     * without a feed, or while the playbooks are unread.
+     */
     reminders: {
         text: string;
         to: string;
@@ -30743,11 +30750,19 @@ interface TodayDayVM {
 declare const TODAY_DAY_MAX = 5;
 /**
  * Today and tomorrow, as the calendar reads them: who is coming and when,
- * what is open, what is closed — and the visit playbooks' line. Nothing here
+ * what is open, what is closed — and the appointment playbooks' line. Nothing here
  * is derived from a message; the calendar is the source, the playbooks say
- * what they will do about it.
+ * what they will do about it, in the word Campaigns says (spec 2026-10-09 §4.8, "One page, one word").
  */
-declare function todayDay(cal: CalendarLike | null, playbooks: PlaybookCardLike[] | null, 
+declare function todayDay(cal: CalendarLike | null, 
+/**
+ * The playbooks surface as the page already holds it: its cards, and what the workspace calls an appointment (its
+ * shape's word, from GET playbooks). Null while it is unread: no read of its own is made for the word.
+ */
+playbooks: {
+    rows: PlaybookCardLike[];
+    word: AppointmentWord;
+} | null, 
 /** People's rows, for the red line: a person on the day whose thread needs someone. */
 people?: {
     rows: Array<{

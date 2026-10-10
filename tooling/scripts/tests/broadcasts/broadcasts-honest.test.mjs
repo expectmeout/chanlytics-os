@@ -167,6 +167,8 @@ const playbooksSurface = (over = {}) => ({
   ],
   timezone: ZONE,
   calendar: "none",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "none", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: false,
@@ -570,7 +572,7 @@ test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values s
     byTestId(tree, "bc-detail"),
     (n) => n.props?.className === "cl-prof-aut-hint" && textOf(n).startsWith("Values:"),
   );
-  assert.equal(textOf(values), "Values: their visit's time · their first name", "REGRESSION: visit_when");
+  assert.equal(textOf(values), "Values: their booked time · their first name", "REGRESSION: visit_when");
 });
 
 test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- the starter's slot held a value its select had no option for", () => {
@@ -608,9 +610,7 @@ test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- th
         f.props.offers.some((o) => o.id === f.props.kind),
         `REGRESSION: ${f.props.kind} had no choice for itself`,
       );
-  assert.ok(
-    fills[slots.findIndex((s) => s.kind === "visit_when")].props.offers[0].label.includes("Their visit's time"),
-  );
+  assert.ok(fills[slots.findIndex((s) => s.kind === "visit_when")].props.offers[0].label.includes("Their booked time"));
 });
 
 test("REGRESSION: a starter's first name is each person's own on a broadcast and offers no other source -- it could be set to the booking link, and a broadcast greeted everyone 'Hi your booking link'", async () => {

@@ -114,7 +114,8 @@ type Open = (b: TodayDayItemVM) => void;
  * strip (strip.tsx, Glass) read this one derivation. The calendar's `now` is null when today is not in its span;
  * todayDay reads it only on today's frame, where it is a number, and its own type (CalendarLike) does not say null:
  * what the surface published is handed over as the JSX handed it. A playbook's `candidates` is null when the server
- * could not count it, and PlaybookCardLike says so: the card leaves the count out.
+ * could not count it, and PlaybookCardLike says so: the card leaves the count out. The reminders say the workspace's
+ * word from the playbooks surface Today already reads (its shape, from GET playbooks), as Campaigns says it: no read more.
  */
 function dayVmOf(
   C: CalendarSurface | undefined,
@@ -122,7 +123,7 @@ function dayVmOf(
   people: PeopleSurface | undefined,
 ): TodayDayVM | null {
   if (!C || !C.vm || C.vm.feed.state !== "ok") return null;
-  const vm = TODAY_HELPERS.day(C.vm as CalendarLike, P ? P.rows : null, people || null);
+  const vm = TODAY_HELPERS.day(C.vm as CalendarLike, P ? { rows: P.rows, word: P.shape.word } : null, people || null);
   return vm.frames.length ? vm : null;
 }
 

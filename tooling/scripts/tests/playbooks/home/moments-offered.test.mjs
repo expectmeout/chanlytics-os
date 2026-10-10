@@ -182,8 +182,11 @@ const row = (id, trigger, over = {}) => ({
 const answer = (data) =>
   new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
 
-/** The surface the bridge builds from what GET playbooks answers for a workspace whose calendar is `calendar`. */
-async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = false }) {
+/**
+ * The surface the bridge builds from what GET playbooks answers for a workspace whose calendar is `calendar`; `shape` is
+ * what the answer says of the business beside it (its word and its booking tool), absent from a server from before them.
+ */
+async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = false, shape = {} }) {
   const kept = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
@@ -196,6 +199,7 @@ async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = fals
         deals_on: dealsOn,
         lists: [],
         people_lists: [],
+        ...shape,
       });
     if (path === "/api/v1/templates") return answer({ templates: [] });
     if (path === "/api/v1/channels") return answer({ channels: [] });
@@ -245,6 +249,53 @@ test("the surface says which moments a new playbook may start from, by the works
   }
   const deals = await surfaceFor({ calendar: "none", dealsOn: true });
   assert.ok(deals.triggers.find((t) => t.id === "proposal_waiting").offered, "deals on: the proposal follow-up");
+});
+
+test("the surface publishes the business's shape and says every appointment moment in its word: the one GET playbooks answers, else the one derivation over how its customers buy (a server from before the word)", async () => {
+  const reminder = row("pb-r", "visit_tomorrow");
+  const after = row("pb-a", "visited", { run_hour: 18 });
+  // The word the server answers is the one said, on the cards, their schedules and the moments offered.
+  const session = await surfaceFor({
+    calendar: "ok",
+    playbooks: [reminder, after],
+    shape: { appointment_word: "session", bookings_by_email: false },
+  });
+  assert.deepEqual(session.shape, { calendar: "feed", dealsOn: false, word: "session" });
+  assert.deepEqual(
+    session.rows.map((p) => [p.triggerLabel, p.triggerHint, p.schedule]),
+    [
+      [
+        "Session reminder",
+        "The day before a session on the calendar",
+        "Daily 10:00 AM · everyone with a session tomorrow · up to 25",
+      ],
+      [
+        "After the session",
+        "The day after a session, when nothing is booked next",
+        "Daily 6:00 PM · everyone who had a session yesterday · up to 25",
+      ],
+    ],
+  );
+  assert.deepEqual(
+    session.triggers.filter((t) => t.kind === "visit").map((t) => [t.label, t.hint]),
+    [
+      ["Session reminder", "The day before a session on the calendar"],
+      ["After the session", "The day after a session, when nothing is booked next"],
+    ],
+  );
+  assert.equal(session.triggers.find((t) => t.id === "lapsed").hint, "No session in 45 days, and nothing booked");
+  // A server from before the word: a workspace whose customers get a proposal first says meeting, and one that books says
+  // appointment, as the server would (contracts appointmentWordOf); no calendar, bookings by email, is said so.
+  const before = await surfaceFor({ calendar: "none", dealsOn: true, playbooks: [reminder] });
+  assert.deepEqual(before.shape, { calendar: "none", dealsOn: true, word: "meeting" });
+  assert.equal(before.rows[0].triggerLabel, "Meeting reminder");
+  const byEmail = await surfaceFor({
+    calendar: "none",
+    shape: { appointment_word: "appointment", bookings_by_email: true },
+  });
+  assert.deepEqual(byEmail.shape, { calendar: "email", dealsOn: false, word: "appointment" });
+  // Every other moment says its own words, whatever the word.
+  assert.equal(session.triggers.find((t) => t.id === "quiet_30").label, triggerOf("quiet_30").label);
 });
 
 test("the home's moments to turn on: none retired, and one win-back -- the one the workspace can read, and none at all when a playbook is on either", async () => {

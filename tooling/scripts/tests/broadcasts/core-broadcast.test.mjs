@@ -829,7 +829,7 @@ test("a playbook's run that stops is never told to send it again: every stop say
   assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "tomorrow"), NEXT);
   assert.match(
     playbookRunNext({ playbook_id: "p1", trigger: "visit_tomorrow" }, "tomorrow"),
-    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
+    /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/,
   );
   // The run's own page, for every failure a run can stop with: how many got it, what there is to do, what becomes of it.
   const { BROADCAST_FAILURES } = await import("@chanlytics/contracts");
@@ -1020,7 +1020,7 @@ test("a wait is drawn a little longer at random, so the runs one outage held do 
  * playbook's, which nobody sends again. Each said "send it again" after its cause.
  */
 const VISIT_RUN_NEXT =
-  "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+  "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
 
 /** A message about their visit: Meta's row, and the text and email versions beside it, each filling the same slots. */
 const VISIT_WORDS = "Hi {{1}}, your visit is {{2}}.";
@@ -2242,7 +2242,7 @@ test("a billing pause the door meets stops the run, once, and gives the person b
   // A visit's message belongs to the day of the visit: tomorrow's run is for tomorrow's visits, so these are not reached later.
   assert.match(
     await stopped(forMoment("visit_tomorrow")),
-    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
+    /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/,
   );
   assert.doesNotMatch(await stopped(forMoment("visited")), /send it again|tomorrow's run reaches/i);
   // The same pause met at the head, before anyone is claimed: the same words, once.

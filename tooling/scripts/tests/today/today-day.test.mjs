@@ -80,6 +80,8 @@ const cal = (days, over = {}) => ({
   bookingLink: null,
   ...over,
 });
+/** The playbooks surface as the day reads it: its cards, and what the workspace calls an appointment (its shape's word). */
+const pb = (rows, word = "appointment") => ({ rows, word });
 
 test("today and tomorrow, as the calendar reads them: items in time order with their person, the open windows, closed days said plainly", () => {
   const days = [
@@ -105,10 +107,10 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   ];
   const vm = todayDay(
     cal(days),
-    [
+    pb([
       { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00 AM" },
       { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00 AM" },
-    ],
+    ]),
     { rows: [{ id: "c1", state: "needs_you" }] },
   );
   assert.equal(vm.feed, "ok");
@@ -147,7 +149,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
       }),
       day("2026-09-07", { blocks: [block("b3", 9, "9 – 10 AM", "Cut", person("c9", "Ana"))] }),
     ]),
-    [],
+    pb([]),
     null,
   );
   assert.deepEqual(
@@ -187,37 +189,70 @@ test("without a feed the day says nothing; with one and no visit playbook it off
     cal([day("2026-09-06", { today: true })], {
       feed: { present: true, state: "unavailable", line: "", events: 0, source: "x" },
     }),
-    [],
+    pb([]),
   );
   assert.equal(off.feed, "unavailable");
   assert.equal(off.reminders, null);
-  const on = todayDay(cal([day("2026-09-06", { today: true })], { stats: { events: 0, windows: 0, next: "—" } }), []);
+  const on = todayDay(
+    cal([day("2026-09-06", { today: true })], { stats: { events: 0, windows: 0, next: "—" } }),
+    pb([]),
+  );
   assert.equal(on.nextOpening, null);
-  assert.match(on.reminders.text, /^No visit reminders yet/);
+  assert.match(on.reminders.text, /^No appointment reminders yet/);
   assert.equal(on.reminders.to, "outbound");
-  const paused = todayDay(cal([day("2026-09-06", { today: true })]), [
-    { trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused" },
-  ]);
-  assert.match(paused.reminders.text, /^No visit reminders yet/, "a paused playbook is not a reminder going out");
+  const paused = todayDay(
+    cal([day("2026-09-06", { today: true })]),
+    pb([{ trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused" }]),
+  );
+  assert.match(paused.reminders.text, /^No appointment reminders yet/, "a paused playbook is not a reminder going out");
   // A playbook goes by WhatsApp, text or email, so the offer to start one says "write", not "text".
   assert.equal(
     on.reminders.text,
-    "No visit reminders yet — a playbook can write the day before an appointment and the day after a visit.",
+    "No appointment reminders yet — a playbook can write the day before an appointment and the day after.",
   );
   // A count the server could not make is left out, never said as "null people".
-  const uncounted = todayDay(cal([day("2026-09-06", { today: true })]), [
-    { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: null, next: "today 10:00 AM" },
-    { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM" },
-  ]);
+  const uncounted = todayDay(
+    cal([day("2026-09-06", { today: true })]),
+    pb([
+      { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: null, next: "today 10:00 AM" },
+      { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM" },
+    ]),
+  );
   assert.equal(
     uncounted.reminders.text,
     "Appointment reminder: next run today 10:00 AM · After the appointment: 1 person · next run today 6:00 PM",
   );
 });
 
+test("the day's reminders say the workspace's word, as Campaigns does, from the playbooks surface the page already reads; unread, they say nothing", () => {
+  const today = cal([day("2026-09-06", { today: true })]);
+  // A deals-on workspace calls an appointment a meeting (contracts appointmentWordOf): Campaigns' drawer says "Meeting
+  // reminder", and so does Today, from the same surface's word, never a constant of its own.
+  const meeting = todayDay(
+    today,
+    pb(
+      [
+        { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00 AM" },
+        { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM" },
+      ],
+      "meeting",
+    ),
+  );
+  assert.equal(
+    meeting.reminders.text,
+    "Meeting reminder: 2 people · next run today 10:00 AM · After the meeting: 1 person · next run today 6:00 PM",
+  );
+  assert.equal(
+    todayDay(today, pb([], "session")).reminders.text,
+    "No session reminders yet — a playbook can write the day before a session and the day after.",
+  );
+  // The playbooks not read yet (or a read that failed): the day does not know whether a reminder runs, so it says none.
+  assert.equal(todayDay(today, null).reminders, null);
+});
+
 test("five rows on Today, the rest a line to the Calendar: what is over goes first, what is coming stays", () => {
   const blocks = [8, 9, 10, 11, 13, 14, 16, 18].map((h) => block(`b${h}`, h, `${h}:00`, `Slot ${h}`));
-  const vm = todayDay(cal([day("2026-09-06", { today: true, blocks })]), [], null);
+  const vm = todayDay(cal([day("2026-09-06", { today: true, blocks })]), pb([]), null);
   const [today] = vm.frames;
   assert.equal(TODAY_DAY_MAX, 5);
   assert.deepEqual(
@@ -225,7 +260,7 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
     ["Slot 10", "Slot 11", "Slot 13", "Slot 14", "Slot 16"],
     "at ten: what is on now and the four coming; the two over and the last of the evening are the three cut",
   );
-  const noon = todayDay(cal([day("2026-09-06", { today: true, blocks })], { now: 12 }), [], null).frames[0];
+  const noon = todayDay(cal([day("2026-09-06", { today: true, blocks })], { now: 12 }), pb([]), null).frames[0];
   assert.deepEqual(
     noon.items.map((i) => i.title),
     ["Slot 11", "Slot 13", "Slot 14", "Slot 16", "Slot 18"],
@@ -234,7 +269,7 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
   assert.equal(today.more, 3);
   assert.equal(today.moreLine, "3 more on the Calendar");
   assert.equal(today.summary.booked, "8 booked", "the summary counts the day, not the rows drawn");
-  const few = todayDay(cal([day("2026-09-06", { today: true, blocks: blocks.slice(0, 3) })]), [], null).frames[0];
+  const few = todayDay(cal([day("2026-09-06", { today: true, blocks: blocks.slice(0, 3) })]), pb([]), null).frames[0];
   assert.deepEqual([few.more, few.moreLine], [0, null]);
 });
 
@@ -402,8 +437,8 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(dayModule.includes(s), s);
   assert.match(
     dayModule,
-    /TODAY_HELPERS\.day\(C\.vm[^,]*,\s*\(?P \? P\.rows : null\)?[^,]*,\s*people \|\| null\)/,
-    "the page composes the module: the calendar, the playbooks' rows or none, People or none",
+    /TODAY_HELPERS\.day\(\s*C\.vm[^,]*,\s*P \? \{ rows: P\.rows, word: P\.shape\.word \} : null,\s*people \|\| null,?\s*\)/,
+    "the page composes the module: the calendar, the playbooks' rows and the workspace's word or none, People or none",
   );
   // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
   // from): the day's numbers are the card's figures, not a sentence or a strip of stat cards; no calendar line.

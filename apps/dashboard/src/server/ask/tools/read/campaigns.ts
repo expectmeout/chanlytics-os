@@ -31,6 +31,7 @@ import {
   sentByWords,
   toRunReportVM,
   triggerOf,
+  triggerWords,
   unmetNeed,
   type AudienceKind,
   type BroadcastDto,
@@ -256,6 +257,11 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
     ),
   ]);
   const pb = read.data;
+  // The workspace's word (GET playbooks' businessShape): Ask says each appointment moment as the page does.
+  const said = (id: string) => {
+    const x = triggerOf(id);
+    return x ? triggerWords(x, pb.appointment_word) : null;
+  };
   // Every playbook it lists is a row an answer may cite, opened on Playbooks at its card: the reader's RowRefs.
   noteRows(t.read, read.rows);
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
@@ -308,7 +314,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       playbook_id: p.id,
       name: p.name,
       trigger: p.trigger,
-      trigger_label: triggerOf(p.trigger)?.label ?? p.trigger,
+      trigger_label: said(p.trigger)?.label ?? p.trigger,
       template: p.template_name,
       // The channels it goes by (WhatsApp alone for one made before channels): what propose_campaign with action
       // channels is asked to change, and must be told whole.
@@ -316,7 +322,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       state: p.state,
       policy_class: p.policy_class,
       mode: modeOf(p.policy_class),
-      schedule: scheduleLine(p),
+      schedule: scheduleLine(p, pb.appointment_word),
       next_run: nextRunLabel(p, pb.timezone, t.now, pb.ready?.paused === true),
       // On a list (decision 0009): its token, and who a run on it reaches now, as the page counts that list.
       ...(() => {
@@ -338,8 +344,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       momentOffered(x, { dealsOn: pb.deals_on, calendarOn: pb.calendar !== "none" }),
     ).map((x) => ({
       trigger: x.id,
-      label: x.label,
-      when: x.hint,
+      label: triggerWords(x, pb.appointment_word).label,
+      when: triggerWords(x, pb.appointment_word).hint,
       policy_class: x.cls,
       // On a list, the counts are the list's: campaigns.audiences has each list's.
       ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),

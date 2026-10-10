@@ -360,7 +360,8 @@ export const STARTER_LINE_WORDS = {
  * applies, and until it is on a database the route says so in one sentence and nothing else changes.
  */
 export const MESSAGE_BEGIN_WORDS = {
-  customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  customIsAnOffer:
+    "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
   starterNeedsItsOwnWords:
     "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",

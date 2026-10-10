@@ -218,8 +218,8 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
-  visit_when: "Their visit's time",
-  visit_service: "Their visit's service",
+  visit_when: "Their booked time",
+  visit_service: "Their booked service",
   proposal_link: "Their proposal's link",
 };
 
@@ -232,8 +232,8 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
   first_name: "Each person's own — “there” when none is on file",
   business_name: "From Settings › Business",
   booking_link: "From Settings › Business",
-  visit_when: "Each visit's own, from the calendar",
-  visit_service: "Each visit's own, from the calendar",
+  visit_when: "Each one's own, from the calendar",
+  visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal",
 };
 

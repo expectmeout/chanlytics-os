@@ -27,7 +27,7 @@ const run = (over = {}) => ({
   ...over,
 });
 const opts = (over = {}) => ({
-  playbook: { trigger: "everyone_monthly", cap_per_run: 250, gap_days: 90, cadence_days: 30 },
+  playbook: { trigger: "everyone_monthly", cap_per_run: 250, gap_days: 90, cadence_days: 30, word: "visit" },
   businessName: "Marisa Studio",
   today: "2026-09-21",
   open: { time: "10:00", moved: false, on: "2026-09-21" },
@@ -53,7 +53,7 @@ test("a run that kept no count says who it reaches by the number it has and the 
   // A list playbook's gap is its own, and its cap is said when the run reached it.
   const winback = C.toApprovalVM(
     { broadcast: run({ recipient_count: 25 }), recipients: people },
-    opts({ playbook: { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 } }),
+    opts({ playbook: { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30, word: "visit" } }),
   );
   assert.deepEqual(winback.rules, [
     "each said yes to offers",
@@ -64,7 +64,7 @@ test("a run that kept no count says who it reaches by the number it has and the 
   // A reminder is owed to everyone with a visit: no gap, no week's breath, no cap -- and its yes is to hearing from you.
   const visit = C.toApprovalVM(
     { broadcast: run(), recipients: people },
-    opts({ playbook: { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30 } }),
+    opts({ playbook: { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30, word: "visit" } }),
   );
   assert.deepEqual(visit.rules, ["each said yes to hearing from you", "each has a visit tomorrow on the calendar"]);
 });
@@ -84,7 +84,7 @@ test('the words are the first named person\'s, slot by slot, and the people a gr
     { broadcast: run({ params: [{ kind: "visit_when" }, { kind: "booking_link" }] }), recipients: people },
     opts(),
   );
-  assert.deepEqual(visit.values, ["[their visit's time]", "your booking link"]);
+  assert.deepEqual(visit.values, ["[their booked time]", "your booking link"]);
   assert.equal(C.toApprovalVM({ broadcast: run(), recipients: [] }, opts()).reader, null);
 });
 
@@ -279,7 +279,7 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
   // A reminder's yes is to hearing from you, and one person is one person.
   const visit = counted(
     kept({ pool: 5, will: 3, noYes: 1, heardAny: 0, noNumber: 1 }),
-    opts({ playbook: { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30 } }),
+    opts({ playbook: { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30, word: "visit" } }),
   );
   assert.deepEqual(
     visit.of.lines.map((l) => l.words),
@@ -289,7 +289,7 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
   // Every reason a run keeps has its words, the gap and the cap the playbook's own.
   const all = counted(
     kept({ pool: 20, will: 7, noYes: 0, heardAny: 0, noNumber: 2, stopped: 3, heardThis: 4, overCap: 1, overLimit: 3 }),
-    opts({ playbook: { trigger: "quiet_30", cap_per_run: 8, gap_days: 90, cadence_days: 30 } }),
+    opts({ playbook: { trigger: "quiet_30", cap_per_run: 8, gap_days: 90, cadence_days: 30, word: "visit" } }),
   );
   assert.deepEqual(
     all.of.lines.map((l) => l.words),
@@ -408,7 +408,7 @@ test("the run's rules say what each person was asked on the channel they are rea
   const runBy = (by_channel, trigger, will = 10) =>
     counted(
       kept({ pool: 20, will, noYes: 0, heardAny: 0, by_channel }),
-      opts({ playbook: { trigger, cap_per_run: 25, gap_days: 90, cadence_days: 30 } }),
+      opts({ playbook: { trigger, cap_per_run: 25, gap_days: 90, cadence_days: 30, word: "visit" } }),
     ).rules;
   // WhatsApp alone, or no count of channels: the sentence every run said.
   assert.equal(runBy({ whatsapp: 10, sms: 0, email: 0 }, "everyone_monthly")[0], "each said yes to offers");
@@ -460,4 +460,19 @@ test("the reader's channel is their row's own, WhatsApp where the run kept none:
   for (const channel of [undefined, null, "carrier pigeon"])
     assert.equal(C.toApprovalVM({ broadcast: run(), recipients: on({ channel }) }, opts()).readerChannel, "whatsapp");
   assert.equal(C.toApprovalVM({ broadcast: run(), recipients: [] }, opts()).readerChannel, "whatsapp");
+});
+
+test("a reminder's run says the rule that made its list in the workspace's word", () => {
+  const vm = (trigger, word) =>
+    C.toApprovalVM(
+      { broadcast: run(), recipients: people },
+      opts({ playbook: { trigger, cap_per_run: 25, gap_days: 90, cadence_days: 30, word } }),
+    );
+  assert.deepEqual(vm("visit_tomorrow", "session").rules, [
+    "each said yes to hearing from you",
+    "each has a session tomorrow on the calendar",
+  ]);
+  assert.ok(
+    vm("visited", "appointment").rules.includes("each had an appointment yesterday and has nothing booked next"),
+  );
 });

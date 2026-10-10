@@ -392,6 +392,8 @@ const playbooksSurface = (record) => ({
   lists: [],
   timezone: "America/New_York",
   calendar: "ok",
+  // How the business works (the surface's shape, 9 Oct 2026): a calendar, no deals, the word the derivation gives it.
+  shape: { calendar: "feed", dealsOn: false, word: "appointment" },
   number: hasNumber(record)
     ? { present: true, health: contracts.numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }) }
     : { present: false, health: contracts.numberHealth({ quality: null, event: null, limit: null }) },

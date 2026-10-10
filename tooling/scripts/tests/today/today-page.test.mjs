@@ -259,6 +259,11 @@ const calls = () => [
   }),
 ];
 const busy = () => toTodayVM(metrics(), threads(), escalations(), calls(), NOW);
+/**
+ * The playbooks surface with no playbook, as the app publishes it: its rows, and its shape (9 Oct 2026), whose word the
+ * day's reminders say.
+ */
+const noPlaybooks = () => ({ rows: [], shape: { calendar: "feed", dealsOn: false, word: "appointment" } });
 const quietDay = () =>
   toTodayVM(
     metrics({
@@ -1078,7 +1083,7 @@ test("the day listens for People too: it reads People for a visit that needs som
   // the card drew once with the calendar and never again, so the flag and the glyphs a person's row carries were
   // missing until something else redrew it.
   clear();
-  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
   draw(TodayDay);
   for (const key of ["calendar", "playbooks", "people"]) {
     quiet();
@@ -1094,7 +1099,7 @@ test("the day listens for People too: it reads People for a visit that needs som
 test("each band of Today is drawn again when a surface it draws from lands, and by no other's", () => {
   // The shell drew whole on every surface's read; a band now names the surfaces it draws (useSurface) and moves on those.
   clear();
-  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
   const bands = [
     ["the alert line", HeroBrief, ["today"]],
     ["the day's card", TodayCard, ["today", "reports_headline"]],
@@ -1124,7 +1129,7 @@ test("the day: five rows and a line to the Calendar; a failed calendar read says
   set({
     today: busy(),
     __CALENDAR: calendar([8, 9, 10, 11, 13, 14, 17].map((h) => block(`b${h}`, h, `Slot ${h}`))),
-    __PLAYBOOKS: { rows: [] },
+    __PLAYBOOKS: noPlaybooks(),
   });
   const tree = draw(TodayDay);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "today-day-item").length, 5);
@@ -1145,7 +1150,7 @@ test("a calendar it HAS and could not read says so where the day goes: the feed'
   clear();
   const c = calendar([]);
   c.vm.feed = { ...c.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
-  set({ today: busy(), __CALENDAR: c, __PLAYBOOKS: { rows: [] } });
+  set({ today: busy(), __CALENDAR: c, __PLAYBOOKS: noPlaybooks() });
   const card = byTestId(draw(TodayDay), "today-day-unreadable");
   // REGRESSION: this returned null. A working day and a broken feed drew exactly the same thing — nothing —
   // so a bad calendar address survived two rounds of being looked straight at.
@@ -1201,7 +1206,7 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
   const clock = W.__clock;
   W.__clock = { ...clock, zone: () => ZONE };
   try {
-    set({ today: busy(), __PLAYBOOKS: { rows: [] }, __PEOPLE: { rows, fetchedAt: nowMs } });
+    set({ today: busy(), __PLAYBOOKS: noPlaybooks(), __PEOPLE: { rows, fetchedAt: nowMs } });
     const want = todaySteps(rows, nowMs, ZONE);
     const alone = byTestId(draw(TodayDay), "today-day-steps");
     assert.ok(alone, "no calendar: the panel is the steps alone");
@@ -1680,7 +1685,7 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
       __PEOPLE: people(),
       __BROADCASTS: broadcasts(),
       __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-      __PLAYBOOKS: { rows: [] },
+      __PLAYBOOKS: noPlaybooks(),
       __clock: W.__clock,
       __notifs: bell,
     },
@@ -1723,7 +1728,7 @@ test("the page is its bands and nothing seeded", () => {
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-    __PLAYBOOKS: { rows: [] },
+    __PLAYBOOKS: noPlaybooks(),
     __notifs: { feed: () => [], onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {}, unread: () => 0 },
   });
   W.__DEMO_MODE = true;
@@ -2134,7 +2139,7 @@ test("the bento (E3): the strip, the queue's column beside the brief and the bel
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-    __PLAYBOOKS: { rows: [] },
+    __PLAYBOOKS: noPlaybooks(),
     __notifs: emptyBell(),
   });
   const tree = draw(DashboardA);

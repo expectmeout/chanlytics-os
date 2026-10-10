@@ -273,6 +273,8 @@ const playbooksSurface = (over = {}) => ({
   })),
   timezone: ZONE,
   calendar: "none",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "none", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: true,

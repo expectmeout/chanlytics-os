@@ -65,7 +65,8 @@ function card(
     poolKey: dto.trigger,
     triggerLabel: t?.label ?? dto.trigger,
     triggerHint: t?.hint ?? "",
-    schedule: scheduleLine(dto),
+    // The demo's business has said nothing of how its customers buy: its word is the one derivation's, "appointment".
+    schedule: scheduleLine(dto, "appointment"),
     next: nextRunLabel(dto, DEMO_ZONE, now, false),
     named: null,
     off: null,
@@ -214,6 +215,8 @@ export function playbooksSample(now = new Date()): PlaybooksSurface {
     timezone: DEMO_ZONE,
     countsRead: true,
     calendar: "ok",
+    // A calendar connected (above), deals off, and the word a business that has not said how its customers buy reads.
+    shape: { calendar: "feed", dealsOn: false, word: "appointment" },
     triggers,
     lists: [],
     templates: ["winback_offer", "monthly_offer", "visit_reminder"].map((key) => approved(key, iso(-7 * DAY))),

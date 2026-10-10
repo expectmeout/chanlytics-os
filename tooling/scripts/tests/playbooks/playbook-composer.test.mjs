@@ -118,6 +118,8 @@ const surface = (over = {}) => ({
   triggers: contracts.PLAYBOOK_TRIGGERS.map((t) => trig(t.id)),
   timezone: ZONE,
   calendar: "ok",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "feed", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: true,
@@ -337,7 +339,7 @@ test("REGRESSION: a visit's reminder is not offered to a list moment, and is to 
     ],
     "the visit reminder, its visit's words each visit's own",
   );
-  assert.ok(slotsOf(tree)[2].props.offers[0].label.includes("Their visit's time"));
+  assert.ok(slotsOf(tree)[2].props.offers[0].label.includes("Their booked time"));
   assert.ok(
     textOf(byTestId(tree, "pb-clock")).includes("one message per visit"),
     "no cap and no gap: a reminder is owed to every visit",

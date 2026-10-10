@@ -87,7 +87,7 @@ export function playbookRunNext(
 ): string | null {
   if (!run.playbook_id) return null;
   if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+    return "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
   return by === "tomorrow"
     ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice."
     : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";

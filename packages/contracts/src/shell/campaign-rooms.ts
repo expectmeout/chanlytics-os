@@ -77,7 +77,7 @@ export const NEW_MESSAGE_WORDS = {
   /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
   sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
   /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
-  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+  own: "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.",
   /** What a text says after the carriers' sentence: the way out. */
   textGoesByEmail: "This one can go by email.",
   writeAsEmail: "Write it as an email",

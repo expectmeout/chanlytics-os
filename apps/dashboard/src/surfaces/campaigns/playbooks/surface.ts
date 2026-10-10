@@ -16,14 +16,18 @@ import {
   type NumberHealth,
   FOLLOW_UP_NEEDS_DEALS,
   PLAYBOOK_TRIGGERS,
+  appointmentWordOf,
   momentOffered,
   nextRunLabel,
   playbookPoolKey,
   scheduleLine,
   triggerOf,
   triggerOffered,
+  triggerWords,
+  type LifecycleShape,
   type PlaybookDto,
 } from "@chanlytics/contracts";
+import type { Output } from "@/client/api";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
@@ -234,6 +238,11 @@ export interface PlaybooksSurface {
   countsRead: boolean;
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
+  /**
+   * How the business works, as Campaigns' home reads it (contracts LifecycleShape, from GET playbooks' businessShape): the
+   * calendar its appointment moments are counted from, whether deals are on, and what it calls an appointment.
+   */
+  shape: LifecycleShape;
   triggers: PlaybookTriggerOption[];
   /**
    * Every list a playbook may run on (decision 0009), each by its token (`seg:<id>` for People's, `list:<id>` for the
@@ -264,6 +273,23 @@ export interface PlaybooksSurface {
 }
 
 /** Count the whole pool, not one run's cap. */
+
+/**
+ * How the business works, from GET playbooks' answer (its businessShape): what the workspace calls an appointment, and
+ * whether its appointment moments are counted from a calendar's feed, from a booking tool's emails, or from neither. A
+ * server from before the word answers none, and the one derivation reads how its customers buy here instead, so either
+ * deploy order works.
+ */
+function businessShapeOf(
+  pb: Pick<Output<"GET playbooks">, "deals_on" | "appointment_word" | "bookings_by_email">,
+  calendarOn: boolean,
+): LifecycleShape {
+  return {
+    calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
+    dealsOn: !!pb.deals_on,
+    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null }),
+  };
+}
 
 /**
  * Playbooks: the rows with what their runs earned, the triggers with the
@@ -329,8 +355,12 @@ export const playbooksOverride: SurfaceOverride = {
     const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     // A connected calendar counts whether or not its feed can be read just now: the win-back by visits is offered on it.
     const calendarOn = (pb.calendar ?? "none") !== "none";
+    // How the business works, and the word every moment's words below say.
+    const shape = businessShapeOf(pb, calendarOn);
+    const { word } = shape;
     setSurfaceValue("playbooks", {
       pools,
+      shape,
       ready: pb.ready ?? null,
       month_sent: pb.month_sent ?? null,
       rows: pb.playbooks.map((p) => {
@@ -343,9 +373,10 @@ export const playbooksOverride: SurfaceOverride = {
           poolKey: keyOf(p),
           // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
           listArchived: onArchived,
-          triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
-          triggerHint: t?.hint ?? "",
-          schedule: scheduleLine(p),
+          triggerLabel:
+            p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : t ? triggerWords(t, word).label : p.trigger,
+          triggerHint: t ? triggerWords(t, word).hint : "",
+          schedule: scheduleLine(p, word),
           // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
           next: nextRunLabel(p, tz, now, pb.ready?.paused === true),
           candidates: reading ? reading.candidates : null,
@@ -367,8 +398,8 @@ export const playbooksOverride: SurfaceOverride = {
       calendar: pb.calendar ?? "none",
       triggers: moments.map((t) => ({
         id: t.id,
-        label: t.label,
-        hint: t.hint,
+        label: triggerWords(t, word).label,
+        hint: triggerWords(t, word).hint,
         cls: t.cls,
         list: t.list,
         kind: t.kind,

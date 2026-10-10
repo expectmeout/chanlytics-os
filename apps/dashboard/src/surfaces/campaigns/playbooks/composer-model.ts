@@ -346,7 +346,7 @@ function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
         .slice(0, 3)
         .map((l) => ({ t: l.words, tone: l.tone, door: l.door }))
     : [];
-  const of = poolWords(f.trigger);
+  const of = poolWords(f.trigger, input.data.shape.word);
   // Who a run reaches on which channel, said where it goes by more than WhatsApp alone, as the clause after the count and
   // as the bar: the figures are of everyone it can reach now, before the cap (the reasons say who waits for the next run).
   const split: ReachSplit | null =

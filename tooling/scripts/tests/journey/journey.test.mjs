@@ -139,3 +139,15 @@ test("journeyStageOf: the stage a campaign's trigger stands on, and none for a l
   };
   for (const [trigger, stage] of Object.entries(cases)) assert.equal(C.journeyStageOf(trigger), stage, trigger);
 });
+
+test("the drawer's schedule and a card's pool say the workspace's word; a proposal's say none", () => {
+  const p = { trigger: "visit_tomorrow", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  assert.equal(C.scheduleLine(p, "meeting"), "Daily 10:00 AM · everyone with a meeting tomorrow · up to 25");
+  assert.equal(
+    C.scheduleLine({ ...p, trigger: "visited" }, "visit"),
+    "Daily 10:00 AM · everyone who visited yesterday · up to 25",
+  );
+  assert.equal(C.poolWords("visit_tomorrow", "appointment"), "with an appointment tomorrow");
+  assert.equal(C.poolWords("visited", "lesson"), "who had a lesson yesterday");
+  assert.equal(C.poolWords("proposal_waiting", "lesson"), "with a proposal waiting");
+});

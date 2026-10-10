@@ -699,10 +699,7 @@ test("a playbook's run that a billing pause stopped is told its own next step on
   );
   assert.equal(win.tone, "warn");
   const visit = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "visit_tomorrow" } });
-  assert.match(
-    visit.fix,
-    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
-  );
+  assert.match(visit.fix, /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/);
   // A playbook's run that reached some people first says the same: its next step is not a resend either.
   const sent = [
     { contact_id: "got", name: "Ada Lee", first_name: "Ada", state: "sent", sent_at: at(0), replied: false },

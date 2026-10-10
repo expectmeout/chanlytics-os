@@ -14,10 +14,11 @@ import {
   LIFECYCLE_WORDS,
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
+  appointmentWordOf,
   pipelineRoute,
   poolWords,
 } from "@chanlytics/contracts";
-import type { ConsentChannel } from "@chanlytics/contracts";
+import type { AppointmentWord, ConsentChannel } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
 import { canRestoreList, gate, gatedProps, navigate, restoreList } from "../../legacy-verbs";
@@ -246,6 +247,8 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
 /** Everything the card's sections read. */
 interface CardCtx extends ReturnType<typeof cardRead> {
   p: PlaybookRow;
+  /** What the workspace calls an appointment (the playbooks surface's shape): the drawer says the page's one word. */
+  word: AppointmentWord;
   canAct: boolean;
   onEdit: (p: PlaybookRow) => void;
   busy: boolean;
@@ -284,7 +287,7 @@ function cardWords(c: CardCtx) {
 
 /** Who its moment reaches, as a link that opens them, and who of them wait: nothing where the server could not count. */
 function sentenceCounted(c: CardCtx) {
-  const { p, trig, noNumber, named, listRoute } = c;
+  const { p, trig, noNumber, named, listRoute, word } = c;
   if (named === null || p.candidates === null || p.held === null) return false;
   return (
     <>
@@ -303,7 +306,7 @@ function sentenceCounted(c: CardCtx) {
         data-testid="pb-audience"
       >
         {noNumber ||
-          `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger) : "on the list"} said yes`}
+          `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger, word) : "on the list"} said yes`}
       </LinkButton>
       {/* Why a list with people on it can still offer nobody: one message per
           person per week, across playbooks. A bare "0 people" read as broken. */}
@@ -668,7 +671,9 @@ function useCard({ p, canAct, onEdit, flash }: Pick<CardProps, "p" | "canAct" | 
   const surface = useSurface("playbooks");
   const read = cardRead(p, surface);
   const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash });
-  return { ...read, p, canAct, onEdit, busy, sure, skipSure, setSure, setSkipSure, acts };
+  // The workspace's word, from the surface the card reads; unread, the one derivation over nothing known.
+  const word = surface ? surface.shape.word : appointmentWordOf({ stored: null, sellsBy: null });
+  return { ...read, p, word, canAct, onEdit, busy, sure, skipSure, setSure, setSkipSure, acts };
 }
 
 interface PaneProps {
