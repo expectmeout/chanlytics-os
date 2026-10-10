@@ -1,16 +1,21 @@
 /**
- * What Reports' date range button opens (period-picker.tsx), loaded on demand: the days the range covers in words and
- * the days every figure is compared with (the same number before them, contracts `before`), the four periods the
- * report reads, a few days reached in one press (yesterday, last week, last month), and a month to
+ * What Reports' date range button opens (period-picker.tsx), loaded on demand: the days the range covers in words, the
+ * four periods the report reads and the days reached in one press (yesterday, last week, last month), and a month to
  * pick any days on (the kit's DayRangePicker): two presses, a first day and a last, no more of them than a report reads
- * and none to come. A pick is read at once and closes the popover (Ruben, 10 Oct 2026: "Apply and close"), so a pick is
- * never left to look undone, and the button says the days picked; Escape or a press outside closes it too, and focus
- * goes back to the button. The periods' control closes it on a press, not on an arrow key, so a key held on 30 days
- * still goes on to Month.
+ * and none to come. The periods and the days reached in one press were drawn two ways, a track and a row of quiet words,
+ * and the days every figure is compared with stood under the range (Ruben, 10 Oct 2026: "the presets have different
+ * styling ... confusing", and the comparison "is not needed"): two tracks drawn alike now, one under the other, the
+ * chosen one raised on whichever holds it, and the comparison is the figures' own to say.
+ *
+ * A pick is read at once and closes the popover (Ruben, 10 Oct 2026: "Apply and close"), so a pick is never left to look
+ * undone, and the button says the days picked. It closes once the pick has landed in sight (`PICK_SETTLES_MS`: the
+ * chosen option's lozenge, or the month's band and its two ends), and fades as it goes (the kit's Popover): it closed in
+ * the frame of the press, which read as harsh. Escape or a press outside closes it too, and focus goes back to the
+ * button. The presets close it on a press, not on an arrow key, so a key held on 30 days still goes on to Month.
  *
  * A period is a name for days that end today, kept in this browser. Any other days are those days: the address says them
- * (period.ts), so they are shared with a link and walked by Back. The four periods' control shows none chosen while the
- * page is on days a member picked.
+ * (period.ts), so they are shared with a link and walked by Back. Neither track shows one chosen while the page is on
+ * days a member picked that no shortcut names.
  */
 import {
   REPORT_MOST_DAYS,
@@ -20,17 +25,19 @@ import {
   type ReportPeriodId,
   type ReportRange,
 } from "@chanlytics/contracts";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { reportPickWords, reportShortcuts, type ReportWindowVM } from "@chanlytics/contracts/report-window";
-import { Button } from "../kit/button/button";
 import { DayRangePicker } from "../kit/datepicker/day-range-picker";
 import { Icon } from "../kit/icon/icon";
 import { Popover } from "../kit/popover/popover";
 import { Segmented } from "../kit/segmented/segmented";
 import { periodButton, type PeriodPickerProps } from "./period-picker";
 
-/** What the periods' control holds while the page is on days a member picked: none of the four. */
-const NO_PERIOD = "";
+/** What a track of presets holds while the page is on none of its own: none of them. */
+const NO_PRESET = "";
+
+/** How long a pick stays in sight before the popover goes: the lozenge or the band lands, then it fades. */
+const PICK_SETTLES_MS = 180;
 
 export function PeriodPopover({
   today,
@@ -41,9 +48,32 @@ export function PeriodPopover({
 }: PeriodPickerProps & { win: ReportWindowVM; openFirst: boolean }) {
   const chevron = <Icon name="chevron" size={14} />;
   const [open, setOpen] = useState(openFirst);
+  // The close a pick asked for, while its pick is still in sight; any opening or closing of its own lets it go.
+  const settling = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hold = (next: boolean) => {
+    if (settling.current !== null) clearTimeout(settling.current);
+    settling.current = null;
+    setOpen(next);
+  };
+  const settle = () => {
+    if (settling.current !== null) clearTimeout(settling.current);
+    settling.current = setTimeout(() => hold(false), PICK_SETTLES_MS);
+  };
+  useEffect(
+    () => () => {
+      if (settling.current !== null) clearTimeout(settling.current);
+    },
+    [],
+  );
   const choose = (days: ReportRange) => {
-    setOpen(false);
     void pick(days);
+    settle();
+  };
+  const shortcuts = reportShortcuts(today);
+  const shortcutOn = shortcuts.find((s) => win.key === reportRangeKey(s.days))?.id ?? NO_PRESET;
+  const onShortcut = (next: string) => {
+    const days = shortcuts.find((s) => s.id === next)?.days;
+    if (days) void pick(days);
   };
   return (
     <Popover
@@ -51,7 +81,7 @@ export function PeriodPopover({
       align="end"
       className="rpt-when"
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={hold}
       trigger={periodButton(win)}
     >
       <div className="rpt-when-head">
@@ -61,43 +91,29 @@ export function PeriodPopover({
         <p className="rpt-when-said">
           {win.said} · {timezoneCity(timezone)} time
         </p>
-        <p className="rpt-when-said" data-testid="reports-period-before">
-          Compared with {win.before.dates}
-        </p>
       </div>
-      {/* The control never holds while a period loads: an arrow key chooses and choosing reads, so a key held on 30 days
+      {/* The presets never hold while a period loads: an arrow key chooses and choosing reads, so a key held on 30 days
           must be able to go on to Month. Each pick is read, the surface drops the answer for a range left, and the latest
-          pick wins. */}
+          pick wins. A press (a pointer's, Space's) closes the popover once it has landed; an arrow key does not. */}
       <div
         className="rpt-when-periods"
         role="presentation"
-        onClick={(e) => (e.target instanceof Element && e.target.closest("button") ? setOpen(false) : undefined)}
+        onClick={(e) => (e.target instanceof Element && e.target.closest("button") ? settle() : undefined)}
       >
-        <Segmented<ReportPeriodId | typeof NO_PERIOD>
+        <Segmented<ReportPeriodId | typeof NO_PRESET>
           label="Period"
-          value={win.period ?? NO_PERIOD}
-          onValueChange={(next) => (next === NO_PERIOD ? undefined : void pick(next))}
+          className="rpt-when-presets"
+          value={win.period ?? NO_PRESET}
+          onValueChange={(next) => (next === NO_PRESET ? undefined : void pick(next))}
           options={REPORT_RANGES.map((r) => ({ value: r.id, label: r.label, testid: `period-${r.id}` }))}
         />
-      </div>
-      {/* Days reached in one press: each is the days it names today, picked as any days are. The one the page is on is
-          drawn as chosen, the rest quiet. */}
-      <div className="rpt-when-quick" role="group" aria-label="Other days">
-        {reportShortcuts(today).map((s) => {
-          const on = win.key === reportRangeKey(s.days);
-          return (
-            <Button
-              key={s.id}
-              size="sm"
-              variant={on ? undefined : "quiet"}
-              aria-pressed={on}
-              data-testid={`period-${s.id}`}
-              onClick={() => choose(s.days)}
-            >
-              {s.label}
-            </Button>
-          );
-        })}
+        <Segmented<string>
+          label="Other days"
+          className="rpt-when-presets"
+          value={shortcutOn}
+          onValueChange={onShortcut}
+          options={shortcuts.map((s) => ({ value: s.id, label: s.label, testid: `period-${s.id}` }))}
+        />
       </div>
       <DayRangePicker
         className="rpt-when-month"
