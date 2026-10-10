@@ -198,7 +198,7 @@ export { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./people/person-wo
 export { campaignsHomeOf, lifecycleKicker } from "./playbooks/lifecycle/lifecycle";
 export { LEDGER_SORTS, LEDGER_STATUSES, isLedgerCampaign, ledgerOrder, ledgerPeopleWords, ledgerPhoneLine, ledgerRowIn } from "./playbooks/lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./playbooks/lifecycle/lifecycle-tiles";
-export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords } from "./playbooks/lifecycle/lifecycle-words";
+export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, momentHoldsWords } from "./playbooks/lifecycle/lifecycle-words";
 export { poolWords, reachLines, runDayPassed, runApprovalRefusal, waitingRunOffer, toApprovalVM } from "./playbooks/playbook-approval";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";

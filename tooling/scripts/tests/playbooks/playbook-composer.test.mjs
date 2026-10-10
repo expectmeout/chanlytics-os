@@ -1510,3 +1510,90 @@ test("the moment's own message waiting on WhatsApp says where its WhatsApp versi
   );
   setSurfaceValue("settings", undefined);
 });
+
+/* ---------------------------------- decision 20: the title, the doors, the notice ---------------------------------- */
+
+test("a Turn on opens a sheet titled for its moment, with no kind switch; New message keeps its title and its choice", () => {
+  setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
+  fresh();
+  // The sample holds no campaign on the day after: its Turn on names the campaign it would start.
+  const turnOn = find(
+    again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW })),
+    (n) => n.type === PaneSheet,
+  );
+  assert.equal(turnOn.props.title, contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  assert.match(String(turnOn.props.title), /^Turn on \S/, "Turn on, and the moment's campaign by name");
+  assert.equal(turnOn.props.tools, undefined, "a Turn on is no choice of kind");
+  fresh();
+  // A moment that already holds one (the sample's Win-back): no second campaign's title is its name.
+  const holding = find(
+    again(() => CampaignsHome({ param: "new:moment:quiet_30", nowMs: NOW })),
+    (n) => n.type === PaneSheet,
+  );
+  assert.equal(holding.props.title, "New message");
+  fresh();
+  const plain = find(
+    again(() => CampaignsHome({ param: "new", nowMs: NOW })),
+    (n) => n.type === PaneSheet,
+  );
+  assert.equal(plain.props.title, "New message");
+  assert.ok(plain.props.tools, "New message chooses between Send once and Every time a moment comes");
+});
+
+test("a moment that already holds a campaign says so as the composer opens on it; the one being changed is not news", () => {
+  // The harness's surface holds no campaign (`surface()`, rows []): this one holds the file's own Win-back (`playbook()`).
+  const holds = { rows: [playbook()] };
+  const winback = composing(holds, "quiet_30");
+  assert.equal(textOf(byTestId(winback, "pb-holds")), contracts.LIFECYCLE_WORDS.compose.holds("Win-back", false));
+  assert.match(textOf(byTestId(winback, "pb-holds")), /Win-back · On/);
+  const paused = composing({ rows: [playbook({ state: "paused" })] }, "lapsed");
+  assert.match(textOf(byTestId(paused, "pb-holds")), /Win-back · Paused/, "the win-back's two moments are one");
+  assert.equal(byTestId(composing(holds, "visited"), "pb-holds"), null, "a moment holding none says nothing");
+  assert.equal(
+    byTestId(composing(holds, null, "pb-1"), "pb-holds"),
+    null,
+    "changing the Win-back says nothing of itself",
+  );
+});
+
+test("the composer's calendar and number sentences are doors to where they are mended", () => {
+  // A reminder being changed: a moment of the appointment, no calendar, no WhatsApp number, and it goes by WhatsApp.
+  const reminder = playbook({
+    id: "pb-r",
+    name: "Reminder",
+    trigger: "visit_tomorrow",
+    template_id: "tpl-visit_reminder",
+    template_name: "visit_reminder",
+    policy_class: "booking",
+    channels: ["whatsapp"],
+  });
+  const tree = composing(
+    { rows: [reminder], calendar: "none", number: { present: false, health: { canSend: false, refusal: null } } },
+    null,
+    "pb-r",
+  );
+  const W = contracts.LIFECYCLE_WORDS.compose;
+  const cal = byTestId(tree, "pb-calendar");
+  assert.ok(cal, "a moment of the appointment, with no calendar");
+  assert.ok(textOf(cal).startsWith(W.calendar.words), "contracts' sentence");
+  const calDoor = byTestId(cal, "pb-calendar-door");
+  assert.match(String(calDoor.props.href), /admin\/workspace\/calendar$/, "the calendar's own row");
+  assert.equal(textOf(calDoor), W.calendar.door.label);
+  const num = byTestId(tree, "pb-number");
+  assert.ok(num, "no WhatsApp number, and the campaign goes by WhatsApp");
+  assert.ok(textOf(num).startsWith(W.number.words), "contracts' sentence");
+  const numDoor = byTestId(num, "pb-number-door");
+  assert.match(String(numDoor.props.href), /admin\/integrations$/);
+  assert.equal(textOf(numDoor), W.number.door.label);
+  // A number that cannot send says its own refusal, with the same door.
+  const flagged = composing(
+    {
+      rows: [reminder],
+      number: { present: true, health: { canSend: false, refusal: "The number is flagged by WhatsApp." } },
+    },
+    null,
+    "pb-r",
+  );
+  assert.ok(textOf(byTestId(flagged, "pb-number")).startsWith("The number is flagged by WhatsApp."));
+  assert.ok(byTestId(byTestId(flagged, "pb-number"), "pb-number-door"));
+});

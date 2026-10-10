@@ -9165,6 +9165,895 @@ function usageMonthOf(month, lines) {
   };
 }
 
+// src/consent/consent.ts
+function isOptedOutContact(c) {
+  return c.consent === "opted_out" || c.dnc === true;
+}
+var ASKED_TO_STOP = "asked to stop receiving messages";
+var OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
+function optOutWords(who) {
+  return `${who} ${ASKED_TO_STOP}. Nothing can be sent \u2014 they can text START to opt back in.`;
+}
+function stopRequestQuestion() {
+  return { type: "noul", instructions: `Has the customer ${ASKED_TO_STOP}?` };
+}
+function isOfferByEmail(m) {
+  return m.channel === "email" && (m.purpose === "marketing" || m.purpose === "conversational" && m.proactive && m.about === "ours");
+}
+function relationshipOnRecord(f) {
+  return !!f.lastWroteAt || !!f.lastInboundCallAt || f.hasDeal === true;
+}
+function mayMessageFor(c, purpose, opts) {
+  if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  if (purpose === "outreach")
+    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
+  if (opts.channel === "email") {
+    if (purpose !== "marketing") {
+      if (opts.begins && c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
+      if (!opts.proactive || opts.about === "theirs") return { ok: true, reason: null };
+      if (c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
+      if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
+      const saidYes = c.consent === "opted_in" && yesCovers(c.consent_channels, "email");
+      return saidYes || c.has_relationship === true ? { ok: true, reason: null } : { ok: false, reason: "not_opted_in" };
+    }
+    const answer = c.email_marketing;
+    if (answer === "opted_out") return { ok: false, reason: "unsubscribed" };
+    if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
+    if (answer === "opted_in") return { ok: true, reason: null };
+    return answer === "unknown" && c.has_relationship === true ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (purpose === "marketing") {
+    return c.marketing_consent === "opted_in" && yesCovers(c.marketing_channels, opts.channel) ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (opts.proactive && (c.consent !== "opted_in" || !yesCovers(c.consent_channels, opts.channel)))
+    return { ok: false, reason: "not_opted_in" };
+  return { ok: true, reason: null };
+}
+var DELIVERY_REFUSALS = [
+  "opted_out",
+  "not_opted_in",
+  "no_marketing_consent",
+  "erased",
+  "paused",
+  "human_has_it",
+  "superseded_by_human",
+  "sms_carries_no_promotions",
+  // A text needs its line active with the carriers and not a test filing (step 3): the inbound door holds the same.
+  "sms_line_not_active",
+  "email_marketing_disabled",
+  // Offers by email are paused for the workspace while its complaints or bounces settle (broadcasts/email-offers.ts).
+  "email_offers_paused",
+  "email_suppressed",
+  "recipient_changed",
+  // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
+  "unsubscribed",
+  "outreach_is_email_only",
+  "outreach_not_a_lead",
+  "outreach_lead_closed",
+  "outreach_suppressed",
+  "outreach_wrote_back",
+  "outreach_away",
+  "outreach_stopped",
+  "outreach_without_unsubscribe",
+  "outreach_needs_own_domain",
+  "sending_domain_not_ready",
+  "sending_domain_at_cap"
+];
+var PURPOSE_REFUSALS = {
+  opted_out: OPT_OUT_REFUSAL,
+  not_opted_in: "This customer has not said yes to messages yet.",
+  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
+  // The texting line's carrier registration covers replies and appointment
+  // messages and nothing else -- an informational campaign, filed that way
+  // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
+  // go out under a consent the carriers were never told about.
+  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  sms_line_not_active: "The texting line is not approved by the carriers yet, or is a test filing, so nothing goes out by text until it is.",
+  // Email's, at the wire (deliver.ts). An offer by email leaves only once the deployment has its campaigns domain
+  // verified and the workspace's offers are not paused; a suppression is a fact about the address.
+  email_marketing_disabled: "Offers by email start once the campaigns domain is set up. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  email_offers_paused: "Offers by email are paused for your workspace while complaints and bounces settle. Appointment messages and replies keep going, and offers on WhatsApp are not affected.",
+  email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
+  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
+  // The door's own, said the way a person reads them in a thread.
+  erased: "This person asked to be forgotten. Nothing is sent to them.",
+  paused: "The workspace is paused, so nothing automatic was sent.",
+  human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
+  superseded_by_human: "Someone on your team answered first, so this was not sent.",
+  // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
+  unsubscribed: "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies and messages about their visits still can.",
+  outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
+  outreach_not_a_lead: "Cold email goes only to a business your searches found.",
+  outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
+  outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
+  outreach_wrote_back: "This business wrote back or called, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
+  outreach_away: "Away: their automatic reply says they're out. This email waits, and goes to them after the day they're back.",
+  outreach_stopped: "You stopped writing to this business, so this email was not sent. Nothing more goes to it.",
+  outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
+  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
+  sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
+  sending_domain_at_cap: "The domain this email was to leave from has sent its day's share. It goes when there is room."
+};
+function consentChangeOf(e) {
+  const d = e.data ?? {};
+  const str = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
+  return {
+    id: e.id,
+    contact_id: e.subject_id,
+    at: e.created_at,
+    // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
+    purpose: d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
+    consent: str("consent"),
+    previous: str("previous"),
+    source: str("source"),
+    by: str("by"),
+    note: str("note"),
+    channel: str("channel"),
+    message_external_id: str("message_external_id"),
+    words: str("words")
+  };
+}
+function purposeOfTemplate(category) {
+  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
+}
+function purposeOfPlaybook(policyClass) {
+  return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
+}
+
+// src/people/person-merge.ts
+var MERGE_CONSENT_SOURCE = "merge";
+var MERGE_REFUSALS = {
+  same: "Choose two different records to merge.",
+  owner: "Only an owner can merge two records.",
+  deleted: "One of these people was deleted, so there is nothing to merge.",
+  merged: "One of these records was already merged into another.",
+  phones: "These two records have different phone numbers, so they may be two people. They can't be merged.",
+  emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
+  deals: "Both records have an open deal for the same service. Close or move one of them first."
+};
+var MERGE_WORDS = {
+  act: "Merge with another record\u2026",
+  actHint: "Two records of one person become one",
+  pick: "Which record is the same person?",
+  pickPlaceholder: "Search by name, number or email",
+  pickEmpty: "Nobody else matches",
+  pickNone: "Choose the other record",
+  pickReading: "People is still being read; the other records are offered once it lands.",
+  question: (kept, other) => `Merge ${other} into ${kept}?`,
+  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  typed: (kept) => `Type ${kept} to confirm.`,
+  yes: "Merge the two records",
+  busy: "Merging\u2026",
+  done: (kept, other) => `${other} merged into ${kept}`
+};
+function offersAnswer(a, b, stopped) {
+  if (a === "opted_out" || b === "opted_out") return "opted_out";
+  if (stopped) return "unknown";
+  return a === "opted_in" || b === "opted_in" ? "opted_in" : "unknown";
+}
+function mergedAnswers(a, b) {
+  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
+  return {
+    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
+    dnc: stopped,
+    marketing: offersAnswer(a.marketing, b.marketing, stopped),
+    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
+  };
+}
+
+// src/people/person-consent.ts
+var CONSENT_SOURCES = [
+  { id: "in_person", label: "In person" },
+  { id: "phone", label: "On the phone" },
+  { id: "form", label: "Sign-up form" },
+  { id: "customer_message", label: "Their own message" }
+];
+var CONSENT_RESET_SOURCE = "operator";
+var CARRIER_CONSENT_SOURCE = "carrier";
+var STOP_ENDED_OFFERS_SOURCE = "stop";
+var WHATSAPP_CONSENT_SOURCE = "whatsapp";
+var OFFERS_YES_SOURCES = ["form", "customer_message"];
+function offersYesRefusal(source) {
+  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
+  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
+}
+var OWN_MESSAGE_REFUSALS = {
+  /** Their own message, with no message named. */
+  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
+  /** The message named is not one this person sent this workspace. */
+  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
+  /** The message named has nothing written in it. */
+  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
+  /** A message named beside another way of answering. */
+  notOwnMessage: "Only an answer in their own message names a message.",
+  /** Their own message, for many people at once: one message cannot be every person's. */
+  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form."
+};
+function ownMessageRefusal(source, messageId) {
+  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
+  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
+}
+function consentSourceLabel(source) {
+  if (!source) return null;
+  const known = CONSENT_SOURCES.find((s) => s.id === source);
+  if (known) return known.label;
+  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
+  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
+  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
+  if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
+  return source === CONSENT_RESET_SOURCE ? null : source;
+}
+function mayReceive(r2, purpose, channel, about) {
+  return whyNotReceive(r2, purpose, channel, about) === null;
+}
+function bearingOf(c) {
+  return {
+    consent: c.state,
+    dnc: c.dnc,
+    marketing_consent: c.marketing,
+    consent_channels: c.channels,
+    marketing_channels: c.marketingChannels,
+    // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
+    email_marketing: c.emailMarketing,
+    has_relationship: c.relationship
+  };
+}
+function whyNotReceive(r2, purpose, channel, about) {
+  if (channel === "email") {
+    if (!r2.email) return "no_address";
+    if (r2.emailSuppressed) return "address_stopped";
+  } else if (!r2.phone) return "no_number";
+  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about });
+  if (said.ok) return null;
+  const { reason } = said;
+  switch (reason) {
+    case "opted_out":
+      return "stopped";
+    case "unsubscribed":
+      return "unsubscribed";
+    case "no_marketing_consent":
+    case "not_opted_in":
+      return "no_yes";
+    default: {
+      const unreachable = reason;
+      return unreachable;
+    }
+  }
+}
+function saidYesTo(r2, purpose, channel, about) {
+  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
+}
+
+// src/broadcasts/email-offers.ts
+var OFFERS_BY_EMAIL_WORDS = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var OFFER_GATES = {
+  complaints: { window: 1e3, above: 1e-3, minimum: 200 },
+  bounces: { window: 500, above: 0.02, minimum: 100 }
+};
+var OFFER_PAUSE_REASONS = ["complaints", "bounces"];
+function offerGate(c) {
+  const { complaints, bounces } = OFFER_GATES;
+  if (c.complaintSample >= complaints.minimum && c.complaints / c.complaintSample > complaints.above)
+    return "complaints";
+  if (c.bounceSample >= bounces.minimum && c.bounces / c.bounceSample > bounces.above) return "bounces";
+  return null;
+}
+function offerPauseOf(at3, reason) {
+  if (!at3) return null;
+  return {
+    at: at3,
+    reason: OFFER_PAUSE_REASONS.includes(reason ?? "") ? reason : null
+  };
+}
+var pausedBecause = (reason) => reason === "complaints" ? "too many people marked offers as spam" : reason === "bounces" ? "too many offers went to addresses that did not accept them" : "complaints and bounces need a look";
+var OFFERS_PAUSED_WORDS = {
+  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
+  /** Where it is told once more, to the person who can do something about it. */
+  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right."
+};
+var OFFERS_NOTICE_WORDS = {
+  paused: (reason) => ({
+    title: "Offers and news by email are paused",
+    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
+  })
+};
+function emailOffersOpen(f, couldNotBeChecked) {
+  if (f.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: f.paused };
+  if (!f.campaigns) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: f.paused };
+  if (!f.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: f.paused };
+  if (f.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: f.paused };
+  return { ok: true, why: null, paused: null };
+}
+function offersPausedLine(offers) {
+  return offers?.paused ? OFFERS_PAUSED_WORDS.head(offers.paused.reason) : null;
+}
+
+// src/broadcasts/whatsapp-offers.ts
+var PLUS_ONE = /^\+1\d{10}$/;
+var US_PAUSED = "Meta isn't delivering marketing messages on WhatsApp to US numbers right now (paused since April 2025). Appointment messages and replies on WhatsApp are unaffected.";
+function whatsappOffersPaused(e164) {
+  return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
+}
+function whatsappOffersOpen(e164) {
+  return whatsappOffersPaused(e164) ? { ok: false, why: US_PAUSED, paused: null } : { ok: true, why: null, paused: null };
+}
+
+// src/broadcasts/reach-for.ts
+var DEFAULT_CAMPAIGN_CHANNELS = ["whatsapp"];
+var NEW_PLAYBOOK_TICKS_EVERY_CHANNEL = true;
+function newCampaignChannels(kind, open) {
+  const [first] = open ?? [];
+  if (!open || first === void 0) return [...DEFAULT_CAMPAIGN_CHANNELS];
+  return kind === "playbook" && NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? [...open] : [first];
+}
+var CHANNEL_WORDS = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+function channelNeverCarries(channel, purpose) {
+  return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS.noOffersByText : null;
+}
+function channelRefuses(channel, purpose, about, ready) {
+  const never = channelNeverCarries(channel, purpose);
+  if (never) return never;
+  if (channel === "whatsapp" && purpose === "marketing") {
+    const offers2 = ready.whatsapp.offers;
+    return offers2 && !offers2.ok ? offers2.why : null;
+  }
+  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
+  const offers = ready.email.offers;
+  return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
+}
+function offersNote(ready) {
+  const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
+  const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
+  const noText = "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
+  const paused = ready.whatsapp.offers?.why ?? "";
+  if (byWhatsApp && byEmail)
+    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
+  if (byWhatsApp)
+    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+  if (byEmail)
+    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
+  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
+}
+function channelsReady(f) {
+  const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
+  const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
+  const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
+  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
+  const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
+  return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
+}
+function channelChoices(ready, purpose, about) {
+  return CONSENT_CHANNELS.map((channel) => {
+    const refuses = channelRefuses(channel, purpose, about, ready);
+    if (refuses) return { channel, ok: false, why: refuses };
+    return { channel, ok: ready[channel].ready, why: ready[channel].why };
+  });
+}
+var HELD_ORDER = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6
+};
+var HELD_ON = Object.keys(HELD_ORDER).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
+);
+function reachFor(r2, purpose, o) {
+  const usable = CONSENT_CHANNELS.filter(
+    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
+  );
+  if (usable.length === 0) return { channel: null, held: "no_channel" };
+  const last = r2.lastChannel ?? null;
+  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
+  const why = [];
+  for (const c of order) {
+    const w = whyNotReceive(r2, purpose, c, o.about);
+    if (w === null) return { channel: c, held: null };
+    why.push(w);
+  }
+  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
+}
+function reachSplit(rows2, purpose, o) {
+  const out = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
+  for (const r2 of rows2) {
+    const p = reachFor(r2, purpose, o);
+    if (p.channel) {
+      out.reached += 1;
+      out.byChannel[p.channel] += 1;
+    } else {
+      out.held += 1;
+      out.heldBy[p.held] = (out.heldBy[p.held] ?? 0) + 1;
+    }
+  }
+  return out;
+}
+var SPLIT_CHANNEL_WORDS = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
+function reachSplitWords(s) {
+  const parts2 = CONSENT_CHANNELS.filter((c) => s.byChannel[c] > 0).map(
+    (c) => `${s.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`
+  );
+  const head = s.reached === 0 ? "Reaches nobody" : parts2.length === 1 ? `Reaches ${parts2[0]}` : `Reaches ${s.reached}: ${parts2.join(", ")}`;
+  return s.held > 0 ? `${head} \xB7 ${s.held} can't be reached` : head;
+}
+var CAMPAIGN_MONTH_ALLOWANCE = {
+  email: 2e3,
+  sms: 500
+};
+function heldByAllowance(trigger, purpose) {
+  const t = trigger ? triggerOf(trigger) : null;
+  return !(t?.cls === "booking" && purpose === "conversational");
+}
+function nextMonthStart(tz, atMs) {
+  const { y, m } = dayInZone(tz, atMs);
+  const [year, month] = m === 12 ? [y + 1, 1] : [y, m + 1];
+  return wallClockAt(tz, `${year}-${String(month).padStart(2, "0")}-01`, 0, 0);
+}
+function monthSentAt(read, at3) {
+  const next = read.month_sent_next;
+  if (next && at3 >= next.from) return next.sent;
+  return read.month_sent ?? null;
+}
+function allowanceRoom(channel, sent2) {
+  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent2);
+}
+function pastAllowance(people, sent2, trigger, purpose) {
+  if (!heldByAllowance(trigger, purpose)) return [];
+  const room = { email: allowanceRoom("email", sent2.email), sms: allowanceRoom("sms", sent2.sms) };
+  const past = [];
+  for (const p of people) {
+    if (p.channel === "whatsapp") continue;
+    if (room[p.channel] > 0) room[p.channel] -= 1;
+    else past.push(p);
+  }
+  return past;
+}
+function sends(channel, n) {
+  const one = channel === "email" ? "email" : "text";
+  return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
+}
+var peopleWord = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
+function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
+  if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
+  const lines = [];
+  for (const channel of ["email", "sms"]) {
+    const room = allowanceRoom(channel, sent2[channel]);
+    const past = byChannel[channel] - room;
+    if (past <= 0) continue;
+    lines.push(
+      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
+    );
+  }
+  return lines.length > 0 ? lines.join(" ") : null;
+}
+function allowanceLine(channel, used) {
+  const of = CAMPAIGN_MONTH_ALLOWANCE[channel];
+  if (used * 2 < of) return null;
+  const noun = channel === "email" ? "emails" : "texts";
+  return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
+}
+function allowanceLines(sent2) {
+  if (!sent2) return [];
+  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
+}
+
+// src/broadcasts/channels-standing.ts
+var CHANNELS_DOOR = "admin/integrations";
+var BILLING_DOOR = "admin/billing";
+var NO_DOOR = [
+  CHANNEL_WORDS.unchecked,
+  CHANNEL_WORDS.noEmailDomain,
+  CHANNEL_WORDS.textLineNotActive,
+  CHANNEL_WORDS.textLineMock
+];
+function closedWords(channel, why) {
+  const reason = (why ?? "").replace(/\.$/, "");
+  return reason ? `${VERSION_CHANNEL_WORDS[channel]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel]} is off`;
+}
+function channelsStandingParts(ready) {
+  if (!ready) return null;
+  if (ready.paused === true)
+    return [{ channel: null, channels: [], open: false, words: WORKSPACE_PAUSED_FACT, door: BILLING_DOOR }];
+  const open = CONSENT_CHANNELS.filter((c) => ready[c].ready);
+  const closed = CONSENT_CHANNELS.filter((c) => !ready[c].ready);
+  const parts2 = [
+    {
+      channel: null,
+      channels: open,
+      open: true,
+      words: open.length > 0 ? `Sending ${joinWords(open.map((c) => CONSENT_CHANNEL_WORDS[c]))}` : "Nothing can send yet",
+      door: null
+    }
+  ];
+  for (const c of closed) {
+    const why = ready[c].why;
+    parts2.push({
+      channel: c,
+      channels: [c],
+      open: false,
+      words: closedWords(c, why),
+      door: why && NO_DOOR.includes(why) ? null : CHANNELS_DOOR
+    });
+  }
+  return parts2;
+}
+function channelsStandingWords(parts2) {
+  return parts2.map((p) => p.words).join(" \xB7 ");
+}
+
+// src/config/workspace-config/prompt-hours.ts
+var DAY_LABEL = DAY_NAMES;
+function dayIntervals2(h) {
+  return dayIntervals(h).map(([open, close]) => ({ open, close }));
+}
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals2(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
+function hoursRuns(hours) {
+  if (!hours) return [];
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
+    i = j + 1;
+  }
+  return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r2) => {
+    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
+    return `${label}: ${r2.text}`;
+  });
+}
+
+// src/calendar/calendar-words.ts
+function clockLabel(t) {
+  const h = Math.floor(t);
+  const m = Math.round((t - h) * 60);
+  const ap = h >= 12 && h < 24 ? "PM" : "AM";
+  const hh = (h + 11) % 12 + 1;
+  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
+}
+var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+function shortDate(key) {
+  const { y, m, d } = keyParts(key);
+  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function longDate(key) {
+  const { y, m, d } = keyParts(key);
+  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function closureDatesLabel(c) {
+  if (!(c.until && c.until > c.date)) return shortDate(c.date);
+  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
+}
+function closuresFrom(closures, todayKey) {
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+}
+function readAgoLabel(iso, now) {
+  if (!iso) return null;
+  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
+}
+function ruleParts(rules) {
+  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
+  const parts2 = [`at least ${r2.lead_hours}h notice`];
+  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
+  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
+  if (rules?.party_max)
+    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
+  return parts2;
+}
+function rulesLine(rules) {
+  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
+}
+function feedNotes(feed) {
+  if (feed.state !== "ok") return [];
+  const notes = [];
+  const repeats = feed.skipped_recurring || 0;
+  if (repeats > 0) {
+    const one = repeats === 1;
+    notes.push({
+      id: "repeats",
+      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
+      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
+    });
+  }
+  const undrawn = feed.dropped || 0;
+  if (undrawn > 0) {
+    const one = undrawn === 1;
+    notes.push({
+      id: "undrawn",
+      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
+      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
+    });
+  }
+  return notes;
+}
+function hoursLines2(hours) {
+  if (!hours) return [];
+  const clean3 = {};
+  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
+  return hoursRuns(clean3).map(
+    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
+  );
+}
+function dayHoursWords(h) {
+  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
+  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
+  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
+  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+var CALENDAR_FEED_WORDS = {
+  ok: "Readable",
+  stale: "Last good read",
+  unavailable: "Could not be read",
+  none: "Not connected"
+};
+function spanLabel2(t1, t2) {
+  const a = clockLabel(t1);
+  const b = clockLabel(t2);
+  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+
+// src/setup/calendar-source.ts
+var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
+var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
+function forwardStillAsked(at3, now) {
+  return !!at3 && now.getTime() - Date.parse(at3) <= FORWARD_CONFIRM_SHOWN_MS;
+}
+function bookingEmailsStep(e) {
+  if (!e.address) return "address";
+  if (e.forwarding) return "forwarding";
+  if (e.held > 0) return "held";
+  return e.lastAt ? "working" : "waiting";
+}
+var TO_THE_ROW = (label) => ({ label, to: CALENDAR_SETTING_ROUTE });
+var TO_THE_BOARD = { label: "Open Calendar", to: "calendar" };
+var leadAndRest = (lead, rest = "") => {
+  const after = rest.trim();
+  return { lead, rest: after, sentence: after ? `${lead} ${after}` : lead };
+};
+var bookingEmailsHeldWords = (n) => n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
+var noTimesWords = (bookingLink) => bookingLink ? "The receptionist sends your booking link instead of naming open times." : "The receptionist does not name open times.";
+function unreadLink(f, by, emailsWork) {
+  return {
+    by,
+    state: "attention",
+    tone: "warn",
+    words: CALENDAR_FEED_WORDS.unavailable,
+    ...leadAndRest(
+      "Your calendar could not be read.",
+      `${f.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`
+    ),
+    times: false,
+    next: TO_THE_ROW("Check the link")
+  };
+}
+function emailsNeedYou(step2, f, e, by, times) {
+  const tool = bookingToolName(f.tool) ?? "Your booking tool";
+  if (step2 === "address")
+    return {
+      by,
+      state: "needs_you",
+      tone: "warn",
+      words: "Needs you",
+      ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
+      times,
+      next: TO_THE_ROW("Finish setting up")
+    };
+  if (step2 === "forwarding")
+    return {
+      by,
+      state: "needs_you",
+      tone: "warn",
+      words: "Needs you",
+      ...leadAndRest("Gmail is waiting for you to confirm the forward."),
+      times,
+      next: TO_THE_ROW("Confirm the forward")
+    };
+  if (step2 === "held")
+    return {
+      by,
+      // Held before any became an appointment is setting up still; held after is a thing that works asking for a look.
+      state: e.lastAt || times ? "attention" : "needs_you",
+      tone: "warn",
+      words: `${e.held} to look at`,
+      ...leadAndRest(bookingEmailsHeldWords(e.held)),
+      times,
+      next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them")
+    };
+  return null;
+}
+function readLink(f, step2) {
+  const tool = bookingToolName(f.tool);
+  if (f.link === "stale")
+    return {
+      by: tool ? "both" : "link",
+      state: "ready",
+      tone: "ok",
+      words: CALENDAR_FEED_WORDS.stale,
+      ...leadAndRest("The latest read failed, so this is the last good one."),
+      times: true,
+      next: TO_THE_BOARD
+    };
+  const emails = tool && step2 === "working" ? ` Booking emails from ${tool} add the client and the service.` : tool && step2 === "waiting" ? ` Waiting for the first booking email from ${tool}.` : "";
+  return {
+    by: tool ? "both" : "link",
+    state: "ready",
+    tone: "ok",
+    words: CALENDAR_FEED_WORDS.ok,
+    ...leadAndRest("The receptionist offers open times from it.", emails),
+    times: true,
+    next: TO_THE_BOARD
+  };
+}
+function emailsAlone(f, step2) {
+  const tool = bookingToolName(f.tool) ?? "your booking tool";
+  if (step2 === "waiting")
+    return {
+      by: "emails",
+      state: "waiting",
+      tone: "plain",
+      words: "Waiting for the first email",
+      ...leadAndRest(`Waiting for the first booking email from ${tool}.`),
+      times: false,
+      next: TO_THE_ROW("See the steps")
+    };
+  return {
+    by: "emails",
+    state: "ready",
+    tone: "ok",
+    words: "By email",
+    ...leadAndRest(`Bookings arrive by email from ${tool}.`, noTimesWords(f.bookingLink)),
+    times: false,
+    next: TO_THE_BOARD
+  };
+}
+function calendarSourceOf(f) {
+  const linked = f.link !== "none";
+  const named = !!f.tool;
+  const by = linked && named ? "both" : linked ? "link" : named ? "emails" : "nothing";
+  const step2 = named && f.emails ? bookingEmailsStep(f.emails) : null;
+  if (f.link === "unavailable") return unreadLink(f, by, step2 === "working" || step2 === "held");
+  const times = f.link === "ok" || f.link === "stale";
+  if (step2 && f.emails) {
+    const owed = emailsNeedYou(step2, f, f.emails, by, times);
+    if (owed) return owed;
+  }
+  if (linked) return readLink(f, step2);
+  if (named) return emailsAlone(f, step2);
+  if (f.byHand)
+    return {
+      by: "hand",
+      state: "hand",
+      tone: "plain",
+      words: "Booked by hand",
+      ...leadAndRest("You take bookings yourself, so there is nothing to connect.", noTimesWords(f.bookingLink)),
+      times: false,
+      next: TO_THE_ROW("Change")
+    };
+  return {
+    by: "nothing",
+    state: "none",
+    tone: "plain",
+    words: CALENDAR_FEED_WORDS.none,
+    ...leadAndRest(
+      "No calendar connected.",
+      "Say what you book with, so your calendar fills and the receptionist knows what is taken."
+    ),
+    times: false,
+    next: TO_THE_ROW("Connect your calendar")
+  };
+}
+function calendarSourceFacts(c) {
+  return {
+    link: c.state === "ok" ? c.stale ? "stale" : "ok" : c.state,
+    problem: c.problem ?? null,
+    tool: c.tool ?? null,
+    byHand: !!c.by_hand,
+    emails: c.emails ? { address: c.emails.address, forwarding: c.emails.forwarding, lastAt: c.emails.last_at, held: c.emails.held } : null,
+    bookingLink: !!c.booking_link
+  };
+}
+var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
+var BOOKS_WITH_CALENDAR = "calendar";
+var BOOKS_BY_HAND = "hand";
+function booksWithOptions() {
+  return [
+    ...bookingToolOptions(),
+    { value: BOOKS_WITH_CALENDAR, label: "Google, Apple or Outlook calendar" },
+    { value: BOOKS_BY_HAND, label: "I book by hand" }
+  ];
+}
+function booksWithOf(c) {
+  return c.tool || (c.ical_url ? BOOKS_WITH_CALENDAR : c.by_hand ? BOOKS_BY_HAND : "");
+}
+function booksWithName(withWhat) {
+  if (!withWhat) return null;
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Calendar link";
+  if (withWhat === BOOKS_BY_HAND) return "Booked by hand";
+  return bookingToolName(withWhat);
+}
+var BOOKING_TOOL_WORDS = {
+  label: "Booking tool",
+  hint: "What you book with. It fills your calendar and tells the receptionist what is taken.",
+  empty: "Not set up",
+  placeholder: "What do you book with?",
+  link: {
+    title: "Calendar link",
+    why: "So the receptionist can offer open times.",
+    anyway: "I have a calendar link",
+    /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
+    goes: "Saving this removes your calendar link."
+  },
+  emails: {
+    title: "Booking emails",
+    why: "So each booking shows who it is and what for."
+  }
+};
+function calendarLinkShown(withWhat, held) {
+  if (withWhat === BOOKS_BY_HAND) return "hidden";
+  if (held) return "shown";
+  if (!withWhat) return "hidden";
+  return bookingToolCalendar(withWhat) === "none" ? "offered" : "shown";
+}
+function calendarLinkNote(withWhat, bookingLink) {
+  if (!withWhat) return "";
+  if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
+  const tool = bookingToolName(withWhat) ?? "Your tool";
+  const kind = bookingToolCalendar(withWhat);
+  if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
+  if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
+  if (kind === "writes")
+    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
+  return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
+}
+
 // src/shell/campaign-rooms.ts
 var CAMPAIGN_ROOMS = {
   home: "Campaigns",
@@ -9249,6 +10138,11 @@ var OFFERS_IN_WRITING_WORDS = {
 
 // src/playbooks/lifecycle/lifecycle-words.ts
 var channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
+var NEEDS_CALENDAR = {
+  none: "Needs your calendar",
+  email: "Needs your calendar feed",
+  door: "Connect your calendar"
+};
 var LIFECYCLE_WORDS = {
   title: CAMPAIGN_ROOMS.home,
   lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
@@ -9267,7 +10161,7 @@ var LIFECYCLE_WORDS = {
   // First contact where the workspace has nothing to answer on: no number and no channel that can send.
   noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
   // An appointment moment where no calendar feeds it (decision 44 of 9 Oct 2026): what it says instead of a figure, and its door.
-  needsCalendar: { none: "Needs your calendar", email: "Needs your calendar feed", door: "Connect your calendar" },
+  needsCalendar: NEEDS_CALENDAR,
   callText: {
     name: "The call's text",
     words: "The booking link and your WhatsApp, sent while they're on the phone",
@@ -9284,6 +10178,22 @@ var LIFECYCLE_WORDS = {
     kind: "What kind of message",
     once: "Send once",
     every: "Every time a moment comes",
+    /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
+    turnOn: (name) => `Turn on ${name}`,
+    /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
+    holds: (name, paused) => `${name} \xB7 ${paused ? "Paused" : "On"}`,
+    /**
+     * The composer's two sentences that name a setting, each with its door to it (spec §4.2): the calendar's is the one
+     * "Needs your calendar" opens (Settings › Business, the calendar's row), with its words; the number's is Connections.
+     */
+    calendar: {
+      words: "This moment reads your calendar: a run can send once it is connected.",
+      door: { label: NEEDS_CALENDAR.door, to: CALENDAR_SETTING_ROUTE }
+    },
+    number: {
+      words: "No WhatsApp number is connected yet: a run cannot send by WhatsApp until one is.",
+      door: { label: "Open Connections", to: CHANNELS_DOOR }
+    },
     // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
     failed: {
       what: "who and what you can send to",
@@ -9497,6 +10407,11 @@ var LIFECYCLE_TOAST = {
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase) => `Couldn't copy, the phrase is: ${phrase}`
 };
+function momentHoldsWords(rows2, trigger, editing) {
+  if (triggerOf(trigger)?.kind === "saved") return [];
+  const same2 = (t) => t === trigger || isWinBack(t) && isWinBack(trigger);
+  return rows2.filter((p) => p.id !== editing && same2(p.trigger)).map((p) => LIFECYCLE_WORDS.compose.holds(p.name, p.state !== "running"));
+}
 function lifecycleClock(p) {
   return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
@@ -10449,265 +11364,6 @@ function addedBy(added) {
     who: added.source === "calendar" ? "Calendar" : "Leads",
     how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`
   };
-}
-
-// src/consent/consent.ts
-function isOptedOutContact(c) {
-  return c.consent === "opted_out" || c.dnc === true;
-}
-var ASKED_TO_STOP = "asked to stop receiving messages";
-var OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
-function optOutWords(who) {
-  return `${who} ${ASKED_TO_STOP}. Nothing can be sent \u2014 they can text START to opt back in.`;
-}
-function stopRequestQuestion() {
-  return { type: "noul", instructions: `Has the customer ${ASKED_TO_STOP}?` };
-}
-function isOfferByEmail(m) {
-  return m.channel === "email" && (m.purpose === "marketing" || m.purpose === "conversational" && m.proactive && m.about === "ours");
-}
-function relationshipOnRecord(f) {
-  return !!f.lastWroteAt || !!f.lastInboundCallAt || f.hasDeal === true;
-}
-function mayMessageFor(c, purpose, opts) {
-  if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
-  if (purpose === "outreach")
-    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
-  if (opts.channel === "email") {
-    if (purpose !== "marketing") {
-      if (opts.begins && c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
-      if (!opts.proactive || opts.about === "theirs") return { ok: true, reason: null };
-      if (c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
-      if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
-      const saidYes = c.consent === "opted_in" && yesCovers(c.consent_channels, "email");
-      return saidYes || c.has_relationship === true ? { ok: true, reason: null } : { ok: false, reason: "not_opted_in" };
-    }
-    const answer = c.email_marketing;
-    if (answer === "opted_out") return { ok: false, reason: "unsubscribed" };
-    if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
-    if (answer === "opted_in") return { ok: true, reason: null };
-    return answer === "unknown" && c.has_relationship === true ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
-  }
-  if (purpose === "marketing") {
-    return c.marketing_consent === "opted_in" && yesCovers(c.marketing_channels, opts.channel) ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
-  }
-  if (opts.proactive && (c.consent !== "opted_in" || !yesCovers(c.consent_channels, opts.channel)))
-    return { ok: false, reason: "not_opted_in" };
-  return { ok: true, reason: null };
-}
-var DELIVERY_REFUSALS = [
-  "opted_out",
-  "not_opted_in",
-  "no_marketing_consent",
-  "erased",
-  "paused",
-  "human_has_it",
-  "superseded_by_human",
-  "sms_carries_no_promotions",
-  // A text needs its line active with the carriers and not a test filing (step 3): the inbound door holds the same.
-  "sms_line_not_active",
-  "email_marketing_disabled",
-  // Offers by email are paused for the workspace while its complaints or bounces settle (broadcasts/email-offers.ts).
-  "email_offers_paused",
-  "email_suppressed",
-  "recipient_changed",
-  // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
-  "unsubscribed",
-  "outreach_is_email_only",
-  "outreach_not_a_lead",
-  "outreach_lead_closed",
-  "outreach_suppressed",
-  "outreach_wrote_back",
-  "outreach_away",
-  "outreach_stopped",
-  "outreach_without_unsubscribe",
-  "outreach_needs_own_domain",
-  "sending_domain_not_ready",
-  "sending_domain_at_cap"
-];
-var PURPOSE_REFUSALS = {
-  opted_out: OPT_OUT_REFUSAL,
-  not_opted_in: "This customer has not said yes to messages yet.",
-  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
-  // The texting line's carrier registration covers replies and appointment
-  // messages and nothing else -- an informational campaign, filed that way
-  // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
-  // go out under a consent the carriers were never told about.
-  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
-  sms_line_not_active: "The texting line is not approved by the carriers yet, or is a test filing, so nothing goes out by text until it is.",
-  // Email's, at the wire (deliver.ts). An offer by email leaves only once the deployment has its campaigns domain
-  // verified and the workspace's offers are not paused; a suppression is a fact about the address.
-  email_marketing_disabled: "Offers by email start once the campaigns domain is set up. This customer hears about offers on WhatsApp, once they have said yes to them there.",
-  email_offers_paused: "Offers by email are paused for your workspace while complaints and bounces settle. Appointment messages and replies keep going, and offers on WhatsApp are not affected.",
-  email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
-  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
-  // The door's own, said the way a person reads them in a thread.
-  erased: "This person asked to be forgotten. Nothing is sent to them.",
-  paused: "The workspace is paused, so nothing automatic was sent.",
-  human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
-  superseded_by_human: "Someone on your team answered first, so this was not sent.",
-  // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
-  unsubscribed: "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies and messages about their visits still can.",
-  outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
-  outreach_not_a_lead: "Cold email goes only to a business your searches found.",
-  outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
-  outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
-  outreach_wrote_back: "This business wrote back or called, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
-  outreach_away: "Away: their automatic reply says they're out. This email waits, and goes to them after the day they're back.",
-  outreach_stopped: "You stopped writing to this business, so this email was not sent. Nothing more goes to it.",
-  outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
-  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
-  sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
-  sending_domain_at_cap: "The domain this email was to leave from has sent its day's share. It goes when there is room."
-};
-function consentChangeOf(e) {
-  const d = e.data ?? {};
-  const str = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
-  return {
-    id: e.id,
-    contact_id: e.subject_id,
-    at: e.created_at,
-    // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
-    purpose: d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
-    consent: str("consent"),
-    previous: str("previous"),
-    source: str("source"),
-    by: str("by"),
-    note: str("note"),
-    channel: str("channel"),
-    message_external_id: str("message_external_id"),
-    words: str("words")
-  };
-}
-function purposeOfTemplate(category) {
-  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
-}
-function purposeOfPlaybook(policyClass) {
-  return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
-}
-
-// src/people/person-merge.ts
-var MERGE_CONSENT_SOURCE = "merge";
-var MERGE_REFUSALS = {
-  same: "Choose two different records to merge.",
-  owner: "Only an owner can merge two records.",
-  deleted: "One of these people was deleted, so there is nothing to merge.",
-  merged: "One of these records was already merged into another.",
-  phones: "These two records have different phone numbers, so they may be two people. They can't be merged.",
-  emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
-  deals: "Both records have an open deal for the same service. Close or move one of them first."
-};
-var MERGE_WORDS = {
-  act: "Merge with another record\u2026",
-  actHint: "Two records of one person become one",
-  pick: "Which record is the same person?",
-  pickPlaceholder: "Search by name, number or email",
-  pickEmpty: "Nobody else matches",
-  pickNone: "Choose the other record",
-  pickReading: "People is still being read; the other records are offered once it lands.",
-  question: (kept, other) => `Merge ${other} into ${kept}?`,
-  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
-  typed: (kept) => `Type ${kept} to confirm.`,
-  yes: "Merge the two records",
-  busy: "Merging\u2026",
-  done: (kept, other) => `${other} merged into ${kept}`
-};
-function offersAnswer(a, b, stopped) {
-  if (a === "opted_out" || b === "opted_out") return "opted_out";
-  if (stopped) return "unknown";
-  return a === "opted_in" || b === "opted_in" ? "opted_in" : "unknown";
-}
-function mergedAnswers(a, b) {
-  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
-  return {
-    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
-    dnc: stopped,
-    marketing: offersAnswer(a.marketing, b.marketing, stopped),
-    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
-  };
-}
-
-// src/people/person-consent.ts
-var CONSENT_SOURCES = [
-  { id: "in_person", label: "In person" },
-  { id: "phone", label: "On the phone" },
-  { id: "form", label: "Sign-up form" },
-  { id: "customer_message", label: "Their own message" }
-];
-var CONSENT_RESET_SOURCE = "operator";
-var CARRIER_CONSENT_SOURCE = "carrier";
-var STOP_ENDED_OFFERS_SOURCE = "stop";
-var WHATSAPP_CONSENT_SOURCE = "whatsapp";
-var OFFERS_YES_SOURCES = ["form", "customer_message"];
-function offersYesRefusal(source) {
-  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
-  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
-}
-var OWN_MESSAGE_REFUSALS = {
-  /** Their own message, with no message named. */
-  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
-  /** The message named is not one this person sent this workspace. */
-  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
-  /** The message named has nothing written in it. */
-  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
-  /** A message named beside another way of answering. */
-  notOwnMessage: "Only an answer in their own message names a message.",
-  /** Their own message, for many people at once: one message cannot be every person's. */
-  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form."
-};
-function ownMessageRefusal(source, messageId) {
-  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
-  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
-}
-function consentSourceLabel(source) {
-  if (!source) return null;
-  const known = CONSENT_SOURCES.find((s) => s.id === source);
-  if (known) return known.label;
-  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
-  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
-  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
-  if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
-  return source === CONSENT_RESET_SOURCE ? null : source;
-}
-function mayReceive(r2, purpose, channel, about) {
-  return whyNotReceive(r2, purpose, channel, about) === null;
-}
-function bearingOf(c) {
-  return {
-    consent: c.state,
-    dnc: c.dnc,
-    marketing_consent: c.marketing,
-    consent_channels: c.channels,
-    marketing_channels: c.marketingChannels,
-    // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
-    email_marketing: c.emailMarketing,
-    has_relationship: c.relationship
-  };
-}
-function whyNotReceive(r2, purpose, channel, about) {
-  if (channel === "email") {
-    if (!r2.email) return "no_address";
-    if (r2.emailSuppressed) return "address_stopped";
-  } else if (!r2.phone) return "no_number";
-  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about });
-  if (said.ok) return null;
-  const { reason } = said;
-  switch (reason) {
-    case "opted_out":
-      return "stopped";
-    case "unsubscribed":
-      return "unsubscribed";
-    case "no_marketing_consent":
-    case "not_opted_in":
-      return "no_yes";
-    default: {
-      const unreachable = reason;
-      return unreachable;
-    }
-  }
-}
-function saidYesTo(r2, purpose, channel, about) {
-  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
 }
 
 // src/people/person-row-facts.ts
@@ -13566,351 +14222,6 @@ var FOLLOWUP_ECHO = [
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
 
-// src/config/workspace-config/prompt-hours.ts
-var DAY_LABEL = DAY_NAMES;
-function dayIntervals2(h) {
-  return dayIntervals(h).map(([open, close]) => ({ open, close }));
-}
-function joinList(parts2) {
-  if (parts2.length < 3) return parts2.join(" and ");
-  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-function dayText(h) {
-  const spans = dayIntervals2(h);
-  if (spans.length) {
-    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
-    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
-    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
-  }
-  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
-  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
-}
-function hoursRuns(hours) {
-  if (!hours) return [];
-  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
-  const out = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
-    i = j + 1;
-  }
-  return out;
-}
-function hoursLines(hours) {
-  return hoursRuns(hours).map((r2) => {
-    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
-    return `${label}: ${r2.text}`;
-  });
-}
-
-// src/calendar/calendar-words.ts
-function clockLabel(t) {
-  const h = Math.floor(t);
-  const m = Math.round((t - h) * 60);
-  const ap = h >= 12 && h < 24 ? "PM" : "AM";
-  const hh = (h + 11) % 12 + 1;
-  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
-}
-var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
-function shortDate(key) {
-  const { y, m, d } = keyParts(key);
-  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function longDate(key) {
-  const { y, m, d } = keyParts(key);
-  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function closureDatesLabel(c) {
-  if (!(c.until && c.until > c.date)) return shortDate(c.date);
-  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
-}
-function closuresFrom(closures, todayKey) {
-  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
-}
-function readAgoLabel(iso, now) {
-  if (!iso) return null;
-  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
-}
-function ruleParts(rules) {
-  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
-  const parts2 = [`at least ${r2.lead_hours}h notice`];
-  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
-  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
-  if (rules?.party_max)
-    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
-  return parts2;
-}
-function rulesLine(rules) {
-  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
-}
-function feedNotes(feed) {
-  if (feed.state !== "ok") return [];
-  const notes = [];
-  const repeats = feed.skipped_recurring || 0;
-  if (repeats > 0) {
-    const one = repeats === 1;
-    notes.push({
-      id: "repeats",
-      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
-      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
-    });
-  }
-  const undrawn = feed.dropped || 0;
-  if (undrawn > 0) {
-    const one = undrawn === 1;
-    notes.push({
-      id: "undrawn",
-      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
-      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
-    });
-  }
-  return notes;
-}
-function hoursLines2(hours) {
-  if (!hours) return [];
-  const clean3 = {};
-  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
-  return hoursRuns(clean3).map(
-    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
-  );
-}
-function dayHoursWords(h) {
-  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
-  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
-  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
-  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-var CALENDAR_FEED_WORDS = {
-  ok: "Readable",
-  stale: "Last good read",
-  unavailable: "Could not be read",
-  none: "Not connected"
-};
-function spanLabel2(t1, t2) {
-  const a = clockLabel(t1);
-  const b = clockLabel(t2);
-  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-
-// src/setup/calendar-source.ts
-var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
-var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
-function forwardStillAsked(at3, now) {
-  return !!at3 && now.getTime() - Date.parse(at3) <= FORWARD_CONFIRM_SHOWN_MS;
-}
-function bookingEmailsStep(e) {
-  if (!e.address) return "address";
-  if (e.forwarding) return "forwarding";
-  if (e.held > 0) return "held";
-  return e.lastAt ? "working" : "waiting";
-}
-var TO_THE_ROW = (label) => ({ label, to: CALENDAR_SETTING_ROUTE });
-var TO_THE_BOARD = { label: "Open Calendar", to: "calendar" };
-var leadAndRest = (lead, rest = "") => {
-  const after = rest.trim();
-  return { lead, rest: after, sentence: after ? `${lead} ${after}` : lead };
-};
-var bookingEmailsHeldWords = (n) => n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
-var noTimesWords = (bookingLink) => bookingLink ? "The receptionist sends your booking link instead of naming open times." : "The receptionist does not name open times.";
-function unreadLink(f, by, emailsWork) {
-  return {
-    by,
-    state: "attention",
-    tone: "warn",
-    words: CALENDAR_FEED_WORDS.unavailable,
-    ...leadAndRest(
-      "Your calendar could not be read.",
-      `${f.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`
-    ),
-    times: false,
-    next: TO_THE_ROW("Check the link")
-  };
-}
-function emailsNeedYou(step2, f, e, by, times) {
-  const tool = bookingToolName(f.tool) ?? "Your booking tool";
-  if (step2 === "address")
-    return {
-      by,
-      state: "needs_you",
-      tone: "warn",
-      words: "Needs you",
-      ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
-      times,
-      next: TO_THE_ROW("Finish setting up")
-    };
-  if (step2 === "forwarding")
-    return {
-      by,
-      state: "needs_you",
-      tone: "warn",
-      words: "Needs you",
-      ...leadAndRest("Gmail is waiting for you to confirm the forward."),
-      times,
-      next: TO_THE_ROW("Confirm the forward")
-    };
-  if (step2 === "held")
-    return {
-      by,
-      // Held before any became an appointment is setting up still; held after is a thing that works asking for a look.
-      state: e.lastAt || times ? "attention" : "needs_you",
-      tone: "warn",
-      words: `${e.held} to look at`,
-      ...leadAndRest(bookingEmailsHeldWords(e.held)),
-      times,
-      next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them")
-    };
-  return null;
-}
-function readLink(f, step2) {
-  const tool = bookingToolName(f.tool);
-  if (f.link === "stale")
-    return {
-      by: tool ? "both" : "link",
-      state: "ready",
-      tone: "ok",
-      words: CALENDAR_FEED_WORDS.stale,
-      ...leadAndRest("The latest read failed, so this is the last good one."),
-      times: true,
-      next: TO_THE_BOARD
-    };
-  const emails = tool && step2 === "working" ? ` Booking emails from ${tool} add the client and the service.` : tool && step2 === "waiting" ? ` Waiting for the first booking email from ${tool}.` : "";
-  return {
-    by: tool ? "both" : "link",
-    state: "ready",
-    tone: "ok",
-    words: CALENDAR_FEED_WORDS.ok,
-    ...leadAndRest("The receptionist offers open times from it.", emails),
-    times: true,
-    next: TO_THE_BOARD
-  };
-}
-function emailsAlone(f, step2) {
-  const tool = bookingToolName(f.tool) ?? "your booking tool";
-  if (step2 === "waiting")
-    return {
-      by: "emails",
-      state: "waiting",
-      tone: "plain",
-      words: "Waiting for the first email",
-      ...leadAndRest(`Waiting for the first booking email from ${tool}.`),
-      times: false,
-      next: TO_THE_ROW("See the steps")
-    };
-  return {
-    by: "emails",
-    state: "ready",
-    tone: "ok",
-    words: "By email",
-    ...leadAndRest(`Bookings arrive by email from ${tool}.`, noTimesWords(f.bookingLink)),
-    times: false,
-    next: TO_THE_BOARD
-  };
-}
-function calendarSourceOf(f) {
-  const linked = f.link !== "none";
-  const named = !!f.tool;
-  const by = linked && named ? "both" : linked ? "link" : named ? "emails" : "nothing";
-  const step2 = named && f.emails ? bookingEmailsStep(f.emails) : null;
-  if (f.link === "unavailable") return unreadLink(f, by, step2 === "working" || step2 === "held");
-  const times = f.link === "ok" || f.link === "stale";
-  if (step2 && f.emails) {
-    const owed = emailsNeedYou(step2, f, f.emails, by, times);
-    if (owed) return owed;
-  }
-  if (linked) return readLink(f, step2);
-  if (named) return emailsAlone(f, step2);
-  if (f.byHand)
-    return {
-      by: "hand",
-      state: "hand",
-      tone: "plain",
-      words: "Booked by hand",
-      ...leadAndRest("You take bookings yourself, so there is nothing to connect.", noTimesWords(f.bookingLink)),
-      times: false,
-      next: TO_THE_ROW("Change")
-    };
-  return {
-    by: "nothing",
-    state: "none",
-    tone: "plain",
-    words: CALENDAR_FEED_WORDS.none,
-    ...leadAndRest(
-      "No calendar connected.",
-      "Say what you book with, so your calendar fills and the receptionist knows what is taken."
-    ),
-    times: false,
-    next: TO_THE_ROW("Connect your calendar")
-  };
-}
-function calendarSourceFacts(c) {
-  return {
-    link: c.state === "ok" ? c.stale ? "stale" : "ok" : c.state,
-    problem: c.problem ?? null,
-    tool: c.tool ?? null,
-    byHand: !!c.by_hand,
-    emails: c.emails ? { address: c.emails.address, forwarding: c.emails.forwarding, lastAt: c.emails.last_at, held: c.emails.held } : null,
-    bookingLink: !!c.booking_link
-  };
-}
-var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
-var BOOKS_WITH_CALENDAR = "calendar";
-var BOOKS_BY_HAND = "hand";
-function booksWithOptions() {
-  return [
-    ...bookingToolOptions(),
-    { value: BOOKS_WITH_CALENDAR, label: "Google, Apple or Outlook calendar" },
-    { value: BOOKS_BY_HAND, label: "I book by hand" }
-  ];
-}
-function booksWithOf(c) {
-  return c.tool || (c.ical_url ? BOOKS_WITH_CALENDAR : c.by_hand ? BOOKS_BY_HAND : "");
-}
-function booksWithName(withWhat) {
-  if (!withWhat) return null;
-  if (withWhat === BOOKS_WITH_CALENDAR) return "Calendar link";
-  if (withWhat === BOOKS_BY_HAND) return "Booked by hand";
-  return bookingToolName(withWhat);
-}
-var BOOKING_TOOL_WORDS = {
-  label: "Booking tool",
-  hint: "What you book with. It fills your calendar and tells the receptionist what is taken.",
-  empty: "Not set up",
-  placeholder: "What do you book with?",
-  link: {
-    title: "Calendar link",
-    why: "So the receptionist can offer open times.",
-    anyway: "I have a calendar link",
-    /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
-    goes: "Saving this removes your calendar link."
-  },
-  emails: {
-    title: "Booking emails",
-    why: "So each booking shows who it is and what for."
-  }
-};
-function calendarLinkShown(withWhat, held) {
-  if (withWhat === BOOKS_BY_HAND) return "hidden";
-  if (held) return "shown";
-  if (!withWhat) return "hidden";
-  return bookingToolCalendar(withWhat) === "none" ? "offered" : "shown";
-}
-function calendarLinkNote(withWhat, bookingLink) {
-  if (!withWhat) return "";
-  if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
-  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
-  const tool = bookingToolName(withWhat) ?? "Your tool";
-  const kind = bookingToolCalendar(withWhat);
-  if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
-  if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
-  if (kind === "writes")
-    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
-  return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
-}
-
 // src/ask/citations.ts
 var ASK_CITATION_KINDS = [
   "thread",
@@ -15685,247 +15996,6 @@ function templateSentWords(s, tz, nowMs) {
   };
 }
 
-// src/broadcasts/email-offers.ts
-var OFFERS_BY_EMAIL_WORDS = {
-  /** The deployment's campaigns domain is not set up or not verified yet. */
-  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
-  /** The business has no postal address on file, which every offer's foot names. */
-  noAddress: "Add your business's address to send offers by email.",
-  /** The workspace's offers are paused by a gate. */
-  paused: "Offers by email are paused while complaints and bounces settle."
-};
-var OFFER_GATES = {
-  complaints: { window: 1e3, above: 1e-3, minimum: 200 },
-  bounces: { window: 500, above: 0.02, minimum: 100 }
-};
-var OFFER_PAUSE_REASONS = ["complaints", "bounces"];
-function offerGate(c) {
-  const { complaints, bounces } = OFFER_GATES;
-  if (c.complaintSample >= complaints.minimum && c.complaints / c.complaintSample > complaints.above)
-    return "complaints";
-  if (c.bounceSample >= bounces.minimum && c.bounces / c.bounceSample > bounces.above) return "bounces";
-  return null;
-}
-function offerPauseOf(at3, reason) {
-  if (!at3) return null;
-  return {
-    at: at3,
-    reason: OFFER_PAUSE_REASONS.includes(reason ?? "") ? reason : null
-  };
-}
-var pausedBecause = (reason) => reason === "complaints" ? "too many people marked offers as spam" : reason === "bounces" ? "too many offers went to addresses that did not accept them" : "complaints and bounces need a look";
-var OFFERS_PAUSED_WORDS = {
-  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
-  /** Where it is told once more, to the person who can do something about it. */
-  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right."
-};
-var OFFERS_NOTICE_WORDS = {
-  paused: (reason) => ({
-    title: "Offers and news by email are paused",
-    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
-  })
-};
-function emailOffersOpen(f, couldNotBeChecked) {
-  if (f.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: f.paused };
-  if (!f.campaigns) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: f.paused };
-  if (!f.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: f.paused };
-  if (f.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: f.paused };
-  return { ok: true, why: null, paused: null };
-}
-function offersPausedLine(offers) {
-  return offers?.paused ? OFFERS_PAUSED_WORDS.head(offers.paused.reason) : null;
-}
-
-// src/broadcasts/whatsapp-offers.ts
-var PLUS_ONE = /^\+1\d{10}$/;
-var US_PAUSED = "Meta isn't delivering marketing messages on WhatsApp to US numbers right now (paused since April 2025). Appointment messages and replies on WhatsApp are unaffected.";
-function whatsappOffersPaused(e164) {
-  return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
-}
-function whatsappOffersOpen(e164) {
-  return whatsappOffersPaused(e164) ? { ok: false, why: US_PAUSED, paused: null } : { ok: true, why: null, paused: null };
-}
-
-// src/broadcasts/reach-for.ts
-var DEFAULT_CAMPAIGN_CHANNELS = ["whatsapp"];
-var NEW_PLAYBOOK_TICKS_EVERY_CHANNEL = true;
-function newCampaignChannels(kind, open) {
-  const [first] = open ?? [];
-  if (!open || first === void 0) return [...DEFAULT_CAMPAIGN_CHANNELS];
-  return kind === "playbook" && NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? [...open] : [first];
-}
-var CHANNEL_WORDS = {
-  noOffersByText: "Texts carry no offers.",
-  /**
-   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
-   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
-   */
-  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
-  noWhatsApp: "Connect a WhatsApp number first.",
-  noTextLine: "No texting line yet.",
-  textLineMock: "Your texting line is a test filing: it sends nothing.",
-  textLineNotActive: "Your texting line is not approved by the carriers yet.",
-  noMailbox: "Set up email in Settings \u203A Connections first.",
-  noEmailDomain: "Email is not switched on for this deployment yet.",
-  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
-  unchecked: "This could not be checked just now."
-};
-function channelNeverCarries(channel, purpose) {
-  return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS.noOffersByText : null;
-}
-function channelRefuses(channel, purpose, about, ready) {
-  const never = channelNeverCarries(channel, purpose);
-  if (never) return never;
-  if (channel === "whatsapp" && purpose === "marketing") {
-    const offers2 = ready.whatsapp.offers;
-    return offers2 && !offers2.ok ? offers2.why : null;
-  }
-  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
-  const offers = ready.email.offers;
-  return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
-}
-function offersNote(ready) {
-  const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
-  const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
-  const noText = "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
-  const paused = ready.whatsapp.offers?.why ?? "";
-  if (byWhatsApp && byEmail)
-    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
-  if (byWhatsApp)
-    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
-  if (byEmail)
-    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
-  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
-}
-function channelsReady(f) {
-  const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
-  const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
-  const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
-  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
-  const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
-  return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
-}
-function channelChoices(ready, purpose, about) {
-  return CONSENT_CHANNELS.map((channel) => {
-    const refuses = channelRefuses(channel, purpose, about, ready);
-    if (refuses) return { channel, ok: false, why: refuses };
-    return { channel, ok: ready[channel].ready, why: ready[channel].why };
-  });
-}
-var HELD_ORDER = {
-  stopped: 0,
-  unsubscribed: 1,
-  no_yes: 2,
-  no_number: 3,
-  no_address: 4,
-  address_stopped: 5,
-  no_channel: 6
-};
-var HELD_ON = Object.keys(HELD_ORDER).sort(
-  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
-);
-function reachFor(r2, purpose, o) {
-  const usable = CONSENT_CHANNELS.filter(
-    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
-  );
-  if (usable.length === 0) return { channel: null, held: "no_channel" };
-  const last = r2.lastChannel ?? null;
-  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const why = [];
-  for (const c of order) {
-    const w = whyNotReceive(r2, purpose, c, o.about);
-    if (w === null) return { channel: c, held: null };
-    why.push(w);
-  }
-  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
-}
-function reachSplit(rows2, purpose, o) {
-  const out = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
-  for (const r2 of rows2) {
-    const p = reachFor(r2, purpose, o);
-    if (p.channel) {
-      out.reached += 1;
-      out.byChannel[p.channel] += 1;
-    } else {
-      out.held += 1;
-      out.heldBy[p.held] = (out.heldBy[p.held] ?? 0) + 1;
-    }
-  }
-  return out;
-}
-var SPLIT_CHANNEL_WORDS = {
-  whatsapp: "on WhatsApp",
-  sms: "by text",
-  email: "by email"
-};
-function reachSplitWords(s) {
-  const parts2 = CONSENT_CHANNELS.filter((c) => s.byChannel[c] > 0).map(
-    (c) => `${s.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`
-  );
-  const head = s.reached === 0 ? "Reaches nobody" : parts2.length === 1 ? `Reaches ${parts2[0]}` : `Reaches ${s.reached}: ${parts2.join(", ")}`;
-  return s.held > 0 ? `${head} \xB7 ${s.held} can't be reached` : head;
-}
-var CAMPAIGN_MONTH_ALLOWANCE = {
-  email: 2e3,
-  sms: 500
-};
-function heldByAllowance(trigger, purpose) {
-  const t = trigger ? triggerOf(trigger) : null;
-  return !(t?.cls === "booking" && purpose === "conversational");
-}
-function nextMonthStart(tz, atMs) {
-  const { y, m } = dayInZone(tz, atMs);
-  const [year, month] = m === 12 ? [y + 1, 1] : [y, m + 1];
-  return wallClockAt(tz, `${year}-${String(month).padStart(2, "0")}-01`, 0, 0);
-}
-function monthSentAt(read, at3) {
-  const next = read.month_sent_next;
-  if (next && at3 >= next.from) return next.sent;
-  return read.month_sent ?? null;
-}
-function allowanceRoom(channel, sent2) {
-  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent2);
-}
-function pastAllowance(people, sent2, trigger, purpose) {
-  if (!heldByAllowance(trigger, purpose)) return [];
-  const room = { email: allowanceRoom("email", sent2.email), sms: allowanceRoom("sms", sent2.sms) };
-  const past = [];
-  for (const p of people) {
-    if (p.channel === "whatsapp") continue;
-    if (room[p.channel] > 0) room[p.channel] -= 1;
-    else past.push(p);
-  }
-  return past;
-}
-function sends(channel, n) {
-  const one = channel === "email" ? "email" : "text";
-  return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
-}
-var peopleWord = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
-function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
-  if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
-  const lines = [];
-  for (const channel of ["email", "sms"]) {
-    const room = allowanceRoom(channel, sent2[channel]);
-    const past = byChannel[channel] - room;
-    if (past <= 0) continue;
-    lines.push(
-      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
-    );
-  }
-  return lines.length > 0 ? lines.join(" ") : null;
-}
-function allowanceLine(channel, used) {
-  const of = CAMPAIGN_MONTH_ALLOWANCE[channel];
-  if (used * 2 < of) return null;
-  const noun = channel === "email" ? "emails" : "texts";
-  return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
-}
-function allowanceLines(sent2) {
-  if (!sent2) return [];
-  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
-}
-
 // src/broadcasts/broadcast-audience.ts
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 function audienceTrigger(audience) {
@@ -17268,50 +17338,6 @@ function emptyAudienceRefusal(purpose, label, pool, how) {
     return `Nobody on \u201C${label}\u201D can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
   if (pool.some((r2) => answeredYes(r2, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
-}
-
-// src/broadcasts/channels-standing.ts
-var CHANNELS_DOOR = "admin/integrations";
-var BILLING_DOOR = "admin/billing";
-var NO_DOOR = [
-  CHANNEL_WORDS.unchecked,
-  CHANNEL_WORDS.noEmailDomain,
-  CHANNEL_WORDS.textLineNotActive,
-  CHANNEL_WORDS.textLineMock
-];
-function closedWords(channel, why) {
-  const reason = (why ?? "").replace(/\.$/, "");
-  return reason ? `${VERSION_CHANNEL_WORDS[channel]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel]} is off`;
-}
-function channelsStandingParts(ready) {
-  if (!ready) return null;
-  if (ready.paused === true)
-    return [{ channel: null, channels: [], open: false, words: WORKSPACE_PAUSED_FACT, door: BILLING_DOOR }];
-  const open = CONSENT_CHANNELS.filter((c) => ready[c].ready);
-  const closed = CONSENT_CHANNELS.filter((c) => !ready[c].ready);
-  const parts2 = [
-    {
-      channel: null,
-      channels: open,
-      open: true,
-      words: open.length > 0 ? `Sending ${joinWords(open.map((c) => CONSENT_CHANNEL_WORDS[c]))}` : "Nothing can send yet",
-      door: null
-    }
-  ];
-  for (const c of closed) {
-    const why = ready[c].why;
-    parts2.push({
-      channel: c,
-      channels: [c],
-      open: false,
-      words: closedWords(c, why),
-      door: why && NO_DOOR.includes(why) ? null : CHANNELS_DOOR
-    });
-  }
-  return parts2;
-}
-function channelsStandingWords(parts2) {
-  return parts2.map((p) => p.words).join(" \xB7 ");
 }
 
 // src/shared/html.ts
@@ -38515,6 +38541,7 @@ export {
   missedCallIsNews,
   mmss,
   modelRoute,
+  momentHoldsWords,
   momentOffered,
   momentReadsCalendar,
   mondayOf,

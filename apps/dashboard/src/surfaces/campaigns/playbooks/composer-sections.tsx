@@ -10,11 +10,13 @@
  */
 import type { Dispatch, SetStateAction } from "react";
 import {
+  LIFECYCLE_WORDS,
   MESSAGE_GONE_WORDS,
   PREVIEW_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
   messageAboutOfTrigger,
+  momentHoldsWords,
   noMessageWords,
   type ConsentChannel,
 } from "@chanlytics/contracts";
@@ -57,6 +59,8 @@ import {
 /** What a section reads: the model, what the sheet holds, and the ways to change it. */
 export interface SectionCtx extends Model {
   data: PlaybooksSurface;
+  /** The campaign being changed, which is no news to itself where the moment's other campaigns are said; null for a new one. */
+  editingId: string | null;
   editingTemplateName: string | null;
   f: Fields;
   canEdit: boolean;
@@ -157,18 +161,47 @@ function classPicker(x: SectionCtx) {
   );
 }
 
+/** The campaigns the chosen moment already holds, one line each: "Win-back · On". None where it holds none. */
+function momentHolds(x: SectionCtx) {
+  const holds = momentHoldsWords(x.data.rows, x.f.trigger, x.editingId);
+  if (holds.length === 0) return null;
+  return (
+    <p className="pb-holds" data-testid="pb-holds">
+      {holds.map((h, i) => (
+        <span key={`${i}-${h}`}>{h}</span>
+      ))}
+    </p>
+  );
+}
+
+/** Where the moment reads the calendar and none is connected: the sentence, and its door to the calendar's own row. */
+function calendarWarning(x: SectionCtx) {
+  const W = LIFECYCLE_WORDS.compose.calendar;
+  if (!x.visits || x.data.calendar === "ok") return null;
+  return (
+    <p className="pb-warn" data-testid="pb-calendar">
+      {W.words}{" "}
+      <LinkButton {...routeDoor(W.door.to)} data-testid="pb-calendar-door">
+        {W.door.label}
+      </LinkButton>
+    </p>
+  );
+}
+
 /**
  * Who it's for: the moment, the list it runs on, and who that reaches today, on one line -- the count, who it reaches on
  * which channel, and the reasons anybody is held back behind "Who's held back" -- with a thin bar under it.
  */
 export function whoSection(x: SectionCtx) {
-  const { data, trig, visits, counted, will, pool, of, base, reasons, split, splitBy } = x;
+  const { data, trig, counted, will, pool, of, base, reasons, split, splitBy } = x;
   // The month's emails or texts running out for this moment (a message about a visit is never held, contracts heldByAllowance).
   const allowance = split ? allowanceBeforeSend(split.byChannel, data.month_sent, x.f.trigger, x.purpose) : null;
   return (
     <section className="pb-sec" data-testid="pb-who">
       <span className="pb-sec-k">Who it's for</span>
       {momentPicker(x)}
+      {/* What the moment already holds (decision 20): a second campaign on it is allowed, and said, never a surprise. */}
+      {momentHolds(x)}
       {/* Which list it runs on (decision 0009): one of People's, or one of the workspace's own, kept by hand or by a
           rule. A list about whoever is looking is never offered: a run has no one looking. */}
       {listPicker(x)}
@@ -187,11 +220,7 @@ export function whoSection(x: SectionCtx) {
           testid="pb-reach"
         />
       )}
-      {visits && data.calendar !== "ok" && (
-        <p className="pb-warn" data-testid="pb-calendar">
-          A visit moment reads the calendar: connect it in Settings › Business before a run can send.
-        </p>
-      )}
+      {calendarWarning(x)}
     </section>
   );
 }

@@ -3,18 +3,27 @@
  * rail, lifecycle-ledger.ts the ledger, lifecycle-tiles.ts the tiles). A sentence of the page is here or made from here, never in the
  * page.
  */
+import { CHANNELS_DOOR } from "../../broadcasts/channels-standing";
 import type { ConsentChannel } from "../../consent/consent-channels";
+import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
 import { clockHour } from "../../shared/clock";
 import { CAMPAIGN_ROOMS, runStoppedWords } from "../../shell/campaign-rooms";
 import { joinWords, plural } from "../../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
-import { SENDING_HOURS_WORDS } from "../playbook-triggers";
+import { SENDING_HOURS_WORDS, isWinBack, triggerOf } from "../playbook-triggers";
 import type { LifecyclePlaybook, LifecycleRowResults, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
 
 /** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
 export const channelsGoesByWords = (channels: readonly ConsentChannel[]): string =>
   joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
+
+/** An appointment moment where no calendar feeds it (decision 44 of 9 Oct 2026): what it says instead of a figure, and its door's words. */
+const NEEDS_CALENDAR = {
+  none: "Needs your calendar",
+  email: "Needs your calendar feed",
+  door: "Connect your calendar",
+} as const;
 
 export const LIFECYCLE_WORDS = {
   title: CAMPAIGN_ROOMS.home,
@@ -34,7 +43,7 @@ export const LIFECYCLE_WORDS = {
   // First contact where the workspace has nothing to answer on: no number and no channel that can send.
   noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
   // An appointment moment where no calendar feeds it (decision 44 of 9 Oct 2026): what it says instead of a figure, and its door.
-  needsCalendar: { none: "Needs your calendar", email: "Needs your calendar feed", door: "Connect your calendar" },
+  needsCalendar: NEEDS_CALENDAR,
   callText: {
     name: "The call's text",
     words: "The booking link and your WhatsApp, sent while they're on the phone",
@@ -51,6 +60,22 @@ export const LIFECYCLE_WORDS = {
     kind: "What kind of message",
     once: "Send once",
     every: "Every time a moment comes",
+    /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
+    turnOn: (name: string): string => `Turn on ${name}`,
+    /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
+    holds: (name: string, paused: boolean): string => `${name} · ${paused ? "Paused" : "On"}`,
+    /**
+     * The composer's two sentences that name a setting, each with its door to it (spec §4.2): the calendar's is the one
+     * "Needs your calendar" opens (Settings › Business, the calendar's row), with its words; the number's is Connections.
+     */
+    calendar: {
+      words: "This moment reads your calendar: a run can send once it is connected.",
+      door: { label: NEEDS_CALENDAR.door, to: CALENDAR_SETTING_ROUTE },
+    },
+    number: {
+      words: "No WhatsApp number is connected yet: a run cannot send by WhatsApp until one is.",
+      door: { label: "Open Connections", to: CHANNELS_DOOR },
+    },
     // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
     failed: {
       what: "who and what you can send to",
@@ -278,6 +303,25 @@ export const LIFECYCLE_TOAST = {
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase: string): string => `Couldn't copy, the phrase is: ${phrase}`,
 } as const;
+
+/**
+ * What a moment already holds, said in the composer opened on it (decision 20): one line per campaign on the same moment
+ * ("Appointment reminder · On", "Win-back · Paused"), the campaign being changed left out; none for a moment that holds
+ * none, and none for a list (a list holds as many campaigns as it is given, and that is no news). The win-back's two
+ * moments are one, as the rail groups them (isWinBack).
+ */
+export function momentHoldsWords(
+  rows: readonly { id: string; name: string; trigger: string; state: string }[],
+  trigger: string,
+  editing: string | null,
+): string[] {
+  // "On a list" (decision 0009) is the one trigger of kind `saved`: each of its campaigns names its own list.
+  if (triggerOf(trigger)?.kind === "saved") return [];
+  const same = (t: string) => t === trigger || (isWinBack(t) && isWinBack(trigger));
+  return rows
+    .filter((p) => p.id !== editing && same(p.trigger))
+    .map((p) => LIFECYCLE_WORDS.compose.holds(p.name, p.state !== "running"));
+}
 
 /** A playbook's clock in the fewest words: "daily 10:00 AM", "every 30 days". The hour is the product's clock's (clockHour). */
 function lifecycleClock(p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days">): string {

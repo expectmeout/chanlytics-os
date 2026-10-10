@@ -7,8 +7,8 @@
  *
  * The address says what is open (`campaigns/new`, `new:to:<audience>`, `new:every`, `new:moment:<trigger>`,
  * `new:edit:<playbook>`), so a Turn on lands on the moment it was pressed for, a "message these people" on the audience it
- * named, and an Edit on the playbook the drawer showed. Changing a playbook is not choosing a kind: the choice is drawn only
- * for a new message. The send screen draws nothing until the broadcasts it is made of are read, and says so (it reads, or it
+ * named, and an Edit on the playbook the drawer showed. Changing a campaign, or turning a moment on, is not choosing a kind:
+ * the choice is drawn only for a new message on no moment, and a Turn on's sheet is titled for its moment. The send screen draws nothing until the broadcasts it is made of are read, and says so (it reads, or it
  * could not), never a sheet with nothing in it. Its toasts are the home's, so one that offers to stop a send outlives the
  * sheet, which closes the moment the send is made.
  */
@@ -95,6 +95,18 @@ function Held(p: NewMessageProps & { compose: Compose }) {
   );
 }
 
+/**
+ * The sheet's title: "Turn on How did it go" where a moment's Turn on opened it, named as the campaign it would start (the
+ * moment's own name while it holds none, by the workspace's word); New message otherwise, and where the moment already
+ * holds a campaign, whose name is no title for a second (the composer says it holds one: decision 20).
+ */
+function composeTitleOf(compose: Compose, home: LifecycleHome): string {
+  const W = LIFECYCLE_WORDS.compose;
+  if (compose.mode !== "every" || compose.edit || !compose.moment) return W.title;
+  const stage = home.rail.stages.find((s) => s.moment === compose.moment);
+  return stage && stage.state === "off" ? W.turnOn(stage.name) : W.title;
+}
+
 export function NewMessage(p: NewMessageProps) {
   const compose = useKept(p.compose);
   if (compose === null) return null;
@@ -102,13 +114,13 @@ export function NewMessage(p: NewMessageProps) {
   return (
     <PaneSheet
       open={p.compose !== null}
-      title={W.title}
+      title={composeTitleOf(compose, p.home)}
       onClose={p.onClose}
       askFirst
       wide
       testid="cmh-composer"
       tools={
-        compose.mode === "every" && compose.edit ? undefined : (
+        compose.mode === "every" && (compose.edit || compose.moment) ? undefined : (
           <Segmented
             label={W.kind}
             value={compose.mode}

@@ -623,3 +623,28 @@ test("who is at a row's moment is said one way, on a phone's line and a desk's f
     "Appointment tomorrow · tomorrow 10:00 AM · 1 person",
   );
 });
+
+test("the composer says what a moment already holds, never the campaign being changed nor a list's", () => {
+  const rows = [
+    { id: "a", name: "Win-back", trigger: "quiet_30", state: "running" },
+    { id: "b", name: "Old win-back", trigger: "lapsed", state: "paused" },
+    { id: "c", name: "Visit reminder", trigger: "visit_tomorrow", state: "running" },
+  ];
+  assert.deepEqual(C.momentHoldsWords(rows, "quiet_30", null), ["Win-back · On", "Old win-back · Paused"]);
+  assert.deepEqual(C.momentHoldsWords(rows, "lapsed", null), ["Win-back · On", "Old win-back · Paused"], "one moment");
+  assert.deepEqual(C.momentHoldsWords(rows, "quiet_30", "a"), ["Old win-back · Paused"]);
+  assert.deepEqual(C.momentHoldsWords(rows, "visited", null), []);
+  assert.deepEqual(
+    C.momentHoldsWords(
+      [...rows, { id: "d", name: "Spring list", trigger: "saved_list", state: "running" }],
+      "saved_list",
+      null,
+    ),
+    [],
+    "a list holds as many as it is given",
+  );
+  assert.equal(C.LIFECYCLE_WORDS.compose.turnOn("Appointment reminder"), "Turn on Appointment reminder");
+  assert.equal(C.LIFECYCLE_WORDS.compose.calendar.door.label, C.LIFECYCLE_WORDS.needsCalendar.door, "one spelling");
+  assert.equal(C.LIFECYCLE_WORDS.compose.calendar.door.to, C.CALENDAR_SETTING_ROUTE);
+  assert.equal(C.LIFECYCLE_WORDS.compose.number.door.to, C.CHANNELS_DOOR);
+});

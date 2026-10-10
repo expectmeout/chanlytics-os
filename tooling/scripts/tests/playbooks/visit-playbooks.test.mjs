@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  LIFECYCLE_WORDS,
   MOMENT_TRIGGERS,
   momentOffered,
   PLAYBOOK_CLASS_LABEL,
@@ -556,8 +557,8 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   // The composer is composer*.tsx (moved whole from outbound-real.jsx, Reach out Part 2.5), drawn on the visit moment.
   const composer = composingVisit("none");
   assert.ok(
-    textOf(byTestId(composer, "pb-calendar")).includes("A visit moment reads the calendar"),
-    "the composer says it plainly where there is no calendar",
+    textOf(byTestId(composer, "pb-calendar")).includes(LIFECYCLE_WORDS.compose.calendar.words),
+    "the composer says it plainly where there is no calendar, with its door (playbook-composer.test.mjs)",
   );
   assert.equal(byTestId(composingVisit("ok"), "pb-calendar"), null, "and says nothing where the calendar is connected");
   const runsUnder = find(byTestId(composer, "pb-runs-under"), (n) => n.type === globalThis.PolicyChip);
