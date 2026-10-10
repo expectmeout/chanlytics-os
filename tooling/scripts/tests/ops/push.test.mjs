@@ -16,6 +16,9 @@ import {
   unreadFor,
   isForReader,
   PUSH_RECEIPTS_AFTER_MS,
+  pushOffOf,
+  pushesFor,
+  parseMemberAlerts,
 } from "../../../../packages/contracts/src/index.ts";
 
 test("a device is a token and a platform; the version is kept short; anything else is refused in a sentence", () => {
@@ -50,7 +53,9 @@ test("a device is a token and a platform; the version is kept short; anything el
 
 test("the kinds a phone hears about are kept kinds, and not all of them; the ledger knows push_send", () => {
   for (const k of PUSH_KINDS) assert.ok(SERVER_NOTIFICATION_KINDS.includes(k), k);
-  for (const k of ["sweep", "deadman", "alert"]) assert.ok(!isPushKind(k), `${k} stays off the phone`);
+  for (const k of ["sweep", "alert"]) assert.ok(!isPushKind(k), `${k} stays off the phone`);
+  // Still waiting is the second alert about a customer nobody answered (decision 0040): the phone is told it too.
+  assert.ok(isPushKind("deadman"), "a customer still waiting reaches the phone");
   assert.ok(isPushKind("handoff") && isPushKind("call") && isPushKind("note_for_you"));
   // A run that waits for a word has a deadline (it is refused once its day has passed): the phone hears it.
   assert.ok(isPushKind("playbook"), "a playbook's run waiting for a person reaches their phone");
@@ -113,4 +118,23 @@ test("a row is on a member's bell when it is the workspace's own or a note left 
   assert.equal(isForReader({ recipient_user_id: null }, "u1"), true, "no recipient: everyone's");
   assert.equal(isForReader({ recipient_user_id: "u1" }, "u1"), true, "their own note");
   assert.equal(isForReader({ recipient_user_id: "u2" }, "u1"), false, "another member's note is not theirs to count");
+});
+
+// Decision 0040: each member turns kinds off for their own phones (memberships.push_off, 00372). The list is read
+// leniently, as the config is, and what a PUT may say is the kinds a phone is told and nothing else.
+test("a member's phone choices: read leniently, saved only as kinds a phone is told, each once (0040)", () => {
+  assert.deepEqual(pushOffOf(["call", "review", "call", "sweep", "tomorrow's", 7, null]), ["call", "review"]);
+  assert.deepEqual(pushOffOf(null), []);
+  assert.deepEqual(pushOffOf("call"), []);
+  assert.equal(pushesFor(["call"], "call"), false, "turned off");
+  assert.equal(pushesFor(["call"], "handoff"), true, "the rest still reach the phone");
+  assert.equal(pushesFor(null, "sweep"), false, "a kind no phone is told stays off whatever was chosen");
+  assert.deepEqual(parseMemberAlerts({ push_off: ["review", "call", "review"] }), {
+    ok: true,
+    pushOff: ["call", "review"],
+  });
+  assert.equal(parseMemberAlerts({ push_off: ["sweep"] }).ok, false, "a kind no phone is told is not a choice");
+  assert.equal(parseMemberAlerts({ push_off: "call" }).ok, false);
+  assert.equal(parseMemberAlerts(null).ok, false);
+  assert.deepEqual(parseMemberAlerts({ push_off: [] }), { ok: true, pushOff: [] }, "everything back on");
 });

@@ -25,6 +25,7 @@ const { tellPlatformOfSetupRequest, tellOwnerLive } = await importSrc("apps/dash
 const { sendHandoverInvite } = await importSrc("apps/dashboard/src/server/workspace/handover.ts");
 const { sendPartnerInvite } = await importSrc("apps/dashboard/src/server/workspace/partner-invite.ts");
 const { notifyPlatformSignup } = await importSrc("apps/dashboard/src/server/platform/signup.ts");
+const { sendAlertTest } = await importSrc("apps/dashboard/src/server/workspace/alerts.ts");
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const P = "11111111-1111-4111-8111-111111111111";
@@ -91,6 +92,7 @@ test("the platform's notices name the person who set them off: a setup request, 
     });
     await sendPartnerInvite(W, P, { live: true });
     await notifyPlatformSignup(W, "ada@example.com", P);
+    await sendAlertTest(W, P);
     assert.deepEqual(
       c.seen.map((r) => r.path),
       [
@@ -99,6 +101,7 @@ test("the platform's notices name the person who set them off: a setup request, 
         "/api/admin/handover-invite",
         "/api/admin/partner-invite",
         "/api/admin/signup-notify",
+        "/api/admin/email/alert-test",
       ],
     );
     for (const req of c.seen) assert.deepEqual(claimsOf(req), { ws: W, user: P, bound: true }, req.path);

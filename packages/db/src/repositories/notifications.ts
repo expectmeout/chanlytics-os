@@ -70,3 +70,75 @@ export async function forgetActivityTokens(db: Db, tokens: readonly string[]): P
     .in("activity_token", [...tokens]);
   if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
 }
+
+/** What a member chose for their phones in one workspace, and their phones, as Settings › Notifications reads them. */
+export interface MemberAlertsRow {
+  /** The kinds their phones are not told (memberships.push_off, 00372), as stored; contracts reads them leniently. */
+  pushOff: string[];
+  phones: { platform: string; app_version: string | null; last_seen_at: string | null }[];
+  /** False where 00372 is not applied yet: the column is not there to read, so there is no choice to save. */
+  choosable: boolean;
+}
+
+/** A column the database does not have yet (Postgres' undefined_column): a migration not applied. */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * The member's phone choices in one workspace and their phones, on the SESSION client: their own membership row and
+ * their own phones are what its row policies let them read (memberships_self_select, push_devices_own_select). A read
+ * that fails throws, except the one a database without 00372 answers, which reads as no choice yet.
+ */
+export async function memberAlertsOf(db: Db, p: { tenantId: string; userId: string }): Promise<MemberAlertsRow> {
+  const [mine, phones] = await Promise.all([
+    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
+    db
+      .from("push_devices")
+      .select("platform, app_version, last_seen_at")
+      .eq("user_id", p.userId)
+      .order("last_seen_at", { ascending: false, nullsFirst: false }),
+  ]);
+  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
+  if (mine.error && mine.error.code !== UNDEFINED_COLUMN)
+    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
+  return {
+    pushOff: mine.error ? [] : (mine.data?.push_off ?? []),
+    phones: (phones.data ?? []).map((d) => ({
+      platform: d.platform,
+      app_version: d.app_version,
+      last_seen_at: d.last_seen_at,
+    })),
+    choosable: !mine.error,
+  };
+}
+
+/** Save the kinds the caller's phones are not told in one workspace (member_push_off_set): the list as kept. Throws its refusal. */
+export async function setMemberPushOff(db: Db, p: { tenantId: string; kinds: readonly string[] }): Promise<string[]> {
+  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Which members' phones are told a row of this kind: everyone in the workspace (`userIds` null) or the members named
+ * (a note's one reader), less each who turned the kind off for their phones (memberships.push_off, 00372). On a
+ * database without 00372 the column is not there, and every one of them is told, as before. A failed read throws.
+ */
+export async function membersPushedFor(
+  db: Db,
+  p: { tenantId: string; userIds: readonly string[] | null; kind: string },
+): Promise<string[]> {
+  if (p.userIds && !p.userIds.length) return [];
+  const ids = p.userIds ? [...p.userIds] : null;
+  const chosen = ids
+    ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids)
+    : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
+  if (!chosen.error)
+    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
+  if (chosen.error.code !== UNDEFINED_COLUMN)
+    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
+  // Before 00372: everyone named, or everyone in the workspace, as before there was a choice.
+  if (ids) return ids;
+  const all = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
+  if (all.error) throw new Error(`cannot read who is in the workspace: ${all.error.message}`);
+  return (all.data ?? []).map((m) => m.user_id);
+}

@@ -1,4 +1,6 @@
 /**
+ * Two mails to a workspace's own alert addresses that the dashboard asks for.
+ *
  * POST /api/admin/you-are-live — the first run's Finish recorded a workspace's first activation of its calls, and its
  * owner is emailed that the receptionist is answering (the "you're live" email, decision 4 of
  * docs/superpowers/specs/2026-09-24-first-run-design.md; canvas C2).
@@ -19,7 +21,8 @@ import { mail, reachesTenant } from "./notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { logger } from "../log.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
-import { parseTenantConfigResult, spokenDuration, youAreLiveEmail } from "../packages/contracts.js";
+import { alertTestMail, parseTenantConfigResult, spokenDuration, youAreLiveEmail } from "../packages/contracts.js";
+import { workspaceNamed } from "../packages/db.js";
 
 export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
   const L = logger();
@@ -94,4 +97,40 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
   const sent = await mail(target, message);
   L.info("you_are_live_sent", { tenant_id: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, sent });
+}
+
+/**
+ * POST /api/admin/email/alert-test — Settings › Notifications' "Send a test" (decision 0040): one email to every address
+ * the workspace's alerts go to, so an owner knows each one arrives. A mistyped address otherwise loses every handoff,
+ * and only the log would say so. The door is api/admin/email/alert-test.ts.
+ *
+ * Addressed as the first run's mail above is, through mail(): no bell row, no phone, and nothing to the platform when
+ * the workspace has no address of its own (a test of nobody's address is not news to Chanlytics). A test is no kind of
+ * notice, so nothing the business turned off by email holds it back. The words are contracts' (alertTestMail). How
+ * often a workspace may ask is the dashboard route's (three an hour).
+ */
+export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
+  const L = logger();
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
+  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+
+  const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
+  const to = target.notifications?.escalation_emails ?? [];
+  // Only the workspace's own addresses: a test that would reach the platform's instead is not sent.
+  if (!reachesTenant(target) || !to.length) {
+    L.info("alert_test_unaddressed", { tenant_id: tenantId });
+    return json(200, { ok: true, sent: false, why: "no_address", to: 0 });
+  }
+  const named = await workspaceNamed(db, tenantId).catch(() => null);
+  const message = alertTestMail({
+    business: named?.name || "your business",
+    link: `${dashboardOrigin()}${named?.slug ? `/w/${encodeURIComponent(named.slug)}` : ""}/settings/notifications`,
+  });
+  const sent = await mail(target, message);
+  L.info("alert_test_sent", { tenant_id: tenantId, sent, to: to.length });
+  return json(sent ? 200 : 502, { ok: sent, sent, to: to.length });
 }

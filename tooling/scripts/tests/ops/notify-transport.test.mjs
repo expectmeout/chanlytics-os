@@ -576,16 +576,24 @@ test("a kept row of a kind a phone hears about schedules one push_send naming it
   assert.equal(t.sent.length, 2, "both mails left as ever");
 });
 
-// B16 (audit, 2 Oct 2026): Settings › Notifications said "Every alert below goes to each of these" over eleven kinds
+/// B16 (audit, 2 Oct 2026): Settings › Notifications said "Every alert below goes to each of these" over eleven kinds
 // while notify() mailed every kind it was handed, so a WhatsApp number's flag, a template's refusal, a finished
-// broadcast and more were emailed and said nowhere. What is emailed is now one closed list in contracts
-// (EMAILED_NOTIFICATION_KINDS): notify() asks it before it mails, and the pane's rows are typed and tested by it.
-test("notify mails exactly the kinds contracts lists as emailed, and the pane's rows speak for exactly those (B16)", async () => {
-  const { SERVER_NOTIFICATION_KINDS, EMAILED_NOTIFICATION_KINDS, NOTIFICATION_KIND_GROUPS, emailsNotificationKind } =
-    await import("@chanlytics/contracts");
+// broadcast and more were emailed and said nowhere. What is emailed is one closed list in contracts
+// (EMAILED_NOTIFICATION_KINDS), and since decision 0040 the page offers it as topics (ALERT_TOPICS): every kind a
+// workspace is told is in exactly one topic or in the bell's own line, and each topic's channels are its kinds'.
+test("notify mails exactly the kinds contracts lists as emailed, and the page's topics speak for every kind once (B16, 0040)", async () => {
+  const {
+    SERVER_NOTIFICATION_KINDS,
+    EMAILED_NOTIFICATION_KINDS,
+    ALERT_TOPICS,
+    BELL_LINE_KINDS,
+    PUSH_KINDS,
+    EMAIL_ALWAYS_KINDS,
+    emailsNotificationKind,
+  } = await import("@chanlytics/contracts");
   // Which kinds the edge emails, written out. It is the set notify() is handed today (read off its callers: the
   // WhatsApp webhook's number and template news, the job runner's, the playbooks', the sweeps', the call summary), so
-  // a kind that joins or leaves is a decision made here and in contracts' table together, and the pane follows.
+  // a kind that joins or leaves is a decision made here and in contracts' table together, and the page follows.
   const EMAILED = [
     "alert",
     "billing",
@@ -662,19 +670,143 @@ test("notify mails exactly the kinds contracts lists as emailed, and the pane's 
     assert.equal(t.sent.length, mails, `${kind}: notifyOnce mails ${mails}`);
   }
 
-  // The pane's rows: the rows that are emailed speak for every emailed kind and no other, and a row that is a line in
-  // the bell speaks for none that is emailed.
-  const rows = NOTIFICATION_KIND_GROUPS.flatMap((g) => g.rows);
-  const speaksFor = (rs) => [...new Set(rs.flatMap((r) => r.kinds))].sort();
-  assert.deepEqual(speaksFor(rows.filter((r) => !r.bell)), EMAILED, "the pane lists what is emailed, all of it");
+  // The page's topics: every kind is in one topic or the bell's line, and once.
+  const named = [...ALERT_TOPICS.flatMap((t) => t.kinds), ...BELL_LINE_KINDS];
+  assert.deepEqual([...named].sort(), [...SERVER_NOTIFICATION_KINDS].sort(), "every kind, said once");
+  assert.equal(new Set(named).size, named.length, "no kind in two places");
+  for (const t of ALERT_TOPICS) {
+    // What a topic says of email is what its kinds take: always for the two the receptionist needs, a choice for an
+    // emailed kind, none for the bell's; and a phone where its kinds are ones a phone is told.
+    for (const k of t.kinds) {
+      if (t.email === "always") assert.ok(EMAIL_ALWAYS_KINDS.includes(k), `${t.key}: ${k} is always emailed`);
+      if (t.email === "choice") assert.ok(EMAILED.includes(k) && !EMAIL_ALWAYS_KINDS.includes(k), `${t.key}: ${k}`);
+      if (t.email === null) assert.ok(!EMAILED.includes(k), `${t.key}: ${k} is the bell's`);
+      assert.equal(PUSH_KINDS.includes(k), t.phone, `${t.key}: ${k} ${t.phone ? "reaches" : "never reaches"} a phone`);
+    }
+  }
   assert.deepEqual(
-    speaksFor(rows.filter((r) => r.bell)).filter((k) => EMAILED.includes(k)),
-    [],
-    "and a row that is the bell's names no emailed kind",
+    [...EMAIL_ALWAYS_KINDS].sort(),
+    ["deadman", "handoff"],
+    "a customer who needs a person, and still waiting",
   );
+  assert.ok(!ALERT_TOPICS.some((t) => t.kinds.includes("alert")), "Chanlytics' own alerts are no workspace's topic");
+});
+
+// Decision 0040: the business chooses what it is emailed (notifications.email_off), and the edge asks before every
+// mail. The two the receptionist must always reach someone with cannot be turned off, a kind it does not know is
+// ignored, and an older config, with no email_off, is emailed as it was.
+test("what the business turned off by email is not mailed on any path; the row is kept, and the two the receptionist needs are always mailed (0040)", async () => {
+  const { notifyOnce, mail } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const off = { ...MAILBOX, email_off: ["call", "handoff", "deadman", "a_kind_from_tomorrow"] };
+  const target = { tenantId: TENANT, notifications: off, isEnvDefault: false };
+  for (const [kind, mails] of [
+    ["call", 0],
+    ["handoff", 1],
+    ["deadman", 1],
+    ["playbook", 1],
+  ]) {
+    const rows = [];
+    const t = transport();
+    const told = await withEnv(PLATFORM_ENV, () =>
+      notify(target, { kind, subject: `a ${kind}`, body: "…" }, { db: fakeDb({ notifications: rows }), send: t.send }),
+    );
+    assert.equal(t.sent.length, mails, `${kind}: ${mails ? "mailed" : "not mailed, as the business chose"}`);
+    assert.equal(rows.length, 1, `${kind}: the bell keeps it`);
+    assert.equal(told, true, `${kind}: told, by the row where no mail goes`);
+  }
+  // notifyOnce: a kind turned off is told by its row, and the row stays.
+  const rows = [];
+  const t = transport();
+  const told = await withEnv(PLATFORM_ENV, () =>
+    notifyOnce(
+      target,
+      { kind: "call", subject: "c", body: "…" },
+      { db: fakeDb({ notifications: rows }), send: t.send },
+    ),
+  );
+  assert.equal(told, true);
+  assert.equal(t.sent.length, 0);
+  assert.equal(rows.length, 1, "kept, never taken back as a failed mail would be");
+  // mail(): a caller that names its kind is held to the choice; a mail of no kind (the first run's, a test) is not.
+  const m = transport();
+  assert.equal(
+    await withEnv(PLATFORM_ENV, () => mail(target, { kind: "call", subject: "c", body: "…" }, { send: m.send })),
+    true,
+  );
+  assert.equal(m.sent.length, 0, "the named kind the business turned off");
+  await withEnv(PLATFORM_ENV, () => mail(target, { subject: "Test alert", body: "…" }, { send: m.send }));
+  assert.equal(m.sent.length, 1, "a mail of no kind goes");
+  // An older config, and a list that is not one, are emailed as before.
+  for (const notifications of [MAILBOX, { ...MAILBOX, email_off: "call" }, { ...MAILBOX, email_off: null }]) {
+    const o = transport();
+    await withEnv(PLATFORM_ENV, () =>
+      notify(
+        { tenantId: TENANT, notifications, isEnvDefault: false },
+        { kind: "call", subject: "c", body: "…" },
+        { db: fakeDb({ notifications: [] }), send: o.send },
+      ),
+    );
+    assert.equal(o.sent.length, 1, JSON.stringify(notifications.email_off));
+  }
+});
+
+// Decision 0040: a review, a card declined and a trial ending were written to the bell by recordNotification, which
+// tells no phone, though their kinds are ones phones are told (PUSH_KINDS). keepAndPush keeps the row and queues the
+// push from it, never a mail.
+test("keepAndPush keeps the bell's row and queues one push_send naming it, and mails nobody (0040)", async () => {
+  const { keepAndPush } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const rows = [];
+  const jobs = [];
+  const db = fakeDb({ notifications: rows, jobs });
+  const kept = await keepAndPush(
+    TENANT,
+    { kind: "review", title: "A new review", body: "Five stars.", route: "reports" },
+    db,
+  );
+  assert.equal(kept?.kind, "review");
+  assert.equal(rows.length, 1);
+  assert.deepEqual([jobs.length, jobs[0].kind, jobs[0].payload], [1, "push_send", { notification_id: rows[0].id }]);
+  // A kind no phone is told keeps its row and queues nothing.
+  await keepAndPush(TENANT, { kind: "calendar_people", title: "3 people added", body: "From your calendar." }, db);
+  assert.equal(rows.length, 2);
+  assert.equal(jobs.length, 1);
+});
+
+// Review round (decision 0040): the deadman sweep raises an undelivered warning again on its next tick, and now that a
+// phone is told "still waiting", a push with every try would reach every phone of the workspace every ten minutes while
+// the provider fails. push: "after_mail" tells the phone with the mail that goes, and only then.
+test('push "after_mail": the phone is told once the mail has gone, and not at all while it fails (0040)', async () => {
+  const msg = { kind: "deadman", subject: "Still waiting", body: "…", push: "after_mail" };
+  const target = { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false };
+  const failing = { notifications: [], jobs: [] };
+  const no = await withEnv(PLATFORM_ENV, () =>
+    notify(target, msg, { db: fakeDb(failing), send: transport(false).send }),
+  );
+  assert.equal(no, false);
+  assert.equal(failing.notifications.length, 1, "the bell keeps its row");
+  assert.equal(failing.jobs.length, 0, "and no phone is told of a warning that did not go");
+  const going = { notifications: [], jobs: [] };
+  const yes = await withEnv(PLATFORM_ENV, () => notify(target, msg, { db: fakeDb(going), send: transport(true).send }));
+  assert.equal(yes, true);
   assert.deepEqual(
-    rows.filter((r) => r.platform).flatMap((r) => r.kinds),
-    ["alert", "alert"],
-    "what goes to Chanlytics is the plain alert",
+    going.jobs.map((j) => [j.kind, j.payload]),
+    [["push_send", { notification_id: going.notifications[0].id }]],
+    "one push, with the mail",
   );
+});
+
+// Review round (decision 0040): email_off is read leniently by the edge, and the schema must be too: a stored value
+// that is not a short list of short names made the whole config unparseable, which leaves the receptionist silent.
+test("a stored email_off that is not a list of short names reads as none, and the config still parses (0040)", async () => {
+  const { parseTenantConfigResult, emailsFor } = await import("@chanlytics/contracts");
+  for (const email_off of ["call", null, ["x".repeat(41)], Array.from({ length: 41 }, (_, i) => `k${i}`)]) {
+    const r = parseTenantConfigResult({ notifications: { escalation_emails: ["owner@example.com"], email_off } });
+    assert.equal(r.ok, true, JSON.stringify(email_off).slice(0, 30));
+    assert.equal(r.config.notifications.email_off, undefined);
+    assert.equal(emailsFor(r.config.notifications, "call"), true, "everything emailed, as before the field");
+  }
+  const kept = parseTenantConfigResult({
+    notifications: { escalation_emails: ["owner@example.com"], email_off: ["call"] },
+  });
+  assert.deepEqual(kept.config.notifications.email_off, ["call"]);
 });

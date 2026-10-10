@@ -37,6 +37,8 @@ export const LOG_EVENTS = [
   "ai_spend_read_failed",
   "ai_usage_purge_failed",
   "ai_usage_write_failed",
+  "alert_test_sent",
+  "alert_test_unaddressed",
   "answer_silence_unreadable",
   "apify_webhook_abort_failed",
   "apify_webhook_bad_token",

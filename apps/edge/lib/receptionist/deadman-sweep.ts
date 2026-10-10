@@ -181,6 +181,9 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
           `${c.details ? `Detail: ${c.details}\n` : ""}` +
           `\nOpen it in the Inbox to reply, or resolve it if it was handled elsewhere.`,
         redactedBody: `A customer in this workspace has waited ${waited} for a human reply.`,
+        // The phone is told with the mail that goes: an undelivered warning is raised again next tick, and its push
+        // with it would reach every phone of the workspace every ten minutes (decision 0040).
+        push: "after_mail",
       });
 
       // Only a DELIVERED warning earns the once-guard, and only this
