@@ -177,7 +177,7 @@
     "@typescript-eslint/no-unnecessary-type-assertion": 2
   },
   "apps/dashboard/src/server/campaigns/playbook-row.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 3
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "apps/dashboard/src/server/campaigns/reach-outs.ts": {
     "@typescript-eslint/no-base-to-string": 1

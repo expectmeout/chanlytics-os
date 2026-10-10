@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
+import { PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -100,8 +100,43 @@ const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
     return { id: row.id, decision_id: decision.id, undo_dropped: false };
   },
 });
+/**
+ * The `change_playbook` door for a database in memory: the row the caller names in the workspace named, the
+ * columns the set names written, then the decision as theirs -- start_playbook, pause_playbook or change_playbook -- in
+ * `tables.decisions`; the row's id, what each written column held and the decision's id. No such row is P0002, and
+ * nothing is written, as its one transaction leaves it.
+ */
+const withChangeDoor = (tables, rpcs = {}) => ({
+  ...rpcs,
+  change_playbook: (a) => {
+    const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
+    if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
+    const was = Object.fromEntries(Object.keys(a.p_set).map((k) => [k, row[k]]));
+    Object.assign(row, a.p_set);
+    const decisions = (tables.decisions ??= []);
+    const verb =
+      a.p_set.state === "running"
+        ? "start_playbook"
+        : a.p_set.state === "paused"
+          ? "pause_playbook"
+          : "change_playbook";
+    const decision = {
+      id: `decision-${decisions.length + 1}`,
+      tenant_id: a.p_tenant_id,
+      subject_type: "playbook",
+      subject_id: row.id,
+      verb,
+      actor_type: "user",
+      actor_user_id: USER,
+      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
+      undo_of: a.p_undo_of ?? null,
+    };
+    decisions.push(decision);
+    return { id: row.id, was, decision_id: decision.id, undo_dropped: false };
+  },
+});
 const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
-  supabase: fakeDb(tables, {}, withStartDoor(tables, rpcs), opts),
+  supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), opts),
   userId: USER,
   email: "ada@example.com",
   params,
@@ -1053,15 +1088,21 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     playbook.PUT.run(send("PUT", { state: "sleeping" }), ctxFor(tables, { id: K2 })),
     "validation",
     400,
-    "A campaign is running or paused.",
+    PLAYBOOK_PATCH_WORDS.state,
   );
   assert.deepEqual(
     await playbook.PUT.run(send("PUT", { state: "running" }), ctxFor(tables, { id: K2 })),
-    { id: K2, state: "running" },
+    { id: K2, name: "Win-back", state: "running", was: {} },
     "the same state changes nothing",
   );
   const paused = await playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K2 }));
-  assert.deepEqual(paused, { id: K2, state: "paused", decision_id: paused.decision_id });
+  assert.deepEqual(paused, {
+    id: K2,
+    name: "Win-back",
+    state: "paused",
+    was: { state: "running" },
+    decision_id: paused.decision_id,
+  });
   assert.equal(tables.playbooks.find((p) => p.id === K2).state, "paused");
   assert.deepEqual(
     await playbook.PUT.run(
@@ -1436,7 +1477,7 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
     400,
     "Texts carry no offers.",
   );
-  for (const channels of [[], ["fax"], ["email", "fax"], null, "email"]) {
+  for (const channels of [[], ["fax"], ["email", "fax"]]) {
     await refused(
       playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })),
       "validation",
@@ -1444,6 +1485,9 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
       "Pick WhatsApp, text or email to send by.",
     );
   }
+  // Channels that are no list are no body the route takes (PLAYBOOK_PUT_BODY): refused before the check is asked.
+  for (const channels of [null, "email"])
+    await refused(playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })), "validation", 400);
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "a refusal writes nothing");
   // A channel named twice is one channel.
   ctx = ctxFor(tables, { id: K1 });

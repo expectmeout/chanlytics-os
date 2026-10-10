@@ -410,29 +410,36 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
 export type { PlaybookInput };
 
 /**
- * A write of a playbook the database refused, in words where it is the workspace's one proposal follow-up (00167:
- * two would each owe every proposal its nudge, 0006); any other refusal as it came.
+ * Why a playbook on an archived list (00169, decision 0009) stays paused, in words, or null when its list is live or it
+ * runs on none of the workspace's own: what a resume (core checkPlaybookPatch's port) and a run now ask. It is neither
+ * resumed nor run until its list is restored or it is moved to another.
  */
-/**
- * A playbook on an archived list (00169, decision 0009) is neither resumed nor run now: it stays paused until its list
- * is restored or it is moved to another. Refused in words; nothing when its list is live, or it runs on none of the
- * workspace's own.
- */
+export async function archivedListRefusal(
+  ctx: Pick<RouteContext, "supabase">,
+  p: { id: string; trigger: string },
+): Promise<string | null> {
+  if (p.trigger !== "saved_list") return null;
+  const { data: on } = await ctx.supabase.from("playbooks").select("list_id").eq("id", p.id).maybeSingle();
+  const listId = (on as { list_id?: string | null } | null)?.list_id ?? null;
+  const list = listId ? await listRow(ctx.supabase, listId) : null;
+  return list?.archived_at
+    ? `Its list, ${list.name}, is archived. Restore it on People, or move the campaign to another list.`
+    : null;
+}
+
+/** The same, refused: a run now of such a playbook is not made (app/api/v1/playbooks/[id]/run). */
 export async function refuseOnArchivedList(
   ctx: Pick<RouteContext, "supabase">,
   p: { id: string; trigger: string },
 ): Promise<void> {
-  if (p.trigger !== "saved_list") return;
-  const { data: on } = await ctx.supabase.from("playbooks").select("list_id").eq("id", p.id).maybeSingle();
-  const listId = (on as { list_id?: string | null } | null)?.list_id ?? null;
-  const list = listId ? await listRow(ctx.supabase, listId) : null;
-  if (list?.archived_at)
-    throw new AppError(
-      "validation",
-      `Its list, ${list.name}, is archived. Restore it on People, or move the campaign to another list.`,
-    );
+  const words = await archivedListRefusal(ctx, p);
+  if (words) throw new AppError("validation", words);
 }
 
+/**
+ * A write of a playbook the database refused, in words where it is the workspace's one proposal follow-up (00167:
+ * two would each owe every proposal its nudge, 0006); any other refusal as it came.
+ */
 export function playbookWriteError(error: { code?: string; message: string }): Error {
   return error.code === "23505" && error.message.includes("playbooks_one_follow_up")
     ? new AppError("conflict", FOLLOW_UP_ONE, 409)

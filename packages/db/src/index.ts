@@ -341,7 +341,6 @@ export {
   workspaceIdsOf,
   createWorkspaceFn,
   lineForwardingSet,
-  setPlaybookState,
   updatePlaybook,
   removePlaybook,
   startPlaybook,

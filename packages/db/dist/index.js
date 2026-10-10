@@ -3574,10 +3574,6 @@ async function createWorkspaceFn(db, args) {
 async function lineForwardingSet(db, args) {
   return db.rpc("line_forwarding_set", args);
 }
-async function setPlaybookState(db, id, state) {
-  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
-  return { error };
-}
 async function updatePlaybook(db, id, patch) {
   const { error } = await db.from("playbooks").update(patch).eq("id", id);
   return { error };
@@ -4879,7 +4875,6 @@ export {
   setPartnerStanding,
   setPartnerStatus,
   setPersonReplyMode,
-  setPlaybookState,
   setPolicyMode,
   setTemplateQuality,
   settleDelivery,

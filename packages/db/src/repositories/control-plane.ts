@@ -300,12 +300,6 @@ export async function lineForwardingSet(db: Db, args: LineForwardingArgs) {
 /** The columns an edit may write, as the table types them. */
 export type PlaybookPatch = Database["public"]["Tables"]["playbooks"]["Update"];
 
-/** Set a playbook's state (running or paused). */
-export async function setPlaybookState(db: Db, id: string, state: string): Promise<{ error: PostgrestError | null }> {
-  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
-  return { error };
-}
-
 /** Write the edited fields of a playbook. */
 export async function updatePlaybook(
   db: Db,
@@ -371,7 +365,7 @@ export async function startPlaybook(
 }
 
 /**
- * Change a playbook in place with its line in the ledger (the change_playbook door, 00376), on the member's own session:
+ * Change a playbook in place with its line in the ledger (the change_playbook door), on the member's own session:
  * the row locked, only the columns `set` names written, then the decision (start_playbook, pause_playbook or
  * change_playbook) as theirs, in one transaction. What each written column held comes back as `was`. A playbook the
  * caller cannot see or change is the database's P0002, which the caller words; an answer without its row and its
