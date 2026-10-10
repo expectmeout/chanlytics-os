@@ -7,7 +7,7 @@ conventions and applies inside that tree.
 
 ## What this is
 
-Chanlytics OS is a multi-tenant, omnichannel AI receptionist and lead engine
+Chanlytics is a multi-tenant, omnichannel AI receptionist and lead engine
 for any business that turns a conversation into a booked appointment. A
 customer writes on WhatsApp, texts, phones or emails; the receptionist answers
 from the business's own facts and hands over what it should not decide; a team

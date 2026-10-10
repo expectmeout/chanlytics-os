@@ -165,7 +165,7 @@ const history = historyOf(win);
 const address = await legacyAddress();
 win.CHANLY = { nav() {}, address };
 globalThis.document = {
-  title: "Chanlytics OS",
+  title: "Chanlytics",
   visibilityState: "hidden",
   body: { style: {} },
   addEventListener() {},
@@ -596,7 +596,7 @@ const mount = (hash) => {
   cells = [];
   frames.begin();
   placeAt(hash);
-  globalThis.document.title = "Chanlytics OS";
+  globalThis.document.title = "Chanlytics";
   globalThis.ShellStatusBar = win.ShellStatusBar;
   const tree = win.ChanlyticsApp({
     ...PAGES,
@@ -720,7 +720,7 @@ test("REGRESSION: the tab keeps its name when the layout's own title lands after
     const { title } = mount("#/admin/autonomy");
     assert.equal(title, "Autonomy · Settings · Chanlytics");
     // What the layout's metadata does when it lands after the shell's first paint: its own title, over the shell's.
-    globalThis.document.title = "Chanlytics OS";
+    globalThis.document.title = "Chanlytics";
     for (const w of watches) if (w.on) w.fn([]);
     assert.equal(
       globalThis.document.title,

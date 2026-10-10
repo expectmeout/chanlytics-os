@@ -25,7 +25,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
         }}
       >
         <div style={{ textAlign: "center", maxWidth: 380 }}>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>Chanlytics OS hit an error</div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>Chanlytics hit an error</div>
           <div style={{ color: "#a09c97", fontSize: 14, marginTop: 8 }}>
             Reloading almost always fixes this. ({error.message.slice(0, 80)})
           </div>

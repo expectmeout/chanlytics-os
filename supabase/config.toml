@@ -287,7 +287,7 @@ otp_expiry = 600
 # user = "resend"
 # pass = "env(RESEND_API_KEY)"
 # admin_email = "noreply@chanlytics.com"
-# sender_name = "Chanlytics OS"
+# sender_name = "Chanlytics"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -498,5 +498,5 @@ enabled = true
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 
 [auth.email.template.magic_link]
-subject = "Your Chanlytics OS sign-in code"
+subject = "Your Chanlytics sign-in code"
 content_path = "./supabase/templates/magic_link.html"

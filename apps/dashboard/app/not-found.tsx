@@ -20,7 +20,7 @@ export default function NotFound() {
         current link.
       </p>
       <p className="legal-foot">
-        Chanlytics OS · <a href="/login">Sign in</a> ·{" "}
+        Chanlytics · <a href="/login">Sign in</a> ·{" "}
         <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">
           chanlytics.com
         </a>
