@@ -504,6 +504,7 @@ export const LOG_EVENTS = [
   "sweep_health_no_db",
   "sweep_health_query_failed",
   "sweep_health_receipts_unreadable",
+  "targets_unreadable",
   "template_category_write_failed",
   "template_quality_write_failed",
   "template_status_write_failed",

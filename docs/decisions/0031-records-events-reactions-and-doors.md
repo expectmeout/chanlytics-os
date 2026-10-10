@@ -302,7 +302,42 @@ re-drive replaying it, and that re-drive is a delivery's one way back: the back 
 to it rather than running a second beside a row it would leave failed. Invariant 10's registry names 187 of its 195 columns (0036 step 3, 00391), and 0035's client
 keys the workspace's other writes. Invariant 2 is held in part: the doors-without-events baseline is built (sixty-eight
 doors writing seventy-seven tables, `baselines/doors-without-events.json`), and each door the day built has its event
-proved on a real database; the conformance test across every door is not. Invariant 12 waits on Ruben's targets.
+proved on a real database; the conformance test across every door is not.
+
+**10 October 2026, what was Ruben's,** settled the same evening on his word ("review and go with the best suggestions
+for chanlytics"), each as recommended:
+
+- **A paused subscription holds.** It keeps what it would have been handed, and a re-drive replays it (0032's decision
+  4, built in 00390); it never drops.
+- **Every promise has a number with a target** (invariant 12), set against production's own month and held beside each
+  number's words (contracts `PLATFORM_NUMBERS`), with a test that every column the rollup keeps is named
+  (`platform/every-number-names-a-target.test.mjs`) and a page the morning after a day past one
+  (`apps/edge/lib/ops/day-watch.ts`, `numbers_past_target`). The targets, at the 95th percentile where the number is
+  one:
+
+  | Number                             | Target                                                    | Paged |
+  | ---------------------------------- | --------------------------------------------------------- | ----- |
+  | The model's answer, `brain_p95_ms` | 10 s                                                      | yes   |
+  | A job's wait, `job_lag_ms`         | a reply 10 s, a waiting person 30 s, bulk 5 min           | yes   |
+  | Relay lag, `relay_lag_ms`          | 15 s                                                      | yes   |
+  | Intake lag, `intake_lag_ms`        | 1 min, each provider                                      | yes   |
+  | Duplicate sends                    | none                                                      | yes   |
+  | Dead letters                       | none, each kind                                           | yes   |
+  | First answer, `first_answer_ms`    | 30 s on a text channel, 15 min by email, whoever answered | no    |
+
+  The first answer is the workspace's wait, a person's answer in it, so it is shown against its target and not paged.
+  The rest are counts, named as counts. Hold and override rates wait on invariant 11's records (0039).
+
+- **The notes before each step an owner or a customer meets:** the owner hears of a hold from its event (0043); a
+  moment, a pause and a snooze are due rows (0044); a person's fields and their answers each have one door (0045);
+  0002's five questions answered in place; and what is left of this note in three lanes, with Ruben's switches beside
+  them (0046). The erasure registry's three questions are answered in 0036 and built (00392).
+- **Corrections to "Where it stands":** invariant 9 is held in part, not unbegun (`capabilityStatus`, read by Setup, the
+  Business tab and the activation route); and the doors-without-events baseline reads a trigger on a table a door writes
+  as that door's event, so a table whose trigger writes events for some changes alone (`contacts`) shows its writers as
+  evented: the measure understates there, and 0045's doors are read from their bodies.
+
+How many phases are left: three lanes (0046), with Phase 0's four switches beside them.
 
 ## Tests
 

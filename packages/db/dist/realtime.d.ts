@@ -8330,7 +8330,19 @@ type Database = {
                 };
                 Returns: number;
             };
+            purge_google_reviews: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
             purge_idempotency_keys: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
+            purge_invitations: {
                 Args: {
                     p_keep?: string;
                 };

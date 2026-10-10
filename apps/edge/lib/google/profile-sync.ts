@@ -19,6 +19,23 @@ import type { CheckResult } from "./listing-check.js";
 /** A token refusal's words for the connection's `sync_error`: Google's, when it gave some, else the code. */
 const syncErrorOf = (r: EdgeRefusal): string => r.detail ?? r.error;
 
+/**
+ * What the mirror lets go: on the first sync the public listing's five, whose ids are the public ones, the profile being
+ * the record from then on; and after a read that listed every review, the profile's reviews it did not list, which Google
+ * no longer shows (decision 0036, 00392). The rows a read listed carry its time, so the rest are older.
+ */
+async function letReviewsGo(
+  db: Db,
+  tenantId: string,
+  origin: "places" | "profile",
+  seenBefore: string | null,
+): Promise<void> {
+  let q = db.from("google_reviews").delete().eq("tenant_id", tenantId).eq("origin", origin);
+  if (seenBefore) q = q.lt("last_seen_at", seenBefore);
+  const gone = await q;
+  if (gone.error) throw new Error(gone.error.message);
+}
+
 /** What the bell is about: the review, when it tells of one by name. */
 const aboutOne = (answered: ReadonlyArray<{ id: string }>): { type: string; id: string } | null =>
   answered.length === 1 && answered[0] ? { type: "review", id: answered[0].id } : null;
@@ -86,11 +103,7 @@ export async function syncProfile(
     localDate(tz, now),
     now.getTime(),
   );
-  if (first) {
-    // The public listing's five carry the public ids; from now on the profile is the record.
-    const gone = await db.from("google_reviews").delete().eq("tenant_id", conn.tenant_id).eq("origin", "places");
-    if (gone.error) throw new Error(gone.error.message);
-  }
+  if (first) await letReviewsGo(db, conn.tenant_id, "places", null);
   if (plan.reviews.length) {
     const up = await db.from("google_reviews").upsert(
       plan.reviews.map((r) => ({
@@ -113,6 +126,7 @@ export async function syncProfile(
     );
     if (up.error) throw new Error(up.error.message);
   }
+  if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", plan.synced_at);
   if (plan.listing) {
     const l = await db.from("google_listings").update(plan.listing).eq("tenant_id", conn.tenant_id);
     if (l.error) throw new Error(l.error.message);

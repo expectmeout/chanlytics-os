@@ -1,6 +1,6 @@
 # 0040 · Each alert says where it goes, and who chooses
 
-**Status:** Built in one change on 9 October 2026 (00372), not yet pushed. Decided by Ruben the same day ("approved as
+**Status:** Built in one change on 9 October 2026 (00372), merged with #1533 and applied the next day. Decided by Ruben the same day ("approved as
 you suggest"), with its four choices as recommended. Written against commit `39857e8a4` (main, 9 October 2026). Where
 this note and the code disagree, the code wins.
 
