@@ -302,8 +302,16 @@ export {
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export type { JobToRequeue, AssembleDecision } from "./jobs";
-export { claimControl, releaseControl, CALL_CONTROL_S, claimReplyTurn, holdsReplyTurn } from "./repositories/control";
-export type { ControlHolder, ControlOutcome } from "./repositories/control";
+export {
+  claimControl,
+  releaseControl,
+  takeOverThread,
+  handBackThread,
+  CALL_CONTROL_S,
+  claimReplyTurn,
+  holdsReplyTurn,
+} from "./repositories/control";
+export type { ControlHolder, ControlOutcome, TakenOver, HandedBack } from "./repositories/control";
 export {
   templatesFor,
   templatesToSend,

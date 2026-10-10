@@ -99,12 +99,8 @@ function world(over = {}) {
       lastSubject: async () => null,
     },
   };
-  const handBack = {
-    release: port("release", true),
-    letControlGo: port("letControlGo"),
-    record: port("handBack.record", "d2"),
-    resolveEscalation: port("handBack.resolveEscalation"),
-  };
+  // The hand-back is one door (00378): the release, the hold let go, the decision and the escalation, one call.
+  const handBack = { handBack: port("handBack", { decision_id: "d2" }) };
   const ports = {
     reply,
     handBack,
@@ -169,7 +165,7 @@ test("a first text: the thread is opened, the words carry the way to stop, the j
     { conversation_id: out.conversation_id, handed_back: out.handed_back, status: out.status },
     { conversation_id: "c9", handed_back: false, status: "queued" },
   );
-  assert.equal(w.call("release"), undefined, "the member keeps the thread");
+  assert.equal(w.call("handBack"), undefined, "the member keeps the thread");
   assert.deepEqual([out.note_kept, out.note_id], [null, null], "no note was asked");
 });
 
@@ -293,7 +289,7 @@ test("a retry after a failure past the job queues nothing twice: the verb keeps 
   assert.equal(retry.call("queue"), undefined, "nothing is queued a second time");
   assert.equal(retry.call("schedule"), undefined, "and no second job");
   assert.deepEqual([out.message_id, out.status], ["m1", "queued"], "it is answered with the first receipt");
-  assert.ok(retry.call("keepNote") && retry.call("release"), "and what had not followed the send follows it now");
+  assert.ok(retry.call("keepNote") && retry.call("handBack"), "and what had not followed the send follows it now");
   assert.deepEqual([out.note_kept, out.handed_back], [true, true]);
 });
 
@@ -324,10 +320,9 @@ test("for the receptionist: the message is queued as the member's own, then the 
   const w = world();
   const out = await beginConversation(w.ports, cmd({ then: "receptionist" }));
   const ops = w.ops();
-  assert.ok(ops.indexOf("schedule") < ops.indexOf("release"), "queued first, handed back after");
-  assert.deepEqual(w.call("release").slice(1), ["c9"]);
-  assert.deepEqual(w.call("letControlGo").slice(1), ["t1", "c9", "u1"]);
-  assert.equal(w.call("handBack.record")[4], "hand_back");
+  assert.ok(ops.indexOf("schedule") < ops.indexOf("handBack"), "queued first, handed back after");
+  assert.deepEqual(w.call("handBack").slice(1), ["t1", "c9"], "the door, with the thread: the decision is its own");
+  assert.equal(ops.filter((o) => o === "handBack").length, 1, "one call hands it back whole");
   assert.equal(out.handed_back, true);
 });
 
@@ -337,7 +332,7 @@ test("the plan is kept as a note once the message is queued and before the threa
   const out = await beginConversation(w.ports, cmd({ then: "receptionist", note }));
   const ops = w.ops();
   assert.ok(
-    ops.indexOf("schedule") < ops.indexOf("keepNote") && ops.indexOf("keepNote") < ops.indexOf("release"),
+    ops.indexOf("schedule") < ops.indexOf("keepNote") && ops.indexOf("keepNote") < ops.indexOf("handBack"),
     "queued, then the note, then handed back: the receptionist never answers without the plan",
   );
   assert.deepEqual(w.call("keepNote").slice(1), ["k1", note]);
@@ -357,7 +352,7 @@ test("the plan is kept as a note once the message is queued and before the threa
 
 test("a thread that could not be handed back is still the member's, and the message is still on its way", async () => {
   const w = world();
-  w.ports.handBack.release = async () => false;
+  w.ports.handBack.handBack = async () => null;
   const out = await beginConversation(w.ports, cmd({ then: "receptionist" }));
   assert.ok(w.call("schedule"), "the message was queued");
   assert.equal(out.status, "queued", "a queued message never reads as one that failed");

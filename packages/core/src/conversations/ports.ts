@@ -23,10 +23,22 @@ export interface Thread {
 export interface ThreadPorts {
   /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
   pauseMs(tenantId: TenantId): Promise<number>;
-  /** needs_human, paused until, snooze cleared, claimed by the user. True iff a row changed. */
-  claim(conversationId: string, untilIso: string, userId: string): Promise<boolean>;
-  /** open, pause and snooze cleared, unassigned. True iff a row changed. */
-  release(conversationId: string): Promise<boolean>;
+  /**
+   * A person takes the thread, whole (00378): needs_human, paused until, snooze cleared, theirs; the live hold on who
+   * is speaking; the receptionist's held drafts withdrawn; and the take_over decision, in one transaction. Null iff no
+   * row changed: the thread moved while they looked, and nothing was written.
+   */
+  takeOver(
+    tenantId: TenantId,
+    conversationId: string,
+    untilIso: string,
+  ): Promise<{ withdrawn_drafts: number; decision_id: string } | null>;
+  /**
+   * The thread handed back, whole (00378): open with nothing paused, snoozed or claimed; this person's hold let go
+   * (somebody else's is left alone); the hand_back decision; and the open escalation resolved by it, in one
+   * transaction. Null iff no row changed, and then nothing was written.
+   */
+  handBack(tenantId: TenantId, conversationId: string): Promise<{ decision_id: string } | null>;
   /** snoozed until; pause and assignee cleared. True iff a row changed. */
   snooze(conversationId: string, untilIso: string): Promise<boolean>;
   /** open with the snooze cleared, only while still snoozed. True iff a row changed. */
@@ -42,8 +54,6 @@ export interface ThreadPorts {
    * hold we could not take is not a hold we have.
    */
   takeControl(tenantId: TenantId, conversationId: string, userId: string, seconds: number): Promise<void>;
-  /** This person's hold, let go. Somebody else's is left alone. */
-  letControlGo(tenantId: TenantId, conversationId: string, userId: string): Promise<void>;
   /** The receptionist's held drafts on the thread withdrawn, rows then jobs; how many. */
   withdrawDrafts(tenantId: TenantId, conversationId: string): Promise<number>;
   /** The open escalation on the thread resolved by this decision, when there is one. */
