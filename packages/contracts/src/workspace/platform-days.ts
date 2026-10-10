@@ -8,6 +8,7 @@
  * a workspace whose answer rate fell to zero is found here (and paged by the health sweep) before its owner writes.
  * Field data's p75 (shell/vitals.ts) is the page's speed; this is the product's work, and the two are not mixed.
  */
+import { MIN_MS } from "../shared/time";
 import type { Tone } from "../shell/tone";
 
 /** How many days the back office reads: a week, newest first. */
@@ -175,4 +176,176 @@ export function platformDaysWords(rows: readonly PlatformDayRowDto[] | null): Pl
     `${plural(lines.length, "workspace", "workspaces")} worked on ${day}` +
     (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
   return { day, sentence, lines };
+}
+
+/* ---- Every promise has a number with a target (decision 0031, invariant 12; its entry of 10 October 2026) ---- */
+
+/** A day's number that is a promise: the most it may be, and whether the platform is paged on a day past it. */
+interface PlatformTarget {
+  readonly promise: true;
+  /** The most the number may be: one figure, or one per key (a lane, a channel, a provider, a job's kind). */
+  readonly most: number | Readonly<Record<string, number>>;
+  /** The most for a key `most` does not name. */
+  readonly otherwise?: number;
+  readonly unit: "ms" | "count";
+  /** The platform answers for it, so a day past it pages the operator; else it is the workspace's, shown and not paged. */
+  readonly alarm: boolean;
+  /** What it promises. */
+  readonly why: string;
+}
+
+/** A day's number that is a count, not a promise: read beside the others, held to nothing. */
+interface PlatformCount {
+  readonly promise: false;
+  readonly why: string;
+}
+
+type PlatformNumber = PlatformTarget | PlatformCount;
+
+const heldToNothing = (why: string): PlatformCount => ({ promise: false, why });
+
+/**
+ * Every number the nightly rollup keeps (platform_metrics' columns beyond the workspace, the day and the stamp), and
+ * what each is. The targets were set on 10 October 2026 against production's own month (decision 0031): each sits above
+ * what a healthy day did, so a day past it is news. `platform/every-number-names-a-target.test.mjs` holds the list to
+ * the schema's columns.
+ */
+export const PLATFORM_NUMBERS = {
+  messages_in: heldToNothing("what customers sent, by channel"),
+  messages_out: heldToNothing("what left, by channel"),
+  asks: heldToNothing("the customers' messages; with answered, the answer rate, whose alarm is answer_rate_zero"),
+  answered: heldToNothing("the customers' messages anyone answered"),
+  replies_answered: heldToNothing("the receptionist's replies sent at once"),
+  replies_held: heldToNothing("the receptionist's replies held for a person: the hold rate, invariant 11's"),
+  replies_handed_off: heldToNothing("the receptionist's replies that handed the thread to a person"),
+  brain_p95_ms: {
+    promise: true,
+    most: 10_000,
+    unit: "ms",
+    alarm: true,
+    why: "the receptionist's model answers within ten seconds, at the 95th percentile",
+  },
+  provider_failures: heldToNothing(
+    "a provider's verdict on a send, by what it came to: a number's, read beside what left",
+  ),
+  tokens: heldToNothing("the model's tokens"),
+  handled: heldToNothing("how the customers' messages ended"),
+  topics: heldToNothing("what the customers asked about"),
+  ai_tokens: heldToNothing("the model's tokens by purpose"),
+  ai_usd: heldToNothing("the model's cost by purpose, at list price"),
+  voice_usd: heldToNothing("the calls' cost"),
+  job_lag_ms: {
+    promise: true,
+    most: { "0": 10_000, "1": 30_000, "2": 5 * MIN_MS },
+    otherwise: 5 * MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a reply's job is claimed within ten seconds of its time, a waiting person's within thirty, bulk within five minutes, at the 95th percentile",
+  },
+  first_answer_ms: {
+    promise: true,
+    most: { email: 15 * MIN_MS },
+    otherwise: 30_000,
+    unit: "ms",
+    alarm: false,
+    why: "a customer has a first answer within thirty seconds on a text channel and fifteen minutes by email, at the 95th percentile, whoever answers: the workspace's wait, a person's answer in it, so shown and not paged",
+  },
+  duplicate_sends: {
+    promise: true,
+    most: 0,
+    unit: "count",
+    alarm: true,
+    why: "nobody is sent the same words twice (invariant 4)",
+  },
+  dead_letters: { promise: true, most: {}, otherwise: 0, unit: "count", alarm: true, why: "no job dies" },
+  relay_lag_ms: {
+    promise: true,
+    most: 15_000,
+    unit: "ms",
+    alarm: true,
+    why: "an event reaches its subscribers' deliveries within fifteen seconds, at the 95th percentile",
+  },
+  intake_lag_ms: {
+    promise: true,
+    most: {},
+    otherwise: MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a provider's delivery is kept within a minute of the provider's own clock, at the 95th percentile",
+  },
+} as const satisfies Record<string, PlatformNumber>;
+
+type PlatformNumberName = keyof typeof PLATFORM_NUMBERS;
+
+/** One number of one workspace's day past its target. */
+interface PlatformBreach {
+  number: PlatformNumberName;
+  /** The key past it (a lane, a channel, a provider, a job's kind), or null for a single figure. */
+  key: string | null;
+  value: number;
+  most: number;
+}
+
+/** The most a target allows for a key, or for the number itself. */
+function mostFor(t: PlatformTarget, key: string | null): number {
+  if (typeof t.most === "number") return t.most;
+  return (
+    (key !== null && Object.hasOwn(t.most, key) ? t.most[key] : undefined) ?? t.otherwise ?? Number.POSITIVE_INFINITY
+  );
+}
+
+/** One number's breaches: a single figure past its most, or each key past its own. */
+function breachesOf(name: PlatformNumberName, t: PlatformTarget, v: unknown): PlatformBreach[] {
+  if (typeof v === "number") {
+    const most = mostFor(t, null);
+    return v > most ? [{ number: name, key: null, value: v, most }] : [];
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
+  return Object.entries(v as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([key, x]) => {
+      const most = mostFor(t, key);
+      return typeof x === "number" && x > most ? [{ number: name, key, value: x, most }] : [];
+    });
+}
+
+/**
+ * A workspace's day's numbers past their targets: the paged ones alone unless `all`. A number the day does not have
+ * (null, or a key absent) is past nothing.
+ */
+export function pastTarget(row: object, { all = false } = {}): PlatformBreach[] {
+  const values = row as Readonly<Record<string, unknown>>;
+  return (Object.entries(PLATFORM_NUMBERS) as Array<[PlatformNumberName, PlatformNumber]>).flatMap(([name, n]) =>
+    n.promise && (all || n.alarm) ? breachesOf(name, n, values[name]) : [],
+  );
+}
+
+/** A figure in its unit's words: seconds for a time, the count for a count. */
+function figure(name: PlatformNumberName, v: number): string {
+  const n: PlatformNumber = PLATFORM_NUMBERS[name];
+  return n.promise && n.unit === "ms" ? seconds(v) : String(v);
+}
+
+/** The page for a day whose numbers went past their targets: one line per workspace, each number and its target. */
+export function pastTargetPage(
+  day: string,
+  workspaces: ReadonlyArray<{ tenantId: string; name: string; breaches: readonly PlatformBreach[] }>,
+): { subject: string; body: string } {
+  const lines = workspaces.map(
+    (w) =>
+      `  ${w.name} (${w.tenantId}): ` +
+      w.breaches
+        .map(
+          (b) =>
+            `${b.number}${b.key === null ? "" : ` ${b.key}`} ${figure(b.number, b.value)}, target ${figure(b.number, b.most)}`,
+        )
+        .join("; "),
+  );
+  return {
+    subject: `${plural(workspaces.length, "workspace", "workspaces")} past a target on ${day}`,
+    body:
+      `On ${day} (UTC) these numbers went past the targets the platform answers for (decision 0031, invariant 12; ` +
+      `contracts PLATFORM_NUMBERS):\n\n${lines.join("\n")}\n\n` +
+      `The day's counts are in platform_metrics (the back office's day by workspace).\n`,
+  };
 }

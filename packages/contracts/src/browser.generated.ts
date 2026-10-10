@@ -168,6 +168,7 @@ export { lineReleaseAfterDays, billingEndedAt, lineReleaseStep, lineReleaseDay, 
 export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords, numberHealthWithStanding } from "./lines/number-standing";
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
+export { tryItLink } from "./lines/whatsapp-try-it";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge";
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES, callActivityStart, callActivityPropsOf } from "./mobile/live-activity";
 export { todayWidgetSnapshot, parseTodayWidgetSnapshot } from "./mobile/widget";
@@ -265,7 +266,7 @@ export { zoneDayKey, clockTime, clockHour, clockDate, clockDateYear, clockShort,
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./shared/csv";
 export { EDGE_ERROR_CODES } from "./shared/edge-errors";
 export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./shared/email-address";
-export { optInPurposeOf, optInLink, waMeDigits, TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, IDENTITY_ASSURANCES, CONVERSATION_STATES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES, MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, EVENT_SUBSCRIBERS, JOB_STATES, WABA_FIELDS, EVENT_KINDS, OPT_OUT_PATTERN, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, SMS_OPT_OUT_PATTERN, OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS, ACTOR_TYPES, TEMPLATE_STATUSES } from "./shared/enums";
+export { optInPurposeOf, optInLink, waMeDigits, waMeLink, TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, IDENTITY_ASSURANCES, CONVERSATION_STATES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES, MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, EVENT_SUBSCRIBERS, JOB_STATES, WABA_FIELDS, EVENT_KINDS, OPT_OUT_PATTERN, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, SMS_OPT_OUT_PATTERN, OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS, ACTOR_TYPES, TEMPLATE_STATUSES } from "./shared/enums";
 export { ok, err } from "./shared/envelope";
 export { ERROR_CODES, AppError } from "./shared/errors";
 export { escapeHtml } from "./shared/html";
@@ -333,7 +334,7 @@ export { PARTNER_STATUSES, PARTNER_SHARE_BP_DEFAULT, PARTNER_STANDINGS, PARTNER_
 export { PARTNER_INVITE_DAYS, PARTNER_INVITE_WORDS, partnerCodeFrom, partnerInvitationWords, partnerInviteEmail, partnerJoinedWords, workspacePartnerVM } from "./workspace/partner-invite";
 export { passwordProblem, isUsablePassword, PASSWORD_MIN, PASSWORD_MAX_BYTES, PASSWORD_WORDS } from "./workspace/password";
 export { platformRows, platformSummary, platformNumber, platformLineActions, platformHealthOf, platformHealthWords, platformActionWarning, platformQueue, PLATFORM_VERDICTS, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, QUEUE_SHOWN, QUEUE_SENDS_NOTHING } from "./workspace/platform";
-export { PLATFORM_DAYS_READ, platformDaysWords } from "./workspace/platform-days";
+export { PLATFORM_DAYS_READ, PLATFORM_NUMBERS, pastTarget, pastTargetPage, platformDaysWords } from "./workspace/platform-days";
 export { retentionWords, RETENTION_DAYS, RATE_HITS_RETENTION_HOURS, EVENT_EVIDENCE_KINDS, RECORDING_RETENTION_DAYS, RECORDING_PURGED_WORDS } from "./workspace/retention";
 export { SECOND_FACTOR_LEVEL, SECOND_FACTOR_PATH, SECOND_FACTOR_REQUIRED_PATH, SECOND_FACTOR_WORDS, cleanFactorCode, enrolRefusalWords, factorCodeWords, factorStepNeeded, seatNeedsSecondFactor, secondFactorResetWords, secondFactorShown } from "./workspace/second-factor";
 export { signupPosture, sendFailureIsOurs, addressAlreadyKnown, emailNotConfirmed, deviceTimezone, firstWorkspaceDoor, googleCallbackUrl, resendLeft, requestCodeWords, verifyCodeWords, SIGNUP_NAME_MIN, SIGNUP_NAME_MAX, SIGNUP_WAITLIST, PENDING_WORKSPACE_KEY, SIGNUP_WORDS, SIGNIN_RESEND_COOLDOWN_S } from "./workspace/signup";

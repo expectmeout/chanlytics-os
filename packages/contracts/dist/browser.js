@@ -350,10 +350,13 @@ function waMeDigits(number2) {
   const digits2 = String(number2 ?? "").replace(/\D/g, "");
   return digits2.length < 8 ? null : digits2;
 }
-function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  const digits2 = waMeDigits(numberE164);
+function waMeLink(number2, text) {
+  const digits2 = waMeDigits(number2);
   if (!digits2) return null;
-  return `https://wa.me/${digits2}?text=${encodeURIComponent(phrase)}`;
+  return `https://wa.me/${digits2}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+}
+function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
+  return waMeLink(numberE164, phrase);
 }
 var ESCALATION_REASONS = [
   "human_token",
@@ -1953,8 +1956,8 @@ function priceFigures(text) {
       while (from > 0 && /[\d.,]/.test(text.charAt(from - 1))) from -= 1;
       while (to < text.length && /[\d.,]/.test(text.charAt(to))) to += 1;
       const whole = text.slice(from, to);
-      const figure = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
-      found.push(figure ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
+      const figure2 = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
+      found.push(figure2 ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
     }
   }
   return found;
@@ -15461,6 +15464,12 @@ var RETENTION_DAYS = {
   leads_untouched_blanked: 180,
   /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30,
+  /** The finder's judgment of a batch of places, with its reason for each (purge_leads, 00140; decision 0036). */
+  lead_judgments: 180,
+  /** A Google review the mirror has not seen for this long; a complete read drops one Google no longer lists at once (purge_google_reviews, 00392; decision 0036). */
+  google_reviews: 90,
+  /** A team invitation accepted or taken back, with the address it was sent to (purge_invitations, 00392; decision 0036). */
+  invitations_closed: 30,
   /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
@@ -15490,7 +15499,7 @@ var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 var forDays = (n) => n === 1 ? "a day" : `${n} days`;
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days, and the finder's reasons for a batch of places are removed after ${d.lead_judgments}. A Google review is kept while Google shows it: one it no longer lists is removed at the next full read, and any review is removed ${d.google_reviews} days after we last saw it. A team invitation that was accepted or taken back is removed ${d.invitations_closed} days later, with the address on it, and the address a workspace was handed over to is cleared once its new owner accepts. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -17441,7 +17450,7 @@ function toRunReportVM(d, opts) {
     people,
     replies,
     stop,
-    figures: RUN_FIGURES.map((figure) => figure(f))
+    figures: RUN_FIGURES.map((figure2) => figure2(f))
   };
 }
 
@@ -24977,6 +24986,7 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     messagingLimit: dto.messaging_limit ?? null,
     standing: dto.standing ?? null,
     standingReadAt: dto.standing_read_at ?? null,
+    connectedAt: dto.connected_at ?? null,
     created_at: dto.created_at
   };
 }
@@ -25062,6 +25072,22 @@ function lineReleasedWords(i) {
   ].filter((x) => !!x);
   return { subject: `Your number ${number2} was released`, body: `${lines.join("\n\n")}
 ` };
+}
+
+// src/lines/whatsapp-try-it.ts
+var TRY_IT_TEXT = "Hi";
+var TRY_IT_LIVE_WITHIN_MS = DAY_MS;
+var TRY_IT_NOTE = "Try it from your phone with this link, not by searching your contacts: it opens the chat even while WhatsApp there still says the number isn't on WhatsApp.";
+function tryItLink(number2) {
+  return waMeLink(number2, TRY_IT_TEXT);
+}
+function tryItNotes(wa, nowMs) {
+  const digits2 = waMeDigits(wa.number);
+  const href = tryItLink(wa.number);
+  if (!digits2 || !href || wa.lastInboundMs !== null) return [];
+  const age = nowMs - Date.parse(wa.connectedAt ?? wa.created_at);
+  const fresh = age >= 0 && age < TRY_IT_LIVE_WITHIN_MS;
+  return [{ text: TRY_IT_NOTE, link: { label: `wa.me/${digits2}`, href }, ...fresh ? { live: true } : {} }];
 }
 
 // src/shared/identity.ts
@@ -32828,17 +32854,8 @@ function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
-function tryItNotes(wa) {
-  const digits2 = waMeDigits(wa.number);
-  if (!digits2 || wa.lastInboundMs !== null) return [];
-  return [
-    {
-      text: `Try it from your phone: wa.me/${digits2} \u2014 if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.`
-    }
-  ];
-}
 var LIBRARY = { label: "Library", to: "messages", who: "operator" };
-function whatsappNumberRow(base, wa) {
+function whatsappNumberRow(base, wa, nowMs) {
   const row2 = { ...base, detail: wa.number };
   if (!wa.on) return { ...row2, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
   const limit = wa.messagingLimit ?? wa.standing?.limit ?? null;
@@ -32852,7 +32869,13 @@ function whatsappNumberRow(base, wa) {
         stateWords: stood.stateWords,
         sentence: stood.sentence,
         verb: stood.act ? { label: stood.act.label, to: stood.act.href, href: stood.act.href, who: "owner" } : null,
-        notes: standingNotes(standing, { limitSaid: false })
+        // A number Meta lets send still answers the customer who writes first while it waits on its owner's card (Meta
+        // holds back only what the business starts), and a new account waits so the moment it connects: the way to try it
+        // is said here too. A BLOCKED number answers nobody, so it is not one to try (standingRow says the same of it).
+        notes: [
+          ...standing.can_send === "BLOCKED" ? [] : tryItNotes(wa, nowMs),
+          ...standingNotes(standing, { limitSaid: false })
+        ]
       };
   }
   const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
@@ -32866,14 +32889,14 @@ function whatsappNumberRow(base, wa) {
     verb: LIBRARY,
     // How to try it from a phone, first, on a row nobody has written to yet; then what Meta holds that the owner can act on.
     notes: [
-      ...flagged ? [] : tryItNotes(wa),
+      ...flagged ? [] : tryItNotes(wa, nowMs),
       ...standingNotes(standing, { limitSaid: h.tone !== "unknown" && h.limitPerDay !== null })
     ]
   };
 }
 function whatsappRow(i, { wa, own, nowMs }) {
   const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
-  if (wa) return whatsappNumberRow(base, wa);
+  if (wa) return whatsappNumberRow(base, wa, nowMs);
   if (i.whatsapp === void 0) {
     return {
       ...base,
@@ -37250,6 +37273,112 @@ function platformDaysWords(rows2) {
   const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
   return { day, sentence: sentence2, lines };
 }
+var heldToNothing = (why) => ({ promise: false, why });
+var PLATFORM_NUMBERS = {
+  messages_in: heldToNothing("what customers sent, by channel"),
+  messages_out: heldToNothing("what left, by channel"),
+  asks: heldToNothing("the customers' messages; with answered, the answer rate, whose alarm is answer_rate_zero"),
+  answered: heldToNothing("the customers' messages anyone answered"),
+  replies_answered: heldToNothing("the receptionist's replies sent at once"),
+  replies_held: heldToNothing("the receptionist's replies held for a person: the hold rate, invariant 11's"),
+  replies_handed_off: heldToNothing("the receptionist's replies that handed the thread to a person"),
+  brain_p95_ms: {
+    promise: true,
+    most: 1e4,
+    unit: "ms",
+    alarm: true,
+    why: "the receptionist's model answers within ten seconds, at the 95th percentile"
+  },
+  provider_failures: heldToNothing(
+    "a provider's verdict on a send, by what it came to: a number's, read beside what left"
+  ),
+  tokens: heldToNothing("the model's tokens"),
+  handled: heldToNothing("how the customers' messages ended"),
+  topics: heldToNothing("what the customers asked about"),
+  ai_tokens: heldToNothing("the model's tokens by purpose"),
+  ai_usd: heldToNothing("the model's cost by purpose, at list price"),
+  voice_usd: heldToNothing("the calls' cost"),
+  job_lag_ms: {
+    promise: true,
+    most: { "0": 1e4, "1": 3e4, "2": 5 * MIN_MS },
+    otherwise: 5 * MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a reply's job is claimed within ten seconds of its time, a waiting person's within thirty, bulk within five minutes, at the 95th percentile"
+  },
+  first_answer_ms: {
+    promise: true,
+    most: { email: 15 * MIN_MS },
+    otherwise: 3e4,
+    unit: "ms",
+    alarm: false,
+    why: "a customer has a first answer within thirty seconds on a text channel and fifteen minutes by email, at the 95th percentile, whoever answers: the workspace's wait, a person's answer in it, so shown and not paged"
+  },
+  duplicate_sends: {
+    promise: true,
+    most: 0,
+    unit: "count",
+    alarm: true,
+    why: "nobody is sent the same words twice (invariant 4)"
+  },
+  dead_letters: { promise: true, most: {}, otherwise: 0, unit: "count", alarm: true, why: "no job dies" },
+  relay_lag_ms: {
+    promise: true,
+    most: 15e3,
+    unit: "ms",
+    alarm: true,
+    why: "an event reaches its subscribers' deliveries within fifteen seconds, at the 95th percentile"
+  },
+  intake_lag_ms: {
+    promise: true,
+    most: {},
+    otherwise: MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a provider's delivery is kept within a minute of the provider's own clock, at the 95th percentile"
+  }
+};
+function mostFor(t, key) {
+  if (typeof t.most === "number") return t.most;
+  return (key !== null && Object.hasOwn(t.most, key) ? t.most[key] : void 0) ?? t.otherwise ?? Number.POSITIVE_INFINITY;
+}
+function breachesOf(name, t, v) {
+  if (typeof v === "number") {
+    const most = mostFor(t, null);
+    return v > most ? [{ number: name, key: null, value: v, most }] : [];
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
+  return Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).flatMap(([key, x]) => {
+    const most = mostFor(t, key);
+    return typeof x === "number" && x > most ? [{ number: name, key, value: x, most }] : [];
+  });
+}
+function pastTarget(row2, { all = false } = {}) {
+  const values = row2;
+  return Object.entries(PLATFORM_NUMBERS).flatMap(
+    ([name, n]) => n.promise && (all || n.alarm) ? breachesOf(name, n, values[name]) : []
+  );
+}
+function figure(name, v) {
+  const n = PLATFORM_NUMBERS[name];
+  return n.promise && n.unit === "ms" ? seconds(v) : String(v);
+}
+function pastTargetPage(day, workspaces) {
+  const lines = workspaces.map(
+    (w) => `  ${w.name} (${w.tenantId}): ` + w.breaches.map(
+      (b) => `${b.number}${b.key === null ? "" : ` ${b.key}`} ${figure(b.number, b.value)}, target ${figure(b.number, b.most)}`
+    ).join("; ")
+  );
+  return {
+    subject: `${plural2(workspaces.length, "workspace", "workspaces")} past a target on ${day}`,
+    body: `On ${day} (UTC) these numbers went past the targets the platform answers for (decision 0031, invariant 12; contracts PLATFORM_NUMBERS):
+
+${lines.join("\n")}
+
+The day's counts are in platform_metrics (the back office's day by workspace).
+`
+  };
+}
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {
@@ -38096,6 +38225,7 @@ export {
   PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
   PLATFORM_NEW_DAYS,
+  PLATFORM_NUMBERS,
   PLATFORM_QUIET_DAYS,
   PLATFORM_VERDICTS,
   PLAYBOOK_BREATH_MS,
@@ -39210,6 +39340,8 @@ export {
   passesHandoverPause,
   passwordProblem,
   pastAllowance,
+  pastTarget,
+  pastTargetPage,
   pauseHoursOf,
   pauseMsOf,
   pausedGreetingFor,
@@ -39702,6 +39834,7 @@ export {
   triggerOffered,
   triggerWords,
   trimmedOrNull,
+  tryItLink,
   tzClock,
   tzSince,
   unknownDetails,
@@ -39753,6 +39886,7 @@ export {
   vitalVerdict,
   vitalsPageOf,
   waMeDigits,
+  waMeLink,
   waWindow,
   waitAfterDays,
   waitWords,

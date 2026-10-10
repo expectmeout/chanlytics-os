@@ -12,6 +12,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import {
   CONNECTION_GROUP_WORDS,
   connectionRows,
+  tryItLink,
   type ConnectionGroup,
   type ConnectionRow as Row,
   type LineCodeDto,
@@ -134,6 +135,9 @@ async function runVerb(
       k.setSignup(false);
       k.setBusy(false);
       if (!res.ok && res.reason !== "cancelled") k.setSignupSaid(res.message);
+      // A number that just connected is tried through its own link, which opens the chat whatever the phone's record of
+      // the number says (contracts tryItLink): the toast offers it at the moment an owner reaches for the phone.
+      const tryIt = res.ok ? tryItLink(res.number) : null;
       k.flash({
         tone: res.ok ? "ok" : "danger",
         msg: res.ok ? (
@@ -141,6 +145,7 @@ async function runVerb(
         ) : (
           <>{res.message}</>
         ),
+        action: tryIt ? { label: "Try it", onClick: () => window.open(tryIt, "_blank", "noopener,noreferrer") } : null,
       });
       return;
     }

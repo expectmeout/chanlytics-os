@@ -23,9 +23,9 @@
  * "personal columns with no erasure strategy" (docs/debt.md) hold the count to fall, so a new column arrives with its
  * strategy. messages.body and messages.template_vars are counted on purpose: a message is immutable by trigger (00326),
  * so a person's words in someone else's thread stay until an exception to that is costed (Ruben, 6 October 2026).
- * Counted too, each waiting on a word (decision 0036, open questions): a Google review's reviewer, words and reply,
- * which no erasure can reach (nothing joins a review to a person, and a name is not a key) and no clock removes; and a
- * lead batch's judgment, which purge_leads removes at 180 days with no RETENTION_DAYS key of its own to say so.
+ * A Google review's reviewer, words and reply are reached by no erasure (nothing joins a review to a person, and a name
+ * is not a key): the mirror follows Google, and a review it has not seen for its days goes (00392, answered 10 October
+ * 2026).
  */
 import type { RETENTION_DAYS } from "@chanlytics/contracts";
 
@@ -228,10 +228,15 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "name",
     "place_id",
   ),
-  // A review's ids and language. Its reviewer, words and reply are counted (above).
-  google_reviews: all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
+  // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
+  // (purge_google_reviews, 00392). Its ids and language are nobody's.
+  google_reviews: {
+    ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text"),
+    ...all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
+  },
   idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
-  // A team invitation's address: the workspace's, kept with it.
+  // A team invitation's address: the workspace's while it is open or expired (the Team card sends it again); one
+  // accepted or taken back goes with its address 30 days later (purge_invitations, 00392).
   invitations: { email: WITH_WORKSPACE },
   jobs: {
     // A thrown error can quote the recipient a provider refused.
@@ -240,8 +245,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     dedupe_key: NOT_PERSONAL,
   },
   lead_counters: { period: NOT_PERSONAL },
-  // A batch's judge: its model and the hashes of its work. Its answer is counted (above).
-  lead_judgments: all(NOT_PERSONAL, "model", "op_id", "request_hash"),
+  // A batch's judge: its answer, with a reason for each place, goes with the batch (purge_leads, 00140); its model and
+  // the hashes of its work are nobody's.
+  lead_judgments: {
+    answer: byAge("lead_judgments"),
+    ...all(NOT_PERSONAL, "model", "op_id", "request_hash"),
+  },
   // A lead's stage before and after a move, its counts, ids and a keyed hash of its place.
   lead_operations: all(NOT_PERSONAL, "before", "after"),
   lead_preferences: {
@@ -366,7 +375,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ),
   },
   // A partner's ledger of the workspaces it brought: Stripe's ids, the code used, the sweep's checks and reasons; the
-  // address a workspace is handed to, the workspace's.
+  // address a workspace is handed to, the workspace's, cleared once its new owner accepts (00392).
   partner_earnings: all(NOT_PERSONAL, "currency", "stripe_event_id", "stripe_invoice_id"),
   partner_tenants: {
     handover_email: WITH_WORKSPACE,

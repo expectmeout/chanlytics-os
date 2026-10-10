@@ -520,7 +520,7 @@
    row with two keeps them in its ⋯ -- never a line of boxed buttons under the words. A row that wants something
    (Connect Google) keeps its one button, in the state's place; a Later row is its name. */
 @media (max-width: 640px) {
-  .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; }
+  .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
   .set-conn > .set-int-row > .set-int-tile { align-self: start; }
   .set-int-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--set-hint); line-height: 1.45; }
   .set-int-sep { display: none; }
@@ -530,23 +530,30 @@
   .set-conn > .set-int-row[data-state="later"] .set-team-mail { display: none; }
   .set-conn > .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
   .set-conn > .set-int-row[data-offers="primary"] > .pill { display: none; }
-  /* A row that wants something says it across the row: its button stands beside its name, in the state's place, and its
-     sentence and notes run under both (7 Oct: beside the button they were a column two words wide, and the WhatsApp row
-     stood 700px tall with its button halfway down it). */
+  /* A row that wants something has its button beside its name, in the state's place, and its sentence and notes run
+     under both, as every row's do below (7 Oct: beside the button they were a column two words wide, and the WhatsApp
+     row stood 700px tall with its button halfway down it). */
   /* Such a row lays its own columns here, so its name has what its own button leaves. Sharing the group's, every name
      had what the group's longest button left: 108px for a name and its press beside "Connect your calendar", and
      "Phone line" stood on two lines beside "Get a line", "Google Business Profile" on three (seen on production,
      8 Oct 2026). The buttons still end on one edge, the card's. */
-  .set-conn > .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; row-gap: 3px; }
-  .set-conn > .set-int-row[data-offers="primary"] > .set-team-body { display: contents; }
-  .set-conn > .set-int-row[data-offers="primary"] > :first-child { grid-row: 1; align-self: center; }
-  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; grid-row: 1; }
-  .set-conn > .set-int-row[data-offers="primary"] .set-int-head { grid-column: 2; grid-row: 1; }
+  .set-conn > .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; }
+  .set-conn > .set-int-row[data-offers="primary"] > :first-child { align-self: center; }
+  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
   .set-conn > .set-int-row[data-offers="primary"] .set-team-name { white-space: normal; }
+  /* Every row does: its name stands beside its state and its act, and what it says runs under them, the row's width
+     (8 Oct: a number that had just connected said how to try it in the name's own column, 115px wide and twelve lines
+     tall, beside its state). The state is what follows the words, named by its place rather than as `.pill`, a kit
+     class a page's rule may not name again (kit-primitives.json); a row's act, its chevron or its menu ends the line. */
+  .set-conn > .set-int-row > .set-team-body { display: contents; }
+  .set-conn > .set-int-row > :first-child { grid-row: 1; }
+  .set-conn > .set-int-row .set-int-head { grid-column: 2; grid-row: 1; }
+  .set-conn > .set-int-row > .set-team-body + * { grid-column: 3; grid-row: 1; }
+  .set-conn > .set-int-row > :is(.set-int-actions, .set-int-chev, .set-int-more) { grid-column: 4; grid-row: 1; }
   /* The press beside a name is a finger's 44px here around a 13px glyph (mobile.css): its box reaches 8px over the
      name's end and 8px toward the row's button, so the name is not charged for the room a thumb needs. */
   .set-int-head > :nth-child(2) { margin-inline: -8px; }
-  .set-conn > .set-int-row[data-offers="primary"] :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
+  .set-conn > .set-int-row :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
   .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); }
   .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
   .set-conn > .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }

@@ -1,8 +1,7 @@
 /**
- * Add a person on a phone, and the open list's own acts from the more-menu (moved whole from legacy/pages/people.jsx,
- * decision 0015). Add a person: the two fields stacked, 16px, a number pad for the number, one wide button; the
- * desktop's form stands inline in its controls row. The open list's acts -- rename it, delete it, or keep what is shown
- * as a list -- a desktop does on the list's title line, which a phone does not draw; the doors are the desktop's.
+ * The open list's own acts on a phone (moved whole from legacy/pages/people.jsx, decision 0015), opened from the foot of
+ * the Lists sheet (screen.tsx): rename it, delete it, or keep what is shown as a list, which a desktop does on the list's
+ * title line, a phone not drawing one; the doors are the desktop's. Adding people is the page's sheet (import-sheet.tsx).
  * Each is the kit's Sheet in a job's shape (kit/sheet/sheet.tsx), drawn while the page says it is `open`, so it leaves
  * the way it came; Escape, its wash and a pull down close it as its word does.
  */
@@ -14,72 +13,8 @@ import type { ListRule } from "@chanlytics/contracts";
 import { RuleEditor } from "../lists/rule-editor";
 import { SaveModes } from "../lists/save-shown";
 import type { Flash, SavedList } from "../types";
-import type { AddDraft, ListDraft } from "../words";
+import type { ListDraft } from "../words";
 import { JOB_CANCEL } from "./phone-sheet";
-
-export function PeopleAddSheet({
-  open,
-  draft,
-  onDraft,
-  onAdd,
-  onClose,
-}: {
-  open: boolean;
-  draft: AddDraft;
-  onDraft: (patch: Partial<AddDraft>) => void;
-  onAdd: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <Sheet open={open} shape="job" title="Add a person" close={JOB_CANCEL} onClose={onClose} testid="add-person-sheet">
-      <label className="pp-field">
-        <span className="pp-field-label">
-          Name <span className="pp-field-opt">(optional)</span>
-        </span>
-        <input
-          className="pp-input"
-          autoFocus={focusAsDrawn()}
-          value={draft.name}
-          maxLength={80}
-          autoComplete="name"
-          disabled={draft.busy}
-          onChange={(e) => onDraft({ name: e.target.value })}
-          data-testid="add-person-name"
-        />
-      </label>
-      <label className="pp-field">
-        <span className="pp-field-label">Mobile number</span>
-        <input
-          className="pp-input"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          value={draft.phone}
-          maxLength={24}
-          disabled={draft.busy}
-          aria-invalid={draft.error ? true : undefined}
-          aria-describedby={draft.error ? "add-person-error" : undefined}
-          onChange={(e) => onDraft({ phone: e.target.value, error: null })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onAdd();
-          }}
-          data-testid="add-person-phone"
-        />
-      </label>
-      <FieldError id="add-person-error" message={draft.error} testid="add-person-error" />
-      <p className="pp-sheet-hint">A number that is already here opens that person instead of adding them twice.</p>
-      <button
-        type="button"
-        className="btn btn-primary pp-sheet-go"
-        disabled={draft.busy || !draft.phone.trim()}
-        onClick={onAdd}
-        data-testid="add-person-save"
-      >
-        {draft.busy ? "Adding…" : "Add"}
-      </button>
-    </Sheet>
-  );
-}
 
 export function PeopleListActSheet({
   open,

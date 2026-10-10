@@ -1,4 +1,7 @@
 /**
+ * The day the nightly rollup counted, watched once it is counted: a workspace nobody answered, and the numbers past the
+ * targets the platform answers for (decision 0031, invariant 12).
+ *
  * The alarm on a workspace nobody answered all day: customers wrote, and neither the receptionist nor a person replied
  * (00277 platform_answer_silence, over the day the nightly rollup counted into platform_metrics).
  *
@@ -10,8 +13,8 @@
  * so it is only sent while the day is fresh (before PAGE_UNTIL_HOUR UTC): one page per silent day.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS } from "../packages/contracts.js";
-import type { Database } from "../packages/db.js";
+import { DAY_MS, pastTarget, pastTargetPage } from "../packages/contracts.js";
+import { platformDay, type Database } from "../packages/db.js";
 import { pageOperator, type PagePorts } from "./page-operator.js";
 import { logger } from "../log.js";
 
@@ -19,6 +22,8 @@ import { logger } from "../log.js";
 const ANSWER_SILENCE_PAGE_UNTIL_HOUR = 6;
 /** The pager's condition: one key, the day in the page itself. */
 const ANSWER_SILENCE_PAGE_KEY = "answer_rate_zero";
+/** The targets' page: one key for the day's numbers past their targets, every workspace in one page. */
+const PAST_TARGET_PAGE_KEY = "numbers_past_target";
 
 interface SilentWorkspace {
   tenant_id: string;
@@ -75,4 +80,33 @@ export async function watchAnswerSilence(
   const page = describeAnswerSilence(silent, day);
   await pageOperator({ db, ...pager }, ANSWER_SILENCE_PAGE_KEY, page.subject, page.body);
   return silent.length;
+}
+
+/**
+ * One sweep: yesterday's numbers held to contracts' PLATFORM_NUMBERS and, while the day is fresh, every workspace past a
+ * target the platform answers for paged in one page. Answers how many workspaces were past one. Never throws for a read
+ * that fails (logged), so the health sweep's other checks stand.
+ */
+export async function watchTargets(
+  db: SupabaseClient<Database>,
+  nowMs: number,
+  pager: Omit<PagePorts, "db"> = {},
+): Promise<number> {
+  if (!answerSilenceDue(nowMs)) return 0;
+  const day = rolledDay(nowMs);
+  let rows;
+  try {
+    rows = await platformDay(db, day);
+  } catch (e) {
+    logger({ sweep: "health" }).error("targets_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    return 0;
+  }
+  const past = rows
+    .map((r) => ({ tenantId: r.tenant_id, name: r.name, breaches: pastTarget(r) }))
+    .filter((w) => w.breaches.length > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (past.length === 0) return 0;
+  const page = pastTargetPage(day, past);
+  await pageOperator({ db, ...pager }, PAST_TARGET_PAGE_KEY, page.subject, page.body);
+  return past.length;
 }

@@ -28,6 +28,7 @@ export {
   optInPurposeOf,
   optInLink,
   waMeDigits,
+  waMeLink,
   TENANT_STATUSES,
   MEMBERSHIP_ROLES,
   CHANNEL_KINDS,

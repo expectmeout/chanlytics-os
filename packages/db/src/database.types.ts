@@ -7720,7 +7720,9 @@ export type Database = {
         Returns: number
       }
       purge_events: { Args: { p_keep?: string }; Returns: number }
+      purge_google_reviews: { Args: { p_keep?: string }; Returns: number }
       purge_idempotency_keys: { Args: { p_keep?: string }; Returns: number }
+      purge_invitations: { Args: { p_keep?: string }; Returns: number }
       purge_jobs: {
         Args: { p_failed?: string; p_finished?: string }
         Returns: number
