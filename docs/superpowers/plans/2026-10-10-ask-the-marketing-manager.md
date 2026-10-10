@@ -93,7 +93,8 @@
   A db suite without `SUPABASE_URL` and the keys SKIPS; look for `# skip 0`. Source the env file in the same command as
   every database step.
 - **R7, commit:** `git add <exact files>` then
-  `git commit -m "<what changed, in the repo's sentence style>" -m "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"`.
+  `git commit -m "<what changed, in the repo's sentence style>" -m "Co-Authored-By: <the model that made the commit> <noreply@anthropic.com>"`
+  (an implementer on Opus 5.5 writes `Claude Opus 5.5`).
   New untracked files a barrel or tree test reads need `git add -N <files>` before the test runs.
 - **R8, a new top-level name** must not be declared in a third file: `git grep -nE "(function|const|let|class|interface|type) <Name>\b" -- apps packages ':!*/dist/*'`.
 - **R9, Ask's test fixtures:** `tooling/scripts/tests/ask/*.test.mjs` run the real registry over `_fake-db.mjs`; a new
@@ -122,16 +123,16 @@ Dn is decision n of the spec's §3.
 | `apps/dashboard/app/api/v1/templates/message/route.ts` | `POST templates/message` |
 | `mig/00394_a_listing_keeps_its_review_link.sql` | `google_listings.new_review_uri` |
 | `mig/00395_a_campaign_ends_and_runs_on_trial.sql` | `playbooks.until`, `playbooks.trial_until`; `change_playbook` replaced for `params`, `until`, `trial_until` |
-| `tests/ask/plan-of.test.mjs` | `planOf` by world, no model |
-| `tests/ask/plan-cards.test.mjs` | the `plan` action's cards, tokens, stamps, refusals |
-| `tests/ask/plan-commit.test.mjs` | `commitPlan` over a stub client: order, keys, a stop, a held send, resolution |
-| `tests/ask/message-card.test.mjs` | the `message` action and its spec |
+| `tests/ask/plan/plan-of.test.mjs` | `planOf` by world, no model (`tests/ask/` holds 20 files already: this lane's Ask tests live in subfolders, lane 4's `tests/playbooks/change/` precedent) |
+| `tests/ask/plan/plan-cards.test.mjs` | the `plan` action's cards, tokens, stamps, refusals |
+| `tests/ask/plan/plan-commit.test.mjs` | `commitPlan` over a stub client: order, keys, a stop, a held send, resolution |
+| `tests/ask/tools/message-card.test.mjs` | the `message` action and its spec |
 | `tests/campaigns/write-message.test.mjs` | the door over `_fake-db.mjs` |
 | `tests/campaigns/trial-and-until.test.mjs` | `effectiveMode`, a run on trial, a run past `until` |
 | `tests/campaigns/broadcast-breath.test.mjs` | a one-off send holds who heard this week |
 | `tests/playbooks/change/playbook-change-words.test.mjs` | `params`, `until`, `trial_until` through `checkPlaybookPatch` |
 | `tests/journey/journey-guide.test.mjs` | the guide's rows and words |
-| `tests/ask/ask-tools-size.test.mjs` | the tools block in characters per role, under `ASK_TOOLS_CHARS_CEILING` |
+| `tests/ask/tools/ask-tools-size.test.mjs` | the tools block in characters per role, under `ASK_TOOLS_CHARS_CEILING` |
 | `tests/campaigns/change-playbook-keys.db.test.mjs` | migration B applies twice; the door takes the three keys |
 | `e2e/ask/plan.spec.ts` | a plan approved on the e2e workspace, email-only, sends refused |
 | `docs/decisions/0043-a-plan-is-steps-the-server-expands.md` | the decision note |
@@ -184,7 +185,7 @@ Inputs the spec implies but no task's tests would otherwise exercise; each line'
 ### Task 1: The worktree builds, and the tools block is measured
 
 **Files:**
-- Create: `tests/ask/ask-tools-size.test.mjs`
+- Create: `tests/ask/tools/ask-tools-size.test.mjs`
 - Modify: `ct/ask/ask.ts` (one constant)
 
 **Interfaces:**
@@ -416,7 +417,7 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 ### Task 9: `propose_campaign.message` and the `message` card
 
 **Files:**
-- Create: `act/message.ts`, `tests/ask/message-card.test.mjs`
+- Create: `act/message.ts`, `tests/ask/tools/message-card.test.mjs`
 - Modify: `act/campaign.ts` (action `message`), `ct/ask/ask.ts` (kind), `ct/ask-proposals/campaigns.ts` (`messageSpec`),
   `ct/ask-proposals/proposals.ts` (the map), `act/says.ts` (quote every version), `legacy/pages/ask-turn.jsx`
   (`?v=` bump; the `message` card lists each version under its channel's word in `.ask-card-said`), registry tests,
@@ -568,7 +569,7 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 ### Task 15: `planOf`: the steps of an offer and of a setup, with no model
 
 **Files:**
-- Create: `ct/ask/plan.ts`, `tests/ask/plan-of.test.mjs`
+- Create: `ct/ask/plan.ts`, `tests/ask/plan/plan-of.test.mjs`
 - Modify: `ct/ask/index.ts` (barrel), `ct/browser.generated.ts` (R2)
 
 **Interfaces:**
@@ -622,7 +623,7 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
   `AskProposal.plan?: AskPlanStamp`, `ASK_PLAN_FRESH_MS = 7 * DAY_MS`, `askCardLapsed` uses it when `p.plan`),
   `ct/ask-proposals/spec.ts` (`PROPOSAL_WORDS.planUndone`, `.waitsForStep(n)`, `.planStopped(n, why)`),
   `bridge/ask/commit.ts` (`commitPlan`; `commitProposal` resolves `@step` tokens before `spec.commit` when `p.plan`)
-- Create: `tests/ask/plan-commit.test.mjs`
+- Create: `tests/ask/plan/plan-commit.test.mjs`
 - Test: `tests/ask/ask-commit.test.mjs` (exists; append the lapse case)
 
 **Interfaces:**
@@ -647,7 +648,7 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 ### Task 17: `propose_campaign.plan`: the world, the expansion, one card per step
 
 **Files:**
-- Create: `act/plan.ts`, `tests/ask/plan-cards.test.mjs`
+- Create: `act/plan.ts`, `tests/ask/plan/plan-cards.test.mjs`
 - Modify: `act/campaign.ts` (action `plan`), `srv/ask/tools/context.ts` (`ProposalOutcome.proposals?: AskProposal[]`;
   `proposeMany(ps)`), `srv/ask/loop.ts` (where `outcome.proposal` is pushed, ~`:538`: push `outcome.proposals ??
   (outcome.proposal ? [outcome.proposal] : [])`), `act/list.ts`, `act/settings.ts`, `act/broadcast.ts`, `act/playbook.ts`,
