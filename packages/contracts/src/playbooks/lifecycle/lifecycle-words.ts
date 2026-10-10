@@ -110,8 +110,15 @@ export const LIFECYCLE_WORDS = {
   },
   // Campaigns' ledger (spec 2026-10-09 §4.3, §4.4): every word its page says once; each row's own are the view model's.
   ledger: {
+    /** The ledger's name to a screen reader. */
+    label: "Your campaigns",
+    /** The phone's strip of chips, to a screen reader. */
+    strip: "Campaigns by moment",
+    /** The phone's search circle, which opens the search. */
+    find: "Search campaigns",
     heads: { campaign: "Campaign", goesBy: "Goes by", people: "People now", results: "Last 30 days", next: "Next" },
-    tabs: { all: "All", needs: "Needs you", paused: "Paused" },
+    /** `label`: the desk's status tabs, to a screen reader. */
+    tabs: { label: "Campaigns by state", all: "All", needs: "Needs you", paused: "Paused" },
     /** "Needs you" names its unit, where its count is said: "2 campaigns need you". */
     needsOf: (n: number): string => `${plural(n, "campaign")} ${n === 1 ? "needs" : "need"} you`,
     search: (n: number): string => `Search ${plural(n, "campaign")}`,
@@ -184,7 +191,8 @@ export const LIFECYCLE_WORDS = {
   coming: {
     title: "Coming up",
     window: "next 7 days",
-    link: "Calendar",
+    // Its door goes to Sent's week (spec 2026-10-09 §4.3), where every run is read.
+    link: CAMPAIGN_ROOMS.sent,
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} · one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",

@@ -80,8 +80,15 @@ export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } fr
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
-export { LEDGER_SORTS, ledgerOrder } from "./lifecycle/lifecycle-ledger";
-export type { LedgerSort } from "./lifecycle/lifecycle-ledger";
+export {
+  LEDGER_SORTS,
+  LEDGER_STATUSES,
+  isLedgerCampaign,
+  ledgerOrder,
+  ledgerPhoneLine,
+  ledgerRowIn,
+} from "./lifecycle/lifecycle-ledger";
+export type { LedgerSort, LedgerStatus } from "./lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./lifecycle/lifecycle-tiles";
 export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords } from "./lifecycle/lifecycle-words";
 export type {
@@ -122,6 +129,7 @@ export type {
   LifecycleTileRead,
   LifecycleTone,
   LifecycleTrigger,
+  LifecycleWaiting,
   ReachCounts,
 } from "./lifecycle/lifecycle-types";
 export type { RunMessage } from "./playbook-purpose";

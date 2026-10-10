@@ -7754,8 +7754,15 @@ var LIFECYCLE_WORDS = {
   },
   // Campaigns' ledger (spec 2026-10-09 §4.3, §4.4): every word its page says once; each row's own are the view model's.
   ledger: {
+    /** The ledger's name to a screen reader. */
+    label: "Your campaigns",
+    /** The phone's strip of chips, to a screen reader. */
+    strip: "Campaigns by moment",
+    /** The phone's search circle, which opens the search. */
+    find: "Search campaigns",
     heads: { campaign: "Campaign", goesBy: "Goes by", people: "People now", results: "Last 30 days", next: "Next" },
-    tabs: { all: "All", needs: "Needs you", paused: "Paused" },
+    /** `label`: the desk's status tabs, to a screen reader. */
+    tabs: { label: "Campaigns by state", all: "All", needs: "Needs you", paused: "Paused" },
     /** "Needs you" names its unit, where its count is said: "2 campaigns need you". */
     needsOf: (n) => `${plural(n, "campaign")} ${n === 1 ? "needs" : "need"} you`,
     search: (n) => `Search ${plural(n, "campaign")}`,
@@ -7820,7 +7827,8 @@ var LIFECYCLE_WORDS = {
   coming: {
     title: "Coming up",
     window: "next 7 days",
-    link: "Calendar",
+    // Its door goes to Sent's week (spec 2026-10-09 §4.3), where every run is read.
+    link: CAMPAIGN_ROOMS.sent,
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
@@ -27876,9 +27884,9 @@ function sentOnceRow(s, at3) {
     search: rowSearchOf(s.name, hint, at3.caps)
   };
 }
-var isCampaign = (r2) => r2.kind !== "receptionist" && r2.kind !== "call_text" && !(r2.kind === "offer" && r2.status === "off");
+var isLedgerCampaign = (r2) => r2.kind !== "receptionist" && r2.kind !== "call_text" && !(r2.kind === "offer" && r2.status === "off");
 function groupMetaOf(rows2, otherwise) {
-  const campaigns = rows2.filter(isCampaign);
+  const campaigns = rows2.filter(isLedgerCampaign);
   if (campaigns.length === 0) return otherwise;
   const t = { on: 0, waiting: 0, paused: 0, off: 0 };
   for (const r2 of campaigns) {
@@ -27962,13 +27970,19 @@ function sentOnceGroup(sources, input) {
     add: null
   };
 }
+var LEDGER_STATUSES = ["all", "needs", "paused"];
+function ledgerRowIn(row2, status) {
+  if (status === "all") return true;
+  if (row2.kind === "sent_once" || row2.kind === "receptionist" || row2.kind === "call_text") return false;
+  return status === "needs" ? row2.tone === "warn" : row2.status === "paused";
+}
 function countsOf(rows2) {
-  const campaigns = rows2.filter(isCampaign);
+  const campaigns = rows2.filter(isLedgerCampaign);
   return {
     all: campaigns.length,
     running: campaigns.filter((r2) => r2.status === "on" || r2.status === "waiting").length,
-    needs: campaigns.filter((r2) => r2.tone === "warn").length,
-    paused: campaigns.filter((r2) => r2.status === "paused").length
+    needs: campaigns.filter((r2) => ledgerRowIn(r2, "needs")).length,
+    paused: campaigns.filter((r2) => ledgerRowIn(r2, "paused")).length
   };
 }
 function lifecycleLedger(at3) {
@@ -28015,6 +28029,12 @@ function ledgerOrder(by) {
   if (by === "replied") return (a, b) => repliedOf(b) - repliedOf(a) || byName(a, b);
   const at3 = (r2) => r2.next.atMs ?? Number.MAX_SAFE_INTEGER;
   return (a, b) => NEXT_RANK[a.status] - NEXT_RANK[b.status] || at3(a) - at3(b) || byName(a, b);
+}
+function ledgerPhoneLine(r2, caps) {
+  const dash = LIFECYCLE_WORDS.ledger.dash;
+  const next = r2.status === "waiting" || r2.next.words === dash ? null : r2.next.words;
+  const people = r2.people.n === null ? null : `${r2.people.n} ${r2.people.unit}`;
+  return [caps, next, people].filter((p) => !!p).join(" \xB7 ");
 }
 
 // src/playbooks/lifecycle/lifecycle.ts
@@ -38717,6 +38737,7 @@ export {
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
   LEDGER_SORTS,
+  LEDGER_STATUSES,
   LENS_ROUTES,
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
@@ -39688,6 +39709,7 @@ export {
   isHeldDraft,
   isIdentifierName,
   isLeadList,
+  isLedgerCampaign,
   isLensParam,
   isLibrarySample,
   isLiveCall,
@@ -39820,6 +39842,8 @@ export {
   leadsRoute,
   leadsStanding,
   ledgerOrder,
+  ledgerPhoneLine,
+  ledgerRowIn,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,

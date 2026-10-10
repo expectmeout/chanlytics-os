@@ -422,13 +422,13 @@ function sentOnceRow(s: LifecycleSource, at: { input: LifecycleInput; caps: stri
   };
 }
 
-/** A campaign, not one of First contact's own rows nor the month's offer before it is made. */
-const isCampaign = (r: LifecycleRow): boolean =>
+/** A campaign, as every "how many campaigns" counts it: not First contact's own rows, nor the month's offer before it is made. */
+export const isLedgerCampaign = (r: LifecycleRow): boolean =>
   r.kind !== "receptionist" && r.kind !== "call_text" && !(r.kind === "offer" && r.status === "off");
 
 /** A group's line under its caption: how its campaigns stand, else what it says of itself. */
 function groupMetaOf(rows: readonly LifecycleRow[], otherwise: string): string {
-  const campaigns = rows.filter(isCampaign);
+  const campaigns = rows.filter(isLedgerCampaign);
   if (campaigns.length === 0) return otherwise;
   const t = { on: 0, waiting: 0, paused: 0, off: 0 };
   for (const r of campaigns) {
@@ -539,14 +539,30 @@ function sentOnceGroup(sources: readonly LifecycleSource[], input: LifecycleInpu
   };
 }
 
+/** The ledger's status tabs, in the order they stand: All, Needs you (the one amber, decision 13), Paused. */
+export const LEDGER_STATUSES = ["all", "needs", "paused"] as const;
+export type LedgerStatus = (typeof LEDGER_STATUSES)[number];
+
+/**
+ * Whether a row stands under a status tab: the one predicate the tabs' counts and the page's filter both read. Needs you
+ * is what the row's tone asks to be seen for (a run waiting on the owner, a list archived under a running campaign);
+ * Paused is paused; a one-off send, the receptionist and the call's text stand under All alone (the counts are
+ * campaigns', `countsOf`).
+ */
+export function ledgerRowIn(row: Pick<LifecycleRow, "kind" | "status" | "tone">, status: LedgerStatus): boolean {
+  if (status === "all") return true;
+  if (row.kind === "sent_once" || row.kind === "receptionist" || row.kind === "call_text") return false;
+  return status === "needs" ? row.tone === "warn" : row.status === "paused";
+}
+
 /** The status tabs' counts: campaigns only. Needs you is the one amber: a run waiting, or an archived list (decision 13). */
 function countsOf(rows: readonly LifecycleRow[]): LifecycleLedger["counts"] {
-  const campaigns = rows.filter(isCampaign);
+  const campaigns = rows.filter(isLedgerCampaign);
   return {
     all: campaigns.length,
     running: campaigns.filter((r) => r.status === "on" || r.status === "waiting").length,
-    needs: campaigns.filter((r) => r.tone === "warn").length,
-    paused: campaigns.filter((r) => r.status === "paused").length,
+    needs: campaigns.filter((r) => ledgerRowIn(r, "needs")).length,
+    paused: campaigns.filter((r) => ledgerRowIn(r, "paused")).length,
   };
 }
 
@@ -608,4 +624,17 @@ export function ledgerOrder(by: LedgerSort): (a: LifecycleRow, b: LifecycleRow) 
   if (by === "replied") return (a, b) => repliedOf(b) - repliedOf(a) || byName(a, b);
   const at = (r: LifecycleRow) => r.next.atMs ?? Number.MAX_SAFE_INTEGER;
   return (a, b) => NEXT_RANK[a.status] - NEXT_RANK[b.status] || at(a) - at(b) || byName(a, b);
+}
+
+/**
+ * A row's one line on a phone (spec 2026-10-09 §4.4): its moment, its next run and who is at it now ("Appointment
+ * tomorrow · tomorrow 10:00 AM · 7 people"), each said where it is known. A run that waits says so on the row's pill, so
+ * the line leaves it out; a paused row's end is its Resume, so the line says it rests. A figure not counted is left out,
+ * never said as a zero.
+ */
+export function ledgerPhoneLine(r: LifecycleRow, caps: string): string {
+  const dash = LIFECYCLE_WORDS.ledger.dash;
+  const next = r.status === "waiting" || r.next.words === dash ? null : r.next.words;
+  const people = r.people.n === null ? null : `${r.people.n} ${r.people.unit}`;
+  return [caps, next, people].filter((p): p is string => !!p).join(" · ");
 }

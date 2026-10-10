@@ -519,3 +519,86 @@ test("the drawer's kicker is the campaign's group: its moment's caption, Lists &
   assert.equal(C.lifecycleKicker(home, "ro-1"), "Reach-outs");
   assert.equal(C.lifecycleKicker(home, "nobody"), "Campaign");
 });
+
+test("a status tab counts what it shows: the counts and the page's filter read one predicate", () => {
+  const rows = [
+    { kind: "playbook", status: "waiting", tone: "warn" },
+    { kind: "list", status: "on", tone: "warn" },
+    { kind: "playbook", status: "paused", tone: "plain" },
+    { kind: "playbook", status: "on", tone: "ok" },
+    { kind: "sent_once", status: "on", tone: "plain" },
+    // The call's text with no message is amber, but it is First contact's own row, not a campaign: no tab counts it.
+    { kind: "call_text", status: "off", tone: "warn" },
+  ];
+  assert.deepEqual([...C.LEDGER_STATUSES], ["all", "needs", "paused"]);
+  assert.deepEqual(
+    rows.map((r) => C.ledgerRowIn(r, "needs")),
+    [true, true, false, false, false, false],
+    "a run waiting, an archived list",
+  );
+  assert.deepEqual(
+    rows.map((r) => C.ledgerRowIn(r, "paused")),
+    [false, false, true, false, false, false],
+  );
+  assert.ok(
+    rows.every((r) => C.ledgerRowIn(r, "all")),
+    "All holds the one-off sends too: the rows add up to what came back",
+  );
+  // And the ledger's own counts are that predicate's, over a real home.
+  const l = ledger({ playbooks: playbooks([playbook(), playbook({ id: "pb-p", state: "paused", next: "paused" })]) });
+  const all = l.groups.flatMap((g) => g.rows);
+  for (const s of ["needs", "paused"]) assert.equal(l.counts[s], all.filter((r) => C.ledgerRowIn(r, s)).length, s);
+});
+
+test("the ledger's names to a screen reader are contracts' too", () => {
+  const W = C.LIFECYCLE_WORDS.ledger;
+  assert.deepEqual(
+    [W.label, W.tabs.label, W.strip, W.find],
+    ["Your campaigns", "Campaigns by state", "Campaigns by moment", "Search campaigns"],
+  );
+});
+
+test("how many campaigns is one count: the receptionist, the call's text and an offer not made yet are no campaign", () => {
+  const l = ledger({ playbooks: playbooks([playbook(), playbook({ id: "pb-p", state: "paused", next: "paused" })]) });
+  const all = l.groups.flatMap((g) => g.rows);
+  assert.equal(all.filter(C.isLedgerCampaign).length, l.counts.all, "the All tab's figure is the rows it counts");
+  assert.deepEqual(
+    all
+      .filter((r) => !C.isLedgerCampaign(r))
+      .map((r) => r.kind)
+      .sort(),
+    ["call_text", "offer", "receptionist"],
+  );
+});
+
+test("a phone row says its moment, its next run and who is at it, in one line; a run that waits says so once, on its pill", () => {
+  const rows = [
+    playbook({ id: "pb-v", name: "Reminder", trigger: "visit_tomorrow", named: { pool: 7, saidYes: 7 } }),
+    playbook(),
+    playbook({ id: "pb-p", state: "paused", next: "paused" }),
+    playbook({ id: "pb-w", trigger: "lapsed", totals: { waiting: { id: "r-1", recipient_count: 7 } } }),
+  ];
+  const l = ledger({ playbooks: playbooks(rows), broadcasts: broadcasts([run({ playbook_id: "pb-w" })]) });
+  const line = (id) => {
+    const g = l.groups.find((x) => x.rows.some((r) => r.id === id));
+    return C.ledgerPhoneLine(row(l, id), g.caps);
+  };
+  assert.equal(line("pb-v"), "Appointment tomorrow · tomorrow 10:00 AM · 7 people");
+  assert.equal(
+    line("pb-p"),
+    "Quiet or lapsed · Paused · 5 people",
+    "a paused row's end is its Resume: the line says it rests",
+  );
+  assert.equal(line("pb-w"), "Quiet or lapsed · 5 people", "Waiting on you is the pill's, said once");
+  assert.equal(
+    line("receptionist"),
+    `First contact · ${row(l, "receptionist").people.n} this week`,
+    "no next run: none said",
+  );
+  // A figure nobody counted is no figure: the line leaves it out, never "0 people".
+  const uncounted = ledger({
+    shape: { calendar: "none", dealsOn: true, word: "appointment" },
+    playbooks: playbooks([playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })]),
+  });
+  assert.equal(C.ledgerPhoneLine(row(uncounted, "pb-r"), "Appointment tomorrow"), "Appointment tomorrow");
+});
