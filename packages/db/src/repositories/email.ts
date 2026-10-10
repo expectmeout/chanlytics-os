@@ -104,28 +104,8 @@ export interface IngestEmailParams {
 
 export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<IngestResult> {
   // Who has this address is the inbound door's to say (00344: ingest_inbound hands the address to resolve_person, which
-  // matches by the email identity, then by the address on a row, and keeps the identity). Until every database carries
-  // 00344, a database before it matches by the identity alone, so a person known here by address and not yet by an
-  // email identity is given one first, as before; after the door, the upsert finds the identity it kept and writes
-  // nothing. This read and write leave once 00344 is on production.
-  const known = await db
-    .from("contacts")
-    .select("id")
-    .eq("tenant_id", p.tenantId)
-    .eq("email", p.address)
-    .is("erased_at", null)
-    .is("merged_into_contact_id", null)
-    .maybeSingle();
-  if (known.error) throw new Error(`ingest_email: cannot read who has this address: ${known.error.message}`);
-  if (known.data) {
-    const { error } = await db
-      .from("contact_identities")
-      .upsert(
-        { tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address },
-        { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true },
-      );
-    if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
-  }
+  // matches by the email identity, then by the address on a row, keeps the identity, and sets the address on a new
+  // person's row). The read and the two writes that did that here until 00344 was on production are gone.
 
   // A START is a yes, and until 00361 ingest_inbound wrote a yes before it knew the message was one it already held (its
   // replay gate is the message's own insert). An email delivered twice, or a run that resumes, would write the yes again,
@@ -159,22 +139,6 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     optOut: p.optOut ?? false,
     optIn,
   });
-
-  // The address on a new person's row is the door's to set (00344). A database before it leaves the row without one,
-  // so until every database carries 00344 it is set here where it is still empty: a no-op after the door. Somebody
-  // else in the workspace holding this address is a doubt the door keeps now; here, as before, the email is kept
-  // either way and the owner merges them.
-  {
-    const { error } = await db
-      .from("contacts")
-      .update({ email: p.address })
-      .eq("id", out.contact_id)
-      .eq("tenant_id", p.tenantId)
-      .is("email", null);
-    if (error && error.code !== "23505")
-      throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
-  }
 
   // They wrote from the address a hard bounce stopped: it works. Lifted for that address and that reason alone, and
   // only for an email not yet handled, as their answers below are. A write that fails throws: the run that resumes

@@ -663,10 +663,11 @@ function keepDoubt(tables, tenantId, id, other, seenAs, insertRow) {
  * so the sweeps, the booking link and the email intake run their real code over it: the erasure digests first on the
  * passive paths, then the identity, the number and the address; fills what is empty and never overwrites; never
  * merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed
- * or the finder brought, person.resolved for every call. The SQL itself is proved on a stack in
+ * or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity
+ * added or raised, a doubt written; 00384). The SQL itself is proved on a stack in
  * people/doors/resolve-person.db.test.mjs; what this answers is held to the same cases there. Not modelled: the race
- * two doors run (one world, one caller at a time), and contact.email_set, which set_person_email writes beside the
- * address.
+ * two doors run (one world, one caller at a time), contact.email_set, which set_person_email writes beside the
+ * address, and the lead the door links (person_link_lead), which would be one more reason to write the row.
  */
 function resolvePersonIn(tables, args, insertRow) {
   const tenantId = args.p_tenant_id;
@@ -681,25 +682,29 @@ function resolvePersonIn(tables, args, insertRow) {
   const outcome = found ? (fill.filled.length ? "filled" : "matched") : "new";
   const identity = keepIdentity(tables, tenantId, r, id, insertRow);
   const doubt = keepDoubt(tables, tenantId, id, fill.other, fill.seenAs, insertRow);
-  insertRow("events", {
-    tenant_id: tenantId,
-    kind: "person.resolved",
-    category: "contact",
-    subject_type: "contact",
-    subject_id: id,
-    data: {
-      outcome,
-      matched_by: found?.by ?? null,
-      source: r.source,
-      channel: r.channel,
-      assurance: r.assurance,
-      by: null,
-      filled: fill.filled,
-      identity,
-      doubt: doubt.other,
-      doubt_seen: doubt.seenAs,
-    },
-  });
+  // The ledger's row, when the call changed something (00384); a call that found the person and learned nothing
+  // writes none.
+  if (outcome !== "matched" || identity === "added" || identity === "raised" || doubt.doubtId != null) {
+    insertRow("events", {
+      tenant_id: tenantId,
+      kind: "person.resolved",
+      category: "contact",
+      subject_type: "contact",
+      subject_id: id,
+      data: {
+        outcome,
+        matched_by: found?.by ?? null,
+        source: r.source,
+        channel: r.channel,
+        assurance: r.assurance,
+        by: null,
+        filled: fill.filled,
+        identity,
+        doubt: doubt.other,
+        doubt_seen: doubt.seenAs,
+      },
+    });
+  }
   return {
     contact_id: id,
     outcome,
@@ -715,8 +720,62 @@ function resolvePersonIn(tables, args, insertRow) {
 }
 
 /**
+ * A provider's stop and its event, one write (record_provider_stop, 00383), over the rows a world holds, so the send
+ * door (the carrier's 21610 at the wire), the status door (the same, told late) and the receipts door (WhatsApp's
+ * 131050) run their real code over it: the row's own answer is the event's `previous`; a person already stopped, or
+ * erased, is left as they are and the door answers false; the message the provider refused rides on the event when
+ * named. The SQL itself is proved on a stack in consent/stops/a-provider-s-stop-is-one-write.db.test.mjs. Not modelled:
+ * 00297's trigger, which empties the channels the answer covered from the event.
+ */
+function recordProviderStopIn(tables, args, insertRow) {
+  const tenantId = args.p_tenant_id;
+  const contactId = args.p_contact_id;
+  const purpose = args.p_purpose;
+  const channel = String(args.p_channel ?? "").trim();
+  const source = String(args.p_source ?? "").trim();
+  if (!tenantId || !contactId) throw refusal("P0002", "Workspace not found.");
+  if (purpose !== "conversational" && purpose !== "marketing")
+    throw refusal("22023", "A stop is about messages on their own visit (conversational) or about offers (marketing).");
+  if (!channel || !source) throw refusal("22004", "A provider's stop names its channel and its source.");
+  const row = inWorkspace(tables, tenantId).find((c) => c.id === contactId);
+  if (!row || row.erased_at != null) return false;
+  const at = stampOf(tables);
+  let data;
+  if (purpose === "conversational") {
+    if (row.consent === "opted_out") return false;
+    data = { consent: "opted_out", previous: row.consent ?? "unknown", source, channel };
+    Object.assign(row, { consent: "opted_out", dnc: true, consent_source: source, consent_updated_at: at });
+  } else {
+    if (row.marketing_consent === "opted_out") return false;
+    data = {
+      purpose: "marketing",
+      consent: "opted_out",
+      previous: row.marketing_consent ?? "unknown",
+      source,
+      channel,
+    };
+    Object.assign(row, {
+      marketing_consent: "opted_out",
+      marketing_consent_source: source,
+      marketing_consent_updated_at: at,
+    });
+  }
+  if (String(args.p_message_external_id ?? "").trim()) data.message_external_id = args.p_message_external_id;
+  insertRow("events", {
+    tenant_id: tenantId,
+    kind: "contact.consent_changed",
+    category: "contact",
+    subject_type: "contact",
+    subject_id: contactId,
+    data,
+  });
+  return true;
+}
+
+/**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
+ * @param opts.userId the session's person, where a member's door writes a line as theirs (message_call_back).
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
  *   `"<table>.update"` to make that call fail the way PostgREST fails.
  */
@@ -755,6 +814,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const derived = {
     // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
+    // The one door a provider's stop is recorded by (00383): the send, status and receipts doors call it.
+    record_provider_stop: (args) => recordProviderStopIn(tables, args, insertRow),
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
       const of = (kind) => {
@@ -809,8 +870,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are
     // given, 00298) and each person's channel (none stays none, which is WhatsApp), as campaign-channels.db.test.mjs
-    // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too.
-    assemble_broadcast: ({ p_tenant, p_run, p_recipients, p_send_at }) => {
+    // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too. Called
+    // with `p_decision` it is 00381's door: the send_broadcast decision on the run rides in the same write, the
+    // member's (p_actor) or the system's (none), and the answer is {id, decision_id, undo_dropped} ({id} alone for a
+    // run that waits); called without, it is 00282's and answers the id, as an app from before 00381 reads it.
+    assemble_broadcast: (args) => {
+      const { p_tenant, p_run, p_recipients, p_send_at, p_decision, p_actor, p_via } = args;
       const at = stampOf(tables);
       const id = crypto.randomUUID();
       const run = Object.fromEntries(Object.entries(p_run).filter(([, v]) => v !== null));
@@ -846,7 +911,201 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             payload: { broadcast_id: id },
           }),
         );
-      return id;
+      if (!("p_decision" in args)) return id;
+      if (p_decision == null) return { id };
+      const decision = insertRow("decisions", {
+        tenant_id: p_tenant,
+        subject_type: "broadcast",
+        subject_id: id,
+        verb: "send_broadcast",
+        actor_type: p_actor ? "user" : "system",
+        actor_user_id: p_actor ?? null,
+        payload: p_via ? { ...p_decision, via: p_via } : p_decision,
+      });
+      return { id, decision_id: decision.id, undo_dropped: false };
+    },
+    /**
+     * A billing reading and the workspace's switch as one write (00382 billing_apply): the row's columns laid over it,
+     * only while the row is still what the caller planned against (p_expect: a reading's status and updated_at, or the
+     * customer the row names), then tenants.status when the switch
+     * moves; true when written, false when another reading won or there is no row. Its two statements are logged as
+     * the statements they are (a suite reads the compare-and-set's filters and the switch's write), and a fault on
+     * either refuses the whole door as the database would, with nothing of it kept.
+     */
+    billing_apply: ({ p_tenant_id, p_row, p_expect, p_tenant_status }) => {
+      const allowed = new Set([
+        "stripe_customer_id",
+        "stripe_subscription_id",
+        "status",
+        "price_id",
+        "current_period_end",
+        "trial_end",
+        "cancel_at",
+        "cancel_at_period_end",
+        "card_brand",
+        "card_last4",
+        "last_payment_failed_at",
+        "last_paid_at",
+      ]);
+      const stray = Object.keys(p_row ?? {}).find((k) => !allowed.has(k));
+      if (stray)
+        throw Object.assign(new Error(`billing_apply: ${stray} is not a column a reading writes`), { code: "22023" });
+      const filters = [["eq", "tenant_id", p_tenant_id]];
+      const byCustomer = Boolean(p_expect && "stripe_customer_id" in p_expect);
+      if (byCustomer) filters.push(["eq", "stripe_customer_id", p_expect.stripe_customer_id]);
+      else if (p_expect) filters.push(["eq", "status", p_expect.status], ["eq", "updated_at", p_expect.updated_at]);
+      seen.push({ table: "billing_accounts", op: "update", values: p_row, filters });
+      for (const statement of ["billing_accounts.update", ...(p_tenant_status ? ["tenants.update"] : [])]) {
+        const fault = faults[statement];
+        if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      }
+      const row = (tables.billing_accounts ?? []).find(
+        (r) =>
+          r.tenant_id === p_tenant_id &&
+          (!p_expect ||
+            (byCustomer
+              ? r.stripe_customer_id === p_expect.stripe_customer_id
+              : r.status === p_expect.status && r.updated_at === p_expect.updated_at)),
+      );
+      if (!row) return false;
+      Object.assign(row, p_row, { updated_at: stampOf(tables) });
+      if (p_tenant_status) {
+        const tenant = tenantOf(p_tenant_id);
+        if (!["active", "paused", "test"].includes(p_tenant_status))
+          throw Object.assign(
+            new Error('new row for relation "tenants" violates check constraint "tenants_status_check"'),
+            {
+              code: "23514",
+            },
+          );
+        seen.push({
+          table: "tenants",
+          op: "update",
+          values: { status: p_tenant_status },
+          filters: [["eq", "id", p_tenant_id]],
+        });
+        if (tenant) tenant.status = p_tenant_status;
+      }
+      return true;
+    },
+    /**
+     * The one door a queued message is withdrawn by (00387 withdraw_queued), over the rows a world holds: each named
+     * row of the workspace still queued and claimed by no run (sending_at) canceled, with the reason on it (none keeps
+     * its error as it was), and the scheduled outbound_send job naming it canceled with it. A fault on
+     * `messages.update` refuses the whole door, with nothing of it kept. Answers the ids withdrawn.
+     */
+    withdraw_queued: ({ p_tenant_id, p_message_ids, p_reason }) => {
+      const fault = faults["messages.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const named = new Set(p_message_ids ?? []);
+      const rows = (tables.messages ?? []).filter(
+        (m) => m.tenant_id === p_tenant_id && named.has(m.id) && m.status === "queued" && !m.sending_at,
+      );
+      for (const m of rows) {
+        m.status = "canceled";
+        if (p_reason) m.error = p_reason;
+        for (const j of tables.jobs ?? [])
+          if (
+            j.tenant_id === p_tenant_id &&
+            j.kind === "outbound_send" &&
+            (j.state ?? "scheduled") === "scheduled" &&
+            j.payload?.message_id === m.id
+          )
+            j.state = "canceled";
+      }
+      return rows.map((m) => m.id).sort();
+    },
+    withdraw_ai_drafts: ({ p_tenant_id, p_conversation_id, p_reason, p_keep_message_id }) =>
+      derived.withdraw_queued({
+        p_tenant_id,
+        p_message_ids: (tables.messages ?? [])
+          .filter(
+            (m) =>
+              m.tenant_id === p_tenant_id &&
+              m.conversation_id === p_conversation_id &&
+              m.sender === "ai" &&
+              m.status === "queued" &&
+              !m.sending_at &&
+              m.id !== p_keep_message_id,
+          )
+          .map((m) => m.id),
+        p_reason,
+      }),
+    // The member's doors (00387): who may act is the route's check here, and the database's floor is its own suite's.
+    member_withdraw_drafts: ({ p_tenant_id, p_conversation_id }) =>
+      derived.withdraw_ai_drafts({ p_tenant_id, p_conversation_id, p_reason: { reason: "superseded_by_human" } })
+        .length,
+    member_withdraw_message: ({ p_tenant_id, p_message_id, p_reason }) =>
+      derived.withdraw_queued({ p_tenant_id, p_message_ids: [p_message_id], p_reason }).length > 0,
+    message_call_back: ({ p_tenant_id, p_message_id, p_via, p_undo_of }) => {
+      if (!derived.withdraw_queued({ p_tenant_id, p_message_ids: [p_message_id], p_reason: null }).length) return null;
+      const undo =
+        p_undo_of && (tables.decisions ?? []).some((d) => d.id === p_undo_of && d.tenant_id === p_tenant_id)
+          ? p_undo_of
+          : null;
+      const decision = insertRow("decisions", {
+        tenant_id: p_tenant_id,
+        subject_type: "message",
+        subject_id: p_message_id,
+        verb: "cancel_send",
+        actor_type: "user",
+        actor_user_id: opts.userId ?? null,
+        payload: p_via ? { via: p_via } : {},
+        undo_of: undo,
+      });
+      return { decision_id: decision.id, undo_dropped: Boolean(p_undo_of) && undo === null };
+    },
+    /**
+     * A thread handed to a person, by its one door (00388 escalation_open), over the rows a world holds: a new open
+     * escalation with its escalation.opened ("opened"), the open one taking another reason with escalation.changed
+     * ("changed"), or the same reason's words moved ("refreshed"). A fault on `escalations.insert` that is the one-open
+     * key's 23505 is a thread already held (as Postgres would answer it); any other refuses the door, with nothing kept.
+     */
+    escalation_open: ({ p_tenant_id, p_conversation_id, p_reason, p_details }) => {
+      const insertFault = faults["escalations.insert"];
+      if (insertFault && insertFault.code !== "23505")
+        throw Object.assign(new Error(insertFault.message), insertFault.code ? { code: insertFault.code } : {});
+      const open = (tables.escalations ?? []).find(
+        (e) => e.tenant_id === p_tenant_id && e.conversation_id === p_conversation_id && (e.state ?? "open") === "open",
+      );
+      if (!open) {
+        insertRow("escalations", {
+          tenant_id: p_tenant_id,
+          conversation_id: p_conversation_id,
+          reason: p_reason,
+          details: p_details,
+          state: "open",
+        });
+        insertRow("events", {
+          tenant_id: p_tenant_id,
+          kind: "escalation.opened",
+          category: "message",
+          version: 1,
+          subject_type: "conversation",
+          subject_id: p_conversation_id,
+          data: { reason: p_reason },
+        });
+        return "opened";
+      }
+      const updateFault = faults["escalations.update"];
+      if (updateFault)
+        throw Object.assign(new Error(updateFault.message), updateFault.code ? { code: updateFault.code } : {});
+      if (open.reason !== p_reason) {
+        const from = open.reason;
+        Object.assign(open, { reason: p_reason, details: p_details });
+        insertRow("events", {
+          tenant_id: p_tenant_id,
+          kind: "escalation.changed",
+          category: "conversation",
+          version: 1,
+          subject_type: "escalation",
+          subject_id: open.id,
+          data: { from, to: p_reason },
+        });
+        return "changed";
+      }
+      open.details = p_details;
+      return "refreshed";
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),

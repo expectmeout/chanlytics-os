@@ -65,7 +65,8 @@ which the board skips as one person refused (`afterPersonRefused`, `packages/con
    alone, or a phone and an email that name two people, is a doubt, recorded for a person to settle.
 2. **Each identity carries its assurance:** `contact_identities.assurance` in `observed` (it wrote to us on that
    wire), `asserted` (a member typed it), `found` (the finder or a feed named it). Resolution prefers observed over
-   asserted over found, and a doubt between levels goes to the queue.
+   asserted over found, and a doubt between levels goes to the queue. (Since 00384, 9 October 2026, `person.resolved`
+   is written only by a call that changed something; the note under Steps says why.)
 3. **A merge is 0028's door, and a doubt is its queue.** `merge_people` (00326) stays the one way two records become
    one: an owner's act, one transaction, never undone, the careful answer standing. This note adds no second door and
    no undo. It adds the queue in front of it: a doubt `resolve_person` records (two records one identity could belong
@@ -158,6 +159,14 @@ names it in `p_detail`) is skipped, a reach-out's cold first email holds the lin
 is undone alone, never the arrival. The trigger and its function are dropped, since the door is the only writer of a
 person. Tested in `database/event-shapes.db`, `messages/a-person-keeps-how-they-first-reached-us.db` (the lead is the
 first touch, with its id as the ref) and `reach-out-replies/never-again.db` (the two new words, and an archived lead that only its person's arrival converts).
+
+**The ledger's row, 9 October 2026 (00384).** `person.resolved` is written when the call changed something: a person
+made, a field filled, an identity added or its word raised, a doubt written, or a lead linked. A call that found the
+person and learned nothing writes none. The calendar's hourly read resolves every person on the calendar, and wrote
+one "matched, nothing new" row per appointment per hour: the largest kind in the ledger by far (about 830 a week
+across six workspaces), the evidence of nothing, purged at thirty days (`EVENT_EVIDENCE_KINDS`) and hidden from
+Activity (`ACTIVITY_NOISE_KINDS`). Nothing read a row per call; `people/doors/resolve-person.db.test.mjs` holds which
+calls write one, and the door modelled in `_fake-db.mjs` follows the same rule.
 
 ## Tests
 

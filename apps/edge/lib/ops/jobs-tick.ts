@@ -81,6 +81,10 @@ function replyLateBody(worstMs: number): string {
   );
 }
 
+/** The operator's pager, for a failure that is the platform's (ledger PAGES_THE_PLATFORM): never an owner's bell. */
+const pagerOf = (db: SweepTick["db"]) => (key: string, subject: string, body: string) =>
+  pageOperator({ db }, key, subject, body);
+
 export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
     // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
@@ -142,7 +146,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               db,
               wire,
               alert: alertFor(db, job),
-              page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+              page: pagerOf(db),
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
               provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
@@ -179,6 +183,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
         deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
         settle: (job, certain) => settleJob(db, job, certain),
         alert: (job, news) => alertFor(db, job)(news),
+        page: pagerOf(db),
         log: L,
         now: Date.now,
         random: Math.random,

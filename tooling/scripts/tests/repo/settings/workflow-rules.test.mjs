@@ -155,6 +155,70 @@ test("every job says how long it may run: a step that hangs is ended at its cap,
   }
 });
 
+test("main's migrations reach production through migrate.yml only when a person asks: from main, after main's checks and both deploys, the dry run held to the ledger, never --include-all", () => {
+  // Two sessions took one number in a week of October 2026, and one applied its file to production by hand before its
+  // pull request merged. GitHub gives a private repository of a personal account no Environment with a required
+  // reviewer, so a run on a push would apply each migration the moment it merged with no one asked: the run is started
+  // by hand, and the press is the approval. It waits for main's own checks and for both apps to serve the commit, since
+  // a migration that narrows what the code before it may do must follow the deploys.
+  const y = workflow("migrate.yml");
+  assert.match(y, /^on:\n {2}workflow_dispatch:\n/m, "started by hand, and by nothing else");
+  assert.ok(!/^ {2}push:/m.test(y), "never on a push");
+  assert.ok(y.includes("if: github.ref == 'refs/heads/main'"), "a run asked for on another ref does nothing");
+  assert.ok(y.includes("environment: production"), "the secrets are the production Environment's");
+  const code = y
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l))
+    .join("\n");
+  assert.ok(!code.includes("--include-all"), "a file below production's head is never applied over it");
+  assert.ok(
+    y.includes("version, name from supabase_migrations.schema_migrations"),
+    "the ledger is read with its names",
+  );
+  const checks = y.indexOf("for wf in ci.yml database.yml");
+  const deploys = y.indexOf('git merge-base --is-ancestor "$GITHUB_SHA" "$sha"');
+  const dryRun = y.indexOf("supabase db push --linked --dry-run");
+  const held = y.indexOf("migration-push.mjs --dry-run dry-run.txt --production prod-ledger.json");
+  const push = y.indexOf("supabase db push --linked --yes");
+  const compared = y.indexOf("migration-ledger.mjs --compare prod-ledger-after.json --hours 0");
+  assert.ok(
+    checks > 0 && deploys > checks && dryRun > deploys && held > dryRun && push > held && compared > push,
+    "main's checks, both deploys, the dry run, its check, the push, the compare",
+  );
+  for (const s of ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF", "SUPABASE_DB_PASSWORD"])
+    assert.ok(y.includes(`secrets.${s}`), `${s} is the Environment's`);
+  assert.ok(
+    y.includes("group: migrate-production") && y.includes("cancel-in-progress: false"),
+    "never cut off mid-way",
+  );
+});
+
+test("the weekly compare reads production's ledger with its names, and the production smoke runs once per merge, on the edge's ready deployment", () => {
+  assert.ok(
+    workflow("migration-ledger.yml").includes("version, name from supabase_migrations.schema_migrations"),
+    "a version production applied under another name is seen on Mondays too",
+  );
+  const y = workflow("production-smoke.yml");
+  assert.ok(y.includes("deployment_status:"));
+  assert.ok(y.includes("github.event.deployment_status.state == 'success'"));
+  assert.ok(y.includes("contains(github.event.deployment.environment, 'Production')"));
+  assert.ok(
+    y.includes("contains(github.event.deployment.environment, 'chanlytics-messaging')"),
+    "the edge deploys last, so its event alone",
+  );
+  assert.ok(!y.includes("deployment.ref =="), "Vercel's ref is the commit's sha, never main");
+  assert.ok(y.includes("git ls-remote origin refs/heads/main"), "a commit main moved past is left to the newer one");
+  assert.ok(
+    y.includes(
+      'smoke.mjs --edge https://chanlytics-messaging.vercel.app --dashboard https://app.chanlytics.com --sha "$SHA"',
+    ),
+    "both hosts, the deployed commit",
+  );
+  assert.ok(y.includes("sleep 30") && y.includes("for attempt in 1 2 3 4 5 6 7 8 9 10"), "a host may lag");
+  assert.ok(y.includes("gh issue list") && y.includes("gh issue create") && y.includes("gh issue comment"));
+  assert.ok(y.includes('title="Production smoke failed ('), "one issue per deployed commit");
+});
+
 test("Typecheck, the check branch protection requires, is a gate over parts that run side by side", () => {
   // Ruben, 10 Oct 2026: a push is through CI in under ten minutes. The parts run at once after `scope`; the gate keeps
   // the required check's name, runs whatever they said, and fails on a part that failed or was cancelled.

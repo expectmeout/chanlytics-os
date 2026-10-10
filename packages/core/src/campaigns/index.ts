@@ -3,6 +3,8 @@ export type {
   NewRecipient,
   AssemblePorts,
   AssembleCommand,
+  AssembleDecision,
+  AssembledRun,
   Assembled,
   PlaybookRow,
   RunContext,

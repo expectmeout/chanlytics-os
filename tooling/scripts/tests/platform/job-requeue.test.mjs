@@ -148,6 +148,18 @@ test("a job of any kind whose run put words on a wire before it failed is never 
   assert.equal(quiet.tables.jobs.length, 2);
 });
 
+test("an event's delivery is not run again from here: it goes again by its subscriber's re-drive, which leaves the delivery's row right", async () => {
+  const l = ledger({
+    kind: "event_deliver",
+    payload: { event_id: "e-1", subscriber: "reach_out_booked", kind: "appointment.changed", lane: "2" },
+  });
+  await assert.rejects(
+    platformJobRequeue(l.office, ctx, A, J),
+    (e) => e.code === "conflict" && e.message.includes("event_deliveries_redrive('reach_out_booked')"),
+  );
+  assert.deepEqual([l.tables.events, l.tables.jobs.length], [[], 1], "nothing recorded, nothing run");
+});
+
 test("a kind this deploy does not know waits for the deploy that does", async () => {
   const l = ledger({ kind: "made_up_kind" });
   await assert.rejects(

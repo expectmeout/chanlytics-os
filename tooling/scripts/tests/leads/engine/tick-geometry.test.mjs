@@ -64,6 +64,7 @@ test("the tick hands a lead job the lead deadline and every other job the ordina
       defer: async () => true,
       settle: async () => [],
       alert: async () => {},
+      page: async () => {},
       log: { info() {}, warn() {}, error() {} },
     },
     {

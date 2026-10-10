@@ -15,9 +15,11 @@
  * text's confirmation is the filed words alone. A yes whose confirmation did not go out is escalated and told, never
  * only logged.
  *
- * heldForThePerson: the thread's pause and its day's reply cap, the workspace's day of model tokens (off when its limit
- * is 0 or absent), the billing pause, and the mode in force (./gates.ts modeInForce). Only 'auto' and 'veto', and a
- * workspace with a persona, go on to the model; a hold the owner chose for one person alerts once per open hold.
+ * heldForThePerson: what every sender that speaks without a person asks, in its one order (./reply-posture.ts
+ * unattendedHold: the thread's pause, its day's reply cap, the billing pause, the mode in force), then, for a message
+ * that would reach the model, the workspace's day of model tokens (off when its limit is 0 or absent) and its persona.
+ * Only 'auto' and 'veto', and a workspace with a persona, go on to the model; a hold the owner chose for one person
+ * alerts once per open hold.
  *
  * A stop marks the message processed and, unless a person already holds the thread, escalates it under its own reason
  * and tells the owner, so a customer at a limit is never left to a log line. Each stop logs an event of its own (the
@@ -27,9 +29,9 @@
 import { errField } from "@chanlytics/channels";
 import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
-import { ageVerdict, threadVerdict, holdCopy } from "./steps";
+import { ageVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
-import { speaksUnattended } from "./reply-posture";
+import { unattendedHold } from "./reply-posture";
 import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
 
 /**
@@ -179,7 +181,7 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
   return GO;
 }
 
-/** The thread's pause and the day's cap, the token budget, the billing pause and the mode in force, in that order. */
+/** The one order every unattended sender asks (unattendedHold), then the token budget and the persona. */
 export async function heldForThePerson(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
   const {
     thread,
@@ -196,13 +198,22 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     replyMode,
     personMode,
   } = at;
-  const gate = threadVerdict(thread, maxRepliesDay);
-  if (gate === "paused") {
+  // A reply that would book is taken back after the model (steps.ts layerTwo), not held before it: no booking hold here.
+  const held = unattendedHold({
+    pausedUntilMs: thread.pausedUntil,
+    nowMs: Date.now(),
+    sentToday: thread.replies.length,
+    dailyCap: maxRepliesDay,
+    workspacePaused: !!rt?.paused,
+    bookingHeld: false,
+    mode: replyMode,
+  });
+  if (held === "human_has_it") {
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
     await sink.processed(handledOf(SET_ASIDE));
     return;
   }
-  if (gate === "ratecap") {
+  if (held === "daily_cap") {
     L.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
     // A customer who hits the cap was being abandoned to a console line: no
     // escalation, no alert, nothing on Today. `rate_cap` has been a declared,
@@ -220,36 +231,12 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     ]);
     return;
   }
-  // THE TOKEN BUDGET (limits.max_llm_tokens_day; 0 or absent is off).
-  //
-  // A rolling day of model usage for this workspace, from the usage events
-  // every reply writes. Over it the receptionist stops and says so, exactly
-  // as it does at the reply cap: a margin is a setting, not an accident, and
-  // a customer at the cap is never abandoned to a log line.
-  const tokenCap = tokenCapOf(replyLimits);
-  if (tokenCap > 0 && db && tenantId) {
-    const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
-    if (tokenBudgetSpent(replyLimits, used)) {
-      L.info("wa_skip_budget", { cap: tokenCap, used });
-      const asked = sink.escalate(
-        "budget",
-        `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
-      );
-      await Promise.all([
-        asked,
-        tell(bodyText, "(no reply sent — the day's model budget is used up)", "budget"),
-        processedAfter(sink, asked, "none"),
-      ]);
-      return;
-    }
-  }
-
   // THE PAUSE (tenants.status = 'paused', written by billing for a workspace
   // whose subscription stopped). The customer's message is already kept
   // above; it is held for a person with its own reason, and nothing is
   // answered until the workspace resumes. Said the way the budget says it:
   // the escalation is the Inbox's row, the alert the owner's mail.
-  if (rt?.paused) {
+  if (held === "paused") {
     // Its own name. This logged `wa_skip_paused`, the same event the THREAD
     // pause above logs, so nothing reading the stream could tell a human
     // taking one conversation over from a workspace-wide billing stop.
@@ -266,13 +253,39 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     return;
   }
 
+  // THE TOKEN BUDGET (limits.max_llm_tokens_day; 0 or absent is off), asked of a message that would reach the model:
+  // a held one makes no call, so its hold, not the budget, is what the Inbox says.
+  //
+  // A rolling day of model usage for this workspace, from the usage events
+  // every reply writes. Over it the receptionist stops and says so, exactly
+  // as it does at the reply cap: a margin is a setting, not an accident, and
+  // a customer at the cap is never abandoned to a log line.
+  const tokenCap = tokenCapOf(replyLimits);
+  if (held === null && tokenCap > 0 && db && tenantId) {
+    const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
+    if (tokenBudgetSpent(replyLimits, used)) {
+      L.info("wa_skip_budget", { cap: tokenCap, used });
+      const asked = sink.escalate(
+        "budget",
+        `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
+      );
+      await Promise.all([
+        asked,
+        tell(bodyText, "(no reply sent — the day's model budget is used up)", "budget"),
+        processedAfter(sink, asked, "none"),
+      ]);
+      return;
+    }
+  }
+
   // E3: the reply policy is consulted BEFORE generation. 'ask' is the timid
   // mode — everything escalates, a human answers; a tenant with no persona
   // behaves identically. The customer's message is already persisted above.
   // 'veto' composes a reply like 'auto' and then HOLDS it for a configured
   // window before sending, so the business can redirect the bot before the
   // customer sees it. It reaches the brain; what differs is the dispatch below.
-  if (!brainCfg || !speaksUnattended(replyMode)) {
+  // Any hold left (the mode in force; one this path never asks, such as a booking's) holds for a person: fail closed.
+  if (held !== null || !brainCfg) {
     // A hold the owner chose for THIS person is its own reason: it is not a
     // workspace setting, and the Inbox should say "you handle this person",
     // not "held by policy". It also alerts ONCE per open hold rather than

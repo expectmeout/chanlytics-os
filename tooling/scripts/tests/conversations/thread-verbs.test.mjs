@@ -191,25 +191,33 @@ test("a reply withdraws the receptionist's held drafts no job has claimed, and c
     status: "queued",
     ...over,
   });
+  const job = (id) => ({
+    id: `job-${id}`,
+    tenant_id: T,
+    kind: "outbound_send",
+    state: "scheduled",
+    payload: { message_id: id },
+  });
   const tables = {
     messages: [
       draft("waiting"),
       draft("on-its-way", { sending_at: new Date().toISOString() }),
       draft("a-colleague-s", { sender: "human" }),
     ],
+    jobs: [job("waiting"), job("on-its-way"), job("a-colleague-s")],
   };
-  const withdrawnJobs = [];
-  const n = await cancelPendingAiReply({ supabase: fakeDb(tables) }, { id: CONV, tenant_id: T }, async (_t, _k, id) => {
-    withdrawnJobs.push(id);
-    return 1;
-  });
+  const n = await cancelPendingAiReply({ supabase: fakeDb(tables) }, { id: CONV, tenant_id: T });
   assert.equal(n, 1, "the operator is told their reply replaced one draft: the one that was still waiting");
   assert.deepEqual(Object.fromEntries(tables.messages.map((m) => [m.id, m.status])), {
     waiting: "canceled",
     "on-its-way": "queued",
     "a-colleague-s": "queued",
   });
-  assert.deepEqual(withdrawnJobs, ["waiting"], "and only its send is withdrawn");
+  assert.deepEqual(
+    tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload.message_id),
+    ["waiting"],
+    "and only its send is withdrawn, with it (00387)",
+  );
 });
 
 test("the verbs share one bucket: a script flipping threads is refused at once", async () => {

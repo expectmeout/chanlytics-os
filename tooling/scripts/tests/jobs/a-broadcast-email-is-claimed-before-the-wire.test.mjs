@@ -8,7 +8,7 @@
  *
  * jobs' broadcastSend runs here as the runner dispatches it, with core's batch and the real door, over a database in
  * memory; only the provider is a fake, and the member's call-back is the one the dashboard makes (core-ports
- * cancelQueued) under the session's policy (00362): a queued row with no claim.
+ * cancelSendPorts, message_call_back over the one door, 00387): a queued row no run has claimed, or nothing.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -157,14 +157,8 @@ function cancelDuringTheCall(tables) {
   const email = async (to, p) => {
     const row = tables.messages.find((m) => m.id === p.email.idempotency_key);
     seen.during.push({ to, status: row?.status, claimed: !!row?.sending_at });
-    const { data } = await db
-      .from("messages")
-      .update({ status: "canceled" })
-      .eq("id", row.id)
-      .is("sending_at", null)
-      .eq("status", "queued")
-      .select("id");
-    seen.calledBack.push(data.length);
+    const { data } = await db.rpc("message_call_back", { p_tenant_id: T, p_message_id: row.id });
+    seen.calledBack.push(data === null ? 0 : 1);
     return { ok: true, wamid: "re_1", status: 200 };
   };
   return { email, seen };

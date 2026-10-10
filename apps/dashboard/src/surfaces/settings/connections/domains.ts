@@ -57,7 +57,7 @@ interface SendingDomainsApi {
 
 export const sendingDomains: SendingDomainsApi = {
   add: ({ host, fromLocal, fromName }) =>
-    api()("POST sending-domains", { body: { host, from_local: fromLocal, from_name: fromName } }),
+    api()("POST sending-domains", { body: { host, from_local: fromLocal, from_name: fromName }, once: true }),
   check: (id) => api()("POST sending-domains/[id]/check", { params: { id } }),
   resume: (id) => api()("POST sending-domains/[id]/resume", { params: { id } }),
   remove: (id) => api()("DELETE sending-domains/[id]", { params: { id } }),

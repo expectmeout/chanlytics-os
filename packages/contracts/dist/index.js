@@ -17094,7 +17094,7 @@ var JOB_KINDS = [
    */
   "inbound_answer"
 ];
-var EVENT_SUBSCRIBERS = ["audit"];
+var EVENT_SUBSCRIBERS = ["audit", "reach_out_booked"];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
   "phone_number_quality_update",
@@ -17285,9 +17285,11 @@ var EVENT_KINDS = [
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated",
   /**
-   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
-   * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
-   * log unless asked for by name, since a calendar read writes one per appointment.
+   * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
+   * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
+   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00389). On
+   * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
+   * appointment.
    */
   "appointment.changed",
   /**
@@ -17295,8 +17297,8 @@ var EVENT_KINDS = [
    * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
    *
    * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
-   * thread writes it (packages/jobs upsertEscalation, the one writer), once per hold; a reason that changes under an
-   * open hold is escalation.changed.
+   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00388), once per hold; a
+   * reason that changes under an open hold is escalation.changed.
    */
   "escalation.opened",
   /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
@@ -20788,7 +20790,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
 // src/conversations/conversation-moves.ts
 var ANY = CONVERSATION_STATES;
 var CONVERSATION_MOVES = {
-  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs. */
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00386). */
   take_over: {
     from: ANY,
     to: "needs_human",
@@ -20800,7 +20802,7 @@ var CONVERSATION_MOVES = {
     to: "needs_human",
     sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" }
   },
-  /** The receptionist resumes: nothing paused, snoozed or claimed. */
+  /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00386). */
   hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
   /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
   snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },
@@ -36317,9 +36319,9 @@ var JOB_WORK = {
   // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
-  // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
-  // did not get there, and the activity log is where the fact is, so its door opens Activity (it opened Notifications,
-  // which says nothing of either).
+  // A fact's delivery to a subscriber (00334). Not sent (packages/jobs TOLD_ELSEWHERE): a subscriber that fails is the
+  // platform's fault, nothing an owner can act on, and the operator is paged instead (PAGES_THE_PLATFORM); these are
+  // the words should it ever be, and its door opens Activity, where the fact is.
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/activity" },
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.

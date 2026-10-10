@@ -8,11 +8,10 @@ export async function cancelSend(
 ): Promise<{ status: "canceled"; decision_id: string }> {
   const { msg } = cmd;
   if (msg.status !== "queued") throw new AppError("conflict", "Too late — this message has already been sent.");
-  // The row, guarded on `queued`, closes the race the check above cannot: the
-  // send job can fire between the read and the update. Zero rows means it won.
-  if (!(await ports.cancelQueued(msg.id)))
-    throw new AppError("conflict", "Too late — this message went out while you were canceling it.");
-  await ports.cancelJob(msg.tenant_id, msg.id);
-  const decision_id = await ports.record(msg.tenant_id, "message", msg.id, "cancel_send");
-  return { status: "canceled", decision_id };
+  // The row, its send job and the member's line in one write (00387 message_call_back), taken only while the row is
+  // queued and no run has claimed it: that closes the race the check above cannot, since the send job can fire
+  // between the read and the write. Nothing withdrawn means it won, and then nothing was written.
+  const called = await ports.callBack(msg.tenant_id, msg.id);
+  if (!called) throw new AppError("conflict", "Too late — this message went out while you were canceling it.");
+  return { status: "canceled", decision_id: called.decision_id };
 }

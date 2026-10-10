@@ -35,7 +35,7 @@
     "conversations/media.test.mjs": 11,
     "conversations/steer.test.mjs": 8,
     "conversations/veto-ui.test.mjs": 3,
-    "conversations/veto-window.test.mjs": 9,
+    "conversations/veto-window.test.mjs": 8,
     "e2e/e2e-shape.test.mjs": 1,
     "edge/runtime-freshness.test.mjs": 2,
     "google/google-profile.test.mjs": 13,

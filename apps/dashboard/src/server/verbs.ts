@@ -18,7 +18,15 @@ import {
   type TenantId,
   pauseMsOf,
 } from "@chanlytics/contracts";
-import { listRow, ourLastWire, reachOutRootOf, reachOutSendRefOf, replyReadingRefOf, type Json } from "@chanlytics/db";
+import {
+  listRow,
+  memberWithdrawDrafts,
+  ourLastWire,
+  reachOutRootOf,
+  reachOutSendRefOf,
+  replyReadingRefOf,
+  type Json,
+} from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
@@ -314,15 +322,10 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
  * and the customer received nothing. Withdrawing the receptionist's draft must
  * not touch a colleague's words.
  *
- * Order is row first, then job, and that is deliberate. If the row update
- * lands and the job cancel fails, the job fires and no-ops on a row that is no
- * longer `queued`. The reverse leaves a queued row with nothing left to send
- * it — the same strand, reached from the other side.
- *
- * Only a draft no send job has claimed yet (sending_at, 00352). A claimed one
- * is already on its way to the customer and stays queued only until the
- * provider answers: withdrawn then, it reached them under a row that said
- * canceled for ever. It is left to say what became of it, and not counted.
+ * Row and job are one write since 00387 (member_withdraw_drafts over the one door, withdraw_queued): the row cannot be
+ * canceled with its job left to fire, nor the job withdrawn with its row left queued for ever. Only a draft no send job
+ * has claimed yet (sending_at, 00352): a claimed one is already on its way to the customer and stays queued only until
+ * the provider answers, and is left to say what became of it, not counted.
  *
  * Returns how many drafts were withdrawn, so a caller can tell the operator
  * their reply replaced the bot's rather than merely followed it.
@@ -330,27 +333,18 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
 export async function cancelPendingAiReply(
   ctx: RouteContext,
   conv: { id: string; tenant_id: string },
-  cancelJobs: (tenantId: string, key: string, value: string) => Promise<number>,
 ): Promise<number> {
-  const { data, error } = await ctx.supabase
-    .from("messages")
-    .update({ status: "canceled", error: { reason: "superseded_by_human" } })
-    .eq("conversation_id", conv.id)
-    .eq("status", "queued")
-    .is("sending_at", null)
-    .eq("sender", "ai")
-    .select("id");
-  if (error) {
+  try {
+    return await memberWithdrawDrafts(ctx.supabase, { tenantId: conv.tenant_id, conversationId: conv.id });
+  } catch (e) {
     // Not fatal to the operator's own action — but it means a draft may still
     // fire, so it must be visible rather than swallowed.
-    log.error("cancel_pending_ai_reply_failed", { conversation: conv.id, error: error.message });
+    log.error("cancel_pending_ai_reply_failed", {
+      conversation: conv.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return 0;
   }
-  const ids = (data ?? []).map((m) => m.id);
-  for (const id of ids) {
-    await cancelJobs(conv.tenant_id, "message_id", id);
-  }
-  return ids.length;
 }
 
 interface VerbErasure {

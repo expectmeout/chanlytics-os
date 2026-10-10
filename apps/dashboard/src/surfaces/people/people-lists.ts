@@ -37,9 +37,9 @@ const LIST_ADD_PART = 500;
 
 export const lists = {
   create: (name: string, rule: ListRule | null = null) =>
-    api()("POST segments", { body: rule ? { name, rule } : { name } }),
+    api()("POST segments", { body: rule ? { name, rule } : { name }, once: true }),
   /** A smart list drafted from the owner's words: a name, a rule and what it could not say. Nothing is saved. */
-  draft: (words: string) => api()("POST segments/draft", { body: { words } }),
+  draft: (words: string) => api()("POST segments/draft", { body: { words }, once: true }),
   /** A smart list's rule in the chips its page shows. */
   parts: listRuleParts,
   /**

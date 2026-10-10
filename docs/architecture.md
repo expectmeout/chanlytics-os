@@ -666,6 +666,7 @@ packages/core/src/
   leads/
   messages/
 packages/db/src/
+  billing/
   repositories/
 packages/jobs/src/
 tooling/scripts/

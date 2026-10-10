@@ -14,7 +14,7 @@ import { formatPhoneDisplay } from "@chanlytics/contracts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../../../..");
 const steps = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
-const { ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
+const { ageVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
 const { handledOf, escalationOf, processedAfter } = await import(
   pathToFileURL(path.join(ROOT, "packages/core/src/inbound/handled.ts")).href
 );
@@ -31,22 +31,6 @@ test("age: fresh inside ten minutes, late inside two hours, stale beyond — and
   assert.equal(ageVerdict(at(STALE_REPLY_MS + 1000), NOW).verdict, "stale");
   assert.deepEqual(ageVerdict(undefined, NOW), { ageMs: 0, verdict: "fresh" });
   assert.ok(ageVerdict(at(STALE_MS + 1000), NOW).ageMs > STALE_MS, "the age travels with the verdict for the log");
-});
-
-test("thread: a human has it, the day is spent, or the receptionist may answer", () => {
-  assert.equal(threadVerdict({ pausedUntil: NOW + 1, replies: [] }, 20, NOW), "paused");
-  assert.equal(
-    threadVerdict({ pausedUntil: NOW, replies: [] }, 20, NOW),
-    "ok",
-    "the pause has ended at the very moment",
-  );
-  assert.equal(threadVerdict({ pausedUntil: 0, replies: new Array(20).fill(NOW) }, 20, NOW), "ratecap");
-  assert.equal(threadVerdict({ pausedUntil: 0, replies: new Array(19).fill(NOW) }, 20, NOW), "ok");
-  assert.equal(
-    threadVerdict({ pausedUntil: NOW + 1, replies: new Array(30).fill(NOW) }, 20, NOW),
-    "paused",
-    "the pause is decided first",
-  );
 });
 
 test("the hold: veto always waits in its window; auto waits only below the dial; the dial off means no wait", () => {
@@ -222,7 +206,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // Each phase asks the steps (steps.ts) for its decisions.
   for (const [m, s] of [
     ["reply-gates", "const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);"],
-    ["reply-gates", "const gate = threadVerdict(thread, maxRepliesDay);"],
+    ["reply-gates", "const held = unattendedHold({"],
     ["dispatch", "const plan = holdPlan(replyMode, replyLimits, brainMeta);"],
     ["model-turn", "const two = layerTwo({"],
     ["reply-gates", "const hold = holdCopy({"],

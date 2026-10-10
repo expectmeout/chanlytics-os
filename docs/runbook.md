@@ -493,7 +493,9 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
 | `nightly-evals.yml`                        | 10:00 UTC once the variable `NIGHTLY_EVALS` is `1`, and by hand                                   | The receptionist's regression cases, asked of a sandbox model key (`ANTHROPIC_EVAL_KEY`, never the platform's) and judged against the pass line. Off, the night's run is skipped in grey and no runner starts; on or by hand with no key, it fails and says so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `release.yml`                              | every push to main                                                                                | A tag `vYYYY.MM.DD-<sha>` and a release whose note lists the pull requests merged since the tag before it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `bundle-week.yml`                          | Mondays, and by hand                                                                              | What a workspace loads, main beside main a week before, from the records every push to main keeps; a sum grown past its week's line keeps one issue open, naming the merges                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                   | Production has applied every migration main carries, and nothing main does not; a day's disagreement keeps an issue open and pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                   | Production has applied every migration main carries, nothing main does not, and each under the name main's file has (a version both hold under different names is two migrations on one number); a day's disagreement keeps an issue open and pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `migrate.yml`                              | by hand alone (Actions, Run workflow), from main; the press is the approval                       | Main's migrations reach production once main's own CI and Database runs passed on the commit and both apps serve it or a later one: the dry run lists exactly what main carries and production lacks (`tooling/scripts/checks/migration-push.mjs`: no version under two names, nothing production holds that main does not, nothing below production's head), then `supabase db push`, then the compare; the job summary says what was applied. Off until the `production` Environment's three secrets are set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `production-smoke.yml`                     | the edge's production deployment ready, once per merge (it deploys after the dashboard)           | Both hosts answer with the deployed commit (`tooling/scripts/checks/smoke.mjs`), asked up to ten times over five minutes; a commit main has moved past is left to the newer one; a failure opens, or comments on, `Production smoke failed (<sha>)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `preview-smoke.yml`                        | a dashboard preview ready; off until the variable `PREVIEW_SMOKE` is `1`                          | The credential-free specs against the pull request's preview                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Every run on main finishes: a pull request's newer run cancels its older one,
@@ -533,6 +535,19 @@ General), which the workflows are ready for:
   **Set on 9 October 2026**, on Ruben's word (`gh api -X PATCH repos/<owner>/<repo>` with those three fields; it
   had allowed all three ways to merge, and titled a squash by its commit when there was one).
 
+### Merge safety
+
+In the week of 9 October 2026 main went red twice from pull requests merged before their checks had finished (the
+bundle budget), and two green pull requests summed to a red main once more. Each was a merge Ruben asked to be made
+before CI ended, and each was mended within the hour; the settings that would have refused them are weighed above
+(`strict`, `enforce_admins`), and the repository refuses auto-merge (`gh pr merge --auto` answers "Auto merge is not
+allowed for this repository"). Until one of them is on, two habits stand in for them: a merge made before its checks
+end says first which jobs are still out and runs the cheap ones itself (the bundle check after a build); and the merger
+reads main's next CI run after the merge (`gh run list --branch main --limit 3`), since a red main minutes after a
+merge is that merge's to look at first. A push to main runs CI's checks, the bundle's included; it does not run the
+node tests of what it landed, which the pull request ran, and paying for them twice per merge is what the minutes
+cannot afford.
+
 **The secrets only Ruben sets** (Settings, Secrets and variables, Actions),
 each off until set:
 
@@ -545,6 +560,14 @@ each off until set:
   runner has no IPv6 and Supabase's direct database host is IPv6 only, so it is
   the project's session-mode pooler string (Connect, Session pooler), with the
   role written `ledger_reader.<project-ref>`.
+- On the Environment `production` (Settings, Environments; it exists, as `Production`, with no rule), its deployment
+  branches limited to `main`, and on it the three secrets `migrate.yml` reads: `SUPABASE_ACCESS_TOKEN` (a personal
+  access token of the Supabase account: Account, Access Tokens), `SUPABASE_PROJECT_REF` (the project's ref: Project
+  Settings, General) and `SUPABASE_DB_PASSWORD` (the database password: Project Settings, Database). As the
+  Environment's and not the repository's, no workflow of a pull request's branch can read them. A required reviewer
+  on it is not offered here (a private repository of a personal account: GitHub offers that to Enterprise), so the
+  approval is the press that starts the run, and nothing starts it but a press. Unset, the workflow's first step says
+  so and applies nothing ("Apply a migration", below).
 - The variable `PREVIEW_SMOKE=1` and the secret
   `VERCEL_AUTOMATION_BYPASS_SECRET` (the dashboard project's Protection Bypass
   for Automation): a preview answers 302 to Vercel's sign-in without it.
@@ -575,9 +598,16 @@ lists them; deleting one is Ruben's call.
    (exit 0 when both answer as they should, 1 when one does not; a protected preview takes
    `VERCEL_AUTOMATION_BYPASS_SECRET`, and `--allow-unhealthy` takes a 503 from a preview with no database), and
    `node tooling/scripts/ops/golden-edge.mjs --no-secret` probes the edge's public pages and each door refusing a
-   stranger, with `BASE_URL` or a preview's `VERCEL_URL`, holding no secret.
-5. A merge that carried a migration: compare production's ledger with main's,
-   "Apply a migration" step 6. Nothing may be missing.
+   stranger, with `BASE_URL` or a preview's `VERCEL_URL`, holding no secret. `.github/workflows/production-smoke.yml`
+   runs that smoke by itself once per merge, when the edge's production deployment is ready (the edge deploys about
+   three minutes after the dashboard; Vercel names the commit's sha as the deployment's ref), up to ten times over
+   five minutes, and a failure opens, or comments on, the issue `Production smoke failed (<sha>)`: read it before
+   anything else, and "Roll back" says how to promote the previous deployment. A commit main has already moved past
+   is left to the newer commit's own smoke. Nothing checked production after a deploy before October 2026; this step
+   was a command a person ran, or did not.
+5. A merge that carried a migration: the migration was applied before the merge, from the pull request's branch, or
+   is applied now by `.github/workflows/migrate.yml`, started by hand, as its header says ("Apply a migration",
+   below). Either way the compare must find nothing missing.
 
 Each project's variables are listed in its `.env.example`, and a test fails
 when the code reads one the file does not list. Provider keys live on the edge
@@ -1199,7 +1229,11 @@ The practice every lane follows, since migrations began to reach production from
 (28 Sep 2026): production applies a migration once, in number order, and its ledger must end where main's does.
 The CLI keys an applied migration by its version and never reads the file again, so a file numbered below
 production's head applies after the ones above it (an order no replay runs), and an edited or renamed one replays
-differently on the next fresh database than it ran in production.
+differently on the next fresh database than it ran in production. And numbers collide: on 7 October 2026 one session
+pushed its 00346 to production from its branch while another pull request landed a different 00346 on main, which a
+compare by version alone could not see (it was mended the same evening: the ledger row reverted, the first file
+renumbered 00349). So every push is held first to the check below (`migration-push.mjs`), which reads production's
+ledger with each version's name, whoever pushes and from wherever.
 
 1. **Write it** at the number free when it lands: above main's head and above production's
    (`supabase migration list --linked` shows production's). Named for the schema change, re-runnable statements, a
@@ -1217,7 +1251,7 @@ differently on the next fresh database than it ran in production.
    lands is recorded again by the same command, which also lets go of the reserved gaps the new number now covers.
 
    **An index on a table that is always being written** (`messages`, `events`, `calls`, `contacts`,
-   `broadcast_recipients`, `jobs`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
+   `broadcast_recipients`, `jobs`, `conversations`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
    not even a `lock_timeout`: a plain build holds every write to the table for as long as it takes, and an index made
    concurrently cannot share a transaction, which is how the runner sends a file of several statements
    (`00355_a_person_s_runs_are_found_by_the_person.sql` is the shape; `database/migrations.test.mjs` fails any other).
@@ -1239,27 +1273,45 @@ differently on the next fresh database than it ran in production.
    data model or a stale function body in the snapshot, and the Database workflow's replay fails any other drift of the
    snapshot.
 3. **Let CI replay it** from zero and run the database suites against it.
-4. **Apply it to production** just before the merge, from the pull request's branch with `origin/main` merged into
-   it, so the checkout holds every migration main has:
+4. **Before the merge, a migration the new code needs**: a door the dashboard or the edge will call, a column it will
+   read. The apps deploy the moment a merge lands, so this one is applied first, just before the merge, from the pull
+   request's branch with `origin/main` merged into it, so the checkout holds every migration main has, and on Ruben's
+   word for that push. Read production's ledger with its names, hold the dry run to it, then push:
 
    ```bash
-   supabase db push --linked --dry-run   # lists this pull request's migrations and nothing else; anything more, stop
+   supabase db query --linked -o json "select version, name from supabase_migrations.schema_migrations order by version" > prod-ledger.json
+   supabase db push --linked --dry-run > dry-run.txt 2>&1   # lists this pull request's migrations and nothing else
+   node tooling/scripts/checks/migration-push.mjs --dry-run dry-run.txt --production prod-ledger.json
    supabase db push --linked --yes
    ```
 
-   Never `--include-all`: it applies a file below production's head, after the ones above it. If the dry run
-   lists a file below the head, renumber it above, record it again and push again. A migration the new code needs is
-   applied before the merge; one that tightens something the old code still writes (a CHECK, a dropped column, a
-   renamed function) is applied after both apps have deployed. The migration's header says which.
+   `migration-push.mjs` exits 1, and nothing is pushed, for a version production applied under another name than the
+   file of it here (two migrations on one number: write this one again at a free number), a version production holds
+   that this checkout does not (another branch's, applied before it landed: wait for it, or take it in), a file at or
+   below production's head (renumber it above, and record it again), or a file in the dry run's list that is not one
+   this checkout carries and production lacks. Never `--include-all`: it applies a file below production's head after
+   the ones above it.
 
-5. **Merge**, and let both apps deploy.
-6. **Compare** production's ledger with main's:
+5. **After the deploys, every other migration**: one either deploy order serves, or one that tightens something the
+   old code still writes (a CHECK, a dropped column, a renamed function), which must wait until both apps run the code
+   that stopped writing it. Merge, then start `.github/workflows/migrate.yml` by hand (Actions, Migrate production, Run
+   workflow, on `main`; on any other branch it does nothing, and nothing else starts it). The press is the approval:
+   it refuses until main's own CI and Database runs passed on the commit, waits until both apps serve that commit or a
+   later one, then links the project, reads production's ledger with its names, holds the dry run to it with the same
+   `migration-push.mjs`, pushes, and runs the compare of step 6, which must find nothing missing. The job summary says
+   what was applied. The migration's header says which of steps 4 and 5 it takes; the secrets the workflow reads, and
+   their Environment, are in "What CI proves".
+6. **Compare** production's ledger with main's, which the workflow does after its push and anyone can do at any time
+   (in an agent's shell the query's rows come wrapped as `{rows}`, which the compare reads as well):
 
    ```bash
-   supabase migration list --linked | node tooling/scripts/checks/migration-ledger.mjs --compare -
+   supabase db query --linked -o json "select version, name from supabase_migrations.schema_migrations order by version" \
+     | node tooling/scripts/checks/migration-ledger.mjs --compare -
    ```
 
-   It exits 0 when production holds every migration main carries and nothing main does not. Keyed `/api/diag`
+   It exits 0 when production holds every migration main carries, nothing main does not, and each under the name
+   main's file has; 1 naming what is missing, extra, or applied under another name. The versions alone, as
+   `supabase migration list --linked` prints them, are read too, and can show no clash of names. Keyed `/api/diag`
    answers `migrations.head`, which must be main's head. `.github/workflows/migration-ledger.yml` runs the same
    compare every Monday and pages when main has been ahead of production for a day, once Ruben sets
    `SUPABASE_PROD_READ_URL`: a connection string for a role that reads the ledger and nothing else, made once in

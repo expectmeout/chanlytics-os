@@ -28,7 +28,14 @@ import {
   stringsIn,
   tablesWrittenIn,
 } from "../_ast.mjs";
-import { bankedSourceScan, breakpointSet, DOOR_FORBIDS, tablesWrittenBy, writersByTable } from "../_measures.mjs";
+import {
+  bankedSourceScan,
+  breakpointSet,
+  DOOR_FORBIDS,
+  doorsWithoutEventsIn,
+  tablesWrittenBy,
+  writersByTable,
+} from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
 import { bankWarnings } from "../../checks/lint.mjs";
 
@@ -535,4 +542,47 @@ test("the writers measure leaves out the tables many places write by design, and
     ["packages/db/src/provider-events.ts"],
     "the intake ledger's purge and scrub only take rows away: one writer",
   );
+  assert.ok(!w.get("leads").has("lead_blank()"), "a lead blanked is a lead's words taken away");
+  assert.ok(
+    w.get("lead_suppressions").has("leads_erase_on_contact()"),
+    "an erasure leg that adds a suppression is a writer of it like any other: the waiver is for what it takes away",
+  );
+});
+
+test("a door writes its event in its body, through a function it calls or through a trigger on what it writes; a door that writes a record and none is counted", () => {
+  // In the snapshot's own shape: a header, then the body after a line that opens with AS, a blank line after each.
+  const fn = (name, body, definer = true) =>
+    `CREATE FUNCTION public.${name}() RETURNS void
+    LANGUAGE plpgsql${definer ? " SECURITY DEFINER" : ""}
+    SET search_path TO 'public'
+    AS $$
+begin
+${body}
+end $$;
+`;
+  const table = (name) => `CREATE TABLE public.${name} (
+    id uuid
+);
+`;
+  const sql = [
+    ...["events", "notes", "leads", "jobs", "sweep_status"].map(table),
+    fn("note_add", "insert into public.notes (id) values (1); insert into public.events (id) values (1);"),
+    fn("note_event", "insert into public.events (id) values (1);", false),
+    fn("note_add_via", "insert into public.notes (id) values (1); perform public.note_event();"),
+    fn("leads_noted", "insert into public.events (id) values (1);", false),
+    fn("lead_add", "insert into public.leads (id) values (1);"),
+    `CREATE TRIGGER leads_noted AFTER INSERT ON public.leads FOR EACH ROW EXECUTE FUNCTION public.leads_noted();
+`,
+    // A trigger that names no function of ours is passed by, not read on into the next statement's.
+    `CREATE TRIGGER notes_stamped BEFORE UPDATE ON public.notes FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('at');
+`,
+    fn("note_quiet", "update public.notes set id = 2;"),
+    fn("note_quiet_unprivileged", "update public.notes set id = 2;", false),
+    fn("job_schedule", "insert into public.jobs (id) values (1); update public.sweep_status set id = 1;"),
+    fn("purge_notes", "delete from public.notes;"),
+    // An erasure's leg is waived for what it takes away, and not for a row it adds.
+    fn("notes_erase_on_contact", "update public.notes set id = null; insert into public.notes (id) values (1);"),
+  ].join(`
+`);
+  assert.deepEqual(doorsWithoutEventsIn(sql), { "note_quiet()": 1, "notes_erase_on_contact()": 1 });
 });

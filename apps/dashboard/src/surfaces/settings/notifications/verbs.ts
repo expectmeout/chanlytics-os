@@ -37,7 +37,7 @@ export const alertVerbs = {
   },
   /** Email every alert address once: what came of it, which the pane says in contracts' words. */
   async test(): Promise<AlertTestResult> {
-    const r = await api()("POST notifications/test", { body: {} });
+    const r = await api()("POST notifications/test", { body: {}, once: true });
     if (!r.ok) return { ok: false, sent: false, to: 0, why: null, message: r.message };
     return { ok: true, sent: r.data.sent, to: r.data.to, why: r.data.why, message: "" };
   },

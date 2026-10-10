@@ -146,10 +146,20 @@ export const RELAY_LIMIT = 500;
 export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send", "broadcast_send"]);
 
 /**
- * Kinds whose failure the owner hears from someone else, so the ledger's own notice would be the second of two: a text's
- * answer that failed leaves its message to the deadman sweep, which hands it to a person with the customer's words.
+ * Kinds whose failure the ledger's own notice would tell the wrong person, so none is sent to the owner's bell: a text's
+ * answer that failed leaves its message to the deadman sweep, which hands it to a person with the customer's words; a
+ * change's delivery to a subscriber (00334) is the platform's to mend, nothing an owner can act on, and the operator is
+ * paged instead (PAGES_THE_PLATFORM). It used to ring the bell with "A change could not be passed on to what reads
+ * it", an internal fault in the customer's words.
  */
-export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer"]);
+export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer", "event_deliver"]);
+
+/**
+ * Kinds whose failure is the platform's condition: the operator is paged through the tick's `page` port (the edge's
+ * pageOperator, one page per condition per window), with the job named and where to look. The row still fails, so the
+ * day's dead letters count it by kind (platform_metrics_roll, 00332).
+ */
+export const PAGES_THE_PLATFORM: ReadonlySet<string> = new Set(["event_deliver"]);
 
 export const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 

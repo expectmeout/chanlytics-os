@@ -17,7 +17,8 @@
  *     no taken back), set_email_offers_yes (a yes to offers by email, 00299), stop_all_messages (the unsubscribe page's
  *     second act: a STOP, and the email unsubscribe with it) and contact_stop_ends_offers_yes (the trigger that ends a
  *     yes to offers when a stop is recorded, 00323) and merge_people (two records of one person become one, 00326:
- *     the more careful answer, from the merge);
+ *     the more careful answer, from the merge) and record_provider_stop (a no a provider reported on the person's
+ *     behalf, the carrier's or WhatsApp's, with its event in one write, 00383);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
  * one of the three kinds named in them, and the answer must be the list above, so a new SQL writer fails here until it
@@ -66,6 +67,7 @@ const WRITERS = {
     "ingest_inbound",
     "merge_people",
     "note_yes_on_channel",
+    "record_provider_stop",
     "set_contact_consent",
     "set_email_marketing",
     "set_email_offers_yes",
@@ -607,6 +609,55 @@ test(
     assert.ok(
       rows.some((r) => r.purpose === "email_marketing" && r.consent === "opted_out"),
       "and the email unsubscribe",
+    );
+  },
+);
+
+test(
+  "record_provider_stop (00383): the carrier's stop on a text, and WhatsApp's refusal of an offer, each with its event in one write",
+  { skip },
+  async () => {
+    const texted = await contact(w.t, { consent: "opted_in" });
+    const carrier = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(
+        await db.rpc("record_provider_stop", {
+          p_tenant_id: w.t,
+          p_contact_id: texted,
+          p_purpose: "conversational",
+          p_channel: "sms",
+          p_source: "carrier",
+        }),
+        "record_provider_stop (carrier)",
+      ),
+    );
+    assert.equal(carrier.answered, true);
+    const [stop] = holds("contact.consent_changed", "record_provider_stop", carrier.rows, 1);
+    assert.deepEqual(
+      [stop.consent, stop.previous, stop.source, stop.channel, stop.purpose],
+      ["opted_out", "opted_in", "carrier", "sms", undefined],
+      "the row's own previous answer, the carrier as the source, no purpose: messages on their own visit",
+    );
+    const offered = await contact(w.t, { marketing_consent: "opted_in" });
+    const wamid = `wamid.shapes-${RUN}`;
+    const meta = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(
+        await db.rpc("record_provider_stop", {
+          p_tenant_id: w.t,
+          p_contact_id: offered,
+          p_purpose: "marketing",
+          p_channel: "whatsapp",
+          p_source: "whatsapp",
+          p_message_external_id: wamid,
+        }),
+        "record_provider_stop (whatsapp)",
+      ),
+    );
+    assert.equal(meta.answered, true);
+    const [no] = holds("contact.consent_changed", "record_provider_stop", meta.rows, 1);
+    assert.deepEqual(
+      [no.purpose, no.consent, no.previous, no.source, no.channel, no.message_external_id],
+      ["marketing", "opted_out", "opted_in", "whatsapp", "whatsapp", wamid],
+      "the purpose named, and the message the provider refused",
     );
   },
 );

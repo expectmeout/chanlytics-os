@@ -1,0 +1,164 @@
+name: Migrate production
+
+# Main's migrations, applied to production when a person asks for it, and only
+# then: this workflow starts by hand (Actions, "Migrate production", Run
+# workflow, on main), and the press is the approval. Nothing starts it on a push.
+#
+# Why by hand and not on a push: on a private repository of a personal account,
+# GitHub offers no Environment with a required reviewer (that is Enterprise's),
+# so a workflow on a push would apply every migration the moment it merged, with
+# no one asked; and a migration that narrows what the code before it may do
+# (00366, 00368) must wait for both deploys, which a push cannot know. So a run
+# waits until both apps serve the commit it applies, or a later one, and it
+# refuses until main's own checks (CI, Database) passed on that commit.
+#
+# A migration the new code calls (a door the dashboard or the edge asks for) is
+# applied before its merge instead, from its pull request's branch, as before:
+# docs/runbook.md, "Apply a migration", says how, with the same check this runs
+# first (migration-push.mjs). This workflow is for the rest: a migration either
+# deploy order serves, or one that must follow the deploys.
+#
+# Before the push, production's ledger is read with its names and the dry run's
+# list is held to exactly main's files production lacks
+# (tooling/scripts/checks/migration-push.mjs): a version both hold under
+# different names, one production holds that main does not, a file below
+# production's head, or a file in the list that is not one of those stops the
+# push. After it, the compare the weekly workflow runs (migration-ledger.mjs
+# --compare) must find nothing missing. The job summary says what was applied.
+#
+# It needs three secrets on the `production` Environment, which only Ruben sets
+# (docs/runbook.md, Apply a migration), the Environment limited to the main
+# branch: SUPABASE_ACCESS_TOKEN (a personal access token of the Supabase
+# account), SUPABASE_PROJECT_REF (the project's ref) and SUPABASE_DB_PASSWORD
+# (the database's password, which `supabase link` and `db push` read from the
+# environment). Unset, the first step says so and nothing is applied.
+on:
+  workflow_dispatch:
+    inputs:
+      wait_for_deploys:
+        description: Wait until both apps serve this commit or a later one (leave on unless a deploy is stuck and the migration serves either order)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+# One push at a time, in order, never cancelled mid-way: a push cut off between
+# two files leaves production between two versions, and the next run applies
+# the rest.
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply main's migrations to production
+    # From main only: a run asked for on any other ref does nothing.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # The rows of production's ledger, each version with the name the CLI recorded beside it.
+      LEDGER_QUERY: select version, name from supabase_migrations.schema_migrations order by version
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # When each migration landed on main is read from history, for the compare's report; and whether a deployed
+          # commit comes after this one.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+      - name: The Environment's three secrets are set
+        shell: bash
+        run: |
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Nothing applied::$name is not set on the production Environment (docs/runbook.md, Apply a migration)."
+              exit 1
+            fi
+          done
+      # A merge may go in before its checks finish: what reaches production is what main's own runs passed.
+      - name: Main's checks passed on this commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for wf in ci.yml database.yml; do
+            got="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$wf" --commit "$GITHUB_SHA" --event push --limit 1 --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')"
+            echo "$wf on ${GITHUB_SHA:0:9}: ${got:-no run}"
+            if [ "$got" != "completed success" ]; then
+              echo "::error title=Nothing applied::$wf has not passed on ${GITHUB_SHA:0:9} (${got:-no run}). Run this again once it has."
+              exit 1
+            fi
+          done
+      # A migration that narrows what the code before it may do waits for the code after it, on both hosts.
+      - name: Both apps serve this commit or a later one
+        if: inputs.wait_for_deploys
+        shell: bash
+        run: |
+          served() { curl -fsS --max-time 10 "$1/api/version" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).sha||"")}catch{}})'; }
+          for attempt in $(seq 1 30); do
+            git fetch -q origin main
+            ok=1
+            for host in https://chanlytics-messaging.vercel.app https://app.chanlytics.com; do
+              sha="$(served "$host" || true)"
+              if [ -n "$sha" ] && git cat-file -e "$sha^{commit}" 2> /dev/null && git merge-base --is-ancestor "$GITHUB_SHA" "$sha"; then
+                echo "$host serves ${sha:0:9}"
+              else
+                echo "$host serves ${sha:-nothing readable}, not ${GITHUB_SHA:0:9} or later"
+                ok=0
+              fi
+            done
+            if [ "$ok" -eq 1 ]; then exit 0; fi
+            sleep 30
+          done
+          echo "::error title=Nothing applied::Both apps did not serve ${GITHUB_SHA:0:9} within fifteen minutes."
+          exit 1
+      - name: Link the project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Read production's ledger, with its names
+        shell: bash
+        run: |
+          supabase db query --linked -o json "$LEDGER_QUERY" > prod-ledger.json
+          cat prod-ledger.json
+      # The CLI's own refusal of a file below production's head ("to be inserted before the last migration") fails
+      # this step; never --include-all, which applies such a file after the ones above it.
+      - name: What the push would apply
+        shell: bash
+        run: |
+          set +e
+          supabase db push --linked --dry-run > dry-run.txt 2>&1
+          code=$?
+          cat dry-run.txt
+          exit "$code"
+      - name: It is exactly what main carries and production lacks
+        shell: bash
+        run: node tooling/scripts/checks/migration-push.mjs --dry-run dry-run.txt --production prod-ledger.json 2>&1 | tee push.txt
+      - name: Push
+        run: supabase db push --linked --yes
+      - name: Read production's ledger again
+        shell: bash
+        run: supabase db query --linked -o json "$LEDGER_QUERY" > prod-ledger-after.json
+      - name: Production has every migration main carries, and nothing main does not
+        shell: bash
+        run: node tooling/scripts/checks/migration-ledger.mjs --compare prod-ledger-after.json --hours 0 2>&1 | tee compare.txt
+      - name: Say what was applied
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Production's migrations"
+            echo
+            if [ -f push.txt ]; then cat push.txt; else echo "The push did not get as far as its check; the log says where it stopped."; fi
+            echo
+            if [ -f compare.txt ]; then cat compare.txt; fi
+          } >> "$GITHUB_STEP_SUMMARY"

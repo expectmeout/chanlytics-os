@@ -457,6 +457,12 @@ export async function platformJobRequeue(
         "This deploy does not know that kind of job yet: run it again once the deploy that does is live.",
         409,
       );
+    case "redrive":
+      throw new AppError(
+        "conflict",
+        `An event's delivery goes again with its subscriber, once the subscriber is mended: event_deliveries_redrive('${r.subscriber}') replays every failed or paused delivery of it, each once.`,
+        409,
+      );
     case "already_scheduled":
       throw new AppError("conflict", "That work is on the ledger again already.", 409);
   }

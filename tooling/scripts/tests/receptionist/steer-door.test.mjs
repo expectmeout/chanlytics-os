@@ -644,16 +644,15 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
   assert.ok(due > 40_000 && due <= 45_000, `due in ${due}ms: the old draft's own delay`);
   // The order is the safety: queued first, retired second, so a failure between the two leaves ONE draft standing, never none.
   const inserted = db.seen.findIndex((s) => s.table === "messages" && s.op === "insert");
-  const retired = db.seen.findIndex(
-    (s) => s.table === "messages" && s.op === "update" && s.values.status === "canceled",
-  );
+  const retired = db.seen.findIndex((s) => s.rpc === "withdraw_queued" && s.args.p_message_ids.includes(w.M));
   assert.ok(inserted >= 0 && retired > inserted, "the new draft is queued before the old one is retired");
-  const retire = db.seen[retired];
-  assert.ok(
-    retire.filters.some(([op, col, val]) => op === "eq" && col === "status" && val === "queued"),
-    "retired only while still queued: the count is the guard",
-  );
-  assert.equal(retire.columns, "id", "and the rows touched are read back, so zero can be told from one");
+  // Retired through the one door (00387): only while still queued and claimed by no run, and the ids it withdrew are
+  // the count, so zero can be told from one.
+  assert.deepEqual(db.seen[retired].args, {
+    p_tenant_id: w.T,
+    p_message_ids: [w.M],
+    p_reason: { reason: "steered", replaced_by: draft.id },
+  });
   // The log carries the shape of what happened, never the words.
   const line = log.lines.find((l) => l.includes('"event":"admin_steer"'));
   assert.ok(line, "one line");
@@ -819,7 +818,7 @@ test("a rewrite that would name money a person decides is refused the same way, 
 
 test("the race: the tick sent the old draft while the model was thinking, so the retire counts zero rows -- the rewrite is taken back with 409 already_sent and its send withdrawn, and the sent reply is not touched", async () => {
   const w = fresh();
-  const { tables, db } = world(w);
+  const { tables } = world(w);
   // The seconds the model takes are where the tick claims the old draft's job and sends it.
   const b = brain(() => {
     Object.assign(
@@ -847,18 +846,17 @@ test("the race: the tick sent the old draft while the model was thinking, so the
   const draft = tables.messages.find((m) => m.meta?.source === "steered");
   assert.ok(draft, "the rewrite was queued first --");
   assert.deepEqual([draft.status, draft.error], ["canceled", { reason: "steer_lost_race" }], "-- and taken back");
-  const withdrawn = writes(db, "jobs").filter((s) => s.op === "update" && s.values.state === "canceled");
   assert.deepEqual(
-    withdrawn.map((s) => s.filters.find(([, c]) => c === "payload->>message_id")[2]),
+    tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
     [draft.id],
-    "the rewrite's send is withdrawn; the old job, already claimed, is nobody's to cancel",
+    "the rewrite's send is withdrawn with it (00387); the old job, already claimed, is nobody's to cancel",
   );
   assert.equal(tables.jobs.find((j) => j.id === w.J).state, "done");
 });
 
 test("the race, mid-send: the tick claimed the old draft while the model was thinking and the provider has not answered -- the old row is not retired under the send, the rewrite is taken back with 409 already_sent", async () => {
   const w = fresh();
-  const { tables, db } = world(w);
+  const { tables } = world(w);
   // The tick has claimed the old draft's job (sending_at) and is on the wire: the row is still queued until Meta answers.
   const b = brain(() => {
     tables.messages.find((m) => m.id === w.M).sending_at = new Date().toISOString();
@@ -885,11 +883,10 @@ test("the race, mid-send: the tick claimed the old draft while the model was thi
     ["canceled", { reason: "steer_lost_race" }],
     "the rewrite is taken back",
   );
-  const withdrawn = writes(db, "jobs").filter((s) => s.op === "update" && s.values.state === "canceled");
   assert.deepEqual(
-    withdrawn.map((s) => s.filters.find(([, c]) => c === "payload->>message_id")[2]),
+    tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
     [draft.id],
-    "with its send; the old job, already claimed, is its run's",
+    "with its send (00387); the old job, already claimed, is its run's",
   );
   assert.equal(tables.jobs.find((j) => j.id === w.J).state, "fired");
 });
@@ -943,9 +940,8 @@ test("a brain that fails is a 502 with nothing written; a draft that cannot be q
     ["canceled", { reason: "steer_rolled_back" }],
     "if the old one cannot be retired the new one is taken back, so two drafts never race to the customer",
   );
-  const withdrawn = writes(unretired.db, "jobs").filter((s) => s.op === "update" && s.values.state === "canceled");
   assert.deepEqual(
-    withdrawn.map((s) => s.filters.find(([, c]) => c === "payload->>message_id")[2]),
+    unretired.tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
     [draft.id],
   );
   assert.equal(

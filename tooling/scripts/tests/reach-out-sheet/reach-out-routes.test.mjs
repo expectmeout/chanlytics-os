@@ -183,8 +183,15 @@ function edge(doors = {}) {
   return calls;
 }
 
-/** The service role's save, as the door answers it: what it was asked, recorded. */
-function serviceSave(answer = () => ({ root_id: ROOT_ID, step_ids: [ROOT_ID, STEP2], rechecked: 0 })) {
+/** The service role's save, as the door answers it: what it was asked, recorded; a new chain's start with its line (00381). */
+function serviceSave(
+  answer = (a) => ({
+    root_id: ROOT_ID,
+    step_ids: [ROOT_ID, STEP2],
+    rechecked: 0,
+    ...(a.p_decision ? { decision_id: "d-1", undo_dropped: false } : {}),
+  }),
+) {
   const asked = [];
   setServiceClient(
     fakeDb(
@@ -313,6 +320,8 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
     p_tenant_id: A,
     p_user_id: USER,
     p_chain: { ...CHAIN(), root_id: null },
+    // The start's line in the ledger rides with the chain (00381): the door writes it, the route no longer does.
+    p_decision: { name: CHAIN().name },
   });
   assert.deepEqual(
     calls.map((c) => [c.path, c.body]),
@@ -326,7 +335,11 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
     start: { outcome: "held", reason: "waiting_for_you", planned: 30, run_id: RUN },
   });
   assert.equal(startWords(out.start).text, "Planned 30 emails. The first run waits on you: open it to approve.");
-  assert.equal(ctx.supabase.seen.filter((s) => s.table === "decisions" && s.op === "insert").length, 1);
+  assert.equal(
+    ctx.supabase.seen.filter((s) => s.table === "decisions" && s.op === "insert").length,
+    0,
+    "the start's line is the door's own write, never the route's",
+  );
 
   // Held for billing: said as it is, never "within the hour" (R14).
   edge({

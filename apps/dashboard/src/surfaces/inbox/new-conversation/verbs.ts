@@ -50,7 +50,7 @@ export const readReach = (id: string) => api()("GET people/[id]/reach", { params
 
 /** Ask writes the words, or a call's brief, or asks what it needs to know first (POST people/[id]/draft). */
 export const askDraft = (id: string, body: PersonDraftInput) =>
-  api()("POST people/[id]/draft", { params: { id }, body });
+  api()("POST people/[id]/draft", { params: { id }, body, once: true });
 
 /**
  * What a send carries: the wire the member chose, the words or the approved message, a subject for an email, who

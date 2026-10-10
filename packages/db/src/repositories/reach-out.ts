@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 import { emailWordsFrom } from "./reach-out-sheet";
+import { withdrawQueued } from "./control";
 import { recordEvent } from "../events";
 
 type Db = SupabaseClient<Database>;
@@ -258,19 +259,15 @@ export async function writtenEmails(db: Db, ids: string[]): Promise<Set<string>>
   return out;
 }
 
-/** An email withdrawn while it is still queued and no run has begun to send it (sending_at, 00352): its job then
- *  sends nothing. False when it was not: it had moved on, or it is on its way, and what became of it is its job's. */
+/** An email withdrawn while it is still queued and no run has begun to send it, through the one door (00387): its job
+ *  then sends nothing. False when it was not: it had moved on, or it is on its way, and what became of it is its job's. */
 export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; reason: string }): Promise<boolean> {
-  const { data, error } = await db
-    .from("messages")
-    .update({ status: "canceled", error: { reason: p.reason } })
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.id)
-    .eq("status", "queued")
-    .is("sending_at", null)
-    .select("id");
-  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
-  return (data ?? []).length > 0;
+  const withdrawn = await withdrawQueued(db, {
+    tenantId: p.tenantId,
+    messageIds: [p.id],
+    reason: { reason: p.reason },
+  });
+  return withdrawn.length > 0;
 }
 
 /* ------------------------------------------------------------ the sender -- */

@@ -30,7 +30,7 @@ what the script writes.
 | [`business_records`](#business_records) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
-| [`contact_identities`](#contact_identities) | `packages/db/src/repositories/email.ts` | on, 1 policy |
+| [`contact_identities`](#contact_identities) | none | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
 | [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
@@ -609,7 +609,7 @@ Foreign keys:
 
 ### contact_identities
 
-- Owned by: `packages/db/src/repositories/email.ts`
+- Owned by: none
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

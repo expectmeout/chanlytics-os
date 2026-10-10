@@ -4,7 +4,8 @@
 other people's notes, nothing of anyone else's is deleted, names are left); step 1 built with the note (the registry
 and its ratchet, and the notes' scrub, 00341); step 2's test built on 7 October 2026
 (`people/erasure/erasure-completeness.db.test.mjs`: the needles seeded into every registered column, the real route run
-as the owner, every column searched after; its number on the back office is not yet written). Proposed the same day: the registry 0031's invariant 10 names ("every
+as the owner, every column searched after; its number on the back office is not yet written); step 3 built on
+10 October 2026 (00391): 187 of the 195 classified, 8 left counted, each waiting on a word below. Proposed the same day: the registry 0031's invariant 10 names ("every
 table has a tenant, a floor and an erasure strategy") and leaves to a note of its own. Written against commit
 `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, and built on `266fff9a`. Where this note
 and the code disagree, the code wins.
@@ -40,6 +41,10 @@ that can hold a person's words, one strategy:
 - **as a digest**: kept only as a hash an erasure cannot reverse (the block's digests, 00263);
 - **by age**: removed by a retention clock within its stated days (contracts `RETENTION_DAYS`), and named on the
   privacy page;
+- **with the workspace**: the workspace's own record that can name someone it does not serve (its owner, a member, its
+  payer, the representative its carrier filing names, the address it is alerted at): an erasure is of a person the
+  workspace serves and does not reach it, and it leaves with the workspace, within the 30 days the privacy page states
+  (added with step 3, 10 October 2026);
 - **not personal**: holds nothing of a person, said once.
 
 The legs are a closed set beside it (`ERASURE_LEGS`), the trigger legs among them. Which columns can hold words is the
@@ -71,7 +76,15 @@ someone else's thread stays, and stays counted, until an exception to that trigg
    so a column named later is seeded or the test says which it could not; a column whose CHECK admits no needle is
    seeded in its own shape and held empty after. The number is not yet written.
 3. **The rest classified**, table by table, until the baseline is empty. `ai_usage`'s questions and answers are the
-   first to decide: they can name a person and only their 400 days remove them.
+   first to decide: they can name a person and only their 400 days remove them. Built on 10 October 2026: each of the
+   195 read against its writers, 187 named. `ai_usage`'s are labels from the question's own options (the CHECK holds
+   them to shadow rows of 80 characters), and named by age, which is true whatever a later writer puts there. Three held
+   words no leg or clock reached, and 00391 reaches them: the words a run kept for each person (a visit's time, service
+   and calendar key, a proposal's link) are cleared when the person is erased (`broadcast_recipients_on_erase`, a new
+   leg), and `lead_blank` blanks a reach-out's opening, angle and note, and a preference's example, with the lead they
+   were written from. A finished job's error is cleared with its payload (`scrubErasedJobs`): a provider's refusal can
+   quote the number. A reply to a reach-out goes with the replier's message, by cascade. Eight stay counted: the two
+   message columns, and the two below.
 
 ## Tests
 
@@ -90,6 +103,19 @@ someone else's thread stays, and stays counted, until an exception to that trigg
   `RETENTION_DAYS` keys, as the purge tests do.
 
 ## Open questions
+
+- A Google review's reviewer, words and reply (`google_reviews.author`, `author_uri`, `author_photo_uri`, `body`,
+  `reply_text`): nothing joins a review to a person, and a name is not a key, so no erasure reaches them; and a review
+  taken down at Google stays here, since the sync adds and never prunes. Recommended: the mirror follows Google (a full
+  read drops the rows it no longer lists), with a retention key and its sentence on the privacy page, and the five named
+  by age. Whether the mirror may keep a reviewer's name while it is public on Google is Ruben's call.
+- A lead batch's judgment (`lead_judgments.answer`): the judge's answer, with its reason for each place, keyed by the
+  batch, so no leg by lead reaches it. purge_leads removes it at 180 days, and `RETENTION_DAYS` has no key for it, so
+  the privacy page does not say so. Recommended: a key, `lead_judgments: 180`, and its sentence.
+- With the workspace, a closed invitation's address (`invitations.email`) and the address a partner hands a workspace
+  to (`partner_tenants.handover_email`) stay for the workspace's life after the invitation is answered. Recommended,
+  not built: a purge of answered invitations after a stated number of days, and the handover's address cleared once
+  it is accepted.
 
 - Answered: a person's words in a workspace's own notes are scrubbed in place, numbers and addresses only, and nothing
   of anyone else's is deleted (Ruben, 6 October 2026). In messages they are counted until an exception to 00326 is

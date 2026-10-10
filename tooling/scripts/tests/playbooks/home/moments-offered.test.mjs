@@ -546,9 +546,8 @@ const run = async (playbook, ctx, category) => {
       record: async () => {},
       assemble: async (_run, recipients) => {
         assembled.push(recipients.map((r) => r.contact_id).sort());
-        return "b1";
+        return { id: "b1", decisionId: null };
       },
-      decide: async () => {},
       notify: async () => {},
     },
     { playbook, ctx, runFor: dayOf(NOW), by: { kind: "system" } },

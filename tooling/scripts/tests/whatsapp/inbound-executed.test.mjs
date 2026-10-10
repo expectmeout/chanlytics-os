@@ -1789,3 +1789,29 @@ test("the model is told who the person is with the conversation's channel: a tex
   assert.match(byText, /This conversation is by text message, not WhatsApp\./);
   assert.doesNotMatch(byText, /Has not been asked/);
 });
+
+test("a message held before the model is held for that hold, not for the day's tokens: an 'ask' workspace and a paused one, both over their budget", async () => {
+  // The one order (core reply-posture.ts unattendedHold): a held message makes no model call, so its own hold is what
+  // the Inbox says. Before it, the budget was asked first and either one read "budget".
+  const limits = { max_llm_tokens_day: 1000 };
+  for (const [name, rt, reason] of [
+    ["ask", runtime({ policy: { reply: { mode: "ask", limits } } }), "policy_block"],
+    ["paused", runtime({ paused: true, policy: { reply: { mode: "auto", limits } } }), "paused"],
+  ]) {
+    const w = world({ rt, tokensUsed: 5000 });
+    await w.run(text("when do you open?"), {});
+    assert.deepEqual(
+      w.seen.escalations.map((e) => e.reason),
+      [reason],
+      `${name}: held for its own reason, never "budget"`,
+    );
+    assert.equal(w.seen.sent.length, 0, `${name}: nothing was said`);
+  }
+  // Over budget and free to answer is still the budget's.
+  const free = world({ rt: runtime({ policy: { reply: { mode: "auto", limits } } }), tokensUsed: 5000 });
+  await free.run(text("when do you open?"), {});
+  assert.deepEqual(
+    free.seen.escalations.map((e) => e.reason),
+    ["budget"],
+  );
+});

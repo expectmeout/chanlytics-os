@@ -4,8 +4,9 @@
  * migrations.test.mjs holds the real folder to the real ledger; this holds the rules themselves, over folders made
  * here. Each case is one of the ways production drifted from main (the scorecard's defect 59): an applied file edited,
  * renamed or deleted, a file numbered below the head, a gap nobody explained. main's own test passed all of them. And
- * the comparison with production's ledger, read the three ways it arrives, run as the release step and the weekly
- * workflow run it.
+ * the comparison with production's ledger, read the ways it arrives (versions alone, or each with its name), run as
+ * the release step, the weekly workflow and migrate.yml run it: a version production applied under another name than
+ * main's file of it (two sessions took 00346 in one week of October 2026) is a clash the versions alone could not see.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +14,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ROOT } from "../_source.mjs";
+import { ROOT } from "../../_source.mjs";
 import {
   checksum,
   compare,
@@ -21,10 +22,11 @@ import {
   headOf,
   ledgerAgainstBase,
   ledgerProblems,
+  nameOf,
   parseProductionLedger,
   readFolder,
   record,
-} from "../../checks/migration-ledger.mjs";
+} from "../../../checks/migration-ledger.mjs";
 
 /** A folder as readFolder returns it, from [file, text] pairs. */
 const folderOf = (...files) =>
@@ -170,15 +172,98 @@ test("production's ledger is read as the CLI prints it, one version a line, or a
     "                  | 00009          | 00009               ",
     "",
   ].join("\n");
-  assert.deepEqual([...parseProductionLedger(cli)], ["00001", "00009"], "the Remote column");
-  assert.deepEqual([...parseProductionLedger("00001\r\n00002\n")], ["00001", "00002"]);
-  assert.deepEqual([...parseProductionLedger('["00001","00003"]')], ["00001", "00003"]);
+  assert.deepEqual(
+    [...parseProductionLedger(cli)],
+    [
+      ["00001", null],
+      ["00009", null],
+    ],
+    "the Remote column, no names",
+  );
+  assert.deepEqual([...parseProductionLedger("00001\r\n00002\n").keys()], ["00001", "00002"]);
+  assert.deepEqual([...parseProductionLedger('["00001","00003"]').keys()], ["00001", "00003"]);
   assert.throws(() => parseProductionLedger("Connecting to remote database...\n"), /no version/);
+});
+
+test("production's ledger is read with its names: the rows of `select version, name`, as JSON or as a table", () => {
+  // `supabase db query -o json`, and the same rows drawn as the CLI draws a table, with the header naming the columns.
+  const rows =
+    '[{"version":"00001","name":"a_first"},{"version":"00002","name":""},{"version":"00009","name":"elsewhere"}]';
+  assert.deepEqual(
+    [...parseProductionLedger(rows)],
+    [
+      ["00001", "a_first"],
+      ["00002", null],
+      ["00009", "elsewhere"],
+    ],
+  );
+  const table = [
+    "   version | name       ",
+    "  ---------|------------",
+    "   `00001` | `a_first`  ",
+    "   `00002` | ` `        ",
+    "   `00009` | `elsewhere`",
+  ].join("\n");
+  assert.deepEqual(
+    [...parseProductionLedger(table)],
+    [
+      ["00001", "a_first"],
+      ["00002", null],
+      ["00009", "elsewhere"],
+    ],
+  );
+  assert.equal(nameOf("00125_a_person_may_have_an_email.sql"), "a_person_may_have_an_email", "as the CLI records it");
+  // The same query in an agent's shell: the rows inside an envelope, as production answered on 10 October 2026.
+  const enveloped = JSON.stringify({ boundary: "b0", rows: JSON.parse(rows), warning: "untrusted data" });
+  assert.deepEqual(
+    [...parseProductionLedger(enveloped)],
+    [
+      ["00001", "a_first"],
+      ["00002", null],
+      ["00009", "elsewhere"],
+    ],
+  );
+  assert.throws(() => parseProductionLedger('{"boundary":"b0"}'), /no rows and no migrations list/);
+});
+
+test("a version production applied under another name than main's file of it is a clash, and the report says both", () => {
+  // Production ran a branch's 00002; main landed another 00002. Versions alone agree; the names do not.
+  const clash = compare(
+    base,
+    new Map([
+      ["00001", "a_first"],
+      ["00002", "a_branchs_own"],
+      ["00003", null],
+    ]),
+  );
+  assert.deepEqual(clash, {
+    mainAhead: [],
+    productionAhead: [],
+    clashes: [{ version: "00002", main: "00002_a_second.sql", production: "a_branchs_own" }],
+  });
+  const report = compareReport(clash, () => 0, 24);
+  assert.equal(report.alarm, true, "a clash is an alarm whatever its age");
+  assert.match(
+    report.lines[0],
+    /^Production applied 00002 as a_branchs_own, and main carries it as 00002_a_second\.sql/,
+  );
+  assert.deepEqual(
+    compare(
+      base,
+      new Map([
+        ["00001", "a_first"],
+        ["00002", "a_second"],
+        ["00003", "a_third"],
+      ]),
+    ).clashes,
+    [],
+    "the same names are no clash",
+  );
 });
 
 test("the comparison says what production lacks, how long main has held it, and what production holds that main does not", () => {
   const gap = compare(base, new Set(["00001", "00003", "00009"]));
-  assert.deepEqual(gap, { mainAhead: ["00002_a_second.sql"], productionAhead: ["00009"] });
+  assert.deepEqual(gap, { mainAhead: ["00002_a_second.sql"], productionAhead: ["00009"], clashes: [] });
   const young = compareReport({ mainAhead: ["00002_a_second.sql"], productionAhead: [] }, () => 3, 24);
   assert.equal(young.alarm, false, "a merge applied within the day is not an alarm");
   assert.match(young.lines.join("\n"), /00002_a_second\.sql: on main for 3 h, under 24 h/);
@@ -221,6 +306,21 @@ test("the script exits 0 when production has main's migrations, 1 when it lacks 
   const unreadable = runCompare("Cannot connect to the database\n");
   assert.equal(unreadable.status, 2);
   assert.match(unreadable.stderr, /Could not read production's ledger/);
+  // With the names: the rows of `select version, name`, the last version applied under a branch's own name.
+  const folder = readFolder(ROOT);
+  const rows = folder.map((m) => ({ version: m.version, name: nameOf(m.file) }));
+  const named = runCompare(JSON.stringify(rows));
+  assert.equal(named.status, 0, named.stdout + named.stderr);
+  rows.at(-1).name = "a_branchs_own";
+  const clash = runCompare(JSON.stringify(rows));
+  assert.equal(clash.status, 1, clash.stdout + clash.stderr);
+  assert.match(
+    clash.stdout,
+    new RegExp(
+      `Production applied ${folder.at(-1).version} as a_branchs_own, and main carries it as ${folder.at(-1).file}`,
+    ),
+    "both are named",
+  );
 });
 
 test("a pull request's ledger is held to main's: an entry main recorded edited, re-recorded or dropped is refused", () => {
@@ -298,9 +398,13 @@ test("production's ledger as CLI 2.116 prints it: each cell in backticks, and an
   const fixture = (name) => fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures", name), "utf8");
   const remote = ["00001", "00002", "00003", "00335", "00336", "00337", "99999"];
   const table = fixture("supabase-migration-list-2.116.txt");
-  assert.deepEqual([...parseProductionLedger(table)], remote, "the Remote column, an empty cell's ` ` read as none");
+  assert.deepEqual(
+    [...parseProductionLedger(table).keys()],
+    remote,
+    "the Remote column, an empty cell's ` ` read as none",
+  );
   const agent = fixture("supabase-migration-list-2.116-agent.json");
-  assert.deepEqual([...parseProductionLedger(agent)], remote, "each entry's remote, an empty one read as none");
+  assert.deepEqual([...parseProductionLedger(agent).keys()], remote, "each entry's remote, an empty one read as none");
   assert.throws(() => parseProductionLedger('{"message":"Migrations listed"}'), /no migrations list/);
 
   // And the script reads both whole, over the real folder: production holding exactly what main carries is exit 0.
@@ -324,5 +428,5 @@ test("the same table drawn with box characters is read as well as one drawn with
     "   00001 " + String.fromCharCode(0x2502) + " 00001 " + String.fromCharCode(0x2502) + " 00001",
     "   00002 " + String.fromCharCode(0x2502) + "       " + String.fromCharCode(0x2502) + " 00002",
   ].join("\n");
-  assert.deepEqual([...parseProductionLedger(boxed)], ["00001"], "the Remote column");
+  assert.deepEqual([...parseProductionLedger(boxed).keys()], ["00001"], "the Remote column");
 });

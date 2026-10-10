@@ -149,7 +149,7 @@ export const reachOuts = {
   resume: (rootId: string) => api()("PUT playbooks/[id]", { params: { id: rootId }, body: { state: "running" } }),
   remove: (rootId: string) => api()("DELETE reach-outs/[id]", { params: { id: rootId } }),
   /** A new chain, saved and its first step run now (R13, R14): the answer carries what the run did. */
-  save: (body: ReachOutChainInput) => api()("POST reach-outs", { body }),
+  save: (body: ReachOutChainInput) => api()("POST reach-outs", { body, once: true }),
   /** A chain changed whole: new words send what waits back to the check (R5); a dropped step's work goes (R17). */
   update: (rootId: string, body: ReachOutChainInput) => api()("PUT reach-outs/[id]", { params: { id: rootId }, body }),
   /** One business's email as the chain would write it (R11): it spends the model, so it is asked for by a press. */

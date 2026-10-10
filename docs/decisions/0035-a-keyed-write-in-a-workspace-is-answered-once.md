@@ -67,7 +67,13 @@ no key and runs as it always has.
 2. **The client half:** begun where Ruben put it first, at broadcasts and the spend routes, with a note:
    `POST broadcasts`, `POST lead-searches/[id]/more`, `POST lead-searches/import`, `POST leads/check-again`,
    `POST lines/buy`, `POST lines/register`, `POST reach-outs/preview` and `POST contacts/[id]/notes` send `once`; a new
-   lead search is an Ask card and keyed as one. Then the workspace's other writes, then the phone app's.
+   lead search is an Ask card and keyed as one. Then the workspace's other writes that a second press would do twice
+   (10 October 2026): `POST contacts/[id]/deal`, `POST playbooks`, `POST playbooks/[id]/run`, `POST reach-outs`,
+   `POST segments`, `POST segments/draft`, `POST sending-domains`, `POST mailboxes` (both of its callers),
+   `POST team/invite`, `POST calls/[id]/whisper`, `POST google/reviews/[id]/reply`, `POST google/reviews/[id]/draft`,
+   `POST messages/[id]/steer`, `POST people/[id]/draft`, `POST leads/[id]/draft`, `POST setup/request`,
+   `POST lines/forwarding/test` and `POST notifications/test`. A write that sets a state (a toggle, a PUT of a
+   setting, a move to a stage) lands the same however often it is pressed, and sends none. The phone app's are next.
 3. **A conformance test per route kind:** the same key twice is one write and one answer; another body under the same key
    is 422. Built: `route()` is the one pipeline every kind runs through, so the proof is per scope it resolves (a
    workspace's write, a row's write keyed in the row's workspace, an account's and a platform's with no workspace to key

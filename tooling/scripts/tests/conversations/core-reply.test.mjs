@@ -395,7 +395,7 @@ test("a job that could not be scheduled cancels the row it would have sent, and 
   });
   await assert.rejects(replyToConversation(ports, cmd()), /queue down/);
   assert.deepEqual(ops(), ["claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "cancelOrphan"]);
-  assert.deepEqual(log.at(-1), ["cancelOrphan", "m1"]);
+  assert.deepEqual(log.at(-1), ["cancelOrphan", "t1", "m1"]);
 });
 
 test("a replay: the same key and intent inside the window returns the stored receipt and sends nothing; after the window, or for a different intent, it sends and the receipt is stored under the caller's key", async () => {
@@ -675,7 +675,7 @@ test("a caller slow past HOLD_EXPIRY_MS is taken over and cannot complete: its r
   ]);
   assert.deepEqual(
     a.call("cancelOrphan"),
-    ["cancelOrphan", "m1"],
+    ["cancelOrphan", "t1", "m1"],
     "A's row is canceled, and no job was ever made for it",
   );
   assert.equal(writes(a, b).filter((l) => l[0] === "schedule").length, 1, "exactly one send scheduled");

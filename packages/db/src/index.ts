@@ -17,7 +17,9 @@ export {
 export type { EmittedKind, EventData, DeliveredEvent, DeliveryRow } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
-export { keepInvoiceAmount } from "./billing-events";
+export { keepInvoiceAmount } from "./billing/events";
+export { applyBilling } from "./billing/account";
+export type { BillingPatch, BillingExpectation } from "./billing/account";
 export { migrationHead } from "./ops";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
 export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
@@ -203,9 +205,11 @@ export {
   markHeldNotice,
   leadNamesByIds,
   handRun,
+  saveReachOutChain,
 } from "./repositories/reach-out-sheet";
 export type {
   ReachOutStepRow,
+  ReachOutSaved,
   ReachOutRunSend,
   OutreachMode,
   HeldNoticeMark,
@@ -314,9 +318,30 @@ export {
 } from "./jobs";
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
-export type { JobToRequeue } from "./jobs";
-export { claimControl, releaseControl, CALL_CONTROL_S, claimReplyTurn, holdsReplyTurn } from "./repositories/control";
-export type { ControlHolder, ControlOutcome } from "./repositories/control";
+export type { JobToRequeue, AssembleDecision } from "./jobs";
+export {
+  claimControl,
+  releaseControl,
+  takeOverThread,
+  handBackThread,
+  CALL_CONTROL_S,
+  claimReplyTurn,
+  holdsReplyTurn,
+  withdrawQueued,
+  withdrawAiDrafts,
+  memberWithdrawDrafts,
+  memberWithdrawMessage,
+  callBackMessage,
+  openEscalation,
+} from "./repositories/control";
+export type {
+  ControlHolder,
+  ControlOutcome,
+  TakenOver,
+  HandedBack,
+  WithdrawReason,
+  CalledBack,
+} from "./repositories/control";
 export {
   templatesFor,
   templatesToSend,
@@ -493,6 +518,7 @@ export {
   contactIdByEmail,
   syncFeedAppointments,
   appointmentStates,
+  reachOutBookedFrom,
 } from "./repositories/calendar/appointments";
 export type {
   AppointmentRow,

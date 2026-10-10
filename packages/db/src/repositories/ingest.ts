@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolvePerson } from "./people";
+import { withdrawAiDrafts } from "./control";
 import {
   CARRIER_CONSENT_SOURCE,
   conversationPatch,
@@ -182,34 +183,29 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
  * carriers' words), so the row is brought to agree with the carrier THE WAY
  * ingest_inbound records a STOP it did hear: the three consent columns
  * together, dnc with them, and one contact.consent_changed row -- the carrier
- * as its source, since there is no message of theirs to name. A person
- * already opted out is left as they are, with no second ledger row: the
- * update is guarded and counted, and the event written only for a row that
- * changed. A write that fails THROWS, as ingestInbound's does: the door
- * reports the send as it reports any wire it could not write, rather than a
- * no going unrecorded under a refusal that says it was.
+ * as its source, since there is no message of theirs to name -- in one
+ * transaction, through the one door a provider's stop is recorded by
+ * (record_provider_stop, 00383). It used to be two writes on two requests,
+ * and an event that was lost left the history silent and the channels the
+ * answer covered (00297's trigger reads the event) stale. A person already
+ * opted out, or erased, is left as they are with no second ledger row, and
+ * the door answers false. A write that fails THROWS, as ingestInbound's does:
+ * the door reports the send as it reports any wire it could not write, rather
+ * than a no going unrecorded under a refusal that says it was.
  */
 export async function recordCarrierOptOut(
   db: Db,
-  p: { tenantId: string; contactId: string; channel: "sms"; previous: string | null },
+  p: { tenantId: string; contactId: string; channel: "sms" },
 ): Promise<boolean> {
-  const { data, error } = await db
-    .from("contacts")
-    .update({
-      consent: "opted_out",
-      dnc: true,
-      consent_source: CARRIER_CONSENT_SOURCE,
-      consent_updated_at: new Date().toISOString(),
-    })
-    .eq("id", p.contactId)
-    .eq("tenant_id", p.tenantId)
-    .neq("consent", "opted_out")
-    .select("id");
+  const { data, error } = await db.rpc("record_provider_stop", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_purpose: "conversational",
+    p_channel: p.channel,
+    p_source: CARRIER_CONSENT_SOURCE,
+  });
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
-  if (!data || data.length === 0) return false;
-  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
-  return true;
+  return data === true;
 }
 
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
@@ -755,27 +751,21 @@ export async function pauseConversation(
   // are withdrawn with the pause -- all but the holding message the same
   // handoff queued in this breath, which the caller names. A draft written
   // before the pause must not land after it: the door (packages/core deliver)
-  // waives the pause for a queued row on exactly this promise. The job that
-  // would send a withdrawn row finds it canceled and does nothing. A draft its
-  // job has already claimed (sending_at, 00352) is on its way and is left to
-  // say what became of it: withdrawn then, it reached the person under a row
-  // that said canceled for ever. A failure here is logged, never fatal: the
-  // pause itself landed.
-  let withdraw = db
-    .from("messages")
-    .update({ status: "canceled", error: { reason: "superseded_by_human" } })
-    .eq("conversation_id", conversationId)
-    .eq("tenant_id", tenantId)
-    .eq("sender", "ai")
-    .eq("status", "queued")
-    .is("sending_at", null);
-  if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
-  const { error: wErr } = await withdraw;
-  if (wErr)
+  // waives the pause for a queued row on exactly this promise. The one door
+  // (00387) takes each draft no run has claimed with the job that would send
+  // it; a claimed one is on its way and is left to say what became of it. A
+  // failure here is logged, never fatal: the pause itself landed.
+  await withdrawAiDrafts(db, {
+    tenantId,
+    conversationId,
+    reason: { reason: "superseded_by_human" },
+    keepMessageId: opts.keepMessageId ?? null,
+  }).catch((e: unknown) =>
     dbLog().error("pause_withdraw_drafts_failed", {
       tenant_id: tenantId,
       conversation_id: conversationId,
-      error: wErr.message,
-    });
+      error: e instanceof Error ? e.message : String(e),
+    }),
+  );
   return true;
 }

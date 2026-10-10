@@ -40,6 +40,7 @@ import {
   reachOutRunSendsOf,
   reachOutStepsOf,
   runsWaitingOf,
+  saveReachOutChain,
   searchNamesByIds,
   sendingDomainsOf,
   workspaceMaySpend,
@@ -49,11 +50,10 @@ import {
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 import { recordDecision } from "@/server/verbs";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db";
 import { runPlaybookNow, type RunPlaybookOutcome } from "@/server/campaigns/playbook-run";
 import { serviceDb } from "@/server/service-db";
 import { storedConfigOf } from "@/server/workspace/config-row";
+import { log } from "@/server/log";
 import { deployment } from "@/server/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "@/server/edge";
 
@@ -208,8 +208,9 @@ function startOf(r: RunPlaybookOutcome): ReachOutStartDto {
 
 /**
  * A chain saved whole. Every word is validated here first (the database keeps only its CHECKs, R15); then the
- * service role's door, with the member's id; then, for a new chain, its first run asked for now through the run-now
- * door every playbook uses (R13), whose answer is said as it is (R14).
+ * service role's door, with the member's id and, for a new chain, the start's line in the ledger, in the door's own
+ * write (00381); then, for a new chain, its first run asked for now through the run-now door every playbook uses
+ * (R13), whose answer is said as it is (R14).
  */
 export async function saveChain(
   ctx: RouteContext,
@@ -224,9 +225,15 @@ export async function saveChain(
   }
   // An email carries no hand key at all: the door reads a step with one as a call or a note (00228).
   const steps = input.steps.map(({ hand, ...s }) => (hand ? { ...s, hand } : s));
-  const { data, error } = await saveReachOut(member.tenantId, ctx.userId, { ...input, steps, root_id: rootId });
-  if (error) throw reachOutRefusal(error);
-  const saved = data as { root_id: string; step_ids: string[]; rechecked: number };
+  const { data: saved, error } = await saveReachOutChain(serviceDb(), {
+    tenantId: member.tenantId,
+    userId: ctx.userId,
+    chain: { ...input, steps, root_id: rootId },
+    // A new chain is started by this save: the decision rides with it. An edit records none, and its event is below.
+    decision: rootId ? null : { payload: { name: input.name }, via: ctx.via ?? null, undoOf: ctx.undoOf ?? null },
+  });
+  if (error || !saved) throw reachOutRefusal(error ?? { message: "no chain" });
+  if (saved.undo_dropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "start_playbook" });
   if (rootId) {
     // A chain edited: a new one is start_playbook, below, and an edit left nothing on the ledger.
     await emitEvent(serviceDb(), member.tenantId, "playbook.changed", "playbook", saved.root_id, {
@@ -236,7 +243,6 @@ export async function saveChain(
     });
     return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked ?? 0, start: null };
   }
-  await recordDecision(ctx, member.tenantId, "playbook", saved.root_id, "start_playbook", { name: input.name });
   const start = startOf(await runPlaybookNow(member.tenantId, saved.root_id, ctx.userId));
   return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: 0, start };
 }
@@ -450,24 +456,6 @@ const heldOf = (s: SendRow): ReachOutRunDto["held"][number] => ({
 });
 
 /* ---- Reach out (Part 4): a chain saved by the service role, and one business's preview ---- */
-
-/**
- * A chain, made or edited whole (00211 reach_out_save). The service role's alone (R15): the route has checked the
- * member's role and validated every word, and passes who they are; the door checks the membership again.
- */
-async function saveReachOut(
-  tenantId: string,
-  userId: string,
-  chain: Record<string, unknown>,
-  db: SupabaseClient<Database> = serviceDb(),
-): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
-  const { data, error } = await db.rpc("reach_out_save", {
-    p_tenant_id: tenantId,
-    p_user_id: userId,
-    p_chain: chain as Json,
-  });
-  return { data, error };
-}
 
 type ReachOutPreviewOutcome = { ok: true; preview: unknown } | { ok: false; reason: EdgeReason };
 

@@ -262,6 +262,9 @@ type Requeued = {
     outcome: "speaks_to_a_person";
     kind: string;
 } | {
+    outcome: "redrive";
+    subscriber: string;
+} | {
     outcome: "unknown_kind";
     kind: string;
 } | {
@@ -277,6 +280,10 @@ type Requeued = {
  * its words on the wire and then threw may have reached the customer, and a fresh row would answer them twice.
  * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
  * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
+ * An event's delivery is not run again here: its row is the delivery's, which a fresh job would leave failed and naming
+ * the old one, and its one way back is `event_deliveries_redrive` (00334, 00390), which replays every failed or paused
+ * delivery of its subscriber once the subscriber is mended, each with a job of its own (decision 0031's review of
+ * 9 October: one of the two re-drive paths goes).
  */
 declare function requeueFailedJob(db: Db, tenantId: string, jobId: string, record: (kind: string) => Promise<void>): Promise<Requeued>;
 
@@ -613,6 +620,11 @@ interface TickPorts {
     /** Never throws: a write that failed comes back as a row with its error. */
     settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
     alert(job: LedgerRow, news: JobNews): Promise<void>;
+    /**
+     * The platform's own pager (the edge's pageOperator: one page per condition per window), for a failure that is the
+     * platform's and never an owner's (ledger PAGES_THE_PLATFORM).
+     */
+    page(key: string, subject: string, body: string): Promise<unknown>;
     log: TickLog;
     now(): number;
     /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */
