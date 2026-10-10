@@ -12493,6 +12493,9 @@ interface ChannelDto {
      *  display name's review, the business's verification and tier; and when that was read. Null until it has been. */
     standing?: NumberStanding | null;
     standing_read_at?: string | null;
+    /** When the number last connected (the row's config, written by each connection): a number connected again keeps its
+     *  row, so `created_at` is its first connection's. Null on a row no connection has stamped. */
+    connected_at?: string | null;
 }
 /**
  * The row that speaks for a kind.
@@ -12545,6 +12548,8 @@ interface ChannelVM {
     /** What Meta holds about the number, and when it was read (the row's config): null until it has been read. */
     standing: NumberStanding | null;
     standingReadAt: string | null;
+    /** When the number last connected (the row's config); null on a row no connection has stamped. */
+    connectedAt: string | null;
     /** When the row was made. Carried so `channelFor` can break a tie the same way on
      *  either shape; the DTO has always had it. */
     created_at: string;
@@ -22937,11 +22942,7 @@ declare const WHATSAPP_COST_WORDS: {
     readonly billingLine: "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill.";
 };
 
-/**
- * WhatsApp opened on a connected number with a word ready to send: the way to try a number that skips the phone's own
- * record of who is on WhatsApp. Null without a usable number. The row's note and the toast a connection ends with open
- * the same link.
- */
+/** WhatsApp opened on a connected number with a word ready to send; null without a usable number. */
 declare function tryItLink(number: string | null | undefined): string | null;
 
 /**

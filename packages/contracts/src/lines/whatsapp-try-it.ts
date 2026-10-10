@@ -16,37 +16,32 @@ import type { ConnectionNote } from "./connection-note";
 const TRY_IT_TEXT = "Hi";
 
 /**
- * How long a new number's row says how to try it without being asked. The phone's own record that the number "isn't on
- * WhatsApp" lasts about an hour; a day covers the owner who connects in the evening and tries it in the morning. After
- * it the note is explanation again, behind the press beside the row's name.
+ * How long after a number connects its row says how to try it without being asked. The phone's own record lasts about an
+ * hour; a day covers the owner who connects in the evening and tries it in the morning. After it the note is explanation
+ * again, behind the press beside the row's name.
  */
-const TRY_IT_SAID_FOR_MS = DAY_MS;
+const TRY_IT_LIVE_WITHIN_MS = DAY_MS;
 
+/** The note's words; the link follows them on the row, its address as its label. */
 const TRY_IT_NOTE =
-  "Try it from your phone with this link. It opens the chat even while WhatsApp there still says the number isn't on WhatsApp.";
+  "Try it from your phone with this link, not by searching your contacts: it opens the chat even while WhatsApp there still says the number isn't on WhatsApp.";
 
-/**
- * WhatsApp opened on a connected number with a word ready to send: the way to try a number that skips the phone's own
- * record of who is on WhatsApp. Null without a usable number. The row's note and the toast a connection ends with open
- * the same link.
- */
+/** WhatsApp opened on a connected number with a word ready to send; null without a usable number. */
 export function tryItLink(number: string | null | undefined): string | null {
   return waMeLink(number, TRY_IT_TEXT);
 }
 
 /**
- * What a connected number says until a customer has written to it: how to try it from a phone, as a link to press.
- * WhatsApp on a phone keeps its own record of which numbers are on WhatsApp, and one that looked the number up before it
- * was registered reads "isn't on WhatsApp, invite" for about an hour (6 and 8 October: an owner took a number that had
- * just connected for one that had not). Its wa.me link asks WhatsApp afresh and the chat opens, so the link is the test:
- * said by the row itself for the number's first day (`live`), and kept behind the press after it. The link's words are
- * its address, which an owner reading on a desk can type into the phone.
+ * The try-it note of a number nobody has written to yet, with its link to press; none once a message has arrived. Said by
+ * the row itself (`live`) for a day from the number's connection, the stamp a connection writes (a number connected again
+ * keeps its row and the row's birth), else the row's birth; kept behind the press after it. The link's words are its
+ * address, which an owner reading on a desk can type into the phone.
  */
 export function tryItNotes(wa: ChannelVM, nowMs: number): ConnectionNote[] {
   const digits = waMeDigits(wa.number);
   const href = tryItLink(wa.number);
   if (!digits || !href || wa.lastInboundMs !== null) return [];
-  const age = nowMs - Date.parse(wa.created_at);
-  const fresh = age >= 0 && age < TRY_IT_SAID_FOR_MS;
+  const age = nowMs - Date.parse(wa.connectedAt ?? wa.created_at);
+  const fresh = age >= 0 && age < TRY_IT_LIVE_WITHIN_MS;
   return [{ text: TRY_IT_NOTE, link: { label: `wa.me/${digits}`, href }, ...(fresh ? { live: true as const } : {}) }];
 }

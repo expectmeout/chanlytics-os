@@ -23992,6 +23992,7 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     messagingLimit: dto.messaging_limit ?? null,
     standing: dto.standing ?? null,
     standingReadAt: dto.standing_read_at ?? null,
+    connectedAt: dto.connected_at ?? null,
     created_at: dto.created_at
   };
 }
@@ -24236,8 +24237,8 @@ function codeNotes(codes, nowMs) {
 
 // src/lines/whatsapp-try-it.ts
 var TRY_IT_TEXT = "Hi";
-var TRY_IT_SAID_FOR_MS = DAY_MS;
-var TRY_IT_NOTE = "Try it from your phone with this link. It opens the chat even while WhatsApp there still says the number isn't on WhatsApp.";
+var TRY_IT_LIVE_WITHIN_MS = DAY_MS;
+var TRY_IT_NOTE = "Try it from your phone with this link, not by searching your contacts: it opens the chat even while WhatsApp there still says the number isn't on WhatsApp.";
 function tryItLink(number2) {
   return waMeLink(number2, TRY_IT_TEXT);
 }
@@ -24245,8 +24246,8 @@ function tryItNotes(wa, nowMs) {
   const digits2 = waMeDigits(wa.number);
   const href = tryItLink(wa.number);
   if (!digits2 || !href || wa.lastInboundMs !== null) return [];
-  const age = nowMs - Date.parse(wa.created_at);
-  const fresh = age >= 0 && age < TRY_IT_SAID_FOR_MS;
+  const age = nowMs - Date.parse(wa.connectedAt ?? wa.created_at);
+  const fresh = age >= 0 && age < TRY_IT_LIVE_WITHIN_MS;
   return [{ text: TRY_IT_NOTE, link: { label: `wa.me/${digits2}`, href }, ...fresh ? { live: true } : {} }];
 }
 
@@ -33090,11 +33091,11 @@ function whatsappNumberRow(base, wa, nowMs) {
         stateWords: stood.stateWords,
         sentence: stood.sentence,
         verb: stood.act ? { label: stood.act.label, to: stood.act.href, href: stood.act.href, who: "owner" } : null,
-        // A number that waits on its owner's card still takes a customer's message and answers it (Meta holds back what
-        // the business starts), and a new account is in this state the moment it connects: the way to try it is said here
-        // too. A number Meta has stopped for anything else is not one to try.
+        // A number Meta lets send still answers the customer who writes first while it waits on its owner's card (Meta
+        // holds back only what the business starts), and a new account waits so the moment it connects: the way to try it
+        // is said here too. A BLOCKED number answers nobody, so it is not one to try (standingRow says the same of it).
         notes: [
-          ...stood.stateWords === "Waiting on you" ? tryItNotes(wa, nowMs) : [],
+          ...standing.can_send === "BLOCKED" ? [] : tryItNotes(wa, nowMs),
           ...standingNotes(standing, { limitSaid: false })
         ]
       };

@@ -537,10 +537,10 @@ test("a connected WhatsApp row says nothing of what WhatsApp costs (the Connect 
 });
 
 test("a connected number nobody has written to yet says how to try it from a phone, as a link to press built from its number; the row says it itself for the number's first day, and a number that waits on its owner's card says it too; once a message has arrived, or when the row is off, needs attention or has no number, it says nothing of the kind", () => {
-  // 8 October 2026: an owner took a number that had just connected for one that had not, since WhatsApp on his phone still
+  // 8 October 2026: an owner took a number that had just connected for one that had not, since WhatsApp on their phone still
   // said "invite". The note was plain words behind the row's press, and a new account (no card yet) did not say it at all.
   const TRY = {
-    text: "Try it from your phone with this link. It opens the chat even while WhatsApp there still says the number isn't on WhatsApp.",
+    text: "Try it from your phone with this link, not by searching your contacts: it opens the chat even while WhatsApp there still says the number isn't on WhatsApp.",
     link: { label: "wa.me/13055550188", href: "https://wa.me/13055550188?text=Hi" },
   };
   const unwritten = { last_inbound_at: null };
@@ -566,13 +566,30 @@ test("a connected number nobody has written to yet says how to try it from a pho
   );
   assert.deepEqual(whatsappRow(channel(null, { ...unwritten, status: "disabled" })).notes, [], "off");
   // A new account has no card yet, so its row waits on its owner from the moment it connects: the way to try it is said
-  // there too, first, since a customer's message is answered all the same. A number Meta stopped for anything else is not.
-  const waiting = whatsappRow(channel(BLOCKED, { ...unwritten, created_at: ago(2 * MIN) }));
+  // there too, first, since Meta lets the number answer a customer who writes first. A number Meta reports BLOCKED answers
+  // nobody, whether over the card or anything else, so it is not one to try.
+  const newAccount = { ...AVAILABLE, has_payment_method: false };
+  const waiting = whatsappRow(channel(newAccount, { ...unwritten, created_at: ago(2 * MIN) }));
   assert.equal(waiting.stateWords, "Waiting on you");
   assert.deepEqual(waiting.notes[0], { ...TRY, live: true });
-  const stopped = whatsappRow(channel(RESTRICTED, { ...unwritten, created_at: ago(2 * MIN) }));
-  assert.equal(stopped.stateWords, "Needs attention");
-  assert.ok(!stopped.notes.some((n) => n.text === TRY.text), "a number Meta has stopped is not one to try");
+  for (const [standing, words] of [
+    [BLOCKED, "Waiting on you"],
+    [RESTRICTED, "Needs attention"],
+  ]) {
+    const stopped = whatsappRow(channel(standing, { ...unwritten, created_at: ago(2 * MIN) }));
+    assert.equal(stopped.stateWords, words);
+    assert.ok(
+      !stopped.notes.some((n) => n.text === TRY.text),
+      `${words}, BLOCKED: a number Meta has stopped is not one to try`,
+    );
+  }
+  // A number connected again keeps its row, and with it the row's birth: its first day runs from the connection's own
+  // stamp, and a row no connection has stamped falls back to its birth.
+  const again = (connectedAgo) =>
+    whatsappRow(channel(null, { ...unwritten, created_at: ago(30 * 24 * HOUR), connected_at: ago(connectedAgo) }))
+      .notes;
+  assert.deepEqual(again(2 * MIN), [{ ...TRY, live: true }], "connected again two minutes ago");
+  assert.deepEqual(again(25 * HOUR), [TRY], "connected again yesterday");
   assert.deepEqual(
     whatsappRow(channel(null, { ...unwritten, quality: "RED", quality_event: "FLAGGED" })).notes,
     [],

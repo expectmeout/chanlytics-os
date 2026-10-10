@@ -408,11 +408,11 @@ function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: Cha
         stateWords: stood.stateWords,
         sentence: stood.sentence,
         verb: stood.act ? { label: stood.act.label, to: stood.act.href, href: stood.act.href, who: "owner" } : null,
-        // A number that waits on its owner's card still takes a customer's message and answers it (Meta holds back what
-        // the business starts), and a new account is in this state the moment it connects: the way to try it is said here
-        // too. A number Meta has stopped for anything else is not one to try.
+        // A number Meta lets send still answers the customer who writes first while it waits on its owner's card (Meta
+        // holds back only what the business starts), and a new account waits so the moment it connects: the way to try it
+        // is said here too. A BLOCKED number answers nobody, so it is not one to try (standingRow says the same of it).
         notes: [
-          ...(stood.stateWords === "Waiting on you" ? tryItNotes(wa, nowMs) : []),
+          ...(standing.can_send === "BLOCKED" ? [] : tryItNotes(wa, nowMs)),
           ...standingNotes(standing, { limitSaid: false }),
         ],
       };
