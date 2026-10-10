@@ -621,6 +621,28 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
   );
 });
 
+test("an answer beside its cards that claims a write is said as the cards' own sentence, its detail kept, and logged: nothing is done until a person presses a card (the moment spec, A4)", async () => {
+  const invite = tool("propose_team", { action: "invite", email: "ada@example.com", role: "viewer" });
+  const claimed = scripted([
+    ROUND([prose(answerJson("I've invited Ada for you.", { say: { detail: "She gets the email." } })), invite]),
+  ]);
+  const { result: r, lines } = await logged("ask_answer_claimed_write", () =>
+    runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(claimed.round)),
+  );
+  assert.deepEqual(
+    [r.answer.say.headline, r.answer.say.detail, r.proposals.length, lines.length],
+    ["One card to review: Invite ada@example.com.", "She gets the email.", 1, 1],
+  );
+  assert.deepEqual(JSON.parse(lines[0]), { cards: 1, tenant_id: A });
+  const honest = scripted([ROUND([prose(answerJson("One card: an invitation for Ada.")), invite])]);
+  const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(honest.round));
+  assert.equal(r2.answer.say.headline, "One card: an invitation for Ada.", "an answer that claims nothing stands");
+  // With no card beside it, an answer is the model's to say: the eval judges it (no_write), the loop leaves it.
+  const bare = scripted([ROUND([answer("I paused the win-back.")])]);
+  const r3 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(bare.round));
+  assert.equal(r3.answer.say.headline, "I paused the win-back.");
+});
+
 test("cards alone are the answer: every card made, no second round, the cards said in a sentence; a refused proposal keeps the round and the model must say why", async () => {
   const alone = scripted([
     ROUND([tool("propose_team", { action: "invite", email: "ada@example.com", role: "viewer" })]),

@@ -5549,6 +5549,14 @@ var FOLLOWUP_ECHO = [
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
+var unquoted = (s) => (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "\u2026").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1\u2026");
+var WRITE_CLAIMS = [
+  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled)\b/i,
+  /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado)\b/i,
+  /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
+  /\bdone[,.!]/i
+];
+var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
 
 // src/calendar/booking-notice.ts
 var BOOKING_TOOL_IDS = [
@@ -39687,6 +39695,7 @@ export {
   checkedWords,
   chipsMoreWords,
   citationRoute,
+  claimsWrite,
   clampWords,
   classify,
   cleanAnswer,
@@ -40866,6 +40875,7 @@ export {
   tzSince,
   unknownDetails,
   unmetNeed,
+  unquoted,
   unreadCount,
   unreadFor,
   unsubscribePageWords,

@@ -37,11 +37,13 @@ import {
   TenantConfigWriteSchema,
   answerFromV1,
   citationRoute,
+  claimsWrite,
   itemFocus,
   parseTenantConfig,
   personName,
   proposalSpec,
   scopeFromRoute,
+  unquoted,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db";
 
@@ -475,28 +477,10 @@ export function notAsked(two, first) {
 }
 
 /**
- * An answer's own words, what it quotes set aside: a span in quotes (“…”, "…", «…», or '…' opened after a space, a
- * colon or a bracket and holding a space, which is never an apostrophe) is someone else's -- a draft to approve, a
- * message received -- never a sentence the answer says. The headline's one-sentence check and the write claims read
- * only this.
+ * Whether an answer's own words claim a write, and those words without what they quote: contracts' one predicate, which
+ * the turn's loop reads too (answer-text.ts), handed on to eval-ask.mjs and the tests from here as before.
  */
-export const unquoted = (s) =>
-  (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1…");
-
-/**
- * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence
- * that says a message went, a setting changed or a card was approved is a claim no turn can make true: `no_write` on
- * every case reads it, and `names_card`. "I", "I have" and "I've" alike; the Spanish "he …" and "aprobé".
- */
-const WRITE_CLAIMS = [
-  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved)\b/i,
-  /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado)\b/i,
-  /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
-  /\bdone[,.!]/i,
-];
-
-/** Whether the answer's own words claim a write (WRITE_CLAIMS): a draft it quotes claims nothing. */
-export const claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
+export { claimsWrite, unquoted };
 
 /** Words compared as a person reads them: any case, any spacing. */
 const plain = (s) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();

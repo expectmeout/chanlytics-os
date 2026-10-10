@@ -27,6 +27,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "account_delete_plan_not_ended",
   "ask_answer_beside_read",
   "ask_answer_beside_refused_card",
+  "ask_answer_claimed_write",
   "ask_answer_not_json",
   "ask_answer_unparsed",
   "ask_context_failed",

@@ -19,6 +19,7 @@ import {
   callsAnswer,
   callsToday,
   cardOpenRoute,
+  claimsWrite,
   emptyReadSet,
   failedAnswer,
   leadQuestionRoute,
@@ -1015,4 +1016,27 @@ test("the v1 fields a v2 answer is stored beside: its words, each place it rests
     reads(...threads.map(threadRef)),
   ).answer;
   assert.equal(v1FromAnswer(many).citations.length, ASK_CAPS.citations);
+});
+
+test("a write claimed is one predicate (the moment spec, A4): what the eval judged, the loop now catches; a quote claims nothing", () => {
+  for (const said of [
+    "I've set up your win-back.",
+    "I started the follow-up for you.",
+    "I paused it.",
+    "I have resumed the offer.",
+    "I renamed it to Past clients.",
+    "I turned on the reminder.",
+    "I've scheduled it for 9am.",
+    "He configurado tus campañas.",
+    "He pausado la campaña.",
+    "I sent it.",
+  ])
+    assert.equal(claimsWrite(said), true, said);
+  for (const said of [
+    "Two cards to review: a win-back and a follow-up.",
+    "Once you approve it, it starts running.",
+    "The card is waiting for your approval.",
+    'Here is the reply, ready to approve: "I\'ve set up your visit."',
+  ])
+    assert.equal(claimsWrite(said), false, said);
 });
