@@ -712,24 +712,24 @@
 .set-team-group + .set-team-row { border-top: none; }
 /* What a removal asks beside its question: stop emailing them too. */
 .set-team-also { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-/* An Operator's or a Viewer's foot: who to ask. */
-.set-team-ask-owner {
-  margin: 0;
-  padding: var(--set-row-y) 0;
+/* The card's foot: whom to ask, for an Operator or a Viewer, and what each role can do, at the line's end beside it. */
+.set-team-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: var(--set-row-y) 0 8px;
   border-top: 1px solid var(--line);
-  font-size: var(--set-hint);
-  color: var(--ink-dim);
 }
-.set-team-history { gap: 6px; margin-left: auto; }
+.set-team-ask-owner { margin: 0; font-size: var(--set-hint); color: var(--ink-dim); text-wrap: pretty; }
 
 /* An address and its act on one line (Notifications' recipients): the kit's field takes what the row leaves. */
 .set-invite { display: flex; align-items: center; gap: 8px; padding: var(--set-row-y) 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .set-invite > :first-child { flex: 1; min-width: 180px; }
 
-/* The roles' row: their names, Compare and Preview as; the table opens under it. */
-.set-team-roles { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.set-team-roles-acts { display: inline-flex; align-items: center; gap: 4px; }
-.set-team-compare { margin: 0 0 var(--set-row-y); overflow-x: auto; }
+/* What each role can do: the table opens under the card's foot. */
+.set-team-compare { margin: 10px 0 0; overflow-x: auto; }
 .set-team-compare table { width: 100%; border-collapse: collapse; font-size: var(--set-hint); }
 .set-team-compare th,
 .set-team-compare td { padding: 8px 10px; border-top: 1px solid var(--line); text-align: center; }
@@ -764,6 +764,9 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .set-team-said > li[data-done] > :first-child { color: var(--ok-ink); }
 .set-team-said > li > :nth-child(2) { flex: 1; min-width: 0; color: var(--ink-muted); }
 
+/* The partner's group: one row drawn as an invitation's, its sentence whole under its name, and its act on a phone too. */
+.set-team-partner-row .set-team-note { text-wrap: pretty; }
+.set-team-partner-act { flex: none; display: flex; align-items: center; }
 /* The partner's row asks by a code: the field takes what the row leaves. */
 .set-team-partner-ask { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; padding: 0 0 var(--set-row-y); }
 .set-team-partner-ask > :first-child { flex: 1; min-width: 220px; }

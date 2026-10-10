@@ -345,20 +345,21 @@ test("an operator reads the roster and the gate's sentence with whom to ask; the
   delete globalThis.window.ST_STORE;
 });
 
-test("the roles' row: Compare opens the table ROLE_PERMS draws; Preview as offers the narrower roles", () => {
+test("the card's foot opens the table ROLE_PERMS draws; the card has no Activity and no Preview as", () => {
   reset();
   fresh();
   workspace();
   let tree = draw();
   assert.equal(byTestId(tree, "team-roles-compare"), null, "the table waits to be asked for");
+  assert.match(textOf(byTestId(tree, "team-roles")), /^What each role can do/);
   press(byTestId(tree, "team-roles-compare-toggle"));
   tree = draw();
   const table = byTestId(tree, "team-roles-compare");
   assert.equal(all(table, (n) => n.type === "tr").length, roleTable().length + 1, "a line a permission, and the head");
-  const preview = find(tree, (n) => n.type === MoreMenu && n.props.testid === "team-viewas");
-  assert.deepEqual(
-    preview.props.items.filter((i) => i.label).map((i) => i.label),
-    ["An Operator", "A Viewer"],
+  assert.equal(byTestId(tree, "team-activity"), null, "Settings › Activity keeps the team's changes");
+  assert.ok(
+    !find(tree, (n) => n.type === MoreMenu && n.props.testid === "team-viewas"),
+    "Preview as is hidden for now",
   );
 });
 
