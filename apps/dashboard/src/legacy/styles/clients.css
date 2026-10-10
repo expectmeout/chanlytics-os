@@ -1893,6 +1893,9 @@
    browser's grey box with a square corner (10 Oct 2026). */
 .pl-import input[type="file"]::file-selector-button { margin-right: 10px; padding: 8px 14px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); cursor: pointer; }
 .pl-import-read { align-self: flex-start; }
+/* Add people, one person: the line that says either box is enough, and the quiet words that ask for a note and a list. */
+.pl-add-hint { margin: -8px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.pl-add-more { display: flex; flex-wrap: wrap; gap: 16px; }
 .pl-import-preview, .pl-import-summary { display: flex; flex-direction: column; gap: 8px; }
 .pl-import-counts { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 .pl-import-hint { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }

@@ -32,6 +32,61 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 --
+-- Name: add_person(uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_user   uuid := auth.uid();
+  v_name   text := nullif(btrim(regexp_replace(coalesce(p_display_name, ''), '\s+', ' ', 'g')), '');
+  v_phone  text := nullif(btrim(coalesce(p_phone_e164, '')), '');
+  v_email  text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  v_source text := coalesce(nullif(btrim(p_source), ''), 'manual');
+  v_out    jsonb;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if v_phone is not null and v_phone !~ '^\+[1-9][0-9]{7,14}$' then
+    raise exception 'A phone number in international form is needed.' using errcode = '22023';
+  end if;
+  -- import_person's rule for an address (00170), so a person added by hand and one brought in from a file are read alike.
+  if v_email is not null and (
+       char_length(v_email) not between 3 and 254
+       or v_email !~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$') then
+    raise exception 'That is not an email address.' using errcode = '22023';
+  end if;
+  if v_phone is null and v_email is null then
+    raise exception 'A number or an address is needed.' using errcode = '22023';
+  end if;
+  if v_name is not null and char_length(v_name) > 80 then
+    raise exception 'A name is at most 80 characters.' using errcode = '22023';
+  end if;
+  v_out := public.resolve_person(p_tenant_id, null, null, v_phone, v_email, v_name, 'asserted', v_source,
+                                 jsonb_build_object('title', null));
+  return jsonb_build_object(
+    'contact_id', v_out->>'contact_id',
+    'existed', (v_out->>'existed')::boolean,
+    'email', v_out->'email',
+    'source', v_source
+  );
+end $_$;
+
+
+--
+-- Name: FUNCTION add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) IS 'Owner or operator adds a person by their number, their address or both, through resolve_person (00342): get-or-create by number then address; a name and an address fill only what is empty; consent stays unknown; the added event says where they came from. A person who asked to be forgotten is refused (PE001).';
+
+
+--
 -- Name: ai_failures_hour(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1960,7 +2015,7 @@ CREATE FUNCTION public.contact_first_moments(p_tenant_id uuid) RETURNS TABLE(con
   -- Each person's first reach-in: their first inbound message in their own words or their first inbound call that
   -- connected, whichever came first. Absent: the erased (a deletion is never growth, 00026), a person whose history was
   -- imported (no true first moment), and a person who has neither reached us (a message or call we sent, an automatic
-  -- reply, a dial nobody took: 00254, 00393).
+  -- reply, a dial nobody took: 00254, 00394).
   -- Each aggregate runs once per contact, in its own lateral, so the first moment is read once and filtered on.
   select c.id as contact_id, least(msg.at, call.at) as first_at
     from contacts c
@@ -1985,7 +2040,7 @@ $$;
 -- Name: FUNCTION contact_first_moments(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.contact_first_moments(p_tenant_id uuid) IS 'A person''s first reach-in, one row each: the earlier of their first inbound message in their own words (not an automatic reply, a list''s mail or a delivery report: message_is_a_persons_words) and their first inbound call that connected (call_connected), as first_at. None for a person who has only been written to or called by us, whose only mail was automated, or whose only call went unanswered; none for the erased, and none for anyone brought in with their history (a message with meta.backfill). The one rule for "a new person" in Reports and Today: report_series and metrics_summary read it (00393) and, from 00394, people_series. People''s own new_at and its "New this week" list are a wider reading and stay as they are.';
+COMMENT ON FUNCTION public.contact_first_moments(p_tenant_id uuid) IS 'A person''s first reach-in, one row each: the earlier of their first inbound message in their own words (not an automatic reply, a list''s mail or a delivery report: message_is_a_persons_words) and their first inbound call that connected (call_connected), as first_at. None for a person who has only been written to or called by us, whose only mail was automated, or whose only call went unanswered; none for the erased, and none for anyone brought in with their history (a message with meta.backfill). The one rule for "a new person" in Reports and Today: report_series and metrics_summary read it (00394) and, from 00395, people_series. People''s own new_at and its "New this week" list are a wider reading and stay as they are.';
 
 
 --
@@ -12449,7 +12504,7 @@ begin
   reach_people as (
     select distinct r.contact_id, r.is_now from reach_rows r
   ),
-  -- Each person's first reach-in (00393), told by the period it falls in; a first moment outside both is no one's here.
+  -- Each person's first reach-in (00394), told by the period it falls in; a first moment outside both is no one's here.
   firsts as (
     select f.contact_id, (f.first_at >= v_start) as is_now
       from public.contact_first_moments(p_tenant_id) f
@@ -12593,7 +12648,7 @@ end $$;
 -- Name: FUNCTION people_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00393, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00394, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -32135,6 +32190,15 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
+
+
+--
+-- Name: FUNCTION add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) TO authenticated;
+GRANT ALL ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) TO service_role;
 
 
 --

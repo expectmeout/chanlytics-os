@@ -1214,6 +1214,23 @@ async function recordConsent(db, p) {
   });
   return { data, error };
 }
+async function addPersonByHand(db, p) {
+  const { data, error } = p.email ? await db.rpc("add_person", {
+    p_tenant_id: p.tenantId,
+    p_phone_e164: p.phone ?? "",
+    p_email: p.email,
+    p_display_name: p.name,
+    p_source: p.source
+  }) : await db.rpc("create_person", {
+    p_tenant_id: p.tenantId,
+    p_phone_e164: p.phone ?? "",
+    p_display_name: p.name,
+    p_source: p.source
+  });
+  if (error) return { data: null, error };
+  const o = data ?? {};
+  return { data: { contact_id: String(o.contact_id), existed: o.existed === true }, error: null };
+}
 
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
@@ -5027,6 +5044,7 @@ export {
   activeWhatsappNumbers,
   activitySubjects,
   activityTokensOf,
+  addPersonByHand,
   addPersonNote,
   addToList,
   addToWaitlist,

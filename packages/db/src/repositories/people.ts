@@ -563,3 +563,33 @@ export async function recordConsent(
   });
   return { data, error };
 }
+
+/**
+ * A member adds a person by hand, on the member's own session: a number, an address or both, and a name if known.
+ * A number alone goes through create_person, as it always did, so a database before 00393 answers it; an address goes
+ * through add_person (00393), which takes either. Both resolve through the one door (decision 0034): a number or an
+ * address already here is that person, `existed` says so. The door's answer, or its refusal with its SQLSTATE, which
+ * the caller words (a route's dbRefusal): nothing is thrown here.
+ */
+export async function addPersonByHand(
+  db: Db,
+  p: { tenantId: string; phone: string | null; email: string | null; name: string; source: string },
+): Promise<{ data: { contact_id: string; existed: boolean } | null; error: PostgrestError | null }> {
+  const { data, error } = p.email
+    ? await db.rpc("add_person", {
+        p_tenant_id: p.tenantId,
+        p_phone_e164: p.phone ?? "",
+        p_email: p.email,
+        p_display_name: p.name,
+        p_source: p.source,
+      })
+    : await db.rpc("create_person", {
+        p_tenant_id: p.tenantId,
+        p_phone_e164: p.phone ?? "",
+        p_display_name: p.name,
+        p_source: p.source,
+      });
+  if (error) return { data: null, error };
+  const o = (data ?? {}) as { contact_id?: unknown; existed?: unknown };
+  return { data: { contact_id: String(o.contact_id), existed: o.existed === true }, error: null };
+}
