@@ -126,22 +126,138 @@ test("the shell's navigate moves the route, as a path; menu and top become the s
   assert.equal(win.location.pathname, "/w/acme-plumbing/inbox");
 });
 
-test("a tapped push for another workspace opens that workspace's page; one for this workspace moves the route", () => {
+test("a tapped push for another workspace opens that workspace's page, sealing what this tab kept of this one; one for this workspace moves the route", async () => {
   const HERE = "11111111-1111-4111-8111-111111111111";
   const THERE = "22222222-2222-4222-8222-222222222222";
   const { win, posted } = windowOf();
   win.__ACTIVE_WORKSPACE = HERE;
-  installAppBridge(win);
-  win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
-  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1");
-  assert.equal(posted.filter((p) => p.assigned).length, 0, "this workspace: no load");
-  win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-2", workspace: THERE }));
-  assert.deepEqual(
-    posted.filter((p) => p.assigned),
-    [{ assigned: `/w/${THERE}/inbox/th-2` }],
-    "REGRESSION: a push for one workspace opened its thread in whichever workspace the phone was showing",
-  );
-  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1", "and this page's route is not moved under it");
+  // The tab's cache, which this page's reads go into (surface-cache.ts reads the page's window and storage).
+  const kept = new Map();
+  const was = { window: globalThis.window, sessionStorage: globalThis.sessionStorage };
+  globalThis.sessionStorage = {
+    getItem: (k) => (kept.has(k) ? kept.get(k) : null),
+    setItem: (k, v) => kept.set(k, String(v)),
+    removeItem: (k) => kept.delete(k),
+  };
+  globalThis.window = win;
+  const cache = await import("../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+  const CACHE = "chanlytics.surfaces.v1";
+  try {
+    installAppBridge(win);
+    win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
+    assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1");
+    assert.equal(posted.filter((p) => p.assigned).length, 0, "this workspace: no load");
+    win.INBOX_PROBE = { threads: ["acme-plumbing's"] };
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], HERE);
+    cache.flushSurfaceCache();
+    assert.ok(kept.get(CACHE), "this workspace's rows, cached, as a reload would paint them");
+    win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-2", workspace: THERE }));
+    assert.deepEqual(
+      posted.filter((p) => p.assigned),
+      [{ assigned: `/w/${THERE}/inbox/th-2` }],
+      "REGRESSION: a push for one workspace opened its thread in whichever workspace the phone was showing",
+    );
+    assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1", "and this page's route is not moved under it");
+    assert.equal(kept.get(CACHE), undefined, "REGRESSION: the other workspace's address loaded with this one's rows");
+    // A read lands before the page unloads: persisted as every read is, and written by the page's hide.
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], HERE);
+    cache.flushSurfaceCache();
+    assert.equal(kept.get(CACHE), undefined, "REGRESSION: written back into the tab the other workspace loads in");
+  } finally {
+    Object.assign(globalThis, was);
+  }
+});
+
+// After the test above, which seals the cache module for this file's life: a seal is seen here as the tab's slot
+// emptied, which every seal does.
+test("REGRESSION: a push that arrives before the workspaces read lands leaves the page only for another workspace -- one for this workspace sealed the tab's cache and loaded the page again", () => {
+  const HERE = "11111111-1111-4111-8111-111111111111";
+  const THERE = "22222222-2222-4222-8222-222222222222";
+  const CACHE = "chanlytics.surfaces.v1";
+  const ROWS = "this workspace's rows";
+  const kept = new Map();
+  const was = { window: globalThis.window, sessionStorage: globalThis.sessionStorage };
+  globalThis.sessionStorage = {
+    getItem: (k) => (kept.has(k) ? kept.get(k) : null),
+    setItem: (k, v) => kept.set(k, String(v)),
+    removeItem: (k) => kept.delete(k),
+  };
+  // A page just loaded: its tab's cache in the slot, and no workspaces read landed yet (no __ACTIVE_WORKSPACE).
+  const cold = (pathname) => {
+    const page = windowOf({ pathname, hash: "" });
+    globalThis.window = page.win;
+    kept.set(CACHE, ROWS);
+    return { ...page, off: installAppBridge(page.win) };
+  };
+  const push = (win, route, workspace) => win.__appBridge.receive(JSON.stringify({ t: "navigate", route, workspace }));
+  const loads = (posted) => posted.filter((p) => p.assigned);
+  try {
+    // A page a push opened by its id (workspaceHref): the address names the push's workspace.
+    let page = cold(`/w/${HERE}/today`);
+    push(page.win, "inbox/th-1", HERE);
+    assert.deepEqual(loads(page.posted), [], "REGRESSION: loaded again for the workspace it was already in");
+    assert.equal(page.win.location.pathname, `/w/${HERE}/inbox/th-1`, "the route moved");
+    assert.equal(kept.get(CACHE), ROWS, "REGRESSION: the tab's cache sealed for its own workspace");
+    push(page.win, "inbox/th-2", THERE);
+    assert.deepEqual(loads(page.posted), [{ assigned: `/w/${THERE}/inbox/th-2` }], "another id is another workspace");
+    assert.equal(kept.get(CACHE), undefined, "and leaving for it seals");
+
+    // A page at its slug, which says nothing of an id: the push waits for the read, and moves the route when the read
+    // says the workspace is this one.
+    page = cold("/w/acme-plumbing/today");
+    push(page.win, "inbox/th-1", HERE);
+    assert.deepEqual(loads(page.posted), [], "REGRESSION: loaded at once, whatever the push named");
+    assert.equal(page.win.location.pathname, "/w/acme-plumbing/today", "nor moved under a workspace it cannot name");
+    assert.equal(kept.get(CACHE), ROWS);
+    page.win.__ACTIVE_WORKSPACE = HERE;
+    page.fire("surface:workspace");
+    assert.deepEqual(loads(page.posted), [], "this workspace: no load");
+    assert.equal(page.win.location.pathname, "/w/acme-plumbing/inbox/th-1", "the route moved");
+    assert.equal(kept.get(CACHE), ROWS, "the tab's cache kept");
+    page.fire("surface:workspace");
+    assert.deepEqual(loads(page.posted), [], "answered once");
+
+    // The read names another workspace than the push's: that one's page, sealed; of two taps, the latest.
+    page = cold("/w/acme-plumbing");
+    push(page.win, "inbox/th-1", HERE);
+    push(page.win, "inbox/th-2", THERE);
+    page.win.__ACTIVE_WORKSPACE = HERE;
+    page.fire("surface:workspace");
+    assert.deepEqual(loads(page.posted), [{ assigned: `/w/${THERE}/inbox/th-2` }]);
+    assert.equal(page.win.location.pathname, "/w/acme-plumbing", "the earlier tap is not opened under it");
+    assert.equal(kept.get(CACHE), undefined);
+
+    // Off a workspace page (the home), nothing is this page's: the push's workspace opens at once.
+    page = cold("/");
+    push(page.win, "inbox/th-1", HERE);
+    assert.deepEqual(loads(page.posted), [{ assigned: `/w/${HERE}/inbox/th-1` }]);
+
+    // Uninstalled while one waits: nothing opens.
+    page = cold("/w/acme-plumbing");
+    push(page.win, "inbox/th-1", THERE);
+    page.off();
+    page.win.__ACTIVE_WORKSPACE = HERE;
+    page.fire("surface:workspace");
+    assert.deepEqual(loads(page.posted), []);
+    assert.equal(kept.get(CACHE), ROWS);
+
+    // No read lands: past the wait, the push opens its workspace's page as it did, never under this one's slug.
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      page = cold("/w/acme-plumbing");
+      push(page.win, "inbox/th-1", HERE);
+      mock.timers.tick(1000);
+      assert.deepEqual(loads(page.posted), [], "a second in, it still waits");
+      mock.timers.tick(60_000);
+      assert.deepEqual(loads(page.posted), [{ assigned: `/w/${HERE}/inbox/th-1` }]);
+      assert.equal(page.win.location.pathname, "/w/acme-plumbing");
+      assert.equal(kept.get(CACHE), undefined);
+    } finally {
+      mock.timers.reset();
+    }
+  } finally {
+    Object.assign(globalThis, was);
+  }
 });
 
 test("a menu ask that arrives before the shell has mounted waits for it; a scroll to the top of nothing is dropped", () => {

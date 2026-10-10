@@ -15,6 +15,7 @@ import {
   INPUT_MARKER,
   LeadRetry,
   type Phase,
+  heldBack,
   outOfTime,
   targetOf,
   wasJudged,
@@ -23,19 +24,56 @@ import {
 
 /* ------------------------------------------------------------- the start */
 
-export type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already";
+/** no_room: a term past the runs the round's reserve holds the actor's floor for (runCaps), said and never started. */
+export type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already" | "no_room";
 export type StartOutcome =
   | { kind: "not_open" }
-  | { kind: "paused" }
+  | { kind: "paused" | "may_not_spend" }
   | { kind: "spent" }
   | { kind: "started"; phase: Phase; runs: { term: string; kind: TermOutcome }[] };
+
+/** A run a start makes: its deterministic id, its token's hash, and what it asks for and may charge. */
+type WantedRun = { id: string; term: string; hash: string; places: number; cap: number };
+
+/**
+ * The runs a start makes, one per term in the plan's order, and the terms it does not start. placesToAsk may give a
+ * term nothing at all when little is left (S6): a run asked for no places is never started, and is not said. Nor is one
+ * past the runs the reserve holds the actor's floor for (runCaps): the caps of the runs that start never add up to more
+ * than the round reserved, and a term it could not afford is said beside the round's runs (no_room), with no row and no
+ * call to the provider.
+ */
+async function runsToStart(
+  p: LeadPorts,
+  roundId: string,
+  phase: Phase,
+  ask: { terms: string[]; perTerm: number[] },
+  caps: number[],
+): Promise<{ wanted: WantedRun[]; untried: { term: string; kind: TermOutcome }[] }> {
+  const wanted: WantedRun[] = [];
+  const untried: { term: string; kind: TermOutcome }[] = [];
+  for (const [i, term] of ask.terms.entries()) {
+    const places = ask.perTerm[i] ?? 0;
+    const cap = caps[i] ?? 0;
+    if (places <= 0) continue;
+    if (cap <= 0) {
+      untried.push({ term, kind: "no_room" });
+      continue;
+    }
+    const id = await runIdFor(roundId, phase, term);
+    wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places, cap });
+  }
+  return { wanted, untried };
+}
 
 export async function startRound(p: LeadPorts, roundId: string, owner: string, resume = false): Promise<StartOutcome> {
   const round = await p.db.round(roundId);
   if (!round || round.state === "ended") return { kind: "not_open" };
-  if (!(await p.db.leadSearchesOn(round.tenant_id))) {
+  // Searching switched off for this workspace, or a workspace that may no longer spend (its plan lapsed or its card
+  // failed since the door reserved): nothing new reaches the provider, and the round ends as a switched-off one does.
+  const held = await heldBack(p, round.tenant_id);
+  if (held) {
     await p.db.roundEnd(round.id, "paused");
-    return { kind: "paused" };
+    return { kind: held };
   }
   // What this round still has reserved. Nothing left starts nothing: the
   // actor's cap floor is a floor on a cap, never a licence to spend money the
@@ -66,16 +104,8 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
     ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
   }
-  const caps = runCaps(plan, ask.perTerm, leftUsd);
-
-  const wanted: { id: string; term: string; hash: string; places: number; cap: number }[] = [];
-  for (const [i, term] of ask.terms.entries()) {
-    // placesToAsk may give a term nothing at all when little is left (S6): a run asked for no places, or with nothing left to cap it, is never started.
-    if (ask.perTerm[i] <= 0 || caps[i] <= 0) continue;
-    const id = await runIdFor(round.id, phase, term);
-    wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
-  }
-  if (!wanted.length) return { kind: "started", phase, runs: [] };
+  const { wanted, untried } = await runsToStart(p, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
+  if (!wanted.length) return { kind: "started", phase, runs: untried };
   const rows = await p.db.runsEnsure(
     wanted.map((w) => ({
       id: w.id,
@@ -121,5 +151,5 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     }
   }
   if (outcomes.length && outcomes.every((o) => o.kind === "refused")) await p.db.roundEnd(round.id, "source_failed");
-  return { kind: "started", phase, runs: outcomes };
+  return { kind: "started", phase, runs: [...outcomes, ...untried] };
 }

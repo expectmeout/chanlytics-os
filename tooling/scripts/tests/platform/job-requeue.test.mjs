@@ -127,6 +127,27 @@ test("work that speaks to a person is never run again from here: it may have rea
   }
 });
 
+test("a job of any kind whose run put words on a wire before it failed is never run again from here: a text's answer may have reached the customer", async () => {
+  // The rule was by kind, and a text's answer (inbound_answer) is not a kind that always speaks: it says so on its row
+  // the moment before it does (jobs.spoke_at, ledger markSpoke). One that spoke and then threw was run again as a fresh
+  // row, which answered the customer a second time.
+  const spoke = ledger({
+    kind: "inbound_answer",
+    payload: { message_id: "m-7" },
+    spoke_at: "2026-09-29T09:59:58.000Z",
+  });
+  await assert.rejects(
+    platformJobRequeue(spoke.office, ctx, A, J),
+    (e) => e.code === "conflict" && e.message.includes("never run again from here"),
+  );
+  assert.deepEqual([spoke.tables.events, spoke.tables.jobs.length], [[], 1], "nothing recorded, nothing run");
+
+  // One that failed before it spoke (its model's turn threw) put nothing on the wire, and is run again.
+  const quiet = ledger({ kind: "inbound_answer", payload: { message_id: "m-8" }, spoke_at: null });
+  assert.deepEqual(await platformJobRequeue(quiet.office, ctx, A, J), { ok: true, job_id: J, kind: "inbound_answer" });
+  assert.equal(quiet.tables.jobs.length, 2);
+});
+
 test("a kind this deploy does not know waits for the deploy that does", async () => {
   const l = ledger({ kind: "made_up_kind" });
   await assert.rejects(

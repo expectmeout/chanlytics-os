@@ -273,6 +273,8 @@ type Requeued = {
  * The back office's door, on the platform scope: `record` writes who asked, after the checks and before the row, and a
  * record that throws leaves nothing done. A kind that speaks to a person is never requeued: its failure may be a send
  * whose outcome nobody knows, and it goes again from its thread or its broadcast, where a person sees whether it left.
+ * Nor is a job of any kind whose run said it was about to speak (spoke_at, ledger markSpoke): a text's answer that put
+ * its words on the wire and then threw may have reached the customer, and a fresh row would answer them twice.
  * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
  * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
  */
@@ -617,6 +619,12 @@ interface TickPorts {
     random?: () => number;
 }
 interface TickOptions {
+    /**
+     * When the tick started, as `now()` reads: the moment its function's door was reached, so the work before the loop
+     * (the door's reads, the outbox relayed) is inside every window below, as it is inside the function's ceiling. The
+     * loop's own first reading when absent.
+     */
+    startedAt?: number;
     /** Claim new work only this long after the tick starts. */
     claimForMs: number;
     /** Handlers are handed `start + yieldAtMs` as their deadline. */

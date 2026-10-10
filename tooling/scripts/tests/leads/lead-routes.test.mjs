@@ -265,6 +265,32 @@ test("a search: the route computes the estimate from the card's prices and hands
   await refused(searches.POST.run(send({ ...PLAN, count: 5000 }), ctxFor("owner", rpcs)), "validation", 400);
 });
 
+test("a plan that lapsed between the route's billing check and the door's own (00364) is a 402 in the door's words", async () => {
+  // Another owner, so the hour's count of searches is theirs alone.
+  const OTHER = "u-lapsed";
+  const ctx = {
+    ...ctxFor(
+      "owner",
+      {
+        lead_search_create: () => ({
+          error: "payment_required",
+          sentence: "Your last payment did not go through. Update the card in Billing, then try again.",
+        }),
+      },
+      {},
+      { memberships: [{ ...member("owner")[0], user_id: OTHER }] },
+    ),
+    userId: OTHER,
+  };
+  await assert.rejects(searches.POST.run(send(PLAN), ctx), (e) => {
+    assert.deepEqual(
+      [e.code, e.status, e.message],
+      ["payment_required", 402, "Your last payment did not go through. Update the card in Billing, then try again."],
+    );
+    return true;
+  });
+});
+
 test("a search from an Ask card names the thread it was planned in to the door, and the plan the door stores never carries it; a thread that is not an id is dropped, never a refusal", async () => {
   const THREAD = "77777777-7777-4777-8777-777777777771";
   const seen = [];

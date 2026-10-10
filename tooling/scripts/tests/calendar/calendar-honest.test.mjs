@@ -1585,6 +1585,72 @@ test("a window the board has read paints at once on the way back, and is read ag
   }
 });
 
+test("REGRESSION: two moves whose reads overlap land as the second, and neither says it could not read the days -- the first, its answer dropped, put the span back under the second, whose own answer was then dropped too", async () => {
+  const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { calendarOverride, getCalendarSpan, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
+  const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
+  setCalendarSpan(null);
+  const parked = [];
+  const was = {
+    location: globalThis.window.location,
+    fetch: globalThis.window.fetch,
+    ws: globalThis.window.__WORKSPACES,
+    active: globalThis.window.__ACTIVE_WORKSPACE,
+    cal: globalThis.window.__CALENDAR,
+  };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => {
+      const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      await new Promise((r) => parked.push(r));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  const release = async () => {
+    for (let i = 0; i < 40; i += 1) {
+      while (parked.length) parked.shift()();
+      await pause();
+    }
+  };
+  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
+  const stop = startSurfaces([calendarOverride], () => () => {});
+  try {
+    await release();
+    // Two windows this tab has never read, so each move waits on its read; the second asked while the first is out.
+    const first = "2027-03-01";
+    const second = "2027-05-03";
+    const toFirst = realVerbs.goTo(first, 63);
+    await pause();
+    const toSecond = realVerbs.goTo(second, 63);
+    await pause();
+    assert.equal(parked.length, 2, "both reads are out at once");
+    await release();
+    assert.equal(await toFirst, true, "REGRESSION: the first move said its days could not be read");
+    assert.equal(await toSecond, true, "REGRESSION: and so did the second, though every read landed");
+    assert.equal(getCalendarSpan().from, second, "REGRESSION: the first move put the span back under the second");
+    assert.equal(shown(), second, "the board shows the weeks asked for last");
+  } finally {
+    stop();
+    await release();
+    setCalendarSpan(null);
+    Object.assign(globalThis.window, {
+      location: was.location,
+      fetch: was.fetch,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+      __CALENDAR: was.cal,
+    });
+  }
+});
+
 test("the weeks a few moves on are the ones to read ahead: none where the loaded weeks cover them, each way's nearest where they do not", async () => {
   const { windowsToWarm } = await import(`${S}/calendar/warm.ts`);
   // Nine weeks from Mon Aug 24 to Sun Oct 25, the window around Sep 8.

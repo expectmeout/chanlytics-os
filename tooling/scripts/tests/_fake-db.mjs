@@ -467,12 +467,15 @@ const refusal = (code, message) => Object.assign(new Error(message), { code });
 const living = (c) => c.erased_at == null && c.merged_into_contact_id == null;
 const inWorkspace = (tables, tenantId) => (tables.contacts ?? []).filter((c) => c.tenant_id === tenantId);
 
-/** The door's reading of its arguments, refused with its own codes and words: the number as 00342 restates normalizePhone. */
+/** The door's reading of its arguments, refused with its own codes and words: the number as 00367 restates normalizePhone. */
 function resolveArgs(a) {
   const word = (v) => String(v ?? "").trim();
   const channel = word(a.p_channel) || null;
   const external = word(a.p_external) || null;
   const digits = String(a.p_phone ?? "").replace(/\D/g, "");
+  const plus = String(a.p_phone ?? "")
+    .trim()
+    .startsWith("+");
   const email = word(a.p_email).toLowerCase() || null;
   const name = word(a.p_name).replace(/\s+/g, " ").slice(0, 80) || null;
   const assurance = word(a.p_assurance) || "observed";
@@ -482,7 +485,7 @@ function resolveArgs(a) {
   const phone =
     digits === ""
       ? null
-      : digits.length === 10
+      : digits.length === 10 && !plus
         ? `+1${digits}`
         : digits.length >= 8 && digits.length <= 15
           ? `+${digits}`
@@ -762,18 +765,39 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
-    // Ask's day (00240): input plus output of the workspace's usage.ask_tokens events of the last 24 hours, a value
-    // that is not a number counting nothing, as the SQL sums them.
+    // Ask's day (00240, 00368): input, cache writes and output of the workspace's usage.ask_tokens events of the last
+    // 24 hours, a value that is not a number counting nothing and a cache read never counted, as the SQL sums them.
     ask_tokens_day: ({ p_tenant }) => {
       const since = Date.now() - 24 * 60 * 60 * 1000;
       const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       return (tables.events ?? [])
         .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
-        .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
+        .reduce(
+          (sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.cache_creation_input_tokens) + n(e.data?.output_tokens),
+          0,
+        );
     },
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,
+    // The configuration row's doors for a session (00365). A world has no row policy and no session, so the row reads as
+    // its owner reads it (nothing hidden), and the write is the versioned compare-and-swap, by nobody in particular. Who
+    // sees the feed's address and who may write are SQL's, proved on a stack in
+    // workspace/config/the-feed-address-is-the-owner-s.db.test.mjs; a suite that models a member who is not the owner
+    // gives its own.
+    tenant_config_read: ({ p_tenant_id }) => {
+      const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
+      if (!row) return null;
+      const { tenant_id, config, version, updated_at, updated_by } = row;
+      return { tenant_id, config, version, updated_at, updated_by: updated_by ?? null, feed_hidden: false };
+    },
+    tenant_config_write: ({ p_tenant_id, p_config, p_version }) => {
+      const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
+      if (!row) return { outcome: "missing", version: null, updated_at: null, updated_by: null };
+      if (row.version !== p_version) return { outcome: "stale", version: null, updated_at: null, updated_by: null };
+      Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: null });
+      return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: null };
+    },
     // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are

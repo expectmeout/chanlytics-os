@@ -60,20 +60,55 @@ export async function resolveChannelDetailed(
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
     return { channel: null, lookupFailed: true };
   }
-  const routed: RoutedChannel | null =
-    data && data.status === "active"
-      ? {
-          channelId: data.id,
-          tenantId: data.tenant_id,
-          kind: data.kind,
-          externalId: data.external_id,
-          numberE164: data.number_e164,
-          credentialsRef: data.credentials_ref,
-          config: data.config,
-        }
-      : null;
+  const routed: RoutedChannel | null = data && data.status === "active" ? routedOf(data) : null;
   cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
   return { channel: routed, lookupFailed: false };
+}
+
+/** The columns a channel routes by, as a row of them is read. */
+const ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, config, external_id";
+
+/** A channel's row as the runtime takes it. */
+function routedOf(row: {
+  id: string;
+  tenant_id: string;
+  kind: string;
+  external_id: string;
+  number_e164: string | null;
+  credentials_ref: string | null;
+  config: Json;
+}): RoutedChannel {
+  return {
+    channelId: row.id,
+    tenantId: row.tenant_id,
+    kind: row.kind,
+    externalId: row.external_id,
+    numberE164: row.number_e164,
+    credentialsRef: row.credentials_ref,
+    config: row.config,
+  };
+}
+
+/**
+ * A workspace's channel of a kind as a door that no channel routed reads it (a steer, an eval): its oldest active row,
+ * the one contracts channelFor picks, since a workspace may hold two of a kind. Null with none. A read that fails throws.
+ */
+export async function oldestActiveChannel(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  kind: string,
+): Promise<RoutedChannel | null> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select(ROUTED_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("kind", kind)
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
+  return data ? routedOf(data) : null;
 }
 
 /** The common case: callers that cannot act on the distinction. */
@@ -83,4 +118,57 @@ export async function resolveChannel(
   externalId: string,
 ): Promise<RoutedChannel | null> {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
+}
+
+/** One of a workspace's WhatsApp numbers, as a send from it needs the row: its id, its vault reference, Meta's id for it. */
+export interface WhatsappNumberRow {
+  id: string;
+  credentials_ref: string | null;
+  external_id: string;
+}
+
+/**
+ * A workspace's active WhatsApp numbers, oldest first. Connecting a second number leaves the first one active, so there
+ * may be two; the first is the one contracts channelFor picks, and the one a send goes from when nothing says which
+ * number its person wrote to. A read that fails throws.
+ */
+export async function activeWhatsappNumbers(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<WhatsappNumberRow[]> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, credentials_ref, external_id")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * The WhatsApp number a thread's person last wrote to: the line their newest WhatsApp message came in on (meta.line, the
+ * id of the channel that routed it, which core inbound/ingest.ts writes). Null when nothing says: they never wrote on
+ * WhatsApp, or their newest message was kept before its line was. A read that fails throws.
+ */
+export async function whatsappLineOf(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  conversationId: string,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("meta")
+    .eq("tenant_id", tenantId)
+    .eq("conversation_id", conversationId)
+    .eq("channel", "whatsapp")
+    .eq("direction", "inbound")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
+  const meta = data?.meta;
+  const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
+  return typeof line === "string" && line ? line : null;
 }

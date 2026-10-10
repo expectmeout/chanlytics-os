@@ -37,8 +37,15 @@ const win = {
 };
 globalThis.window = win;
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-const { startSurfaces, bootWaitsFor, getConnection, getSurfaceStatuses, markHydrated, onSurfaceStatusChange } =
-  await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const {
+  startSurfaces,
+  bootWaitsFor,
+  getConnection,
+  getSurfaceStatuses,
+  markHydrated,
+  onSurfaceStatusChange,
+  refreshSurfaces,
+} = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { getActiveWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { read } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 
@@ -476,6 +483,53 @@ test("the feed is joined once who is looking is known, not once the whole boot i
   }
 });
 
+test("REGRESSION: a refresh the live feed asks for never shares a read sent before the change -- Today's read of the conversations from a moment before a message could answer the Inbox's refresh after it", async () => {
+  // Today and the Inbox both read GET conversations, and identical reads share one request for two seconds: a write
+  // forgets every read out (client/api.ts), and what the live feed says changed now does too.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const sent = [];
+  const parked = [];
+  win.fetch = async (url) => {
+    sent.push(url);
+    await new Promise((r) => parked.push(r));
+    return new Response(JSON.stringify({ ok: true, data: { conversations: [] } }), { status: 200 });
+  };
+  const release = async () => {
+    for (let i = 0; i < 20; i += 1) {
+      while (parked.length) parked.shift()();
+      await tick();
+    }
+  };
+  const reads = (key, debounceMs) => ({
+    key,
+    refreshOnMessageInserts: true,
+    debounceMs,
+    apply: async () => void (await read("GET conversations")),
+  });
+  const today = reads("today", 60_000);
+  const inbox = reads("inbox", 1);
+  const feed = liveFeed();
+  const stop = startSurfaces([today, inbox], feed.join);
+  try {
+    await release();
+    assert.equal(feed.joins.length, 1, "the boot is in and the feed joined");
+    sent.length = 0;
+    // Today's own read goes out (its refresh, a return to the tab), and is still out when a message lands.
+    void refreshSurfaces([today]);
+    await settle(2);
+    assert.equal(sent.length, 1, "Today's read is out");
+    feed.joins[0].onChange({ tenant_id: "id-a" }, "messages", "INSERT");
+    await new Promise((r) => setTimeout(r, 10));
+    await settle(4);
+    assert.equal(sent.length, 2, "REGRESSION: the Inbox's refresh after the message took Today's read from before it");
+  } finally {
+    stop();
+    await release();
+  }
+});
+
 test("surfaces that watch the feed, started with no feed to join, are refused at the call rather than when the boot ends", () => {
   const watching = { key: "inbox", refreshOnMessageInserts: true, apply: async () => {} };
   assert.throws(() => startSurfaces([watching]), /need a feed to join/);
@@ -845,10 +899,11 @@ test("a boot that ends after its runner stopped never reloads for another worksp
     setItem: (k, v) => m.set(k, String(v)),
     removeItem: (k) => m.delete(k),
   };
+  // Cached at this address, and resolved then for another workspace than the server says now.
   const cachedFor = (tenant) =>
     m.set(
       "chanlytics.surfaces.v1",
-      JSON.stringify({ build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev", tenant, surfaces: {} }),
+      JSON.stringify({ build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev", at: "acme", tenant, surfaces: {} }),
     );
   const reloads = win.reloads;
   try {

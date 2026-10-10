@@ -5,7 +5,9 @@
  * review, every reply. What changed reaches the bell (lib/google's
  * listing-check.ts and profile-sync.ts, shared with the link, the connect
  * and "Check now"). Forty of each per tick, the never-read first, then the
- * oldest; a failure stays on its row and is tried again next hour.
+ * oldest, and none started past the tick's budget (GOOGLE_SWEEP_BUDGET_MS):
+ * what it leaves is `remaining`, read the next hour. A failure stays on its
+ * row and is tried again next hour.
  *
  * The route is api/cron/google.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks
  * the sweep key, then hands this its tick, so nothing below runs for a knock without the key.
@@ -21,7 +23,16 @@ import type { SweepTick } from "../ops/sweep-door.js";
 
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const GOOGLE_PER_TICK = 40;
-export async function sweepGoogle({ db, L }: SweepTick): Promise<Response> {
+/**
+ * How long into the tick, from the door, a listing or a profile may still be started before the rest of the page is
+ * left to the next hour: forty reads and forty syncs in turn, each a call or several of up to ten seconds (channels
+ * PLACES_TIMEOUT_MS), is minutes against the sixty-second function (vercel.json), and a tick killed part way answered
+ * nothing, so its request read as a timeout and the sweep as broken. A read started at the line still has its own time
+ * to finish. What the budget leaves is counted as remaining, unread and unstamped, and keeps its place at the front of
+ * the next page, as the calendar's does (sweep-rotation.ts CALENDAR_SWEEP_BUDGET_MS).
+ */
+const GOOGLE_SWEEP_BUDGET_MS = 35_000;
+export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Response> {
   const places = !!placesKey();
   const profile = !!profileClient();
   if (!places && !profile) return json(200, { ok: true, skipped: "no_places_key" });
@@ -44,6 +55,15 @@ export async function sweepGoogle({ db, L }: SweepTick): Promise<Response> {
     counted: 0,
     failed: 0,
   };
+  /** What the budget left of the pages, for the next hour. */
+  let remaining = 0;
+  // Out of time: the rest of this page is remaining, not read, and not stamped.
+  const overBudget = (what: "listings" | "profiles", unread: number): boolean => {
+    if (Date.now() - started <= GOOGLE_SWEEP_BUDGET_MS) return false;
+    remaining += unread;
+    L.warn("google_sweep_over_budget", { what, unread });
+    return true;
+  };
   if (places) {
     let due;
     try {
@@ -54,7 +74,8 @@ export async function sweepGoogle({ db, L }: SweepTick): Promise<Response> {
     }
     out.listings_due = due.length;
     await tzOf(due.map((d) => d.tenant_id));
-    for (const row of due) {
+    for (const [i, row] of due.entries()) {
+      if (overBudget("listings", due.length - i)) break;
       try {
         const r = await checkListing(db, row, zones.get(row.tenant_id) ?? "America/New_York", "keep", now);
         if (r.ok) {
@@ -78,7 +99,8 @@ export async function sweepGoogle({ db, L }: SweepTick): Promise<Response> {
     }
     out.profiles_due = due.length;
     await tzOf(due.map((d) => d.tenant_id));
-    for (const conn of due) {
+    for (const [i, conn] of due.entries()) {
+      if (overBudget("profiles", due.length - i)) break;
       try {
         const r = await syncProfile(db, conn, zones.get(conn.tenant_id) ?? "America/New_York", now);
         if (r.ok) {
@@ -94,6 +116,6 @@ export async function sweepGoogle({ db, L }: SweepTick): Promise<Response> {
       }
     }
   }
-  L.info("google_sweep", out);
-  return json(200, { ok: true, ...out });
+  L.info("google_sweep", { ...out, remaining });
+  return json(200, { ok: true, ...out, remaining });
 }

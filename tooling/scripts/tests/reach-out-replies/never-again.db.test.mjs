@@ -814,15 +814,18 @@ const SOURCES = {
   lead_set_stage: ["00142", "create or replace function public.lead_set_stage("],
 };
 
-/** The migration that re-creates a function last, after 00220, whose own suite holds it to the body before it. */
-const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00344" };
+/**
+ * The migration that re-creates a function last, after the one a test below holds it to (00220, 00344), whose own
+ * suite holds it to the body before it: ingest_inbound's 00361 in intake/a-delivery-taken-in-again-changes-no-consent.
+ */
+const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00344", ingest_inbound: "00361" };
 
 /**
  * 00344 (decision 0034, step 2) re-creates four doors whole, each its last body but for the person's block, which the
  * one door (resolve_person) resolves now: the body it was re-created from last, and the lines it meant to change as
  * [was, is] blocks, each found once in that body. lead_set_stage's last is 00220's (held above to 00142's); the
  * inbound door's 00110's, the call door's 00164's, the reach-out person's 00184's. The test below the next holds each
- * to it, and the database to 00344's.
+ * to it, and the database to 00344's, or to the body of the migration that re-creates it after (LATER).
  */
 const RECREATED_00344 = {
   ingest_inbound: [
@@ -1104,7 +1107,8 @@ test(
       const [live] = query(
         `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
       );
-      assert.equal(lf(live.prosrc), want, `${name}: the database runs it`);
+      const later = LATER[name];
+      assert.equal(lf(live.prosrc), later ? bodyIn(migration(later), header) : want, `${name}: the database runs it`);
     }
   },
 );

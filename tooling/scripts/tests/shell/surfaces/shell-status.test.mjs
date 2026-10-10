@@ -348,9 +348,17 @@ test("the status is published whenever any part of it changes, and only then", (
 
 test("a session that ends mid-page signs in again to the same page: the route rides to /login and back", async () => {
   assert.equal(workspace.signInHref({ hash: "#/inbox/th-1" }), "/login#/inbox/th-1");
-  assert.equal(workspace.signInHref({ pathname: "/w/acme/inbox/th-1", hash: "" }), "/login#/inbox/th-1", "from a path");
+  assert.equal(
+    workspace.signInHref({ pathname: "/w/acme/inbox/th-1", hash: "" }),
+    "/login?w=acme#/inbox/th-1",
+    "from a path, in its workspace",
+  );
   for (const none of ["", "#", undefined, null, "#access_token=abc"])
-    assert.equal(workspace.signInHref({ pathname: "/w/acme", hash: none }), "/login", `${none} is not a page`);
+    assert.equal(
+      workspace.signInHref({ pathname: "/w/acme", hash: none }),
+      "/login?w=acme",
+      `${none} is not a page; the workspace still is`,
+    );
 
   // The client's 401, on any read or write.
   const page = {
@@ -379,7 +387,7 @@ test("a session that ends mid-page signs in again to the same page: the route ri
   ]);
   await settle();
   stop();
-  assert.deepEqual(win.location.assigned, ["/login#/calendar"]);
+  assert.deepEqual(win.location.assigned, ["/login?w=acme#/calendar"], "in the workspace the page is in");
   win.location.hash = "#/inbox/th-1";
 });
 

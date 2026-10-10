@@ -16,6 +16,7 @@ import {
   type SeenMarksDto,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { readAllRowsByKey } from "../paged";
 
 type Db = SupabaseClient<Database>;
 
@@ -158,11 +159,67 @@ export async function personRow(db: Db, tenantId: string, contactId: string): Pr
  */
 export async function everyoneIn(db: Db, tenantId: string): Promise<PersonRowDto[]> {
   const all: PersonRowDto[] = [];
+  for await (const page of everyonePages(db, tenantId)) all.push(...page);
+  return all;
+}
+
+/** Every page of people in the kept order, each just past the last row's place; by offset before 00276. */
+async function* everyonePages(db: Db, tenantId: string): AsyncGenerator<PersonRowDto[]> {
+  let read = 0;
   for (let after: PeopleCursor | null = null; ;) {
-    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all.length });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) return all;
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: read });
+    read += page.length;
+    yield page;
+    if (page.length < PEOPLE_PAGE) return;
     after = peopleCursorOf(page[page.length - 1]);
+  }
+}
+
+/** More people than any workspace holds; a copy whose read reaches it throws rather than call a part the whole. */
+const COPY_READ_CAP = 500_000;
+/** How many people a copy reads by their own row at once, for the ones its pass missed. */
+const MISSED_AT_ONCE = 10;
+
+/**
+ * Everyone exactly once, a page at a time, for a copy of them (the people CSV, the workspace export).
+ *
+ * everyoneIn's cursor is on a key that moves: someone the pass has not reached who writes moves above it, and is read
+ * on the next pass. People has a next pass; a file does not, so it left them out and looked whole, and by offset
+ * (before 00276) it also held the person on the boundary twice. The order is people_list's alone, so no key that never
+ * moves can page it. So the pass keeps each person the first time it reads them; then the ids of everyone live are
+ * read by the one key that never moves, their own (after the pass, so whoever came in during it is among them); and
+ * whoever the pass missed is read by their own row. Everyone live when the read ends is in the copy once; someone
+ * erased or merged during it is in it as they were, or not at all. A read that fails THROWS.
+ */
+export async function* everyoneOnceIn(db: Db, tenantId: string): AsyncGenerator<PersonRowDto[]> {
+  const seen = new Set<string>();
+  for await (const page of everyonePages(db, tenantId)) {
+    const fresh = page.filter((p) => !seen.has(p.id));
+    for (const p of fresh) seen.add(p.id);
+    yield fresh;
+  }
+  const live = await readAllRowsByKey<{ id: string }>(
+    "live people",
+    (c) => c.id,
+    (after, size) => {
+      let q = db
+        .from("contacts")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .is("erased_at", null)
+        .is("merged_into_contact_id", null);
+      if (after) q = q.gt("id", after);
+      return q.order("id").limit(size);
+    },
+    COPY_READ_CAP,
+    (what, cap) => {
+      throw new Error(`${what}: more than ${cap}; no copy is whole`);
+    },
+  );
+  const missed = live.map((c) => c.id).filter((id) => !seen.has(id));
+  for (let i = 0; i < missed.length; i += MISSED_AT_ONCE) {
+    const rows = await Promise.all(missed.slice(i, i + MISSED_AT_ONCE).map((id) => personRow(db, tenantId, id)));
+    yield rows.filter((r): r is PersonRowDto => r !== null);
   }
 }
 

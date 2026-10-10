@@ -39,6 +39,7 @@ import {
   CALLER,
   NOW,
   iso,
+  DOOR,
 } from "./_retell-webhook-world.mjs";
 
 // The door reads its keys at import; each test file is its own process, so
@@ -151,6 +152,26 @@ test("the door: a refusal is a 401 with one evidence row a minute; the raw body 
   assert.equal(rows().length, 4, "three accepted, and the one refusal");
   assert.equal(w.tables.events.length, 4, "a body carrying no call writes nothing but its auth row");
   assert.equal(ingests(db).length, 0);
+});
+
+test("a delivery on an old URL that still carries the ?key= is kept without it: the ledger holds the door and the signature, never the secret to every voice door", async () => {
+  const w = world();
+  w.open();
+  const id = w.callId("old_url");
+  const raw = JSON.stringify({ event: "call_started", call: w.call(id, { call_status: "ongoing" }) });
+  const secret = process.env.RETELL_FN_SECRET;
+  const res = await knock(raw, { signature: sign(raw), key: secret });
+  assert.deepEqual(
+    [res.status, await res.json()],
+    [200, { ok: true }],
+    "the signature let it in; the key was not read",
+  );
+  assert.deepEqual(
+    w.tables.provider_events.map((r) => [r.provider_event_id, r.url]),
+    [[`call_started:${id}`, DOOR]],
+    "kept on the door's own URL",
+  );
+  assert.ok(!JSON.stringify(w.tables.provider_events).includes(secret), "the secret is nowhere in the row");
 });
 
 /* ------------------------------------------------------- past the door */

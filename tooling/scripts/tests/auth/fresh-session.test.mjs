@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { sessionEnded } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -88,7 +89,11 @@ test("a session the Auth server has revoked is refused 401 and the handler is ne
   }));
   const res = await within(revoked, () => call(erase, req("POST")));
   assert.equal(res.status, 401);
-  assert.equal((await res.json()).error.code, "unauthorized");
+  const { error } = await res.json();
+  assert.equal(error.code, "unauthorized");
+  // Said apart from a session never shown: the gate still lets this token in, so the client ends the session before it
+  // signs in again, or /login sends it straight back (shell/address/session-ended.test.mjs runs the client's side).
+  assert.equal(sessionEnded(error.details), true, "the refusal says the session ended");
   assert.deepEqual(handled, [], "nothing was erased");
 
   const other = authServer(() => ({ data: { user: { id: "someone-else" } }, error: null }));

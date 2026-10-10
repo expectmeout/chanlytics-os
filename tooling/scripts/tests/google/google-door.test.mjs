@@ -1675,6 +1675,66 @@ test("refresh under the auto mode: a reply that names a price is held, not poste
   );
 });
 
+test("refresh under the auto mode: replies held for their owner never keep older reviews waiting, and one Google refuses gives its place to the next", async () => {
+  // The three newest reviews each had a reply held for naming a price: they keep no reply_text, so they come back as
+  // unreplied every hour. Three older ones, all on duty and in the window, still wait for an answer.
+  const ids = [
+    R1,
+    R2,
+    R3,
+    "66666666-6666-4666-8666-666666666666",
+    "77777777-7777-4777-8777-777777777777",
+    "88888888-8888-4888-8888-888888888888",
+  ];
+  const unanswered = ids.map((id, i) =>
+    reviewRow(id, { review_id: `g-${i + 1}`, author: `Author ${i + 1}`, published_at: ago((i + 1) * HOUR) }),
+  );
+  const tables = autoModeWorld(unanswered[0]);
+  tables.google_reviews = unanswered;
+  tables.events = ids.slice(0, 3).map((id, i) => ({
+    id: `00000000-0000-4000-8000-00000000000${i}`,
+    tenant_id: A,
+    kind: "google.reply_held",
+    category: "google",
+    subject_type: "review",
+    subject_id: id,
+    data: { review_id: `g-${i + 1}`, why: "price" },
+    created_at: ago(30 * 60_000),
+  }));
+  use(tables, new Map([[A, liveCreds()]]));
+  const model = scripted(said("Thank you for coming in. We hope to see you again."));
+  setModelFetch(model.fetch);
+  google({ reviews: [] });
+  // Google refuses the reply under the fourth review (it was taken down, say); the rest it accepts.
+  const accepts = wire.answer;
+  const asked = [];
+  wire.answer = (req) => {
+    if (req.method === "PUT") asked.push(req.url.split("/reviews/")[1]);
+    return req.method === "PUT" && req.url.endsWith("/reviews/g-4/reply")
+      ? refusal(400, "The review is not available.", "FAILED_PRECONDITION")
+      : accepts(req);
+  };
+  const [status, body] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(model.calls.length, 3, "a draft for each of the three older reviews, and none for a held one");
+  assert.deepEqual(asked, ["g-4/reply", "g-5/reply", "g-6/reply"], "the refused one gave its place to the next");
+  assert.equal(body.read.answered, 2);
+  assert.deepEqual(
+    tables.google_reviews.map((r) => [r.review_id, r.reply_text !== null]),
+    [
+      ["g-1", false],
+      ["g-2", false],
+      ["g-3", false],
+      ["g-4", false],
+      ["g-5", true],
+      ["g-6", true],
+    ],
+    "the held ones wait for their owner, the refused one for the next hour, and the older two are answered",
+  );
+});
+
 /* ----------------------------------- reply -------------------------------- */
 
 test("reply: the answer goes to Google as the owner under the review's own name, cleaned as Google accepts it, then onto the row and the ledger; a review the public listing showed, one not on record, a profile not connected and a refusal from Google are each named, and nothing is written for them", async () => {

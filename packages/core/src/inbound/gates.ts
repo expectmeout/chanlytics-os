@@ -87,6 +87,8 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     // on record', never as a block" — and a row carrying neither read as
     // `false`, an affirmative "they are opted in".
     recorded: ing && (ing.consent !== undefined || ing.dnc !== undefined) ? isOptedOutContact(ing) : null,
+    // A message already held (a text's answer job, a redelivery) said its START when it was first taken in.
+    takenAgain: ing?.is_new === false,
   });
   const optedOut = consent.optedOut;
 

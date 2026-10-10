@@ -58,6 +58,7 @@ import { emailDomain } from "../connections/email";
 import { tenantFacts } from "@/server/tenant";
 import { everyone } from "@/server/people/people";
 import { readSettings } from "./calendar-settings";
+import { storedConfigOf } from "@/server/workspace/config-row";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { addPeopleSeen } from "./people-seen";
 import { recordBusy } from "./record-busy";
@@ -361,16 +362,8 @@ export async function calendarSources(
   // The zone and the settings: handed in by a caller that read them this turn (readers/calendar.ts), else read here.
   const timezone = opts.timezone ?? (await tenantFacts(ctx.supabase, tenantId)).timezone;
   const span = spanFor(by.from, by.days, timezone, now, by.around ?? null);
-  let raw = opts.config;
-  if (raw === undefined) {
-    const { data: row, error } = await ctx.supabase
-      .from("tenant_config")
-      .select("config")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    raw = row?.config ?? null;
-  }
+  // The settings whole, the feed's address with them, for any member: the server reads the feed (config-row.ts).
+  const raw = opts.config === undefined ? await storedConfigOf(ctx.supabase, tenantId) : opts.config;
   const { cfg, lostCalendar } = readSettings(tenantId, raw);
   const url = cfg?.calendar?.ical_url ?? null;
   const profile = cfg?.brain?.profile ?? null;

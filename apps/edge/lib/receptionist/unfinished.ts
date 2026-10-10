@@ -26,14 +26,16 @@
  * message is in front of a person within about a quarter of an hour. Bounded
  * to the last day and a hundred rows a question: the sweep is a safety net,
  * not a backlog processor, and a day-old message it did not see is the
- * platform's problem, paged elsewhere. Every write is guarded on the row's
+ * platform's problem, paged elsewhere. And bounded in time: past the deadline
+ * the tick hands it, the rest wait for the next tick, unstamped, so the
+ * escalations behind it keep theirs. Every write is guarded on the row's
  * present state, so two overlapping ticks cannot double-flag.
  *
  * Cross-workspace: the deadman sweep visits every workspace; each write carries the row's own tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { isCampaignEmail, MIN_MS, HOUR_MS } from "../packages/contracts.js";
+import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS } from "../packages/contracts.js";
 import type { EscalationOutcome } from "../packages/jobs.js";
 import type { logger } from "../log.js";
 import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "../ops/notify.js";
@@ -78,6 +80,13 @@ const BATCH = 100;
 
 const ORPHAN_NOTE = "no job was left to send this";
 
+/**
+ * What a reply's row says once the words have left, or are in hand to: a held draft (queued) is sent by its own job,
+ * and when no job will, the second question below fails it and flags its thread. A reply that failed, or was
+ * withdrawn, is no answer.
+ */
+const ANSWER_STATES = ["queued", "sent", "delivered", "read"];
+
 /** The deadman endpoint's own collaborators, passed in so the sweep is one function over ports. */
 interface UnfinishedPorts {
   db: Db;
@@ -93,6 +102,8 @@ interface UnfinishedPorts {
   notify: typeof notifyFn;
   loadTenantNotifications: typeof loadFn;
   reachesTenant: typeof reachesFn;
+  /** When to stop raising and leave the rest to the next tick (epoch ms): the deadman tick's own work comes after. */
+  deadline: number;
   now?: () => number;
 }
 
@@ -167,6 +178,44 @@ const textsInHand = (db: Db, rows: InboundRow[], now: number) =>
     iso(now - ANSWER_JOB_GRACE_MS),
   );
 
+/**
+ * When each of these threads was answered since `since`: the receptionist's or the team's words, left or in hand
+ * (ANSWER_STATES). A broadcast's send, a playbook's reminder or a reach-out's email on the same thread is written as
+ * the team's and answers nobody (contracts isAutomatedSend), so a customer who wrote in the hour a reminder went out
+ * is still a customer with no answer.
+ */
+async function answersSince(db: Db, rows: InboundRow[], since: string): Promise<Map<string, string[]>> {
+  const convIds = [...new Set(rows.map((r) => r.conversation_id).filter((c): c is string => !!c))];
+  const { data: answered, error } = await db
+    .from("messages")
+    .select("conversation_id, created_at, meta")
+    .eq("direction", "outbound")
+    .in("sender", ["ai", "human"])
+    .in("status", ANSWER_STATES)
+    .in("conversation_id", convIds)
+    .gt("created_at", since);
+  if (error) throw new Error(`unfinished: cannot read replies: ${error.message}`);
+  const repliesBy = new Map<string, string[]>();
+  for (const a of answered ?? []) {
+    if (isAutomatedSend(a.meta)) continue;
+    repliesBy.set(a.conversation_id, [...(repliesBy.get(a.conversation_id) ?? []), a.created_at]);
+  }
+  return repliesBy;
+}
+
+/** One tick of the sweep: its ports, its moment, its counts, how an owner is told, and whether its time is up. */
+interface Tick {
+  p: UnfinishedPorts;
+  now: number;
+  out: UnfinishedSummary;
+  tell: (tenantId: string, n: NotifyMessage) => Promise<boolean>;
+  /**
+   * Past the deadline, what is left is the next tick's: a message keeps no stamp and a queued reply stays queued, so
+   * each is found again, and the deadman tick keeps its own time for the escalations nobody picked up.
+   */
+  late: () => boolean;
+}
+
 export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSummary> {
   const now = p.now ? p.now() : Date.now();
   const out: UnfinishedSummary = { unanswered: 0, orphaned: 0, told: 0 };
@@ -177,8 +226,15 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
     if (!p.reachesTenant(target)) return false;
     return p.notify(target, n);
   };
+  const late = () => (p.now ? p.now() : Date.now()) > p.deadline;
+  const tick: Tick = { p, now, out, tell, late };
+  await raiseUnanswered(tick);
+  await failOrphans(tick);
+  return out;
+}
 
-  // 1. A customer's message never finished with.
+/** 1. A customer's message never finished with: opened for a person, its owner told, and stamped handled. */
+async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void> {
   const { data: inbound, error: inErr } = await p.db
     .from("messages")
     .select("id, tenant_id, conversation_id, body, created_at, meta")
@@ -194,61 +250,56 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
   const found = (inbound ?? []) as unknown as InboundRow[];
   const answering = await textsInHand(p.db, found, now);
   const rows = found.filter((r) => !answering.has(r.id));
-  if (rows[0]) {
-    // A reply that went out after the message, before the stamp, is not a
-    // customer with no answer: the crash was between the send and the mark.
-    const convIds = [...new Set(rows.map((r) => r.conversation_id).filter((c): c is string => !!c))];
-    const { data: answered, error: ansErr } = await p.db
-      .from("messages")
-      .select("conversation_id, created_at")
-      .eq("direction", "outbound")
-      .in("conversation_id", convIds)
-      .gt("created_at", rows[0].created_at);
-    if (ansErr) throw new Error(`unfinished: cannot read replies: ${ansErr.message}`);
-    const repliesBy = new Map<string, string[]>();
-    for (const a of (answered ?? []) as { conversation_id: string; created_at: string }[]) {
-      repliesBy.set(a.conversation_id, [...(repliesBy.get(a.conversation_id) ?? []), a.created_at]);
+  const first = rows[0];
+  if (!first) return;
+  // A reply that went out after the message, before the stamp, is not a
+  // customer with no answer: the crash was between the send and the mark.
+  const repliesBy = await answersSince(p.db, rows, first.created_at);
+  for (const [i, r] of rows.entries()) {
+    if (late()) {
+      p.L.warn("unfinished_over_budget", { question: "unanswered", left: rows.length - i });
+      return;
     }
-    for (const r of rows) {
-      try {
-        const replied = !!r.conversation_id && (repliesBy.get(r.conversation_id) ?? []).some((t) => t > r.created_at);
-        if (!replied && r.conversation_id) {
-          const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / MIN_MS));
-          const words = short(r.body);
-          const detail = `The receptionist never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). Nothing has been sent — ${words ? `"${words}"` : "no text"}`;
-          await p.upsertEscalation(p.db, r.tenant_id, r.conversation_id, "brain_error", detail.slice(0, 400));
-          out.unanswered += 1;
-          const told = await tell(r.tenant_id, {
-            kind: "deadman",
-            route: "inbox",
-            subject: "A customer wrote and nothing answered",
-            body:
-              `A message arrived ${waitedMin} minutes ago and the receptionist never finished with it, so the customer has had no reply.\n\n` +
-              `${words ? `They wrote: "${words}"\n\n` : ""}` +
-              `The thread is flagged for you in the Inbox. Reply there; nothing will be sent on its own.`,
-            redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
-          });
-          if (told) out.told += 1;
-          p.L.warn("unfinished_inbound_flagged", {
-            tenant_id: r.tenant_id,
-            message: r.id,
-            waited_min: waitedMin,
-            told,
-          });
-        }
-        // Handled now, one way or the other: raised once, or a reply was there all along.
-        await p.markProcessed(p.db, r.tenant_id, r.id);
-      } catch (e) {
-        p.L.error("unfinished_inbound_failed", {
+    try {
+      const replied = !!r.conversation_id && (repliesBy.get(r.conversation_id) ?? []).some((t) => t > r.created_at);
+      if (!replied && r.conversation_id) {
+        const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / MIN_MS));
+        const words = short(r.body);
+        const detail = `The receptionist never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). No reply has been sent — ${words ? `"${words}"` : "no text"}`;
+        await p.upsertEscalation(p.db, r.tenant_id, r.conversation_id, "brain_error", detail.slice(0, 400));
+        out.unanswered += 1;
+        const told = await tell(r.tenant_id, {
+          kind: "deadman",
+          route: "inbox",
+          subject: "A customer wrote and nothing answered",
+          body:
+            `A message arrived ${waitedMin} minutes ago and the receptionist never finished with it, so the customer has had no reply.\n\n` +
+            `${words ? `They wrote: "${words}"\n\n` : ""}` +
+            `The thread is flagged for you in the Inbox. Reply there; nothing will be sent on its own.`,
+          redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
+        });
+        if (told) out.told += 1;
+        p.L.warn("unfinished_inbound_flagged", {
           tenant_id: r.tenant_id,
           message: r.id,
-          error: e instanceof Error ? e.message : String(e),
+          waited_min: waitedMin,
+          told,
         });
       }
+      // Handled now, one way or the other: raised once, or a reply was there all along.
+      await p.markProcessed(p.db, r.tenant_id, r.id);
+    } catch (e) {
+      p.L.error("unfinished_inbound_failed", {
+        tenant_id: r.tenant_id,
+        message: r.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
+}
 
-  // 2. A queued reply nothing is sending.
+/** 2. A queued reply nothing is sending: failed with an honest note, and its thread flagged. */
+async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
   const { data: queued, error: qErr } = await p.db
     .from("messages")
     .select("id, tenant_id, conversation_id, sender, created_at, meta")
@@ -259,55 +310,56 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
     .limit(BATCH);
   if (qErr) throw new Error(`unfinished: cannot read queued replies: ${qErr.message}`);
   const stuck = (queued ?? []) as unknown as QueuedRow[];
-  if (stuck.length) {
-    const live = await liveJobsNaming(
-      p.db,
-      "outbound_send",
-      stuck.map((s) => s.id),
-    );
-    for (const s of stuck) {
-      if (live.has(s.id)) continue;
-      try {
-        const { data: changed, error } = await p.db
-          .from("messages")
-          .update({ status: "failed", error: { reason: "orphaned", note: ORPHAN_NOTE } })
-          .eq("id", s.id)
-          .eq("tenant_id", s.tenant_id)
-          .eq("status", "queued")
-          .select("id");
-        if (error) throw new Error(error.message);
-        if (!changed?.length) continue; // another tick, or the send itself, got there first
-        out.orphaned += 1;
-        // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and
-        // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).
-        if (s.conversation_id && !isCampaignEmail(s.meta?.email?.request)) {
-          const who = s.sender === "ai" ? "The receptionist's reply" : "A reply";
-          await p.upsertEscalation(
-            p.db,
-            s.tenant_id,
-            s.conversation_id,
-            "send_failed",
-            `${who} never left: ${ORPHAN_NOTE}. Check the conversation before sending it again.`,
-          );
-          const told = await tell(s.tenant_id, {
-            kind: "deadman",
-            route: "inbox",
-            subject: "A reply never left",
-            body: `${who} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
-            redactedBody: "A queued reply in this workspace never left; the thread is flagged.",
-          });
-          if (told) out.told += 1;
-        }
-        p.L.warn("unfinished_queued_failed", { tenant_id: s.tenant_id, message: s.id });
-      } catch (e) {
-        p.L.error("unfinished_queued_sweep_failed", {
-          tenant_id: s.tenant_id,
-          message: s.id,
-          error: e instanceof Error ? e.message : String(e),
+  if (!stuck.length) return;
+  const live = await liveJobsNaming(
+    p.db,
+    "outbound_send",
+    stuck.map((s) => s.id),
+  );
+  for (const [i, s] of stuck.entries()) {
+    if (late()) {
+      p.L.warn("unfinished_over_budget", { question: "orphaned", left: stuck.length - i });
+      return;
+    }
+    if (live.has(s.id)) continue;
+    try {
+      const { data: changed, error } = await p.db
+        .from("messages")
+        .update({ status: "failed", error: { reason: "orphaned", note: ORPHAN_NOTE } })
+        .eq("id", s.id)
+        .eq("tenant_id", s.tenant_id)
+        .eq("status", "queued")
+        .select("id");
+      if (error) throw new Error(error.message);
+      if (!changed?.length) continue; // another tick, or the send itself, got there first
+      out.orphaned += 1;
+      // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and
+      // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).
+      if (s.conversation_id && !isCampaignEmail(s.meta?.email?.request)) {
+        const who = s.sender === "ai" ? "The receptionist's reply" : "A reply";
+        await p.upsertEscalation(
+          p.db,
+          s.tenant_id,
+          s.conversation_id,
+          "send_failed",
+          `${who} never left: ${ORPHAN_NOTE}. Check the conversation before sending it again.`,
+        );
+        const told = await tell(s.tenant_id, {
+          kind: "deadman",
+          route: "inbox",
+          subject: "A reply never left",
+          body: `${who} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
+          redactedBody: "A queued reply in this workspace never left; the thread is flagged.",
         });
+        if (told) out.told += 1;
       }
+      p.L.warn("unfinished_queued_failed", { tenant_id: s.tenant_id, message: s.id });
+    } catch (e) {
+      p.L.error("unfinished_queued_sweep_failed", {
+        tenant_id: s.tenant_id,
+        message: s.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
-
-  return out;
 }

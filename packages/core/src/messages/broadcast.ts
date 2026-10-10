@@ -19,7 +19,6 @@ import {
   messageHolds,
   nextOpenMoment,
   parseParamSpecs,
-  purposeOfTemplate,
   resolveParams,
   triggerOf,
   versionsOf,
@@ -28,8 +27,18 @@ import {
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
 import type { Channel, Delivered, Delivery } from "../deliver";
-import { isNotTakenError } from "../wire-senders";
-import { channelOf, countSent, overAllowance, queueEmailRow, rowFacts, prepare, type Work } from "./broadcast-channels";
+import { isNotTakenError, isWireUnavailableError } from "../wire-senders";
+import {
+  channelOf,
+  countSent,
+  overAllowance,
+  purposeAtTheDoor,
+  queueEmailRow,
+  rowFacts,
+  prepare,
+  startsInTime,
+  type Work,
+} from "./broadcast-channels";
 import { afterRefusal, pageTheDomain, release, stopForTheWorkspace, type Verdict } from "./broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "./ports";
 import { LIMIT_WORDS, WIRE_WORDS, gotIt, thenWhat } from "./broadcast-words";
@@ -256,7 +265,8 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   if (!(await ports.mark(b.id, r.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN }))) return "go on";
   // An email's queued row is written only now, with the claim held: a claim that was lost or failed left none behind. A
   // write that fails gives the claim back (nothing was written, nothing left), and the person waits queued like one
-  // whose thread could not be read; a row under that id that has had its say is not sent again.
+  // whose thread could not be read; a row under that id that has had its say is not sent again. The row is written
+  // claimed for the wire too (ports queueEmail), so a member's cancel-send cannot win it while the provider answers.
   const queued = await queueEmailRow(w, made).catch(async (e: unknown) => {
     await release(ports, b.id, r.contact_id, "not_taken");
     throw e;
@@ -270,9 +280,11 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   // row: the person's own line says why they were held. A broadcast is the
   // owner's words (the row says so) sent by the machine (the door is told so). An email's row is already written,
   // queued, and the door finalizes it. A door that throws before the wire leaves that row queued, so it is withdrawn
-  // here (a row the door settled is not touched): none is left to count against the month.
+  // here (a row the door settled is not touched): none is left to count against the month. A wire that could not be
+  // bound at the send (the number this person wrote to, of a workspace's two) left nothing either, as one not taken.
   const out = await ports.deliver(made.delivery).catch(async (e: unknown): Promise<NotTaken> => {
     if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
+    if (isWireUnavailableError(e)) return { outcome: "not_taken", status: 0 };
     await withdrawQueued(ports, b, made.delivery);
     throw new ThrownAtTheDoor(e);
   });
@@ -357,13 +369,14 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // WHICH yes this send needs. The message's own purpose (contracts campaignMessageOf): Meta's category is the authority
   // where it has a WhatsApp row, in any status — it can recategorise a live template — and else the category its email's
   // and text's rows carry. purposeOfTemplate fails closed, so a message whose category we do not have (or that has no row at
-  // all) reads as marketing and needs the stronger consent rather than the weaker one. Whichever channel it goes by. (What
-  // fills each slot, typed text once and the rest per person, and the workspace's own words for the slots that name it, are
+  // all) reads as marketing and needs the stronger consent rather than the weaker one. Whichever channel it goes by; and a
+  // playbook's run asks the stricter of it and its moment's class, as its enrolment did (purposeAtTheDoor). (What fills
+  // each slot, typed text once and the rest per person, and the workspace's own words for the slots that name it, are
   // `facts`, read once above.)
-  const purpose = message?.purpose ?? purposeOfTemplate(undefined);
   // The moment a playbook's run was made for (contracts audienceTrigger), null for a broadcast: a visit run is never held by the
   // month's allowance, and what its message is about, the pause it passes and whether it is an offer by email follow from it.
   const trigger = audienceTrigger(b.audience);
+  const purpose = purposeAtTheDoor(trigger, message);
   const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
@@ -396,12 +409,17 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   };
 
   let begun = 0;
+  let yielded = false;
   for (const [i, r] of batch.entries()) {
     if (unreadable) break;
     // Yield before the runner's ceiling rather than be killed mid-send: no new
     // send starts after the deadline, and the follow-up job below carries the
-    // rest. One person at least, so a batch that starts late still moves on.
+    // rest. One person at least, so a batch that starts late still moves on --
+    // but never a send whose own wire would outlive the function (startsInTime),
+    // the first's included: that leaves the rest queued, and is no stall.
     if (begun > 0 && ports.now() >= cmd.deadline) break;
+    yielded = !startsInTime(cmd, r, ports.now());
+    if (yielded) break;
     begun += 1;
     // FAIL CLOSED per person: a read that fails before the door — their
     // thread, the words for their slots — leaves them queued for the next
@@ -422,7 +440,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
 
-  await afterTheBatch(w, batch.length);
+  // A batch that stopped at its wire's moment is no failing read: the next is placed at once, never stalled on.
+  await afterTheBatch(w, yielded ? 0 : batch.length);
 }
 
 /**

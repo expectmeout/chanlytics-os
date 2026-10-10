@@ -184,6 +184,34 @@ test("moving the turn withdraws the receptionist's drafts the older turn left wa
   }
 });
 
+test("a draft its send job has already claimed is on its way: moving the turn leaves it to say what became of it", async (t) => {
+  if (skip) return t.skip(skip);
+  const th = await thread();
+  const older = await message(th);
+  const draft = (over = {}) =>
+    message(th, {
+      direction: "outbound",
+      sender: "ai",
+      status: "queued",
+      body: "We open at 9.",
+      meta: { source: "veto_window" },
+      ...over,
+    });
+  const waiting = await draft();
+  const onItsWay = await draft({ sending_at: new Date().toISOString() });
+  const newer = await message(th);
+
+  assert.equal((await claim(th, older)).data, true);
+  assert.equal((await claim(th, newer)).data, true);
+
+  assert.equal((await statusOf(waiting)).status, "canceled", "a draft no run has claimed is withdrawn, as before");
+  assert.deepEqual(
+    await statusOf(onItsWay),
+    { status: "queued", error: null },
+    "REGRESSION: a draft whose send was in flight was marked canceled, and the person got words the row said never left",
+  );
+});
+
 test("two claims at once end with exactly one message holding the turn, and it is the newest", async (t) => {
   if (skip) return t.skip(skip);
   for (let round = 0; round < 8; round += 1) {

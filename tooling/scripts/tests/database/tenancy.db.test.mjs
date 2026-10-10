@@ -511,6 +511,8 @@ after(async () => {
  * What a member may read of each tenant table:
  *   member  the workspace's rows
  *   acting  the workspace's rows, for an operator or an owner; a viewer reads nothing
+ *   owner   the workspace's rows, for its owner alone; a viewer and a partner read nothing (00366: the configuration,
+ *           which holds the calendar feed's address; every other member reads it through tenant_config_read)
  *   own     their own rows only (user_id = auth.uid()); another member of the same workspace sees none of theirs
  *   partner the partner who brought the workspace; no member else, its owner included
  *   brought the partner who brought the workspace, and its owner; a viewer reads nothing
@@ -690,7 +692,7 @@ const TENANT_TABLES = {
     "member",
     () => ({ tenant_id: A, class: "faq", mode: "auto", subject_type: "contact", subject_id: ctx.contact2 }),
   ],
-  tenant_config: ["member", () => ({ tenant_id: A })],
+  tenant_config: ["owner", () => ({ tenant_id: A })],
   billing_accounts: ["member", () => ({ tenant_id: A })],
   billing_events: ["none", () => ({ id: `evt_stranger_${Date.now()}`, type: "invoice.paid", tenant_id: A })],
   business_records: [
@@ -968,6 +970,13 @@ test(
       const asStranger = await seen(stranger.client, table, [["tenant_id", A]]);
       if (mode === "member" && !(asViewer >= 1))
         note(table, `a member (viewer) should read the workspace's rows, read ${asViewer}`);
+      if (mode === "owner") {
+        const asOwner = await seen(owner.client, table, [["tenant_id", A]]);
+        const asPartner = await seen(partner.client, table, [["tenant_id", A]]);
+        if (!(asOwner >= 1)) note(table, `the owner should read the workspace's rows, read ${asOwner}`);
+        if (!nothing(asViewer)) note(table, `a viewer read the owner's table (${asViewer})`);
+        if (!nothing(asPartner)) note(table, `a partner read the owner's table (${asPartner})`);
+      }
       if (mode === "acting") {
         const asOwner = await seen(owner.client, table, [["tenant_id", A]]);
         if (!(asOwner >= 1)) note(table, `an acting member (owner) should read the workspace's rows, read ${asOwner}`);
