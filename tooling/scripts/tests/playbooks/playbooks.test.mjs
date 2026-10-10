@@ -722,7 +722,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     canAct: true,
   });
   assert.ok(
-    sug.some((x) => x.kind === "act" && x.q === "Start a win-back playbook for the quiet clients"),
+    sug.some((x) => x.kind === "act" && x.q === "Start a win-back campaign for the quiet clients"),
     "an Act suggestion on People",
   );
   const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");

@@ -3385,7 +3385,7 @@ test("a campaign card opens in the composer on its moment before Approve, and sa
     id: "p1",
     kind: "playbook",
     needs: "operator",
-    title: "Playbook: Win-back",
+    title: "Campaign: Win-back",
     summary: "Win-back — nothing heard in 30 days",
     payload: { trigger: "quiet_30" },
     undo: "Delete it — nothing will run",
@@ -3398,6 +3398,49 @@ test("a campaign card opens in the composer on its moment before Approve, and sa
   assert.deepEqual(went, ["campaigns/new:moment:quiet_30"]);
   assert.equal(globalThis.window.askText("es").openComposer, "Abrir en el redactor");
   assert.equal(globalThis.window.askText("es").describeCampaigns, "Describe qué debe salir, y cuándo");
+});
+
+test("a campaign card says campaign, never playbook (the moment spec, D19): its kind's word in English and Spanish, and the question before its undo deletes it", () => {
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const A = globalThis.window.__ask;
+  const card = {
+    id: "p1",
+    kind: "playbook",
+    needs: "operator",
+    title: "Campaign: Win-back",
+    summary: "Win-back — nothing heard in 30 days",
+    payload: { trigger: "quiet_30" },
+    undo: "Delete it — nothing will run",
+  };
+  for (const [lang, word] of [
+    ["en", "campaign"],
+    ["es", "campaña"],
+  ]) {
+    const tree = render(AskCard, { p: card, messageId: "x", t: globalThis.window.askText(lang), onNav() {} });
+    const head = byClass(tree, "ask-card-head")[0];
+    assert.equal(textOf(byClass(head, "ask-card-kind")[0]), word, `its word in ${lang}`);
+  }
+  globalThis.window.__ask = { ...A, undoOpen: () => true };
+  try {
+    const made = {
+      ...card,
+      outcome: {
+        state: "done",
+        receipt: "Campaign “Win-back” is running",
+        atMs: Date.now(),
+        undo: { playbook_id: "pb1", decision_id: "d1" },
+      },
+    };
+    const props = { p: made, messageId: "x", t: globalThis.window.askText("en"), onNav() {} };
+    let tree = render(AskCard, props);
+    press(byClass(tree, "ask-card-undo")[0]);
+    tree = settle(AskCard, props);
+    const asked = textOf(tree);
+    assert.ok(asked.includes("The campaign and its schedule go"), asked);
+    assert.ok(!/playbook/i.test(asked), `no playbook in what a person reads: ${asked}`);
+  } finally {
+    globalThis.window.__ask = A;
+  }
 });
 
 test("on Leads a card that answers a search commits through Ask's door with no undo, and the Line goes to the search's question", async () => {

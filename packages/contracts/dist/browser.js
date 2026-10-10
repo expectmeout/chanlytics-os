@@ -10633,7 +10633,7 @@ var playbookChannelsSpec = {
   },
   // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
   // after it that the run which waits keeps the channels it was made with, where one does.
-  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The playbook", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
+  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
   undo: {
     label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
     window: "ten_minutes",
@@ -14548,7 +14548,7 @@ var KIND_WORDS = {
     deal: "Deal",
     list: "List",
     broadcast: "Broadcast",
-    playbook: "Playbook",
+    playbook: "Campaign",
     template: "Template",
     domain: "Domain"
   },
@@ -14563,7 +14563,7 @@ var KIND_WORDS = {
     deal: "Acuerdo",
     list: "Lista",
     broadcast: "Difusi\xF3n",
-    playbook: "Playbook",
+    playbook: "Campa\xF1a",
     template: "Plantilla",
     domain: "Dominio"
   }
@@ -14605,7 +14605,7 @@ function rightNowLine(w, language) {
   const total = who.length + w.more;
   const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you` : "";
   const n = w.runs.length;
-  const runs = n ? es ? `${n === 1 ? "un env\xEDo de playbook espera" : `${n} env\xEDos de playbook esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval` : "";
+  const runs = n ? es ? `${n === 1 ? "un env\xEDo de campa\xF1a espera" : `${n} env\xEDos de campa\xF1a esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one campaign run is" : `${n} campaign runs are`} waiting for your approval` : "";
   const k = w.searches.length;
   const searchesLine = k ? es ? k === 1 ? `tu b\xFAsqueda de ${w.searches[0].name} espera tu respuesta` : `${k} b\xFAsquedas esperan tu respuesta` : k === 1 ? `your search for ${w.searches[0].name} is waiting for your answer` : `${k} searches are waiting for your answer` : "";
   if (!people && !runs && !searchesLine)
@@ -14638,7 +14638,7 @@ function needsAnswer(w, language) {
     })),
     ...w.runs.map((r2) => ({
       title: r2.label,
-      meta: "Playbook",
+      meta: "Campaign",
       line: es ? `${r2.reach} ${r2.reach === 1 ? "persona" : "personas"}` : `${r2.reach} ${r2.reach === 1 ? "person" : "people"}`,
       source: { kind: "page", id: r2.to, label: r2.label, to: r2.to, door: true }
     }))
@@ -15745,8 +15745,8 @@ var T = {
     actInviteQ: "Invite ",
     actOffer: "Send an offer to a list",
     actOfferQ: "Send the ",
-    actPlaybook: "Start a win-back playbook",
-    actPlaybookQ: "Start a win-back playbook for the quiet clients",
+    actPlaybook: "Start a win-back campaign",
+    actPlaybookQ: "Start a win-back campaign for the quiet clients",
     actHold: "Hold every reply for my review",
     actHoldQ: "Hold every reply for my review before it sends",
     setUp: "Set up my campaigns",
@@ -15786,8 +15786,8 @@ var T = {
     actInviteQ: "Invita a ",
     actOffer: "Enviar una oferta a una lista",
     actOfferQ: "Env\xEDa la ",
-    actPlaybook: "Iniciar un playbook de recuperaci\xF3n",
-    actPlaybookQ: "Inicia un playbook de recuperaci\xF3n para los clientes inactivos",
+    actPlaybook: "Iniciar una campa\xF1a de recuperaci\xF3n",
+    actPlaybookQ: "Inicia una campa\xF1a de recuperaci\xF3n para los clientes inactivos",
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla",
     setUp: "Prepara mis campa\xF1as",

@@ -759,6 +759,15 @@ function withCampaignWord(frozen) {
 }
 
 /**
+ * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
+ * says "Reading the campaigns" where these bytes say "Reading the playbooks". The action keeps its name; the fixture
+ * stays as it was made.
+ */
+function withCampaignsLabel(want) {
+  return want.label === "Reading the playbooks" ? { ...want, label: "Reading the campaigns" } : want;
+}
+
+/**
  * 9 Oct 2026 (the moment spec, A6, D35): campaigns.playbooks says each playbook's last 30 days (last_30_days, from
  * campaign_series' sources; null where that read fails, as in this world, which models no campaign_series) in the place
  * of its all-time runs, sent and replied, and its route is Campaigns' own word. Nothing else moved.
@@ -966,7 +975,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const inOrder = (r) => [...r].sort();
     assert.deepEqual(
       { ...got, result: gotResult, reads: inOrder(got.reads) },
-      { ...want, ...card, result: wantResult, reads: inOrder(reads) },
+      { ...withCampaignsLabel(want), ...card, result: wantResult, reads: inOrder(reads) },
       `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`,
     );
   }

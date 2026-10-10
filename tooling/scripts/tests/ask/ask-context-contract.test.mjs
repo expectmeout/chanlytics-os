@@ -156,11 +156,16 @@ test("Ask at rest on Campaigns (the moment spec, A3): three ideas on the first d
   const later = qs({ campaigns: { rows } });
   assert.deepEqual(later.slice(0, 2), ["Why is Win-back waiting?", "What's working?"]);
   assert.ok(!later.includes("Win back customers who went quiet"), "a win-back runs");
-  assert.ok(!later.includes("Start a win-back playbook for the quiet clients"), "nor its act");
+  assert.ok(!later.includes("Start a win-back campaign for the quiet clients"), "nor its act");
   const none = qs({ campaigns: { rows: [{ ...rows[0], state: "paused", waiting: false }] } });
   assert.ok(none.includes("Win back customers who went quiet"), "a paused win-back runs nothing");
-  const es = buildAskSuggestions({ ...base, language: "es", campaigns: { rows: [] } })[0].q;
-  assert.equal(es, "Prepara mis campañas");
+  assert.ok(none.includes("Start a win-back campaign for the quiet clients"), "and its act, said as a campaign");
+  const es = buildAskSuggestions({ ...base, language: "es", campaigns: { rows: [] } });
+  assert.equal(es[0].q, "Prepara mis campañas");
+  assert.ok(
+    es.some((s) => s.kind === "act" && s.q === "Inicia una campaña de recuperación para los clientes inactivos"),
+    "the act in Spanish says campaña",
+  );
 });
 
 test("a scope has kinds of its own, and so do the context's rows; each is a kind a citation names, but the run, which a citation names a broadcast", () => {

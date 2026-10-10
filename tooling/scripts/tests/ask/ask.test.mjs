@@ -403,7 +403,7 @@ test("on the first run the page's own questions lead: what is left to set up and
   assert.equal(first.fast, false, "the model's, over the steps the server's start provider reads: no quick answer");
   // The page questions as one table (PAGE_QUESTIONS): each other surface offers what it did before it, word for word.
   const EVERYONE = ["Who needs me right now?*", "How did the week go?", "What can the receptionist do on its own?"];
-  const OFFER = ["Remember that ", "Send the ", "Start a win-back playbook for the quiet clients"];
+  const OFFER = ["Remember that ", "Send the ", "Start a win-back campaign for the quiet clients"];
   const CALLS = ["Did anyone call while I was busy?", ...EVERYONE, "Remember that "];
   const was = {
     today: ["Brief me on today", "Who wrote today?", ...EVERYONE, "Remember that ", "Close on "],
@@ -765,7 +765,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
   assert.equal(
     api.rightNow("en"),
-    "Nora is waiting on you; one playbook run is waiting for your approval.",
+    "Nora is waiting on you; one campaign run is waiting for your approval.",
     "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
   );
   assert.deepEqual(api.waiting().people, [
@@ -783,6 +783,11 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     api.waiting().runs.map((r) => [r.id, r.label, r.reach, r.to]),
     [["r1", "Win-back · quiet 30 days", 1, "broadcasts/run:r1"]],
   );
+  // A run whose audience has no name is a campaign's to its reader, never a playbook's (the moment spec, D19).
+  const named = win.__BROADCASTS.rows[0].audience;
+  win.__BROADCASTS.rows[0].audience = null;
+  assert.equal(api.waiting().runs[0].label, "Campaign");
+  win.__BROADCASTS.rows[0].audience = named;
   win.TODAY_DATA.queue.waiting = 9;
   assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (queue.waiting)");
   delete win.TODAY_DATA.queue.waiting;

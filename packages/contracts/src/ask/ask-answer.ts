@@ -186,7 +186,7 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
     deal: "Deal",
     list: "List",
     broadcast: "Broadcast",
-    playbook: "Playbook",
+    playbook: "Campaign",
     template: "Template",
     domain: "Domain",
   },
@@ -201,7 +201,7 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
     deal: "Acuerdo",
     list: "Lista",
     broadcast: "Difusión",
-    playbook: "Playbook",
+    playbook: "Campaña",
     template: "Plantilla",
     domain: "Dominio",
   },
@@ -299,8 +299,8 @@ export function rightNowLine(w: AskWaiting | null, language: AskLanguage): strin
   const n = w.runs.length;
   const runs = n
     ? es
-      ? `${n === 1 ? "un envío de playbook espera" : `${n} envíos de playbook esperan`} tu aprobación`
-      : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval`
+      ? `${n === 1 ? "un envío de campaña espera" : `${n} envíos de campaña esperan`} tu aprobación`
+      : `${n === 1 ? "one campaign run is" : `${n} campaign runs are`} waiting for your approval`
     : "";
   // One search is named, since its question is the thing waiting; several are only counted, like the runs.
   const k = w.searches.length;
@@ -355,7 +355,7 @@ export function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAns
     })),
     ...w.runs.map((r) => ({
       title: r.label,
-      meta: "Playbook",
+      meta: "Campaign",
       line: es
         ? `${r.reach} ${r.reach === 1 ? "persona" : "personas"}`
         : `${r.reach} ${r.reach === 1 ? "person" : "people"}`,

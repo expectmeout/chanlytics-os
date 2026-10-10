@@ -177,7 +177,7 @@ export function waitingFrom(win: Window): AskWaiting | null {
       .filter((r) => r.state === "pending_approval")
       .map((r) => ({
         id: r.id,
-        label: r.audience?.label || "Playbook",
+        label: r.audience?.label || "Campaign",
         reach: r.recipient_count,
         to: `broadcasts/run:${r.id}`,
       })),

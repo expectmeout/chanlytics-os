@@ -358,6 +358,11 @@ test("a playbook's channels, changed from a card: the playbook's own PUT with th
     spec.receipt(waits, {}),
     sentence(LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp", "email"], true)),
   );
+  // A card with no name says what a person calls it, a campaign (the moment spec, D19).
+  assert.equal(
+    spec.receipt(card("playbook_channels", { ...GOES_BY, name: undefined }), {}),
+    "The campaign goes by WhatsApp and Email now",
+  );
   assert.equal(spec.undo.label(p), "Put it back to WhatsApp");
   assert.equal(spec.undo.window, "ten_minutes");
   const kept = spec.undo.record(p, {}, TAB);

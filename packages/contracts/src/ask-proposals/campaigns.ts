@@ -159,7 +159,7 @@ export const playbookChannelsSpec: ProposalSpec = {
   // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
   // after it that the run which waits keeps the channels it was made with, where one does.
   receipt: ({ payload: pl }) =>
-    LIFECYCLE_TOAST.channels(asText(pl.name) || "The playbook", channelsIn(pl.channels), pl.run_waits === true)
+    LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true)
       .map((part) => (typeof part === "string" ? part : part.b))
       .join(""),
   undo: {

@@ -107,7 +107,7 @@ export const playbookChannelsAction = actAction({
   kind: "playbook_channels",
   input: z.object({ playbook_id: z.string(), channels: z.array(z.enum(CONSENT_CHANNELS)) }),
   examples: [{ playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", channels: ["whatsapp", "email"] }],
-  label: "Preparing a playbook's channels",
+  label: "Preparing a campaign's channels",
   words: `Action channels takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it, and channels (whatsapp, sms, email), every channel it should go by from now on, not only the ones to add (that read gives the channels it goes by now): each person is reached once, on the first of them that can reach them, so one more channel widens who it reaches and never sends a person two messages. Nothing else about the playbook changes. A channel its purpose never carries is refused; one it cannot go by yet (no line, no version of its message there, offers by email not open) is kept, and the card says it waits and that its runs hold those people until it can; a run of it already waiting for approval keeps the channels it was made with, and the card says so; and a playbook that already goes by exactly those channels is refused in words.`,
   build: proposePlaybookChannels,
 });

@@ -904,7 +904,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     get_settings: "Reading Settings",
     get_openings: "Checking the calendar",
     list_audiences: "Reading the lists and templates",
-    list_playbooks: "Reading the playbooks",
+    list_playbooks: "Reading the campaigns",
     get_calendar: "Reading the calendar",
     list_lead_searches: "Reading your searches",
     draft_reply: "Drafting a reply",
@@ -916,7 +916,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     propose_settings: "Preparing a settings change",
     propose_whisper: "Preparing a whisper",
     propose_broadcast: "Preparing a broadcast",
-    propose_playbook: "Preparing a playbook",
+    propose_playbook: "Preparing a campaign",
     propose_invite: "Preparing an invitation",
     propose_lead_search: "Planning a search",
   };

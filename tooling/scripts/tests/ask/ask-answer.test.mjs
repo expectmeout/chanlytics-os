@@ -71,6 +71,10 @@ test("an answer made before the Line reads back as prose: its rows are items, a 
     "navigate wins, in the app's words",
   );
   assert.equal(answerFromV1(v1({ language: "es" })).show.items[0].meta, "Hilo");
+  // A playbook a person reads as a campaign (the moment spec, D19), in both languages.
+  const pb = [{ kind: "playbook", id: ID2, label: "Win-back", to: `campaigns/moment:${ID2}` }];
+  assert.equal(answerFromV1(v1({ citations: pb })).show.items[0].meta, "Campaign");
+  assert.equal(answerFromV1(v1({ citations: pb, language: "es" })).show.items[0].meta, "Campaña");
   assert.equal(answerText(a), "Nora asked about Saturday; nobody else is waiting.");
 });
 
@@ -220,10 +224,13 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   assert.equal(rightNowLine(waiting(["Ana"]), "en"), "Ana is waiting on you.");
   assert.equal(
     rightNowLine(waiting(["Ana", "Sam"], 1), "en"),
-    "Ana and Sam are waiting on you; one playbook run is waiting for your approval.",
+    "Ana and Sam are waiting on you; one campaign run is waiting for your approval.",
   );
   assert.equal(rightNowLine(waiting(["Ana", "Sam", "Lee", "Kai"]), "en"), "Ana, Sam and 2 others are waiting on you.");
-  assert.equal(rightNowLine(waiting([], 2), "en"), "2 playbook runs are waiting for your approval.");
+  // A person reads "campaign", never "playbook" (the moment spec, D19), in both languages.
+  assert.equal(rightNowLine(waiting([], 2), "en"), "2 campaign runs are waiting for your approval.");
+  assert.equal(rightNowLine(waiting([], 1), "es"), "Un envío de campaña espera tu aprobación.");
+  assert.equal(rightNowLine(waiting([], 2), "es"), "2 envíos de campaña esperan tu aprobación.");
   assert.equal(rightNowLine(waiting([]), "es"), "Nadie te espera ahora mismo.");
   assert.equal(rightNowLine(waiting(["Ana", "Sam"]), "es"), "Ana y Sam te esperan.");
   assert.equal(
@@ -250,7 +257,7 @@ test("Right now names the one search waiting for an answer, counts several, afte
   );
   assert.equal(
     rightNowLine(waiting(["Ana"], 1, 0, [SEARCH]), "en"),
-    "Ana is waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Ana is waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
     "three populations, three clauses, in this order",
   );
   assert.equal(
@@ -277,7 +284,7 @@ test("rightNowCounts: the people, the runs and the searches the sentence counts;
   assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1, searches: 1 });
   assert.equal(
     rightNowLine(w, "en"),
-    "Nora, Emily and 1 other are waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Nora, Emily and 1 other are waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
 });
 
@@ -286,7 +293,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
   assert.equal(a.form, "structured");
   assert.equal(
     a.say.headline,
-    "Ana and Sam are waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Ana and Sam are waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
   assert.deepEqual(
     a.show.items.map((i) => [i.title, i.meta, i.line, i.source.to]),
@@ -299,7 +306,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
         "Most of the first 25 are gyms, not trainers. Keep them?",
         "clients/leads:s-s1:c-excluded",
       ],
-      ["Win-back · quiet 30 days", "Playbook", "1 person", "broadcasts/run:r0"],
+      ["Win-back · quiet 30 days", "Campaign", "1 person", "broadcasts/run:r0"],
     ],
     "the search's door is its question, opened where the answer row is (leadQuestionRoute)",
   );
