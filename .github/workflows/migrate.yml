@@ -1,0 +1,118 @@
+name: Migrate production
+
+# Main's migrations, applied to production by this workflow and by nothing else.
+#
+# Production took migrations by hand from branches: in one week of October 2026
+# two sessions twice took the same number, and one applied its 00346 to
+# production before its pull request merged while another pull request landed a
+# different 00346 on main. The CLI keys an applied migration by its version
+# alone, so production will never run main's, and no push could see it. So the
+# hand path is retired (docs/runbook.md, Apply a migration): a migration merges
+# first, in a pull request of its own, and this applies what main has that
+# production lacks, from main only, behind the `production` Environment, whose
+# required reviewer is the approval each push waits for.
+#
+# Before the push, production's ledger is read with its names and the dry run's
+# list is held to exactly main's files production lacks
+# (tooling/scripts/checks/migration-push.mjs): a version both hold under
+# different names, one production holds that main does not, a file below
+# production's head, or a file in the list that is not one of those stops the
+# push. After it, the compare the weekly workflow runs (migration-ledger.mjs
+# --compare) must find nothing missing. The job summary says what was applied.
+#
+# It needs the three secrets of the `production` Environment, which only Ruben
+# sets (docs/runbook.md, Apply a migration): SUPABASE_ACCESS_TOKEN (a personal
+# access token of the Supabase account), SUPABASE_PROJECT_REF (the project's
+# ref) and SUPABASE_DB_PASSWORD (the database's password, which `supabase link`
+# and `db push` read from the environment). Unset, the first step says so and
+# nothing is applied.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One push at a time, in order, never cancelled mid-way: a push cut off between
+# two files leaves production between two versions, and the next run applies
+# the rest.
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply main's migrations to production
+    # From main only: a run asked for by hand on any other ref does nothing.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # The rows of production's ledger, each version with the name the CLI recorded beside it.
+      LEDGER_QUERY: select version, name from supabase_migrations.schema_migrations order by version
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # When each migration landed on main is read from history, for the compare's report.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+      - name: The Environment's three secrets are set
+        shell: bash
+        run: |
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Nothing applied::$name is not set on the production Environment (docs/runbook.md, Apply a migration)."
+              exit 1
+            fi
+          done
+      - name: Link the project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Read production's ledger, with its names
+        shell: bash
+        run: |
+          supabase db query --linked -o json "$LEDGER_QUERY" > prod-ledger.json
+          cat prod-ledger.json
+      # The CLI's own refusal of a file below production's head ("to be inserted before the last migration") fails
+      # this step; never --include-all, which applies such a file after the ones above it.
+      - name: What the push would apply
+        shell: bash
+        run: |
+          set +e
+          supabase db push --linked --dry-run > dry-run.txt 2>&1
+          code=$?
+          cat dry-run.txt
+          exit "$code"
+      - name: It is exactly what main carries and production lacks
+        shell: bash
+        run: node tooling/scripts/checks/migration-push.mjs --dry-run dry-run.txt --production prod-ledger.json 2>&1 | tee push.txt
+      - name: Push
+        run: supabase db push --linked --yes
+      - name: Read production's ledger again
+        shell: bash
+        run: supabase db query --linked -o json "$LEDGER_QUERY" > prod-ledger-after.json
+      - name: Production has every migration main carries, and nothing main does not
+        shell: bash
+        run: node tooling/scripts/checks/migration-ledger.mjs --compare prod-ledger-after.json --hours 0 2>&1 | tee compare.txt
+      - name: Say what was applied
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Production's migrations"
+            echo
+            if [ -f push.txt ]; then cat push.txt; else echo "The push did not get as far as its check; the log says where it stopped."; fi
+            echo
+            if [ -f compare.txt ]; then cat compare.txt; fi
+          } >> "$GITHUB_STEP_SUMMARY"

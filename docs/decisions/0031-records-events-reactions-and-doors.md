@@ -6,7 +6,8 @@ clocks ratchet that holds invariant 6 (`tooling/scripts/tests/clocks/_clocks.mjs
 shows invariant 1 (`tooling/scripts/tests/baselines/writers.json`); of Phase 2, 0034's door with every writer on it and
 its doubt queue (00342 and 00344, 7 October 2026); the rest is not yet built: this note is the frame, and each step below is a note of its own,
 three of them decided with it (0032, 0033, 0034), and "Where it stands" below says, phase by phase and invariant by
-invariant, what is built and what is not. Proposed the same day from the wiring map of 5 October (the trace of
+invariant, what is built and what is not, and its entry of 9 October 2026 what that day's review against production
+moved. Proposed the same day from the wiring map of 5 October (the trace of
 how the Inbox, Campaigns, People, the Calendar and Setup reach each other, and a second review of it answered point by
 point). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at
 `6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the
@@ -215,6 +216,60 @@ Phase 3's first step is built behind a switch: a WhatsApp message of a workspace
 acknowledged (`apps/edge/lib/whatsapp/answer-later.ts`). Unset, which is the default, the webhook answers inside
 Meta's request as its reviewed contract says; the switch is how the road is tried on one workspace's traffic before
 that contract is changed for all.
+
+**9 October 2026**, a review of the frame against main at `d1bb65961` and against production, read only, after
+#1471 (00346 to 00348) and the merges of 7 and 8 October (00349 to 00359), all of which production holds (its head
+is 00359). Three readings were taken, each by a reviewer who had not built what it read: the spine and the clocks,
+the write paths and the patterns, and the road from a branch to production; the sharpest claims were read again in
+the code before they were kept.
+
+_What production says._ Six workspaces, four with any message in thirty days: about 140 messages and 76 calls. The
+spine has one subscription, `message.received` to `audit`, whose subscriber does nothing; of some 140 event kinds, four
+are written in the same transaction as their record (`message.received`, `call.recorded`, `appointment.changed`,
+`contact.consent_changed`) and about eighty TypeScript sites write theirs apart, best-effort, after the fact.
+`inbound_answer` has carried no production text yet (the four texts since 7 October arrived before its deploy), and
+the WhatsApp switch is unset. `resolve_person` writes a `person.resolved` for every call, so the hourly calendar sweep
+writes about 830 a week that say nothing changed, the largest kind by far. Every clock under pg_cron ran on time.
+
+_What it found, in the order it matters._ Two records are still written and then recorded: `assemble_broadcast`
+writes the run and its job, and the decision is a second write (`packages/core/src/campaigns/create-broadcast.ts`);
+a decision that fails answers 500 and lets the idempotency key go, so the next press is a second run to the whole
+audience, and the reach-out chain's save has the same shape. A member's take-over and hand-back are four to six writes
+on two clients (`packages/core/src/conversations/take-over.ts`, `hand-back.ts`); one that fails between them leaves
+the person's hold on the thread for up to a day while the Inbox shows it open, and the send door refuses every draft
+meanwhile. A provider's STOP is written to the person and its `contact.consent_changed` written apart, best-effort,
+while `consent_channels` is derived from that event. A subscription's change writes the account and the workspace's
+status apart (`apps/edge/lib/billing/billing.ts`). A failed `event_deliver` is told on the customer's bell, and one
+whose event was purged is counted nowhere. "May an automated message go" is two gates (voice's
+`outbound-gate.ts`, text's `reply-gates.ts`), and cancelling a queued message is written in five places. The 10-second
+clock that ends a hold scans `conversations`, whose `control_until` has no index. And the road: production is compared
+with main by version alone, so a 00346 of another name read as the same; migrations were applied by hand before their
+merge; a merge went in before its checks finished; nothing checks production after a deploy; a change to the one send
+door runs almost no tests, since selection follows folders.
+
+_What changes in the order._ The frame stands; its next steps move. Before any new mechanism, every record that is
+still written and then recorded takes a door, as 00350 to 00358 began: the broadcast and the reach-out chain with
+their decisions, the take-over and the hand-back whole, a provider's STOP with its event, a subscription's change with
+the workspace's status; a failed delivery is the platform's to hear, not the customer's; the hold's clock reads an
+index; and the sweep's no-change `person.resolved` is written no more. Then the road, since the week's two incidents
+were the road's: migrations applied to production only from main, by a workflow in an Environment the owner approves,
+a migration merged first in a pull request of its own; the compare by name as well as version; a smoke after each
+production deploy; main's push running the tests of what it changed; a merge only once its checks pass, which is a
+setting of Ruben's. Phase 2's remaining items are re-ranked behind those: receipts as events still wait on a reader;
+the reminder as a due row waits on the playbooks note. Phase 3's first real subscriber is the escalation's notice to
+the owner, not receipts: it has the widest coupling (fifteen sites in `packages/core/src/inbound`, the voice webhook,
+the email receipts), and today the owner's mail is sent inside Meta's and Retell's requests; its precondition is
+`escalation.opened` written in a door. An `appointment.*` subscriber that runs `reach_out_booked` closes the
+booking-email gap, since that door runs only from the hourly calendar sweep. Of the spine, what has no caller waits
+rather than grows: `aggregate_version` and `causation_id` until a projector, `job_capacity` until the reach-out's
+sends are jobs, the three per-kind dedupe indexes beside `jobs_dedupe_live` until one is shown to serve a read; one of
+the two re-drive paths (`event_deliveries_redrive`, the back office's `requeueFailedJob`) goes; and a paused
+subscription, which drops its events against 0032's decision 4, is settled one way. Phase 5 waits on Phase 4's
+numbers, as before. The staging project of Phase 0 is replaced by the road above, which covers what it was for.
+
+_Ruben's._ The merge settings (`enforce_admins`, merging by auto-merge, branches kept up to date); the Environment and
+its three secrets for the apply workflow; whether a paused subscription holds or drops; which workspace tries the
+WhatsApp switch; the alarm path the numbers of invariant 12 will ring.
 
 ## Tests
 

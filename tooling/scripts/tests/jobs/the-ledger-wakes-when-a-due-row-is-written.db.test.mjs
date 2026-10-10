@@ -8,12 +8,15 @@
  * scheduled or fired, and a row that failed lets the key be scheduled again. Each case runs in a transaction on this
  * machine's database that never commits, with its own edge in Vault, so pg_net sends nothing and nothing is left behind.
  * Read through the CLI, as jobs-lanes.db.test.mjs is; SUPABASE_CLI names the binary when `supabase` is not on PATH.
+ * One case claims from the ledger, the one queue every database suite shares, so the file takes the ledger's lock
+ * (_file-lock.mjs) and runs after the other claiming suites, never beside them.
  */
-import { test } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { takeLock } from "../_file-lock.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -23,6 +26,15 @@ const skip = !URL_
   : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
     ? "refusing a database that is not on this machine: this suite writes the ledger"
     : false;
+
+let releaseLedger;
+before(async () => {
+  if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
+});
+after(async () => {
+  await releaseLedger?.();
+});
 
 /** A transaction that never commits: `body` runs in a DO block that ends by raising what it `seen`, as hex. */
 function rolledBack(body) {

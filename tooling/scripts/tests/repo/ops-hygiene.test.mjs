@@ -1,16 +1,22 @@
 /**
- * Two pieces of operational hygiene from the Tier 1 ledger.
+ * Two pieces of operational hygiene from the Tier 1 ledger, and what gathered around them.
  *
  * The webhook evidence rows (webhook.auth, webhook.delivery) are written per
  * call turn and were never purged; the e2e suite only ran when somebody
- * remembered to run it.
+ * remembered to run it. Then the workflows' own rules, the edge's time limits,
+ * the log lines, and the database suites' own hygiene: a suite that claims from
+ * the jobs ledger takes its lock (October 2026: three claimed without it, and
+ * jobs-outbox.db failed on a shared stack whenever another claimed at the same
+ * moment).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { ROOT, readRaw } from "../_source.mjs";
+import { importsOf, parse, repoFiles, stringsIn } from "../_ast.mjs";
 import {
   LEASE_SECONDS,
   SEND_SETTLE_MS,
@@ -349,5 +355,110 @@ test("a log line on the message path carries a phone tail, never the number or t
       "from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to)",
     ),
     "the SMS logger's context: tails",
+  );
+});
+
+/** A call of `name(…)` by its bare identifier. */
+const isCallOf = (n, name) => ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === name;
+
+/**
+ * Whether a suite claims from the jobs ledger, read on its syntax tree: an `.rpc("claim_due_jobs", …)` call made with
+ * the function's own parameters (`p_lease_seconds` among them: a call by names it does not take is refused by the
+ * gateway, PGRST202, and claims nothing, which fake-db-agrees.db sends on purpose), or `claim_due_jobs(` in the SQL
+ * the suite sends.
+ */
+function claimsFromTheLedger(sf) {
+  let claims = stringsIn(sf).some((s) => /\bclaim_due_jobs\s*\(/.test(s));
+  const visit = (n) => {
+    if (
+      ts.isCallExpression(n) &&
+      ts.isPropertyAccessExpression(n.expression) &&
+      n.expression.name.text === "rpc" &&
+      n.arguments[0] &&
+      ts.isStringLiteralLike(n.arguments[0]) &&
+      n.arguments[0].text === "claim_due_jobs" &&
+      n.arguments[1] &&
+      ts.isObjectLiteralExpression(n.arguments[1]) &&
+      n.arguments[1].properties.some((p) => p.name && ts.isIdentifier(p.name) && p.name.text === "p_lease_seconds")
+    )
+      claims = true;
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return claims;
+}
+
+/** Whether a suite takes the ledger's lock as the helper says: `takeLock("jobs-ledger")`, imported, inside `before`. */
+function takesTheLedgerLock(sf) {
+  const imported = importsOf(sf).some(
+    (i) => /(^|\/)_file-lock\.mjs$/.test(i.specifier) && (i.names ?? []).includes("takeLock"),
+  );
+  let inBefore = false;
+  const visit = (n) => {
+    if (
+      isCallOf(n, "takeLock") &&
+      n.arguments[0] &&
+      ts.isStringLiteralLike(n.arguments[0]) &&
+      n.arguments[0].text === "jobs-ledger"
+    )
+      for (let p = n.parent; p; p = p.parent) if (isCallOf(p, "before")) inBefore = true;
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return imported && inBefore;
+}
+
+test("a database suite that claims from the jobs ledger takes the ledger's lock, in its before hook", () => {
+  // The ledger is one queue: claim_due_jobs takes the oldest due row of all of it, so a suite claiming beside another
+  // carries the other's row off, and the suites that claim take _file-lock.mjs's lock for the whole file. First the
+  // two readers on planted code, then every stack suite in the tree.
+  const planted = (code) => ts.createSourceFile("planted.mjs", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  assert.equal(claimsFromTheLedger(planted('db.rpc("claim_due_jobs", { p_limit: 5, p_lease_seconds: 90 });')), true);
+  assert.equal(
+    claimsFromTheLedger(planted('db.rpc("claim_due_jobs", { p_limit: 5 });')),
+    false,
+    "a call by names the function does not take is refused by the gateway and claims nothing",
+  );
+  assert.equal(claimsFromTheLedger(planted("const sql = `select j from public.claim_due_jobs(1, 90) j`;")), true);
+  assert.equal(claimsFromTheLedger(planted('db.rpc("jobs_backlog", {});')), false);
+  const lock = 'import { takeLock } from "../_file-lock.mjs";';
+  assert.equal(
+    takesTheLedgerLock(planted(`${lock} let r; before(async () => { r = await takeLock("jobs-ledger"); });`)),
+    true,
+  );
+  assert.equal(
+    takesTheLedgerLock(planted(`${lock} const r = await takeLock("jobs-ledger");`)),
+    false,
+    "outside before, a lock is taken while the hooks already write",
+  );
+  assert.equal(
+    takesTheLedgerLock(planted(`${lock} before(async () => { await takeLock("lead-platform-list"); });`)),
+    false,
+    "another lock",
+  );
+  assert.equal(
+    takesTheLedgerLock(planted('before(async () => { await takeLock("jobs-ledger"); });')),
+    false,
+    "a takeLock of the suite's own is not the helper's",
+  );
+
+  const suites = repoFiles(["tooling/scripts/tests"]).filter((f) => f.endsWith(".db.test.mjs"));
+  const claiming = suites.filter((f) => claimsFromTheLedger(parse(f)));
+  for (const f of [
+    "tooling/scripts/tests/jobs/jobs-outbox.db.test.mjs",
+    "tooling/scripts/tests/jobs/jobs-lanes.db.test.mjs",
+    "tooling/scripts/tests/jobs/the-ledger-wakes-when-a-due-row-is-written.db.test.mjs",
+    "tooling/scripts/tests/lines/line-provision.db.test.mjs",
+  ])
+    assert.ok(claiming.includes(f), `${f} is read as a suite that claims`);
+  assert.ok(
+    !claiming.includes("tooling/scripts/tests/database/fake-db/fake-db-agrees.db.test.mjs"),
+    "a call the gateway refuses claims nothing",
+  );
+  const unlocked = claiming.filter((f) => !takesTheLedgerLock(parse(f)));
+  assert.deepEqual(
+    unlocked,
+    [],
+    'take the lock for the whole file: releaseLedger = await takeLock("jobs-ledger") first in before(), and await releaseLedger?.() last in after() (tooling/scripts/tests/_file-lock.mjs)',
   );
 });

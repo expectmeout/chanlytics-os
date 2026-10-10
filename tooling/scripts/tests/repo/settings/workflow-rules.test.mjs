@@ -143,3 +143,71 @@ test("every job says how long it may run: a step that hangs is ended at its cap,
       assert.ok(cap !== null && cap >= 1 && cap <= 60, `${file}: the job ${name} has no cap of an hour or less`);
   }
 });
+
+test("main's migrations reach production through migrate.yml alone: from main, behind the production Environment, the dry run held to the ledger, never --include-all", () => {
+  // Two sessions took one number in a week of October 2026, and one applied its file to production by hand before
+  // its pull request merged. The workflow applies main's files only, after the dry run is held to what main has and
+  // production lacks (migration-push.mjs), and compares the ledgers after the push.
+  const y = workflow("migrate.yml");
+  assert.match(
+    y,
+    /^on:\n {2}push:\n {4}branches: \[main\]\n {4}paths:\n {6}- "supabase\/migrations\/\*\*"\n {2}workflow_dispatch:\n/m,
+    "a push to main that changed a migration, or a hand",
+  );
+  assert.ok(y.includes("if: github.ref == 'refs/heads/main'"), "a run asked for on another ref does nothing");
+  assert.ok(y.includes("environment: production"), "the Environment's required reviewer is the approval");
+  const code = y
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l))
+    .join("\n");
+  assert.ok(!code.includes("--include-all"), "a file below production's head is never applied over it");
+  assert.ok(
+    y.includes("version, name from supabase_migrations.schema_migrations"),
+    "the ledger is read with its names",
+  );
+  const dryRun = y.indexOf("supabase db push --linked --dry-run");
+  const held = y.indexOf("migration-push.mjs --dry-run dry-run.txt --production prod-ledger.json");
+  const push = y.indexOf("supabase db push --linked --yes");
+  const compared = y.indexOf("migration-ledger.mjs --compare prod-ledger-after.json --hours 0");
+  assert.ok(
+    dryRun > 0 && held > dryRun && push > held && compared > push,
+    "the dry run, its check, the push, the compare",
+  );
+  for (const s of ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF", "SUPABASE_DB_PASSWORD"])
+    assert.ok(y.includes(`secrets.${s}`), `${s} is the Environment's`);
+  assert.ok(
+    y.includes("group: migrate-production") && y.includes("cancel-in-progress: false"),
+    "never cut off mid-way",
+  );
+});
+
+test("the weekly compare reads production's ledger with its names, and the production smoke runs on a ready production deployment of main alone", () => {
+  assert.ok(
+    workflow("migration-ledger.yml").includes("version, name from supabase_migrations.schema_migrations"),
+    "a version production applied under another name is seen on Mondays too",
+  );
+  const y = workflow("production-smoke.yml");
+  assert.ok(y.includes("deployment_status:"));
+  assert.ok(y.includes("github.event.deployment_status.state == 'success'"));
+  assert.ok(y.includes("contains(github.event.deployment.environment, 'Production')"));
+  assert.ok(y.includes("github.event.deployment.ref == 'main'"));
+  assert.ok(
+    y.includes(
+      'smoke.mjs --edge https://chanlytics-messaging.vercel.app --dashboard https://app.chanlytics.com --sha "$SHA"',
+    ),
+    "both hosts, the deployed commit",
+  );
+  assert.ok(y.includes("sleep 30") && y.includes("for attempt in 1 2 3 4 5 6 7 8 9 10"), "the second host may lag");
+  assert.ok(y.includes("gh issue list") && y.includes("gh issue create") && y.includes("gh issue comment"));
+  assert.ok(y.includes('title="Production smoke failed ('), "one issue per deployed commit");
+});
+
+test("a push to main runs the tests of what it landed, against the main commit before it", () => {
+  // Two pull requests merged before CI finished and turned main red (October 2026); a push ran no node test.
+  const y = workflow("ci.yml");
+  const typecheck = y.slice(y.indexOf("  typecheck:"), y.indexOf("  auckland:"));
+  const step = typecheck.slice(typecheck.indexOf("name: The tests of what the push landed"));
+  assert.ok(step.includes("if: github.event_name == 'push'"));
+  assert.ok(step.includes("BEFORE: ${{ github.event.before }}"), "the commit before the push");
+  assert.ok(step.includes('node tooling/scripts/checks/changed-tests.mjs "$base" HEAD'));
+});
