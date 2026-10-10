@@ -310,7 +310,7 @@ function sentenceCounted(c: CardCtx) {
             ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People"
             : trig && trig.kind === "deal"
               ? "The proposals waiting with nothing back — before their links, their follow-ups and the week's breath · click to open them in the Pipeline"
-              : "The list this playbook watches — before the gap and the week's breath · click to open it in People"
+              : "The list this campaign watches — before the gap and the week's breath · click to open it in People"
         }
         onClick={() => navigate(listRoute)}
         data-testid="pb-audience"
@@ -341,7 +341,7 @@ function sentenceArchived(c: CardCtx) {
                 () => restoreList(p.list_id),
                 () => (
                   <>
-                    <b>{p.triggerLabel}</b> is back; resume the playbook when you want it running
+                    <b>{p.triggerLabel}</b> is back; resume the campaign when you want it running
                   </>
                 ),
               )
@@ -350,7 +350,7 @@ function sentenceArchived(c: CardCtx) {
           >
             Bring the list back
           </LinkButton>
-          , or edit the playbook to run on another.
+          , or edit the campaign to run on another.
         </>
       ) : null}
     </>
@@ -545,7 +545,7 @@ function cardWaitActs(c: CardCtx) {
     <>
       {canAct && (
         <Button size="sm" disabled={busy} onClick={() => setSkipSure(true)} data-testid="pb-skip">
-          Skip this run
+          {LIFECYCLE_WORDS.ledger.skip}
         </Button>
       )}
       <Button
@@ -556,7 +556,7 @@ function cardWaitActs(c: CardCtx) {
         data-testid="pb-approve"
         {...(!canAct ? gate("approve", "approve a run") : refusal ? gatedProps(refusal) : {})}
       >
-        <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
+        <Icon name="check" size={12} /> {LIFECYCLE_WORDS.ledger.approve(waiting.recipient_count)}
       </Button>
     </>
   );

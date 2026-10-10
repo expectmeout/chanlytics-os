@@ -242,7 +242,7 @@ export const pbGuardWords = (
     kind === "visit"
       ? "One message per visit."
       : kind === "deal"
-        ? "Their proposal has its link and nothing back. One message per proposal, and one playbook message per person a week, across every playbook."
-        : "Never twice within its gap, and one playbook message per person a week, across every playbook.";
+        ? "Their proposal has its link and nothing back. One message per proposal, and one campaign message per person a week, across every campaign."
+        : "Never twice within its gap, and one campaign message per person a week, across every campaign.";
   return [pbWhoWords(channels, purpose, about), moment, pbSentence(heldBackWords(channels))].filter(Boolean).join(" ");
 };

@@ -89,10 +89,10 @@ test("the ledger's group is the address's own: campaigns/in:<group>, word-free, 
 test("the home's crumbs name Campaigns, and a playbook or a reach-out by name once the surfaces hold it; every address is one mount", () => {
   const c = (param) => campaignsChrome({ param });
   assert.deepEqual(c(null), { crumbs: ["Campaigns"], mount: "campaigns", act: null });
-  assert.deepEqual(c("moment:pb-1").crumbs, [HOME, "Playbook"], "before the first read no playbook is named");
+  assert.deepEqual(c("moment:pb-1").crumbs, [HOME, "Campaign"], "before the first read no campaign is named");
   setSurfaceValue("playbooks", { rows: [{ id: "pb-1", name: "Win-back" }] });
   assert.deepEqual(c("moment:pb-1").crumbs, [HOME, "Win-back"]);
-  assert.deepEqual(c("moment:pb-9").crumbs, [HOME, "Playbook"], "a link to one the surface does not hold names none");
+  assert.deepEqual(c("moment:pb-9").crumbs, [HOME, "Campaign"], "a link to one the surface does not hold names none");
   setSurfaceValue("reach_outs", [{ root_id: "ch-1", name: "Cold email to studios" }]);
   assert.deepEqual(c("moment:ch-1").crumbs, [HOME, "Cold email to studios"]);
   assert.deepEqual(c("new").crumbs, [HOME, "New message"]);

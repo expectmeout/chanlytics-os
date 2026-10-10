@@ -593,11 +593,11 @@ test("the detail says what it keeps to: the workspace's mode for its class, and 
   assert.doesNotMatch(guard, /gap|a week/, "no gap and no breath are promised for a visit trigger");
   assert.match(
     pbGuardWords("list", ["whatsapp"], "marketing"),
-    /^Only people with a recorded yes to offers and a phone number\. Never twice within its gap/,
+    /^Only people with a recorded yes to offers and a phone number\. Never twice within its gap, and one campaign message per person a week, across every campaign\./,
   );
   assert.match(
     pbGuardWords("deal", ["whatsapp"], "conversational"),
-    /Their proposal has its link and nothing back\. One message per proposal/,
+    /Their proposal has its link and nothing back\. One message per proposal, and one campaign message per person a week, across every campaign\./,
   );
   // An offer by email asks no recorded yes and no number: a yes to offers by email or a relationship on record, and an
   // address that works, and the wire's holds name an address, not a number.

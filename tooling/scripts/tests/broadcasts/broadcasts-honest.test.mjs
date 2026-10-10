@@ -925,6 +925,9 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       "where it sits among the runs waiting",
     );
     assert.equal(paneTitle(tree), "The month's offer");
+    // What made the run, first on the sheet's line: a campaign, never a playbook to its reader (decision 19).
+    assert.match(textOf(sheet), /Campaign · /);
+    assert.doesNotMatch(textOf(sheet), /Playbook · /);
     const reach = textOf(byTestId(sheet, "bc-sheet-reach"));
     assert.ok(
       reach.includes("2will get it") &&
@@ -965,6 +968,8 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     page(props);
     await settle();
     tree = again(props);
+    // One word per act (decision 19): Skip, as on every row a run is decided.
+    assert.equal(textOf(byTestId(tree, "bc-sheet-skip")).trim(), contracts.LIFECYCLE_WORDS.ledger.skip);
     press(byTestId(tree, "bc-sheet-skip"));
     tree = again(props);
     assert.equal(skipped.length, 0, "one press does not skip");
@@ -1753,7 +1758,7 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     assert.match(textOf(toasts[0].msg), /approved — 3 people/);
     assert.equal(
       textOf(byTestId(again(props), "bc-approve")).trim(),
-      "Approve the run",
+      "Approve · 3 people",
       "the button is back when the server took it",
     );
     while (reread.length) reread.shift()();
@@ -1827,7 +1832,7 @@ test("REGRESSION (C14): a send in flight draws its progress, Approve says it is 
   release();
   await settle();
   tree = again(props);
-  assert.equal(textOf(byTestId(tree, "bc-approve")).trim(), "Approve the run");
+  assert.equal(textOf(byTestId(tree, "bc-approve")).trim(), "Approve · 3 people");
 });
 
 test("REGRESSION (C15): the sending hours and the pace are the published ones -- they were typed into the pages beside the constants", async () => {
@@ -2252,6 +2257,7 @@ test("the run open beside the list is the address's: opening and closing it repl
     // A door out of the page is a link: it pushes, as every link does.
     const door = find(byTestId(tree, "bc-run-solo"), (n) => n.props?.className === "bc-run-link");
     assert.ok(door, "the run's playbook is a link in the pane's head");
+    assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
     const before = calls.length;
     press(door);
     assert.equal(went.at(-1), "outbound/pb-1");
@@ -3030,7 +3036,7 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
 
   tree = armed(undefined);
   assert.ok(
-    textOf(byTestId(tree, "template-delete-confirm")).includes("couldn't check which playbooks send it"),
+    textOf(byTestId(tree, "template-delete-confirm")).includes("couldn't check which campaigns send it"),
     "a playbooks read that has not landed is said",
   );
 });
@@ -3942,9 +3948,9 @@ test("History says whether a playbook or a person sent each broadcast, and the s
     all(tree, (n) => n.props?.["data-testid"] === "bc-history").map((n) => textOf(n).replace(/\s+/g, " "));
   let words = rowWords();
   assert.equal(words.length, 2);
-  // Each card says which kind sent it, first on its line: a playbook's run, or a broadcast a person sent.
+  // Each card says which kind sent it, first on its line: a campaign's run, or a broadcast a person sent.
   assert.ok(
-    words.some((w) => w.includes("Playbook · Win-back")),
+    words.some((w) => w.includes("Campaign · Win-back")),
     words.join(" || "),
   );
   assert.ok(
@@ -3958,12 +3964,13 @@ test("History says whether a playbook or a person sent each broadcast, and the s
     2,
     "the run's own name, and the audience — not a third time in the origin",
   );
+  assert.match(byTestId(run0, "bc-history-playbook").props["aria-label"], /^Campaign Win-back/);
   press(byTestId(run0, "bc-history-playbook"));
-  assert.equal(went.at(-1), "outbound/pb-1", "and it opens the playbook that made it");
+  assert.equal(went.at(-1), "campaigns/moment:pb-1", "and it opens the drawer of the campaign that made it");
 
   // The line splits them, and each count is its own filter.
   const line = byTestId(tree, "bc-standing");
-  assert.ok(textOf(line).includes("by a playbook") && textOf(line).includes("by hand"), textOf(line));
+  assert.ok(textOf(line).includes("by a campaign") && textOf(line).includes("by hand"), textOf(line));
   press(byTestId(line, "bc-origin-hand"));
   tree = again({ initialSegment: null, initialRun: null });
   words = rowWords();

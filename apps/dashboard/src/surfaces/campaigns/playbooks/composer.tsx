@@ -237,7 +237,7 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
             onValueChange={setName}
             maxLength={80}
             spellCheck={false}
-            aria-label="The playbook's name"
+            aria-label="The campaign's name"
             data-testid="pb-name"
           />
           <Icon name="pencil" size={13} />

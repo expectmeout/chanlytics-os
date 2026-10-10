@@ -428,6 +428,11 @@ test("the playbook composer keeps what was typed in the tab, opens again on it, 
 
   unmount();
   tree = composer();
+  assert.equal(
+    byTestId(tree, "pb-name").props["aria-label"],
+    "The campaign's name",
+    "a campaign to a screen reader too",
+  );
   type(byTestId(tree, "pb-name"), "Sunday quiet");
   tree = redraw(composer);
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");

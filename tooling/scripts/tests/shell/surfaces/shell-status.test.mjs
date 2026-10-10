@@ -1082,8 +1082,8 @@ test("REGRESSION (C13): a link to a playbook opens Campaigns' home on it, named 
     assert.deepEqual(crumbs("#/campaigns"), ["Campaigns"]);
     assert.equal(
       crumbs("#/campaigns/moment:pb-gone").at(-1),
-      "Playbook",
-      "a playbook since deleted is still named for what it was",
+      "Campaign",
+      "a campaign since deleted is still named for what it was",
     );
   } finally {
     setSurfaceValue("playbooks", undefined);

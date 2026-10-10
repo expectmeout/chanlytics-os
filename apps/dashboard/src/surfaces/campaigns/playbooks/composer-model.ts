@@ -437,7 +437,7 @@ function composerWords(
   { missing, labels, paused }: Slots & { paused: boolean },
 ) {
   // The name the route gives it when it is given none, said before it is saved.
-  const auto = trig && tpl ? playbookName(trig, tpl) : trig ? trig.label : "New playbook";
+  const auto = trig && tpl ? playbookName(trig, tpl) : trig ? trig.label : "New campaign";
   const title = f.name === null ? auto : f.name;
   const city = pageClock().city();
   // The Autonomy row its runs keep to, said by the one chip (PolicyChip) -- and not said at all where there is no row to name.
