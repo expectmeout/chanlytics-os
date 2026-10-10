@@ -13,7 +13,7 @@ import { useSurface } from "../../use-surface";
 import { businessActs, phoneAct, sectionSaver, teammatesOf, type Config } from "./acts";
 import { addressesOf, ChannelsCard } from "./channels";
 import { AlertGrid, type PutTick } from "./grid";
-import { alertVerbs } from "./surface";
+import { alertVerbs } from "./verbs";
 
 const BROKEN =
   "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change";

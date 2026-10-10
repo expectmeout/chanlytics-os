@@ -239,7 +239,7 @@ const { partnerVerbs } = await import("../../../../apps/dashboard/src/surfaces/s
 partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
 
 // Notifications (decision 0040): its saves, its flashes and its verbs, stood in as the pane reads them.
-const { alertVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/notifications/surface.ts");
+const { alertVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/notifications/verbs.ts");
 const realVerbs = { ...alertVerbs };
 /** The whole-config save answered as the server answers it: accepted, under the next version, holding what was sent. */
 alertVerbs.saveConfig = (config, version, accepted) => {

@@ -17,7 +17,7 @@ import {
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { EMAIL_SHAPE } from "../shared";
-import { alertVerbs } from "./surface";
+import { alertVerbs } from "./verbs";
 
 /** The config as this pane reads it: the section it writes, beside whatever else the workspace holds. */
 export type Config = WorkspaceSettings & { notifications?: Partial<NotificationsConfig> };

@@ -61,8 +61,8 @@ dead exports, types and modules     284
 source-text reads in tests          759
 lint warnings                       350   in 150 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      752   the shell included
-workspace route CSS, KB gzipped     148
-workspace pages' own JS, KB        1301   gzipped, beyond the route, summed over 14 pages
+workspace route CSS, KB gzipped     149
+workspace pages' own JS, KB        1306   gzipped, beyond the route, summed over 14 pages
 trees the lint's limits hold         51   16 of them with max-params waiting
 ```
 
