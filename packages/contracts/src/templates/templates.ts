@@ -286,7 +286,7 @@ export function paramLabel(spec: ParamSpec): string {
 export function playbooksStillSending(names: readonly string[]): string {
   const quoted = names.map((n) => `“${n}”`);
   if (quoted.length <= 1)
-    return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 
@@ -446,8 +446,8 @@ const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s)
 /**
  * What sends it, in one line. "Nothing sends it" is the answer worth showing:
  * it is the only one that asks the owner to do something about the message. A
- * message that ONE playbook sends says "Win-back playbook", because under a
- * heading called "What sends it" a bare name reads as a person.
+ * message that ONE playbook sends says "Win-back campaign" (a person reads "campaign", never "playbook": decision
+ * 19), because under a heading called "What sends it" a bare name reads as a person.
  */
 export function templateUseWords(use: TemplateUse | null | undefined): string {
   const u = use ?? NOTHING;
@@ -457,7 +457,7 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
   if (u.booking) parts.push("the Inbox");
   if (parts.length === 0) return "Nothing sends it";
   // One playbook alone is "Win-back playbook" even when paused: the line under it says so.
-  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
+  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
   return capital(sayList(parts));
 }
 

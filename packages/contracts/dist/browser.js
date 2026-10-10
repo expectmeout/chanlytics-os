@@ -3026,7 +3026,7 @@ var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 function vetoRunNotice(name, people, when) {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
   return {
-    subject: `Playbook \u201C${name}\u201D sends ${when}: ${who}`,
+    subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
     body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
   };
 }
@@ -3104,12 +3104,12 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `the win-back and save-our-number campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `the welcome and month's-offer campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -3121,7 +3121,7 @@ var POLICY_CLASS_WORDS = {
   follow_up: {
     name: "Proposal follow-ups",
     short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+    note: "the proposal follow-up campaign \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
   },
   // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
   outreach: {
@@ -3353,8 +3353,9 @@ function messageAuthor(m) {
   const via = messageVia(m);
   if (via) {
     return via.kind === "playbook" ? (
-      // A playbook named "The month's offer" is not "the The month's offer playbook".
-      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+      // A campaign named "The month's offer" is not "the The month's offer campaign"; a person reads "campaign", never
+      // "playbook" (decision 19), and the kind keeps its name.
+      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} campaign` }
     ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
   }
   return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
@@ -6813,8 +6814,8 @@ var WORDS = {
   consent_change: "Recorded a consent answer",
   send_broadcast: "Sent a broadcast",
   cancel_broadcast: "Canceled a broadcast",
-  start_playbook: "Started a playbook",
-  pause_playbook: "Paused a playbook",
+  start_playbook: "Started a campaign",
+  pause_playbook: "Paused a campaign",
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",
@@ -6870,8 +6871,8 @@ var WORDS = {
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "broadcast.stopped": "A broadcast stopped",
-  "playbook.run": "A playbook ran",
-  "playbook.changed": "A playbook was edited",
+  "playbook.run": "A campaign ran",
+  "playbook.changed": "A campaign was edited",
   "template.submitted": "A message was sent to WhatsApp for approval",
   "template.removed": "A message was deleted from the Library",
   "member.joined": "Joined the workspace",
@@ -8649,7 +8650,7 @@ var REPORT_LENSES = [
     role: "viewer",
     empty: (r2) => ({
       title: "Nothing went out",
-      body: `No broadcast or playbook run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
+      body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
       door: { label: "Open Sent", to: "broadcasts" }
     })
   },
@@ -8765,7 +8766,7 @@ var FOLD_WORDS = {
   },
   "lead.call": rows((n) => `${n} calls to leads were logged`),
   "google.reviews": rows((n) => `New Google reviews were read ${n} times`),
-  "playbook.run": rows((n) => `Playbooks ran ${n} times`)
+  "playbook.run": rows((n) => `Campaigns ran ${n} times`)
 };
 var ACTIVITY_FOLD_KINDS = Object.keys(FOLD_WORDS);
 var FOLD_MIN = 2;
@@ -9275,7 +9276,7 @@ var LIFECYCLE_WORDS = {
   },
   monthsOffer: { name: "The month's offer" },
   gone: {
-    title: "That playbook isn't here any more.",
+    title: "That campaign isn't here any more.",
     body: "Its runs stay in Sent, with their numbers."
   },
   compose: {
@@ -13301,7 +13302,7 @@ function ruleNeedsViewer(rule) {
   const r2 = asListRule(rule);
   return !!r2 && ruleNeeds(r2).includes("viewer");
 }
-var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;
+var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a campaign's run has no one looking. Pick a list that says who by what they did.`;
 var TODAY_PINS_MAX = 8;
 function pinTokens(view) {
   const pins = view && typeof view === "object" ? view.pins : null;
@@ -13351,7 +13352,7 @@ var listSpec = {
       if (d.archived !== true) return "Deleted. The people stay.";
       const paused = namesIn(d, "paused");
       const readBy = namesIn(d, "read_by");
-      const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a playbook runs on it";
+      const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a campaign runs on it";
       return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
     }
   },
@@ -15555,7 +15556,7 @@ function paramLabel(spec) {
 function playbooksStillSending(names3) {
   const quoted = names3.map((n) => `\u201C${n}\u201D`);
   if (quoted.length <= 1)
-    return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 function firstNameOf(displayName, waProfileName) {
@@ -15629,7 +15630,7 @@ function templateUseWords(use) {
   if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
   if (u.booking) parts2.push("the Inbox");
   if (parts2.length === 0) return "Nothing sends it";
-  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
+  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
   return capital(sayList(parts2));
 }
 function templateUseNote(use) {
@@ -15721,7 +15722,7 @@ var OFFERS_PAUSED_WORDS = {
 var OFFERS_NOTICE_WORDS = {
   paused: (reason) => ({
     title: "Offers and news by email are paused",
-    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a playbook that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
+    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
   })
 };
 function emailOffersOpen(f, couldNotBeChecked) {
@@ -16000,7 +16001,7 @@ function audienceMembers(rows2, kind, id, savedIds) {
 }
 function heardWords(n) {
   if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a playbook or a broadcast this week.`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
 }
 function previewPerson(r2, refusal, channel) {
   return { id: r2.id, label: r2.name, firstName: firstNameOf(r2.givenName, r2.waName), refusal, channel };
@@ -22539,11 +22540,11 @@ function reachLines(reach, p, allowanceHeld = 0) {
       tone: "plain",
       door: { words: "Get their yes", to: GET_YES_ROUTE }
     },
-    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: reach.heardAny, words: "heard from a campaign this week", tone: "warn", door: null },
     { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
       n: reach.heardThis,
-      words: once ? "had this proposal's follow-up already" : gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately",
+      words: once ? "had this proposal's follow-up already" : gap ? `heard from this campaign in the last ${gap} days` : "heard from this campaign lately",
       tone: once ? "plain" : "warn",
       door: null
     },
@@ -22661,13 +22662,13 @@ function toApprovalVM(d, opts) {
       rules.push(
         "each has a proposal waiting with nothing back, and its link",
         "none followed up on that proposal before",
-        "none heard from any playbook this week"
+        "none heard from any campaign this week"
       );
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
+      rules.push(`none heard from this campaign in ${gap} days`, "none heard from any campaign this week");
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     }
@@ -22709,7 +22710,7 @@ function toApprovalVM(d, opts) {
     approve: refusal ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
     expired: refusal,
     goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
-    skip: "Skipping loses this run only \u2014 the playbook keeps running."
+    skip: "Skipping loses this run only \u2014 the campaign keeps running."
   };
 }
 
@@ -27459,7 +27460,7 @@ function campaignsOf(d, tz, nowMs) {
       when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
       outcome,
       // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
-      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
+      line: `${c.playbook_id ? "Campaign" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: `broadcasts/run:${c.broadcast_id}`
     };
@@ -27644,10 +27645,10 @@ function whatsappStoppedRunWords(m) {
 }
 var NO_RUN_VERSION_WORDS = "has no version its runs can send";
 var MESSAGE_GONE_WORDS = {
-  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the campaign sends another.`,
   composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
 };
-var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.";
+var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
 var STARTER_LINE_WORDS = {
   /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
   reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
@@ -27703,7 +27704,7 @@ function todayRunWords(r2) {
   const reach = isReachOutRun(r2.audience);
   const one = r2.recipient_count === 1;
   const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
-  const kind = reach ? "Reach-out" : "Playbook";
+  const kind = reach ? "Reach-out" : "Campaign";
   const sent2 = `${r2.counts.sent} sent`;
   return {
     people,
@@ -28680,7 +28681,7 @@ function playbookFailedAbout(playbookId, runFor) {
 }
 var PLAYBOOK_CALENDAR_UNREAD = "calendar: could not be read";
 function playbookFailedWords(name, why) {
-  const label = name.trim() || "A playbook";
+  const label = name.trim() || "A campaign";
   if (why === "calendar")
     return {
       title: `\u201C${label}\u201D could not read your calendar today`,
@@ -29481,7 +29482,7 @@ function toCampaignReportVM(dto) {
   const sources = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
-    kindLabel: s.kind === "playbook" ? "Playbook" : "Broadcast",
+    kindLabel: s.kind === "playbook" ? "Campaign" : "Broadcast",
     name: s.name,
     templateName: s.template_name,
     template: s.template_name ? templateTitle(s.template_name) : "",
@@ -29568,7 +29569,7 @@ function toCampaignReportVM(dto) {
     lines: {
       // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
       funnel: tot.optIns || tot.optOuts ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.` : "Nobody said yes to messages or asked to stop.",
-      sent: sends2 ? sends2 === 1 ? "From one broadcast or playbook run." : `From ${sends2} broadcast and playbook runs.` : null,
+      sent: sends2 ? sends2 === 1 ? "From one broadcast or campaign run." : `From ${sends2} broadcast and campaign runs.` : null,
       channels: channelsLine2(channels)
     }
   };
@@ -29936,13 +29937,13 @@ function toHeadlineVM(dto) {
 // src/reports/report-metrics.ts
 var METRIC_WORDS = {
   customer_messages: "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
-  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a playbook message is nobody's answer.",
+  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a campaign message is nobody's answer.",
   reply_median: "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
   calls: "Calls to the receptionist that someone spoke on. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message, in either direction, or first connected call fell in this period. People brought in with their history, people who asked to be forgotten, and people with no message or call yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
-  messages_sent: "Messages your broadcasts and playbook runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
+  messages_sent: "Messages your broadcasts and campaign runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   replied_share: `Of the messages sent, the share the person answered in their own words ${REPLY_WINDOW_WORDS}. A note the system wrote, and a program writing from their address, are not their words.`,
   said_yes: "People who said yes to being messaged in this period, in their own words or recorded at the desk, counted once a day each.",
@@ -34866,8 +34867,8 @@ var NOTIFICATION_KIND_GROUPS = [
         kinds: ["broadcast_sent", "broadcast_stopped"]
       },
       {
-        title: "A playbook's run needs you, or could not run",
-        what: "When a run waits for your approval, or is about to go unless you stop it, with how many people it reaches. And when a playbook could not run for the day, or could not read your calendar, so nobody was sent it: tomorrow's run tries again.",
+        title: "A campaign's run needs you, or could not run",
+        what: "When a run waits for your approval, or is about to go unless you stop it, with how many people it reaches. And when a campaign could not run for the day, or could not read your calendar, so nobody was sent it: tomorrow's run tries again.",
         kinds: ["playbook"]
       },
       {
@@ -34971,7 +34972,7 @@ var NOTIFICATION_PANE_WORDS = {
 };
 
 // src/today/today-away.ts
-var readyRunTitle = (label) => `Playbook \u201C${label}\u201D is ready`;
+var readyRunTitles = (label) => [`Campaign \u201C${label}\u201D is ready`, `Playbook \u201C${label}\u201D is ready`];
 var AWAY_NOUN = {
   call: ["call", "calls"],
   job_failed: ["job did not finish", "jobs did not finish"],
@@ -34979,7 +34980,7 @@ var AWAY_NOUN = {
   calendar_people: ["person added from your calendar", "people added from your calendar"],
   booking_notice: ["booking email needs a look", "booking emails need a look"],
   handoff: ["conversation needs you", "conversations need you"],
-  playbook: ["playbook is ready", "playbooks are ready"],
+  playbook: ["campaign is ready", "campaigns are ready"],
   // One sync can approve several at once, and several rejections read as one
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
@@ -35019,7 +35020,7 @@ function todayAwayGrouped(rows2, inQueue = [], max = 5) {
     })
   );
   const callsQueued = new Set(inQueue.flatMap((q) => typeof q === "string" || !q.callId ? [] : [q.callId]));
-  const runsQueued = inQueue.flatMap((q) => typeof q === "string" || !q.runLabel ? [] : [readyRunTitle(q.runLabel)]);
+  const runsQueued = inQueue.flatMap((q) => typeof q === "string" || !q.runLabel ? [] : readyRunTitles(q.runLabel));
   const searchesQueued = new Set(inQueue.flatMap((q) => typeof q === "string" || !q.searchTo ? [] : [q.searchTo]));
   const idOf = (r2) => r2.id ?? r2.key ?? "";
   const door = (r2) => r2.to ?? (r2.actions && r2.actions[0] ? r2.actions[0].to : void 0);

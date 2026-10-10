@@ -172,7 +172,7 @@ export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 export function vetoRunNotice(name: string, people: number, when: string): { subject: string; body: string } {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
   return {
-    subject: `Playbook “${name}” sends ${when}: ${who}`,
+    subject: `Campaign “${name}” sends ${when}: ${who}`,
     body: `${who} will be sent “${name}” ${when}. Stop the run on Today or in Campaigns before then if it should not go.`,
   };
 }

@@ -43,7 +43,7 @@ export const LIFECYCLE_WORDS = {
   },
   monthsOffer: { name: "The month's offer" },
   gone: {
-    title: "That playbook isn't here any more.",
+    title: "That campaign isn't here any more.",
     body: "Its runs stay in Sent, with their numbers.",
   },
   compose: {

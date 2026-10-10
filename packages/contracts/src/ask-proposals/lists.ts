@@ -39,7 +39,7 @@ export const listSpec: ProposalSpec = {
         ? `${paused.join(", ")} paused`
         : readBy.length
           ? `${readBy.join(", ")} reads it`
-          : "a playbook runs on it";
+          : "a campaign runs on it";
       return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
     },
   },

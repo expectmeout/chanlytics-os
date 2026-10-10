@@ -3,7 +3,7 @@
  *
  * The canvas draws the phone moment -- "approving from the sofa" -- with a
  * reach card reading "186 of 312 will get it", "94 never said yes to offers",
- * "32 heard from a playbook this week". A run keeps who its moment named and
+ * "32 heard from a campaign this week". A run keeps who its moment named and
  * why each of the rest was left out (playbookRunReach, on its audience), so the
  * sheet says exactly that; a run made before runs kept it says the number it
  * has and the RULES that made the list, which are true of everyone on it by
@@ -43,8 +43,8 @@ test("a run that kept no count says who it reaches by the number it has and the 
   assert.equal(vm.of, null, "no count kept, none said");
   assert.deepEqual(vm.rules, [
     "each said yes to offers",
-    "none heard from this playbook in 30 days",
-    "none heard from any playbook this week",
+    "none heard from this campaign in 30 days",
+    "none heard from any campaign this week",
   ]);
   assert.ok(
     !vm.rules.some((r) => /\d+ (never|heard|have not)/.test(r)),
@@ -57,8 +57,8 @@ test("a run that kept no count says who it reaches by the number it has and the 
   );
   assert.deepEqual(winback.rules, [
     "each said yes to offers",
-    "none heard from this playbook in 90 days",
-    "none heard from any playbook this week",
+    "none heard from this campaign in 90 days",
+    "none heard from any campaign this week",
     "capped at 25 a run, the longest unheard first",
   ]);
   // A reminder is owed to everyone with a visit: no gap, no week's breath, no cap -- and its yes is to hearing from you.
@@ -113,7 +113,7 @@ test("the act says when the send goes -- now, or at the next open hour -- and a 
   assert.equal(expired.goes, "made for day 2026-09-20");
   assert.equal(
     C.toApprovalVM({ broadcast: run(), recipients: people }, opts()).skip,
-    "Skipping loses this run only — the playbook keeps running.",
+    "Skipping loses this run only — the campaign keeps running.",
   );
 });
 
@@ -270,7 +270,7 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
     vm.of.lines.map((l) => [l.words, l.tone]),
     [
       ["94 never said yes to offers", "plain"],
-      ["32 heard from a playbook this week", "warn"],
+      ["32 heard from a campaign this week", "warn"],
     ],
   );
   // Of every reason, the one an owner can change carries its door (#663).
@@ -294,7 +294,7 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
   assert.deepEqual(
     all.of.lines.map((l) => l.words),
     [
-      "4 heard from this playbook in the last 90 days",
+      "4 heard from this campaign in the last 90 days",
       "3 asked you to stop",
       "3 are past what the number may start today",
       "2 have no number on file",
@@ -337,7 +337,7 @@ test("the month's allowance: people it already holds are in the held line and ou
     [
       ["6 never said yes to offers", "plain"],
       ["4 held for this month's allowance", "warn"],
-      ["2 heard from a playbook this week", "warn"],
+      ["2 heard from a campaign this week", "warn"],
     ],
     "one line for them, said in the contracts' words",
   );
@@ -417,8 +417,8 @@ test("the run's rules say what each person was asked on the channel they are rea
   assert.deepEqual(runBy({ whatsapp: 6, sms: 0, email: 4 }, "everyone_monthly"), [
     "each reached on WhatsApp said yes to offers",
     "each reached by email asked for offers by email, or has dealt with you",
-    "none heard from this playbook in 30 days",
-    "none heard from any playbook this week",
+    "none heard from this campaign in 30 days",
+    "none heard from any campaign this week",
   ]);
   // An offer by email alone is not "said yes to offers": a relationship on record is enough.
   assert.equal(

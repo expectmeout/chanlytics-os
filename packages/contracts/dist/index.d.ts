@@ -5382,8 +5382,8 @@ declare function templateUsage(src: TemplateUseSource): Record<string, TemplateU
 /**
  * What sends it, in one line. "Nothing sends it" is the answer worth showing:
  * it is the only one that asks the owner to do something about the message. A
- * message that ONE playbook sends says "Win-back playbook", because under a
- * heading called "What sends it" a bare name reads as a person.
+ * message that ONE playbook sends says "Win-back campaign" (a person reads "campaign", never "playbook": decision
+ * 19), because under a heading called "What sends it" a bare name reads as a person.
  */
 declare function templateUseWords(use: TemplateUse | null | undefined): string;
 /**
@@ -7154,7 +7154,7 @@ declare function savedListTip(list: {
  * rule this build can't read, is not.
  */
 declare function ruleNeedsViewer(rule: unknown): boolean;
-/** What a playbook is told of a saved list whose rule is about whoever is looking. */
+/** What a playbook is told of a saved list whose rule is about whoever is looking: a campaign to its reader (decision 19). */
 declare const viewerListWords: (name: string) => string;
 /** How many lists a member may pin to Today: a row of doors, not a second rail. */
 declare const TODAY_PINS_MAX = 8;
@@ -10654,7 +10654,7 @@ interface PersonCampaignVM {
     when: string;
     /** What became of it: "Replied", "Sent", "Held — no yes to offers", "Didn't send", "Waiting to send". */
     outcome: string;
-    /** The line under the title, in Broadcasts' history words: "Playbook · Replied", "Broadcast · Sent". */
+    /** The line under the title, in Broadcasts' history words: "Campaign · Replied", "Broadcast · Sent". */
     line: string;
     tone: "ok" | "plain" | "warn";
     /** The run's own report. */
@@ -24743,7 +24743,7 @@ declare function whatsappStoppedRunWords(m: Pick<CampaignMessage, "versions"> | 
  * version again, and in the composer of the playbook, which is never moved to another message behind its owner's back.
  */
 declare const MESSAGE_GONE_WORDS: {
-    readonly card: "Its message has no version its runs can send, so they are skipped until it has one again or the playbook sends another.";
+    readonly card: "Its message has no version its runs can send, so they are skipped until it has one again or the campaign sends another.";
     readonly composer: (title: string) => string;
 };
 /**
@@ -24751,7 +24751,7 @@ declare const MESSAGE_GONE_WORDS: {
  * holds no WhatsApp version a run can send (core run-playbook's stop, stored as `template_not_approved`, whose name is a
  * closed set and stays): what would carry it is another message, or another version of this one on a channel it ticks.
  */
-declare const RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.";
+declare const RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
 /**
  * What the lines that offer a moment's own message say while it waits on WhatsApp (the send screen with nothing to send,
  * the playbook composer with the moment's starter not yet a message a run can send). Only its WhatsApp version is in
@@ -24885,7 +24885,7 @@ declare const LIFECYCLE_WORDS: {
         readonly name: "The month's offer";
     };
     readonly gone: {
-        readonly title: "That playbook isn't here any more.";
+        readonly title: "That campaign isn't here any more.";
         readonly body: "Its runs stay in Sent, with their numbers.";
     };
     readonly compose: {
@@ -31185,7 +31185,7 @@ interface RunLike {
 interface TodayRunWordsVM {
     /** "3 people" */
     people: string;
-    /** A run waiting for a word: what kind of run it is ("Playbook · ready"), then its sentence. */
+    /** A run waiting for a word: what kind of run it is ("Campaign · ready"), then its sentence. */
     waiting: {
         meta: string;
         sentence: string;

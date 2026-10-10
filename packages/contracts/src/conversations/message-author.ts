@@ -101,8 +101,9 @@ export function messageAuthor(m: MessageDto): MessageAuthor | null {
   const via = messageVia(m);
   if (via) {
     return via.kind === "playbook"
-      ? // A playbook named "The month's offer" is not "the The month's offer playbook".
-        { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+      ? // A campaign named "The month's offer" is not "the The month's offer campaign"; a person reads "campaign", never
+        // "playbook" (decision 19), and the kind keeps its name.
+        { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} campaign` }
       : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
   }
   return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };

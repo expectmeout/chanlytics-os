@@ -114,6 +114,11 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
 test("F36/F37: alerts that go to Chanlytics say so; switching a number off is described as it is", () => {
   // The kinds are contracts' (notification-kinds.ts, Reach out Part 5 PR 8), drawn by the pane in their groups.
   const rows = NOTIFICATION_KIND_GROUPS.flatMap((g) => g.rows);
+  // A campaign's run, to the person choosing what reaches them, never a playbook's (decision 19).
+  const runs = rows.find((r) => (r.kinds ?? []).includes("playbook"));
+  assert.equal(runs.title, "A campaign's run needs you, or could not run");
+  assert.match(runs.what, /And when a campaign could not run for the day/);
+  for (const r of rows) assert.doesNotMatch(`${r.title} ${r.what}`, /playbook/i, r.title);
   const platform = rows.filter((r) => r.platform);
   assert.equal(platform.length, 2, "exactly the two platform alerts");
   for (const r of platform) assert.ok(r.what.includes("Goes to Chanlytics, not to the addresses above"), r.title);

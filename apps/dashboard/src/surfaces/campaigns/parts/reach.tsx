@@ -18,7 +18,7 @@ interface CmReachDoor {
   to: string;
 }
 
-/** One line of why anybody is held back: "12 heard from a playbook this week". */
+/** One line of why anybody is held back: "12 heard from a campaign this week". */
 interface CmReachReason {
   t: ReactNode;
   tone?: string;
@@ -90,7 +90,7 @@ function barSaid(progress: number | null, label: string | null) {
  *   pool     out of how many
  *   of       what the pool is, after "of 36": "who said yes"
  *   held     how many of the pool are held back (the amber part of the bar)
- *   reasons  [{ t, tone, door? }]: "12 heard from a playbook this week"; a door is { words, to }
+ *   reasons  [{ t, tone, door? }]: "12 heard from a campaign this week"; a door is { words, to }
  *   split    "Reaches 84: 52 on WhatsApp, 32 by email", under the number, for a run that goes by more than WhatsApp
  */
 export function CmReach({

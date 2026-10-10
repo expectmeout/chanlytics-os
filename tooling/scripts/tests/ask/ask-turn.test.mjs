@@ -1016,7 +1016,8 @@ test("report says the Campaigns lens beside the page (0030): its tiles, the read
     { channel: "Text", sent: 6, delivered: "67%", read: null, wrote_back: "17%" },
   ]);
   assert.deepEqual(said.sources, [
-    { name: "Win-back", kind: "Playbook", runs: 1, sent: 20, delivered: "80%", wrote_back: "20%" },
+    // The page's own word for a source's kind (contracts campaign-report.ts kindLabel), a campaign since decision 19.
+    { name: "Win-back", kind: "Campaign", runs: 1, sent: 20, delivered: "80%", wrote_back: "20%" },
   ]);
   const { campaign_series: _, ...without } = rpcs;
   assert.deepEqual(
@@ -2583,7 +2584,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
     params: [],
   });
   assert.equal(onMine.isError, true);
-  assert.match(JSON.parse(onMine.result).error, /a playbook runs with no one looking/);
+  assert.match(JSON.parse(onMine.result).error, /a campaign runs with no one looking/);
   const toCal = await propose("saved", S_CAL);
   assert.equal(toCal.isError, true);
   assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads a calendar link/);

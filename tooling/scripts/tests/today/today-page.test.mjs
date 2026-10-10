@@ -878,7 +878,7 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   set({ __BROADCASTS: undefined });
   failed.add("broadcasts");
   const broke = draw(AgentCommand);
-  assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the playbook runs/);
+  assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the campaign runs/);
   // `rows` above counted the two run rows too (they are AttnRows as well); the runs are a FailedRead now, so what must stand is the queue's own.
   assert.equal(
     all(broke, (n) => classes(n).includes("cl-attn-row")).length,
@@ -966,7 +966,7 @@ test("a waiting run whose day has passed is opened from the queue, never approve
   const waiting = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
   assert.equal(buttons(waiting, "Approve").length, 0, "REGRESSION: Approve over a run the verb refuses");
   const w = todayRunWords(rows[0]);
-  assert.deepEqual([w.late.meta, w.late.status], ["Playbook · too late to approve", ["Too late to approve"]]);
+  assert.deepEqual([w.late.meta, w.late.status], ["Campaign · too late to approve", ["Too late to approve"]]);
   const said = textOf(waiting);
   assert.ok(said.includes(w.late.status[0]) && said.includes("that day has passed"), said);
   assert.ok(!said.includes(w.waiting.sentence), "and not that nothing sends until you say so");
@@ -1629,8 +1629,10 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
     bellRow("needs:th-cv-a", "needs_you", "Ana Reyes needs you", "warn"),
     bellRow("call:k3", "missed_call", "Missed call · +1 (347) 555-0188", "warn", null, "conversations/cv-k3"),
     bellRow("n:1", "review", "1 new rating on Google", "ok"),
-    // The run the queue holds for a word, said again by the bell: the fifth queue kind the away card hides.
+    // The run the queue holds for a word, said again by the bell: the fifth queue kind the away card hides. The bell says
+    // "Campaign" (decision 19); a row kept before that says "Playbook", and is the queue's too.
     bellRow("n:2", "playbook", "Playbook “Win-back” is ready: 3 people", "ok", null, "outbound"),
+    bellRow("n:3", "playbook", "Campaign “Win-back” is ready: 3 people", "ok", null, "outbound"),
   ];
   const api = {
     feed: () => rows,
@@ -1655,10 +1657,10 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
     ["1 new rating on Google"],
     "the handoff's row and the missed call are the queue's",
   );
-  assert.equal(textOf(find(tree, (n) => classes(n).includes("tq-count"))).trim(), "4", "the bell's own number");
+  assert.equal(textOf(find(tree, (n) => classes(n).includes("tq-count"))).trim(), "5", "the bell's own number");
   assert.match(
     textOf(find(tree, (n) => classes(n).includes("tq-foot"))),
-    /3 more in the bell, already in the queue above/,
+    /4 more in the bell, already in the queue above/,
   );
   assert.ok(buttons(tree, "Mark all read").length === 1);
   W.__DEMO_MODE = false;

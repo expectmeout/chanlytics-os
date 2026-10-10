@@ -116,15 +116,15 @@ export function reachLines(
       tone: "plain",
       door: { words: "Get their yes", to: GET_YES_ROUTE },
     },
-    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: reach.heardAny, words: "heard from a campaign this week", tone: "warn", door: null },
     { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
       n: reach.heardThis,
       words: once
         ? "had this proposal's follow-up already"
         : gap
-          ? `heard from this playbook in the last ${gap} days`
-          : "heard from this playbook lately",
+          ? `heard from this campaign in the last ${gap} days`
+          : "heard from this campaign lately",
       tone: once ? "plain" : "warn",
       door: null,
     },
@@ -374,13 +374,13 @@ export function toApprovalVM(
       rules.push(
         "each has a proposal waiting with nothing back, and its link",
         "none followed up on that proposal before",
-        "none heard from any playbook this week",
+        "none heard from any campaign this week",
       );
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
+      rules.push(`none heard from this campaign in ${gap} days`, "none heard from any campaign this week");
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     }
@@ -432,6 +432,6 @@ export function toApprovalVM(
         : opts.open.moved
           ? `goes at ${opts.open.time} once you approve it`
           : "goes the moment you approve it",
-    skip: "Skipping loses this run only — the playbook keeps running.",
+    skip: "Skipping loses this run only — the campaign keeps running.",
   };
 }

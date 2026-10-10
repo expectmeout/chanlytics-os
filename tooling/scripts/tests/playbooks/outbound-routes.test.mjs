@@ -554,7 +554,12 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     "runs daily at 10:00 AM",
     "the clock, worded by the route from the playbook's own columns",
   );
-  assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back playbook", "one playbook alone says what it is");
+  assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back campaign", "one campaign alone says what it is");
+  // A refusal with no name to quote says what still uses it in the reader's word (decision 19).
+  assert.equal(
+    C.playbooksStillSending([]),
+    "A campaign still uses this template. Pause it, or give it another, first.",
+  );
   assert.equal(C.templateUseNote(usedBy.winback_offer), "runs daily at 10:00 AM");
   assert.equal(
     usedBy.monthly_offer.playbooks[0].waiting,
@@ -562,7 +567,7 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     "a run pending approval is its playbook waiting on the owner",
   );
   assert.equal(C.templateUseNote(usedBy.monthly_offer), "a run is waiting on you", "which outranks its clock");
-  assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number playbook", "paused, still named plainly");
+  assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number campaign", "paused, still named plainly");
   assert.equal(
     C.templateUseNote(usedBy.save_our_number),
     "paused — nothing goes out",
@@ -1048,7 +1053,7 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     playbook.PUT.run(send("PUT", { state: "sleeping" }), ctxFor(tables, { id: K2 })),
     "validation",
     400,
-    "A playbook is running or paused.",
+    "A campaign is running or paused.",
   );
   assert.deepEqual(
     await playbook.PUT.run(send("PUT", { state: "running" }), ctxFor(tables, { id: K2 })),
@@ -1078,7 +1083,13 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     502,
     "Running only works on the production dashboard.",
   );
-  await refused(run.POST.run(send("POST"), ctxFor(tables, { id: K9 })), "not_found", 404);
+  await refused(run.POST.run(send("POST"), ctxFor(tables, { id: K9 })), "not_found", 404, "Campaign not found.");
+  await refused(
+    run.POST.run(send("POST"), ctxFor(tables, { id: "not-an-id" })),
+    "not_found",
+    404,
+    "That campaign does not exist.",
+  );
   await refused(playbook.DELETE.run(send("DELETE"), ctxFor(tables, { id: K1 })), "forbidden", 403);
   const gone = await playbook.DELETE.run(send("DELETE"), ctxFor(tables, { id: K2 }));
   assert.deepEqual(gone, { deleted: true, id: K2, decision_id: gone.decision_id });
@@ -1094,7 +1105,7 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     playbook.DELETE.run(send("DELETE"), ctxFor(tables, { id: K2 })),
     "not_found",
     404,
-    "Playbook not found.",
+    "Campaign not found.",
   );
 });
 

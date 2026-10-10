@@ -990,8 +990,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   );
   assert.ok(
     readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`a broadcast (${entry.via.name})`") &&
-      readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
-    "the thread says which broadcast, or which playbook",
+      readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
+    "the thread says which broadcast, or which campaign",
   );
   assert.ok(
     readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts").includes(

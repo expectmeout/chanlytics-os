@@ -429,7 +429,7 @@ export async function refuseOnArchivedList(
   if (list?.archived_at)
     throw new AppError(
       "validation",
-      `Its list, ${list.name}, is archived. Restore it on People, or move the playbook to another list.`,
+      `Its list, ${list.name}, is archived. Restore it on People, or move the campaign to another list.`,
     );
 }
 

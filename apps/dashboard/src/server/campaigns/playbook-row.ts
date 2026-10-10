@@ -83,7 +83,7 @@ export async function changePlaybook(ctx: RouteContext, req: Request, p: Playboo
   if (onlyState) {
     const state = body!.state as string;
     if (!(PLAYBOOK_STATES as readonly string[]).includes(state))
-      throw new AppError("validation", "A playbook is running or paused.");
+      throw new AppError("validation", "A campaign is running or paused.");
     if (state === p.state) return { id, state };
     // A playbook on an archived list stays paused until its list is restored or it is moved (decision 0009).
     if (state === "running") await refuseOnArchivedList(ctx, p);
@@ -159,7 +159,7 @@ export async function deletePlaybook(ctx: RouteContext, p: PlaybookRow) {
   if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_REFUSALS.notHere, 409);
   const { error, count } = await removePlaybook(ctx.supabase, id);
   if (error) throw new Error(error.message);
-  if (!count) throw new AppError("not_found", "Playbook not found.", 404);
+  if (!count) throw new AppError("not_found", "Campaign not found.", 404);
   const decisionId = await recordDecision(ctx, p.tenant_id, "playbook", id, "pause_playbook", {
     name: p.name,
     deleted: true,

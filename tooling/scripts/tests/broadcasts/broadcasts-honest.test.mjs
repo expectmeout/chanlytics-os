@@ -932,7 +932,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     assert.ok(
       reach.includes("2will get it") &&
         reach.includes("each said yes to offers") &&
-        reach.includes("none heard from any playbook this week"),
+        reach.includes("none heard from any campaign this week"),
       reach,
     );
     assert.ok(!/ of \d/.test(reach), `REGRESSION-IN-WAITING: a pool the run never recorded -- ${reach}`);
@@ -1167,7 +1167,7 @@ test("a run that kept who it left out opens as the board's card: of how many, th
   assert.equal(textOf(byTestId(card, "bc-sheet-pool")), "312", "out of everyone its moment named");
   assert.deepEqual(
     all(byTestId(card, "bc-sheet-why"), (n) => n.type === "li").map((li) => textOf(li)),
-    ["94 never said yes to offersGet their yes", "32 heard from a playbook this week"],
+    ["94 never said yes to offersGet their yes", "32 heard from a campaign this week"],
   );
   // The bar is the whole list: green reaches, amber waits, and the grey is the rest.
   const parts = all(card, (n) => /^bc-sheet-bar-/.test(String(n.props?.className || ""))).map((n) => [
@@ -4115,8 +4115,8 @@ test("the send screen says how many of an audience heard from a playbook or a br
     0,
     "no touches read, nobody said",
   );
-  assert.equal(contracts.heardWords(2), "2 of them heard from a playbook or a broadcast this week.");
-  assert.equal(contracts.heardWords(1), "One of them heard from a playbook or a broadcast this week.");
+  assert.equal(contracts.heardWords(2), "2 of them heard from a campaign or a broadcast this week.");
+  assert.equal(contracts.heardWords(1), "One of them heard from a campaign or a broadcast this week.");
   assert.equal(contracts.heardWords(0), null);
 
   const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
@@ -4137,7 +4137,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
     }),
   );
   const tree = writing({ initialSegment: null, initialRun: null });
-  assert.equal(textOf(byTestId(tree, "bc-heard")), "One of them heard from a playbook or a broadcast this week.");
+  assert.equal(textOf(byTestId(tree, "bc-heard")), "One of them heard from a campaign or a broadcast this week.");
   setSurfaceValue(
     "broadcasts",
     broadcastsSurface({

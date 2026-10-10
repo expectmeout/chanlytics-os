@@ -91,7 +91,7 @@ export const RATE = {
   consent: { limit: 60, windowMs: MIN_MS, noun: "consent changes" },
   lists: { limit: 60, windowMs: MIN_MS, noun: "list changes" },
   broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" },
-  playbook: { limit: 30, windowMs: MIN_MS, noun: "playbook changes" },
+  playbook: { limit: 30, windowMs: MIN_MS, noun: "campaign changes" },
   /** A person added by hand — from an appointment, before they ever write. */
   person_create: { limit: 60, windowMs: HOUR_MS, noun: "people added" },
   /** A client list arrives in parts of fifty: two hundred and forty parts an hour is twelve thousand people, and a script is not. */

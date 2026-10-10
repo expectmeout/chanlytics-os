@@ -44,12 +44,12 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: `the win-back and save-our-number playbooks · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+    note: `the win-back and save-our-number campaigns · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: `the welcome and month's-offer playbooks · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+    note: `the welcome and month's-offer campaigns · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
   },
   reviews: {
     name: "Google reviews",
@@ -61,7 +61,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   follow_up: {
     name: "Proposal follow-ups",
     short: "Follow-ups",
-    note: "the proposal follow-up playbook · one nudge per proposal, with its link, once it has waited with nothing back · auto sends each run, ask leaves it waiting on Today, never runs nothing",
+    note: "the proposal follow-up campaign · one nudge per proposal, with its link, once it has waited with nothing back · auto sends each run, ask leaves it waiting on Today, never runs nothing",
   },
   // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
   outreach: {

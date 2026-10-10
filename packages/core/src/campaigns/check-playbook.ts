@@ -143,7 +143,7 @@ async function listOf(
     if (ruleNeeds(b.rule).includes("viewer"))
       throw new AppError(
         "validation",
-        `${b.label} is about whoever is looking, and a playbook runs with no one looking. Pick another list.`,
+        `${b.label} is about whoever is looking, and a campaign runs with no one looking. Pick another list.`,
       );
     return { listName: b.label, listKey, listId: null };
   }

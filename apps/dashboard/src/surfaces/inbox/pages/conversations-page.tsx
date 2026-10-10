@@ -71,7 +71,7 @@ const cvKeepPlace = (channel: string, patch: Record<string, unknown>): void => {
 const CV_ANSWERED: Record<string, string> = {
   team: "Your team replied",
   broadcast: "Broadcast sent",
-  playbook: "Playbook sent",
+  playbook: "Campaign sent",
 };
 
 export const OutcomePill = ({

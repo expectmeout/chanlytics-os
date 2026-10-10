@@ -1464,7 +1464,7 @@ test("the words for a message no run can send are contracts', said once, in the 
   // The same words in the composer and on the card, from contracts, true of an email's message as of a WhatsApp one.
   assert.equal(
     contracts.MESSAGE_GONE_WORDS.card,
-    "Its message has no version its runs can send, so they are skipped until it has one again or the playbook sends another.",
+    "Its message has no version its runs can send, so they are skipped until it has one again or the campaign sends another.",
   );
   assert.equal(
     contracts.MESSAGE_GONE_WORDS.composer("Autumn offer"),

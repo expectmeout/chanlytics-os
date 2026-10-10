@@ -736,9 +736,10 @@ test("a link to a playbook that is gone says so once the chains were read, and a
   surfaces();
   fresh();
   const gone = page("moment:pb-nothing");
-  assert.ok(
-    byTestId(gone, "pb-gone") || find(gone, (n) => n.props?.testid === "pb-gone"),
-    "That playbook isn't here any more",
+  assert.equal(
+    find(gone, (n) => n.props?.testid === "pb-gone")?.props.title,
+    "That campaign isn't here any more.",
+    "a campaign to its reader, never a playbook (decision 19)",
   );
   setSurfaceValue("reach_outs", undefined);
   fresh();

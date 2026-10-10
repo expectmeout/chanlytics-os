@@ -469,8 +469,11 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
   assert.equal(
     POLICY_CLASS_WORDS.reengage.note,
-    `the win-back and save-our-number playbooks · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+    `the win-back and save-our-number campaigns · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
   );
+  // Each class says what it governs as a person reads it: campaigns, never playbooks (decision 19).
+  assert.match(POLICY_CLASS_WORDS.campaign.note, /^the welcome and month's-offer campaigns · /);
+  assert.match(POLICY_CLASS_WORDS.follow_up.note, /^the proposal follow-up campaign · /);
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
@@ -737,7 +740,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     ),
   );
   assert.ok(
-    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
+    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
   );
   // Broadcasts' page (broadcasts.jsx once) is the page, its `when` words and its screens, in surfaces/campaigns/broadcasts.
   const broadcastsTsx = [

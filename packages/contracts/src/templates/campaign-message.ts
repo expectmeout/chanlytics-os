@@ -318,7 +318,7 @@ const NO_RUN_VERSION_WORDS = "has no version its runs can send";
  * version again, and in the composer of the playbook, which is never moved to another message behind its owner's back.
  */
 export const MESSAGE_GONE_WORDS = {
-  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the campaign sends another.`,
   composer: (title: string): string =>
     `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`,
 } as const;
@@ -329,7 +329,7 @@ export const MESSAGE_GONE_WORDS = {
  * closed set and stays): what would carry it is another message, or another version of this one on a channel it ticks.
  */
 export const RUN_NOW_WITHOUT_VERSION_WORDS =
-  "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.";
+  "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
 
 /**
  * What the lines that offer a moment's own message say while it waits on WhatsApp (the send screen with nothing to send,

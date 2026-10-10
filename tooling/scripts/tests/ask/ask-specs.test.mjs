@@ -606,7 +606,7 @@ test("a list (D10): the name and the rule to the lists route, a list that keeps 
   );
   assert.equal(
     spec.undo.receipt({ archived: true, id: L1, paused: [], on_it: ["Win-back"], read_by: [] }),
-    "Archived, not deleted: a playbook runs on it. It comes back from Archived under your lists.",
+    "Archived, not deleted: a campaign runs on it. It comes back from Archived under your lists.",
   );
   // Open: People before it is made, the list itself once it is (the commit kept its id), People again once undone.
   assert.equal(cardOpenRoute(p), "clients");
