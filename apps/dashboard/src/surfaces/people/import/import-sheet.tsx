@@ -1,7 +1,9 @@
 /**
  * Add people: the page's one act (Ruben, 10 Oct 2026: Add a person and Import were two doors to one job), on the record
- * kit's sheet, at every width. One person: a mobile number and, if known, a name, through the door the calendar sweep
- * already uses (plAddPerson); a number already here opens that person rather than making a second. A list: a business's
+ * kit's sheet, at every width. One person: a mobile number or an email, either enough, and a name if known, through the
+ * one door a person is resolved by (POST contacts: create_person, or add_person with an address, 00393); a number or an
+ * address already here opens that person rather than making a second. A note and a list to put them on are asked for,
+ * a quiet word each, and go through their own doors once the person is there. A list: a business's
  * own client list (a Booksy or Square export) read in the browser, matched, counted and written in parts of fifty
  * through the owner's door (importPeople), as the Import sheet did (moved whole from legacy/pages/people-import.jsx,
  * decision 0015). Nothing is written until the owner has seen the counts; the door fills only what is empty and records
@@ -18,7 +20,8 @@ import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { RecordSheet } from "../../kit/record/sheet";
-import { plAddPerson, plAddedWords } from "../lists/doors";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { plAddExtras, plAddPerson, plAddedWords } from "../lists/doors";
 import { importPeople } from "../people-detail";
 import type { Flash } from "../types";
 import { plImportColumnWords, plImportCountWords, plImportPlan } from "./plan";
@@ -192,63 +195,153 @@ const ADD_WAYS: { value: AddWay; label: string }[] = [
   { value: "list", label: "A list (CSV)" },
 ];
 const ADD_SUBS: Record<AddWay, string> = {
-  one: "A mobile number and, if you know it, a name. A number that is already here opens that person instead of adding them twice.",
+  one: "Someone you know of before they write or call. A number or an email that is already here opens that person instead of adding them twice.",
   list: "A spreadsheet of your clients: names, mobile numbers, emails. Nothing already here is overwritten, and nobody is signed up for anything.",
 };
 
-/** One person's two fields: the name, if known, and the mobile number, which the door needs. */
-function oneFields(p: {
-  name: string;
-  setName: (v: string) => void;
-  phone: string;
-  setPhone: (v: string) => void;
-  busy: boolean;
-  error: string | null;
-  submit: () => void;
-}): ReactNode {
-  const { name, setName, phone, setPhone, busy, error, submit } = p;
+/** A list a person can be put on by hand: one kept by hand, not one a rule keeps. */
+type HandList = { id: string; name: string };
+
+/** One person's fields: a name if known, a mobile number or an email (either is enough), then a note and a list, asked for. */
+function oneFields(one: AddOne, lists: readonly HandList[]): ReactNode {
+  const { name, setName, phone, setPhone, email, setEmail, busy, error, submit } = one;
+  const box = (p: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    testid: string;
+    type?: string;
+    inputMode?: "tel" | "email";
+    autoComplete: string;
+    max: number;
+  }) => (
+    <div className="rec-field">
+      <label>
+        <span className="rec-field-label">{p.label}</span>
+        <input
+          className="rec-input"
+          type={p.type ?? "text"}
+          inputMode={p.inputMode}
+          autoComplete={p.autoComplete}
+          value={p.value}
+          maxLength={p.max}
+          disabled={busy}
+          // A refusal is about the number or the address, never the name, which is optional.
+          aria-invalid={error && p.inputMode ? true : undefined}
+          aria-describedby={error && p.inputMode ? "add-person-error" : undefined}
+          onChange={(e) => p.onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void submit();
+          }}
+          data-testid={p.testid}
+        />
+      </label>
+    </div>
+  );
   return (
     <>
-      <div className="rec-field">
-        <label>
-          <span className="rec-field-label">Name (optional)</span>
-          <input
-            className="rec-input"
-            value={name}
-            maxLength={80}
-            autoComplete="name"
-            disabled={busy}
-            onChange={(e) => setName(e.target.value)}
-            data-testid="add-person-name"
-          />
-        </label>
-      </div>
-      <div className="rec-field">
-        <label>
-          <span className="rec-field-label">Mobile number</span>
-          <input
-            className="rec-input"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            value={phone}
-            maxLength={24}
-            disabled={busy}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? "add-person-error" : undefined}
-            onChange={(e) => setPhone(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-            }}
-            data-testid="add-person-phone"
-          />
-        </label>
-      </div>
+      {box({
+        label: "Name (optional)",
+        value: name,
+        onChange: setName,
+        testid: "add-person-name",
+        autoComplete: "name",
+        max: 80,
+      })}
+      {box({
+        label: "Mobile number",
+        value: phone,
+        onChange: setPhone,
+        testid: "add-person-phone",
+        type: "tel",
+        inputMode: "tel",
+        autoComplete: "tel",
+        max: 24,
+      })}
+      {box({
+        label: "Email",
+        value: email,
+        onChange: setEmail,
+        testid: "add-person-email",
+        type: "email",
+        inputMode: "email",
+        autoComplete: "email",
+        max: 254,
+      })}
+      <p className="pl-add-hint">A mobile number or an email is enough.</p>
+      {oneExtras(one, lists)}
     </>
   );
 }
 
-/** The add's own state: the two fields, its save and its refusal. Added, the sheet closes and their page opens. */
+/**
+ * What more a member may say as they add someone, asked for: a note (their first, the notes log's own) and a list kept by
+ * hand to put them on. Each is a quiet word until pressed, so the sheet at rest is three boxes and one line.
+ */
+function oneExtras(one: AddOne, lists: readonly HandList[]): ReactNode {
+  const { note, setNote, noteOpen, openNote, listId, setListId, listOpen, openList, busy } = one;
+  return (
+    <>
+      {noteOpen ? (
+        <div className="rec-field">
+          <label>
+            <span className="rec-field-label">Note</span>
+            <textarea
+              className="rec-input"
+              rows={2}
+              value={note}
+              maxLength={2000}
+              disabled={busy}
+              onChange={(e) => setNote(e.target.value)}
+              data-testid="add-person-note"
+            />
+          </label>
+        </div>
+      ) : null}
+      {listOpen && lists.length ? (
+        <div className="rec-field">
+          <label>
+            <span className="rec-field-label">Put them on</span>
+            <select
+              className="rec-input"
+              value={listId}
+              disabled={busy}
+              onChange={(e) => setListId(e.target.value)}
+              data-testid="add-person-list"
+            >
+              <option value="">No list</option>
+              {lists.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
+      {!noteOpen || (!listOpen && lists.length) ? (
+        <div className="pl-add-more">
+          {!noteOpen ? (
+            <LinkButton onClick={openNote} disabled={busy} data-testid="add-person-more-note">
+              + Note
+            </LinkButton>
+          ) : null}
+          {!listOpen && lists.length ? (
+            <LinkButton onClick={openList} disabled={busy} data-testid="add-person-more-list">
+              + Add to a list
+            </LinkButton>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The add's own state: the fields, the extras asked for, its save and its refusal. The person is added through the one
+ * door, then the note and the list through their own; added, the sheet closes and their page opens, and what did not go
+ * on (a note, a list) is said beside the add, never in its place.
+ */
 function useAddOne({
   onClose,
   onAdded,
@@ -260,32 +353,61 @@ function useAddOne({
 }) {
   const [name, setName] = useState("");
   const [phone, setPhoneNow] = useState("");
+  const [email, setEmailNow] = useState("");
+  const [note, setNote] = useState("");
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [listId, setListId] = useState("");
+  const [listOpen, setListOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setPhone = (v: string) => {
     setPhoneNow(v);
     setError(null);
   };
+  const setEmail = (v: string) => {
+    setEmailNow(v);
+    setError(null);
+  };
   const submit = async () => {
     if (busy) return;
-    // Add stands from the first draw, so the sheet says how it ends; pressed with no number, it says what is missing.
-    if (!phone.trim()) {
-      setError("Their mobile number is the one thing needed.");
+    // Add stands from the first draw, so the sheet says how it ends; pressed with neither, it says what is missing.
+    if (!phone.trim() && !email.trim()) {
+      setError("A mobile number or an email is needed.");
       return;
     }
     setBusy(true);
     setError(null);
-    const r = await plAddPerson({ name, phone });
-    setBusy(false);
+    const r = await plAddPerson({ name, phone, email });
     if (!r.ok) {
+      setBusy(false);
       setError(r.error);
       return;
     }
-    if (flash) flash({ msg: plAddedWords({ name, phone }, r.existed) });
+    const missed = await plAddExtras(r.id, { note, listId });
+    setBusy(false);
+    if (flash) flash({ msg: plAddedWords({ name, phone, email }, r.existed, missed) });
     onClose();
     onAdded(r.id);
   };
-  return { name, setName, phone, setPhone, busy, error, submit };
+  return {
+    name,
+    setName,
+    phone,
+    setPhone,
+    email,
+    setEmail,
+    note,
+    setNote,
+    noteOpen,
+    openNote: () => setNoteOpen(true),
+    listId,
+    setListId,
+    listOpen,
+    openList: () => setListOpen(true),
+    busy,
+    error,
+    submit,
+  };
 }
 
 /** The import's own state: the rows read, the plan, the parts sent and what they came to. */
@@ -394,12 +516,15 @@ export function PeopleAddSheet({
   onClose,
   onAdded,
   canImport,
+  lists = [],
   way: firstWay = "one",
   flash = null,
 }: {
   onClose: () => void;
   onAdded: (id: string) => void;
   canImport: boolean;
+  /** The lists kept by hand a person can be put on as they are added. */
+  lists?: readonly HandList[];
   /** The way it opens on: one person, or a list (a door that asks for a client list opens it there). */
   way?: AddWay;
   flash?: Flash | null;
@@ -436,7 +561,7 @@ export function PeopleAddSheet({
             testid="people-add-way"
           />
         ) : null}
-        {listing ? listBody(list) : oneFields(one)}
+        {listing ? listBody(list) : oneFields(one, lists)}
       </div>
     </RecordSheet>
   );

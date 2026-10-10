@@ -4,7 +4,6 @@
   "apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/contacts/[id]/notes/route.ts::rpc": 2,
   "apps/dashboard/app/api/v1/contacts/import/route.ts::rpc": 1,
-  "apps/dashboard/app/api/v1/contacts/route.ts::rpc": 1,
   "apps/dashboard/app/api/v1/escalations/[id]/resolve/route.ts": 1,
   "apps/dashboard/app/api/v1/export/route.ts": 4,
   "apps/dashboard/app/api/v1/lead-operations/[id]/undo/route.ts::rpc": 1,
