@@ -14,11 +14,11 @@
  */
 import {
   CAMPAIGNS_RESULTS_PERIOD,
+  lifecycleChainsOf,
   toCampaignReportVM,
   type CampaignReportDto,
   type LifecycleChains,
   type LifecycleReport,
-  type ReachOutChainTotalsDto,
 } from "@chanlytics/contracts";
 import { read } from "@/legacy-bridge/api";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
@@ -55,17 +55,6 @@ function resultsReportOf(dto: CampaignReportDto): LifecycleReport {
   };
 }
 
-/** Each chain's own totals as the home reads them; null where the answer carried none (a server from before them). */
-function resultsChainsOf(dto: ReachOutChainTotalsDto | null | undefined): LifecycleChains | null {
-  if (!dto) return null;
-  return {
-    complete: dto.complete,
-    byRoot: Object.fromEntries(
-      Object.entries(dto.by_root).map(([root, c]) => [root, { written: c.written, wroteBack: c.wrote_back }]),
-    ),
-  };
-}
-
 /** The tables whose changes move the numbers: the messages a reply is, and the runs a send is. Heard on Campaigns alone. */
 const RESULTS_TABLES: string[] = [...DEFAULT_REFRESH_TABLES, "broadcasts"];
 
@@ -84,7 +73,8 @@ const campaignResults = periodSurface({
     return {
       period,
       report: campaigns instanceof Error ? null : resultsReportOf(campaigns.report),
-      chains: reachOuts instanceof Error ? null : resultsChainsOf(reachOuts.chains),
+      // Each chain's own totals as the ledger reads them (contracts lifecycleChainsOf), as Ask's context of the page does.
+      chains: reachOuts instanceof Error ? null : lifecycleChainsOf(reachOuts.chains),
       fetchedAt: Date.now(),
     };
   },

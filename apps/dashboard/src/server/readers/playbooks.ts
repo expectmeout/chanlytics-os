@@ -133,9 +133,9 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
 
 /**
  * GET reach-outs, as the route answers it: every chain with its steps and what decides its next run, without its report
- * (R23: the report is read when a row opens; campaigns/reach-outs.ts chainsOf), so the page's rows and a tool of Ask's
- * that will read the chains (none does yet) read the same ones (spec 2026-10-09 §4.5). Each chain is a row a citation
- * names, opened where its row opens.
+ * (R23: the report is read when a row opens; campaigns/reach-outs.ts chainsOf), so the page's rows and Ask's context of
+ * the page (ask/context/pages.ts) read the same ones (spec 2026-10-09 §4.5); no tool of Ask's reads them yet. Each chain
+ * is a row a citation names, opened where its row opens.
  */
 export const reachOutChains: Reader<undefined, { chains: ReachOutChainDto[] }> = {
   name: "reachOutChains",

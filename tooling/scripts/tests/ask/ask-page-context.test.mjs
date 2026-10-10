@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { PageContextSchema } from "@chanlytics/contracts";
 
 const { pageContext, focusFromWords } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/context.ts");
-const { surfaceFor } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
+const { askPalette, surfaceFor } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const U = (n) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
@@ -209,6 +209,41 @@ test("Campaigns' home sends the rows its ledger shows and the view they are unde
   const before = ctx({ ...g, __askOnScreen: { key: "people", ids: [U(3)], labels: [], view: null } }, "campaigns");
   assert.deepEqual([before.view, before.rows], ["playbooks", [{ kind: "playbook", id: U(9) }]]);
   assert.deepEqual(ctx(g, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
+});
+
+test("Campaigns' reach-outs are rows of their own (A2): the ledger spells one `reach_out:<id>` and the page sends it so; a reach-out open in the drawer is the page over its row, named for its chain, never a campaign no read holds", () => {
+  const g = {
+    __askOnScreen: {
+      key: "campaigns",
+      ids: [`reach_out:${U(5)}`, `reach_out:${U(6)}`],
+      labels: ["Movers in Austin", "Gyms nearby"],
+      view: "playbooks:all:in:reach_out",
+    },
+  };
+  const out = ctx(g, "campaigns/in:reach_out");
+  assert.deepEqual(
+    [out.view, out.rows],
+    [
+      "playbooks:all:in:reach_out",
+      [
+        { kind: "reach_out", id: U(5) },
+        { kind: "reach_out", id: U(6) },
+      ],
+    ],
+  );
+  // The drawer's address names the chain's first step, which no campaigns read holds: the chains the page read say it is
+  // a reach-out, and its scope is the page at that address, named for it.
+  setSurfaceValue("reach_outs", [{ root_id: U(5), name: "Movers in Austin" }]);
+  try {
+    const drawer = { kind: "page", id: `campaigns/moment:${U(5)}`, label: "Movers in Austin" };
+    assert.deepEqual(ctx(g, `campaigns/moment:${U(5)}`).focus, drawer);
+    // The Line's chip is the same scope (the palette's scopeFor, what a turn is asked with).
+    assert.deepEqual(askPalette({}, null).scopeFor("campaigns", `moment:${U(5)}`, null), drawer);
+    // A campaign's drawer is its playbook still.
+    assert.deepEqual(ctx(g, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
+  } finally {
+    setSurfaceValue("reach_outs", undefined);
+  }
 });
 
 test("forty rows at most, kind and id only -- a row's name never leaves the tab -- and a global in a shape no provider knows gives none rather than a throw", () => {

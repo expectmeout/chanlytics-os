@@ -22,6 +22,7 @@ export {
   PLAYBOOK_HOURS,
   PLAYBOOK_LIMITS,
   SENDING_HOURS_WORDS,
+  sendsWaitWords,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_VETO_DELAY_MS,
   PLAYBOOK_VETO_DELAY_WORDS,
@@ -88,11 +89,13 @@ export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
 export {
   LEDGER_SORTS,
   LEDGER_STATUSES,
+  chainResultsOf,
   isLedgerCampaign,
   ledgerOrder,
   ledgerPeopleWords,
   ledgerPhoneLine,
   ledgerRowIn,
+  lifecycleChainsOf,
   sentResultsOfSource,
 } from "./lifecycle/lifecycle-ledger";
 export type { LedgerSort, LedgerStatus } from "./lifecycle/lifecycle-ledger";

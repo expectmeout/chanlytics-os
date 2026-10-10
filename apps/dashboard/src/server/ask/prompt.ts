@@ -353,6 +353,11 @@ export interface TurnFacts {
   /** The scope's row was read for this question and rode in before these words (cross-page.ts scopedRead). */
   scopeRead?: boolean;
   /**
+   * The scope is the page they are on, at its address (a reach-out's drawer, contracts scopeFromRoute): no read names
+   * it, and the page's data, where it rode in (`context`), holds its row.
+   */
+  scopeOnPage?: boolean;
+  /**
    * On a live turn, what the person did with the chain's cards that no turn of it told yet (memory.ts, D8): said after
    * the clock, in this question's words, never by an edit of an earlier message.
    */
@@ -443,10 +448,12 @@ export function turnWords(t: TurnFacts): string {
   else if (t.surface === "campaigns") lines.push(CAMPAIGNS_LINE);
   else if (t.surface) lines.push(`They are on the ${t.surface} page.`);
   // Every row a scope names is read by its id (cross-page.ts scopedRead) and rides in with the question; one whose read
-  // failed, like a page, is read by the model.
+  // failed, like a page, is read by the model. The page they are on, at its own address, rode in as the page.
   const read = t.scopeRead
     ? "It was read for this question and is in the search results before these words (read://): answer from it, and read again only for what it does not hold."
-    : "Read it before answering about it.";
+    : t.scopeOnPage && t.context
+      ? "It is the page they are on, in the search results before these words (page://): answer from its rows, and read only for what they do not hold."
+      : "Read it before answering about it.";
   if (t.scope)
     lines.push(
       `They are looking at ${rowName(t.scope)} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,

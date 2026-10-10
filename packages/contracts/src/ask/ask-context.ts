@@ -12,8 +12,10 @@ import { answerFromV1 } from "./ask-answer";
 export const ASK_CONTEXT_MAX_ROWS = 40;
 
 /**
- * The kinds of row a page shows, each a kind a citation names (ASK_CITATION_KINDS) but the run, a Broadcasts row, which
- * its address spells so and a citation names a broadcast (the server's context gives each row its RowRef).
+ * The kinds of row a page shows, each a kind a citation names (ASK_CITATION_KINDS) but two the page spells its own way:
+ * the run, a Broadcasts row, which a citation names a broadcast, and the reach-out, a chain on Campaigns' ledger, which no
+ * campaigns read holds and a citation names as the playbook its first step is (the server's context gives each row its
+ * RowRef).
  */
 export const ASK_CONTEXT_ROW_KINDS = [
   "thread",
@@ -24,6 +26,7 @@ export const ASK_CONTEXT_ROW_KINDS = [
   "search",
   "run",
   "playbook",
+  "reach_out",
   "template",
 ] as const;
 export type AskContextRowKind = (typeof ASK_CONTEXT_ROW_KINDS)[number];

@@ -258,6 +258,8 @@ function wordsBlock(
     closures: input.facts.closures,
     focus,
     focusRead: !!focus && !!kind && kind !== "page" && rode.read[kind].has(focus.id),
+    // A reach-out's drawer: the page they are on, at its address (contracts scopeFromRoute), whose row the page holds.
+    scopeOnPage: input.scope?.kind === "page" && input.scope.id === input.context?.route,
     now,
     spoken: input.spoken ?? false,
   };

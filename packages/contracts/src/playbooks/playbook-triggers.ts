@@ -161,6 +161,14 @@ export const SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
 } as const;
 
+/**
+ * Why a send moved past the night, in the clause every place that says the moment it moved to says beside it: the send
+ * screen's notes (surfaces/campaigns/broadcasts/when.tsx) and Ask's broadcast card. Read from the hours it is handed (the
+ * page's clock hands these), when it is said.
+ */
+export const sendsWaitWords = (hours: Pick<typeof SENDING_HOURS_WORDS, "range"> = SENDING_HOURS_WORDS): string =>
+  `sends wait for ${hours.range}`;
+
 /** One playbook message per person per week, across playbooks. */
 export const PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 

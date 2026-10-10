@@ -100,3 +100,22 @@ export const reachOutReport: Reader<
     return { data: { report, chains }, rows: [], stamp: stamp() };
   },
 };
+
+/**
+ * Each reach-out's numbers over Campaigns' own period, read as GET reports/reach-outs?period=30d reads them (reachOutReport,
+ * over the route's own window): each chain's own totals by its root, or the report's twenty where those cannot be read,
+ * which its row on Campaigns says (contracts chainResultsOf). Null where the report could not be read, logged. The
+ * reach-outs' twin of lastDaysBySource: Ask's context of the page says them.
+ */
+export async function chainLastDays(rc: ReaderContext): Promise<ReachOutChainTotalsDto | null> {
+  try {
+    const window = await reportWindowFor(rc, { period: CAMPAIGNS_RESULTS_PERIOD });
+    return (await load(rc, reachOutReport, window)).data.chains;
+  } catch (e) {
+    log.error("reach_out_last_days_read_failed", {
+      tenant_id: rc.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}

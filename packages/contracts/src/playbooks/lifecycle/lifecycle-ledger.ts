@@ -15,6 +15,7 @@ import { CONSENT_CHANNELS } from "../../consent/consent-channels";
 import type { AppointmentWord } from "../../journey/appointment-word";
 import type { JourneyStage } from "../../journey/journey";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
+import type { ReachOutChainTotalsDto } from "../../reports/reach-out-report";
 import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods";
 import { periodWords } from "../../reports/reports";
 import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
@@ -33,6 +34,7 @@ import { PLAYBOOK_DEFAULTS, triggerOf, triggerWords } from "../playbook-triggers
 import { nextRunLine, nextShare, waitingOffer, workspacePausedOf } from "./lifecycle-tiles";
 import type {
   LifecycleAct,
+  LifecycleChains,
   LifecycleChannelMark,
   LifecycleGroup,
   LifecycleInput,
@@ -160,8 +162,26 @@ function sentResultsOf(id: string, report: LifecycleInput["report"]): LifecycleR
   return sentResultsOfSource(report.sources.find((x) => x.id === id));
 }
 
-/** A reach-out's, by its root: past the report's twenty, absent is "none" only where every chain was counted. */
-function chainResultsOf(rootId: string, chains: LifecycleInput["chains"]): LifecycleRowResults {
+/**
+ * The chains' own totals as the ledger reads them (GET reports/reach-outs' `chains`, by root); null where the answer
+ * carried none (a server from before them). Campaigns' results surface and Ask's context of the page read them alike.
+ */
+export function lifecycleChainsOf(dto: ReachOutChainTotalsDto | null | undefined): LifecycleChains | null {
+  if (!dto) return null;
+  return {
+    complete: dto.complete,
+    byRoot: Object.fromEntries(
+      Object.entries(dto.by_root).map(([root, c]) => [root, { written: c.written, wroteBack: c.wrote_back }]),
+    ),
+  };
+}
+
+/**
+ * A reach-out's last 30 days, by its root: what it wrote and how many wrote back where it wrote anything; past the
+ * report's twenty, absent is "none" only where every chain was counted. The one rule a reach-out's row of the ledger and
+ * Ask's context of the page (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
+ */
+export function chainResultsOf(rootId: string, chains: LifecycleInput["chains"]): LifecycleRowResults {
   if (!chains) return "uncounted";
   const c = chains.byRoot[rootId];
   if (!c) return chains.complete ? "none" : "uncounted";

@@ -3,6 +3,7 @@
  * rail, lifecycle-ledger.ts the ledger, lifecycle-tiles.ts the tiles). A sentence of the page is here or made from here, never in the
  * page.
  */
+import { SET_UP_CAMPAIGNS } from "../../ask/ask-suggestions";
 import { CHANNELS_DOOR } from "../../broadcasts/channels-standing";
 import type { ConsentChannel } from "../../consent/consent-channels";
 import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
@@ -199,7 +200,8 @@ export const LIFECYCLE_WORDS = {
   /** Ask's doors on the page (the moment spec, A1): the head's, the first day's sentence, and the drawer's More. */
   ask: {
     door: "Ask",
-    setUp: "Set up my campaigns",
+    /** The chip Ask offers on the first day says the same sentence (contracts SET_UP_CAMPAIGNS). */
+    setUp: SET_UP_CAMPAIGNS.en,
     about: "Ask about this campaign",
   },
   reach: {

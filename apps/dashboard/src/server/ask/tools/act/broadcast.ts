@@ -16,6 +16,7 @@ import {
   parseParamSpec,
   proposalChannelsWords,
   reachSplit,
+  sendsWaitWords,
   type AskedPurpose,
   type CampaignHow,
   type CampaignMessage,
@@ -141,7 +142,7 @@ function broadcastReach(
 /**
  * What the month's email and text allowance will hold back of a broadcast that goes by them (A7), with its separator:
  * the send screen's own sentence (contracts allowanceBeforeSend), counted against the month the send really goes in, as
- * that screen and the door count it: the next open moment of `when` (the ISO time it is set for; now where it goes at
+ * that screen and the door count it: `goesAt`, the next open moment of the time it is set for (now where it goes at
  * once), so one set for 10 PM on the month's last day goes, and is counted, the next morning (core createBroadcast).
  * Nothing while there is room, where it goes by WhatsApp alone (no count is read), or where the month could not be
  * counted.
@@ -151,12 +152,20 @@ async function broadcastHeld(
   channels: readonly ConsentChannel[],
   byChannel: Record<ConsentChannel, number>,
   purpose: AskedPurpose,
-  when: string | null,
+  goesAt: Date,
 ): Promise<string> {
   if (!channels.some((c) => c !== "whatsapp")) return "";
-  const goesAt = nextOpenMoment(t.timezone, when ? new Date(Date.parse(when)) : t.now).at;
   const words = allowanceBeforeSend(byChannel, await monthSentOrNull(t.tenantId, goesAt), null, purpose);
   return words ? ` · ${words}` : "";
+}
+
+/**
+ * When a broadcast card says it goes: now; the time it is set for; or, where that falls outside the sending hours, the
+ * moment it really goes and why (contracts sendsWaitWords), as the send screen's note says it (broadcasts/when.tsx).
+ */
+function goesWords(t: ToolContext, when: string | null, open: { at: Date; moved: boolean }): string {
+  if (open.moved) return `${clockWhen(open.at.getTime(), t.timezone, t.now.getTime())} — ${sendsWaitWords()}`;
+  return when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
 }
 
 /** What a broadcast proposal takes (broadcastAction's input): the message and the audience, its values, when, and the channels it goes by. */
@@ -239,8 +248,10 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   if ("refusal" in said) return refuse(said.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it.
   const name = str(input.name, 80) || broadcastName(message.name, t.timezone, t.now);
-  const whenWords = when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
-  const held = await broadcastHeld(t, by.channels, byChannel, purpose, when);
+  // The moment it really goes, once: the month the allowance is counted in, and the time the card says.
+  const open = nextOpenMoment(t.timezone, when ? new Date(Date.parse(when)) : t.now);
+  const whenWords = goesWords(t, when, open);
+  const held = await broadcastHeld(t, by.channels, byChannel, purpose, open.at);
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,

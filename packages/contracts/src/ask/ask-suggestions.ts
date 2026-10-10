@@ -55,6 +55,12 @@ export interface SuggestionInput {
   campaigns?: { rows: ReadonlyArray<{ name: string; trigger: string; state: string; waiting: boolean }> } | null;
 }
 
+/**
+ * The first day's sentence on Campaigns, in each language: its chip here, and the page's own door
+ * (LIFECYCLE_WORDS.ask.setUp), one sentence that the turn reads as a setup (server/ask/cross-page.ts SETUP).
+ */
+export const SET_UP_CAMPAIGNS = { en: "Set up my campaigns", es: "Prepara mis campañas" } as const;
+
 const T = {
   en: {
     needs: "Who needs me right now?",
@@ -91,7 +97,7 @@ const T = {
     actPlaybookQ: "Start a win-back campaign for the quiet clients",
     actHold: "Hold every reply for my review",
     actHoldQ: "Hold every reply for my review before it sends",
-    setUp: "Set up my campaigns",
+    setUp: SET_UP_CAMPAIGNS.en,
     winBackIdea: "Win back customers who went quiet",
     offerIdea: "What should go out this month?",
     whyWaiting: "Why is {name} waiting?",
@@ -132,7 +138,7 @@ const T = {
     actPlaybookQ: "Inicia una campaña de recuperación para los clientes inactivos",
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Retén cada respuesta para mi revisión antes de enviarla",
-    setUp: "Prepara mis campañas",
+    setUp: SET_UP_CAMPAIGNS.es,
     winBackIdea: "Recupera a los clientes que dejaron de escribir",
     offerIdea: "¿Qué debería salir este mes?",
     whyWaiting: "¿Por qué espera {name}?",

@@ -150,14 +150,16 @@ const reports: Provider = () => {
 const campaigns: Provider = (w, route) => {
   if (route.page === "outbound" || route.page === "campaigns") {
     // The ledger says what it shows (surfaces/campaigns/home/ask-on-campaigns.tsx): its rows in its order, forty at most,
-    // a one-off send's run spelled `run:<id>`, under the view it is set to. Before it has drawn, the playbooks the surface
-    // read.
+    // a one-off send's run spelled `run:<id>` and a reach-out `reach_out:<id>`, under the view it is set to. Before it has
+    // drawn, the playbooks the surface read.
     if (w.__askOnScreen?.key === "campaigns") {
       const got = drawn(w, "campaigns", "playbook");
-      return {
-        view: got.view ?? "playbooks",
-        rows: got.rows.map((r): Row => (r.id.startsWith("run:") ? { ...r, kind: "run", id: r.id.slice(4) } : r)),
+      const spelled = (r: Row): Row => {
+        for (const kind of ["run", "reach_out"] as const)
+          if (r.id.startsWith(`${kind}:`)) return { ...r, kind, id: r.id.slice(kind.length + 1) };
+        return r;
       };
+      return { view: got.view ?? "playbooks", rows: got.rows.map(spelled) };
     }
     return {
       view: "playbooks",
@@ -338,8 +340,11 @@ export function pageContext(
   // Words that name no row -- an answer's item of a kind no focus may be among them -- leave the page's own focus, then
   // the route's; never the page's row at that place. Paired with the eval (tooling/scripts/eval-ask-context.mjs
   // resolveContext, `item ?? scope`): change one, change the other.
+  // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute).
   const focus =
-    (words ? wordsFocus(words, rows, thread) : null) ?? got.focus ?? scopeFromRoute(route.page, route.param);
+    (words ? wordsFocus(words, rows, thread) : null) ??
+    got.focus ??
+    scopeFromRoute(route.page, route.param, null, surfaceValue("reach_outs"));
   return {
     v: 1,
     surface,

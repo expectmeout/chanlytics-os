@@ -1,6 +1,9 @@
 import "server-only";
 import {
+  LIFECYCLE_WORDS,
+  chainResultsOf,
   dealsAreOn,
+  lifecycleChainsOf,
   nextRunLabel,
   reportDaysAsked,
   reportRangeOfKey,
@@ -10,14 +13,16 @@ import {
   toBroadcastVM,
   toReportVM,
   triggerOf,
+  type AskContextRowKind,
+  type LifecycleRowResults,
 } from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
 import type { ReportWindow } from "@chanlytics/db";
 import { report as reportReader, reportWindowFor } from "../../readers/report";
-import { playbooks as playbooksReader } from "../../readers/playbooks";
+import { playbooks as playbooksReader, reachOutChains } from "../../readers/playbooks";
 import { broadcasts as broadcastsReader } from "../../readers/broadcasts";
-import { lastDaysBySource, lastDaysOf } from "../../readers/campaign-report";
+import { chainLastDays, lastDaysBySource, lastDaysOf } from "../../readers/campaign-report";
 import { templates as templatesReader } from "../../readers/templates";
 import { channels as channelsReader } from "../../readers/channels";
 import { connections as connectionsReader } from "../../readers/connections";
@@ -27,7 +32,8 @@ import { aggregateOf, idsOf, line, pageWithView, refsOf, sourceOf, type ContextR
  * The rest of the pages, as their context: Reports (the numbers, no rows), Campaigns (the playbooks, the broadcasts
  * or the messages, whichever tab the page is), Settings (the pane and what the workspace runs on), Start (the step and
  * how far setup has come), and any other page, which is its address alone and reads nothing. A row is cited as its
- * reader gave it: a playbook, a Broadcasts row as a broadcast (the page's own word for it is run), a template.
+ * reader gave it: a playbook, a reach-out as its first step's playbook, a Broadcasts row as a broadcast (the page's own
+ * word for it is run), a template.
  */
 
 const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
@@ -72,37 +78,45 @@ export const reports: Provider = async (rc, ctx) => {
 };
 
 /**
- * The playbooks the page drew, each as campaigns.playbooks says one: its moment, state, next run, and its last 30 days
- * as its row on Campaigns says them (D35); unread, said so, never all-time totals. A citation opens its drawer.
+ * A row's last 30 days in its line, in its row's words (contracts sentResultsOfSource, chainResultsOf): what it sent and
+ * how many replied, or what it wrote and how many wrote back; nothing sent; or, unread or not counted, said so, never
+ * all-time totals.
+ */
+function lastDaysPart(r: LifecycleRowResults | null): string {
+  if (r === null || r === "uncounted") return "30d: not read";
+  if (r === "none") return "30d: nothing sent";
+  return r.kind === "sent"
+    ? `30d: ${r.sent} sent, ${r.replied} replied`
+    : `30d: ${r.written} written, ${r.wroteBack} wrote back`;
+}
+
+/**
+ * The playbooks the page drew, each as campaigns.playbooks says one: its last 30 days as its row on Campaigns says them
+ * (D35), first after its name so no cut reaches them; its state and next run; and its moment, where it is not its name.
+ * A citation opens its drawer.
  */
 async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   const [read, sources] = await Promise.all([load(rc, playbooksReader, undefined), lastDaysBySource(rc)]);
   const pb = read.data;
   const byId = new Map(pb.playbooks.map((p) => [p.id, p]));
   const refs = refsOf(read.rows);
-  // Nothing sent is the row's own rule (contracts sentResultsOfSource): a reply to an older send is no sending in these days.
-  const lastDays = (id: string) => {
-    const days = lastDaysOf(sources, id);
-    if (!days) return "last 30 days not read";
-    const said = sentResultsOfSource(days);
-    return said === "none"
-      ? "nothing sent in the last 30 days"
-      : `last 30 days ${said.sent} sent, ${said.replied} replied`;
-  };
   const rows: ContextRow[] = [];
   for (const id of ids) {
     const p = byId.get(id);
     if (!p) continue;
+    // Nothing sent is the row's own rule (sentResultsOfSource): a reply to an older send is no sending in these days.
+    const days = lastDaysOf(sources, id);
+    const moment = triggerOf(p.trigger)?.label ?? p.trigger;
     rows.push({
       source: sourceOf("playbook", id),
       title: p.name,
       text: line(
         [
           p.name,
-          triggerOf(p.trigger)?.label ?? p.trigger,
+          lastDaysPart(days ? sentResultsOfSource(days) : null),
           p.state,
           `next run ${nextRunLabel(p, pb.timezone, rc.now, pb.ready?.paused === true)}`,
-          lastDays(id),
+          moment.trim().toLowerCase() === p.name.trim().toLowerCase() ? null : moment,
         ],
         `campaigns/moment:${id}`,
       ),
@@ -111,6 +125,39 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   }
   const running = pb.playbooks.filter((p) => p.state === "running").length;
   return { rows, aggregate: `playbooks: ${pb.playbooks.length}, ${running} running` };
+}
+
+/**
+ * The reach-outs the ledger drew (A2), each as GET reach-outs lists it: its last 30 days as its row says them (what it
+ * wrote, how many wrote back), whether it runs, and a run of it waiting on the person. Its drawer is a campaign's; a
+ * citation names it as its first step's playbook, as its reader gives it.
+ */
+async function chainContextRows(rc: ReaderContext, ids: string[]) {
+  const [read, totals] = await Promise.all([load(rc, reachOutChains, undefined), chainLastDays(rc)]);
+  const byRoot = new Map(read.data.chains.map((c) => [c.root_id, c]));
+  const refs = refsOf(read.rows);
+  const chains = lifecycleChainsOf(totals);
+  const rows: ContextRow[] = [];
+  for (const id of ids) {
+    const c = byRoot.get(id);
+    if (!c) continue;
+    const waits = c.state === "running" && c.next.waiting_run_id !== null;
+    rows.push({
+      source: sourceOf("reach_out", id),
+      title: c.name,
+      text: line(
+        [
+          c.name,
+          lastDaysPart(chains ? chainResultsOf(id, chains) : null),
+          c.state,
+          waits ? `next run ${LIFECYCLE_WORDS.coming.waiting.toLowerCase()}` : null,
+        ],
+        `campaigns/moment:${id}`,
+      ),
+      ref: refs.get(id) ?? null,
+    });
+  }
+  return { rows, aggregate: `reach-outs: ${byRoot.size}` };
 }
 
 /** The broadcasts the page drew, each as the Broadcasts page says one: its state, when, who it went to, what came back. */
@@ -167,19 +214,24 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
 }
 
 /**
- * The home's rows (a view of `playbooks`, then the ledger's status, group and search): its campaigns as
- * campaigns.playbooks says them, then its one-off sends as Sent's rows say them, each a row a citation names.
+ * The home's rows (a view of `playbooks`, then the ledger's status, group and search), in the ledger's order: its
+ * campaigns as campaigns.playbooks says them, its reach-outs as GET reach-outs lists them, and its one-off sends as Sent's
+ * rows say them, each a row a citation names.
  */
 async function ledgerRows(rc: ReaderContext, ctx: Parameters<Provider>[1]) {
-  const runs = idsOf(ctx, "run").map((r) => r.id);
-  const [pb, sent] = await Promise.all([
-    playbookContextRows(
-      rc,
-      idsOf(ctx, "playbook").map((r) => r.id),
-    ),
+  const ids = (kind: AskContextRowKind) => idsOf(ctx, kind).map((r) => r.id);
+  const runs = ids("run");
+  const chains = ids("reach_out");
+  const [pb, sent, reach] = await Promise.all([
+    playbookContextRows(rc, ids("playbook")),
     runs.length ? broadcastRows(rc, runs) : null,
+    chains.length ? chainContextRows(rc, chains) : null,
   ]);
-  return { rows: [...pb.rows, ...(sent?.rows ?? [])], aggregate: pb.aggregate };
+  const at = new Map(ctx.rows.map((r, i) => [sourceOf(r.kind, r.id), i]));
+  const rows = [...pb.rows, ...(reach?.rows ?? []), ...(sent?.rows ?? [])].sort(
+    (a, b) => (at.get(a.source) ?? 0) - (at.get(b.source) ?? 0),
+  );
+  return { rows, aggregate: aggregateOf([pb.aggregate, reach?.aggregate]) };
 }
 
 /**

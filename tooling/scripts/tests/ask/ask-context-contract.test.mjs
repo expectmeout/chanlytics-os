@@ -9,6 +9,7 @@ import {
   ASK_CONTEXT_ROW_KINDS,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
+  LIFECYCLE_WORDS,
   PageContextSchema,
   buildAskSuggestions,
   scopeFromRoute,
@@ -149,6 +150,8 @@ test("Ask at rest on Campaigns (the moment spec, A3): three ideas on the first d
     "Win back customers who went quiet",
     "What should go out this month?",
   ]);
+  // The chip and the page's own door (surfaces/campaigns/home/ask-on-campaigns.tsx SetUpAsk) say one sentence.
+  assert.equal(first[0], LIFECYCLE_WORDS.ask.setUp);
   const rows = [
     { name: "Win-back", trigger: "quiet_30", state: "running", waiting: true },
     { name: "Monthly offer", trigger: "everyone_monthly", state: "paused", waiting: false },
@@ -168,12 +171,14 @@ test("Ask at rest on Campaigns (the moment spec, A3): three ideas on the first d
   );
 });
 
-test("a scope has kinds of its own, and so do the context's rows; each is a kind a citation names, but the run, which a citation names a broadcast", () => {
+test("a scope has kinds of its own, and so do the context's rows; each is a kind a citation names, but the run, which a citation names a broadcast, and a reach-out, which a citation names the playbook its first step is", () => {
   assert.notDeepEqual([...ASK_SCOPE_KINDS], [...ASK_CITATION_KINDS], "no longer an alias");
   for (const k of ["lead", "search", "run"]) assert.ok(ASK_SCOPE_KINDS.includes(k), `a page opens a ${k}`);
-  for (const k of ["playbook", "template", "lead", "search", "run"]) assert.ok(ASK_CONTEXT_ROW_KINDS.includes(k));
+  for (const k of ["playbook", "template", "lead", "search", "run", "reach_out"])
+    assert.ok(ASK_CONTEXT_ROW_KINDS.includes(k));
+  assert.ok(!ASK_SCOPE_KINDS.includes("reach_out"), "a reach-out open is the page over its row");
   assert.equal(ASK_CITATION_KINDS.length, 13, "thirteen names: a page and twelve kinds of row");
-  const cited = (k) => (k === "run" ? "broadcast" : k);
+  const cited = (k) => (k === "run" ? "broadcast" : k === "reach_out" ? "playbook" : k);
   for (const k of [...ASK_SCOPE_KINDS, ...ASK_CONTEXT_ROW_KINDS])
     assert.ok(ASK_CITATION_KINDS.includes(cited(k)), `a ${k} is cited as a ${cited(k)}`);
   assert.ok(!ASK_CITATION_KINDS.includes("run"), "run is the address's word, never a citation's");
@@ -238,6 +243,33 @@ test("a campaign's drawer is a scope of its own (the moment spec, A1): campaigns
     surface: "campaigns",
     route: `campaigns/moment:${RUN}`,
     focus: { kind: "playbook", id: RUN, label: "Win-back" },
+  });
+  assert.ok(sent.success, JSON.stringify(sent.error?.issues));
+});
+
+test("a reach-out's drawer, at the same address, is the page over its row (A2): named for its chain where the chains the page read hold it, never a playbook no campaigns read holds; and a reach-out is a row the context carries", () => {
+  const chains = [{ root_id: RUN, name: "Movers in Austin" }];
+  const drawer = { kind: "page", id: `campaigns/moment:${RUN}`, label: "Movers in Austin" };
+  assert.deepEqual(scopeFromRoute("campaigns", `moment:${RUN}`, null, chains), drawer);
+  assert.deepEqual(scopeFromRoute("outbound", `moment:${RUN}`, null, chains), drawer, "the old address, the same page");
+  assert.deepEqual(
+    scopeFromRoute("campaigns", `moment:${RUN}`, "Chain", chains),
+    { ...drawer, label: "Chain" },
+    "a label the page gave wins",
+  );
+  // Another's chain, unread chains or none: the campaign it would be.
+  for (const c of [[{ root_id: S, name: "Other" }], null, undefined, []])
+    assert.deepEqual(scopeFromRoute("campaigns", `moment:${RUN}`, null, c), {
+      kind: "playbook",
+      id: RUN,
+      label: "this campaign",
+    });
+  const sent = PageContextSchema.safeParse({
+    ...ok,
+    surface: "campaigns",
+    route: `campaigns/moment:${RUN}`,
+    focus: drawer,
+    rows: [{ kind: "reach_out", id: RUN }],
   });
   assert.ok(sent.success, JSON.stringify(sent.error?.issues));
 });

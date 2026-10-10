@@ -594,6 +594,20 @@ test("the prompt on Leads: the page is named and words that describe businesses 
     assert.ok(given.includes("It was read for this question and is in the search results"), given);
     assert.ok(!given.includes("Read it before answering about it.") && !given.includes("page://"), given);
   }
+  // A reach-out's drawer is the page at its address (contracts scopeFromRoute), which no read names: never said read.
+  // Where the page they are on rode in, its rows hold it; else it is read as any scope is.
+  const drawer = { kind: "page", id: "campaigns/moment:x1", label: "Movers in Austin" };
+  const onPage = turnWords({ ...facts, surface: "campaigns", scope: drawer, context: true, scopeOnPage: true });
+  assert.ok(
+    onPage.includes(
+      "It is the page they are on, in the search results before these words (page://): answer from its rows",
+    ),
+    onPage,
+  );
+  assert.ok(!onPage.includes("It was read for this question"), onPage);
+  assert.ok(!onPage.includes("Read it before answering about it."), onPage);
+  const dropped = turnWords({ ...facts, surface: "campaigns", scope: drawer, scopeOnPage: true });
+  assert.ok(dropped.includes("Read it before answering about it."), dropped);
 });
 
 test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
@@ -1635,10 +1649,48 @@ test("the cross-page reads: what a question names plainly of another page is rea
     "help me set up our nudges",
     "Start my campaigns",
     "¿Puedes preparar mis campañas?",
+    // One word may stand before the noun: a new one, the first, a moment's.
+    "Set up a new campaign",
+    "set up my first campaign",
+    "Start a new campaign",
+    "Set up a birthday campaign",
+    // Casual openers, with no comma after them.
+    "hey set up my campaigns",
+    "hi set up my campaigns",
+    "yes set up my campaigns",
+    "I'd love to set up my campaigns",
+    "I wanna set up my campaigns",
+    // Spanish, its nouns typed with the tilde or without, and its other verbs.
+    "Configura una campaña de cumpleaños",
+    "Crea mis campañas",
+    "Inicia mis campañas",
+    "Lanza una campaña para los clientes inactivos",
+    "Prepara mis campanas",
+    // Either language's verb with the other's words.
+    "set up mis campañas",
+    "Configura my campaigns",
   ])
-    assert.deepEqual(names(q, "campaigns"), setupReads, q);
+    for (const surface of ["campaigns", "people"]) assert.deepEqual(names(q, surface), setupReads, `${q} (${surface})`);
+  // A setup that names an appointment's moment is a setup, never a look at the calendar.
+  assert.deepEqual(names("Set up an appointment reminder", "today"), setupReads);
+  // Asked whether something will start, or to start it again, is no setup: the follow-ups and reminders run already.
+  for (const q of ["Will you start the follow-ups tomorrow?", "Can you start the reminders again?"])
+    assert.deepEqual(names(q, "campaigns"), [], q);
   // The audiences are no page's rows: asked of offers on Campaigns, they are read.
   assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  // On Campaigns a campaign or an offer named is a row the page holds; only who a send can reach -- an audience, who said
+  // yes, a send to someone, a template -- is read there. Off Campaigns every one of those words still reads the audiences.
+  for (const q of ["which campaign did best?", "pause the monthly offer", "rename the follow-up campaign"]) {
+    assert.deepEqual(names(q, "campaigns"), [], q);
+    assert.deepEqual(names(q), ['campaigns {"action":"audiences"}'], `${q} (people)`);
+  }
+  for (const q of [
+    "who said yes to offers?",
+    "which templates can I use?",
+    "send the October offer to the quiet list",
+    "what audiences do I have?",
+  ])
+    assert.deepEqual(names(q, "campaigns"), ['campaigns {"action":"audiences"}'], q);
   for (const surface of ["conversations", "live"]) assert.deepEqual(names("any missed calls today?", surface), []);
   // Today counts the day's calls and lists none of them: a question about them reads the list there too.
   assert.deepEqual(names("Were there any calls today?", "today"), ['calls {"action":"list","filter":"recent"}']);

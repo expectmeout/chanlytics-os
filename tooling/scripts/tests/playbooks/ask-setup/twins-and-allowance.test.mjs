@@ -19,7 +19,7 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { CAMPAIGN_MONTH_ALLOWANCE } = await import("@chanlytics/contracts");
+const { CAMPAIGN_MONTH_ALLOWANCE, SENDING_HOURS_WORDS, sendsWaitWords } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
@@ -226,12 +226,12 @@ const running = {
 /** The same three people, each with a yes to offers by email too (email keeps its own answer): who an offer by email reaches. */
 const OFFERS_BY_EMAIL = PEOPLE.map((p) => ({ ...p, email_marketing: "opted_in" }));
 /** `monthSent`: the month's count per channel, or a function of the call's arguments (its p_channel and p_at). */
-const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE) => {
+const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE, now = NOW) => {
   const rows = tables(db);
   const count = typeof monthSent === "function" ? monthSent : (a) => monthSent[a.p_channel] ?? 0;
   setServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
   const supabase = fakeDb(rows, {}, { people_list: () => people });
-  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, now);
   return buildProposal(t, "propose_campaign", input);
 };
 const said = (r) => JSON.parse(r.result).error;
@@ -339,4 +339,24 @@ test("a broadcast card by email says what the month's allowance holds back, as t
     OFFERS_BY_EMAIL,
   );
   assert.match(lastAfternoon.proposal.summary, /used up: .* held back/, "within the hours, it goes in September");
+  // And the card says that moment, the one the allowance was counted for, and why it moved: never the 10 PM that will not
+  // happen. One set within the hours goes when it was set, with no clause.
+  const moved = ` · Oct 1 · 9:00 AM — ${sendsWaitWords()}: `;
+  assert.equal(sendsWaitWords(), `sends wait for ${SENDING_HOURS_WORDS.range}`);
+  assert.ok(lateOnTheLast.proposal.summary.includes(moved), lateOnTheLast.proposal.summary);
+  assert.doesNotMatch(lateOnTheLast.proposal.summary, /10:00 PM/);
+  assert.ok(lastAfternoon.proposal.summary.includes(" · Sep 30 · 3:00 PM: "), lastAfternoon.proposal.summary);
+  assert.doesNotMatch(lastAfternoon.proposal.summary, /sends wait/);
+});
+
+test("a broadcast card asked for now outside the sending hours says when it really goes and why, never now", async () => {
+  const now = { action: "broadcast", template_id: OFFER, audience_kind: "everyone", params: [] };
+  // Monday 14 September, 11 PM in New York: it goes at nine the next morning.
+  const late = await propose(now, {}, { email: 0, sms: 0 }, PEOPLE, new Date("2026-09-15T03:00:00Z"));
+  assert.equal(late.isError, false, late.result);
+  assert.ok(late.proposal.summary.includes(` · tomorrow 9:00 AM — ${sendsWaitWords()}: `), late.proposal.summary);
+  assert.doesNotMatch(late.proposal.summary, / · now: /);
+  // At ten in the morning it goes now, and says so.
+  const open = await propose(now, {}, { email: 0, sms: 0 }, PEOPLE);
+  assert.ok(open.proposal.summary.includes(" · now: "), open.proposal.summary);
 });

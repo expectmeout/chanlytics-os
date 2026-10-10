@@ -25,6 +25,7 @@ import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
 import type { AskLanguage } from "./ask-language";
+import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -264,7 +265,8 @@ export interface AskThreadVM {
  * The kinds a scope may have: a page and the rows a page opens, each a kind a citation names (citations.ts) but the
  * run, a Broadcasts row, which its address spells so and a citation names a broadcast. A scope is what the person was
  * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar. A
- * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1).
+ * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1); a reach-out open there is the page at
+ * that address (scopeFromRoute).
  */
 export const ASK_SCOPE_KINDS = [
   "thread",
@@ -309,13 +311,23 @@ function clientsScope(param: string, label: string | null | undefined): AskScope
   return null;
 }
 
+/** A reach-out as the page read it (GET reach-outs' chains): its first step's id, which its drawer's address names, and its name. */
+type ChainRead = Pick<ReachOutChainDto, "root_id" | "name">;
+
 /**
  * The scope a route implies, when it names a row: every address a page opens a row at. Conversations writes
  * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run `broadcasts/run:<id>`,
  * a campaign `campaigns/moment:<id>`; People's, its Leads and Pipeline peeks among them, are clientsScope's, never a
- * second reading.
+ * second reading. A reach-out opens in a campaign's drawer at the same address, and no campaigns read holds it: where
+ * the chains the page read (`chains`) name it, its scope is the page at that address, named for it, whose row the page's
+ * context carries (the moment spec, A2), never a campaign nothing reads.
  */
-export function scopeFromRoute(page: string, param: string | null | undefined, label?: string | null): AskScope | null {
+export function scopeFromRoute(
+  page: string,
+  param: string | null | undefined,
+  label?: string | null,
+  chains?: readonly ChainRead[] | null,
+): AskScope | null {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
     return { kind: "thread", id: param.slice(3), label: label || "this thread" };
@@ -330,9 +342,13 @@ export function scopeFromRoute(page: string, param: string | null | undefined, l
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
   // A campaign open in its drawer on Campaigns' home (surfaces/campaigns/home/address.ts), and the old Playbooks address
-  // it replaced.
-  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7)))
-    return { kind: "playbook", id: param.slice(7), label: label || "this campaign" };
+  // it replaced; or a reach-out open in the same drawer.
+  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7))) {
+    const id = param.slice(7);
+    const chain = chains?.find((c) => c.root_id === id);
+    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
+    return { kind: "playbook", id, label: label || "this campaign" };
+  }
   if (page === "clients") return clientsScope(param, label);
   return null;
 }

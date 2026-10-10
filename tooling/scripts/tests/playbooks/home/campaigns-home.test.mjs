@@ -1470,7 +1470,7 @@ test("Campaigns' own 30 days are one read of each report over its own period, ea
   }
 });
 
-test("what Ask is told the ledger shows (the moment spec, A2): its rows in order, forty at most, a one-off send as its run, the receptionist, the call's text, a reach-out and an offer not made left out, and the view they are under", () => {
+test("what Ask is told the ledger shows (the moment spec, A2): its rows in order, forty at most, a one-off send as its run, a reach-out as one, the receptionist, the call's text and an offer not made left out, and the view they are under", () => {
   const row = (id, kind, name, status = "on") => ({ id, kind, name, status });
   const rows = [
     row("receptionist", "receptionist", "The receptionist", "always"),
@@ -1489,9 +1489,9 @@ test("what Ask is told the ledger shows (the moment spec, A2): its rows in order
   };
   const said = told({ status: "needs", group: "quiet", query: "win", visibleRows: rows });
   assert.equal(said.key, "campaigns");
-  assert.deepEqual(said.ids.slice(0, 4), ["p1", "run:b1", "l1", "p2"]);
+  assert.deepEqual(said.ids.slice(0, 5), ["p1", "reach_out:c1", "run:b1", "l1", "p2"]);
   assert.equal(said.ids.length, contracts.ASK_CONTEXT_MAX_ROWS);
-  assert.deepEqual(said.labels.slice(0, 3), ["Win-back", "Monday offer", "Past clients"]);
+  assert.deepEqual(said.labels.slice(0, 4), ["Win-back", "Movers in Austin", "Monday offer", "Past clients"]);
   assert.equal(said.view, "playbooks:needs:in:quiet:search");
   assert.equal(told({ status: "all", group: null, query: "  ", visibleRows: [] }).view, "playbooks:all");
   assert.deepEqual(
@@ -1526,6 +1526,27 @@ test("the page tells Ask the rows its ledger draws, in its order, under the grou
   check(page("in:quiet"), "playbooks:all:in:quiet");
   unmount();
   assert.equal(globalThis.window.__askOnScreen, null, "taken back when the ledger goes");
+});
+
+test("under Reach-outs Ask is told every row the screen shows (A2): each reach-out by its first step, spelled as one, in the ledger's order", () => {
+  fresh();
+  surfaces({ reachOuts: [chainOf(), chainOf({ root_id: "ch-2", name: "Cold email to gyms", state: "paused" })] });
+  delete globalThis.window.__askOnScreen;
+  const tree = page("in:reach_out");
+  const drawn = allBy(tree, "cmh-row").map((r) => [r.props["data-kind"], r.props["data-row"]]);
+  assert.deepEqual(
+    drawn,
+    [
+      ["chain", "ch-1"],
+      ["chain", "ch-2"],
+    ],
+    "the group draws its two reach-outs",
+  );
+  const s = globalThis.window.__askOnScreen;
+  assert.equal(s.view, "playbooks:all:in:reach_out");
+  assert.deepEqual(s.ids, ["reach_out:ch-1", "reach_out:ch-2"], "the screen's rows, every one");
+  assert.deepEqual(s.labels, ["Cold email to studios", "Cold email to gyms"]);
+  unmount();
 });
 
 /* ------------------------------------------------- Ask's doors ------------------------------------------------- */

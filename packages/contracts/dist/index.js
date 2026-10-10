@@ -473,6 +473,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
+var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
@@ -5497,7 +5498,7 @@ function clientsScope(param, label) {
   if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
   return null;
 }
-function scopeFromRoute(page, param, label) {
+function scopeFromRoute(page, param, label, chains) {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
     return { kind: "thread", id: param.slice(3), label: label || "this thread" };
@@ -5510,8 +5511,12 @@ function scopeFromRoute(page, param, label) {
   if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
-  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7)))
-    return { kind: "playbook", id: param.slice(7), label: label || "this campaign" };
+  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7))) {
+    const id = param.slice(7);
+    const chain = chains?.find((c) => c.root_id === id);
+    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
+    return { kind: "playbook", id, label: label || "this campaign" };
+  }
   if (page === "clients") return clientsScope(param, label);
   return null;
 }
@@ -7327,6 +7332,187 @@ function citationRoute(c, read) {
   return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
 
+// src/ask/ask-suggestions.ts
+var CHIPS_OF = {
+  pipeline: "people",
+  calendar: "other",
+  campaigns: "other"
+};
+var SET_UP_CAMPAIGNS = { en: "Set up my campaigns", es: "Prepara mis campa\xF1as" };
+var T = {
+  en: {
+    needs: "Who needs me right now?",
+    held: "What is the receptionist holding for me?",
+    calls: "Did anyone call while I was busy?",
+    live: "What is the call on the line about?",
+    openSat: "What's open Saturday?",
+    openTomorrow: "What's open tomorrow?",
+    week: "How did the week go?",
+    said: "What did the receptionist tell {name}?",
+    why: "Why was this reply held?",
+    who: "Who wrote today?",
+    rules: "What can the receptionist do on its own?",
+    hours: "What are our hours this week?",
+    brief: "Brief me on today",
+    proposals: "Who has a proposal out?",
+    setupLeft: "What is left to set up?",
+    moreLike: "Find more like: {asked}",
+    actLate: "Tell {name} we're running late",
+    actLateQ: "Tell {name} we're running about 15 minutes late today",
+    actDraft: "Draft a reply to {name}",
+    actDraftQ: "Draft a reply to {name}: ",
+    actRemember: "Remember something for the receptionist",
+    actRememberQ: "Remember that ",
+    actClose: "Close for a day",
+    actCloseQ: "Close on ",
+    actHours: "Change a day's hours",
+    actHoursQ: "Change Saturday's hours to ",
+    actInvite: "Invite a teammate",
+    actInviteQ: "Invite ",
+    actOffer: "Send an offer to a list",
+    actOfferQ: "Send the ",
+    actPlaybook: "Start a win-back campaign",
+    actPlaybookQ: "Start a win-back campaign for the quiet clients",
+    actHold: "Hold every reply for my review",
+    actHoldQ: "Hold every reply for my review before it sends",
+    setUp: SET_UP_CAMPAIGNS.en,
+    winBackIdea: "Win back customers who went quiet",
+    offerIdea: "What should go out this month?",
+    whyWaiting: "Why is {name} waiting?",
+    working: "What's working?"
+  },
+  es: {
+    needs: "\xBFQui\xE9n me necesita ahora?",
+    held: "\xBFQu\xE9 tiene retenido la recepcionista para m\xED?",
+    calls: "\xBFLlam\xF3 alguien mientras estaba ocupada?",
+    live: "\xBFDe qu\xE9 trata la llamada en curso?",
+    openSat: "\xBFQu\xE9 hay libre el s\xE1bado?",
+    openTomorrow: "\xBFQu\xE9 hay libre ma\xF1ana?",
+    week: "\xBFC\xF3mo fue la semana?",
+    said: "\xBFQu\xE9 le dijo la recepcionista a {name}?",
+    why: "\xBFPor qu\xE9 se retuvo esta respuesta?",
+    who: "\xBFQui\xE9n escribi\xF3 hoy?",
+    rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
+    hours: "\xBFCu\xE1l es nuestro horario esta semana?",
+    brief: "Res\xFAmeme el d\xEDa",
+    proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
+    setupLeft: "\xBFQu\xE9 falta por configurar?",
+    moreLike: "Encuentra m\xE1s como: {asked}",
+    actLate: "Dile a {name} que vamos con retraso",
+    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
+    actDraft: "Redacta una respuesta a {name}",
+    actDraftQ: "Redacta una respuesta a {name}: ",
+    actRemember: "Recu\xE9rdale algo a la recepcionista",
+    actRememberQ: "Recuerda que ",
+    actClose: "Cerrar el sal\xF3n un d\xEDa",
+    actCloseQ: "Cierra el ",
+    actHours: "Cambiar el horario de un d\xEDa",
+    actHoursQ: "Cambia el horario del s\xE1bado a ",
+    actInvite: "Invitar a alguien del equipo",
+    actInviteQ: "Invita a ",
+    actOffer: "Enviar una oferta a una lista",
+    actOfferQ: "Env\xEDa la ",
+    actPlaybook: "Iniciar una campa\xF1a de recuperaci\xF3n",
+    actPlaybookQ: "Inicia una campa\xF1a de recuperaci\xF3n para los clientes inactivos",
+    actHold: "Retener cada respuesta para revisarla",
+    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla",
+    setUp: SET_UP_CAMPAIGNS.es,
+    winBackIdea: "Recupera a los clientes que dejaron de escribir",
+    offerIdea: "\xBFQu\xE9 deber\xEDa salir este mes?",
+    whyWaiting: "\xBFPor qu\xE9 espera {name}?",
+    working: "\xBFQu\xE9 est\xE1 funcionando?"
+  }
+};
+var PAGE_QUESTIONS = {
+  today: [
+    ["brief", "sparkle"],
+    ["who", "users"]
+  ],
+  inbox: [
+    ["who", "users"],
+    ["rules", "shield"]
+  ],
+  people: [["who", "users"]],
+  reports: [["week", "trending-up"]],
+  settings: [
+    ["rules", "shield"],
+    ["hours", "clock"]
+  ],
+  start: [
+    ["setupLeft", "check"],
+    ["hours", "clock"]
+  ]
+};
+function clipWords(s, cap2) {
+  const w = s.replace(/\s+/g, " ").trim();
+  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
+}
+function pageChips(input, t, add) {
+  if (input.surface === "leads") {
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+    return false;
+  }
+  const rows2 = input.surface === "campaigns" ? input.campaigns?.rows ?? null : null;
+  const winBackRuns = !!rows2?.some((r2) => isWinBack(r2.trigger) && r2.state === "running");
+  if (rows2 && rows2.length === 0)
+    for (const k of ["setUp", "winBackIdea", "offerIdea"]) add(t[k], "ask", "bolt");
+  if (rows2 && rows2.length > 0) {
+    const waiting = rows2.find((r2) => r2.waiting);
+    if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+    add(t.working, "ask", "trending-up");
+    if (!winBackRuns) add(t.winBackIdea, "ask", "bolt");
+  }
+  return winBackRuns;
+}
+function buildAskSuggestions(input) {
+  const t = T[input.language === "es" ? "es" : "en"];
+  const at3 = CHIPS_OF[input.surface] ?? input.surface;
+  const out = [];
+  const add = (q, kind, icon, fast = false, label) => {
+    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
+  };
+  const s = input.scope;
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    add(t.said.replace("{name}", s.label), "ask", "chat");
+    if (s.kind === "thread") add(t.why, "ask", "sparkle");
+  }
+  if (s && s.kind === "call") add(t.live, "ask", "phone");
+  const winBackRuns = pageChips(input, t, add);
+  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
+  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
+  if (input.liveNow > 0) add(t.live, "ask", "phone");
+  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
+  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
+  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
+  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
+  if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
+  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
+  add(t.week, "ask", "trending-up");
+  add(t.rules, "ask", "shield");
+  const asks = out.slice(0, 7);
+  if (!input.canAct) return asks;
+  const acts = [];
+  const act2 = (label, q, icon, compose = false) => {
+    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
+  };
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    act2(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
+    act2(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
+  }
+  act2(t.actRemember, t.actRememberQ, "sparkle", true);
+  if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
+  if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
+  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
+  if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
+  if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
+  if ((at3 === "people" || at3 === "other") && !winBackRuns) act2(t.actPlaybook, t.actPlaybookQ, "bolt");
+  return [...asks, ...acts.slice(0, 4)];
+}
+
 // src/workspace/billing.ts
 var BILLING_MODES = ["stripe", "direct"];
 var BILLING_STATUSES = [
@@ -8317,7 +8503,8 @@ var LIFECYCLE_WORDS = {
   /** Ask's doors on the page (the moment spec, A1): the head's, the first day's sentence, and the drawer's More. */
   ask: {
     door: "Ask",
-    setUp: "Set up my campaigns",
+    /** The chip Ask offers on the first day says the same sentence (contracts SET_UP_CAMPAIGNS). */
+    setUp: SET_UP_CAMPAIGNS.en,
     about: "Ask about this campaign"
   },
   reach: {
@@ -12195,6 +12382,7 @@ var ASK_CONTEXT_ROW_KINDS = [
   "search",
   "run",
   "playbook",
+  "reach_out",
   "template"
 ];
 var isRowFocus = (k) => k !== "page" && ASK_SCOPE_KINDS.includes(k);
@@ -12371,186 +12559,6 @@ function askJump(query, index, limit = 6) {
   for (const p of index) if (p.kind === "page" && (p.also ?? []).some((w) => w.toLowerCase().includes(s))) push(p);
   for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
   return out.slice(0, limit);
-}
-
-// src/ask/ask-suggestions.ts
-var CHIPS_OF = {
-  pipeline: "people",
-  calendar: "other",
-  campaigns: "other"
-};
-var T = {
-  en: {
-    needs: "Who needs me right now?",
-    held: "What is the receptionist holding for me?",
-    calls: "Did anyone call while I was busy?",
-    live: "What is the call on the line about?",
-    openSat: "What's open Saturday?",
-    openTomorrow: "What's open tomorrow?",
-    week: "How did the week go?",
-    said: "What did the receptionist tell {name}?",
-    why: "Why was this reply held?",
-    who: "Who wrote today?",
-    rules: "What can the receptionist do on its own?",
-    hours: "What are our hours this week?",
-    brief: "Brief me on today",
-    proposals: "Who has a proposal out?",
-    setupLeft: "What is left to set up?",
-    moreLike: "Find more like: {asked}",
-    actLate: "Tell {name} we're running late",
-    actLateQ: "Tell {name} we're running about 15 minutes late today",
-    actDraft: "Draft a reply to {name}",
-    actDraftQ: "Draft a reply to {name}: ",
-    actRemember: "Remember something for the receptionist",
-    actRememberQ: "Remember that ",
-    actClose: "Close for a day",
-    actCloseQ: "Close on ",
-    actHours: "Change a day's hours",
-    actHoursQ: "Change Saturday's hours to ",
-    actInvite: "Invite a teammate",
-    actInviteQ: "Invite ",
-    actOffer: "Send an offer to a list",
-    actOfferQ: "Send the ",
-    actPlaybook: "Start a win-back campaign",
-    actPlaybookQ: "Start a win-back campaign for the quiet clients",
-    actHold: "Hold every reply for my review",
-    actHoldQ: "Hold every reply for my review before it sends",
-    setUp: "Set up my campaigns",
-    winBackIdea: "Win back customers who went quiet",
-    offerIdea: "What should go out this month?",
-    whyWaiting: "Why is {name} waiting?",
-    working: "What's working?"
-  },
-  es: {
-    needs: "\xBFQui\xE9n me necesita ahora?",
-    held: "\xBFQu\xE9 tiene retenido la recepcionista para m\xED?",
-    calls: "\xBFLlam\xF3 alguien mientras estaba ocupada?",
-    live: "\xBFDe qu\xE9 trata la llamada en curso?",
-    openSat: "\xBFQu\xE9 hay libre el s\xE1bado?",
-    openTomorrow: "\xBFQu\xE9 hay libre ma\xF1ana?",
-    week: "\xBFC\xF3mo fue la semana?",
-    said: "\xBFQu\xE9 le dijo la recepcionista a {name}?",
-    why: "\xBFPor qu\xE9 se retuvo esta respuesta?",
-    who: "\xBFQui\xE9n escribi\xF3 hoy?",
-    rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
-    hours: "\xBFCu\xE1l es nuestro horario esta semana?",
-    brief: "Res\xFAmeme el d\xEDa",
-    proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
-    setupLeft: "\xBFQu\xE9 falta por configurar?",
-    moreLike: "Encuentra m\xE1s como: {asked}",
-    actLate: "Dile a {name} que vamos con retraso",
-    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
-    actDraft: "Redacta una respuesta a {name}",
-    actDraftQ: "Redacta una respuesta a {name}: ",
-    actRemember: "Recu\xE9rdale algo a la recepcionista",
-    actRememberQ: "Recuerda que ",
-    actClose: "Cerrar el sal\xF3n un d\xEDa",
-    actCloseQ: "Cierra el ",
-    actHours: "Cambiar el horario de un d\xEDa",
-    actHoursQ: "Cambia el horario del s\xE1bado a ",
-    actInvite: "Invitar a alguien del equipo",
-    actInviteQ: "Invita a ",
-    actOffer: "Enviar una oferta a una lista",
-    actOfferQ: "Env\xEDa la ",
-    actPlaybook: "Iniciar una campa\xF1a de recuperaci\xF3n",
-    actPlaybookQ: "Inicia una campa\xF1a de recuperaci\xF3n para los clientes inactivos",
-    actHold: "Retener cada respuesta para revisarla",
-    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla",
-    setUp: "Prepara mis campa\xF1as",
-    winBackIdea: "Recupera a los clientes que dejaron de escribir",
-    offerIdea: "\xBFQu\xE9 deber\xEDa salir este mes?",
-    whyWaiting: "\xBFPor qu\xE9 espera {name}?",
-    working: "\xBFQu\xE9 est\xE1 funcionando?"
-  }
-};
-var PAGE_QUESTIONS = {
-  today: [
-    ["brief", "sparkle"],
-    ["who", "users"]
-  ],
-  inbox: [
-    ["who", "users"],
-    ["rules", "shield"]
-  ],
-  people: [["who", "users"]],
-  reports: [["week", "trending-up"]],
-  settings: [
-    ["rules", "shield"],
-    ["hours", "clock"]
-  ],
-  start: [
-    ["setupLeft", "check"],
-    ["hours", "clock"]
-  ]
-};
-function clipWords(s, cap2) {
-  const w = s.replace(/\s+/g, " ").trim();
-  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
-}
-function pageChips(input, t, add) {
-  if (input.surface === "leads") {
-    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-    for (const w of ideas) add(w, "ask", "search");
-    if (!ideas.length)
-      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
-    return false;
-  }
-  const rows2 = input.surface === "campaigns" ? input.campaigns?.rows ?? null : null;
-  const winBackRuns = !!rows2?.some((r2) => isWinBack(r2.trigger) && r2.state === "running");
-  if (rows2 && rows2.length === 0)
-    for (const k of ["setUp", "winBackIdea", "offerIdea"]) add(t[k], "ask", "bolt");
-  if (rows2 && rows2.length > 0) {
-    const waiting = rows2.find((r2) => r2.waiting);
-    if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
-    add(t.working, "ask", "trending-up");
-    if (!winBackRuns) add(t.winBackIdea, "ask", "bolt");
-  }
-  return winBackRuns;
-}
-function buildAskSuggestions(input) {
-  const t = T[input.language === "es" ? "es" : "en"];
-  const at3 = CHIPS_OF[input.surface] ?? input.surface;
-  const out = [];
-  const add = (q, kind, icon, fast = false, label) => {
-    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
-  };
-  const s = input.scope;
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    add(t.said.replace("{name}", s.label), "ask", "chat");
-    if (s.kind === "thread") add(t.why, "ask", "sparkle");
-  }
-  if (s && s.kind === "call") add(t.live, "ask", "phone");
-  const winBackRuns = pageChips(input, t, add);
-  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
-  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
-  if (input.liveNow > 0) add(t.live, "ask", "phone");
-  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
-  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
-  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
-  if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
-  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
-  add(t.week, "ask", "trending-up");
-  add(t.rules, "ask", "shield");
-  const asks = out.slice(0, 7);
-  if (!input.canAct) return asks;
-  const acts = [];
-  const act2 = (label, q, icon, compose = false) => {
-    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
-  };
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    act2(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
-    act2(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
-  }
-  act2(t.actRemember, t.actRememberQ, "sparkle", true);
-  if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
-  if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
-  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
-  if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
-  if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
-  if ((at3 === "people" || at3 === "other") && !winBackRuns) act2(t.actPlaybook, t.actPlaybookQ, "bolt");
-  return [...asks, ...acts.slice(0, 4)];
 }
 
 // src/conversations/call-dto.ts
@@ -27991,6 +27999,15 @@ function sentResultsOf(id, report) {
   if (!report) return "uncounted";
   return sentResultsOfSource(report.sources.find((x) => x.id === id));
 }
+function lifecycleChainsOf(dto) {
+  if (!dto) return null;
+  return {
+    complete: dto.complete,
+    byRoot: Object.fromEntries(
+      Object.entries(dto.by_root).map(([root, c]) => [root, { written: c.written, wroteBack: c.wrote_back }])
+    )
+  };
+}
 function chainResultsOf(rootId, chains) {
   if (!chains) return "uncounted";
   const c = chains.byRoot[rootId];
@@ -39725,6 +39742,7 @@ export {
   chainPaceOf,
   chainPathWords,
   chainReportWordsOf,
+  chainResultsOf,
   chainTotalsFromReport,
   chainTotalsOf,
   changedConfigFields,
@@ -40217,6 +40235,7 @@ export {
   lensRoute,
   lensesFor,
   libraryCount,
+  lifecycleChainsOf,
   lifecycleKicker,
   lineCredentialFailure,
   lineOrNull,
@@ -40732,6 +40751,7 @@ export {
   sendingDomainDtoOf,
   sendingDomainWords,
   sendingDomainsFootWords,
+  sendsWaitWords,
   sentByWords,
   sentResultsOfSource,
   serverNotificationRows,

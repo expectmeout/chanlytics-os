@@ -486,19 +486,6 @@ function underMode(cls: PlaybookInput["policy_class"], policies: readonly { clas
 }
 
 /**
- * A playbook on a moment whose starter this workspace does not hold yet (the moment spec's A0, D23): the card names the
- * starter by its key, and its Approve files the starter as the composer's one press does (POST playbooks with
- * starter_key), then starts the playbook on it. Nothing is filed at the card: an act only checks and proposes. It is held
- * here to everything its Approve will be held to, by the route's own function (srv/campaigns/starter-templates.ts
- * checkStarterPlaybook: the moment offered here, with the workspace's calendar; its list and class; the starter the
- * moment's own, with no words of its own to write; its numbers; its channels, and one its message holds at once), in the
- * same words, so a card the route would refuse is never made. It goes by the channels that judgement gives (those named,
- * else those held at once and WhatsApp where there is a number) and says each, and which of them hold their people until
- * they can send, by the drawer's own reading (WhatsApp until WhatsApp approves the version, email until offers by email
- * are open). Its slots are the starter's own sources, which the payload carries and the commit sends. It says what the
- * message card says (the moment and its schedule, the month's allowance, who said yes, the class's mode).
- */
-/**
  * What a starter card says of the channels that wait (channelsWaitWords) where its Approve sends a WhatsApp version for
  * review (`forReview`). Where the workspace is ready on WhatsApp, the review is why WhatsApp waits, said in its place;
  * where a reason of the workspace's own holds WhatsApp (a number WhatsApp flagged), that reason stands, since approving
@@ -514,6 +501,19 @@ function starterWaitWords(
   return `${channelsWaitWords(read)} · ${LIBRARY_STARTER_WORDS.whatsappSentForReview}`;
 }
 
+/**
+ * A playbook on a moment whose starter this workspace does not hold yet (the moment spec's A0, D23): the card names the
+ * starter by its key, and its Approve files the starter as the composer's one press does (POST playbooks with
+ * starter_key), then starts the playbook on it. Nothing is filed at the card: an act only checks and proposes. It is held
+ * here to everything its Approve will be held to, by the route's own function (srv/campaigns/starter-templates.ts
+ * checkStarterPlaybook: the moment offered here, with the workspace's calendar; its list and class; the starter the
+ * moment's own, with no words of its own to write; its numbers; its channels, and one its message holds at once), in the
+ * same words, so a card the route would refuse is never made. It goes by the channels that judgement gives (those named,
+ * else those held at once and WhatsApp where there is a number) and says each, and which of them hold their people until
+ * they can send, by the drawer's own reading (WhatsApp until WhatsApp approves the version, email until offers by email
+ * are open). Its slots are the starter's own sources, which the payload carries and the commit sends. It says what the
+ * message card says (the moment and its schedule, the month's allowance, who said yes, the class's mode).
+ */
 async function proposeOnStarter(
   t: ToolContext,
   input: PlaybookProposed,

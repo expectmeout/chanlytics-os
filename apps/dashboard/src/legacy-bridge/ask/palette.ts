@@ -278,7 +278,9 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
     answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
       oneDoor(m.answer ?? answerFromV1(m), m.proposals ?? []),
-    scopeFor: (page: string, param: string | null, label?: string | null) => scopeFromRoute(page, param, label),
+    // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute).
+    scopeFor: (page: string, param: string | null, label?: string | null) =>
+      scopeFromRoute(page, param, label, surfaceValue("reach_outs")),
     surfaceFor,
     language,
     rememberLanguage,
