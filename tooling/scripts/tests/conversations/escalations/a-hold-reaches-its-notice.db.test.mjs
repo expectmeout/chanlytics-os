@@ -112,13 +112,15 @@ test("a hold opened through its door is owed to owner_notice, and told once from
     subscribed.some((s) => s.subscriber === "owner_notice" && s.lane === 0 && !s.paused),
     "owner_notice takes escalation.opened in lane 0",
   );
-  // Owed to the subscriber: on the outbox, or already relayed to a delivery of its own (a tick may have run).
+  // Owed to the subscriber: on the outbox, or already relayed to a delivery of its own. The outbox is read first, so a
+  // relay tick between the two reads finds it in both, never in neither.
   const outbox = ok(await db.from("event_outbox").select("event_id").eq("event_id", event.id), "outbox");
   const delivered = ok(
     await db.from("event_deliveries").select("subscriber").eq("event_id", event.id).eq("subscriber", "owner_notice"),
     "deliveries",
   );
-  assert.equal(outbox.length + delivered.length, 1, "the event waits for the relay, or is the subscriber's");
+  assert.ok(outbox.length + delivered.length >= 1, "the event waits for the relay, or is the subscriber's");
+  assert.ok(delivered.length <= 1, "and is the subscriber's once");
 
   const told = [];
   const ports = {
