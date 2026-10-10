@@ -5320,10 +5320,13 @@ div.tpl-slotbox:not([data-lines="1"]) {
   background: var(--warn);
 }
 /* A desk row's name, in the line's small size and the desk's weight and ink. Its door is the kit's link that takes where
-   it stands (kit.css .link-btn-inherit: a block, no underline, a long name ending in an ellipsis); it may shrink in its
-   flex line. */
+   it stands (kit.css .link-btn-inherit: a block, no underline, a long name ending in an ellipsis). The name keeps its
+   width and the hint beside it gives way first (seen on the rig, 10 Oct: "The call's text" drawn as "The ca…" beside a
+   long hint, both shrinking alike); only a name longer than the whole cell ends in an ellipsis. */
 .cmh-row-what .cmh-row-name {
   min-width: 0;
+  flex-shrink: 0;
+  max-width: 100%;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--ink);
@@ -5336,6 +5339,7 @@ div.tpl-slotbox:not([data-lines="1"]) {
   text-overflow: ellipsis;
 }
 .cmh-row-hint {
+  flex: 1 1 0%;
   min-width: 0;
   font-size: var(--text-xs);
   white-space: nowrap;
