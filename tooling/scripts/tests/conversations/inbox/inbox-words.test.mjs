@@ -473,8 +473,8 @@ test("the search asks for what it searches, and a teammate's email keeps its own
       onClearSelection() {},
     });
     assert.equal(
-      find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input").props.placeholder,
-      "Search by name or message…",
+      find(tree, (n) => n.props?.["data-testid"] === "inbox-search").props.placeholder,
+      "Search by name or message",
       "REGRESSION: 'Search threads, clients, tags…', on a workspace with no tags",
     );
     const pill = find(tree, (n) => n.type === "span" && hasClass("ix-state-pill")(n) && textOf(n).includes("has it"));
