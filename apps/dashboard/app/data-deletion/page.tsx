@@ -17,10 +17,10 @@ export default function DataDeletionPage() {
   return (
     <main className="legal">
       <h1>Deleting your data</h1>
-      <p className="legal-meta">Chanlytics OS · last updated September 8, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated September 8, 2026</p>
 
       <p>
-        Who to ask depends on whose data it is. A business that uses Chanlytics OS decides what it keeps about its own
+        Who to ask depends on whose data it is. A business that uses Chanlytics decides what it keeps about its own
         customers; we hold that data on the business’s behalf. So there are two paths, and both end in the same place.
       </p>
 
@@ -70,7 +70,7 @@ export default function DataDeletionPage() {
       </p>
 
       <p className="legal-foot">
-        Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a> ·{" "}
+        Chanlytics · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a> ·{" "}
         <a href="/login">Sign in</a>
       </p>
     </main>

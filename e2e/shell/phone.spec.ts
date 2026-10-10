@@ -18,7 +18,7 @@ test.describe("Installable shell, no session", () => {
     expect(m.status()).toBe(200);
     expect(m.headers()["content-type"]).toContain("manifest");
     const json = await m.json();
-    expect(json.name).toBe("Chanlytics OS");
+    expect(json.name).toBe("Chanlytics");
     expect(json.display).toBe("standalone");
     expect(json.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
     const sw = await request.get("/sw.js", { maxRedirects: 0 });

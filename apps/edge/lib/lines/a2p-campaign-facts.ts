@@ -199,7 +199,7 @@ function campaignDescription(sender: ReturnType<typeof campaignSender>): string 
     aboutSentence,
     "The texts are replies to what a customer asked, and confirmations and reminders about that customer's own appointments.",
     "No marketing or promotional content is sent.",
-    `Messages are sent by ${name} staff and by the Chanlytics OS application, on ${owns} own behalf.`,
+    `Messages are sent by ${name} staff and by the Chanlytics application, on ${owns} own behalf.`,
   ]
     .filter(Boolean)
     .join(" ");
