@@ -1384,6 +1384,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       // A campaign changed in place (the moment spec, A8): the fields its change card carries.
       change_resume_by_name: { playbook_change: { state: "running" } },
       change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
+      // A reminder the day before, asked where a calendar is connected (the marketing manager's §8): its moment.
+      remind_day_before: { playbook: { trigger: "visit_tomorrow" } },
     },
   );
   assert.deepEqual(

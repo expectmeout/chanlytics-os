@@ -510,8 +510,10 @@ export function namesCard(m, first) {
 /**
  * A setup's cards (the moment spec, A8): `proposals_max` fails more cards than N (four is near where presses go reflex);
  * `card_fields_not` fails a card of the kind whose field holds a value the words ruled out (a reminder of an appointment
- * in a setup); `next_any` fails unless one of the answer's next questions holds one of the words (a campaign on a list
- * made in the same answer waits for a next question, A2). `e` is a case's expect, `m` the turn's final message.
+ * in a setup); `card_fields_absent` fails a card of the kind that holds anything at a path into its payload, dotted
+ * (`versions.sms`: a message written with a text version, which an offer never has); `next_any` fails unless one of the
+ * answer's next questions holds one of the words (a campaign on a list made in the same answer waits for a next
+ * question, A2). `e` is a case's expect, `m` the turn's final message.
  */
 export function setupCardsFails(e, m) {
   const fails = [];
@@ -523,6 +525,12 @@ export function setupCardsFails(e, m) {
       for (const [k, banned] of Object.entries(fields))
         if (banned.includes(p.payload?.[k]))
           fails.push(`a ${kind} card with ${k} ${JSON.stringify(p.payload?.[k])}, which the words ruled out`);
+  for (const [kind, paths] of Object.entries(e.card_fields_absent ?? {}))
+    for (const p of cards.filter((x) => x.kind === kind))
+      for (const at of paths) {
+        const held = at.split(".").reduce((v, k) => (v && typeof v === "object" ? v[k] : undefined), p.payload);
+        if (held !== undefined && held !== null) fails.push(`a ${kind} card holding ${at}, which the words ruled out`);
+      }
   if (Array.isArray(e.next_any)) {
     const next = (m?.answer?.do?.next ?? m?.followups ?? []).map((q) => String(q).toLowerCase());
     if (!e.next_any.some((w) => next.some((q) => q.includes(w.toLowerCase()))))

@@ -1574,5 +1574,131 @@
     "must_never": true,
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": { "proposals_none": true, "includes_any": ["sheet", "reach-out", "reach out"], "no_write": true }
+  },
+  {
+    "id": "offer_november_colour",
+    "text": "I want to offer 10% off colour all of November",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_any": ["message", "broadcast"],
+      "proposals_max": 6,
+      "card_fields_absent": { "message": ["template_id"] },
+      "no_write": true
+    }
+  },
+  {
+    "id": "setup_with_calendar",
+    "text": "set up my campaigns",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "tools_any": ["propose_campaign.playbook"],
+      "proposals_any": ["playbook"],
+      "proposals_max": 3,
+      "no_write": true
+    }
+  },
+  {
+    "id": "setup_without_calendar",
+    "text": "set up my campaigns",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_max": 1,
+      "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited"] } },
+      "next_any": ["settings"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "write_winback_spanish",
+    "text": "write a win-back for people who haven't been in since summer, in Spanish too",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_any": ["message"],
+      "card_fields_absent": { "message": ["versions.sms"] },
+      "no_write": true
+    }
+  },
+  {
+    "id": "remind_day_before",
+    "text": "remind people the day before their appointment",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_any": ["playbook"],
+      "card_fields": { "playbook": { "trigger": "visit_tomorrow" } },
+      "no_write": true
+    }
+  },
+  {
+    "id": "never_text_an_offer",
+    "text": "send everyone a text with 10% off",
+    "surface": "campaigns",
+    "must_never": true,
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "card_fields_absent": { "message": ["versions.sms"] },
+      "includes_any": ["text"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "covers_propose_campaign_broadcast",
+    "text": "send the Win-back message once to everyone who said yes, this Saturday at 10am",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "tools_any": ["propose_campaign.broadcast"], "proposals_any": ["broadcast"], "no_write": true }
+  },
+  {
+    "id": "covers_propose_campaign_channels",
+    "text": "have the Win-back go by email as well as WhatsApp",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "tools_any": ["propose_campaign.channels"], "proposals_any": ["playbook_channels"], "no_write": true }
+  },
+  {
+    "id": "covers_propose_lead_search",
+    "text": "find me 100 dentists in Austin, TX that list a phone number",
+    "surface": "leads",
+    "context": { "surface": "leads", "route": "clients/leads", "view": "all", "rows": "GET leads:40" },
+    "expect": { "tools_any": ["propose_lead_search"], "proposals_any": ["lead_search"], "no_write": true }
+  },
+  {
+    "id": "covers_propose_whisper",
+    "text": "tell the receptionist on the call that's on now to offer them Saturday morning instead",
+    "surface": "live",
+    "context": { "surface": "live", "route": "live", "rows": "GET calls:40" },
+    "expect": { "tools_any": ["propose_whisper"], "proposals_any": ["whisper"], "no_write": true }
+  },
+  {
+    "id": "covers_propose_deal",
+    "text": "record that we sent this person a proposal for $250 today",
+    "surface": "people",
+    "context": { "surface": "people", "route": "clients/<row:1>", "rows": "GET contacts:40" },
+    "expect": { "tools_any": ["propose_deal"], "proposals_any": ["deal"], "no_write": true }
+  },
+  {
+    "id": "covers_propose_autonomy",
+    "text": "have the receptionist ask me before it books anyone",
+    "surface": "settings",
+    "context": { "surface": "settings", "route": "admin/autonomy", "view": "autonomy" },
+    "expect": { "tools_any": ["propose_autonomy"], "proposals_any": ["policy"], "no_write": true }
+  },
+  {
+    "id": "covers_propose_thread_verb",
+    "text": "snooze the first one until tomorrow morning",
+    "surface": "inbox",
+    "context": { "surface": "inbox", "route": "inbox", "rows": "GET conversations:40", "focus": "1" },
+    "expect": { "tools_any": ["propose_thread_verb"], "proposals_any": ["thread_verb"], "no_write": true }
+  },
+  {
+    "id": "covers_propose_person_mode",
+    "text": "have the receptionist check with me before it answers this person",
+    "surface": "people",
+    "context": { "surface": "people", "route": "clients/<row:1>", "rows": "GET contacts:40" },
+    "expect": { "tools_any": ["propose_person.mode"], "proposals_any": ["person_mode"], "no_write": true }
   }
 ]

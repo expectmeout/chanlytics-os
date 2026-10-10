@@ -1168,9 +1168,12 @@ const SETUP_AND_CHANGE = [
   "change_rename_and_hour",
   "change_hour_out_of_bounds",
   "change_reach_out_refused",
+  // A setup with a calendar and without one (the marketing manager's §8): the same words, two workspaces.
+  "setup_with_calendar",
+  "setup_without_calendar",
 ];
 
-test("the setup and change cases (the moment spec, A8): twelve, run only after the Win-back's seed and never here; a setup's two reads ride into round 1 exactly where the turn hears a setup, and only there is the tools' order noted; nothing of theirs is approved, so nothing is filed", async () => {
+test("the setup and change cases (the moment spec, A8): fourteen, run only after the Win-back's seed and never here; a setup's two reads ride into round 1 exactly where the turn hears a setup, and only there is the tools' order noted; nothing of theirs is approved, so nothing is filed", async () => {
   const { crossPagePlan } = await import("../../../../apps/dashboard/src/server/ask/cross-page.ts");
   const cases = CASES.filter((c) => /^(setup|change)_/.test(c.id));
   assert.deepEqual(
@@ -1206,6 +1209,8 @@ test("the setup and change cases (the moment spec, A8): twelve, run only after t
       "setup_leads_refused",
       "setup_again_same_thread",
       "setup_again_same_thread (then)",
+      "setup_with_calendar",
+      "setup_without_calendar",
     ],
   );
   // The tools' order is noted only on a turn whose reads ride in first, and a read a case asks for off Campaigns' rows
@@ -1346,7 +1351,7 @@ test("--list says every case and its second turn, its page, the turns and their 
     run.stdout.includes(`${n} cases, ${turns} turns × 3 = ${turns * 3} turns ≈ $${(turns * 3 * 0.012).toFixed(2)}`),
     run.stdout.slice(-600),
   );
-  assert.match(run.stdout, /\n {2}inbox: 6 case\(s\), 7 turn\(s\) \(7 with the page\) × 3 = 21 turns/);
+  assert.match(run.stdout, /\n {2}inbox: 7 case\(s\), 8 turn\(s\) \(8 with the page\) × 3 = 24 turns/);
   // Each two-turn case's own block: its words, then its second turn's two lines, under its own id line.
   const listed = run.stdout.split("\n");
   for (const c of CASES.filter((x) => x.then)) {
@@ -1416,4 +1421,23 @@ test("a setup's keys (the moment spec, A8): proposals_max fails more cards, card
     [],
   );
   assert.deepEqual(toolsOrderNote({}, m()), []);
+});
+
+test("card_fields_absent (the marketing manager's cases): a card of the kind holding anything at a path, dotted into its payload, fails; null holds nothing, and a card of another kind is never judged", () => {
+  const card = (kind, payload) => ({ id: "p", kind, title: "t", summary: "s", payload });
+  const m = (...proposals) => ({ text: "", proposals, tools: [], answer: { do: { next: [] } } });
+  const absent = { card_fields_absent: { message: ["template_id", "versions.sms"] } };
+  const written = {
+    name: "Win-back",
+    language: "es",
+    versions: { email: { subject: "Vuelve", body: "Te esperamos" } },
+  };
+  assert.deepEqual(setupCardsFails(absent, m(card("message", written))), []);
+  const texted = { ...written, versions: { ...written.versions, sms: { body: "10% off" } } };
+  assert.deepEqual(setupCardsFails(absent, m(card("message", texted))), [
+    "a message card holding versions.sms, which the words ruled out",
+  ]);
+  assert.match(setupCardsFails(absent, m(card("message", { ...written, template_id: "@step:1" })))[0], /template_id/);
+  assert.deepEqual(setupCardsFails(absent, m(card("message", { ...written, versions: { sms: null } }))), []);
+  assert.deepEqual(setupCardsFails(absent, m(card("broadcast", { template_id: "x", versions: { sms: {} } }))), []);
 });
