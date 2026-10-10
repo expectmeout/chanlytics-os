@@ -383,6 +383,7 @@
     "00378_a_thread_is_taken_over_and_handed_back_in_one_transaction.sql": "451087b0d3ba5a5d2cbb4dc95378b9dbb82ac03b60025dc358c6906e7fda19f1",
     "00379_a_queued_message_is_withdrawn_by_one_door.sql": "0bcdbf72be138189a96cc57b253092a17afe215ba9908b9eac077da3c92caf51",
     "00380_an_escalation_is_opened_with_its_event.sql": "37c765650138c01ae3a4fa224d19f3af2eaa5aecff9949e86d7a137cee3a69b9",
-    "00381_a_booking_reaches_its_reach_out_through_its_event.sql": "6a193b5ec90409fd9bbf2feb2b8812873b11c1eb44f20cd32298e1fc9cfc0fb5"
+    "00381_a_booking_reaches_its_reach_out_through_its_event.sql": "6a193b5ec90409fd9bbf2feb2b8812873b11c1eb44f20cd32298e1fc9cfc0fb5",
+    "00382_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "b838ba482cb1dfa801e1330442b08913bad687e301cea59e7f9f271e77c275d4"
   }
 }

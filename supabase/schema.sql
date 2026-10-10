@@ -3978,7 +3978,8 @@ CREATE FUNCTION public.events_outbox_copy() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 begin
-  if exists (select 1 from public.event_subscriptions s where s.kind = new.kind and not s.paused) then
+  -- Paused or not: a paused subscription keeps what it would have been handed (decision 0032, 4).
+  if exists (select 1 from public.event_subscriptions s where s.kind = new.kind) then
     insert into public.event_outbox (event_id, tenant_id, kind, event_at)
          values (new.id, new.tenant_id, new.kind, new.created_at)
     on conflict (event_id) do nothing;
@@ -3991,7 +3992,7 @@ end $$;
 -- Name: FUNCTION events_outbox_copy(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.events_outbox_copy() IS 'After each event: a row on event_outbox when a subscription names its kind and is not paused (decision 0032). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
+COMMENT ON FUNCTION public.events_outbox_copy() IS 'After each event: a row on event_outbox when a subscription names its kind, paused or not (decision 0032, 4; 00382). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
 
 
 --
@@ -17286,10 +17287,13 @@ begin
      limit greatest(coalesce(p_limit, 500), 1)
        for update skip locked
   loop
-    insert into public.event_deliveries (event_id, subscriber, tenant_id, kind, event_at)
-    select r.event_id, s.subscriber, r.tenant_id, r.kind, r.event_at
+    -- Every subscription of the kind has its delivery; a paused one's waits, paused and with no job, until a re-drive
+    -- (event_deliveries_redrive) schedules it once the subscription runs again (decision 0032, 4).
+    insert into public.event_deliveries (event_id, subscriber, tenant_id, kind, event_at, state)
+    select r.event_id, s.subscriber, r.tenant_id, r.kind, r.event_at,
+           case when s.paused then 'paused' else 'scheduled' end
       from public.event_subscriptions s
-     where s.kind = r.kind and not s.paused
+     where s.kind = r.kind
     on conflict do nothing;
     -- One job per delivery, keyed so a second relay of the same event writes none (00333).
     for d in
@@ -17319,7 +17323,7 @@ end $$;
 -- Name: FUNCTION relay_events(p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.relay_events(p_limit integer) IS 'The first step of every tick (decision 0032): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per unpaused subscriber and one event_deliver job each (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
+COMMENT ON FUNCTION public.relay_events(p_limit integer) IS 'The first step of every tick (decision 0032): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per subscriber, a paused one''s held as paused with no job until a re-drive (00382), and one event_deliver job for each other (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
 
 
 --
