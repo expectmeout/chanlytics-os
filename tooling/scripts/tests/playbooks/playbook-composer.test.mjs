@@ -484,16 +484,17 @@ test("a playbook whose message has no version a run can send says so when change
 
 /* ---------------------------------- the page under it ---------------------------------- */
 
-test("REGRESSION: opening the composer moves nothing on the page -- the unset moments stood down and the cards moved down under a panel; on the home it is a sheet over a rail that stays", () => {
+test("REGRESSION: opening the composer moves nothing on the page -- the unset moments stood down and the cards moved down under a panel; on the home it is a sheet over a rail and a ledger that stay", () => {
   setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
   const home = (param) => {
     fresh();
     return again(() => CampaignsHome({ param, nowMs: NOW }));
   };
   const rail = (t) => allByTestId(t, "cmh-stage").map((s) => [s.props["data-stage"], s.props["data-state"]]);
-  const lines = (t) => allByTestId(t, "cmh-strip").map((s) => s.props["data-strip"]);
+  const lines = (t) => allByTestId(t, "cmh-row").map((s) => s.props["data-row"]);
   const before = home(null);
   assert.ok(rail(before).length >= 4, "the moments are on the rail");
+  assert.ok(lines(before).length >= 3, "and every campaign is a row of the ledger under them");
   assert.equal(
     find(before, (n) => n.type === PlaybookComposer),
     null,
@@ -505,7 +506,7 @@ test("REGRESSION: opening the composer moves nothing on the page -- the unset mo
     "the sheet is open",
   );
   assert.deepEqual(rail(after), rail(before), "every moment is where it was, in the state it was");
-  assert.deepEqual(lines(after), lines(before), "and every line under them");
+  assert.deepEqual(lines(after), lines(before), "and every row of the ledger under them");
   // The composer is hosted in the kit's sheet over the page (home/pane-sheet.tsx): the page behind it stays drawn, and
   // Cancel is the composer's own, which asks first where there are words, then closes the sheet to the home.
   const sheet = find(after, (n) => n.type === PaneSheet);

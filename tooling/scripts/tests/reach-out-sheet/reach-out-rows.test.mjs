@@ -361,28 +361,28 @@ const homeAt = (param = null, chains = [chainOf()]) => {
 };
 const homeAgain = (param = null) => again(() => CampaignsHome({ param, nowMs: NOW }));
 const reachLines = (tree) =>
-  all(tree, (n) => n.props?.["data-testid"] === "cmh-strip" && n.props["data-kind"] === "reach_out");
+  all(tree, (n) => n.props?.["data-testid"] === "cmh-row" && n.props["data-kind"] === "chain");
 
-test("a chain is a quiet line on the home -- its name, its steps and search, its state, Open or Resume -- and its report is read when it opens, never before (R23)", async () => {
+test("a chain is a row of the ledger -- its name, its steps and search, its state, Resume where paused -- and its report is read when it opens, never before (R23)", async () => {
   const pressed = verbs();
   went.length = 0;
   const tree = homeAt(null, [chainOf(), chainOf({ root_id: "r2", name: "Reach out · Florists", state: "paused" })]);
   const lines = reachLines(tree);
   assert.deepEqual(
-    lines.map((l) => l.props["data-strip"]),
+    lines.map((l) => l.props["data-row"]),
     [ROOT, "r2"],
   );
   const said = textOf(lines[0]);
   for (const part of ["Reach out · Personal trainers", "Personal trainers · Austin", "2 steps"])
     assert.ok(said.includes(part), `${part}: ${said}`);
   assert.deepEqual(
-    lines.map((l) => textOf(byTestId(l, "cmh-strip-act"))),
-    ["Open", "Resume"],
-    "a running one opens, a paused one resumes",
+    lines.map((l) => !!byTestId(l, "cmh-resume")),
+    [false, true],
+    "a paused one resumes, asked; a running one is opened by its row",
   );
-  assert.deepEqual(pressed, [], "a line reads no report: it is read when the reach-out opens (R23)");
+  assert.deepEqual(pressed, [], "a row reads no report: it is read when the reach-out opens (R23)");
   // Its name opens it by its address, pushed so Back closes it; there, its pane reads the report once.
-  press(byTestId(lines[0], "cmh-strip-open"));
+  press(byTestId(lines[0], "cmh-row-open"));
   assert.deepEqual(went, [`campaigns/moment:${ROOT}`]);
   homeAt(`moment:${ROOT}`);
   await settle();
@@ -393,13 +393,13 @@ test("a chain is a quiet line on the home -- its name, its steps and search, its
     "its own pane, in the sheet",
   );
   assert.ok(byTestId(open, "ro-steps"), "with the report's counts in it");
-  // A read of the chains that failed draws no line, and the moments are still there: null, never an empty list.
+  // A read of the chains that failed draws no row, and the moments are still there: null, never an empty list.
   const failed = homeAt(null, null);
   assert.equal(reachLines(failed).length, 0);
   assert.ok(byTestId(failed, "campaigns-home"));
 });
 
-test("a paused chain's line resumes it in place through the playbooks' own verb, and says so", async () => {
+test("a paused chain's row resumes it, asked in place, through the playbooks' own verb, and says so", async () => {
   const kept = playbookVerbs.resume;
   const resumed = [];
   playbookVerbs.resume = async (id, opts) => {
@@ -410,7 +410,10 @@ test("a paused chain's line resumes it in place through the playbooks' own verb,
   try {
     const tree = homeAt(null, [chainOf({ state: "paused" })]);
     toasts.length = 0;
-    await byTestId(reachLines(tree)[0], "cmh-strip-act").props.onClick();
+    press(byTestId(reachLines(tree)[0], "cmh-resume"));
+    assert.deepEqual(resumed, [], "asked first");
+    press(byTestId(reachLines(homeAgain())[0], "cmh-resume-yes"));
+    await settle();
     assert.deepEqual(resumed, [ROOT], "the chain's root, the door its own Resume presses (the bridge's verbs, below)");
     assert.match(textOf(toasts.at(-1).msg), /Reach out · Personal trainers resumed/);
   } finally {
