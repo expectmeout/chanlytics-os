@@ -1135,7 +1135,7 @@ test("Delete closes the drawer, then says so: never a sheet left saying the camp
   const order = [];
   verbs.remove = async (id, opts) => {
     order.push(["remove", id]);
-    opts.onAccepted({});
+    opts?.onAccepted?.({});
     return { ok: true, data: {} };
   };
   try {
@@ -1149,6 +1149,59 @@ test("Delete closes the drawer, then says so: never a sheet left saying the camp
     assert.deepEqual(replaced, ["campaigns"], "the drawer a link opened closes to the home");
     assert.equal(toasts.length, 1, "and the toast says what left the screen");
     assert.match(textOf(toasts[0].msg), /Win-back/);
+  } finally {
+    verbs.remove = real;
+  }
+});
+
+test("REGRESSION: Delete closes the drawer once the re-read has taken the row away, so the focus comes home to the row now in its place, never to the body", async () => {
+  surfaces();
+  fresh();
+  const ID = "pb-sample-winback";
+  const log = [];
+  // The page's document: a row the re-read took away is not there to take the focus.
+  let gone = false;
+  globalThis.document.querySelector = (sel) =>
+    sel.includes("[role=") || (gone && sel.includes(`data-row="${ID}"`))
+      ? null
+      : { focus: () => log.push(["focus", sel]), click() {}, scrollIntoView() {} };
+  const before = rowIds(page());
+  const at = before.indexOf(ID);
+  const left = before.filter((id) => id !== ID);
+  const real = verbs.remove;
+  verbs.remove = async (id, opts) => {
+    // The server takes it: what React draws now, a drawer closed at this moment among them, stands over the old rows.
+    opts?.onAccepted?.({});
+    if (replaced.length + said.length > 0) page();
+    // Then the re-read lands, without the row.
+    gone = true;
+    surfaces({ playbooks: { rows: playbooksSample(new Date(NOW)).rows.filter((p) => p.id !== id) } });
+    return { ok: true, data: {} };
+  };
+  try {
+    let tree = page();
+    press(
+      byTestId(
+        allBy(tree, "cmh-row").find((r) => r.props["data-row"] === ID),
+        "cmh-row-open",
+      ),
+    );
+    assert.deepEqual(went, [`campaigns/moment:${ID}`], "the drawer is opened from its row");
+    tree = page(`moment:${ID}`);
+    const more = find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""));
+    more.props.groups[0].items.find((i) => i.label === "Delete…").onSelect();
+    tree = page(`moment:${ID}`);
+    press(byTestId(tree, "pb-delete-yes"));
+    await settle();
+    assert.deepEqual(said, [["back"]], "the drawer closes back to the home it was opened over");
+    page();
+    const focused = log.filter(([what]) => what === "focus").map(([, sel]) => sel);
+    assert.ok(
+      !focused.some((sel) => sel.includes(ID)),
+      `REGRESSION: the deleted row's name took the focus: ${focused}`,
+    );
+    assert.deepEqual(focused, [`[data-row="${left[Math.min(at, left.length - 1)]}"] [data-row-open]`]);
+    assert.equal(toasts.length, 1, "and the toast says what left, once");
   } finally {
     verbs.remove = real;
   }
@@ -1270,14 +1323,14 @@ test("a moment whose people were not counted says the ledger's own dash, on the 
   assert.equal(textOf(byTestId(head, "cmh-people")).trim(), "not counted");
 });
 
-test("a card's press and a row's name are the kit's own variants: the press the size of its words, the name its line's door", () => {
+test("a card's press and a row's name are the kit's own variants: the press drawn as text, the name taking where it stands", () => {
   fresh();
   const desk = again(() => h(Rail, { home: railHome([stageOf("before")]), acts: railActs() }));
   const toggle = byTestId(card(desk, "before"), "cmh-stage-press");
   assert.deepEqual(
     [toggle.props.variant, toggle.props.size],
-    ["quiet", "fit"],
-    "its words keep their own type (kit.css)",
+    ["quiet", "text"],
+    "its words keep their own type (kit.css .btn-text)",
   );
   fresh();
   const phone = drawPhone(phoneHome(NINE())).draw();
@@ -1285,7 +1338,11 @@ test("a card's press and a row's name are the kit's own variants: the press the 
     allBy(phone, "cmh-row").find((r) => r.props["data-row"] === "pb-a"),
     "cmh-row-open",
   );
-  assert.equal(name.props.size, "line", "the row's name in its line's size, weight and ink (kit.css)");
+  assert.equal(
+    name.props.size,
+    "inherit",
+    "the row's name in its line's size, weight and ink (kit.css .link-btn-inherit)",
+  );
 });
 
 test("the phone's own words are the ones it says: its head's name, and no word left from the rail it no longer draws", () => {

@@ -226,15 +226,16 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone }: Act
   const remove = () => {
     setSure(false);
     void act(
-      // Closed the moment the server takes it, then said: a sheet left saying the campaign "isn't here any more" was the
-      // page talking about what it had just done (spec 2026-10-09 §4.3).
-      (o) =>
-        V.remove(p.id, {
-          onAccepted: (d) => {
-            onGone();
-            o.onAccepted(d);
-          },
-        }),
+      // Closed once the server has taken it and the rows are read again without it, then said: a sheet left saying the
+      // campaign "isn't here any more" was the page talking about what it had just done (spec 2026-10-09 §4.3). Closed
+      // at the server's word, before the re-read, the drawer gave the focus back to the row it was about, still drawn,
+      // and the re-read took it to the body; closed after it, the focus comes home to the row now in its place, as a
+      // reach-out's Remove does (reach-out/row.tsx).
+      async () => {
+        const r = await V.remove(p.id);
+        if (r.ok) onGone();
+        return r;
+      },
       () => (
         <>
           <b>{p.name}</b> {PLAYBOOK_DELETE_WORDS.done}

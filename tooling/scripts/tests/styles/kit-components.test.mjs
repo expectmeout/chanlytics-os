@@ -377,10 +377,10 @@ const BUTTONS = {
     h(Button, { iconOnly: true, "aria-label": "More" }, glyph()),
     h(Button, { iconOnly: true, size: "sm", "aria-label": "Close" }, glyph()),
   ],
-  "btn-fit": () =>
+  "btn-text": () =>
     h(
       Button,
-      { size: "fit", variant: "quiet", "aria-pressed": false },
+      { size: "text", variant: "quiet", "aria-pressed": false },
       "Visit reminder: 12 people, 3 campaigns, 2 on and 1 paused",
     ),
   "btn-link": () => h(Button, { href: "#kit" }, glyph(), "Download the QR code"),
@@ -424,8 +424,8 @@ const LINK_BUTTONS = {
   "link-btn": () => h(LinkButton, null, "Write one", glyph()),
   "link-btn-danger": () => h(LinkButton, { tone: "danger" }, "Delete the list"),
   "link-btn-door": () => h(LinkButton, { href: "#kit" }, "Open the listing", glyph()),
-  "link-btn-line": () =>
-    h(LinkButton, { size: "line", href: "#kit" }, "Win-back, for everyone quiet for 30 days with nothing booked"),
+  "link-btn-inherit": () =>
+    h(LinkButton, { size: "inherit", href: "#kit" }, "Win-back, for everyone quiet for 30 days with nothing booked"),
 };
 
 test("LinkButton draws the gallery's Link button family: quiet words that act as a button of type button, and a door as a link", () => {

@@ -27,6 +27,7 @@ import {
   stateOf,
   leadQuestionRoute,
   lensRoute,
+  LIFECYCLE_WORDS,
 } from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -912,8 +913,10 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
   assert.equal(buttons(reach, "Approve").length, 0, "no one-tap send of a reach-out from Today");
   assert.equal(buttons(reach, "Open").length, 1, "the row opens the run");
   assert.equal(buttons(reach, "See who's on it").length, 0, "one door, not the same door twice");
-  // A playbook's run keeps its Approve, as before.
+  // A playbook's run keeps its Approve, as before, in the one word every screen says for it (decision 19): with its count.
   assert.equal(buttons(playbook, "Approve").length, 1);
+  assert.equal(textOf(buttons(playbook, "Approve")[0]), LIFECYCLE_WORDS.ledger.approve(3));
+  assert.equal(textOf(buttons(playbook, "Approve")[0]), "Approve · 3 people");
   assert.deepEqual(approvals, [], "nothing was approved by drawing the card");
 });
 

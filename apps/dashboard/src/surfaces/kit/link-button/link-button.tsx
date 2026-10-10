@@ -15,14 +15,15 @@ import { cx, variants } from "../variants";
 
 const linkButtonClasses = variants({
   base: "link-btn",
-  variants: { tone: { danger: "link-btn-danger" }, size: { line: "link-btn-line" } },
+  variants: { tone: { danger: "link-btn-danger" }, size: { inherit: "link-btn-inherit" } },
 });
 
 /**
  * Quiet words: their one tone, their size, and an act or a door (../press.tsx). Its own size is a line's acts' small
- * words; `line` is the line's own, where the words are a line's door (a list row's name, its link to what it opens).
+ * words; `inherit` takes the size, weight and ink of where the words stand, where they are a line's door (a list row's
+ * name, its link to what it opens).
  */
-export type LinkButtonProps = { tone?: "danger"; size?: "line" } & (PressAct | PressDoor);
+export type LinkButtonProps = { tone?: "danger"; size?: "inherit" } & (PressAct | PressDoor);
 
 /** Quiet words that act, or open a page where they have an address. */
 export function LinkButton({ tone, size, className, children, ...element }: LinkButtonProps) {

@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, textOf, classes, settle } from "../_legacy-react.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
@@ -436,6 +436,8 @@ test("a playbook's delete asks through the one Confirm -- it used to relabel its
   moreItem(tree, "Delete…").onSelect();
   tree = draw();
   await byTestId(tree, "pb-delete-yes").props.onClick();
+  // Said once the server has taken it and the rows are read again (card-detail.tsx `remove`): after the drawer closes.
+  await settle();
   assert.deepEqual(calls.pbRemove, ["pb-1"]);
   tree = draw();
   assert.equal(byTestId(tree, "pb-delete-confirm"), null, "disarmed after the act");

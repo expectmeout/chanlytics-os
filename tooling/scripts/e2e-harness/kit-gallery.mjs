@@ -871,8 +871,8 @@ export const FAMILIES = [
           `<button type="button" class="btn btn-icon btn-sm" aria-label="Close">${icon("x", 12)}</button>`,
       },
       {
-        id: "btn-fit",
-        html: `<button type="button" class="btn btn-fit btn-ghost" aria-pressed="false">Visit reminder: 12 people, 3 campaigns, 2 on and 1 paused</button>`,
+        id: "btn-text",
+        html: `<button type="button" class="btn btn-text btn-ghost" aria-pressed="false">Visit reminder: 12 people, 3 campaigns, 2 on and 1 paused</button>`,
       },
       { id: "btn-link", html: `<a class="btn" href="#kit">${icon("copy", 13)}Download the QR code</a>` },
       {
@@ -1697,8 +1697,8 @@ export const FAMILIES = [
         html: `<a class="cl-bucket-link" href="#kit">Open the listing${icon("arrow-right", 10)}</a>`,
       },
       {
-        id: "link-btn-line",
-        html: `<a class="link-btn link-btn-line" href="#kit">Win-back, for everyone quiet for 30 days with nothing booked</a>`,
+        id: "link-btn-inherit",
+        html: `<a class="link-btn link-btn-inherit" href="#kit">Win-back, for everyone quiet for 30 days with nothing booked</a>`,
       },
     ],
   },

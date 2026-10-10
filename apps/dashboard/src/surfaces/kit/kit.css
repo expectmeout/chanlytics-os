@@ -2824,10 +2824,10 @@ select.rec-input :is(option, optgroup) {
 .link-btn-danger {
   color: var(--danger);
 }
-/* Words of a line that are its door (a list row's name, where the row is the press and the name its link): the line's
-   own size, weight and ink, never the quiet link's small words, and no underline; a block, so a long name ends in an
-   ellipsis, which the link's flex box cannot draw. */
-.link-btn-line {
+/* Words of a line that are its door (a list row's name, where the row is the press and the name its link): they take
+   the size, weight and ink of where they stand, never the quiet link's small words, and no underline; a block, so a
+   long name ends in an ellipsis, which the link's flex box cannot draw. */
+.link-btn-inherit {
   display: block;
   font-size: inherit;
   font-weight: inherit;
@@ -2839,6 +2839,13 @@ select.rec-input :is(option, optgroup) {
 }
 .link-btn:hover {
   color: var(--ink);
+}
+/* A pointer over words that take where they stand's ink keeps that ink: the quiet link's hover above outranked the
+   variant's `inherit`, and a name lost its line's ink under the pointer. */
+@media (hover: hover) {
+  .link-btn-inherit:hover {
+    color: inherit;
+  }
 }
 
 /* ---------- Face: a person, a lead, a conversation, as initials in a circle ----------
@@ -3468,17 +3475,6 @@ a.list-row {
   width: var(--control-h-lg);
   padding: 0;
 }
-/* A press the size of the words it holds, which keep their own type: an area of a page's words that is one press
-   (Campaigns' moment card, whose caps, figure and unit narrow the ledger), not a control's label. No gap of a button's
-   between its parts, no weight or tracking of one, its height its words', which wrap: a button's gap made the card
-   12 to 18px taller, and its weight set every word of the card in bold. */
-.btn-fit {
-  gap: 0;
-  height: auto;
-  font-weight: var(--weight-regular);
-  letter-spacing: var(--tracking-normal);
-  white-space: normal;
-}
 .btn-primary {
   font-weight: var(--weight-semibold);
   box-shadow: var(--primary-depth);
@@ -3486,6 +3482,17 @@ a.list-row {
 .btn-ghost,
 .btn-danger {
   box-shadow: none;
+}
+/* A press drawn as text: an area of a page's words that is one press (Campaigns' moment card, whose caps, figure and
+   unit narrow the ledger), not a control's label. No gap of a button's between its parts, a text's weight and tracking
+   and never a control's, its height its words', which wrap: a button's gap made the card 12 to 18px taller, and its
+   weight set every word of the card in bold. After the kinds, so a primary drawn as text keeps a text's weight. */
+.btn-text {
+  gap: 0;
+  height: auto;
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-normal);
+  white-space: normal;
 }
 
 /* ---- The segmented capsule and the stage capsule (inbox3.py segmented; deals3.py stage_capsule) ----

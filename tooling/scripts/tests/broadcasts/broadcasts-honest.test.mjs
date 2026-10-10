@@ -2260,7 +2260,7 @@ test("the run open beside the list is the address's: opening and closing it repl
     assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
     const before = calls.length;
     press(door);
-    assert.equal(went.at(-1), "outbound/pb-1");
+    assert.equal(went.at(-1), "campaigns/moment:pb-1", "its drawer on Campaigns' home, by its own address");
     assert.equal(calls.length, before, "and it did not replace the run's entry");
     // New message, with a run open, is the home's door: it pushes the composer's address and leaves the run where it is.
     const entries = calls.length;

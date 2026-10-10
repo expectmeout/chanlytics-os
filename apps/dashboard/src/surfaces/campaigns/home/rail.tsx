@@ -124,7 +124,7 @@ function Stage({ s, acts, resume, dash }: StageProps) {
     >
       <Button
         variant="quiet"
-        size="fit"
+        size="text"
         className="cmh-stage-press"
         aria-pressed={chosen}
         onClick={() => acts.onChoose(chosen ? null : s.id)}

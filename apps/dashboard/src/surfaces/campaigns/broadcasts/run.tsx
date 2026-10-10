@@ -133,7 +133,7 @@ function bcRunHead(p: {
           </>
         )}
         {playbookId ? (
-          <LinkButton className="bc-run-link" onClick={() => navigate(`outbound/${playbookId}`)}>
+          <LinkButton className="bc-run-link" onClick={() => navigate(`campaigns/moment:${playbookId}`)}>
             {b.audience.label} campaign
           </LinkButton>
         ) : (
