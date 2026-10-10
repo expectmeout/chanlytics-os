@@ -215,3 +215,114 @@ test("Escape lets go of the words first, then of the filter; Clear lets go of al
   view = again(() => useLedgerView(ledgerOf(groups), at));
   assert.deepEqual([view.query, view.status, went], ["", "all", [null]]);
 });
+
+/* ------------------------------------------------------- the keys ------------------------------------------------------- */
+
+const { onLedgerKey, rowOpener, useFocusComesHome } =
+  await import("../../../../../apps/dashboard/src/surfaces/campaigns/home/ledger/ledger-keys.ts");
+
+/** A key event as the window hears it, pressed on the page (a div), unless a test says where. */
+const key = (k, over = {}) => ({
+  key: k,
+  target: { nodeType: 1, tagName: "DIV", closest: () => null, getAttribute: () => null },
+  defaultPrevented: false,
+  metaKey: false,
+  ctrlKey: false,
+  altKey: false,
+  repeat: false,
+  prevented: false,
+  preventDefault() {
+    this.prevented = true;
+  },
+  ...over,
+});
+/** The doors the listener reads, each press written down. */
+const doors = (over = {}) => {
+  const did = [];
+  return {
+    did,
+    ids: ["r1", "r2", "r3"],
+    cursor: null,
+    move: (step) => did.push(["move", step]),
+    open: (id) => did.push(["open", id]),
+    focusSearch: () => did.push(["search"]),
+    narrowed: false,
+    clearOne: () => did.push(["clear"]),
+    sheetOpen: false,
+    ...over,
+  };
+};
+
+test("J and K, or the arrows, walk the rows; Enter opens the one under the cursor; / goes to the search", () => {
+  globalThis.document.querySelector = () => null;
+  const d = doors({ cursor: "r2" });
+  for (const k of ["j", "J", "ArrowDown"]) onLedgerKey(d, key(k));
+  for (const k of ["k", "ArrowUp"]) onLedgerKey(d, key(k));
+  onLedgerKey(d, key("Enter"));
+  onLedgerKey(d, key("/"));
+  assert.deepEqual(d.did, [
+    ["move", 1],
+    ["move", 1],
+    ["move", 1],
+    ["move", -1],
+    ["move", -1],
+    ["open", "r2"],
+    ["search"],
+  ]);
+});
+
+test("Escape lets go only where something narrows the list, and from the search box too", () => {
+  globalThis.document.querySelector = () => null;
+  const idle = doors();
+  onLedgerKey(idle, key("Escape"));
+  assert.deepEqual(idle.did, [], "nothing to let go of: the key is not taken");
+  const d = doors({ narrowed: true });
+  const e = key("Escape");
+  onLedgerKey(d, e);
+  assert.deepEqual(d.did, [["clear"]]);
+  assert.equal(e.prevented, true);
+  const box = {
+    nodeType: 1,
+    tagName: "INPUT",
+    type: "search",
+    closest: () => null,
+    getAttribute: (a) => (a === "data-testid" ? "cmh-ledger-search" : null),
+  };
+  const typed = doors({ narrowed: true });
+  onLedgerKey(typed, key("Escape", { target: box }));
+  onLedgerKey(typed, key("j", { target: box }));
+  assert.deepEqual(
+    typed.did,
+    [["clear"]],
+    "Escape in the search lets go of the words; a letter typed there is a letter",
+  );
+});
+
+test("never behind a sheet or a menu, never with a modifier, and Enter on a focused control is the control's", () => {
+  const d = doors({ cursor: "r1" });
+  onLedgerKey({ ...d, sheetOpen: true }, key("j"));
+  onLedgerKey(d, key("j", { metaKey: true }));
+  onLedgerKey(d, key("j", { defaultPrevented: true }));
+  globalThis.document.querySelector = (sel) => (sel.includes('.sheet[role="dialog"]') ? {} : null);
+  onLedgerKey(d, key("j"));
+  globalThis.document.querySelector = () => null;
+  onLedgerKey(
+    d,
+    key("Enter", { target: { nodeType: 1, tagName: "A", closest: () => ({}), getAttribute: () => null } }),
+  );
+  assert.deepEqual(d.did, []);
+});
+
+test("a row's opener is found by its id, and a sheet that closes gives the focus back to the row it was opened from", () => {
+  assert.equal(rowOpener("pb-1"), '[data-row="pb-1"] [data-row-open]');
+  assert.equal(rowOpener('a"b'), '[data-row="a\\"b"] [data-row-open]');
+  const focused = [];
+  globalThis.document.querySelector = (sel) => ({ focus: () => focused.push(sel), scrollIntoView() {} });
+  fresh();
+  again(() => useFocusComesHome("pb-1"));
+  again(() => useFocusComesHome(null));
+  assert.deepEqual(focused, ['[data-row="pb-1"] [data-row-open]']);
+  again(() => useFocusComesHome(null));
+  assert.equal(focused.length, 1, "once");
+  globalThis.document.querySelector = () => null;
+});
