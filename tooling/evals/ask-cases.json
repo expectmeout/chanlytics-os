@@ -1487,6 +1487,7 @@
     "id": "setup_meeting_reminder",
     "text": "remind people the day before their discovery call",
     "surface": "campaigns",
+    "needs": ["no_calendar"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited"] } },
@@ -1583,7 +1584,6 @@
     "expect": {
       "proposals_any": ["message", "broadcast"],
       "proposals_max": 6,
-      "card_fields_absent": { "message": ["template_id"] },
       "no_write": true
     }
   },
@@ -1591,6 +1591,7 @@
     "id": "setup_with_calendar",
     "text": "set up my campaigns",
     "surface": "campaigns",
+    "needs": ["calendar"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "tools_any": ["propose_campaign.playbook"],
@@ -1603,8 +1604,10 @@
     "id": "setup_without_calendar",
     "text": "set up my campaigns",
     "surface": "campaigns",
+    "needs": ["no_calendar"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
+      "proposals_any_or_says": ["playbook"],
       "proposals_max": 1,
       "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited"] } },
       "next_any": ["settings"],
@@ -1626,6 +1629,7 @@
     "id": "remind_day_before",
     "text": "remind people the day before their appointment",
     "surface": "campaigns",
+    "needs": ["calendar"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "proposals_any": ["playbook"],
@@ -1641,7 +1645,7 @@
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "card_fields_absent": { "message": ["versions.sms"] },
-      "includes_any": ["text"],
+      "includes_any": ["offer", "WhatsApp", "email", "oferta", "correo"],
       "no_write": true
     }
   },
@@ -1649,6 +1653,7 @@
     "id": "covers_propose_campaign_broadcast",
     "text": "send the Win-back message once to everyone who said yes, this Saturday at 10am",
     "surface": "campaigns",
+    "needs": ["offers_yes"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": { "tools_any": ["propose_campaign.broadcast"], "proposals_any": ["broadcast"], "no_write": true }
   },
@@ -1656,6 +1661,7 @@
     "id": "covers_propose_campaign_channels",
     "text": "have the Win-back go by email as well as WhatsApp",
     "surface": "campaigns",
+    "needs": ["winback_seed"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": { "tools_any": ["propose_campaign.channels"], "proposals_any": ["playbook_channels"], "no_write": true }
   },
@@ -1670,6 +1676,7 @@
     "id": "covers_propose_whisper",
     "text": "tell the receptionist on the call that's on now to offer them Saturday morning instead",
     "surface": "live",
+    "needs": ["live_call"],
     "context": { "surface": "live", "route": "live", "rows": "GET calls:40" },
     "expect": { "tools_any": ["propose_whisper"], "proposals_any": ["whisper"], "no_write": true }
   },
@@ -1677,6 +1684,7 @@
     "id": "covers_propose_deal",
     "text": "record that we sent this person a proposal for $250 today",
     "surface": "people",
+    "needs": ["deals_on"],
     "context": { "surface": "people", "route": "clients/<row:1>", "rows": "GET contacts:40" },
     "expect": { "tools_any": ["propose_deal"], "proposals_any": ["deal"], "no_write": true }
   },

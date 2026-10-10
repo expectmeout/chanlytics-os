@@ -9,7 +9,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -47,6 +48,7 @@ import {
   secondScope,
   secondTurn,
   setupCardsFails,
+  skipFor,
   toolsOrderNote,
   turnShapes,
   usageRows,
@@ -1335,7 +1337,13 @@ test("the announcement counts turns: a case of two is two, each on its own surfa
 
 test("--list says every case and its second turn, its page, the turns and their cost, with no credentials, and spends nothing", () => {
   const env = { ...process.env, REPS: "3" };
-  for (const k of ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "E2E_USER_EMAIL"])
+  for (const k of [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "E2E_USER_EMAIL",
+    "EVAL_WORKSPACE_HAS",
+  ])
     delete env[k];
   const run = spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list"], {
     cwd: ROOT,
@@ -1344,9 +1352,11 @@ test("--list says every case and its second turn, its page, the turns and their 
   });
   assert.equal(run.status, 0, run.stderr);
   for (const c of CASES) assert.ok(run.stdout.includes(`${c.id} · ${c.surface ?? "today"}`), c.id);
-  // A turn is a turn: a case of two turns is two, each priced at the baseline.
-  const n = CASES.length;
-  const turns = CASES.reduce((k, c) => k + 1 + (c.then ? 1 : 0), 0);
+  // A turn is a turn: a case of two turns is two, each priced at the baseline. A workspace that names nothing it holds
+  // runs only the cases that need nothing of it.
+  const ran = CASES.filter((c) => !c.needs);
+  const n = ran.length;
+  const turns = ran.reduce((k, c) => k + 1 + (c.then ? 1 : 0), 0);
   assert.ok(
     run.stdout.includes(`${n} cases, ${turns} turns × 3 = ${turns * 3} turns ≈ $${(turns * 3 * 0.012).toFixed(2)}`),
     run.stdout.slice(-600),
@@ -1373,7 +1383,7 @@ test("--list says every case and its second turn, its page, the turns and their 
   assert.ok(
     run.stdout.includes(
       announcement(
-        CASES.map((c) => ({ ...c, surface: c.surface ?? "today" })),
+        ran.map((c) => ({ ...c, surface: c.surface ?? "today" })),
         3,
         0.012,
       ),
@@ -1440,4 +1450,29 @@ test("card_fields_absent (the marketing manager's cases): a card of the kind hol
   assert.match(setupCardsFails(absent, m(card("message", { ...written, template_id: "@step:1" })))[0], /template_id/);
   assert.deepEqual(setupCardsFails(absent, m(card("message", { ...written, versions: { sms: null } }))), []);
   assert.deepEqual(setupCardsFails(absent, m(card("broadcast", { template_id: "x", versions: { sms: {} } }))), []);
+});
+
+test("needs (a case's workspace): a case needing what EVAL_WORKSPACE_HAS does not hold is said as skipped and never asked, so never failed; one whose needs it holds runs, and so does one with none", () => {
+  assert.equal(skipFor({ id: "a", needs: ["calendar", "live_call"] }, ["calendar"]), "skip a (needs live_call)");
+  assert.equal(skipFor({ id: "b", needs: ["calendar"] }, ["calendar"]), null);
+  assert.equal(skipFor({ id: "c" }, []), null);
+  const one = (id, needs) => ({ id, text: id, surface: "today", expect: { no_write: true }, ...(needs && { needs }) });
+  assert.deepEqual(pageProblems([one("d", ["a_calendar"])]), ['d: needs "a_calendar", which no workspace token names']);
+  // The runner itself: the skipped case is said and left out of the turns it announces; the others are listed to run.
+  const file = path.join(os.tmpdir(), `eval-ask-needs-${process.pid}.json`);
+  writeFileSync(file, JSON.stringify([one("a", ["live_call"]), one("b", ["calendar"]), one("c")]));
+  try {
+    const env = { ...process.env, EVAL_WORKSPACE_HAS: "calendar, deals_on" };
+    const run = spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list", file], {
+      cwd: ROOT,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^skip a \(needs live_call\)$/m);
+    assert.match(run.stdout, /^b · today · needs calendar$/m);
+    assert.match(run.stdout, /^2 cases, 2 turns /m);
+  } finally {
+    rmSync(file, { force: true });
+  }
 });

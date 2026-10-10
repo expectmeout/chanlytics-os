@@ -341,9 +341,26 @@ function secondTurnProblems(c) {
   return out;
 }
 
+/**
+ * What a case may need its workspace to hold beyond the page a context carries (`needs`): a calendar or none, someone's
+ * yes to offers, a call in progress, deals on, the Win-back's seed. A run names what its workspace holds
+ * (EVAL_WORKSPACE_HAS, comma-separated), and a case needing anything else is skipped: said, never run or failed.
+ */
+export const WORKSPACE_NEEDS = ["calendar", "no_calendar", "offers_yes", "live_call", "deals_on", "winback_seed"];
+
+/** The line a case is skipped with, `skip <id> (needs <tokens>)`, or null for a case this workspace (`has`) runs. */
+export function skipFor(c, has) {
+  const unmet = [c.needs ?? []].flat().filter((n) => !has.includes(n));
+  return unmet.length ? `skip ${c.id} (needs ${unmet.join(", ")})` : null;
+}
+
 /** Every case whose page, or whose second turn, cannot be built, in words: said before anything is read or spent. */
 export function pageProblems(cases) {
   return cases.flatMap((c) => [
+    ...[c.needs ?? []]
+      .flat()
+      .filter((n) => !WORKSPACE_NEEDS.includes(n))
+      .map((n) => `${c.id}: needs "${n}", which no workspace token names`),
     ...(c.context
       ? [
           ...contextProblems(c.context).map((p) => `${c.id}: ${p}`),
@@ -513,7 +530,8 @@ export function namesCard(m, first) {
  * in a setup); `card_fields_absent` fails a card of the kind that holds anything at a path into its payload, dotted
  * (`versions.sms`: a message written with a text version, which an offer never has); `next_any` fails unless one of the
  * answer's next questions holds one of the words (a campaign on a list made in the same answer waits for a next
- * question, A2). `e` is a case's expect, `m` the turn's final message.
+ * question, A2). `e` is a case's expect, `m` the turn's final message. It judges every case's cards, not a setup's alone:
+ * an offer's, a written message's and a text refused are held by the same keys.
  */
 export function setupCardsFails(e, m) {
   const fails = [];
