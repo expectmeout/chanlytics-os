@@ -41,7 +41,8 @@ const {
   calledName,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MOMENTS_RETIRED, PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
+const { MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast } =
+  await import("@chanlytics/contracts");
 /**
  * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
  * trigger enum, so a schema frozen before it is held to its own less those two: the one change to its fields.
@@ -77,7 +78,7 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
  * offered since PR 4.6.
  */
-const CHANGED = ["campaigns", "propose_campaign", "propose_list", "propose_thread_verb", "report"];
+const CHANGED = ["campaigns", "propose_autonomy", "propose_campaign", "propose_list", "propose_thread_verb", "report"];
 /**
  * 6 Oct 2026 (decision 0030, a campaign counted by its channel): report says the Campaigns lens beside the Deals
  * section, and campaigns says a run's channels and that its read is a share of what went by WhatsApp. The one sentence
@@ -150,6 +151,14 @@ const MESSAGE_WORDS = [
     "never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
     "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
   ],
+];
+/**
+ * 9 Oct 2026 (the moment spec, A7): propose_autonomy is judged by the Autonomy page's rule (policyModeRefusal), so its
+ * words say each class takes the modes its row offers, where they said veto is for replies only. The one sentence.
+ */
+const AUTONOMY_MODES_WORDS = [
+  "veto is for replies only.",
+  `Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for ${PLAYBOOK_VETO_DELAY_WORDS}, so a person can stop it), and a mode a class does not take is refused in that page's words.`,
 ];
 /**
  * What the report tool's description gained after PR 4.7 (the Reports fix wave, spec D14): its median and p90 reply time
@@ -342,7 +351,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens and the Reviews lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens and the Reviews lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -423,6 +432,14 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       role,
     );
     assert.deepEqual(words(tool(role, "propose_thread_verb")), words(was(role, "propose_thread_verb")), role);
+    // propose_autonomy (9 Oct 2026, A7): the sentence on which modes a class takes is the Autonomy page's rule, and
+    // nothing else it says, takes or shows moved.
+    assert.equal(
+      tool(role, "propose_autonomy").description,
+      was(role, "propose_autonomy").description.replace(...AUTONOMY_MODES_WORDS),
+      role,
+    );
+    assert.deepEqual(words(tool(role, "propose_autonomy")), words(was(role, "propose_autonomy")), role);
     // propose_campaign: what it sent before is now's less the run and less the channels action (8 Oct 2026: its one
     // field of its own, playbook_id, beside the channels the broadcast and the playbook already take) -- the
     // broadcast's and the playbook's own fields and examples, byte for byte -- and the run's own words and the channels

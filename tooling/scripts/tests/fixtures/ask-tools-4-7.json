@@ -601,7 +601,7 @@
     },
     {
       "name": "propose_autonomy",
-      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. veto is for replies only. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1516,7 +1516,7 @@
     },
     {
       "name": "propose_autonomy",
-      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. veto is for replies only. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2667,7 +2667,7 @@
     },
     {
       "name": "propose_autonomy",
-      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. veto is for replies only. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
       "input_schema": {
         "type": "object",
         "properties": {

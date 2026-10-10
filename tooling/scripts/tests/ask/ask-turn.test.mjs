@@ -1950,7 +1950,18 @@ test("the proposal builders run against the database in memory: each kind is a c
     (await p("propose_autonomy", { class: "money", mode: "ask" })).result,
     /money stays owner-only by charter/,
   );
-  assert.match((await p("propose_autonomy", { class: "booking", mode: "veto" })).result, /only replies can be held/);
+  // One rule (contracts POLICY_CLASS_MODES): bookings have nothing to hold for review; the re-engage row holds a run.
+  assert.match(
+    (await p("propose_autonomy", { class: "booking", mode: "veto" })).result,
+    /The Bookings row has nothing to hold for review\./,
+  );
+  assert.match(
+    (await p("propose_autonomy", { class: "faq", mode: "never" })).result,
+    /Bookings and service questions are answered by the receptionist or by you/,
+  );
+  const holds = await p("propose_autonomy", { class: "reengage", mode: "veto" });
+  assert.equal(holds.isError, false, holds.result);
+  assert.equal(holds.proposal.summary, "Re-engage quiet customers: holds it");
   assert.match((await p("propose_autonomy", { class: "reply", mode: "" })).result, /say a mode or a confidence/);
   const dial = await p("propose_autonomy", { class: "reply", mode: "", min_confidence: 0.9 });
   assert.deepEqual(

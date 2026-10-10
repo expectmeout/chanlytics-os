@@ -225,9 +225,11 @@ const running = {
 };
 /** The same three people, each with a yes to offers by email too (email keeps its own answer): who an offer by email reaches. */
 const OFFERS_BY_EMAIL = PEOPLE.map((p) => ({ ...p, email_marketing: "opted_in" }));
+/** `monthSent`: the month's count per channel, or a function of the call's arguments (its p_channel and p_at). */
 const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE) => {
   const rows = tables(db);
-  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: (a) => monthSent[a.p_channel] ?? 0 }));
+  const count = typeof monthSent === "function" ? monthSent : (a) => monthSent[a.p_channel] ?? 0;
+  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
   const supabase = fakeDb(rows, {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   return buildProposal(t, "propose_campaign", input);
@@ -271,4 +273,38 @@ test("a card by email says what the month's allowance holds back, and says nothi
   );
   assert.equal(whatsapp.isError, false, whatsapp.result);
   assert.doesNotMatch(whatsapp.proposal.summary, /held back/);
+});
+
+test("a broadcast card by email says what the month's allowance holds back, as the send screen does; by WhatsApp alone it reads no count", async () => {
+  const broadcast = { action: "broadcast", template_id: OFFER, audience_kind: "everyone", params: [] };
+  const byEmail = { ...broadcast, channels: ["whatsapp", "email"] };
+  const full = await propose(byEmail, {}, { email: CAMPAIGN_MONTH_ALLOWANCE.email, sms: 0 }, OFFERS_BY_EMAIL);
+  assert.equal(full.isError, false, full.result);
+  assert.match(full.proposal.summary, /used up: .* held back/);
+  const room = await propose(byEmail, {}, { email: 0, sms: 0 }, OFFERS_BY_EMAIL);
+  assert.equal(room.isError, false, room.result);
+  assert.doesNotMatch(room.proposal.summary, /held back/);
+  const whatsapp = await propose(broadcast, {}, { email: CAMPAIGN_MONTH_ALLOWANCE.email, sms: 0 }, OFFERS_BY_EMAIL);
+  assert.equal(whatsapp.isError, false, whatsapp.result);
+  assert.doesNotMatch(whatsapp.proposal.summary, /held back/);
+  // The month the send is set to go in, as the send screen counts it (contracts monthSentAt): September's emails are used
+  // up and October's are not, so one set for the 20th is held back and one set for the 2nd of October is not.
+  const september = (a) =>
+    a.p_at?.startsWith("2026-09") && a.p_channel === "email" ? CAMPAIGN_MONTH_ALLOWANCE.email : 0;
+  const soon = await propose(
+    { ...byEmail, scheduled_for: "2026-09-20T10:00:00-04:00" },
+    {},
+    september,
+    OFFERS_BY_EMAIL,
+  );
+  assert.equal(soon.isError, false, soon.result);
+  assert.match(soon.proposal.summary, /used up: .* held back/);
+  const later = await propose(
+    { ...byEmail, scheduled_for: "2026-10-02T10:00:00-04:00" },
+    {},
+    september,
+    OFFERS_BY_EMAIL,
+  );
+  assert.equal(later.isError, false, later.result);
+  assert.doesNotMatch(later.proposal.summary, /held back/);
 });
