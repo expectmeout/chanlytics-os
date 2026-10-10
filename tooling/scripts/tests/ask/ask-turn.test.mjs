@@ -1893,6 +1893,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "campaigns.audiences",
       "campaigns.broadcast",
       "campaigns.broadcasts",
+      "campaigns.journey",
       "campaigns.messages",
       "campaigns.playbooks",
       "inbox.list",
@@ -1913,7 +1914,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search and the library",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library and the journey",
   );
   const found = JSON.parse(out["inbox.search"].result);
   assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);
@@ -1955,6 +1956,27 @@ test("the fourteen reads, each an action of the nine read tools, run against the
   assert.equal(out["campaigns.playbooks"].isError, false, out["campaigns.playbooks"].result);
   assert.equal(out["campaigns.messages"].isError, false, out["campaigns.messages"].result);
   assert.deepEqual(JSON.parse(out["campaigns.messages"].result).messages, [], "an empty library, said as no message");
+  assert.equal(out["campaigns.journey"].isError, false, out["campaigns.journey"].result);
+  const journey = JSON.parse(out["campaigns.journey"].result);
+  assert.deepEqual(
+    [journey.covered, journey.of, journey.stages.map((s) => [s.id, s.covered, s.state, s.campaigns])],
+    [
+      1,
+      4,
+      [
+        ["first_contact", true, "Answers · asks for the yes", []],
+        ["before", false, "Needs your calendar", []],
+        ["after", false, "Needs your calendar", []],
+        ["quiet", false, "Off", []],
+      ],
+    ],
+    "no calendar, no campaign: 1 of 4, as the page counts it -- the receptionist covers first contact, the appointment moments need a calendar, and quiet is off",
+  );
+  assert.deepEqual(
+    journey.guide.map((r) => r.stage),
+    ["first_contact", "quiet", null],
+    "the guide, without a calendar: no appointment moment",
+  );
   assert.equal(out["leads.searches"].isError, false, out["leads.searches"].result);
   assert.deepEqual(
     JSON.parse(out["leads.searches"].result).searches,

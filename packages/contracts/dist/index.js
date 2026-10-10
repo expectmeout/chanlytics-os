@@ -23590,6 +23590,47 @@ function journeyOf(s) {
   return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
 }
 
+// src/journey/journey-guide.ts
+var STAGE_WORDS = {
+  first_contact: {
+    sends: "the first reply, from your receptionist, which asks for the yes to offers",
+    why: "a first message answered at once is the one most likely to book, and every offer later needs that yes"
+  },
+  before: {
+    sends: "the day before an appointment, a reminder",
+    why: "a reminder keeps an appointment from being missed, and a change comes early enough to fill the time"
+  },
+  after: {
+    sends: "the day after, a thank-you and a review ask",
+    why: "the day after is when a customer most often leaves a review and books the next appointment"
+  },
+  proposal: {
+    sends: "a proposal waiting with nothing back, one follow-up with its link",
+    why: "a proposal left unanswered is often only waiting for a nudge, and its link makes the answer one tap"
+  },
+  quiet: {
+    sends: "quiet six weeks or more, a win-back",
+    why: "a customer who has gone quiet is easier to bring back with one message than a new one is to find"
+  }
+};
+var MONTHS_OFFER = {
+  stage: null,
+  moment: "everyone_monthly",
+  sends: "every month, one offer to those who said yes",
+  why: "one offer a month keeps the business in mind without wearing out the yes, and it reaches only those who gave it"
+};
+function journeyGuide(input) {
+  const stages = journeyOf({ ...input, word: "appointment", held: /* @__PURE__ */ new Set() }).filter((s) => s.unmet === null);
+  return [
+    ...stages.map((s) => ({
+      stage: s.id,
+      moment: s.trigger === null ? null : triggerOf(s.trigger)?.id ?? null,
+      ...STAGE_WORDS[s.id]
+    })),
+    { ...MONTHS_OFFER }
+  ];
+}
+
 // src/leads/search/plan-schema.ts
 import { z as z10 } from "zod";
 var words2 = (min, max) => z10.string().transform((s) => stripUnsafe(s).trim()).pipe(z10.string().min(min).max(max));
@@ -40717,6 +40758,7 @@ export {
   jittered,
   jobNewsWords,
   joinedWords,
+  journeyGuide,
   journeyOf,
   journeyStageOf,
   judgeAsked,

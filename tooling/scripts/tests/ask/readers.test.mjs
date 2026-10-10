@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   callerName,
   describeNow,
+  journeyGuide,
   newReceptionistDefaults,
   personName,
   reportFacts,
@@ -5472,4 +5473,51 @@ test("campaigns.messages reads the whole library, a WhatsApp version still in re
     JSON.parse(aud.result).templates.map((m) => [m.template_id, m.name, m.channels]),
     [[EM1, "spring_offer", { whatsapp: false, email: true, sms: false }]],
   );
+});
+
+/**
+ * 10 Oct 2026 (Ask, the marketing manager, task 4): what am I missing is the journey as Campaigns' home draws it, its
+ * head and its rail as data, composed from the readers the page's surfaces answer from, so the number Ask says is the
+ * page's. Harbor here: a calendar connected, its WhatsApp number, deals off, and one running win-back by appointments.
+ */
+test("campaigns.journey says the journey as Campaigns' home draws it: 2 of 4 moments covered, first contact by the receptionist and quiet by the running win-back, which its stage names; the day before and after off; and the guide beside it, the day before's row among its rows; the win-back a row a citation names", async () => {
+  const w = countsWorld(pagedPeople([poolPerson(1)]), {
+    ...calTables("https://cal.example/journey.ics"),
+    playbooks: [pbRow(PB1, { name: "Come back soon", trigger: "lapsed" })],
+  });
+  await withFeed({ body: ONE_ICS }, async () => {
+    const tc = newToolContext(worldCtx(w), A, "viewer", "America/New_York", new Date());
+    const out = await runTool(tc, { name: "campaigns", input: { action: "journey" } });
+    assert.equal(out.isError, false, out.result);
+    const said = JSON.parse(out.result);
+    assert.equal(said.covered, 2, "first contact and quiet");
+    assert.equal(said.of, 4, "a calendar, deals off: no proposal waiting");
+    assert.deepEqual(
+      said.stages.map((s) => [s.id, s.label, s.covered, s.state, s.moment]),
+      [
+        ["first_contact", "First contact", true, "Answers · asks for the yes", null],
+        ["before", "Appointment tomorrow", false, "Off", "visit_tomorrow"],
+        ["after", "After the appointment", false, "Off", "visited"],
+        ["quiet", "Quiet or lapsed", true, "On · daily 10:00 AM", "lapsed"],
+      ],
+    );
+    assert.deepEqual(
+      said.stages.find((s) => s.id === "quiet").campaigns,
+      [{ id: PB1, name: "Come back soon", state: "On · daily 10:00 AM" }],
+      "the win-back, named on the stage it covers",
+    );
+    assert.deepEqual(
+      said.stages.filter((s) => s.id !== "quiet").map((s) => s.campaigns),
+      [[], [], []],
+      "the receptionist and the call's text are no campaign",
+    );
+    assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, dealsOn: false }));
+    const before = said.guide.find((r) => r.stage === "before");
+    assert.deepEqual(
+      [Object.keys(before), before.moment, before.sends],
+      [["stage", "moment", "sends", "why"], "visit_tomorrow", "the day before an appointment, a reminder"],
+      "the day before's row: its moment, what it sends and why",
+    );
+    assert.deepEqual([...tc.read.playbook.keys()], [PB1], "the campaign it names, a row a citation names");
+  });
 });

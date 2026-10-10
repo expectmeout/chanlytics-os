@@ -2,14 +2,19 @@ import "server-only";
 import { z } from "zod";
 import {
   EVERYONE_LABEL,
+  FOLLOW_UP_NEEDS_DEALS,
   NO_NUMBER_REACH,
+  OFFERS_OPT_IN_PHRASES,
   PLAYBOOK_TRIGGERS,
   PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
   audiencePreview,
   campaignChannelsOf,
+  campaignsHomeOf,
   clockStamp,
   compareTemplates,
+  isLedgerCampaign,
+  journeyGuide,
   listToken,
   listUnknownWords,
   listsFor,
@@ -31,12 +36,19 @@ import {
   sentByWords,
   toRunReportVM,
   triggerOf,
+  triggerOffered,
   triggerWords,
   unmetNeed,
   type AudienceKind,
   type BroadcastDto,
   type ListRef,
   type CampaignMessage,
+  type LifecycleBroadcasts,
+  type LifecycleGroup,
+  type LifecyclePlaybook,
+  type LifecyclePlaybooks,
+  type LifecycleShape,
+  type LifecycleStage,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -45,7 +57,7 @@ import { lastDaysBySource, lastDaysOf } from "../../../readers/campaign-report";
 import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
-import { playbooks } from "../../../readers/playbooks";
+import { playbooks, reachOutChains } from "../../../readers/playbooks";
 import { messageReadsOf, templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
 import {
   UUID,
@@ -463,10 +475,156 @@ async function readMessages(t: ToolContext): Promise<unknown> {
   return { route: "messages", messages };
 }
 
+/** GET playbooks' answer and GET broadcasts', as their readers give them. */
+type PlaybooksRead = Awaited<ReturnType<(typeof playbooks)["read"]>>["data"];
+type BroadcastsRead = Awaited<ReturnType<(typeof broadcastsReader)["read"]>>["data"];
+
+/**
+ * How the business works, as Campaigns' home reads it from GET playbooks' answer (the playbooks surface's `shape`): its
+ * appointment moments counted from a calendar's feed where one is connected, readable now or not, else from a booking
+ * tool's emails, else from neither.
+ */
+function homeShapeOf(pb: PlaybooksRead): LifecycleShape {
+  const calendar = pb.calendar !== "none" ? "feed" : pb.bookings_by_email ? "email" : "none";
+  return { calendar, dealsOn: pb.deals_on, word: pb.appointment_word };
+}
+
+/**
+ * A playbook's card as the home reads it (the playbooks surface's row): its next run by the business's clock, why a
+ * follow-up runs nothing where deals are off, and whether its list is archived. What a run of it reaches, and the name of
+ * a list one runs on, are the card's to say: the journey says neither, so neither is made here.
+ */
+function homeCardOf(p: PlaybooksRead["playbooks"][number], pb: PlaybooksRead, now: Date): LifecyclePlaybook {
+  const x = triggerOf(p.trigger);
+  return {
+    ...p,
+    triggerLabel: x ? triggerWords(x, pb.appointment_word).label : p.trigger,
+    next: nextRunLabel(p, pb.timezone, now, pb.ready?.paused === true),
+    candidates: null,
+    held: null,
+    named: null,
+    off: x && !triggerOffered(x, pb.deals_on) ? FOLLOW_UP_NEEDS_DEALS : null,
+    listArchived: p.trigger === "saved_list" && !!pb.lists?.find((l) => l.id === p.list_id)?.archived,
+  };
+}
+
+/**
+ * The playbooks surface as the home reads it (cmp/playbooks/surface.ts): the cards, each moment's pool, the moments that
+ * may run here with whether a new campaign may start from each (contracts momentOffered), whether every moment was
+ * counted, and whether each channel can send now.
+ */
+function homePlaybooksOf(pb: PlaybooksRead, now: Date): LifecyclePlaybooks {
+  const moments = PLAYBOOK_TRIGGERS.filter((x) => triggerOffered(x, pb.deals_on));
+  const here = { dealsOn: pb.deals_on, calendarOn: pb.calendar !== "none" };
+  return {
+    rows: pb.playbooks.map((p) => homeCardOf(p, pb, now)),
+    pools: pb.pools,
+    triggers: moments.map((x) => ({
+      id: x.id,
+      offered: momentOffered(x, here),
+      candidates: pb.pools[x.id]?.candidates ?? null,
+      named: null,
+    })),
+    timezone: pb.timezone,
+    countsRead: moments.every((x) => x.kind === "saved" || !!pb.pools[x.id]),
+    ready: pb.ready,
+    modes: pb.modes,
+  };
+}
+
+/**
+ * The broadcasts surface as the home reads it (cmp/broadcasts/surface.ts): the runs by the business's clock, whether each
+ * channel can send now, and whether there is a WhatsApp number, from the channels read as that surface takes it (one
+ * that could not be read is none). Null where the broadcasts could not be read, which the home takes as a line to answer
+ * on. Who can hear the workspace is not counted: the journey says none of it.
+ */
+function homeBroadcastsOf(
+  bc: BroadcastsRead | null,
+  chans: ChannelDto[] | null,
+  at: { tz: string; now: Date },
+): LifecycleBroadcasts | null {
+  if (!bc) return null;
+  return {
+    rows: bc.broadcasts.map((b) => toBroadcastVM(b, at.tz, at.now)),
+    number: { present: !!chans?.some((c) => c.kind === "whatsapp" && c.status === "active") },
+    ready: bc.ready,
+    optIn: { phrase: OFFERS_OPT_IN_PHRASES.en, link: null },
+    reach: null,
+  };
+}
+
+/**
+ * A stage of the rail as data: its caption, whether it is covered, its state in the page's words, the moment a campaign
+ * on it starts from, and the campaigns that stand on it, each with its state as its row in the ledger says it (the
+ * receptionist and the call's text are First contact's rows and no campaign, contracts isLedgerCampaign).
+ */
+function journeyStageLine(stage: LifecycleStage, group: LifecycleGroup | undefined) {
+  return {
+    id: stage.id,
+    label: stage.caps,
+    covered: stage.covered,
+    state: stage.stateWords,
+    moment: stage.moment === null ? null : (triggerOf(stage.moment)?.id ?? null),
+    campaigns: (group?.rows ?? [])
+      .filter(isLedgerCampaign)
+      .map((r) => ({ id: r.id, name: r.name, state: r.stateWords })),
+  };
+}
+
+/**
+ * The journey as Campaigns' home draws it (contracts campaignsHomeOf), its head and its rail as data: the playbooks, the
+ * broadcasts and the reach-outs, read as the page's surfaces answer from them (cmp/home/use-home.ts), so the number Ask
+ * says is the page's; and the guide (contracts journeyGuide), what a business of any trade sends at each touch point,
+ * for the workspace's shape. The campaigns it names are rows a citation names, opened on their drawer. A read the home
+ * can do without that fails is the page's failed read: the home stands, and the log says it.
+ */
+async function readJourney(t: ToolContext): Promise<unknown> {
+  const failed = (read: string) => unread(t, "campaigns.journey", read);
+  const [read, bc, chains, chans] = await Promise.all([
+    load(t.rc, playbooks, undefined),
+    load(t.rc, broadcastsReader, undefined).then((r) => r.data, failed("broadcasts")),
+    load(t.rc, reachOutChains, undefined).then((r) => r.data.chains, failed("reach_outs")),
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, failed("channels")),
+  ]);
+  const pb = read.data;
+  const shape = homeShapeOf(pb);
+  const home = campaignsHomeOf({
+    nowMs: t.now.getTime(),
+    tz: pb.timezone,
+    playbooks: homePlaybooksOf(pb, t.now),
+    broadcasts: homeBroadcastsOf(bc, chans, { tz: pb.timezone, now: t.now }),
+    library: undefined,
+    messages: undefined,
+    reachOuts: chains,
+    report: undefined,
+    shape,
+    chains: undefined,
+  });
+  const stages = home.rail.stages.map((s) =>
+    journeyStageLine(
+      s,
+      home.ledger.groups.find((g) => g.id === s.id),
+    ),
+  );
+  const named = new Set(stages.flatMap((s) => s.campaigns.map((c) => c.id)));
+  noteRows(
+    t.read,
+    read.rows.filter((r) => named.has(r.id)),
+  );
+  return {
+    route: "campaigns",
+    covered: stages.filter((s) => s.covered).length,
+    of: stages.length,
+    stages,
+    guide: journeyGuide({ calendarOn: shape.calendar === "feed", dealsOn: shape.dealsOn }),
+  };
+}
+
 /**
  * What goes out to the people who said yes (D11): a broadcast's audiences and templates (audiences, once
  * list_audiences) and the playbooks (playbooks, once list_playbooks); since Phase 4, the broadcasts as their page lists
- * them (broadcasts) and one broadcast's run (broadcast); since 10 Oct 2026, the library whole (messages).
+ * them (broadcasts) and one broadcast's run (broadcast); since 10 Oct 2026, the library whole (messages) and the journey
+ * as Campaigns' home draws it, with the guide beside it (journey).
  */
 export const campaignsTool = defineActions({
   name: "campaigns",
@@ -510,6 +668,14 @@ export const campaignsTool = defineActions({
       words:
         "Action messages takes nothing more and reads the message library whole: every message, a name in a language, with its category, each version on its channel with its state (approved, pending while WhatsApp reviews it, rejected, paused or disabled), the values it fills (slots: each one's position, name and what it most likely takes) and the campaigns that send it (used_by). Call it before a new message is written, to find one that already says it, a version still in review or a message the pickers hide included, so the library never holds a twin. To pick a message a broadcast or a playbook can go out on now, and to say who it reaches, call action audiences instead: this one lists versions nothing can send yet. It counts nobody and quotes no message's words.",
       run: readMessages,
+    }),
+    journey: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the journey",
+      words:
+        "Action journey takes nothing more and reads the journey as Campaigns' home draws it: how many of its moments are covered (covered, of), then each stage in the order a customer passes it (first contact, the day before and the day after an appointment, which need a calendar, a proposal waiting where deals are on, quiet or lapsed) with its label, whether it is covered, its state in the page's words, the moment a campaign on it starts from (moment) and the campaigns that stand on it; and guide, what a business of any trade sends at each touch point it can run and why, the month's offer among them on no stage. Call it for what the owner is missing and before setting up campaigns, then propose one for an uncovered stage on its moment, once a stage that needs a calendar has one; first contact is the receptionist's and needs none. For one campaign's clock, counts and runs, and whether the month's offer runs, call action playbooks.",
+      run: readJourney,
     }),
   },
 });
