@@ -323,6 +323,8 @@ begin
     v_change := case when new.status = 'cancelled' then 'cancelled' else 'added' end;
   elsif new.status = 'cancelled' and old.status is distinct from 'cancelled' then
     v_change := 'cancelled';
+  elsif old.status = 'proposed' and new.status = 'booked' then
+    v_change := 'confirmed';
   elsif new.starts_at is distinct from old.starts_at then
     v_change := 'moved';
   else
@@ -339,7 +341,7 @@ end $$;
 -- Name: FUNCTION appointments_note_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} for each write of an appointment the feed''s door did not make (00381), in the same transaction: added, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
+COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00381), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
 
 
 --
@@ -14648,6 +14650,14 @@ begin
          and a.status in ('booked', 'kept') and a.vanished_at is null
          and x.address is not null
          and not (x.what = 'email' and public.member_has_address(p_tenant_id, x.address))
+         -- Nor an address the business is alerted at (contracts ownAddressesOf: notifications.escalation_emails).
+         and not (x.what = 'email' and exists (
+               select 1
+                 from public.tenant_config tc
+                cross join lateral jsonb_array_elements_text(
+                  case when jsonb_typeof(tc.config -> 'notifications' -> 'escalation_emails') = 'array'
+                       then tc.config -> 'notifications' -> 'escalation_emails' else '[]'::jsonb end) e(address)
+                where tc.tenant_id = p_tenant_id and lower(btrim(e.address)) = x.address))
     ) x;
   if jsonb_array_length(v_seen) = 0 then
     return 0;
@@ -27048,7 +27058,7 @@ CREATE TRIGGER appointments_guard BEFORE UPDATE ON public.appointments FOR EACH 
 -- Name: appointments appointments_note_change; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER appointments_note_change AFTER INSERT OR UPDATE ON public.appointments FOR EACH ROW WHEN ((new.source <> 'calendar_feed'::text)) EXECUTE FUNCTION public.appointments_note_change();
+CREATE TRIGGER appointments_note_change AFTER INSERT OR UPDATE OF status, starts_at ON public.appointments FOR EACH ROW WHEN ((new.source <> 'calendar_feed'::text)) EXECUTE FUNCTION public.appointments_note_change();
 
 
 --

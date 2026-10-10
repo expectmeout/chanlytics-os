@@ -8,10 +8,11 @@
  * (0031, invariant 3). The harness in tooling/scripts/tests/events runs each subscriber twice on one delivery.
  *
  *   audit             settles and does nothing else: it measures the relay (0032, step 3).
- *   reach_out_booked  an appointment kept, moved or back on the record (appointment.changed, 00348 and 00381) is
- *                     handed to the booking door, so the lead a reach-out wrote to is booked however the booking
- *                     arrived: the hourly feed's, and a booking tool's notice by email, which never reached it. The
- *                     door stamps a lead once, so a second run moves nothing.
+ *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00381) is handed
+ *                     to the booking door, so the lead a reach-out wrote to is booked however the booking arrived: a
+ *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the
+ *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
+ *                     run moves nothing.
  */
 import type { EventSubscriber } from "@chanlytics/contracts";
 import type { DeliveredEvent } from "@chanlytics/db";
@@ -26,15 +27,15 @@ export interface SubscriberPorts {
 export type Subscriber = (event: DeliveredEvent, ports: SubscriberPorts) => Promise<void>;
 
 /** The changes that may book a lead: an appointment that is there now (a cancelled one books nobody). */
-const BOOKS = new Set(["added", "moved", "back"]);
+const BOOKS = new Set(["added", "confirmed", "moved"]);
 
 export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
   audit: async () => {},
   reach_out_booked: async (event, ports) => {
     if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return;
     const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : {};
-    const change = (data as Record<string, unknown>).change;
-    if (typeof change !== "string" || !BOOKS.has(change)) return;
+    const { change, source } = data as Record<string, unknown>;
+    if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
     await ports.bookedFromAppointment(event.tenant_id, event.subject_id);
   },
 };

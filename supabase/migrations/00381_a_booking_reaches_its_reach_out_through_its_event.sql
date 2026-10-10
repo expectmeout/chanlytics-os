@@ -10,16 +10,19 @@
 --   appointments_note_change   After each write of an appointment that is not the feed's (the feed's door writes its
 --                              own), appointment.changed on the appointment, in the same transaction, as the feed's
 --                              door words it: {change, source, starts_at}, the change one of added (a new one),
---                              cancelled, or moved (its start). A cancelled appointment stays cancelled
---                              (appointments_guard), so a booking's record has no "back". A write that changes none of
---                              those (a key set aside, a service named) writes no event.
+--                              confirmed (a proposed one booked), cancelled, or moved (its start). A cancelled
+--                              appointment stays cancelled (appointments_guard), so a booking's record has no "back". A
+--                              write that changes neither its status nor its start (a key set aside, a service named,
+--                              a scrub) does not run it.
 --   reach_out_booked_from(tenant, appointment)
 --                              The booking door over one appointment of the record, booked or kept and not vanished:
 --                              its client's address and number and its person's, each with its start, the business's
---                              own addresses left out (member_has_address, 00345) as People's import leaves them.
+--                              own addresses left out as People's import leaves them: its members' and the addresses
+--                              it is alerted at (notifications.escalation_emails).
 --                              Answers how many leads moved. The service role's.
 --   the subscription           appointment.changed -> reach_out_booked, in the background lane (2): the event_deliver
---                              job runs it after the commit (decision 0032), for every source the record keeps.
+--                              job runs it after the commit (decision 0032). The feed's own changes are the hourly
+--                              sweep's to hand the door, which it does over the feed's items; the subscriber passes them.
 --
 -- The hourly sweep still hands the door the feed's items as before; the door stamps a lead once, so the two meeting
 -- on one appointment change nothing twice. Deploy order: this migration first, and the edge after it: until the edge
@@ -42,6 +45,8 @@ begin
     v_change := case when new.status = 'cancelled' then 'cancelled' else 'added' end;
   elsif new.status = 'cancelled' and old.status is distinct from 'cancelled' then
     v_change := 'cancelled';
+  elsif old.status = 'proposed' and new.status = 'booked' then
+    v_change := 'confirmed';
   elsif new.starts_at is distinct from old.starts_at then
     v_change := 'moved';
   else
@@ -55,11 +60,11 @@ end $$;
 
 revoke all on function public.appointments_note_change() from public, anon, authenticated;
 comment on function public.appointments_note_change() is
-  'appointment.changed {change, source, starts_at} for each write of an appointment the feed''s door did not make (00381), in the same transaction: added, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
+  'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00381), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
 
 drop trigger if exists appointments_note_change on public.appointments;
 create trigger appointments_note_change
-  after insert or update on public.appointments
+  after insert or update of status, starts_at on public.appointments
   for each row
   when (new.source <> 'calendar_feed')
   execute function public.appointments_note_change();
@@ -91,6 +96,14 @@ begin
          and a.status in ('booked', 'kept') and a.vanished_at is null
          and x.address is not null
          and not (x.what = 'email' and public.member_has_address(p_tenant_id, x.address))
+         -- Nor an address the business is alerted at (contracts ownAddressesOf: notifications.escalation_emails).
+         and not (x.what = 'email' and exists (
+               select 1
+                 from public.tenant_config tc
+                cross join lateral jsonb_array_elements_text(
+                  case when jsonb_typeof(tc.config -> 'notifications' -> 'escalation_emails') = 'array'
+                       then tc.config -> 'notifications' -> 'escalation_emails' else '[]'::jsonb end) e(address)
+                where tc.tenant_id = p_tenant_id and lower(btrim(e.address)) = x.address))
     ) x;
   if jsonb_array_length(v_seen) = 0 then
     return 0;

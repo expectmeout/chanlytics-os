@@ -16,6 +16,11 @@
 --       saying itself again moves only its words -> 'refreshed'. An open one resolved in between leaves room for a new
 --       one, which is opened. The service role's.
 --
+-- The hold and its event stand or fall together: a ledger that refuses the event refuses the hold, and its caller
+-- hears "failed" as it hears any hold that did not land (the old writer opened the hold whatever became of its
+-- record). That is the point of the door (decision 0031, invariant 2), and a refused insert into events is the database
+-- refusing, not a subscriber: the outbox's copy writes no rule of a subscriber's.
+--
 -- Deploy order: this migration first. An edge that calls a door the database does not hold reads it as a hold that
 -- did not land ('failed') and says so, as it does any other. Re-runnable.
 

@@ -4327,10 +4327,11 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  * (0031, invariant 3). The harness in tooling/scripts/tests/events runs each subscriber twice on one delivery.
  *
  *   audit             settles and does nothing else: it measures the relay (0032, step 3).
- *   reach_out_booked  an appointment kept, moved or back on the record (appointment.changed, 00348 and 00381) is
- *                     handed to the booking door, so the lead a reach-out wrote to is booked however the booking
- *                     arrived: the hourly feed's, and a booking tool's notice by email, which never reached it. The
- *                     door stamps a lead once, so a second run moves nothing.
+ *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00381) is handed
+ *                     to the booking door, so the lead a reach-out wrote to is booked however the booking arrived: a
+ *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the
+ *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
+ *                     run moves nothing.
  */
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */

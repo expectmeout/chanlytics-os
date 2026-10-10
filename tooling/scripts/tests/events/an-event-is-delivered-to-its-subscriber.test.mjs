@@ -197,10 +197,22 @@ test("reach_out_booked hands the booking door the appointment its event names, a
   assert.equal(await dispatchJob(w.ctx, w.job), "done");
   assert.deepEqual(w.booked, [[T, "a-1"]], "the appointment of the event, in its workspace");
   assert.equal(w.delivery().state, "done");
-  for (const change of ["cancelled", "vanished"]) {
+  for (const change of ["confirmed", "moved"]) {
+    const books = world({ subscriber: "reach_out_booked" });
+    books.tables.events[0].data = { change, source: "booking_email", starts_at: "2026-10-12T15:00:00Z" };
+    assert.equal(await dispatchJob(books.ctx, books.job), "done");
+    assert.deepEqual(books.booked, [[T, "a-1"]], `${change}: books`);
+  }
+  for (const [change, source] of [
+    ["cancelled", "booking_email"],
+    ["vanished", "booking_email"],
+    // The feed's own changes are the hourly sweep's to hand the door, over the feed's items.
+    ["added", "calendar_feed"],
+  ]) {
     const quiet = world({ subscriber: "reach_out_booked" });
-    quiet.tables.events[0].data = { change, source: "booking_email", starts_at: "2026-10-12T15:00:00Z" };
+    quiet.tables.events[0].data = { change, source, starts_at: "2026-10-12T15:00:00Z" };
     assert.equal(await dispatchJob(quiet.ctx, quiet.job), "done");
-    assert.deepEqual(quiet.booked, [], `${change}: books nobody`);
+    assert.deepEqual(quiet.booked, [], `${change} from ${source}: books nobody`);
+    assert.equal(quiet.delivery().state, "done", "and the delivery is done, not failed");
   }
 });

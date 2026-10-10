@@ -13,9 +13,10 @@
  * so this belongs against Postgres rather than a double. Skipped without a
  * local database.
  *
- * The last case forces the failure the change event's trap exists for (00308): a ledger that refuses the row, put on
- * `events` inside a transaction that never commits (through the CLI, as team-changes-and-their-audit.db.test.mjs does
- * for `decisions`; SUPABASE_CLI names the binary when `supabase` is not on PATH).
+ * The last two cases put a ledger that refuses the row on `events`, inside a transaction that never commits (through
+ * the CLI, as team-changes-and-their-audit.db.test.mjs does for `decisions`; SUPABASE_CLI names the binary when
+ * `supabase` is not on PATH): the change event's trap lets the change land without it (00308), and the door refuses a
+ * hold whose escalation.opened the ledger refused (00380).
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -280,16 +281,12 @@ test(
           .eq("kind", "escalation.changed")
           .eq("subject_id", esc.id)
       ).data;
-    // The writer is TypeScript over PostgREST, a session of its own that cannot join a transaction that never commits, so
-    // the block runs the statement upsertEscalation makes for a change (packages/jobs/src/escalate.ts) as SQL: the same
-    // columns and the same filters, the row count telling `changed` as it does there.
+    // The writer is the one door (escalation_open, 00380), SQL, so the block calls it as upsertEscalation does.
     const replace = (reason, details) => `
-    declare replaced int;
+    declare said text;
     begin
-      update public.escalations set details = '${details}', reason = '${reason}'
-       where tenant_id = '${tenantId}' and conversation_id = '${id}' and state = 'open' and reason <> '${reason}';
-      get diagnostics replaced = row_count;
-      seen := seen || jsonb_build_object('${reason}', jsonb_build_object('raised', false, 'replaced', replaced));
+      said := public.escalation_open('${tenantId}', '${id}', '${reason}', '${details}');
+      seen := seen || jsonb_build_object('${reason}', jsonb_build_object('raised', false, 'said', said));
     exception when others then
       seen := seen || jsonb_build_object('${reason}', jsonb_build_object('raised', true, 'message', sqlerrm));
     end;`;
@@ -322,13 +319,13 @@ test(
   `);
     assert.deepEqual(
       seen.email_review,
-      { raised: false, replaced: 1 },
+      { raised: false, said: "changed" },
       "the control: a replacement with a working ledger",
     );
     assert.equal(seen.events_before, 1, "and it wrote its event");
     assert.deepEqual(
       seen.carriers,
-      { raised: false, replaced: 1 },
+      { raised: false, said: "changed" },
       `a ledger that refuses the event must not refuse the replacement (${JSON.stringify(seen.carriers)})`,
     );
     assert.deepEqual(
@@ -358,5 +355,48 @@ test(
       [{ data: { from: "carriers", to: "email_review" } }],
       "the refusing ledger went with the transaction: the same change writes its event",
     );
+  },
+);
+
+test(
+  "a ledger that refuses a hold's escalation.opened refuses the hold with it: the door opens both or neither",
+  { skip },
+  async () => {
+    const id = await thread("5");
+    const seen = rolledBack(`
+    if not exists (select 1 from public.conversations where id = '${id}') then
+      raise exception 'not_this_database';
+    end if;
+    create function public.__escalation_opened_refused() returns trigger language plpgsql as $f$
+    begin raise exception 'the ledger is unavailable'; end $f$;
+    create trigger __escalation_opened_refused before insert on public.events
+      for each row when (new.kind = 'escalation.opened' and new.tenant_id = '${tenantId}')
+      execute function public.__escalation_opened_refused();
+    begin
+      perform public.escalation_open('${tenantId}', '${id}', 'carriers', 'The line is not approved for texting yet.');
+      seen := seen || jsonb_build_object('raised', false);
+    exception when others then
+      seen := seen || jsonb_build_object('raised', true, 'message', sqlerrm);
+    end;
+    seen := seen || jsonb_build_object(
+      'holds', (select count(*) from public.escalations where conversation_id = '${id}'));
+  `);
+    assert.equal(seen.raised, true, `a ledger that refuses the event must refuse the hold (${JSON.stringify(seen)})`);
+    assert.match(seen.message, /ledger is unavailable/);
+    assert.equal(seen.holds, 0, "no hold without its event");
+    // Outside the block, with the ledger working, the hold opens with its event.
+    assert.equal(
+      await upsertEscalation(db, tenantId, id, "carriers", "The line is not approved for texting yet."),
+      "opened",
+    );
+    const opened = (
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "escalation.opened")
+        .eq("subject_id", id)
+    ).data;
+    assert.deepEqual(opened, [{ data: { reason: "carriers" } }]);
   },
 );

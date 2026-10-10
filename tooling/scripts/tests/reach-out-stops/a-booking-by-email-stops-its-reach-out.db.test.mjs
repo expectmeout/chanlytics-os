@@ -7,7 +7,10 @@
  *      nothing;
  *   2. a cancelled booking, and a write that moves neither its start nor its status, book nobody; a move is a change
  *      of its own; the feed's own rows are left to the feed's door, which writes theirs;
- *   3. the business's own address books nobody, as People's import leaves it out.
+ *   3. a proposed booking books nobody until it is confirmed, which is a change that books, here by its client's
+ *      number; an appointment that names only its person books by the person's address;
+ *   4. the business's own addresses book nobody, as People's import leaves them out: its members' and the ones it is
+ *      alerted at.
  *
  * Before 00381 the booking door ran only from the hourly calendar sweep, over the feed's items, so a booking that
  * arrived by email never reached it, and its lead kept being written to.
@@ -282,6 +285,29 @@ test("a cancelled booking books nobody; a move is a change of its own; a quiet w
   assert.equal(await stageOf(other.lead), "nurture");
 });
 
+test(
+  "a proposed booking books nobody until it is confirmed; an appointment of a person books by the person's address",
+  { skip },
+  async () => {
+    const ro = await wroteTo();
+    const id = await appointment({ client_phone: ro.phone, status: "proposed" });
+    await SUBSCRIBERS.reach_out_booked(await eventOf(id), ports);
+    assert.equal(await stageOf(ro.lead), "nurture", "a proposed time is not a booking");
+    ok(await db.from("appointments").update({ status: "booked" }).eq("id", id));
+    assert.deepEqual(
+      (await changesOf(id)).map((c) => c.data.change),
+      ["added", "confirmed"],
+    );
+    await SUBSCRIBERS.reach_out_booked(await eventOf(id), ports);
+    assert.equal(await stageOf(ro.lead), "converted", "confirmed, it books, by its client's number");
+
+    const other = await wroteTo();
+    const theirs = await appointment({ contact_id: other.person });
+    await SUBSCRIBERS.reach_out_booked(await eventOf(theirs), ports);
+    assert.equal(await stageOf(other.lead), "converted", "no client address of its own: its person's");
+  },
+);
+
 test("the feed's rows are left to the feed's door, and the business's own address books nobody", { skip }, async () => {
   const feed = await appointment({ source: "calendar_feed", tool: null });
   assert.deepEqual(await changesOf(feed), [], "the feed's door writes the feed's changes (00348), never this trigger");
@@ -302,5 +328,27 @@ test("the feed's rows are left to the feed's door, and the business's own addres
     assert.equal(await stageOf(ro.lead), "nurture");
   } finally {
     await db.auth.admin.deleteUser(owner.data.user.id);
+  }
+});
+
+test("an address the business is alerted at books nobody", { skip }, async () => {
+  const ro = await wroteTo();
+  const kept = ok(await db.from("tenant_config").select("config").eq("tenant_id", A).maybeSingle());
+  const config = kept?.config ?? {};
+  ok(
+    await db.from("tenant_config").upsert({
+      tenant_id: A,
+      config: {
+        ...config,
+        notifications: { ...config.notifications, escalation_emails: [` ${ro.address.toUpperCase()} `] },
+      },
+    }),
+  );
+  try {
+    const id = await appointment({ client_email: ro.address });
+    assert.equal(ok(await db.rpc("reach_out_booked_from", { p_tenant_id: A, p_appointment_id: id })), 0);
+    assert.equal(await stageOf(ro.lead), "nurture", "the business's alert address is its own, written in any case");
+  } finally {
+    ok(await db.from("tenant_config").upsert({ tenant_id: A, config }));
   }
 });

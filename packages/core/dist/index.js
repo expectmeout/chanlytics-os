@@ -38981,15 +38981,15 @@ function bookingPageLinkedFrom(html, pageUrl) {
 }
 
 // src/subscribers.ts
-var BOOKS = /* @__PURE__ */ new Set(["added", "moved", "back"]);
+var BOOKS = /* @__PURE__ */ new Set(["added", "confirmed", "moved"]);
 var SUBSCRIBERS = {
   audit: async () => {
   },
   reach_out_booked: async (event2, ports) => {
     if (event2.kind !== "appointment.changed" || event2.subject_type !== "appointment" || !event2.subject_id) return;
     const data = event2.data && typeof event2.data === "object" && !Array.isArray(event2.data) ? event2.data : {};
-    const change = data.change;
-    if (typeof change !== "string" || !BOOKS.has(change)) return;
+    const { change, source } = data;
+    if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
     await ports.bookedFromAppointment(event2.tenant_id, event2.subject_id);
   }
 };

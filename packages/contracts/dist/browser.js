@@ -276,9 +276,11 @@ var EVENT_KINDS = [
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated",
   /**
-   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
-   * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
-   * log unless asked for by name, since a calendar read writes one per appointment.
+   * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
+   * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
+   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00381). On
+   * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
+   * appointment.
    */
   "appointment.changed",
   /**
@@ -286,8 +288,8 @@ var EVENT_KINDS = [
    * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
    *
    * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
-   * thread writes it (packages/jobs upsertEscalation, the one writer), once per hold; a reason that changes under an
-   * open hold is escalation.changed.
+   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00380), once per hold; a
+   * reason that changes under an open hold is escalation.changed.
    */
   "escalation.opened",
   /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
