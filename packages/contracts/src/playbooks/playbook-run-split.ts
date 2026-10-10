@@ -60,12 +60,11 @@ export function runReadingOf(
 ): RunReading & { by_channel: Record<ConsentChannel, number> } {
   const whole = drawn.reach.by_channel ?? noOne();
   const reading = { candidates: drawn.reach.will, by_channel: whole };
-  const below = [
-    ...new Set(
-      caps.map((cap) => runCapOf({ trigger, cap_per_run: cap })).filter((cap) => cap >= 1 && cap < reading.candidates),
-    ),
-  ];
-  if (below.length === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
+  // A set, so each person taken asks it once whatever the number of caps: linear in the people and in the caps.
+  const below = new Set(
+    caps.map((cap) => runCapOf({ trigger, cap_per_run: cap })).filter((cap) => cap >= 1 && cap < reading.candidates),
+  );
+  if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
   const last = Math.max(...below);
   const counts = noOne();
   const run_split: RunSplit = {};
@@ -75,7 +74,7 @@ export function runReadingOf(
     const channel = drawn.channelOf[person.id];
     if (channel) counts[channel] += 1;
     taken += 1;
-    if (below.includes(taken)) run_split[String(taken)] = { ...counts };
+    if (below.has(taken)) run_split[String(taken)] = { ...counts };
   }
   return { ...reading, run_split };
 }

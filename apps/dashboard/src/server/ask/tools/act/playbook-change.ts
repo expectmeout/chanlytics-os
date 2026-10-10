@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  LIFECYCLE_WORDS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
@@ -22,11 +23,13 @@ import { MODE_WORDS } from "./playbook";
 /** Where a playbook's id is read, said as the model calls it. */
 const PLAYBOOK_FROM = "campaigns with action playbooks";
 
-/** How a resumed playbook's runs go, in full (D7): under auto, that nobody approves a run before it sends. */
+/**
+ * How a resumed playbook's runs go, in full (D7): under auto, that it sends on its own and nothing waits for approval, in
+ * the drawer's Resume sentence (LIFECYCLE_WORDS.ledger.resume.auto), which a pause card's undo says too: one fact, one
+ * sentence.
+ */
 const resumeDoes = (mode: string): string =>
-  mode === "auto"
-    ? `${MODE_WORDS.auto}, unattended: nobody approves a run before it sends`
-    : (MODE_WORDS[mode] ?? mode);
+  mode === "auto" ? LIFECYCLE_WORDS.ledger.resume.auto : (MODE_WORDS[mode] ?? mode);
 
 /** A change's parts, in the card's words and the keys' order. */
 function changeParts(set: PlaybookPatch, was: PlaybookPatch, how: { cls: string; mode: string; waits: number | null }) {
@@ -79,7 +82,7 @@ async function proposePlaybookChange(
   if (Object.keys(set).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.same(row.name));
   // The table's check holds the class to the set (playbooks.policy_class).
   const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
-  // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends unattended), and for a
+  // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), and for a
   // pause, whose undo resumes it and says it the same way. A resume whose read fails makes no card: the card would say a
   // mode it does not know. A pause needs none, so it is still a card, and its undo claims no mode (`mode` null).
   const policies = set.state ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];

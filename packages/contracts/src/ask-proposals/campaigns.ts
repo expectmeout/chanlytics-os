@@ -13,6 +13,7 @@ import { PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";
+import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS } from "../shell/campaign-rooms";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -42,6 +43,39 @@ export function proposalChannelsWords(
   if (carrying.length < 2) return goes;
   return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
 }
+
+/**
+ * Why a new campaign's card is not made (propose_campaign's action playbook), said to the model with what to do about
+ * it. `from` is the call that names what the workspace holds, its messages and its lists, as the tool calls it.
+ */
+export const PLAYBOOK_CARD_REFUSALS = {
+  /** A typed slot the proposal gave no words for: a question for the person. */
+  typedSlot: (label: string): string =>
+    `this template takes typed words for “${label}”; ask the person what to say there, then propose again with params`,
+  value:
+    "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+  plainText: "every typed value must be plain text under 1024 characters, without line breaks",
+  /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
+  starterHidden: (title: string, from: string): string =>
+    `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
+  starterUnsent: (title: string, from: string): string =>
+    `the “${title}” starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
+  hiddenTemplate: (from: string): string =>
+    `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
+  noList: (from: string): string => `no such list; ${from} names them`,
+  uncounted: (list: string, why: string): string => `${list} can't be counted right now: ${why}`,
+  /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
+  twin: (name: string): string =>
+    `“${name}” already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
+  followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
+  /** The week's breath: every message sent this week, a member's own too, holds its person, so the count waits on it. */
+  weekUnread: "who was messaged this week could not be read just now; say so, and try again in a moment",
+  trigger: (triggers: readonly string[]): string => `trigger must be one of ${triggers.join(", ")}`,
+  listToken: (from: string): string =>
+    `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
+  templateId: (from: string): string =>
+    `template_id must be an id ${from} returned, or omitted for the trigger's starter`,
+} as const;
 
 /**
  * The channels a card's payload names, as the commit hands them to its route: only when the proposal named some, so a

@@ -139,7 +139,7 @@ test("a rename and a new hour: a card that carries what changes and what it held
   assert.deepEqual([rows.playbooks[0].name, rows.playbooks[0].run_hour], ["Win-back", 10]);
 });
 
-test("a pause says the run that waits stays waiting; a resume says its class's mode in full, unattended under auto", async () => {
+test("a pause says the run that waits stays waiting; a resume says its class's mode in full, under auto in the Resume ask's own sentence", async () => {
   const waiting = {
     id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
     tenant_id: A,
@@ -167,7 +167,12 @@ test("a pause says the run that waits stays waiting; a resume says its class's m
   const resume = await change({ state: "running" }, tables({ playbooks: [playbookRow({ state: "paused" })] }));
   assert.equal(resume.isError, false, resume.result);
   assert.deepEqual([resume.proposal.title, resume.proposal.undo], ["Resume: Win-back", "Pause it again"]);
-  assert.match(resume.proposal.summary, /^Runs again under “Re-engage” \(auto\): .*unattended/);
+  // Under auto it sends on its own: one fact, one sentence, the drawer's Resume line, which the pause's undo says too.
+  assert.equal(
+    resume.proposal.summary,
+    PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "auto", LIFECYCLE_WORDS.ledger.resume.auto),
+  );
+  assert.ok(pause.proposal.undo.endsWith(LIFECYCLE_WORDS.ledger.resume.auto));
   // A class with no row of its own runs under ask, a missing row's mode, and the card says that one.
   const asks = await change(
     { state: "running" },

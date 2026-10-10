@@ -8700,6 +8700,26 @@ function proposalChannelsWords(channels, byChannel) {
   if (carrying.length < 2) return goes;
   return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
 }
+var PLAYBOOK_CARD_REFUSALS = {
+  /** A typed slot the proposal gave no words for: a question for the person. */
+  typedSlot: (label) => `this template takes typed words for \u201C${label}\u201D; ask the person what to say there, then propose again with params`,
+  value: "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+  plainText: "every typed value must be plain text under 1024 characters, without line breaks",
+  /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
+  starterHidden: (title, from) => `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
+  starterUnsent: (title, from) => `the \u201C${title}\u201D starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
+  hiddenTemplate: (from) => `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
+  noList: (from) => `no such list; ${from} names them`,
+  uncounted: (list2, why) => `${list2} can't be counted right now: ${why}`,
+  /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
+  twin: (name) => `\u201C${name}\u201D already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
+  followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
+  /** The week's breath: every message sent this week, a member's own too, holds its person, so the count waits on it. */
+  weekUnread: "who was messaged this week could not be read just now; say so, and try again in a moment",
+  trigger: (triggers) => `trigger must be one of ${triggers.join(", ")}`,
+  listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
+  templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
+};
 var channelsNamed = (pl) => Array.isArray(pl.channels) ? { channels: pl.channels } : {};
 var cancelCall = (u) => ({
   route: "POST broadcasts/[id]/cancel",
@@ -27398,12 +27418,10 @@ var noOne = () => ({ whatsapp: 0, sms: 0, email: 0 });
 function runReadingOf(drawn, trigger, caps) {
   const whole = drawn.reach.by_channel ?? noOne();
   const reading = { candidates: drawn.reach.will, by_channel: whole };
-  const below = [
-    ...new Set(
-      caps.map((cap2) => runCapOf({ trigger, cap_per_run: cap2 })).filter((cap2) => cap2 >= 1 && cap2 < reading.candidates)
-    )
-  ];
-  if (below.length === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
+  const below = new Set(
+    caps.map((cap2) => runCapOf({ trigger, cap_per_run: cap2 })).filter((cap2) => cap2 >= 1 && cap2 < reading.candidates)
+  );
+  if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
   const last = Math.max(...below);
   const counts = noOne();
   const run_split = {};
@@ -27413,7 +27431,7 @@ function runReadingOf(drawn, trigger, caps) {
     const channel = drawn.channelOf[person.id];
     if (channel) counts[channel] += 1;
     taken += 1;
-    if (below.includes(taken)) run_split[String(taken)] = { ...counts };
+    if (below.has(taken)) run_split[String(taken)] = { ...counts };
   }
   return { ...reading, run_split };
 }
@@ -39335,6 +39353,7 @@ export {
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CALENDAR_UNREAD,
   PLAYBOOK_CAP_CHOICES,
+  PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_DELETE_WORDS,

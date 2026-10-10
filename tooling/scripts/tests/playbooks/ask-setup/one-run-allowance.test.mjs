@@ -408,3 +408,23 @@ test("the week's breath: a person a campaign reached this week is held on the ca
   assert.equal(proposed.payload.candidates, page.candidates, "the card's count is the page's");
   assert.equal(pb.pools[MOMENT].candidates, 3, "WhatsApp alone: four, one of them held");
 });
+
+test("the week's touches could not be read: the card declines in its words, and never counts without the week's breath", async () => {
+  // The read the week's breath is made of (touchesSince, over every send of the week) fails; every other read answers.
+  const rows = tables();
+  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
+  const supabase = fakeDb(rows, { "broadcasts.select": { message: "the read failed" } }, { people_list: () => PEOPLE });
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const r = await buildProposal(t, "propose_campaign", {
+    action: "playbook",
+    trigger: MOMENT,
+    template_id: OFFER,
+    params: [],
+    channels: ["whatsapp", "email"],
+    cap_per_run: 5,
+  });
+  assert.equal(r.isError, true, "no card on a count the page would not make");
+  assert.equal(JSON.parse(r.result).error, contracts.PLAYBOOK_CARD_REFUSALS.weekUnread);
+  // Any message sent this week holds a person, a member's own among them: the words say so, never "from a campaign".
+  assert.match(contracts.PLAYBOOK_CARD_REFUSALS.weekUnread, /^who was messaged this week could not be read just now/);
+});

@@ -1,7 +1,6 @@
 import "server-only";
 import { z } from "zod";
 import {
-  CAMPAIGN_ROOMS,
   CONSENT_CHANNELS,
   DEFAULT_CAMPAIGN_CHANNELS,
   FOLLOW_UP_NEEDS_DEALS,
@@ -11,6 +10,7 @@ import {
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
+  PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_NAME_MAX,
@@ -125,26 +125,19 @@ function proposedSpecs(
     const labels = slotLabels({ name: tpl.name, language: tpl.language, variables: tpl.variables });
     const blank = specs.findIndex((s) => s.kind === "text" && !s.value);
     return blank >= 0
-      ? {
-          refusal: `this template takes typed words for “${labels[blank] ?? `value ${blank + 1}`}”; ask the person what to say there, then propose again with params`,
-        }
+      ? { refusal: PLAYBOOK_CARD_REFUSALS.typedSlot(labels[blank] ?? `value ${blank + 1}`) }
       : { specs };
   }
   const specs: ParamSpec[] = [];
   for (const p of given) {
     const spec = parseParamSpec(p);
-    if (!spec)
-      return {
-        refusal:
-          "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
-      };
+    if (!spec) return { refusal: PLAYBOOK_CARD_REFUSALS.value };
     if (spec.kind !== "text") {
       specs.push(spec);
       continue;
     }
     const v = cleanParam(spec.value);
-    if (v === null)
-      return { refusal: "every typed value must be plain text under 1024 characters, without line breaks" };
+    if (v === null) return { refusal: PLAYBOOK_CARD_REFUSALS.plainText };
     specs.push({ kind: "text", value: v });
   }
   return { specs };
@@ -173,12 +166,9 @@ async function heldStarter(
   // One the workspace hid has a version, and no card adds it back (nor would the starter set): said as hidden, the way
   // out being to show it again or to go by another message.
   if (messages.some((m) => m.hidden && written.some((x) => x.name === m.name)))
-    return {
-      refusal: `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${AUDIENCES_CALL} names the messages that may send.`,
-      starter: null,
-    };
+    return { refusal: PLAYBOOK_CARD_REFUSALS.starterHidden(title, AUDIENCES_CALL), starter: null };
   return {
-    refusal: `the “${title}” starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${AUDIENCES_CALL}`,
+    refusal: PLAYBOOK_CARD_REFUSALS.starterUnsent(title, AUDIENCES_CALL),
     // The one a card may add at its Approve (A0): the moment's starter still offered.
     starter: written.find((s) => !s.retired) ?? null,
   };
@@ -191,10 +181,7 @@ async function heldStarter(
 async function proposedMessage(t: ToolContext, id: string): Promise<AskedMessage | { refusal: string }> {
   const asked = await askedMessage(t, id);
   if ("refusal" in asked) return asked;
-  if (asked.message.hidden)
-    return {
-      refusal: `that template is one the workspace keeps out of the composers; ${AUDIENCES_CALL} names the ones that may send`,
-    };
+  if (asked.message.hidden) return { refusal: PLAYBOOK_CARD_REFUSALS.hiddenTemplate(AUDIENCES_CALL) };
   return asked;
 }
 
@@ -235,9 +222,9 @@ async function listedPeople(
 ): Promise<{ ids: Set<string>; label: string } | { refusal: string }> {
   const kept = ref.kind === "saved" ? (await load(t.rc, listsReader, undefined)).data.lists : undefined;
   const found = await poolList(t.ctx, t.tenantId, pool, ref, kept);
-  if (!found) return { refusal: `no such list; ${AUDIENCES_CALL} names them` };
+  if (!found) return { refusal: PLAYBOOK_CARD_REFUSALS.noList(AUDIENCES_CALL) };
   if (found.archived) return { refusal: archivedListWords(found.label, "run") };
-  if ("unknown" in found) return { refusal: `${found.label} can't be counted right now: ${found.unknown}` };
+  if ("unknown" in found) return { refusal: PLAYBOOK_CARD_REFUSALS.uncounted(found.label, found.unknown) };
   return { ids: new Set(found.memberIds), label: found.label };
 }
 
@@ -422,7 +409,7 @@ async function twinRefusal(t: ToolContext, checked: PlaybookInput, named: string
   if (!first) return null;
   const own = str(named, PLAYBOOK_NAME_MAX);
   if (own && !twins.some((x) => x.name === own)) return null;
-  return `“${first.name}” already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`;
+  return PLAYBOOK_CARD_REFUSALS.twin(first.name);
 }
 
 /**
@@ -448,17 +435,11 @@ async function reachNow(
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
     deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(noFollowUps()),
-    // Who any campaign reached this week (the week's breath), the page's own read of it.
+    // Who was messaged this week, by a campaign or a member (the week's breath), the page's own read of it.
     recentTouches(t.ctx, t.tenantId, t.now).catch(() => null),
   ]);
-  if (!followUps)
-    return {
-      refusal: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
-    };
-  if (!touched)
-    return {
-      refusal: "who heard from a campaign this week could not be read just now; say so, and try again in a moment",
-    };
+  if (!followUps) return { refusal: PLAYBOOK_CARD_REFUSALS.followUpsUnread };
+  if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
   // A list's people, as a run counts them (listedPeople).
   const listed = listRef ? await listedPeople(t, pool, listRef) : { ids: null, label: null };
   if ("refusal" in listed) return listed;
@@ -607,17 +588,15 @@ async function proposeOnStarter(
 
 async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
-  if (!trig) return refuse(`trigger must be one of ${PROPOSABLE_TRIGGERS.join(", ")}`);
+  if (!trig) return refuse(PLAYBOOK_CARD_REFUSALS.trigger(PROPOSABLE_TRIGGERS));
   if (trig.kind === "reach_out") return refuse(REACH_OUT_IS_NOT_A_MOMENT);
   // A playbook on a list names it by its token (decision 0009): one of People's, or one of the workspace's own.
   const listRef = trig.kind === "saved" ? parseListToken(str(input.list, 60)) : null;
-  if (trig.kind === "saved" && !listRef)
-    return refuse(`a playbook on a list needs list: the list's token from ${AUDIENCES_CALL} (seg:<id> or list:<id>)`);
+  if (trig.kind === "saved" && !listRef) return refuse(PLAYBOOK_CARD_REFUSALS.listToken(AUDIENCES_CALL));
   const followUp = await followUpRefusal(t, trig);
   if (followUp) return refuse(followUp);
   let templateId = str(input.template_id, 40);
-  if (templateId && !UUID.test(templateId))
-    return refuse(`template_id must be an id ${AUDIENCES_CALL} returned, or omitted for the trigger's starter`);
+  if (templateId && !UUID.test(templateId)) return refuse(PLAYBOOK_CARD_REFUSALS.templateId(AUDIENCES_CALL));
   if (!templateId) {
     const own = await heldStarter(t, trig);
     // A starter not on file is added at the card's Approve (A0), never refused while one is offered.
