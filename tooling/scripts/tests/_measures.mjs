@@ -263,6 +263,64 @@ export function writersByTable() {
   return writers;
 }
 
+/* ---- Doors writing a record with no event (decision 0031, invariant 2: a fact and its event share a transaction) ---- */
+
+/** The spine's own rows: an event's outbox row and its deliveries, and the jobs that carry reactions. What a fact causes. */
+const SPINE = new Set(["event_outbox", "event_deliveries", "jobs"]);
+
+/** A statement of the snapshot that does not run on past a blank line, which ends every statement it writes. */
+const ONE_STATEMENT = String.raw`(?:(?!\n\n)[\s\S])*?`;
+
+/**
+ * Each `security definer` function of the schema, a door (0031), that writes a record and writes no event, with the
+ * number of records it writes: `{ "name()": n }`. A door writes its event when its body inserts into `events`, when it
+ * calls a function that does, or when it writes a table a trigger of which does, each followed to the end. The tables
+ * many places write by design, the spine's own rows and the writers that only take away (the writers measure's) are no
+ * record here. A statement built as a string (`execute format(…)`) is not seen.
+ */
+export function doorsWithoutEventsIn(sql) {
+  const tables = schemaTables(sql);
+  const definer = new Set(
+    [...sql.matchAll(new RegExp(String.raw`^CREATE FUNCTION public\.(\w+)\(${ONE_STATEMENT}\n {4}AS `, "gm"))]
+      .filter((m) => /\bSECURITY DEFINER\b/.test(m[0]))
+      .map((m) => m[1].toLowerCase()),
+  );
+  const bodies = new Map();
+  for (const c of functionChangesIn(sql)) if (c.kind === "create" && c.body) bodies.set(c.name, c.body);
+  const writes = new Map([...bodies].map(([n, b]) => [n, tablesWrittenBy(b, tables)]));
+  const calls = new Map(
+    [...bodies].map(([n, b]) => [
+      n,
+      [...b.matchAll(/\b(?:public\.)?(\w+)\s*\(/g)]
+        .map((m) => m[1].toLowerCase())
+        .filter((f) => f !== n && bodies.has(f)),
+    ]),
+  );
+  const fired = new Map();
+  const trigger = String.raw`^CREATE TRIGGER \w+ ${ONE_STATEMENT} ON public\.(\w+) ${ONE_STATEMENT}EXECUTE FUNCTION public\.(\w+)\(`;
+  for (const [, table, fn] of sql.matchAll(new RegExp(trigger, "gm")))
+    fired.set(table, [...(fired.get(table) ?? []), fn.toLowerCase()]);
+  const evented = new Set([...writes].filter(([, w]) => w.has("events")).map(([n]) => n));
+  const writesItsEvent = (n) =>
+    calls.get(n).some((f) => evented.has(f)) ||
+    [...writes.get(n)].some((t) => (fired.get(t) ?? []).some((f) => evented.has(f)));
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const n of writes.keys())
+      if (!evented.has(n) && writesItsEvent(n)) {
+        evented.add(n);
+        grew = true;
+      }
+  }
+  const out = {};
+  for (const n of [...definer].sort()) {
+    if (evented.has(n) || takesAway(`${n}()`)) continue;
+    const records = [...(writes.get(n) ?? [])].filter((t) => !MANY_WRITERS_BY_DESIGN.has(t) && !SPINE.has(t));
+    if (records.length) out[`${n}()`] = records.length;
+  }
+  return out;
+}
+
 export const MEASURES = [
   {
     name: "functions over the limit",
@@ -480,6 +538,13 @@ export const MEASURES = [
       ),
     advice:
       "One record, one door writes it (decision 0031, invariant 1): write the table through the door that already writes it, the SQL function or the repository in packages/db, rather than adding a writer.",
+  },
+  {
+    name: "doors writing a record with no event",
+    file: "doors-without-events.json",
+    measure: () => doorsWithoutEventsIn(readRaw(SCHEMA_SQL)),
+    advice:
+      "A fact and its event share a transaction (decision 0031, invariant 2): write the record's event in the door, beside the write (insert into public.events, or a trigger on the table that does), or argue under Rises in docs/debt.md why the write is no fact.",
   },
   {
     // Each column's strategy is packages/db's ERASURE_STRATEGIES; people/erasure/erasure-registry.test.mjs holds it to

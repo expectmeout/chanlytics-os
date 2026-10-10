@@ -112,6 +112,11 @@ function blockFrom(by, scanCounts) {
     ["event-shaped clocks", keys(by["event-shaped-clocks.json"]), "of the registered clocks (invariant 6)"],
     ["tables with more than one writer", keys(by["writers.json"]), `${total(by["writers.json"])} writers among them`],
     [
+      "doors writing a record with no event",
+      keys(by["doors-without-events.json"]),
+      `writing ${total(by["doors-without-events.json"])} tables (invariant 2)`,
+    ],
+    [
       "personal columns with no erasure strategy",
       keys(by["erasure-strategies.json"]),
       `in ${new Set(Object.keys(by["erasure-strategies.json"] ?? {}).map((c) => c.split(".")[0])).size} tables`,
