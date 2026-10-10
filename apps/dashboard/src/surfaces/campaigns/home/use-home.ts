@@ -1,7 +1,7 @@
 /**
- * What Campaigns' home reads and how it moves: the surfaces its view model is made from (the playbooks' rows and pools,
- * the broadcasts' runs and reach, the library's templates, Campaigns' own 30 days, the reach-outs' chains), read through
- * the seam and handed to contracts as they are (campaignsHomeOf); and the address, which opens a moment or the composer.
+ * What Campaigns' home reads and how it moves: the four surfaces its view model is made from (the playbooks' rows, pools,
+ * shape and templates, Sent's runs and reach, Campaigns' own 30 days, the reach-outs' chains), read through the seam and
+ * handed to contracts as they are (campaignsHomeOf); and the address, which opens a moment or the composer.
  *
  * A real workspace draws its own surfaces; a demo session draws the samples the Playbooks and Broadcasts pages drew; without
  * either the page draws nothing. A surface not read yet is undefined and its tiles say they are reading; one that could not
@@ -9,7 +9,7 @@
  * `useSurfaceFailed`, which the shell's route gate reads), so a week it could not see is never "nothing is set to go out".
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MIN_MS, campaignMessagesOf, campaignsHomeOf } from "@chanlytics/contracts";
+import { MIN_MS, campaignsHomeOf } from "@chanlytics/contracts";
 import type { LifecycleHome } from "@chanlytics/contracts";
 import { tabDraft } from "../../kit/record/work";
 import { demoSession, navigate, replaceRoute } from "../../legacy-verbs";
@@ -60,10 +60,8 @@ export function useHomeData(nowMs?: number): HomeData {
   const livePlaybooks = useSurface("playbooks");
   const liveBroadcasts = useSurface("broadcasts");
   const reachOuts = useSurface("reach_outs");
-  const settings = useSurface("settings");
   const liveResults = useSurface("campaign_results");
   const broadcastsFailed = useSurfaceFailed("broadcasts");
-  const settingsFailed = useSurfaceFailed("settings");
   const resultsFailed = useSurfaceFailed("campaign_results");
   const now = useHomeNow(nowMs);
   // A demo session's samples, made once for the page's life.
@@ -77,10 +75,9 @@ export function useHomeData(nowMs?: number): HomeData {
   const broadcasts = liveBroadcasts ?? sample?.broadcasts ?? (broadcastsFailed ? null : undefined);
   // Campaigns' own 30 days: failed (null) where the seam says it could not be read, else not read yet (undefined).
   const results = liveResults ?? sample?.results ?? (resultsFailed ? null : undefined);
-  const sampled = sample?.playbooks.templates ?? undefined;
-  const library = settings ? settings.templatesAll : settingsFailed ? null : sampled;
-  // The messages the Library counts: the settings surface's (one read with its rows), a demo session's from its sample's.
-  const messages = settings ? settings.messages : settingsFailed ? null : undefined;
+  // The call's text and the Library's count: the playbooks surface's own read of the templates (a demo session's sample's).
+  const library = playbooks ? playbooks.library : undefined;
+  const messages = playbooks ? playbooks.messages : undefined;
   const home = useMemo(
     () =>
       campaignsHomeOf({
@@ -89,11 +86,13 @@ export function useHomeData(nowMs?: number): HomeData {
         playbooks,
         broadcasts,
         library,
-        messages: messages === undefined && sampled ? campaignMessagesOf(sampled) : messages,
+        messages,
         reachOuts,
         report: results === undefined ? undefined : results === null ? null : results.report,
+        shape: playbooks?.shape,
+        chains: results === undefined ? undefined : results === null ? null : results.chains,
       }),
-    [now, playbooks, broadcasts, library, messages, sampled, reachOuts, results],
+    [now, playbooks, broadcasts, library, messages, reachOuts, results],
   );
   return { playbooks, broadcasts, reachOuts, results, home };
 }

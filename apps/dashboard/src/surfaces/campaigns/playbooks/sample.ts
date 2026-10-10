@@ -9,6 +9,7 @@ import {
   DAY_MS,
   REPLY_WINDOW_WORDS,
   PLAYBOOK_TRIGGERS,
+  campaignMessagesOf,
   channelsReady,
   momentOffered,
   nextRunLabel,
@@ -76,6 +77,25 @@ function card(
 /** A moment's count in the demo: who a run reaches, who waits out the week, everyone the moment names; each of them said yes. */
 function samplePool(candidates: number, held: number, pool: number): PoolRead {
   return { candidates, held, pool, noYes: 0, stopped: 0, noNumber: 0, saidYes: pool };
+}
+
+/**
+ * Every moment that may run here, as the surface hands them (surface.ts); the sample has a calendar (its `calendar: "ok"`),
+ * so a new playbook is offered the win-back by visits, and the welcome it already runs stays a card.
+ */
+function sampleTriggers(): PlaybookTriggerOption[] {
+  return PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, false)).map((t) => ({
+    id: t.id,
+    label: t.label,
+    hint: t.hint,
+    cls: t.cls,
+    list: t.list,
+    kind: t.kind,
+    offered: momentOffered(t, { dealsOn: false, calendarOn: true }),
+    candidates: t.id === "quiet_30" ? 6 : t.id === "new_week" ? 4 : t.id === "visit_tomorrow" ? 3 : 0,
+    held: 0,
+    named: null,
+  }));
 }
 
 /** The demo's Playbooks as of `now`: what `useSurface("playbooks")` answers for a workspace that has read its own. */
@@ -180,20 +200,8 @@ export function playbooksSample(now = new Date()): PlaybooksSurface {
     }),
     card(reminder, now, { candidates: 3, held: 0, totals: empty }),
   ];
-  // Every moment that may run here, as the surface hands them (surface.ts); the sample has a calendar (`calendar: "ok"`
-  // below), so a new playbook is offered the win-back by visits, and the welcome it already runs stays a card.
-  const triggers: PlaybookTriggerOption[] = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, false)).map((t) => ({
-    id: t.id,
-    label: t.label,
-    hint: t.hint,
-    cls: t.cls,
-    list: t.list,
-    kind: t.kind,
-    offered: momentOffered(t, { dealsOn: false, calendarOn: true }),
-    candidates: t.id === "quiet_30" ? 6 : t.id === "new_week" ? 4 : t.id === "visit_tomorrow" ? 3 : 0,
-    held: 0,
-    named: null,
-  }));
+  const templates = ["winback_offer", "monthly_offer", "visit_reminder"].map((key) => approved(key, iso(-7 * DAY)));
+  const triggers = sampleTriggers();
   return {
     rows,
     // The moments' counts, as the cards above and the triggers below say them (Campaigns' home reads who each moment
@@ -219,7 +227,12 @@ export function playbooksSample(now = new Date()): PlaybooksSurface {
     shape: { calendar: "feed", dealsOn: false, word: "appointment" },
     triggers,
     lists: [],
-    templates: ["winback_offer", "monthly_offer", "visit_reminder"].map((key) => approved(key, iso(-7 * DAY))),
+    templates,
+    // The rows the call's text is looked for among, and the messages the Library counts: the sample's own WhatsApp rows.
+    library: templates,
+    messages: campaignMessagesOf(templates),
+    // The demo reads no autonomy matrix: Resume says when and to how many alone.
+    modes: null,
     number: { present: true, health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }) },
     businessName: "Marisa's Studio",
     bookingLink: true,

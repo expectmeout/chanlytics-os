@@ -9299,7 +9299,7 @@ var LIFECYCLE_WORDS = {
     templates: {
       what: "your templates",
       body: "The call's text and the Library's count show once they read. Everything else here is current.",
-      surface: "settings"
+      surface: "playbooks"
     },
     counts: {
       what: "who each moment reaches",

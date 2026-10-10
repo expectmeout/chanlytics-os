@@ -213,7 +213,14 @@ test("a write that moves the listing, its reviews or the day a review is counted
     assert.equal(reviews.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
   }
   assert.deepEqual(keysOf("POST google/link"), ["google", "setup"], "beside Google's own and Setup's row");
-  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "reports", "reports_headline", "today"]);
+  assert.deepEqual(keysOf("PATCH workspaces"), [
+    "settings",
+    "people",
+    "reports",
+    "reports_headline",
+    "today",
+    "playbooks",
+  ]);
   held();
   assert.deepEqual(
     keysOf("POST google/reviews/[id]/reply"),

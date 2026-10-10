@@ -24,7 +24,9 @@ import {
   triggerOf,
   triggerOffered,
   triggerWords,
+  type CampaignMessage,
   type LifecycleShape,
+  type LifecycleTemplate,
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
@@ -262,6 +264,15 @@ export interface PlaybooksSurface {
   /** The messages a playbook may send, with their variables and the channels each holds. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: PlaybookTemplate[] | null;
+  /**
+   * The call's text as its templates read names it (`booking`: found over every WhatsApp row, a hidden one too, as the
+   * edge texts it after a call), one row or none: Campaigns' home says whether there is one. Null where that read failed.
+   */
+  library: LifecycleTemplate[] | null;
+  /** Every message of the workspace, on every channel (its templates read's `messages`): the Library's count. Null where unread. */
+  messages: CampaignMessage[] | null;
+  /** Each autonomy class's mode (GET playbooks' `modes`): Resume says a class under `auto` in full. Null where unread. */
+  modes: Readonly<Record<string, string>> | null;
   number: { present: boolean; health: NumberHealth };
   businessName: string;
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
@@ -288,6 +299,24 @@ function businessShapeOf(
     calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
     dealsOn: !!pb.deals_on,
     word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null }),
+  };
+}
+
+/**
+ * What the templates read gives the page, each null where it failed: the messages a playbook may send, the call's text
+ * as the read names it, and every message of the workspace, which the Library counts.
+ */
+function templatesReadOf(
+  tpl: Output<"GET templates"> | Error,
+): Pick<PlaybooksSurface, "templates" | "library" | "messages"> {
+  if (tpl instanceof Error) return { templates: null, library: null, messages: null };
+  return {
+    // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
+    templates: cmOfferedMessages(tpl),
+    // The call's text is looked up as today and as the edge sends it (voice/call-booking-link.ts): among EVERY WhatsApp
+    // row, a hidden one too. The composers' rows leave hidden ones out, so the read names the one it found (`booking`).
+    library: tpl.booking ? [tpl.booking] : [],
+    messages: tpl.messages,
   };
 }
 
@@ -408,8 +437,9 @@ export const playbooksOverride: SurfaceOverride = {
         held: held(t.id),
         named: named(t.id),
       })),
-      // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
-      templates: tpl instanceof Error ? null : cmOfferedMessages(tpl),
+      ...templatesReadOf(tpl),
+      // A server from before `modes` answers none: Resume then says when and to how many alone.
+      modes: pb.modes ?? null,
       number: {
         present: !!wa,
         health: numberHealth({

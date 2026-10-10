@@ -90,6 +90,9 @@ function surfaces(over = {}) {
     noNumber: 0,
     saidYes,
   });
+  // The call's text and the Library's count are the playbooks surface's own read of the templates (Settings is no longer
+  // drawn on Campaigns): a test that hands Settings a library hands it here.
+  const lib = over.settings && "templatesAll" in over.settings ? over.settings.templatesAll : pb.templates;
   setSurfaceValue("playbooks", {
     ...pb,
     pools: {
@@ -99,6 +102,13 @@ function surfaces(over = {}) {
       quiet_30: pool(5, 0, 0),
       ...(over.pools ?? {}),
     },
+    library: lib,
+    messages:
+      over.settings && "messages" in over.settings
+        ? over.settings.messages
+        : lib
+          ? contracts.campaignMessagesOf(lib)
+          : null,
     ...(over.playbooks ?? {}),
   });
   // A report a test hands the broadcasts surface is Campaigns' own 30 days now (campaign_results), drawn from there.
@@ -801,7 +811,7 @@ const failedAt = (tree, id) => {
   return node ? { node, words: textOf(node), retry: byTestId(tree, `${id}-retry`) } : null;
 };
 
-test("a templates read that failed is said in the call's text's place, with a Retry that reads the settings again", () => {
+test("a templates read that failed is said in the call's text's place, with a Retry that reads the playbooks surface again", () => {
   surfaces({ settings: { templatesAll: null } });
   fresh();
   refreshed.length = 0;
@@ -821,7 +831,11 @@ test("a templates read that failed is said in the call's text's place, with a Re
   assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
   assert.equal(allBy(tree, "cmh-stage").length, 4, "the rest of the page is drawn, and current");
   pressed(failed.retry);
-  assert.deepEqual(refreshed, ["settings"], "its Retry reads the templates' surface, not the moments'");
+  assert.deepEqual(
+    refreshed,
+    ["playbooks"],
+    "its Retry reads the playbooks surface, whose own read of the templates it is (Settings is not drawn on Campaigns)",
+  );
   surfaces();
   fresh();
   assert.equal(byTestId(page(), "cmh-templates-failed"), null, "read again: nothing to say");
@@ -1076,19 +1090,23 @@ test("a broadcasts read that failed is said in each tile made from it, in the se
   }
 });
 
-test("a settings read that failed leaves the Library with no count and the call's text with its Retry", () => {
+test("a templates read the playbooks surface could not make leaves the Library with no count and the call's text with its Retry", () => {
+  surfaces({ playbooks: { library: null, messages: null } });
+  fresh();
+  refreshed.length = 0;
+  const tree = page();
+  const failed = failedAt(tree, "cmh-templates-failed");
+  assert.ok(failed, "a templates read that failed is said, as a null `library` is");
+  pressed(failed.retry);
+  assert.deepEqual(refreshed, ["playbooks"]);
+  assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
+  // Settings is no longer what the home reads its library from: a Settings read that failed says nothing here.
   surfaces();
   setSurfaceValue("settings", undefined);
   status.setStatus("settings", "seeded");
   try {
     fresh();
-    refreshed.length = 0;
-    const tree = page();
-    const failed = failedAt(tree, "cmh-templates-failed");
-    assert.ok(failed, "no settings at all is a read that failed, as a null `templatesAll` is");
-    pressed(failed.retry);
-    assert.deepEqual(refreshed, ["settings"]);
-    assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
+    assert.equal(byTestId(page(), "cmh-templates-failed"), null, "the playbooks surface's own read stands");
   } finally {
     status.setStatus("settings", "live");
   }

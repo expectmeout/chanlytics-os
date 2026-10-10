@@ -4728,15 +4728,15 @@ const TEMPLATES_ALL_ASKED = [
 test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
   for (const [q, all, names, keys, reads] of [
     // `held`: what the composers' read left out, counted by why, so an empty picker can say it (contracts noTemplateWords).
-    ["", false, ["visit_reminder"], ["templates", "held", "messages"], ["templates.select"]],
+    ["", false, ["visit_reminder"], ["templates", "held", "messages", "booking"], ["templates.select"]],
     [
       "&all=1",
       true,
       ["hello_world", "offer", "visit_reminder"],
-      ["templates", "held", "messages", "usedBy", "sends"],
+      ["templates", "held", "messages", "booking", "usedBy", "sends"],
       TEMPLATES_ALL_ASKED,
     ],
-    ["&all=0", false, ["visit_reminder"], ["templates", "held", "messages"], ["templates.select"]],
+    ["&all=0", false, ["visit_reminder"], ["templates", "held", "messages", "booking"], ["templates.select"]],
   ]) {
     const routed = dayCtx(templatesWorld());
     const page = await templatesRoute.GET.run(req(`?workspace=${B}${q}`), routed);
@@ -4797,6 +4797,22 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
   );
   assert.deepEqual(u.data.sends.winback_offer, { count: 2, lastAt: "2026-09-17T14:00:00Z" });
   assert.equal(u.data.usedBy.elsewhere, undefined, "another workspace's are not this one's");
+});
+
+test("GET templates names the call's text it finds among every WhatsApp row, a hidden one too, as the edge texts it: Campaigns' home keeps today's lookup without Settings' read", async () => {
+  const w = usageWorld();
+  w.templates = w.templates.map((t) => (t.name === "booking_link" ? { ...t, hidden_at: "2026-09-01T00:00:00Z" } : t));
+  const r = await kernel.load(turnIn(dayCtx(w), B), templatesReader, { all: false });
+  assert.equal(
+    r.data.templates.some((t) => t.name === "booking_link"),
+    false,
+    "the composers are not offered it",
+  );
+  assert.equal(r.data.booking?.name, "booking_link", "and the phone agent still texts it after a call");
+  // A workspace with no WhatsApp row that carries the booking link answers none.
+  const none = usageWorld();
+  none.templates = none.templates.filter((t) => t.channel !== "whatsapp");
+  assert.equal((await kernel.load(turnIn(dayCtx(none), B), templatesReader, { all: false })).data.booking, null);
 });
 
 /**

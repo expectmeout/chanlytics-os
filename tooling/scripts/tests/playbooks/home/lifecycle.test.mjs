@@ -1257,10 +1257,11 @@ test("a read that failed is said where its data would be, in contracts' words, w
     none,
     "a surface not read yet has not failed",
   );
+  // The library is the playbooks surface's own read of the templates (Settings is not drawn on Campaigns): its Retry.
   assert.deepEqual(home({ library: null }).failed.templates, {
     what: "your templates",
     body: "The call's text and the Library's count show once they read. Everything else here is current.",
-    surface: "settings",
+    surface: "playbooks",
   });
   assert.deepEqual(home({ playbooks: playbooks({ countsRead: false }) }).failed.counts, {
     what: "who each moment reaches",

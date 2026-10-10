@@ -24871,6 +24871,12 @@ interface LifecyclePlaybooks {
      * one more tick would open.
      */
     templates?: readonly LifecycleMessage[] | null;
+    /**
+     * Each autonomy class's mode by class (GET playbooks' `modes`): a Resume asked on a row says a class under `auto` in
+     * full (decision 7). Null where unread, absent on a surface drawn without it: the question then says when and to how
+     * many alone.
+     */
+    modes?: Readonly<Record<string, string>> | null;
 }
 /** A run as the broadcasts surface lists it. */
 interface LifecycleRun {
@@ -25002,9 +25008,12 @@ interface LifecycleInput {
     playbooks: LifecyclePlaybooks | undefined;
     /** The broadcasts surface: undefined before it is read, null where it could not be (the tiles made from it say which). */
     broadcasts: LifecycleBroadcasts | null | undefined;
-    /** The workspace's WhatsApp rows (the settings surface's `templatesAll`): the call's text; null where unread. */
+    /**
+     * The rows the call's text is found among (the playbooks surface's `library`: the one GET templates names, `booking`,
+     * found over every WhatsApp row as the edge sends it, or none); null where unread.
+     */
     library: readonly LifecycleTemplate[] | null | undefined;
-    /** The workspace's messages (the settings surface's `messages`), which the Library counts; null where unread. */
+    /** The workspace's messages (the playbooks surface's `messages`), which the Library counts; null where unread. */
     messages: readonly Pick<CampaignMessage, "name" | "hidden">[] | null | undefined;
     /** The reach-outs' chains; null where they could not be read. */
     reachOuts: readonly ReachOutChainDto[] | null | undefined;
@@ -25013,6 +25022,13 @@ interface LifecycleInput {
      * read, null where it could not be. "What came back" and each row's "Last 30 days" are drawn from it.
      */
     report: LifecycleReport | null | undefined;
+    /** How the business works (the playbooks surface's `shape`): undefined with that surface. */
+    shape: LifecycleShape | undefined;
+    /**
+     * The reach-outs' last 30 days, by root (the campaign_results surface's `chains`): undefined before it is read, null
+     * where it could not be, and a chain's row then says "—".
+     */
+    chains: LifecycleChains | null | undefined;
 }
 /** Whether the read a tile is made of landed: drawn when it did, said quietly while it is out, the kit's failed read where it failed. */
 type LifecycleTileRead = "read" | "reading" | "failed";
@@ -25383,7 +25399,7 @@ declare const LIFECYCLE_WORDS: {
         readonly templates: {
             readonly what: "your templates";
             readonly body: "The call's text and the Library's count show once they read. Everything else here is current.";
-            readonly surface: "settings";
+            readonly surface: "playbooks";
         };
         readonly counts: {
             readonly what: "who each moment reaches";

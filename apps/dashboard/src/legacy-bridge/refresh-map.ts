@@ -66,7 +66,9 @@ const runsAndChains = () => [...runs(), reachOutsOverride];
 // changes one of them moves the Send by row, the count of who each campaign reaches and People's own reach, so it
 // re-reads all three, or a channel just opened stays closed on the composer until something else reads it again.
 const readiness = () => [broadcastsOverride, playbooksOverride, peopleOverride];
-// A template written here is read again by the Inbox at once, not when its kept read goes stale (inbox/surface.ts).
+// A template written here is read again by the Inbox at once, not when its kept read goes stale (inbox/surface.ts). The
+// playbooks surface, whose read of them is the call's text and the Library's count on Campaigns, is read again by its hook
+// (HOOKS below, `__refreshPlaybooks`), so it is not named here: a second read of GET playbooks would follow the first.
 const templates = () => {
   forgetInboxTemplates();
   return [settingsOverride, inboxOverride];
@@ -219,10 +221,19 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
   // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
   // is also where Today's period line counts its days from: the headline is read again too, and the Reviews lens's read, which
-  // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen.
+  // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen. How its
+  // customers buy also shapes Campaigns' journey and the word it says (spec 2026-10-09 §4.8): the playbooks surface is read
+  // again.
   "PATCH workspaces": () => {
     forgetReviews();
-    return [settingsOverride, peopleOverride, reportsOverride, reportsHeadlineOverride, todayOverride];
+    return [
+      settingsOverride,
+      peopleOverride,
+      reportsOverride,
+      reportsHeadlineOverride,
+      todayOverride,
+      playbooksOverride,
+    ];
   },
   "POST team/invite": settings,
   "PATCH team/[id]": settings,

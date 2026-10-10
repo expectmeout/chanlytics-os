@@ -105,7 +105,8 @@ async function templateSendsRead(
 /**
  * GET templates' body, as the route ran it: its answer's type is the body's own, as the route's was. `templates` are the
  * rows (the composers' unless `all`), `messages` the workspace's messages made of EVERY row (contracts
- * campaignMessagesOf), and `held` what the composers' rows left out of WhatsApp's, counted by why.
+ * campaignMessagesOf), `held` what the composers' rows left out of WhatsApp's, counted by why, and `booking` the call's
+ * text found among every WhatsApp row (contracts bookingTemplate), or null.
  */
 async function templatesOf(rc: ReaderContext, all: boolean) {
   const tenantId = rc.tenantId;
@@ -136,12 +137,16 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // its standing inside its message, and a message with no WhatsApp row is one. Whether a picker lists one is the
   // message's own `offered`.
   const messages = campaignMessagesOf(every);
+  // The call's text: the WhatsApp message the phone agent texts a caller who asks to book, found among EVERY WhatsApp row
+  // (a hidden one too), as the edge picks it (apps/edge/lib/voice/call-booking-link.ts) and as Settings says what sends it.
+  // Campaigns' home says whether there is one (contracts bookingTemplate); null where there is none.
+  const booking = bookingTemplate(every.filter((t) => t.channel === "whatsapp")) ?? null;
   // What sends each of them, and how many of each went out, for the page that
   // lists every one. The composers (`!all`) are choosing a template to send and
   // never ask, so they do not pay for the reads. A workspace can carry a message
   // nothing has ever sent -- one written in WhatsApp Manager, or a starter added
   // and never wired up -- and this list was the one place that could not say so.
-  if (!all) return { templates, held, messages };
+  if (!all) return { templates, held, messages, booking };
   // Every run, a page at a time: a daily playbook alone passes a thousand of
   // them in three years, and a run cut off the end sent messages nobody is
   // credited with. A run's state says whether its playbook is waiting on the
@@ -169,9 +174,9 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     playbooks: (pb.data ?? []).map((p) => ({ ...p, runs: runsWords(p) })),
     broadcasts: runRows,
     // The booking message is a WhatsApp template the receptionist sends: an email or a text of the same name is none.
-    bookingName: bookingTemplate(every.filter((t) => t.channel === "whatsapp"))?.name ?? null,
+    bookingName: booking?.name ?? null,
   });
-  return { templates, held, messages, usedBy, sends };
+  return { templates, held, messages, booking, usedBy, sends };
 }
 
 /** GET templates' answer: the rows and their messages, and for Settings (`all`) what sends each and how many went out. */
