@@ -5,9 +5,12 @@ name: Production smoke
 # name the deployed commit (tooling/scripts/checks/smoke.mjs). Nothing checked
 # production after a deploy before this (October 2026): the runbook's Deploy
 # step 4 was a command a person ran, or did not. Vercel posts a
-# deployment_status for each project; the two deploy apart, so the second host
-# may lag the first's event by minutes, and the smoke asks again, up to ten
-# times over five minutes, before it fails. A failure opens one issue per
+# deployment_status for each project, the edge's (chanlytics-messaging) about
+# three minutes after the dashboard's (chanlytics-os) on 10 October 2026, so the
+# smoke runs on the edge's event alone, once per merge, and asks again, up to
+# ten times over five minutes, before it fails. A commit main has already moved
+# past is not smoked: the newer commit's own deploy is, and both hosts would
+# rightly name it instead. A failure opens one issue per
 # commit, or comments on the one open, the way ci.yml's landed job does: what
 # deployed cannot be undone here, and the next merger reads it (docs/runbook.md,
 # Roll back, says how to promote the previous deployment).
@@ -29,11 +32,12 @@ concurrency:
 jobs:
   smoke:
     name: The deployed build answers on both hosts
-    # A production deployment of main, ready: Vercel names each project's production environment "Production – <project>".
+    # The edge's production deployment, ready: Vercel names each project's production environment "Production –
+    # <project>", and only main deploys to it. Its `ref` is the commit's sha, never a branch's name.
     if: >-
       github.event.deployment_status.state == 'success' &&
       contains(github.event.deployment.environment, 'Production') &&
-      (github.event.deployment.ref == 'main' || github.event.deployment.ref == 'refs/heads/main')
+      contains(github.event.deployment.environment, 'chanlytics-messaging')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -43,7 +47,21 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      - id: current
+        name: The deployed commit is still main's newest
+        shell: bash
+        env:
+          SHA: ${{ github.event.deployment.sha }}
+        run: |
+          head="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ -n "$head" ] && [ "$head" != "$SHA" ]; then
+            echo "main is at ${head:0:9} now, past ${SHA:0:9}: that commit's deploy is smoked instead."
+            echo "smoke=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "smoke=yes" >> "$GITHUB_OUTPUT"
+          fi
       - id: smoke
+        if: steps.current.outputs.smoke == 'yes'
         name: Both hosts answer with the deployed build
         shell: bash
         env:
@@ -60,7 +78,7 @@ jobs:
             if [ "$attempt" -lt 10 ]; then sleep 30; fi
           done
           echo "code=$code" >> "$GITHUB_OUTPUT"
-      - if: steps.smoke.outputs.code != '0'
+      - if: steps.current.outputs.smoke == 'yes' && steps.smoke.outputs.code != '0'
         name: Say so where the next merger will see it
         shell: bash
         env:

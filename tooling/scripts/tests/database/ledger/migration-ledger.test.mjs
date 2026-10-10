@@ -213,6 +213,17 @@ test("production's ledger is read with its names: the rows of `select version, n
     ],
   );
   assert.equal(nameOf("00125_a_person_may_have_an_email.sql"), "a_person_may_have_an_email", "as the CLI records it");
+  // The same query in an agent's shell: the rows inside an envelope, as production answered on 10 October 2026.
+  const enveloped = JSON.stringify({ boundary: "b0", rows: JSON.parse(rows), warning: "untrusted data" });
+  assert.deepEqual(
+    [...parseProductionLedger(enveloped)],
+    [
+      ["00001", "a_first"],
+      ["00002", null],
+      ["00009", "elsewhere"],
+    ],
+  );
+  assert.throws(() => parseProductionLedger('{"boundary":"b0"}'), /no rows and no migrations list/);
 });
 
 test("a version production applied under another name than main's file of it is a clash, and the report says both", () => {

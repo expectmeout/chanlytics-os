@@ -248,9 +248,12 @@ export function parseProductionLedger(text) {
   let rows;
   if (trimmed.startsWith("[")) rows = JSON.parse(trimmed).map(rowOf);
   else if (trimmed.startsWith("{")) {
-    const listed = JSON.parse(trimmed).migrations;
-    if (!Array.isArray(listed)) throw new Error("production's ledger is an object with no migrations list");
-    rows = listed.map((m) => ({ version: String(m?.remote ?? "").trim(), name: null }));
+    const read = JSON.parse(trimmed);
+    // `db query -o json` in an agent's shell wraps its rows as {boundary, warning, rows}; on a runner they are bare.
+    if (Array.isArray(read.rows)) rows = read.rows.map(rowOf);
+    else if (Array.isArray(read.migrations))
+      rows = read.migrations.map((m) => ({ version: String(m?.remote ?? "").trim(), name: null }));
+    else throw new Error("production's ledger is an object with no rows and no migrations list");
   } else rows = tableRows(trimmed);
   const production = new Map();
   for (const { version, name } of rows) if (/^\d+$/.test(version)) production.set(version, name || null);

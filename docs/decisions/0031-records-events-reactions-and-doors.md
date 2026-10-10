@@ -248,14 +248,14 @@ merge; a merge went in before its checks finished; nothing checks production aft
 door runs almost no tests, since selection follows folders.
 
 _What changes in the order._ The frame stands; its next steps move. Before any new mechanism, every record that is
-still written and then recorded takes a door, as 00350 to 00358 began: the broadcast and the reach-out chain with
+still written and then recorded takes a door, as 00353, 00356 and 00357 began: the broadcast and the reach-out chain with
 their decisions, the take-over and the hand-back whole, a provider's STOP with its event, a subscription's change with
 the workspace's status; a failed delivery is the platform's to hear, not the customer's; the hold's clock reads an
 index; and the sweep's no-change `person.resolved` is written no more. Then the road, since the week's two incidents
-were the road's: migrations applied to production only from main, by a workflow in an Environment the owner approves,
-a migration merged first in a pull request of its own; the compare by name as well as version; a smoke after each
-production deploy; main's push running the tests of what it changed; a merge only once its checks pass, which is a
-setting of Ruben's. Phase 2's remaining items are re-ranked behind those: receipts as events still wait on a reader;
+were the road's: every push to production held first to production's ledger by name as well as version, whoever
+pushes; a migration the new code calls applied from its branch just before the merge, and the rest by a workflow a
+person starts from main once both apps serve the commit; the compare by name; a smoke after each production deploy; a
+merge only once its checks pass, which is a setting of Ruben's. Phase 2's remaining items are re-ranked behind those: receipts as events still wait on a reader;
 the reminder as a due row waits on the playbooks note. Phase 3's first real subscriber is the escalation's notice to
 the owner, not receipts: it has the widest coupling (fifteen sites in `packages/core/src/inbound`, the voice webhook,
 the email receipts), and today the owner's mail is sent inside Meta's and Retell's requests; its precondition is
@@ -265,11 +265,31 @@ rather than grows: `aggregate_version` and `causation_id` until a projector, `jo
 sends are jobs, the three per-kind dedupe indexes beside `jobs_dedupe_live` until one is shown to serve a read; one of
 the two re-drive paths (`event_deliveries_redrive`, the back office's `requeueFailedJob`) goes; and a paused
 subscription, which drops its events against 0032's decision 4, is settled one way. Phase 5 waits on Phase 4's
-numbers, as before. The staging project of Phase 0 is replaced by the road above, which covers what it was for.
+numbers, as before. The staging project of Phase 0 stands beside the road, not in its place: the road keeps
+production's ledger honest, and staging is where a migration and a deploy are tried before production sees either.
 
-_Ruben's._ The merge settings (`enforce_admins`, merging by auto-merge, branches kept up to date); the Environment and
-its three secrets for the apply workflow; whether a paused subscription holds or drops; which workspace tries the
+_Ruben's._ The merge settings (`enforce_admins`, branches kept up to date: both weighed against the Actions minutes in
+`docs/runbook.md`); the Environment's three secrets for the apply workflow; whether a paused subscription holds or drops; which workspace tries the
 WhatsApp switch; the alarm path the numbers of invariant 12 will ring.
+
+**10 October 2026**, the sweep and the road brought onto main at `c368115b4` and reviewed once, each branch by a reader
+who had not written it. The doors are 00373 to 00378, renumbered above main's 00371 and #1533's 00372: the run and
+the chain with their decisions (00373), the billing row and the switch (00374), a provider's STOP (00375), the
+resolution recorded on a change (00376), the hold's index (00377, built concurrently, alone in its file), the take-over
+and the hand-back (00378). The review changed six things: `resolve_person` is 00367's body with only its ledger row
+gated (copied from 00346, it would have undone 00367's rule for a number written with its +); the take-over withdraws
+only a draft no run has claimed (`sending_at` null, as 00362 and #1527's pause do: as a definer it reads past the row
+policy); `billing_apply` locks the row before it lays the columns over it (read from a second scan, a stamp waiting
+behind a reading wrote the older status back) and keeps #1527's guard that only the row's own customer is forgotten;
+the run's door refuses an actor who is not a member of the workspace; `team_decision` drops an undo link to another
+workspace's line instead of failing the write on the same-workspace key; and a failed delivery pages once per
+subscriber. The road changed as well: GitHub offers a private repository of a personal account no Environment with a
+required reviewer, so `migrate.yml` on a push would have applied each migration unasked the moment it merged; it is
+started by hand, after main's own checks and both deploys, and the before-merge path from a branch stays, held to the
+same check. Main's push does not run the node tests again (the pull request ran them, and the minutes cannot pay
+twice); the smoke runs on the edge's deployment, whose `ref` is the commit's sha, never `main`. Production's ledger,
+read by name that day, holds no clash. Invariant 11, every model turn a record, is decision 0039's, built beside this
+note and not yet on main.
 
 ## Tests
 

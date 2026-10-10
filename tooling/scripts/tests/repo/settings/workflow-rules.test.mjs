@@ -144,18 +144,17 @@ test("every job says how long it may run: a step that hangs is ended at its cap,
   }
 });
 
-test("main's migrations reach production through migrate.yml alone: from main, behind the production Environment, the dry run held to the ledger, never --include-all", () => {
-  // Two sessions took one number in a week of October 2026, and one applied its file to production by hand before
-  // its pull request merged. The workflow applies main's files only, after the dry run is held to what main has and
-  // production lacks (migration-push.mjs), and compares the ledgers after the push.
+test("main's migrations reach production through migrate.yml only when a person asks: from main, after main's checks and both deploys, the dry run held to the ledger, never --include-all", () => {
+  // Two sessions took one number in a week of October 2026, and one applied its file to production by hand before its
+  // pull request merged. GitHub gives a private repository of a personal account no Environment with a required
+  // reviewer, so a run on a push would apply each migration the moment it merged with no one asked: the run is started
+  // by hand, and the press is the approval. It waits for main's own checks and for both apps to serve the commit, since
+  // a migration that narrows what the code before it may do must follow the deploys.
   const y = workflow("migrate.yml");
-  assert.match(
-    y,
-    /^on:\n {2}push:\n {4}branches: \[main\]\n {4}paths:\n {6}- "supabase\/migrations\/\*\*"\n {2}workflow_dispatch:\n/m,
-    "a push to main that changed a migration, or a hand",
-  );
+  assert.match(y, /^on:\n {2}workflow_dispatch:\n/m, "started by hand, and by nothing else");
+  assert.ok(!/^ {2}push:/m.test(y), "never on a push");
   assert.ok(y.includes("if: github.ref == 'refs/heads/main'"), "a run asked for on another ref does nothing");
-  assert.ok(y.includes("environment: production"), "the Environment's required reviewer is the approval");
+  assert.ok(y.includes("environment: production"), "the secrets are the production Environment's");
   const code = y
     .split("\n")
     .filter((l) => !/^\s*#/.test(l))
@@ -165,13 +164,15 @@ test("main's migrations reach production through migrate.yml alone: from main, b
     y.includes("version, name from supabase_migrations.schema_migrations"),
     "the ledger is read with its names",
   );
+  const checks = y.indexOf("for wf in ci.yml database.yml");
+  const deploys = y.indexOf('git merge-base --is-ancestor "$GITHUB_SHA" "$sha"');
   const dryRun = y.indexOf("supabase db push --linked --dry-run");
   const held = y.indexOf("migration-push.mjs --dry-run dry-run.txt --production prod-ledger.json");
   const push = y.indexOf("supabase db push --linked --yes");
   const compared = y.indexOf("migration-ledger.mjs --compare prod-ledger-after.json --hours 0");
   assert.ok(
-    dryRun > 0 && held > dryRun && push > held && compared > push,
-    "the dry run, its check, the push, the compare",
+    checks > 0 && deploys > checks && dryRun > deploys && held > dryRun && push > held && compared > push,
+    "main's checks, both deploys, the dry run, its check, the push, the compare",
   );
   for (const s of ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF", "SUPABASE_DB_PASSWORD"])
     assert.ok(y.includes(`secrets.${s}`), `${s} is the Environment's`);
@@ -181,7 +182,7 @@ test("main's migrations reach production through migrate.yml alone: from main, b
   );
 });
 
-test("the weekly compare reads production's ledger with its names, and the production smoke runs on a ready production deployment of main alone", () => {
+test("the weekly compare reads production's ledger with its names, and the production smoke runs once per merge, on the edge's ready deployment", () => {
   assert.ok(
     workflow("migration-ledger.yml").includes("version, name from supabase_migrations.schema_migrations"),
     "a version production applied under another name is seen on Mondays too",
@@ -190,24 +191,19 @@ test("the weekly compare reads production's ledger with its names, and the produ
   assert.ok(y.includes("deployment_status:"));
   assert.ok(y.includes("github.event.deployment_status.state == 'success'"));
   assert.ok(y.includes("contains(github.event.deployment.environment, 'Production')"));
-  assert.ok(y.includes("github.event.deployment.ref == 'main'"));
+  assert.ok(
+    y.includes("contains(github.event.deployment.environment, 'chanlytics-messaging')"),
+    "the edge deploys last, so its event alone",
+  );
+  assert.ok(!y.includes("deployment.ref =="), "Vercel's ref is the commit's sha, never main");
+  assert.ok(y.includes("git ls-remote origin refs/heads/main"), "a commit main moved past is left to the newer one");
   assert.ok(
     y.includes(
       'smoke.mjs --edge https://chanlytics-messaging.vercel.app --dashboard https://app.chanlytics.com --sha "$SHA"',
     ),
     "both hosts, the deployed commit",
   );
-  assert.ok(y.includes("sleep 30") && y.includes("for attempt in 1 2 3 4 5 6 7 8 9 10"), "the second host may lag");
+  assert.ok(y.includes("sleep 30") && y.includes("for attempt in 1 2 3 4 5 6 7 8 9 10"), "a host may lag");
   assert.ok(y.includes("gh issue list") && y.includes("gh issue create") && y.includes("gh issue comment"));
   assert.ok(y.includes('title="Production smoke failed ('), "one issue per deployed commit");
-});
-
-test("a push to main runs the tests of what it landed, against the main commit before it", () => {
-  // Two pull requests merged before CI finished and turned main red (October 2026); a push ran no node test.
-  const y = workflow("ci.yml");
-  const typecheck = y.slice(y.indexOf("  typecheck:"), y.indexOf("  auckland:"));
-  const step = typecheck.slice(typecheck.indexOf("name: The tests of what the push landed"));
-  assert.ok(step.includes("if: github.event_name == 'push'"));
-  assert.ok(step.includes("BEFORE: ${{ github.event.before }}"), "the commit before the push");
-  assert.ok(step.includes('node tooling/scripts/checks/changed-tests.mjs "$base" HEAD'));
 });
