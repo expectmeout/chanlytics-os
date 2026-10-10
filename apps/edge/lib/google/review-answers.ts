@@ -12,6 +12,7 @@ import {
   autoReplyHold,
   parseTenantConfig,
   reviewReplyModeOf,
+  REVIEW_AUTO_REPLIES_PER_SYNC,
   type EdgeRefusal,
   type ReviewReplyFacts,
   type ReviewReplyMode,
@@ -21,6 +22,13 @@ import { logger } from "../log.js";
 import { http } from "./places.js";
 import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
 import { tokenFor } from "./profile-credentials.js";
+
+/**
+ * The drafts one sync may write under the auto mode: twice the replies it posts, so a review the model could not
+ * answer or Google refused gives its place to an older one, and an hour when Google refuses everything costs a few
+ * drafts, not one for every review on record.
+ */
+const REVIEW_DRAFTS_PER_SYNC = 2 * REVIEW_AUTO_REPLIES_PER_SYNC;
 
 /** The Autonomy row for reviews. No row reads as ask: a draft on request, nothing posted alone. */
 export async function reviewReplyMode(db: Db, tenantId: string): Promise<ReviewReplyMode> {
@@ -78,9 +86,10 @@ export async function draftFor(
 /**
  * Under the auto mode, the reviews that came in while the receptionist was
  * on duty and have no reply yet are answered on Google, a few per sync
- * (contracts autoReplyCandidates decides which). A draft that fails or a
- * reply Google refuses is logged and left for the next hour; nothing here
- * stops the sync that called it. Returns what was answered, for the bell.
+ * (contracts autoReplyCandidates decides which, the held ones set aside). A
+ * draft that fails or a reply Google refuses is logged, left for the next hour,
+ * and gives its place to the next review; nothing here stops the sync that
+ * called it. Returns what was answered, for the bell.
  */
 async function answerNewReviews(
   db: Db,
@@ -103,21 +112,27 @@ async function answerNewReviews(
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(20);
   if (unreplied.error) throw new Error(unreplied.error.message);
-  const picks = autoReplyCandidates(unreplied.data ?? [], conn.connected_at, now.getTime());
-  if (!picks.length) return [];
-  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
-  if (!t.ok) return [];
-  const facts = await reviewFacts(db, conn.tenant_id);
-  // A reply once held for naming a price or money is the owner's now: not drafted again every hour.
+  const rows = unreplied.data ?? [];
+  if (!rows.length) return [];
+  // A reply once held for naming a price or money is the owner's now: not drafted again every hour, and set aside
+  // before the few a sync answers are taken, so a held review never keeps the ones older than it waiting.
   const held = await subjectsWith(
     db,
     conn.tenant_id,
     "google.reply_held",
-    picks.map((r) => r.id),
+    rows.map((r) => r.id),
   );
+  // Newest first, more than the sync posts: a review the model could not draft, one held just now, or one Google
+  // refused gives its place to the next, and the sync stops once it has posted its few.
+  const waiting = rows.filter((r) => !held.has(r.id));
+  const picks = autoReplyCandidates(waiting, conn.connected_at, now.getTime(), REVIEW_DRAFTS_PER_SYNC);
+  if (!picks.length) return [];
+  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
+  if (!t.ok) return [];
+  const facts = await reviewFacts(db, conn.tenant_id);
   const answered: Array<{ id: string; author: string | null; text: string }> = [];
   for (const r of picks) {
-    if (held.has(r.id)) continue;
+    if (answered.length >= REVIEW_AUTO_REPLIES_PER_SYNC) break;
     const d = await draftReviewReply(
       facts,
       { rating: r.rating, author: r.author, text: r.body, written_at: r.published_at },

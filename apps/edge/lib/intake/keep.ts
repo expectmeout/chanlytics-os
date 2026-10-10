@@ -28,7 +28,11 @@ export function signatureHeaders(request: Request, names: readonly string[]): Re
   return out;
 }
 
-/** Keeps one verified delivery; a copy that could not be taken is said, never thrown. */
+/**
+ * Keeps one verified delivery; a copy that could not be taken is said, never thrown. Answers whether it is kept (a
+ * delivery the ledger already holds under that id is), for a door that must say where a delivery it could not take
+ * went (sms-status.ts: Twilio sends a status callback once).
+ */
 export async function keepDelivery(
   db: Db,
   d: {
@@ -40,7 +44,7 @@ export async function keepDelivery(
     headers: Record<string, string>;
     body: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   const { error } = await keepProviderEvent(db, {
     provider: d.provider,
     provider_event_id: d.id,
@@ -56,4 +60,5 @@ export async function keepDelivery(
       door: d.door,
       error,
     });
+  return !error;
 }

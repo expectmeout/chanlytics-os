@@ -231,6 +231,8 @@ export async function putOnWire(
   const sent = await send(d.to, {
     body: d.body,
     template: d.template,
+    // Which of a workspace's numbers this person wrote to is read by the thread, on a wire that holds two.
+    conversationId: d.conversationId,
     // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
     // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
     // is, whatever its template's category says. Anything else keeps the purpose it asked with.

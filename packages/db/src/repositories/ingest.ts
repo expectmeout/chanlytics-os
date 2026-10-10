@@ -121,9 +121,16 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data as unknown as IngestResult;
 
+  // A delivery this workspace already holds says nothing new, as the email door's own check says it (email.ts): the
+  // call that kept the message wrote its answers, and ingest_inbound writes a STOP or a START only then (00361). A text
+  // is taken in twice by design (its door, then the job that answers it), and a WhatsApp message again on Meta's
+  // redelivery, an operator's replay and an answer taken up later; a yes written again there would stand over a no the
+  // person has given since.
+  if (!out?.contact_id || !out.is_new) return out;
+
   // A START is a yes on the channel it came on (contracts consent-channels.ts): see noteYesOnChannel. After the ingest,
   // using the contact it returned.
-  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
+  if (p.optIn) await noteYesOnChannel(db, p, out.contact_id);
 
   // The OTHER answer, if that is what arrived. Separate call, separate column,
   // separate ledger entry -- which is the whole point: the carriers refused a
@@ -133,9 +140,9 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   // and answered by the time this runs; failing their message because a second
   // write did not land would be a worse outcome than a consent record that has
   // to be repaired. It is logged loudly instead.
-  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+  if (p.optInMarketing && stoppedNow(out)) {
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
-  } else if (p.optInMarketing && out?.contact_id) {
+  } else if (p.optInMarketing) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -503,7 +510,8 @@ export async function resolveOutboundTargetForContact(
  * before its migration must keep every reply, answer and booking link going.
  */
 export async function wireRowOf(db: Db, p: { tenantId: string; conversationId: string; relationship: boolean }) {
-  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const head =
+    "paused_until, control_kind, control_ref, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
   const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
   const read = (columns: string) =>
     db
@@ -605,7 +613,11 @@ export async function keepMessageCost(db: Db, tenantId: string, externalId: stri
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or the
- *  receptionist answers over the person who just replied. */
+ *  receptionist answers over the person who just replied.
+ *
+ *  True when the echo is kept with its pause, or was already (a redelivery); false when a write the database refused
+ *  left either undone, which the door answers with a 503 so Meta sends it again (this answered nothing, and the door
+ *  acknowledged echoes it had not kept). A pause that fails takes the kept words back out, so the redelivery pauses. */
 export async function recordEchoAndPause(
   db: Db,
   p: {
@@ -615,7 +627,7 @@ export async function recordEchoAndPause(
     externalId: string | null;
     pausedUntilIso: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
   // Was an .upsert on the PARTIAL unique index, which PostgREST cannot target —
   // so for any customer without an existing contact row this failed, logged,
@@ -630,7 +642,7 @@ export async function recordEchoAndPause(
       tenant_id: p.tenantId,
       error: e instanceof Error ? e.message : String(e),
     });
-    return;
+    return false;
   }
   // The thread, without moving anything on it yet. Meta redelivers a webhook it
   // could not deliver for up to seven days, and this used to pause the thread
@@ -646,7 +658,7 @@ export async function recordEchoAndPause(
     .single();
   if (verr || !conv) {
     dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
-    return;
+    return false;
   }
   const { error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
@@ -667,19 +679,33 @@ export async function recordEchoAndPause(
   // An echo carrying no id of its own cannot be told apart from its own replay,
   // so it still pauses -- a receptionist talking over the owner is the worse of
   // the two failures, and it is what this function exists to prevent.
-  if (error?.code === "23505" && p.externalId) return;
+  if (error?.code === "23505" && p.externalId) return true;
   const { error: perr } = await db
     .from("conversations")
     .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
     .eq("id", conv.id)
     .eq("tenant_id", p.tenantId);
   if (perr) {
-    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
-    return;
+    // The words kept without their pause would be found by the redelivery and taken for a replay, which pauses
+    // nothing: so they are taken back out, and the echo comes again whole. Said with whether that worked.
+    const unwound =
+      !error && p.externalId
+        ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error
+        : null;
+    dbLog().error("record_echo_pause_failed", {
+      tenant_id: p.tenantId,
+      conversation_id: conv.id,
+      error: perr.message,
+      unwound,
+    });
+    return false;
   }
   // The receptionist is quiet on this thread because its owner spoke: on the ledger, since nothing on any page said why
   // it stopped answering. Once per echo: a redelivery returned above.
   await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
+  // The pause landed. The words did only when their insert did: one the database refused comes again, and its
+  // redelivery writes them (and the pause once more, from its own moment).
+  return !error;
 }
 
 /**
@@ -730,15 +756,19 @@ export async function pauseConversation(
   // handoff queued in this breath, which the caller names. A draft written
   // before the pause must not land after it: the door (packages/core deliver)
   // waives the pause for a queued row on exactly this promise. The job that
-  // would send a withdrawn row finds it canceled and does nothing. A failure
-  // here is logged, never fatal: the pause itself landed.
+  // would send a withdrawn row finds it canceled and does nothing. A draft its
+  // job has already claimed (sending_at, 00352) is on its way and is left to
+  // say what became of it: withdrawn then, it reached the person under a row
+  // that said canceled for ever. A failure here is logged, never fatal: the
+  // pause itself landed.
   let withdraw = db
     .from("messages")
     .update({ status: "canceled", error: { reason: "superseded_by_human" } })
     .eq("conversation_id", conversationId)
     .eq("tenant_id", tenantId)
     .eq("sender", "ai")
-    .eq("status", "queued");
+    .eq("status", "queued")
+    .is("sending_at", null);
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
   if (wErr)
@@ -748,31 +778,4 @@ export async function pauseConversation(
       error: wErr.message,
     });
   return true;
-}
-
-/**
- * The thread's reply turn (00284; the verb's rule is core inbound/turn.ts): claimed for a message before the model is
- * asked, so a newer message of the thread holds it. False only when a newer message has the turn. A call that fails
- * throws, and the verb reads that as a turn held: a reply is never lost to this bookkeeping.
- */
-export async function claimReplyTurn(
-  db: Db,
-  tenantId: string,
-  conversationId: string,
-  messageId: string,
-): Promise<boolean> {
-  const { data, error } = await db.rpc("claim_reply_turn", {
-    p_tenant: tenantId,
-    p_conversation: conversationId,
-    p_message: messageId,
-  });
-  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
-  return data !== false;
-}
-
-/** Whether this message still holds its thread's turn once the model has answered: false only when a newer message took it. */
-export async function holdsReplyTurn(db: Db, conversationId: string, messageId: string): Promise<boolean> {
-  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
-  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
-  return data !== false;
 }

@@ -7,7 +7,7 @@
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
 import { clearReadCaches, staleReadCaches } from "./read-cache";
-import { clearSurfaceCache } from "./surface-cache";
+import { sealSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
 import { PREFETCH_SLOT, SECOND_FACTOR_REQUIRED_PATH } from "@chanlytics/contracts";
 
@@ -24,7 +24,7 @@ let instance: Api | null = null;
 const REBOOTED = "chanlytics.workspace.rebooted";
 function forgetWorkspaceAndReboot(win: Window): void {
   rememberWorkspace(null);
-  clearSurfaceCache();
+  sealSurfaceCache();
   clearReadCaches();
   try {
     if (win.sessionStorage.getItem(REBOOTED)) {
@@ -44,9 +44,38 @@ function forgetWorkspaceAndReboot(win: Window): void {
  * account without an authenticator, sets one up; it comes back in from there.
  */
 function toSecondFactor(win: Window): void {
-  clearSurfaceCache();
+  sealSurfaceCache();
   clearReadCaches();
   win.location.assign(SECOND_FACTOR_REQUIRED_PATH);
+}
+
+/**
+ * A 401: the session is gone. Cleared and sealed BEFORE leaving: the surface cache holds real customer transcripts in
+ * the tab, a session expiring mid-click must not leave one workspace's messages for whoever signs in next, and a read
+ * landing before the page unloads must not write them back (surface-cache.ts sealSurfaceCache). The page's route and
+ * workspace go along, so signing in again lands where they were.
+ */
+function toSignIn(win: Window): void {
+  sealSurfaceCache();
+  clearReadCaches();
+  win.location.assign(signInHref(win.location));
+}
+
+/**
+ * A fresh route's 401 (contracts SESSION_ENDED): the Auth server no longer knows this session, though its token still
+ * verifies at the gate, which sent a tab asked to sign in straight back from /login, the act it had pressed silently
+ * not done, every time it was pressed. The session is ended first -- POST /auth/signout, which clears its cookie
+ * whether or not the Auth server still knows it -- and then the tab signs in again where it was.
+ */
+async function endSession(win: Window): Promise<void> {
+  sealSurfaceCache();
+  clearReadCaches();
+  try {
+    await win.fetch("/auth/signout", { method: "POST", credentials: "same-origin", redirect: "manual" });
+  } catch {
+    // The sign-out did not arrive: the sign-in page is where the tab goes all the same, and the gate decides.
+  }
+  win.location.assign(signInHref(win.location));
 }
 
 /**
@@ -60,6 +89,16 @@ function takePrefetched(win: Window, url: string): Promise<Response> | null {
   if (!held || typeof (held as Promise<Response>).then !== "function") return null;
   delete (slot as Record<string, unknown>)[url];
   return held as Promise<Response>;
+}
+
+/**
+ * What the head started and the page's own reads did not take is nobody's, and is let go once they are in (the runner's
+ * first pass). Leads' head read is the list in Fit order, and a tab that last read another order never took it: it stayed
+ * in the slot for the page's life, and the owner choosing Fit minutes later was answered from the document's first
+ * second, which the surface then held as fresh for two minutes more.
+ */
+export function dropPrefetched(win: Window): void {
+  Reflect.deleteProperty(win, PREFETCH_SLOT);
 }
 
 /**
@@ -82,11 +121,8 @@ export function apiFor(win: Window): Api {
     fetch: (url, init) => win.fetch(url, init),
     prefetched: (url) => takePrefetched(win, url),
     workspace: getActiveWorkspace,
-    onSignedOut: () => {
-      clearSurfaceCache();
-      clearReadCaches();
-      win.location.assign(signInHref(win.location));
-    },
+    onSignedOut: () => toSignIn(win),
+    onSessionEnded: () => void endSession(win),
     onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
     onSecondFactor: () => toSecondFactor(win),
     // A write landed, so every on-demand answer this tab is holding -- a
@@ -107,15 +143,8 @@ export function api(): Api {
     fetch: (url, init) => window.fetch(url, init),
     prefetched: (url) => takePrefetched(window, url),
     workspace: getActiveWorkspace,
-    onSignedOut: () => {
-      // Clear BEFORE redirecting: the surface cache holds real customer
-      // transcripts in sessionStorage, and a session expiring mid-click must
-      // not leave one workspace's messages for whoever signs in next. The
-      // page's hash goes along, so signing in again lands where they were.
-      clearSurfaceCache();
-      clearReadCaches();
-      window.location.assign(signInHref(window.location));
-    },
+    onSignedOut: () => toSignIn(window),
+    onSessionEnded: () => void endSession(window),
     onChooseWorkspace: () => forgetWorkspaceAndReboot(window),
     onSecondFactor: () => toSecondFactor(window),
     // A write landed, so every on-demand answer this tab is holding -- a

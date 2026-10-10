@@ -23,6 +23,7 @@ import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resol
 import { cancelKindFor, schedule } from "../jobs";
 import { letThreadControlGo, takeThreadControl } from "../conversations/thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
+import { storedConfigOf } from "../workspace/config-row";
 import { log } from "@/server/log";
 
 /**
@@ -100,9 +101,18 @@ export function escalationPorts(ctx: RouteContext): EscalationPorts {
 
 export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
   return {
+    // Queued and not yet claimed: a row its send job has claimed (sending_at, 00352) is on its way to the person, and
+    // stays queued only until the provider answers. Called back then, the person got the words under a row that said
+    // canceled for ever. Zero rows is the verb's "too late".
     cancelQueued: (id) =>
       changed(
-        ctx.supabase.from("messages").update({ status: "canceled" }).eq("id", id).eq("status", "queued").select("id"),
+        ctx.supabase
+          .from("messages")
+          .update({ status: "canceled" })
+          .eq("id", id)
+          .is("sending_at", null)
+          .eq("status", "queued")
+          .select("id"),
       ),
     cancelJob: (tenantId, id) => cancelKindFor(tenantId, "outbound_send", "message_id", id),
     record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
@@ -171,12 +181,9 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       return data ?? null;
     },
     templateFacts: async (tenantId) => {
-      const { data } = await ctx.supabase
-        .from("tenant_config")
-        .select("config")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      const brain = (data?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
+      // A read that fails is no facts, as it always was: the verb refuses a template that needs them.
+      const config = await storedConfigOf(ctx.supabase, tenantId).catch(() => null);
+      const brain = (config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
       // The name is enough: a template that sends no link needs none, and the verb refuses one that does (reply.ts).
       return brain?.business_name
         ? { business_name: brain.business_name, booking_link: brain.booking_link || null }

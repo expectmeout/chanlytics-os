@@ -45,8 +45,6 @@ export {
   keepMessageCost,
   recordEchoAndPause,
   pauseConversation,
-  claimReplyTurn,
-  holdsReplyTurn,
 } from "./repositories/ingest";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
@@ -225,7 +223,13 @@ export type { ReportWindow } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
 export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
-export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
+export {
+  resolveChannelDetailed,
+  resolveChannel,
+  oldestActiveChannel,
+  activeWhatsappNumbers,
+  whatsappLineOf,
+} from "./repositories/routing";
 export {
   whatsappChannelFacts,
   textLineFacts,
@@ -236,7 +240,7 @@ export {
   campaignMonthSent,
   holdRecipients,
 } from "./repositories/campaigns/campaign-channels";
-export type { RoutedChannel, ChannelLookup } from "./repositories/routing";
+export type { RoutedChannel, ChannelLookup, WhatsappNumberRow } from "./repositories/routing";
 export {
   ingestCall,
   linkCallMessage,
@@ -294,7 +298,7 @@ export {
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
 export type { JobToRequeue } from "./jobs";
-export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
+export { claimControl, releaseControl, CALL_CONTROL_S, claimReplyTurn, holdsReplyTurn } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
 export {
   templatesFor,
@@ -320,6 +324,7 @@ export type {
 } from "./repositories/templates";
 export {
   getTenantConfig,
+  getTenantConfigAsMember,
   putTenantConfig,
   listPolicies,
   setPolicyMode,
@@ -354,6 +359,7 @@ export {
   addPersonNote,
   peopleCursorOf,
   everyoneIn,
+  everyoneOnceIn,
   erasureDigests,
   scrubPersonNotes,
   mergePeople,

@@ -193,7 +193,7 @@
     "@typescript-eslint/no-base-to-string": 2
   },
   "apps/dashboard/src/server/export/export-bundle.ts": {
-    "@typescript-eslint/unbound-method": 4
+    "@typescript-eslint/unbound-method": 3
   },
   "apps/dashboard/src/server/export/export.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1

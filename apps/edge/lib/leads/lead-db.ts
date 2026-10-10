@@ -8,7 +8,7 @@
  * Cross-workspace: runs and rounds are read by the id their job names; tenant-keyed reads filter on tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressesSuppressed, erasureDigests, type Database } from "../packages/db.js";
+import { addressesSuppressed, erasureDigests, workspaceMaySpend, type Database } from "../packages/db.js";
 import {
   asContactId,
   asTenantId,
@@ -63,9 +63,8 @@ const runOf = (r: RunRow): LeadRunRow => ({
 });
 
 export function leadDb(db: Db): LeadDb {
-  // The generated types name each function; the argument object is the function's own.
-  // Called ON the client and never lifted off it: SupabaseClient.rpc reads `this.rest`,
-  // so a detached `db.rpc` throws against a real client (gate G3).
+  // The generated types name each function; the argument object is the function's own. Called ON the client and never
+  // lifted off it: SupabaseClient.rpc reads `this.rest`, so a detached `db.rpc` throws against a real client (gate G3).
   const rpc: Rpc = (fn, args) => (db as unknown as { rpc: Rpc }).rpc(fn, args);
   const bool = async (name: string, args: Record<string, unknown>): Promise<boolean> =>
     must<unknown>(name, await rpc(name, args)) === true;
@@ -331,5 +330,6 @@ export function leadDb(db: Db): LeadDb {
       return r?.timezone || "America/New_York";
     },
     leadSearchesOn: (tenantId) => bool("lead_searches_on", { p_tenant_id: tenantId }),
+    maySpend: (tenantId) => workspaceMaySpend(db, tenantId),
   };
 }

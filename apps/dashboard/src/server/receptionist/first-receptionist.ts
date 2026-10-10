@@ -21,14 +21,15 @@ import {
   withStoredKeysKept,
   type BrainConfig,
 } from "@chanlytics/contracts";
-import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
+import { putTenantConfig } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listingFactsFor } from "../connections/google";
+import { configRowOf } from "../workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "../workspace/settings-write";
 
 /** The config row as stored now, parsed, and whether it holds a receptionist (the one test, receptionistOf). */
 async function storedNow(ctx: RouteContext, tenantId: string) {
-  const row = await getTenantConfig(ctx.supabase, tenantId);
+  const row = await configRowOf(ctx.supabase, tenantId);
   const parsed = row ? parseTenantConfigResult(row.config) : null;
   return { row, parsed, receptionist: receptionistOf(parsed) };
 }

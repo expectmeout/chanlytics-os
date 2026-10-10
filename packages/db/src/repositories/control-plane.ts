@@ -7,6 +7,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { receptionistOn, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { isMissingDoor } from "./templates";
 
 type Db = SupabaseClient<Database>;
 
@@ -29,6 +30,27 @@ export async function getTenantConfig(db: Db, tenantId: string): Promise<TenantC
   return data;
 }
 
+/**
+ * The configuration row on a member's session. The calendar feed's address in it grants read access to the owner's
+ * calendar, so from 00366 only the owner reads the table; every other member reads the row through tenant_config_read
+ * (00365), which masks the address and says so (`feed_hidden`). The table is asked first, so the owner's read, and
+ * every read on a database before 00366, is the one query it always was; the door is asked only where the table
+ * answered nothing: no row, not a member, or a member who is not the owner. Null: no row, or not a member. A database
+ * before 00365 has no door (PGRST202), and the table's answer stands. `feed_hidden`: the feed's address in the row is
+ * masked.
+ */
+export async function getTenantConfigAsMember(
+  db: Db,
+  tenantId: string,
+): Promise<(TenantConfigRow & { feed_hidden: boolean }) | null> {
+  const row = await getTenantConfig(db, tenantId);
+  if (row) return { ...row, feed_hidden: false };
+  const { data, error } = await db.rpc("tenant_config_read", { p_tenant_id: tenantId }).maybeSingle();
+  if (error && isMissingDoor(error)) return null;
+  if (error) throw new Error(`getTenantConfigAsMember: ${error.message}`);
+  return data;
+}
+
 export type PutTenantConfigResult =
   | { ok: true; row: TenantConfigRow }
   /** Someone else saved between the read and the write. A real conflict. */
@@ -46,13 +68,19 @@ export type PutTenantConfigResult =
  * after you loaded them". For a tenant with no config row that sentence is
  * false in every particular — nobody saved anything, no colleague exists, and
  * reloading changes nothing.
+ *
+ * Zero rows has a third cause from 00366: an update reads the row it changes, and only the owner reads the table, so a
+ * partner's update finds nothing. So zero rows asks tenant_config_write (00365), a session's versioned write under the
+ * permission the table's update policy names, recorded as the caller's: it writes the row where it can, and says
+ * stale or missing where it cannot. A database before 00365 has no door, and the row is looked for as it always was.
  */
 export async function putTenantConfig(
   db: Db,
   tenantId: string,
   config: unknown,
   expectedVersion: number,
-  /** Who wrote it. This config IS what customers hear, so the row records its author (00085). */
+  /** Who wrote it. This config IS what customers hear, so the row records its author (00085). The door records the
+   *  caller, who is this person on every session that writes it. */
   updatedBy?: string | null,
 ): Promise<PutTenantConfigResult> {
   const { data, error } = await db
@@ -65,8 +93,22 @@ export async function putTenantConfig(
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
   if (data) return { ok: true, row: data };
 
-  // Zero rows. Distinguish an absent row from a losing race — one query, only
-  // on the failure path.
+  // Zero rows: the door writes what the table would not show this member, and tells an absent row from a losing race.
+  const door = await db
+    .rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: config as Json, p_version: expectedVersion })
+    .maybeSingle();
+  if (!door.error) {
+    const w = door.data;
+    if (w?.outcome === "saved")
+      return {
+        ok: true,
+        row: { tenant_id: tenantId, config, version: w.version, updated_at: w.updated_at, updated_by: w.updated_by },
+      };
+    if (w?.outcome === "stale" || w?.outcome === "missing") return { ok: false, reason: w.outcome };
+    throw new Error("putTenantConfig: the door answered without an outcome");
+  }
+  if (!isMissingDoor(door.error)) throw new Error(`putTenantConfig: ${door.error.message}`);
+  // Before 00365. Distinguish an absent row from a losing race — one query, only on the failure path.
   const existing = await getTenantConfig(db, tenantId);
   return { ok: false, reason: existing ? "stale" : "missing" };
 }

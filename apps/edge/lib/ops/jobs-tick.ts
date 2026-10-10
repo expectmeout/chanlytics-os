@@ -13,16 +13,17 @@
  * it: jobs are claimed one at a time, in CLAIM_SLOTS slots side by side, for
  * the first CLAIM_FOR_MS, a looping handler yields at YIELD_AT_MS, and a
  * claim's lease outlives the whole function (ops-hygiene.test.mjs holds that
- * last one to the ceiling).
+ * last one to the ceiling). Each is measured from the moment the door was
+ * reached (sweepDoor's `started`), as the ceiling is.
  */
 import { json, refuse } from "../http.js";
 import { errField } from "../log.js";
 import { alertFor } from "./job-alert.js";
-import { waCredentialsForTenant } from "../tenant-runtime.js";
+import { whatsappWireForTenant } from "../tenant-runtime.js";
 import { smsSenderForTenant } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
-import { isWireUnavailable, whatsappWire } from "../packages/core.js";
+import { isWireUnavailable } from "../packages/core.js";
 import { pageOperator } from "./page-operator.js";
 import { provisionLineJob } from "../lines/line-provision-job.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
@@ -80,7 +81,7 @@ function replyLateBody(worstMs: number): string {
   );
 }
 
-export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
+export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
     // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
     // claims. A relay that fails is said and costs the tick nothing else: the next knock, or the poll, drains it.
@@ -96,11 +97,12 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
         dispatch: async (job, deadline) => {
           // The job's wires, bound here where the credentials are: the
           // TENANT's WhatsApp credentials, never the environment's (a second
-          // business's reply must not leave from the first one's number), and
-          // the texting line's sender when the workspace has one. Null on
-          // either is a refusal at the door, not a guess; a read that FAILED
-          // is neither (core whatsappWire, WireUnavailable): the reply waits
-          // for a heartbeat that can read the vault. Email's provider key
+          // business's reply must not leave from the first one's number), each
+          // send from the number its person last wrote to where the workspace
+          // has two (whatsappWireForTenant), and the texting line's sender when
+          // the workspace has one. Null on either is a refusal at the door, not
+          // a guess; a read that FAILED is neither (core WireUnavailable): the
+          // reply waits for a heartbeat that can read the vault. Email's provider key
           // is the deployment's, so its wire is bound to the tenant's MAILBOX:
           // it sends a frozen request only when that request leaves as this
           // workspace, and a workspace without a mailbox has no email line.
@@ -119,7 +121,7 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
           const wire = {
-            whatsapp: whatsappWire(await waCredentialsForTenant(db, job.tenant_id)),
+            whatsapp: await whatsappWireForTenant(db, job.tenant_id),
             sms:
               line === null || isWireUnavailable(line)
                 ? line
@@ -182,6 +184,10 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
         random: Math.random,
       },
       {
+        // The tick's clock is the door's: the key's read and the relay above (up to RELAY_LIMIT events) are inside the
+        // function's sixty seconds, so they are inside the claim window and every deadline too. Started after them, a
+        // send begun at the yield ran past the ceiling by as long as they took.
+        startedAt: started,
         claimForMs: CLAIM_FOR_MS,
         slots: CLAIM_SLOTS,
         yieldAtMs: YIELD_AT_MS,

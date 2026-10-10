@@ -955,7 +955,7 @@ test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on anot
       .map((b) => b.text)
       .join("\n");
     return {
-      line: /They are looking at (.+?) \((\w+) ([^)]+)\)/.exec(words)?.slice(1, 4) ?? null,
+      line: /They are looking at <record>(.+?)<\/record> \((\w+) ([^)]+)\)/.exec(words)?.slice(1, 4) ?? null,
       read: blocks.filter((b) => b.type === "search_result" && b.source === "read://people.get").map((b) => b.title),
     };
   };

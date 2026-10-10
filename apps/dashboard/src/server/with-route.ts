@@ -9,6 +9,7 @@ import {
   seatNeedsSecondFactor,
   secondFactorShown,
   SECOND_FACTOR_WORDS,
+  SESSION_ENDED,
   type BillingMode,
   type BillingStatus,
   type ErrorCode,
@@ -311,11 +312,12 @@ export async function memberContext(
  * person or a lead, an export, a change to who is on the team, billing, deleting the account. getClaims() verifies the
  * token's signature locally, so a session revoked a minute ago passes until its token expires (an hour); a route that
  * declares `fresh` (route.ts) asks the Auth server instead. "We could not ask" is a 503, as the wrapper says it
- * elsewhere, never a sign-out.
+ * elsewhere, never a sign-out. The refusal says the session ENDED (contracts SESSION_ENDED): the gate still lets its
+ * token in, so the client ends it before it signs in again, rather than being sent by /login straight back here.
  */
 export async function requireFreshSession(ctx: Pick<RouteContext, "live">): Promise<void> {
   const verdict = ctx.live ? await ctx.live() : "live";
-  if (verdict === "gone") throw new AppError("unauthorized", "Sign in again to do this.", 401);
+  if (verdict === "gone") throw new AppError("unauthorized", "Sign in again to do this.", 401, SESSION_ENDED);
   if (verdict === "unknown")
     throw new AppError("upstream_auth", "Could not verify your session just now — try again.", 503);
 }

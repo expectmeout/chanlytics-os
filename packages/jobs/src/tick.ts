@@ -57,6 +57,12 @@ export interface TickPorts {
 }
 
 export interface TickOptions {
+  /**
+   * When the tick started, as `now()` reads: the moment its function's door was reached, so the work before the loop
+   * (the door's reads, the outbox relayed) is inside every window below, as it is inside the function's ceiling. The
+   * loop's own first reading when absent.
+   */
+  startedAt?: number;
   /** Claim new work only this long after the tick starts. */
   claimForMs: number;
   /** Handlers are handed `start + yieldAtMs` as their deadline. */
@@ -105,7 +111,7 @@ export function lateFields(lateMs: Record<string, number>): Record<string, numbe
 }
 
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
-  const started = ports.now();
+  const started = opts.startedAt ?? ports.now();
   const deadlineFor = (kind: string) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
   const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 };
   const slots = Math.max(1, Math.floor(opts.slots ?? 1));

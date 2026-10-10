@@ -1,5 +1,13 @@
 import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
-import { PEOPLE_PAGE, everyoneIn, peopleCursorOf, peoplePage, type PeopleCursor } from "@chanlytics/db";
+import {
+  PEOPLE_PAGE,
+  everyoneIn,
+  everyoneOnceIn,
+  peopleCursorOf,
+  peoplePage,
+  readAllRows,
+  type PeopleCursor,
+} from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { log } from "@/server/log";
 
@@ -77,15 +85,27 @@ export async function listPeople(
   return withReplyModes(rows, pols);
 }
 
-/** The workspace's reply policies, its own and each person's: none when they cannot be read, which is logged. */
-async function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: string) {
-  const { data: pols, error: polErr } = await ctx.supabase
-    .from("policies")
-    .select("subject_type, subject_id, mode")
-    .eq("tenant_id", tenantId)
-    .eq("class", "reply");
-  if (polErr) log.error("people_policies_read_failed", { error: polErr.message });
-  return pols;
+/**
+ * The workspace's reply policies, its own and each person's: none when they cannot be read, which is logged. Every
+ * page of them (readAllRows): PostgREST answers a thousand rows whatever a select asks for, so past a thousand people
+ * with a mode of their own an arbitrary thousand came back, the workspace's own row not always among them, and People,
+ * the CSV and Ask's people tool said the wrong mode. The workspace's own row first (its subject is null), then by id:
+ * one whole order, so no page repeats or skips a row, and the row everyone without their own follows is on the first.
+ */
+function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: string) {
+  return readAllRows("reply policies", (from, to) =>
+    ctx.supabase
+      .from("policies")
+      .select("subject_type, subject_id, mode")
+      .eq("tenant_id", tenantId)
+      .eq("class", "reply")
+      .order("subject_type", { ascending: true, nullsFirst: true })
+      .order("id")
+      .range(from, to),
+  ).catch((e: unknown) => {
+    log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  });
 }
 
 /**
@@ -110,11 +130,24 @@ function withReplyModes(rows: PersonRowDto[], pols: Awaited<ReturnType<typeof re
  * one page however it is asked — and a caller that wants the whole workspace
  * and does not loop gets 1000 rows with no error, no flag and no way to tell
  * them from "that is everyone". Every read that means all of them goes through
- * here.
+ * here, or, for a copy that has no next pass, through everyoneOnce.
  */
 export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
   const [rows, pols] = await Promise.all([everyoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
   return withReplyModes(rows, pols);
+}
+
+/**
+ * EVERYONE EXACTLY ONCE, a page at a time, with their reply modes: for a copy (the people CSV, the workspace export),
+ * which has no next pass to read someone who wrote while its pages were read (packages/db everyoneOnceIn).
+ */
+export async function* everyoneOnce(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+): AsyncGenerator<PersonRowDto[]> {
+  // Read beside the first page, as everyone() reads them; a read that fails is none, so it never rejects.
+  const pols = replyPolicies(ctx, tenantId);
+  for await (const page of everyoneOnceIn(ctx.supabase, tenantId)) yield withReplyModes(page, await pols);
 }
 
 /**

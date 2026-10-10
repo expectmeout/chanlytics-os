@@ -1430,9 +1430,10 @@ function addressInMessage(body) {
 // src/shared/phone.ts
 function normalizePhone(raw) {
   if (raw == null) return null;
-  const digits2 = String(raw).replace(/[^\d]/g, "");
+  const typed = String(raw).trim();
+  const digits2 = typed.replace(/[^\d]/g, "");
   if (!digits2) return null;
-  if (digits2.length === 10) return `+1${digits2}`;
+  if (!typed.startsWith("+") && digits2.length === 10) return `+1${digits2}`;
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
@@ -3160,7 +3161,8 @@ function draftRefusal(f) {
 }
 var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
 function leadReplyNote(p) {
-  const business = flatClip(p.business, 120) || "a business";
+  const name = promptSafeName(p.business);
+  const business = name ? fencedInline("profile_name", name) : "a business";
   const answered = flatClip(p.answered, 600);
   const signedBy = flatClip(p.signedBy, 60);
   return [
@@ -4179,6 +4181,13 @@ var FLAGS = [
       readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
       closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on those doors."
     }
+  },
+  {
+    name: "WHATSAPP_ANSWERS_AS_JOBS",
+    mechanism: "edge_env",
+    does: "Workspace ids, or 'all': their WhatsApp messages are recorded, acknowledged and answered by a job (whatsapp/answer-later.ts); empty answers every message inside the webhook.",
+    owner: "Ruben",
+    sunset: "2026-12-31"
   },
   {
     name: "LINES_DRY_RUN",
@@ -5319,7 +5328,7 @@ var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_WARM_MAX_TOKENS = 64;
-var ASK_TOKENS_DAY = 15e5;
+var ASK_TOKENS_DAY = 3e6;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -33000,6 +33009,10 @@ function confirmEmailToOf(details) {
   const to = details && typeof details === "object" ? details.confirm_email_to : void 0;
   return typeof to === "string" && to.trim() ? to.trim() : null;
 }
+var SESSION_ENDED = { session_ended: true };
+function sessionEnded(details) {
+  return !!details && typeof details === "object" && details.session_ended === true;
+}
 function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
@@ -38564,6 +38577,7 @@ export {
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SERVICE_SUGGESTION_TYPES,
+  SESSION_ENDED,
   SETUP_CARD_ORDER,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
@@ -39822,6 +39836,7 @@ export {
   servicesSaveWords,
   servicesToldWords,
   servicesWords,
+  sessionEnded,
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,

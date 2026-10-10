@@ -21,14 +21,18 @@
  */
 import {
   type AppointmentState,
+  type AskedPurpose,
   allowanceRoom,
   emailFoot,
   emailFootHtml,
+  enrolPurpose,
   heldByAllowance,
   isOfferByEmail,
   messageAboutOfTrigger,
+  purposeOfTemplate,
   renderOwnVersion,
   renderTemplate,
+  triggerOf,
   versionWords,
   versionsOf,
   type ParamSpec,
@@ -46,9 +50,29 @@ import type {
   RecipientRow,
 } from "./ports";
 
+/**
+ * Which yes this run's send needs at the door: what its enrolment asked (contracts enrolPurpose, the stricter of the
+ * moment's class and the message's category), asked again now of the moment the run kept (audienceTrigger) and of the
+ * message as it is, so a person whose yes to offers ended after the run enrolled them is held at the wire. The door
+ * was asked the message's own category alone, and a Win-back or an offer's moment carrying a utility message went to
+ * someone who had said no more offers since. A broadcast, and a run made before runs kept their moment, go by the
+ * message alone, as they always did; one the workspace no longer holds names no category and reads as an offer
+ * (purposeOfTemplate fails closed).
+ */
+export function purposeAtTheDoor(trigger: string | null, message: { category: string | null } | null): AskedPurpose {
+  const category = message?.category ?? null;
+  return trigger === null ? purposeOfTemplate(category) : enrolPurpose(triggerOf(trigger)?.cls, { category });
+}
+
 /** The channel a person is reached on: the one their row says, and WhatsApp for a run made before rows said. */
 export function channelOf(r: Pick<RecipientRow, "channel">): Channel {
   return r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp";
+}
+
+/** Whether a send on this person's wire may still start at `now` (BroadcastBatchCommand.startBy): always, on one with no moment. */
+export function startsInTime(cmd: BroadcastBatchCommand, r: Pick<RecipientRow, "channel">, now: number): boolean {
+  const by = cmd.startBy?.[channelOf(r)];
+  return by === undefined || now <= by;
 }
 
 /** One batch as its people share it: the run, what fills its slots, who is on it, and what it reads once for them all. */
@@ -56,7 +80,10 @@ export interface Work {
   ports: BroadcastBatchPorts;
   cmd: BroadcastBatchCommand;
   b: BroadcastRow;
-  /** Which yes this send needs: Meta's category for the message, whichever channel it goes by (purposeOfTemplate). */
+  /**
+   * Which yes this send needs, whichever channel it goes by (purposeAtTheDoor): the message's category (Meta's where it
+   * has a WhatsApp row), and for a playbook's run the stricter of that and its moment's class.
+   */
   purpose: SendPurpose;
   /** The words of the message's WhatsApp row as Meta has it, those who go by WhatsApp are sent; none where it has no such row. */
   tpl: { body_preview: string | null };
