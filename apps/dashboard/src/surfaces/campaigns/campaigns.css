@@ -4790,18 +4790,24 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 
 /* The rail: five moments on a line, each a column. A workspace without deals has four. */
+/* Three rows the moments share, their figures, their nodes on the line and their cards, each moment a subgrid of them, so
+   the nodes stand on one line and the cards are one height whatever a moment's figure says (seen on the rig, 10 Oct:
+   a moment holding many says its summary under its figure, in one line or two, and its node stood 21px or 38px lower
+   than a moment with none, the line between them stepping down). */
 .cmh-rail {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
   margin: 0;
   padding: 8px 14px 0;
   list-style: none;
 }
 .cmh-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  justify-items: center;
   min-width: 0;
   padding: 0 6px;
   text-align: center;
