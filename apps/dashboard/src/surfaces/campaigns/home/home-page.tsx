@@ -33,7 +33,7 @@ import type { RailActs } from "./rail";
 import { SentenceParts } from "./sentence";
 import { ComingBlock, ReachBlock, ResultsBlock } from "./tiles";
 import type { ComingApproval } from "./tiles";
-import { useHomeData, useHomeNav, useReopenDrafts } from "./use-home";
+import { useHomeData, useHomeNav, useKeptGroup, useReopenDrafts } from "./use-home";
 
 type Flash = ReturnType<typeof useLegacyToast>[1];
 
@@ -193,12 +193,13 @@ interface CampaignsHomeProps {
 export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
   const { playbooks, broadcasts, reachOuts, home } = useHomeData(nowMs);
   const address = parseHome(param);
-  const nav = useHomeNav(address);
+  const group = useKeptGroup(address);
+  const nav = useHomeNav(address, group);
   const [toastNode, flash] = useLegacyToast();
   const phone = useCmPhone();
   // Who may start, change or run a playbook, or send: the role store's answer, View-as included.
   const canAct = !!canDo("approve");
-  useReopenDrafts(address, playbooks);
+  useReopenDrafts(address, playbooks, nav.swap);
   const { onAct, onCopy } = useActs(home, nav, flash);
   const approval = useApproval(flash, canAct);
   if (!playbooks) return null;

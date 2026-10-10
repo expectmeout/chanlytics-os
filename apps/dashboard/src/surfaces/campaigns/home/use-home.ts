@@ -19,7 +19,7 @@ import type { BroadcastsSurface } from "../broadcasts/surface";
 import { playbooksSample } from "../playbooks/sample";
 import type { PlaybooksSurface } from "../playbooks/surface";
 import type { ReachOutsSurface } from "../reach-out/surface";
-import { HOME_ROUTE, composeRoute } from "./address";
+import { composeRoute, groupRoute } from "./address";
 import type { HomeAddress } from "./address";
 import type { CampaignResultsSurface } from "./results-surface";
 
@@ -98,47 +98,74 @@ export function useHomeData(nowMs?: number): HomeData {
 }
 
 /**
- * Opening and closing what the address names. Opening pushes an entry, so Back closes it (a peek's rule: Leads', the
- * Pipeline's); changing one thing for another replaces it; closing goes back one entry the page pushed (a composer opened over
- * a drawer returns to the drawer, the drawer to the home), or, for a thing a link arrived at, which has no entry of the page's
- * behind it, replaces the address with the home.
+ * The group the ledger shows: the address's while it names no sheet, and the one it had while a sheet stands, since one
+ * param holds either (address.ts). A drawer opened from one group leaves the ledger behind it narrowed as it was.
  */
-export function useHomeNav(address: HomeAddress) {
-  // How many entries the page has pushed over the home: the drawer, and a composer opened over it.
+export function useKeptGroup(address: HomeAddress): string | null {
+  const kept = useRef<string | null>(address.group);
+  if (address.moment === null && address.compose === null) kept.current = address.group;
+  return kept.current;
+}
+
+/**
+ * Opening and closing what the address names. Opening pushes an entry, so Back closes it (a peek's rule: Leads', the
+ * Pipeline's); changing one thing for another, and narrowing the ledger, replace it. A sheet that opened over the home the
+ * page stood on has the home behind it, whoever pushed it (a bell row, Ask's card, a door the page drew): closing goes
+ * back. One the page swapped in, or a link arrived at, has no entry of the page's behind it: closing replaces the address
+ * with the home, narrowed to the group it kept.
+ */
+export function useHomeNav(address: HomeAddress, group: string | null) {
+  // How many entries stand over the home: the drawer, and a composer opened over it.
   const pushed = useRef(0);
+  const swapped = useRef(false);
   const open = address.moment !== null || address.compose !== null;
+  const wasOpen = useRef(open);
   useEffect(() => {
     if (!open) pushed.current = 0;
+    else if (!wasOpen.current && pushed.current === 0 && !swapped.current) pushed.current = 1;
+    swapped.current = false;
+    wasOpen.current = open;
   }, [open]);
   const push = (route: string) => {
     pushed.current += 1;
     navigate(route);
   };
-  const swap = (route: string) => replaceRoute(route);
+  const swap = (route: string) => {
+    swapped.current = true;
+    replaceRoute(route);
+  };
+  // The ledger narrowed, or let go: the home's own address replaced, which opens no sheet, so it marks no swap (a mark
+  // left by it would make the next sheet a bell row pushes close past the home).
+  const narrow = (to: string | null) => replaceRoute(groupRoute(to));
   const close = () => {
     if (pushed.current > 0 && typeof window !== "undefined" && window.history) {
       pushed.current -= 1;
       window.history.back();
-    } else replaceRoute(HOME_ROUTE);
+    } else replaceRoute(groupRoute(group));
   };
-  return { push, swap, close };
+  return { push, swap, narrow, close };
 }
 
 /**
  * Words half-written when the page was left come back as the page does (the tab kept them, useUnsavedWork): a send under
- * "new", a playbook under "new:every", a change to a playbook under its own address. Once, on arrival at the home itself.
+ * "new", a playbook under "new:every", a change to a playbook under its own address. Once, on arrival at the home itself,
+ * swapped in (`swap`), so its sheet has no home behind it to go back to.
  */
-export function useReopenDrafts(address: HomeAddress, playbooks: PlaybooksSurface | undefined) {
+export function useReopenDrafts(
+  address: HomeAddress,
+  playbooks: PlaybooksSurface | undefined,
+  swap: (route: string) => void,
+) {
   const asked = useRef(false);
   useEffect(() => {
     if (asked.current || !playbooks) return;
     asked.current = true;
     if (address.moment !== null || address.compose !== null) return;
-    if (tabDraft("broadcast")) replaceRoute(composeRoute("once"));
-    else if (tabDraft("playbook", "new")) replaceRoute(composeRoute("every"));
+    if (tabDraft("broadcast")) swap(composeRoute("once"));
+    else if (tabDraft("playbook", "new")) swap(composeRoute("every"));
     else {
       const editing = playbooks.rows.find((p) => !!tabDraft("playbook", p.id));
-      if (editing) replaceRoute(composeRoute("every", { edit: editing.id }));
+      if (editing) swap(composeRoute("every", { edit: editing.id }));
     }
   }, [playbooks]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the first read lands
 }
