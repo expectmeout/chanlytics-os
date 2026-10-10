@@ -1,4 +1,4 @@
--- 00393 · A hold is told from its event (decision 0043).
+-- 00394 · A hold is told from its event (decision 0043).
 --
 -- A thread handed to a person has been told, until now, from where the hold was decided: fifteen places in the text
 -- receptionist, inside Meta's request on WhatsApp, most of them on every message of a thread already waiting; a call's
@@ -21,7 +21,7 @@ alter table public.notifications add column if not exists source_event uuid;
 create unique index if not exists notifications_source_event
   on public.notifications (source_event) where source_event is not null;
 comment on column public.notifications.source_event is
-  'The event this notice answers (decision 0043, 00393): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised.';
+  'The event this notice answers (decision 0043, 00394): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised.';
 
 insert into public.event_subscriptions (kind, subscriber, lane) values
   ('escalation.opened', 'owner_notice', 0),

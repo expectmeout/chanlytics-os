@@ -1,5 +1,5 @@
 /**
- * A hold reaches its notice through its event (decision 0043, 00393), on a real Postgres: a hold opened through the one
+ * A hold reaches its notice through its event (decision 0043, 00394), on a real Postgres: a hold opened through the one
  * door (escalation_open, 00388) is owed to the owner_notice subscriber by the relay, in lane 0; the subscriber, run on its
  * real ports, reads the hold, the person and their words from the rows and tells the workspace once; a second run tells
  * nobody, and the bell refuses a second notice for one event. Runs against the database `supabase start` builds on this

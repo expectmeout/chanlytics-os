@@ -30,7 +30,7 @@ another waits on Ruben.
 
 **Lane A · Time and waiting** (the rest of Phase 2, then Phase 4's runtime). In order:
 
-1. The owner hears of a hold from its event (0043). Built on 10 October 2026 (00393), but its due row, which moved to 0044.
+1. The owner hears of a hold from its event (0043). Built on 10 October 2026 (00394), but its due row, which moved to 0044.
 2. A moment, a pause and a snooze are due rows (0044).
 3. 0002's readers: Reports, People and playbooks read the appointments record together, with status-aware drawing
    (0002's answers of 10 October 2026).

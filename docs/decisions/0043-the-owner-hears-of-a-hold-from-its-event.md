@@ -1,7 +1,7 @@
 # 0043 · The owner hears of a hold from its event
 
 **Status:** Decided on 10 October 2026 (Ruben: "review and go with the best suggestions for chanlytics"), as recommended
-here. Steps 1 to 3 are built (00393, `owner_notice`); step 4 moved to 0044 and is built with its due rows. Phase 3's
+here. Steps 1 to 3 are built (00394, `owner_notice`); step 4 moved to 0044 and is built with its due rows. Phase 3's
 first real subscriber in 0031's order (its review of 9 October). Written against commit
 `ef0aea36a` (main, 10 October 2026). Where this note and the code disagree, the code wins.
 
@@ -66,7 +66,7 @@ Each step works whichever app deploys first.
 1. **Words and the record.** The reason-to-words map and `handoffMessage` in contracts; `JobNews.redactedBody`;
    `notifications.source_event`, a unique column, in a migration. Nothing reads them yet.
 2. **The subscriber.** `owner_notice` in `EVENT_SUBSCRIBERS` and `SUBSCRIBERS`, its ports in `packages/jobs`, the
-   double-delivery harness's case. Built with step 1 in 00393, which subscribes it at once: an old edge still tells
+   double-delivery harness's case. Built with step 1 in 00394, which subscribes it at once: an old edge still tells
    inline, and the subscriber finds that notice (a `handoff` about the thread since a minute before the hold, the
    `holdTold` read) and sends nothing, so either deploy order tells once.
 3. **The doors stop telling.** The fifteen `tell` calls and the send-failed paths keep only the failed-write branch;
