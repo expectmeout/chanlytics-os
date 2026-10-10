@@ -1,8 +1,11 @@
 /**
- * Import people: a business's own client list (a Booksy or Square export) read in the browser, matched, counted and
- * written in parts of fifty through the owner's door (importPeople), on the record kit's sheet (moved whole from
- * legacy/pages/people-import.jsx, decision 0015). Nothing is written until the owner has seen the counts; the door fills
- * only what is empty and records no yes. People opens it from its Import button and its phone menu, for the owner.
+ * Add people: the page's one act (Ruben, 10 Oct 2026: Add a person and Import were two doors to one job), on the record
+ * kit's sheet, at every width. One person: a mobile number and, if known, a name, through the door the calendar sweep
+ * already uses (plAddPerson); a number already here opens that person rather than making a second. A list: a business's
+ * own client list (a Booksy or Square export) read in the browser, matched, counted and written in parts of fifty
+ * through the owner's door (importPeople), as the Import sheet did (moved whole from legacy/pages/people-import.jsx,
+ * decision 0015). Nothing is written until the owner has seen the counts; the door fills only what is empty and records
+ * no yes. The choice between the two is the owner's alone, whose door the import is; anyone else adds one person.
  *
  * The reader is contracts' (csv.ts). The door answers each part's skipped and failed lines counted within the part; they
  * are said here as the file's own lines. A refusal is said by the Save, as the deal sheet says its own (the sheet's foot);
@@ -13,7 +16,9 @@ import { useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
+import { RecordToggleGroup } from "../../kit/record/field";
 import { RecordSheet } from "../../kit/record/sheet";
+import { plAddPerson, plAddedWords } from "../lists/doors";
 import { importPeople } from "../people-detail";
 import type { Flash } from "../types";
 import { plImportColumnWords, plImportCountWords, plImportPlan } from "./plan";
@@ -180,15 +185,111 @@ async function sendParts(
   return { totals, sent, stopped };
 }
 
-export function PeopleImportSheet({
+/** The two ways in: one person, or a list as a file. */
+type AddWay = "one" | "list";
+const ADD_WAYS: { value: AddWay; label: string }[] = [
+  { value: "one", label: "One person" },
+  { value: "list", label: "A list (CSV)" },
+];
+const ADD_SUBS: Record<AddWay, string> = {
+  one: "A mobile number and, if you know it, a name. A number that is already here opens that person instead of adding them twice.",
+  list: "A spreadsheet of your clients: names, mobile numbers, emails. Nothing already here is overwritten, and nobody is signed up for anything.",
+};
+
+/** One person's two fields: the name, if known, and the mobile number, which the door needs. */
+function oneFields(p: {
+  name: string;
+  setName: (v: string) => void;
+  phone: string;
+  setPhone: (v: string) => void;
+  busy: boolean;
+  error: string | null;
+  submit: () => void;
+}): ReactNode {
+  const { name, setName, phone, setPhone, busy, error, submit } = p;
+  return (
+    <>
+      <div className="rec-field">
+        <label>
+          <span className="rec-field-label">Name (optional)</span>
+          <input
+            className="rec-input"
+            value={name}
+            maxLength={80}
+            autoComplete="name"
+            disabled={busy}
+            onChange={(e) => setName(e.target.value)}
+            data-testid="add-person-name"
+          />
+        </label>
+      </div>
+      <div className="rec-field">
+        <label>
+          <span className="rec-field-label">Mobile number</span>
+          <input
+            className="rec-input"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={phone}
+            maxLength={24}
+            disabled={busy}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "add-person-error" : undefined}
+            onChange={(e) => setPhone(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            data-testid="add-person-phone"
+          />
+        </label>
+      </div>
+    </>
+  );
+}
+
+/** The add's own state: the two fields, its save and its refusal. Added, the sheet closes and their page opens. */
+function useAddOne({
   onClose,
-  onDone = null,
-  flash = null,
+  onAdded,
+  flash,
 }: {
   onClose: () => void;
-  onDone?: ((totals: Totals) => void) | null;
-  flash?: Flash | null;
+  onAdded: (id: string) => void;
+  flash: Flash | null;
 }) {
+  const [name, setName] = useState("");
+  const [phone, setPhoneNow] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const setPhone = (v: string) => {
+    setPhoneNow(v);
+    setError(null);
+  };
+  const submit = async () => {
+    if (busy) return;
+    // Add stands from the first draw, so the sheet says how it ends; pressed with no number, it says what is missing.
+    if (!phone.trim()) {
+      setError("Their mobile number is the one thing needed.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const r = await plAddPerson({ name, phone });
+    setBusy(false);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    if (flash) flash({ msg: plAddedWords({ name, phone }, r.existed) });
+    onClose();
+    onAdded(r.id);
+  };
+  return { name, setName, phone, setPhone, busy, error, submit };
+}
+
+/** The import's own state: the rows read, the plan, the parts sent and what they came to. */
+function useImport({ flash }: { flash: Flash | null }) {
   const [text, setText] = useState("");
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
@@ -230,42 +331,112 @@ export function PeopleImportSheet({
         ),
       });
     }
-    if (onDone) onDone(totals);
   };
-  const saveLabel = `Import ${readable.length.toLocaleString()} ${readable.length === 1 ? "person" : "people"}`;
-  const savingLabel = progress
-    ? `Importing ${Math.min(progress.done + PL_IMPORT_PART, progress.total).toLocaleString()} of ${progress.total.toLocaleString()}…`
-    : "Importing…";
-  const taste = readable.slice(0, PL_IMPORT_TASTE);
+  return { text, setText, plan, busy, progress, result, error, readable, read, onFile, run };
+}
+
+/** What the sheet's Save says while it works: the import's part counted, or the add. */
+function savingWords(listing: boolean, progress: { done: number; total: number } | null): string {
+  if (!listing) return "Adding…";
+  if (!progress) return "Importing…";
+  const done = Math.min(progress.done + PL_IMPORT_PART, progress.total).toLocaleString();
+  return `Importing ${done} of ${progress.total.toLocaleString()}…`;
+}
+
+type AddOne = ReturnType<typeof useAddOne>;
+type AddList = ReturnType<typeof useImport>;
+
+/** What the sheet's foot says and does for the way chosen: its Save, its words while it works, and its refusal. */
+function saveOf(listing: boolean, one: AddOne, list: AddList) {
+  if (!listing) return { onSave: one.submit, label: "Add", saving: one.busy, error: one.error, done: false };
+  const n = list.readable.length;
+  return {
+    onSave: list.plan && n && !list.result ? list.run : null,
+    label: `Import ${n.toLocaleString()} ${n === 1 ? "person" : "people"}`,
+    saving: list.busy,
+    error: list.error,
+    done: !!list.result,
+  };
+}
+
+/** Under the Save: the refusal, by the field it names, and once an import is done, Done. */
+function footOf(listing: boolean, save: ReturnType<typeof saveOf>, onClose: () => void): ReactNode {
+  if (!save.error && !save.done) return null;
+  return (
+    <div className="pl-import-foot">
+      <FieldError
+        id={listing ? "people-import-problem" : "add-person-error"}
+        message={save.error}
+        testid={listing ? "import-error" : "add-person-error"}
+      />
+      {save.done ? (
+        <button type="button" className="btn btn-sm" onClick={onClose} data-testid="import-done">
+          Done
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** The import's body: where the rows come from, what was read, and what the import came to. */
+function listBody(list: AddList): ReactNode {
+  const { plan, readable, result } = list;
+  if (result) return summaryOf(result);
+  return (
+    <>
+      {sourceFields(list)}
+      {plan && previewOf(plan, readable, readable.slice(0, PL_IMPORT_TASTE))}
+    </>
+  );
+}
+
+export function PeopleAddSheet({
+  onClose,
+  onAdded,
+  canImport,
+  way: firstWay = "one",
+  flash = null,
+}: {
+  onClose: () => void;
+  onAdded: (id: string) => void;
+  canImport: boolean;
+  /** The way it opens on: one person, or a list (a door that asks for a client list opens it there). */
+  way?: AddWay;
+  flash?: Flash | null;
+}) {
+  const [way, setWay] = useState<AddWay>(firstWay);
+  const one = useAddOne({ onClose, onAdded, flash });
+  const list = useImport({ flash });
+  const listing = canImport && way === "list";
+  const save = saveOf(listing, one, list);
   return (
     <RecordSheet
-      id="people-import"
-      title="Import people"
-      sub="A spreadsheet of your clients: names, mobile numbers, emails. Nothing already here is overwritten, and nobody is signed up for anything."
+      id="people-add"
+      title="Add people"
+      sub={ADD_SUBS[listing ? "list" : "one"]}
       onClose={onClose}
-      closeLabel={result ? "Done" : "Cancel"}
-      onSave={plan && readable.length && !result ? run : null}
-      saveLabel={saveLabel}
-      saving={busy}
-      savingLabel={savingLabel}
-      foot={
-        error || result ? (
-          <div className="pl-import-foot">
-            <FieldError id="people-import-problem" message={error} testid="import-error" />
-            {result ? (
-              <button type="button" className="btn btn-sm" onClick={onClose} data-testid="import-done">
-                Done
-              </button>
-            ) : null}
-          </div>
-        ) : null
-      }
-      testid="people-import-sheet"
+      closeLabel={save.done ? "Done" : "Cancel"}
+      onSave={save.onSave}
+      saveLabel={save.label}
+      saving={save.saving}
+      savingLabel={savingWords(listing, list.progress)}
+      foot={footOf(listing, save, onClose)}
+      className="pl-add"
+      testid="people-add-sheet"
     >
       <div className="pl-import">
-        {!result && sourceFields({ busy, text, setText, onFile, read })}
-        {plan && !result && previewOf(plan, readable, taste)}
-        {result && summaryOf(result)}
+        {/* The choice is the owner's, whose door the import is; it stands down while a list goes in, and after. */}
+        {canImport && !list.busy && !save.done ? (
+          <RecordToggleGroup
+            label="How to add them"
+            value={way}
+            options={ADD_WAYS}
+            onChange={setWay}
+            readOnly={one.busy}
+            testid="people-add-way"
+          />
+        ) : null}
+        {listing ? listBody(list) : oneFields(one)}
       </div>
     </RecordSheet>
   );

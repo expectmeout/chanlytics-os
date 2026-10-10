@@ -460,21 +460,18 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(sheet).toHaveCount(0);
     await page.waitForTimeout(400);
     await expect(page.locator(".ui-tip.show")).toHaveCount(0);
-    // Add a person: a sheet whose one button is on the screen.
-    await bar.getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people: the page's act opens a sheet whose Save is on the screen.
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    await expect(page.getByTestId("add-person-sheet")).toBeVisible();
-    await expect(page.getByTestId("add-person-save")).toBeInViewport({ ratio: 1 });
-    await page.getByTestId("add-person-sheet-close").click();
-    await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
+    await expect(page.getByTestId("people-add-sheet")).toBeVisible();
+    await expect(page.getByTestId("rec-sheet-save-people-add")).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("people-add-sheet").locator(".rec-sheet-close").click();
+    await expect(page.getByTestId("people-add-sheet")).toHaveCount(0);
   });
   /**
    * A sheet stands on the keyboard (25 Sep). A phone lays its keyboard over the page and keeps the layout's height, so
-   * Add a person's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
+   * Add people's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
    * keyboard-inset.test.mjs proves the measure); here a keyboard 300px tall is said as the phone would say it, and the
    * sheet stands on it, whole, with its Save above the keys, and goes back down when the keyboard goes.
    */
@@ -483,13 +480,11 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const said = () => page.evaluate(() => document.documentElement.style.getPropertyValue("--kb"));
     expect(await said(), "the shell measures it, and no keyboard is up").toBe("0px");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people, the page's act, opens its sheet (Ruben, 10 Oct 2026: it was a ⋯'s item).
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    const sheet = page.getByTestId("add-person-sheet");
+    const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
     const tall = page.viewportSize()!.height;
     const foot = async () => {
@@ -501,7 +496,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
     await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
     expect((await sheet.boundingBox())!.y, "its top on the screen").toBeGreaterThanOrEqual(0);
-    const save = (await page.getByTestId("add-person-save").boundingBox())!;
+    const save = (await page.getByTestId("rec-sheet-save-people-add").boundingBox())!;
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
     await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall);
@@ -513,13 +508,11 @@ test.describe("Phone shell on a real workspace", () => {
   test("a sheet pulled down from its handle past a third closes", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people, the page's act, opens its sheet (Ruben, 10 Oct 2026: it was a ⋯'s item).
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    const sheet = page.getByTestId("add-person-sheet");
+    const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
     const b = (await sheet.boundingBox())!;
     await pullDown(page, b.x + b.width / 2, b.y + 10, b.height * 0.6);

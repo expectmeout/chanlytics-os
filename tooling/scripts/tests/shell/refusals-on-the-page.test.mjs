@@ -475,7 +475,7 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
 // are imported by it, so a refusal comes over the wire it would send.
 const { DeleteListButton } = await importSrc("apps/dashboard/src/surfaces/people/lists/list-title.tsx");
 const { NewListRow } = await importSrc("apps/dashboard/src/surfaces/people/rail/new-list.tsx");
-const { AddPersonButton } = await importSrc("apps/dashboard/src/surfaces/people/sheets/add-person.tsx");
+const { PeopleAddSheet } = await importSrc("apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
 
 /**
  * The requests the bridge's client sends, answered by `answer(request)` with the server's own envelope: each is kept
@@ -545,8 +545,8 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   assert.equal(byTestId(tree, "new-list-name").props["aria-describedby"], "new-list-error");
   assert.equal(inlineDanger(tree), 0);
 
-  // People: Add a person.
-  assert.equal(typeof AddPersonButton, "function");
+  // People: Add people, one person.
+  assert.equal(typeof PeopleAddSheet, "function");
   const added = wire(() =>
     refusedOver(400, "validation", "contact_phone: Write it with the country code, like +1 646 555 0123.", {
       fields: { phone: "Write it with the country code, like +1 646 555 0123." },
@@ -555,11 +555,12 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   cells = [];
   const add = () => {
     frames.begin();
-    return AddPersonButton({ onAdded() {}, flash() {} });
+    return PeopleAddSheet({ onClose() {}, onAdded() {}, canImport: false, flash() {} });
   };
-  byTestId(add(), "add-person").props.onClick();
   byTestId(add(), "add-person-phone").props.onChange({ target: { value: "646 555" } });
-  await byTestId(add(), "add-person-save").props.onClick();
+  // The record sheet's Save hands back nothing to wait on: the refusal settles, then the sheet is drawn again.
+  byTestId(add(), "rec-sheet-save-people-add").props.onClick();
+  for (let i = 0; i < 8; i++) await new Promise((r) => setTimeout(r, 0));
   tree = add();
   assert.deepEqual(
     added.map((r) => [r.method, r.path, r.body]),
