@@ -19,6 +19,7 @@ import {
   textOf,
   press,
   remount,
+  settle,
 } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
@@ -1119,4 +1120,95 @@ test("on a phone the moments' pane holds the one list on the journey's line, and
   );
   assert.equal(allBy(tree, "cmh-stage").length, 0, "no desk rail on a phone");
   assert.equal(byTestId(tree, "cmh-also"), null);
+});
+
+/* ------------------------------------------------------- the drawer ------------------------------------------------------- */
+
+const { playbooks: verbs } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/playbooks/verbs.ts");
+
+test("Delete closes the drawer, then says so: never a sheet left saying the campaign is gone", async () => {
+  surfaces();
+  fresh();
+  const real = verbs.remove;
+  const order = [];
+  verbs.remove = async (id, opts) => {
+    order.push(["remove", id]);
+    opts.onAccepted({});
+    return { ok: true, data: {} };
+  };
+  try {
+    let tree = page("moment:pb-sample-winback");
+    const more = find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""));
+    more.props.groups[0].items.find((i) => i.label === "Delete…").onSelect();
+    tree = page("moment:pb-sample-winback");
+    press(byTestId(tree, "pb-delete-yes"));
+    await settle();
+    assert.deepEqual(order, [["remove", "pb-sample-winback"]]);
+    assert.deepEqual(replaced, ["campaigns"], "the drawer a link opened closes to the home");
+    assert.equal(toasts.length, 1, "and the toast says what left the screen");
+    assert.match(textOf(toasts[0].msg), /Win-back/);
+  } finally {
+    verbs.remove = real;
+  }
+});
+
+test("a delete the server refuses keeps the drawer open and says why", async () => {
+  surfaces();
+  fresh();
+  const real = verbs.remove;
+  verbs.remove = async () => ({ ok: false, message: "It could not be deleted just now." });
+  try {
+    let tree = page("moment:pb-sample-winback");
+    const more = find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""));
+    more.props.groups[0].items.find((i) => i.label === "Delete…").onSelect();
+    tree = page("moment:pb-sample-winback");
+    press(byTestId(tree, "pb-delete-yes"));
+    await settle();
+    assert.deepEqual([replaced, said], [[], []], "nothing closes");
+    assert.equal(toasts.at(-1).tone, "danger");
+  } finally {
+    verbs.remove = real;
+  }
+});
+
+test("on a phone the drawer's docked foot holds Pause, or Resume, when no run waits", () => {
+  surfaces();
+  globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  fresh();
+  const running = page("moment:pb-sample-winback");
+  const pause = byTestId(running, "pb-pause-foot");
+  assert.match(textOf(pause), /Pause/);
+  const foot = find(running, (n) => classes(n).includes("pb-pane-foot"));
+  assert.equal(foot.props["data-foot-pair"], "", "laid out as every phone foot's acts are (kit.css data-foot-pair)");
+  const menu = find(running, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""));
+  assert.deepEqual(
+    menu.props.groups[0].items.map((i) => i.label),
+    ["Edit", "Run now", "Delete…"],
+    "the foot holds Pause: the menu does not say it twice",
+  );
+  fresh();
+  const paused = page("moment:pb-sample-reminder");
+  assert.match(textOf(byTestId(paused, "pb-pause-foot")), /Resume/);
+  fresh();
+  const waits = page("moment:pb-sample-welcome");
+  assert.equal(byTestId(waits, "pb-pause-foot"), null, "a run waits: the foot is its Approve and Skip");
+  assert.ok(byTestId(waits, "pb-approve"));
+  assert.equal(
+    find(waits, (n) => classes(n).includes("pb-pane-foot")).props["data-foot-pair"],
+    "",
+    "its line over the pair",
+  );
+  const waitsMenu = find(waits, (n) => n.type === Menu && /More for Welcome/.test(n.props.label ?? ""));
+  assert.ok(
+    waitsMenu.props.groups[0].items.some((i) => i.label === "Pause"),
+    "while a run holds the foot, Pause stays in the menu",
+  );
+});
+
+test("on a desk the drawer's foot is empty when nothing waits: Pause stands in its head", () => {
+  surfaces();
+  fresh();
+  const running = page("moment:pb-sample-winback");
+  assert.equal(byTestId(running, "pb-pause-foot"), null);
+  assert.match(textOf(byTestId(running, "pb-pause")), /Pause/);
 });

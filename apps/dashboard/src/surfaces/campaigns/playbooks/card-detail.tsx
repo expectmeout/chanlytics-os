@@ -146,6 +146,8 @@ interface ActsIn {
   setSure: Dispatch<SetStateAction<boolean>>;
   setSkipSure: Dispatch<SetStateAction<boolean>>;
   flash: Flash;
+  /** The pane's own close: a campaign deleted leaves the screen before its toast says so. */
+  onGone: () => void;
 }
 
 /**
@@ -153,7 +155,7 @@ interface ActsIn {
  * the playbooks and the broadcasts are read again behind it; the card repaints from that re-read, and its buttons wait
  * for it -- a Run now pressed twice before the first run's rows had landed would be two runs.
  */
-function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
+function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone }: ActsIn) {
   const act = async <D,>(
     fn: (o: { onAccepted: (d: D) => void }) => Promise<Outcome<D>>,
     said: (d: D) => ReactNode,
@@ -223,7 +225,15 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
   const remove = () => {
     setSure(false);
     void act(
-      (o) => V.remove(p.id, o),
+      // Closed the moment the server takes it, then said: a sheet left saying the campaign "isn't here any more" was the
+      // page talking about what it had just done (spec 2026-10-09 §4.3).
+      (o) =>
+        V.remove(p.id, {
+          onAccepted: (d) => {
+            onGone();
+            o.onAccepted(d);
+          },
+        }),
       () => (
         <>
           <b>{p.name}</b> {PLAYBOOK_DELETE_WORDS.done}
@@ -561,15 +571,17 @@ function cardOwnActs(c: CardCtx, phone = false) {
   const { p, canAct, busy, sure, setSure, waiting, acts, onEdit } = c;
   if (!canAct) return null;
   const hours = pageClock().hours;
-  // On a phone the pane's head is a capsule a thumb wide: every act is the menu's, as a thread's Actions are.
+  const pauseItem: MenuItem = {
+    label: p.state === "paused" ? "Resume" : "Pause",
+    glyph: <Icon name={p.state === "paused" ? "play" : "pause"} size={13} />,
+    disabled: busy,
+    onSelect: () => void acts.toggle(),
+  };
+  // On a phone the pane's head is a capsule a thumb wide: its acts are the menu's, as a thread's Actions are, but Pause or
+  // Resume, which the docked foot holds while no run waits (PlaybookPane); a run waiting holds the foot, and it stays here.
   const words: MenuItem[] = phone
     ? [
-        {
-          label: p.state === "paused" ? "Resume" : "Pause",
-          glyph: <Icon name={p.state === "paused" ? "play" : "pause"} size={13} />,
-          disabled: busy,
-          onSelect: () => void acts.toggle(),
-        },
+        ...(waiting ? [pauseItem] : []),
         { label: "Edit", glyph: <Icon name="pencil" size={13} />, disabled: busy, onSelect: () => onEdit(p) },
       ]
     : [];
@@ -663,14 +675,14 @@ function cardBody(c: CardCtx) {
 }
 
 /** A playbook's state and verbs, held once for the pane it is open in (Campaigns' home draws it in a sheet). */
-function useCard({ p, canAct, onEdit, flash }: Pick<CardProps, "p" | "canAct" | "onEdit" | "flash">): CardCtx {
+function useCard({ p, canAct, onEdit, flash, onClose }: CardProps & { onClose: () => void }): CardCtx {
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
   // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
   const [skipSure, setSkipSure] = useState(false);
   const surface = useSurface("playbooks");
   const read = cardRead(p, surface);
-  const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash });
+  const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone: onClose });
   // The workspace's word, from the surface the card reads; unread, the one derivation over nothing known.
   const word = surface ? surface.shape.word : appointmentWordOf({ stored: null, sellsBy: null });
   return { ...read, p, word, canAct, onEdit, busy, sure, skipSure, setSure, setSkipSure, acts };
@@ -691,18 +703,27 @@ interface PaneProps {
  * after it down by the card's height, the list's columns over a card that had none.
  */
 export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
-  const c = useCard({ p, canAct, onEdit, flash });
+  const c = useCard({ p, canAct, onEdit, flash, onClose });
   const phone = useCmPhone();
   const { status, reachWords, waiting } = c;
   const asking = cardDeleteAsk(c);
+  // On a phone the foot's acts are the kit's equal pair (kit.css `data-foot-pair`), as every phone foot's are, but while
+  // a question stands there; and with no run waiting the foot holds Pause or Resume, the head's words on a desk, a thumb's
+  // reach from where the menu kept them (spec 2026-10-09 §4.4).
   const foot = asking ? (
     <div className="pb-pane-foot">{asking}</div>
   ) : waiting ? (
-    <div className="pb-pane-foot">
+    <div className="pb-pane-foot" data-foot-pair={c.skipSure ? undefined : ""}>
       <span className="pb-pane-foot-say" data-testid="pb-waiting">
         This run waits on you
       </span>
       {cardWaitActs(c)}
+    </div>
+  ) : phone && canAct ? (
+    <div className="pb-pane-foot" data-foot-pair="">
+      <Button size="sm" disabled={c.busy} onClick={() => void c.acts.toggle()} data-testid="pb-pause-foot">
+        <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
+      </Button>
     </div>
   ) : null;
   return (

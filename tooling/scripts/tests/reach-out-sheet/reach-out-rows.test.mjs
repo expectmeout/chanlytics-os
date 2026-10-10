@@ -248,7 +248,8 @@ test("Pause and Resume press the chain's first step; Remove is offered only whil
     }),
   );
   fresh();
-  r = openPane(chainOf(), { open: true });
+  const removing = { open: true };
+  r = openPane(chainOf(), removing);
   r.redraw();
   await settle();
   tree = r.redraw();
@@ -260,6 +261,8 @@ test("Pause and Resume press the chain's first step; Remove is offered only whil
   press(yes);
   await settle();
   assert.deepEqual(pressed.slice(1), [["remove", ROOT]]);
+  assert.equal(removing.open, false, "Remove closes the drawer");
+  assert.equal(toasts.at(-1).tone, "ok", "then says so");
 });
 
 test("a report that could not be read says so, and draws no count", async () => {
