@@ -187,15 +187,18 @@ const broadcasts = (over = {}) => ({
   optIn: { phrase: "YES OFFERS", link: "https://wa.me/15550100?text=YES%20OFFERS" },
   // Each of the 24 once, on the channel a send would reach them by: 17 and 7 are the 24.
   reach: { people: 29, canHear: 24, saidMessages: 24, saidOffers: 5, byChannel: { whatsapp: 17, sms: 0, email: 7 } },
-  report: {
-    days: 30,
-    totals: { sent: 132, delivered: 129, read: 53, replied: 32, optIns: 2, optOuts: 1, readOf: 84 },
-    byChannel: [
-      { channel: "whatsapp", sent: 84 },
-      { channel: "email", sent: 48 },
-    ],
-  },
   ready: ready({ whatsapp: true, email: true }),
+  ...over,
+});
+/** Campaigns' own 30 days (the campaign_results surface's report): what each channel sent among them. */
+const report = (over = {}) => ({
+  days: 30,
+  totals: { sent: 132, delivered: 129, read: 53, replied: 32, optIns: 2, optOuts: 1, readOf: 84 },
+  byChannel: [
+    { channel: "whatsapp", sent: 84 },
+    { channel: "email", sent: 48 },
+  ],
+  sources: [],
   ...over,
 });
 const home = (over = {}) =>
@@ -207,6 +210,7 @@ const home = (over = {}) =>
     library: [],
     messages: [],
     reachOuts: [],
+    report: report(),
     ...over,
   });
 
@@ -457,8 +461,8 @@ test("where the readiness is unread and the counts predate the channels, the hom
     broadcasts: broadcasts({
       ready: null,
       reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
-      report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 0, optOuts: 0 } },
     }),
+    report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 0, optOuts: 0 }, sources: [] },
   });
   assert.equal(h.head.channels, null);
   const rung = h.reach.rungs.find((r) => r.id === "messages");
@@ -481,8 +485,6 @@ test("where the readiness is unread and the counts predate the channels, the hom
     "Sending on WhatsApp and by email · Text: No texting line yet",
   );
   // One channel alone sent: no line under the funnel.
-  const one = home({
-    broadcasts: broadcasts({ report: { ...broadcasts().report, byChannel: [{ channel: "whatsapp", sent: 132 }] } }),
-  });
+  const one = home({ report: report({ byChannel: [{ channel: "whatsapp", sent: 132 }] }) });
   assert.equal(one.results.byChannel, null);
 });

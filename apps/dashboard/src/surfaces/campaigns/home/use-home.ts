@@ -1,7 +1,7 @@
 /**
- * What Campaigns' home reads and how it moves: the four surfaces its view model is made from (the playbooks' rows and pools,
- * the broadcasts' runs and reach, the library's templates, the reach-outs' chains), read through the seam and handed to
- * contracts as they are (campaignsHomeOf); and the address, which opens a moment or the composer.
+ * What Campaigns' home reads and how it moves: the surfaces its view model is made from (the playbooks' rows and pools,
+ * the broadcasts' runs and reach, the library's templates, Campaigns' own 30 days, the reach-outs' chains), read through
+ * the seam and handed to contracts as they are (campaignsHomeOf); and the address, which opens a moment or the composer.
  *
  * A real workspace draws its own surfaces; a demo session draws the samples the Playbooks and Broadcasts pages drew; without
  * either the page draws nothing. A surface not read yet is undefined and its tiles say they are reading; one that could not
@@ -14,13 +14,14 @@ import type { LifecycleHome } from "@chanlytics/contracts";
 import { tabDraft } from "../../kit/record/work";
 import { demoSession, navigate, replaceRoute } from "../../legacy-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
-import { broadcastsSample } from "../broadcasts/sample";
+import { broadcastsSample, campaignResultsSample } from "../broadcasts/sample";
 import type { BroadcastsSurface } from "../broadcasts/surface";
 import { playbooksSample } from "../playbooks/sample";
 import type { PlaybooksSurface } from "../playbooks/surface";
 import type { ReachOutsSurface } from "../reach-out/surface";
 import { HOME_ROUTE, composeRoute } from "./address";
 import type { HomeAddress } from "./address";
+import type { CampaignResultsSurface } from "./results-surface";
 
 /** The home's data: the surfaces, and the view model made from them. */
 interface HomeData {
@@ -28,6 +29,8 @@ interface HomeData {
   /** Undefined before it is read, null where it could not be. */
   broadcasts: BroadcastsSurface | null | undefined;
   reachOuts: ReachOutsSurface | undefined;
+  /** Campaigns' own 30 days: undefined before read, null where it could not be. */
+  results: CampaignResultsSurface | null | undefined;
   home: LifecycleHome;
 }
 
@@ -58,16 +61,22 @@ export function useHomeData(nowMs?: number): HomeData {
   const liveBroadcasts = useSurface("broadcasts");
   const reachOuts = useSurface("reach_outs");
   const settings = useSurface("settings");
+  const liveResults = useSurface("campaign_results");
   const broadcastsFailed = useSurfaceFailed("broadcasts");
   const settingsFailed = useSurfaceFailed("settings");
+  const resultsFailed = useSurfaceFailed("campaign_results");
   const now = useHomeNow(nowMs);
   // A demo session's samples, made once for the page's life.
   const [sample] = useState(() =>
-    demoSession() ? { playbooks: playbooksSample(), broadcasts: broadcastsSample() } : null,
+    demoSession()
+      ? { playbooks: playbooksSample(), broadcasts: broadcastsSample(), results: campaignResultsSample() }
+      : null,
   );
   const playbooks = livePlaybooks ?? sample?.playbooks;
   // Nothing read: failed (null) where the seam says it could not be, else not read yet (undefined).
   const broadcasts = liveBroadcasts ?? sample?.broadcasts ?? (broadcastsFailed ? null : undefined);
+  // Campaigns' own 30 days: failed (null) where the seam says it could not be read, else not read yet (undefined).
+  const results = liveResults ?? sample?.results ?? (resultsFailed ? null : undefined);
   const sampled = sample?.playbooks.templates ?? undefined;
   const library = settings ? settings.templatesAll : settingsFailed ? null : sampled;
   // The messages the Library counts: the settings surface's (one read with its rows), a demo session's from its sample's.
@@ -82,10 +91,11 @@ export function useHomeData(nowMs?: number): HomeData {
         library,
         messages: messages === undefined && sampled ? campaignMessagesOf(sampled) : messages,
         reachOuts,
+        report: results === undefined ? undefined : results === null ? null : results.report,
       }),
-    [now, playbooks, broadcasts, library, messages, sampled, reachOuts],
+    [now, playbooks, broadcasts, library, messages, sampled, reachOuts, results],
   );
-  return { playbooks, broadcasts, reachOuts, home };
+  return { playbooks, broadcasts, reachOuts, results, home };
 }
 
 /**

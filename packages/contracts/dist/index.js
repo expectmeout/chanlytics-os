@@ -7735,7 +7735,7 @@ var LIFECYCLE_WORDS = {
       surface: "playbooks"
     },
     chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
-    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "campaign_results" },
     // The broadcasts read itself, said in each tile made from it.
     reach: {
       what: "who can hear you",
@@ -27264,7 +27264,7 @@ function todayRunApproved(label, n, when) {
 
 // src/playbooks/lifecycle/lifecycle-tiles.ts
 var COMING_DAYS = 7;
-var RESULTS_DAYS = 30;
+var RESULTS_DAYS = fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD);
 var RUNS_SHOWN = 3;
 var outOf = (b) => b === void 0 ? "reading" : "failed";
 function reachCountsOf(rows2) {
@@ -27512,10 +27512,11 @@ function lifecycleResults(input) {
       quiet: false
     };
   }
-  const days = b.report?.days ?? RESULTS_DAYS;
+  const report = input.report;
+  const days = report?.days ?? RESULTS_DAYS;
   const note = plural(days, "day");
   const runs = cameBack(input, days);
-  if (!b.report)
+  if (!report)
     return {
       read: "read",
       days,
@@ -27529,7 +27530,7 @@ function lifecycleResults(input) {
       runs,
       quiet: false
     };
-  const t = b.report.totals;
+  const t = report.totals;
   const W = LIFECYCLE_WORDS.results.funnel;
   const readOf = t.readOf ?? t.sent;
   const step2 = (id, n, of = t.sent) => ({
@@ -27557,7 +27558,7 @@ function lifecycleResults(input) {
     readNote,
     // What went by each channel (0030), where more than one sent: a line under the funnel in the channels' own words.
     byChannel: countsByChannelWords(
-      b.report.byChannel ? Object.fromEntries(b.report.byChannel.map((c) => [c.channel, c.sent])) : null
+      report.byChannel ? Object.fromEntries(report.byChannel.map((c) => [c.channel, c.sent])) : null
     ),
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0
@@ -27853,7 +27854,7 @@ function failedOf(input) {
     templates: input.library === null ? F.templates : null,
     counts: input.playbooks && !input.playbooks.countsRead ? F.counts : null,
     chains: input.reachOuts === null ? F.chains : null,
-    report: b && b.report === null ? F.report : null,
+    report: input.report === null ? F.report : null,
     reach: b === null || b !== void 0 && !b.reach ? F.reach : null,
     coming: b === null ? F.coming : null,
     results: b === null ? F.results : null
@@ -33330,20 +33331,11 @@ var PREFETCH_READS = {
   // The report, the offers' and the reach-outs' over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head.
   reports: ["reports?period=30d", "reports/campaigns?period=30d", "reports/reach-outs?period=30d"],
   live: ["calls", "channels"],
-  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
-  broadcasts: [
-    "broadcasts",
-    "contacts",
-    "segments",
-    "templates",
-    "channels",
-    "settings",
-    "reports/campaigns?period=30d"
-  ],
+  // Sent: the runs, who an audience reaches and the composers' reads.
+  broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings"],
   outbound: ["playbooks", "templates", "channels", "settings"],
-  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them who can hear you,
-  // what is coming and what came back, which it draws from the broadcasts (ROUTE_DRAWS): both surfaces' first reads. It
-  // had no entry under its own word, so its reads left after the mount while the old Playbooks address's left from the head.
+  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
+  // 30 days (campaign_results, the period named once) and the reach-outs' chains (ROUTE_DRAWS): each surface's first reads.
   campaigns: [
     "playbooks",
     "templates",
@@ -33352,7 +33344,9 @@ var PREFETCH_READS = {
     "broadcasts",
     "contacts",
     "segments",
-    "reports/campaigns?period=30d"
+    `reports/campaigns?period=${CAMPAIGNS_RESULTS_PERIOD}`,
+    `reports/reach-outs?period=${CAMPAIGNS_RESULTS_PERIOD}`,
+    "reach-outs"
   ],
   // Templates and every pane of Settings are drawn from the settings surface.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],

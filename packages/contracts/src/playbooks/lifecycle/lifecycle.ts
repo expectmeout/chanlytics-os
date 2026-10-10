@@ -449,7 +449,7 @@ function failedOf(input: LifecycleInput): LifecycleFailed {
     templates: input.library === null ? F.templates : null,
     counts: input.playbooks && !input.playbooks.countsRead ? F.counts : null,
     chains: input.reachOuts === null ? F.chains : null,
-    report: b && b.report === null ? F.report : null,
+    report: input.report === null ? F.report : null,
     reach: b === null || (b !== undefined && !b.reach) ? F.reach : null,
     coming: b === null ? F.coming : null,
     results: b === null ? F.results : null,

@@ -70,9 +70,11 @@ const run = (over = {}) => ({
 });
 
 const reach = { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 };
+/** Campaigns' own 30 days (the campaign_results surface's report), each campaign's own among them (none here). */
 const report = (over = {}) => ({
   days: 30,
   totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, ...over },
+  sources: [],
 });
 const broadcasts = (over = {}) => ({
   rows: [
@@ -92,7 +94,6 @@ const broadcasts = (over = {}) => ({
   number: { present: true },
   optIn: { phrase: "YES OFFERS", link: "https://wa.me/15550100?text=YES%20OFFERS" },
   reach,
-  report: report(),
   ...over,
 });
 
@@ -134,6 +135,7 @@ const input = (over = {}) => ({
   // The workspace's messages (the settings surface's `messages`): the Library's count reads these.
   messages: C.campaignMessagesOf(LIBRARY),
   reachOuts: [],
+  report: report(),
   ...over,
 });
 const home = (over = {}) => C.campaignsHomeOf(input(over));
@@ -1166,7 +1168,7 @@ test("what came back: the funnel from what was sent, who said yes and who asked 
 });
 
 test("where a text or an email went too (0030), the funnel's read is a share of WhatsApp's own sends and a line says so; with nothing by WhatsApp there is no read to show", () => {
-  const mixed = results({ broadcasts: broadcasts({ report: report({ readOf: 6 }) }) });
+  const mixed = results({ report: report({ readOf: 6 }) });
   assert.deepEqual(
     mixed.funnel.map((f) => [f.id, f.n, f.share]),
     [
@@ -1178,32 +1180,27 @@ test("where a text or an email went too (0030), the funnel's read is a share of 
   );
   assert.equal(mixed.funnel.find((f) => f.id === "read").meter, "Read: 5 of WhatsApp's 6");
   assert.equal(mixed.readNote, "Read is of WhatsApp's 6: a text or an email keeps no read receipt.");
-  const noWhatsApp = results({ broadcasts: broadcasts({ report: report({ read: 0, readOf: 0 }) }) });
+  const noWhatsApp = results({ report: report({ read: 0, readOf: 0 }) });
   assert.deepEqual(
     noWhatsApp.funnel.map((f) => f.id),
     ["sent", "delivered", "replied"],
   );
   assert.equal(noWhatsApp.readNote, "These went by text or email, which keep no read receipt.");
   // WhatsApp alone, or a report from before the channels were counted: as it always was, and no line.
-  assert.deepEqual(
-    [results().readNote, results({ broadcasts: broadcasts({ report: report({ readOf: 8 }) }) }).readNote],
-    [null, null],
-  );
+  assert.deepEqual([results().readNote, results({ report: report({ readOf: 8 }) }).readNote], [null, null]);
   assert.equal(results().funnel.find((f) => f.id === "read").meter, "Read: 5");
   // What a screen reader hears the list as: its steps, a read where there is one.
   assert.deepEqual(
     [results().funnelLabel, noWhatsApp.funnelLabel],
     ["Sent, delivered, read and replied", "Sent, delivered and replied"],
   );
-  assert.equal(results({ broadcasts: broadcasts({ report: null }) }).funnelLabel, null, "no funnel, no label");
+  assert.equal(results({ report: null }).funnelLabel, null, "no funnel, no label");
 });
 
 test("a zero is shown as zero, and a period with nothing in it is said once", () => {
   const zero = results({
-    broadcasts: broadcasts({
-      rows: [],
-      report: report({ sent: 0, delivered: 0, read: 0, replied: 0, optIns: 0, optOuts: 0 }),
-    }),
+    broadcasts: broadcasts({ rows: [] }),
+    report: report({ sent: 0, delivered: 0, read: 0, replied: 0, optIns: 0, optOuts: 0 }),
   });
   assert.deepEqual(zero.headline, { n: 0, words: "messages sent in 30 days" });
   assert.equal(zero.funnel, null, "no bars over nothing sent");
@@ -1214,11 +1211,15 @@ test("a zero is shown as zero, and a period with nothing in it is said once", ()
 });
 
 test("a report that could not be read leaves its numbers out and the runs stand; the home says so in `failed`", () => {
-  const t = results({ broadcasts: broadcasts({ report: null }) });
+  const t = results({ report: null });
   assert.deepEqual([t.headline, t.funnel, t.yes, t.quiet], [null, null, null, false]);
   assert.equal(t.runs.length, 2);
   assert.equal(t.read, "read", "the tile was read: only its numbers could not be");
-  assert.equal(home({ broadcasts: broadcasts({ report: null }) }).failed.results, null, "the broadcasts were read");
+  assert.equal(home({ report: null }).failed.results, null, "the broadcasts were read");
+  // Campaigns' own 30 days not read yet: the runs stand, the numbers are not said, and nothing failed.
+  const coming = results({ report: undefined });
+  assert.deepEqual([coming.read, coming.headline, coming.funnel, coming.runs.length], ["read", null, null, 2]);
+  assert.equal(home({ report: undefined }).failed.report, null, "unread has not failed");
 });
 
 test("what came back says it is reading before the broadcasts are read, and that it could not when they failed, with the period in words", () => {
@@ -1237,9 +1238,9 @@ test("what came back says it is reading before the broadcasts are read, and that
   });
   assert.equal(home({ broadcasts: undefined }).failed.results, null);
   assert.equal(results().note, "30 days");
-  assert.equal(results({ broadcasts: broadcasts({ report: report({}) }) }).read, "read");
+  assert.equal(results({ report: report({}) }).read, "read");
   assert.equal(
-    results({ broadcasts: broadcasts({ report: { days: 1, totals: report().totals } }) }).note,
+    results({ report: { days: 1, totals: report().totals, sources: [] } }).note,
     "1 day",
     "the period is counted in its own words",
   );
@@ -1251,7 +1252,8 @@ test("a read that failed is said where its data would be, in contracts' words, w
   const none = { templates: null, counts: null, chains: null, report: null, reach: null, coming: null, results: null };
   assert.deepEqual(home().failed, none, "everything read: nothing to say");
   assert.deepEqual(
-    home({ playbooks: undefined, broadcasts: undefined, library: undefined, reachOuts: undefined }).failed,
+    home({ playbooks: undefined, broadcasts: undefined, library: undefined, reachOuts: undefined, report: undefined })
+      .failed,
     none,
     "a surface not read yet has not failed",
   );
@@ -1270,10 +1272,11 @@ test("a read that failed is said where its data would be, in contracts' words, w
     body: "The moments above are current.",
     surface: "reach_outs",
   });
-  assert.deepEqual(home({ broadcasts: broadcasts({ report: null }) }).failed.report, {
+  // Campaigns' own 30 days are their own surface's (campaign_results): its Retry reads them alone.
+  assert.deepEqual(home({ report: null }).failed.report, {
     what: "this period's numbers",
     body: "The runs below stand.",
-    surface: "broadcasts",
+    surface: "campaign_results",
   });
   // One failing leaves the others alone: a failed library is not a failed report.
   const one = home({ library: null }).failed;

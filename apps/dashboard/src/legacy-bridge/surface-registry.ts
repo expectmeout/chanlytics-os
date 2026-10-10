@@ -195,9 +195,10 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   outbound: ["reach_outs"],
-  // Campaigns' home draws who can hear you, what is coming and what came back from the broadcasts, the call's text and the library's count
-  // from Settings' templates, and the reach-outs as lines under the moments.
-  campaigns: ["broadcasts", "settings", "reach_outs"],
+  // Campaigns' home draws Sent's runs (Coming up, a row's waiting run, who can hear you) from the broadcasts, its own 30
+  // days from campaign_results (read on demand: no other page's boot pays for them), and the reach-outs as rows. The call's
+  // text and the Library's count are the playbooks surface's own read of the templates, so Settings is not drawn here.
+  campaigns: ["broadcasts", "campaign_results", "reach_outs"],
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
   messages: ["reach_outs", "playbooks"],
   broadcasts: ["playbooks"],
@@ -275,9 +276,8 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
 
 /**
  * The pages that own the refreshes of what they draw beside their own surface. Campaigns' home is one page of four surfaces (the
- * playbooks' moments, the broadcasts' runs and numbers, Settings' library, the reach-outs' chains), and a message moves the
- * replies it says under "What came back" and the runs it lists: left to the broadcasts' own page, its numbers stood where they
- * were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
+ * playbooks' moments, Sent's runs, its own 30 days, the reach-outs' chains), and a message moves the replies its rows and "What
+ * came back" say: left to another page, its numbers stood where they were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
  * message re-reads the three that draw messages and Today, and People's pages of contacts are the heaviest read there is
  * (shell/surfaces/message-fan-out.test.mjs). Reports owns the one it names for a lens (`reports/reviews`): a review seen for the first
  * time moves the Reviews lens's read, heard while that lens is on screen and not on Reports' other lenses or pages.
@@ -285,13 +285,26 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
 const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns", "reports"]);
 
 /**
+ * What a page that owns what it draws still leaves to the surface's own page. Campaigns draws Sent's runs for Coming up
+ * and a row's waiting run, and what a message moves of them (a run's replies) it reads from its own 30 days now
+ * (campaign_results, spec 2026-10-09 §4.5): so a message on Campaigns no longer re-reads the broadcasts and every page of
+ * People behind them. They are heard on Sent, their own page, and read once as Sent comes back.
+ */
+const LEFT_TO_THEIR_PAGE: Readonly<Partial<Record<string, readonly string[]>>> = { campaigns: ["broadcasts"] };
+
+/**
  * Whether this surface is the one the page on screen is of: its own surface, and, on a page that owns what it draws
- * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS).
+ * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS), but those it leaves to their own page
+ * (LEFT_TO_THEIR_PAGE).
  */
 export function ownsTheScreen(key: string, route: string): boolean {
   const { page, param } = pageOfRoute(route);
   if (routeSurfaceFor(page, param) === key) return true;
-  return OWNS_WHAT_IT_DRAWS.has(page) && routeDrawsFor(page, param).includes(key);
+  return (
+    OWNS_WHAT_IT_DRAWS.has(page) &&
+    routeDrawsFor(page, param).includes(key) &&
+    !(LEFT_TO_THEIR_PAGE[page] ?? []).includes(key)
+  );
 }
 
 /**

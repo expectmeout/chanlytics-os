@@ -7,7 +7,6 @@
 import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import {
-  CAMPAIGNS_RESULTS_PERIOD,
   CONSENT_LIST_IDS,
   PEOPLE_LISTS,
   savedListIds,
@@ -29,13 +28,11 @@ import {
   optInLink,
   reachCountsOf,
   toBroadcastVM,
-  toCampaignReportVM,
   type AudienceKind,
   type AudiencePreview,
   type BroadcastVM,
   type ChannelsReady,
   type ConsentChannel,
-  type LifecycleReport,
   type MonthSent,
   type NumberHealth,
   type AskedPurpose,
@@ -134,11 +131,6 @@ export interface BroadcastsSurface {
    * reachCountsOf over each row's personReachOf): Campaigns' home draws it as its ladder.
    */
   reach: ReachCounts;
-  /**
-   * What the campaigns sent over the last thirty days and what came back (the campaign report, as Reports reads it); null where
-   * that read failed, which the home says, and never a number it did not count.
-   */
-  report: LifecycleReport | null;
   /** The WhatsApp number a broadcast goes out on, and what WhatsApp has said about it. */
   number: { present: boolean; display: string | null; health: NumberHealth };
   /** The words for a held-back reason, for the detail view. */
@@ -165,9 +157,6 @@ export interface BroadcastsSurface {
   scheduleMaxDays: number;
   fetchedAt: number;
 }
-
-/** The period Campaigns' home reports over (the route's `period`): Campaigns' one, which the document head starts too (contracts PREFETCH_READS). */
-const HOME_REPORT_PERIOD = CAMPAIGNS_RESULTS_PERIOD;
 
 /** The month's emails and texts the read carries; null where it could not be counted, and on a server from before it was. */
 const monthSentOf = (read: { month_sent?: MonthSent | null }): MonthSent | null => read.month_sent ?? null;
@@ -206,31 +195,6 @@ function savedHint(byHand: boolean): string {
   return byHand
     ? "A list kept by hand — of those whose yes covers this message"
     : "A list that keeps itself current — of those whose yes covers this message";
-}
-
-/** The campaign report's totals for the home's funnel; null where the report could not be read. */
-function reportOf(read: { report: Parameters<typeof toCampaignReportVM>[0] } | Error): LifecycleReport | null {
-  if (read instanceof Error) {
-    console.error("broadcasts_report_fetch_failed", read.message);
-    return null;
-  }
-  const vm = toCampaignReportVM(read.report);
-  // What each channel sent (0030), the most first, for the home's line under its funnel; none from a database before it.
-  const byChannel = vm.channels.map((c) => ({ channel: c.channel, sent: c.sent }));
-  return {
-    days: vm.days,
-    totals: vm.totals,
-    // None from a server from before a report carried them, as toCampaignReportVM reads them.
-    sources: (read.report.sources ?? []).map((s) => ({
-      id: s.id,
-      kind: s.kind,
-      name: s.name,
-      sent: s.sent,
-      replied: s.replied,
-      lastAt: s.last_at,
-    })),
-    ...(byChannel.length > 0 ? { byChannel } : {}),
-  };
 }
 
 /**
@@ -275,11 +239,12 @@ export const broadcastsOverride: SurfaceOverride = {
   events: ["surface:broadcasts"],
   // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard
   // wherever the tab is, since Today draws its Approve and Stop rows from here. A message moves a run's replies: read
-  // again only while its page is on screen, and once when it comes back (surface-registry.ts).
+  // again only while Sent is on screen, and once when it comes back (Campaigns reads its numbers from campaign_results,
+  // surface-registry.ts LEFT_TO_THEIR_PAGE).
   refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts"],
   refreshWhen: onlyOnItsPage("broadcasts", DEFAULT_REFRESH_TABLES),
   apply: async () => {
-    const [bc, people, saved, tpl, ch, cfg, tz, campaigns] = await Promise.all([
+    const [bc, people, saved, tpl, ch, cfg, tz] = await Promise.all([
       read("GET broadcasts"),
       read("GET contacts"),
       read("GET segments").catch((e: unknown) => e as Error),
@@ -289,9 +254,6 @@ export const broadcastsOverride: SurfaceOverride = {
       read("GET settings").catch((e: unknown) => e as Error),
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
-      // What the last thirty days sent and what came back: Campaigns' home draws it. Its own read, as Reports' is, so a
-      // failure there leaves the runs and the audiences standing and the home says it could not read the numbers.
-      read("GET reports/campaigns", { query: { period: HOME_REPORT_PERIOD } }).catch((e: unknown) => e as Error),
     ]);
     const wa =
       ch instanceof Error
@@ -397,7 +359,6 @@ export const broadcastsOverride: SurfaceOverride = {
       templates: offeredMessages(tpl),
       audiences,
       reach: reachCountsOf(rows),
-      report: reportOf(campaigns),
       number,
       ready: bc.ready ?? null,
       month_sent: monthSentOf(bc),

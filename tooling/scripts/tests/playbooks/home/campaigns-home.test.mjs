@@ -101,11 +101,21 @@ function surfaces(over = {}) {
     },
     ...(over.playbooks ?? {}),
   });
+  // A report a test hands the broadcasts surface is Campaigns' own 30 days now (campaign_results), drawn from there.
+  const { report: handed, ...broadcastsOver } = over.broadcasts ?? {};
   setSurfaceValue("broadcasts", {
     ...bc,
     reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
-    report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2 } },
-    ...(over.broadcasts ?? {}),
+    ...broadcastsOver,
+  });
+  setSurfaceValue("campaign_results", {
+    period: "30d",
+    report:
+      over.broadcasts && "report" in over.broadcasts
+        ? handed
+        : { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2 }, sources: [] },
+    chains: null,
+    fetchedAt: 0,
   });
   setSurfaceValue("reach_outs", over.reachOuts ?? []);
   setSurfaceValue("settings", {
@@ -116,7 +126,8 @@ function surfaces(over = {}) {
 }
 
 afterEach(() => {
-  for (const k of ["playbooks", "broadcasts", "reach_outs", "settings"]) setSurfaceValue(k, undefined);
+  for (const k of ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings"])
+    setSurfaceValue(k, undefined);
   globalThis.__DEMO_MODE = false;
   globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 });
@@ -881,7 +892,7 @@ test("a campaign report that failed is said in the numbers' place, with a Retry;
   );
   assert.ok(allBy(tree, "cmh-run").length > 0, "the runs, which are the surface's own, stand");
   pressed(failed.retry);
-  assert.deepEqual(refreshed, ["broadcasts"], "its Retry reads the broadcasts, where the report is read");
+  assert.deepEqual(refreshed, ["campaign_results"], "its Retry reads Campaigns' own 30 days, where the report is read");
 });
 
 test("what came back says what a read is where a text or an email went too (0030), under the funnel, and nothing where WhatsApp alone sent", () => {
@@ -1318,4 +1329,81 @@ test("the Library's count and the home's count both take a message written for e
     pb.templates.length + 3,
     "and it is contracts' libraryCount that says it",
   );
+});
+
+test("Campaigns' own 30 days are one read of each report over its own period, each failing alone: a report that could not be read leaves the chains standing, and a chains' answer is each root's own", async () => {
+  const { campaignResultsOverride } = await import(`${SRC}/surfaces/campaigns/home/results-surface.ts`);
+  const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+  const answer = (data) =>
+    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const refused = () =>
+    new Response(JSON.stringify({ ok: false, error: { code: "unavailable", message: "not read here" } }), {
+      status: 503,
+      headers: { "content-type": "application/json" },
+    });
+  const campaigns = {
+    timezone: ZONE,
+    days: 30,
+    span_days: 60,
+    today: "2026-10-02",
+    series: [],
+    sources: [
+      {
+        id: "pb-1",
+        kind: "playbook",
+        name: "Win-back",
+        template_name: "winback_offer",
+        runs: 2,
+        sent: 14,
+        delivered: 12,
+        read: 7,
+        replied: 3,
+        last_at: "2026-10-01T14:05:00Z",
+      },
+    ],
+  };
+  const chains = { complete: true, by_root: { "ro-1": { written: 9, wrote_back: 2 } } };
+  const asked = [];
+  const read = async (fail) => {
+    const kept = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      const u = new URL(String(url), "https://app.chanlytics.com");
+      asked.push(`${u.pathname}?period=${u.searchParams.get("period")}`);
+      if (u.pathname === "/api/v1/reports/campaigns")
+        return fail === "campaigns" ? refused() : answer({ report: campaigns });
+      if (u.pathname === "/api/v1/reports/reach-outs")
+        return fail === "reach-outs" ? refused() : answer({ report: { chains: [] }, chains });
+      return refused();
+    };
+    try {
+      await campaignResultsOverride.apply();
+      return surfaceValue("campaign_results");
+    } finally {
+      globalThis.fetch = kept;
+    }
+  };
+  const errorWas = console.error;
+  console.error = () => {};
+  try {
+    const both = await read(null);
+    assert.equal(both.period, "30d");
+    assert.deepEqual(
+      both.report.sources,
+      [{ id: "pb-1", kind: "playbook", name: "Win-back", sent: 14, replied: 3, lastAt: "2026-10-01T14:05:00Z" }],
+      "each campaign's own, as the ledger's rows read them",
+    );
+    assert.deepEqual(both.chains, { complete: true, byRoot: { "ro-1": { written: 9, wroteBack: 2 } } });
+    assert.deepEqual(
+      [...new Set(asked)].sort(),
+      ["/api/v1/reports/campaigns?period=30d", "/api/v1/reports/reach-outs?period=30d"],
+      "both over Campaigns' one period, naming no last day",
+    );
+    const noReport = await read("campaigns");
+    assert.deepEqual([noReport.report, noReport.chains.byRoot["ro-1"].written], [null, 9], "the chains stand");
+    const noChains = await read("reach-outs");
+    assert.deepEqual([noChains.report.sources.length, noChains.chains], [1, null], "the report stands");
+  } finally {
+    console.error = errorWas;
+    setSurfaceValue("campaign_results", undefined);
+  }
 });

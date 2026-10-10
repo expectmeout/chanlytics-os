@@ -1,7 +1,8 @@
 /**
  * A read that follows what Reports shows, made once for every one of them: Today's headline (headline.ts), which follows
  * the period by name kept in this browser, and the Reviews lens's (reviews-surface.ts), which follows the range on
- * screen, the days a member picked among them; and Campaigns' when it comes. Part of the SurfaceData seam
+ * screen, the days a member picked among them; and Campaigns' own 30 days (campaigns/home/results-surface.ts), which
+ * follows one fixed period whatever Reports shows. Part of the SurfaceData seam
  * (legacy-bridge/surface-data.ts); a page reads what one publishes through `useSurface(key)`, or through
  * `useFollower(key)` where it must also say how that stands against what is shown.
  *
@@ -27,16 +28,19 @@ import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { isSurfaceDegraded, isSurfaceFailed, surfaceMoved } from "@/legacy-bridge/surface-status";
 import { declareFollower, setSurfaceValue, surfaceValue, type SurfaceKey, type SurfaceValues } from "../surface-values";
 
-/** What a surface follows, the read for it, and the live-feed rule of the surface where it hears the feed at all. */
+/**
+ * What a surface follows, the read for it, and the live-feed rule of the surface where it hears the feed at all: the tables,
+ * where it hears them, and how long after the last change it reads (Campaigns' 30 days wait out a burst, as Reports does).
+ */
 interface PeriodSurfaceOptions<K extends SurfaceKey, R extends ReportRange> {
   key: K;
-  /** The range the surface follows now: the period kept in this browser, or whatever Reports shows. */
+  /** The range the surface follows now: the period kept in this browser, whatever Reports shows, or a fixed period. */
   shown: () => R;
   /** The range a value is of, by its one name (reportRangeKey). */
   of: (value: NonNullable<SurfaceValues[K]>) => string;
   /** The whole value the surface publishes for `range`, made by its one read. */
   read: (range: R) => Promise<NonNullable<SurfaceValues[K]>>;
-  live?: Pick<SurfaceOverride, "refreshOnTables" | "refreshWhen">;
+  live?: Pick<SurfaceOverride, "refreshOnTables" | "refreshWhen" | "debounceMs">;
 }
 
 export function periodSurface<K extends SurfaceKey, R extends ReportRange>({

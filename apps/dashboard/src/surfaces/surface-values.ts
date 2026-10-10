@@ -21,6 +21,7 @@ import type { GoogleSurface } from "../legacy-bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
 import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
+import type { CampaignResultsSurface } from "./campaigns/home/results-surface";
 import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
 import type { ReportHeadlineVM, TodayVM } from "@chanlytics/contracts";
@@ -46,6 +47,8 @@ export interface SurfaceValues {
   playbooks: PlaybooksSurface;
   broadcasts: BroadcastsSurface;
   reach_outs: ReachOutsSurface;
+  /** Campaigns' own 30 days, read where Campaigns is drawn (campaigns/home/results-surface.ts): the funnel's and each row's. */
+  campaign_results: CampaignResultsSurface;
   settings: SettingsSurface;
   live: LiveSurface;
   people: PeopleSurface;
@@ -175,6 +178,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   playbooks: true,
   broadcasts: true,
   reach_outs: true,
+  campaign_results: true,
   settings: true,
   live: true,
   people: true,

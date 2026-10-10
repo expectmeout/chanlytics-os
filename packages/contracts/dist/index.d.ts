@@ -24985,8 +24985,6 @@ interface LifecycleBroadcasts {
     };
     /** Null where the people could not be counted: the ladder says so. */
     reach: ReachCounts | null;
-    /** Null where the campaign report could not be read: the funnel says so, and the runs still stand. */
-    report: LifecycleReport | null;
 }
 /** A template row, as far as the home reads it: the call's text. */
 interface LifecycleTemplate {
@@ -25010,6 +25008,11 @@ interface LifecycleInput {
     messages: readonly Pick<CampaignMessage, "name" | "hidden">[] | null | undefined;
     /** The reach-outs' chains; null where they could not be read. */
     reachOuts: readonly ReachOutChainDto[] | null | undefined;
+    /**
+     * The campaigns' last 30 days, with each campaign's own (the campaign_results surface's report): undefined before it is
+     * read, null where it could not be. "What came back" and each row's "Last 30 days" are drawn from it.
+     */
+    report: LifecycleReport | null | undefined;
 }
 /** Whether the read a tile is made of landed: drawn when it did, said quietly while it is out, the kit's failed read where it failed. */
 type LifecycleTileRead = "read" | "reading" | "failed";
@@ -25243,7 +25246,7 @@ interface LifecycleFailedRead {
     /** What is still current, one sentence. */
     body: string;
     /** The surface its Retry reads again. */
-    surface: "playbooks" | "settings" | "reach_outs" | "broadcasts";
+    surface: "playbooks" | "settings" | "reach_outs" | "broadcasts" | "campaign_results";
 }
 /** Each read the home is made from that failed, or null where it was read (or has not landed yet, which says nothing). */
 interface LifecycleFailed {
@@ -25395,7 +25398,7 @@ declare const LIFECYCLE_WORDS: {
         readonly report: {
             readonly what: "this period's numbers";
             readonly body: "The runs below stand.";
-            readonly surface: "broadcasts";
+            readonly surface: "campaign_results";
         };
         readonly reach: {
             readonly what: "who can hear you";

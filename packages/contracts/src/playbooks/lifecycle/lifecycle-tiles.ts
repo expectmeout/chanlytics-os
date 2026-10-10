@@ -8,6 +8,7 @@ import { purposeOfPlaybook } from "../../consent/consent";
 import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/consent-channels";
 import { GET_YES_ROUTE } from "../../people/people-lists";
 import type { PersonRowVM } from "../../people/person-row";
+import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods";
 import { fmtDay } from "../../reports/reports";
 import { clockHour, clockNear, clockTime, zoneDayKey } from "../../shared/clock";
 import { HOUR_MS } from "../../shared/time";
@@ -35,9 +36,10 @@ import { playbookReach } from "../playbook-reach";
 import { nextOpenMoment, nextRunOf } from "../playbook-schedule";
 import { triggerOf } from "../playbook-triggers";
 
-/** How far ahead "Coming up" looks, and how far back "What came back" does. */
+/** How far ahead "Coming up" looks. */
 const COMING_DAYS = 7;
-const RESULTS_DAYS = 30;
+/** How far back "What came back" looks: Campaigns' period (contracts CAMPAIGNS_RESULTS_PERIOD), a fixed count of days. */
+const RESULTS_DAYS = fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD);
 
 /** How many runs "What came back" lists. */
 const RUNS_SHOWN = 3;
@@ -380,9 +382,9 @@ function cameBack(input: LifecycleInput, days: number): LifecycleCameBack[] {
 }
 
 /**
- * "What came back": the period's funnel from the campaign report (sent, delivered, read, replied: counts over what is stored),
- * who said yes and who asked to stop, and the latest runs. A report that could not be read leaves the numbers out and says
- * so; the runs, which are the surface's own, stand.
+ * "What came back": the period's funnel from the campaign report (the campaign_results surface's: sent, delivered, read,
+ * replied: counts over what is stored), who said yes and who asked to stop, and the latest runs. A report that could not
+ * be read leaves the numbers out and says so; the runs, which are the broadcasts surface's own, stand.
  */
 export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
   const b = input.broadcasts;
@@ -402,10 +404,11 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       quiet: false,
     };
   }
-  const days = b.report?.days ?? RESULTS_DAYS;
+  const report = input.report;
+  const days = report?.days ?? RESULTS_DAYS;
   const note = plural(days, "day");
   const runs = cameBack(input, days);
-  if (!b.report)
+  if (!report)
     return {
       read: "read",
       days,
@@ -419,7 +422,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       runs,
       quiet: false,
     };
-  const t = b.report.totals;
+  const t = report.totals;
   const W = LIFECYCLE_WORDS.results.funnel;
   // A read is a share of WhatsApp's own sends (0030): a text or an email keeps no read receipt. Absent, of every send.
   const readOf = t.readOf ?? t.sent;
@@ -464,7 +467,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
     readNote,
     // What went by each channel (0030), where more than one sent: a line under the funnel in the channels' own words.
     byChannel: countsByChannelWords(
-      b.report.byChannel ? Object.fromEntries(b.report.byChannel.map((c) => [c.channel, c.sent])) : null,
+      report.byChannel ? Object.fromEntries(report.byChannel.map((c) => [c.channel, c.sent])) : null,
     ),
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0,
