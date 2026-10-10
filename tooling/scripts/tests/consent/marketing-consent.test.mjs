@@ -384,7 +384,7 @@ test("the message flow filed with the carriers describes one program, every way 
     "the registered name as the brand was vetted, doing business as the trade name, in the reviewers' own register",
   );
   assert.match(desc, /on Marisa's Beauty Salon's own behalf/, "the business, not the software it sends with");
-  assert.match(desc, /by the Chanlytics OS application/, "and the application layer named, as 30912 asks");
+  assert.match(desc, /by the Chanlytics application/, "and the application layer named, as 30912 asks");
   assert.doesNotMatch(
     desc,
     /wrote to .* first/,
