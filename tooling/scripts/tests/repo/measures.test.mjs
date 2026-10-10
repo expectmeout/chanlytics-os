@@ -542,6 +542,11 @@ test("the writers measure leaves out the tables many places write by design, and
     ["packages/db/src/provider-events.ts"],
     "the intake ledger's purge and scrub only take rows away: one writer",
   );
+  assert.ok(!w.get("leads").has("lead_blank()"), "a lead blanked is a lead's words taken away");
+  assert.ok(
+    w.get("lead_suppressions").has("leads_erase_on_contact()"),
+    "an erasure leg that adds a suppression is a writer of it like any other: the waiver is for what it takes away",
+  );
 });
 
 test("a door writes its event in its body, through a function it calls or through a trigger on what it writes; a door that writes a record and none is counted", () => {
@@ -575,7 +580,9 @@ end $$;
     fn("note_quiet_unprivileged", "update public.notes set id = 2;", false),
     fn("job_schedule", "insert into public.jobs (id) values (1); update public.sweep_status set id = 1;"),
     fn("purge_notes", "delete from public.notes;"),
+    // An erasure's leg is waived for what it takes away, and not for a row it adds.
+    fn("notes_erase_on_contact", "update public.notes set id = null; insert into public.notes (id) values (1);"),
   ].join(`
 `);
-  assert.deepEqual(doorsWithoutEventsIn(sql), { "note_quiet()": 1 });
+  assert.deepEqual(doorsWithoutEventsIn(sql), { "note_quiet()": 1, "notes_erase_on_contact()": 1 });
 });

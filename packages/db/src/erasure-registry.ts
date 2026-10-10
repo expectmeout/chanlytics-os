@@ -86,7 +86,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer"),
   },
   ask_messages: { content: scrubbedBy("ask_scrub") },
-  // A thread whose title or scope quotes them is cleared, and removed once empty (00238); purge_ask is the backstop.
+  // A thread that one of their turns makes theirs, or whose title or scope holds their id, number or address, is
+  // cleared, and removed once empty (00238). A title that names them by name alone stays, as 0036 leaves names; purge_ask
+  // takes the thread at 90 days.
   ask_threads: all(scrubbedBy("ask_scrub"), "title", "scope"),
   // A voice session's page can name a person as its label, and it holds the member's sealed token: the row goes a day
   // after the token expires (sweep_voice_sessions). Its ids and its page's name are nobody's.
@@ -187,7 +189,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
   deals: {
     ...all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
-    // What was sold and in what currency: the deal keeps them, as it keeps its stage and amount.
+    // What was sold and in what currency, kept as its stage and amount are, as a visit keeps its service. The service is
+    // the team's words (80 characters): a name typed into it is the name 0036 leaves, not a number or an address.
     ...all(NOT_PERSONAL, "service", "currency"),
   },
   decisions: { payload: scrubbedBy("erase_contact") },
@@ -300,25 +303,28 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     // What lead_blank keeps: the country, and the stage it came from.
     ...all(NOT_PERSONAL, "country", "stage_from"),
   },
-  // The workspace's own numbers and the carrier's and provider's ids for them, and the carrier's words on its filing.
-  lines: all(
-    NOT_PERSONAL,
-    "a2p_profile_sid",
-    "brand_sid",
-    "campaign_sid",
-    "credential_list_sid",
-    "credentials_ref",
-    "e164",
-    "facts",
-    "last_error",
-    "messaging_service_sid",
-    "number_sid",
-    "profile_sid",
-    "retell_agent_id",
-    "subaccount_sid",
-    "termination_uri",
-    "trunk_sid",
-  ),
+  // The workspace's own numbers and the carrier's and provider's ids for them.
+  lines: {
+    // A member's own number a forwarding test rang from (facts.test_from), and the carrier's words on the filing that
+    // names the workspace's representative.
+    ...all(WITH_WORKSPACE, "facts", "last_error"),
+    ...all(
+      NOT_PERSONAL,
+      "a2p_profile_sid",
+      "brand_sid",
+      "campaign_sid",
+      "credential_list_sid",
+      "credentials_ref",
+      "e164",
+      "messaging_service_sid",
+      "number_sid",
+      "profile_sid",
+      "retell_agent_id",
+      "subaccount_sid",
+      "termination_uri",
+      "trunk_sid",
+    ),
+  },
   // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
   memberships: all(NOT_PERSONAL, "push_off", "views"),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),

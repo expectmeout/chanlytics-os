@@ -208,15 +208,17 @@ function schemaTables(sql) {
 /**
  * The tables a SQL function's body writes, read from its tokens: `insert into`, `delete from`, and `update` that is not
  * an upsert's `do update` or a lock's `for update` / `for no key update`. A name the schema has no table for (a CTE,
- * `set`) is not one. A statement built as a string (`execute format(…)`) is not seen.
+ * `set`) is not one. A statement built as a string (`execute format(…)`) is not seen. With `inserts`, only the tables
+ * it inserts into.
  */
-export function tablesWrittenBy(body, tables) {
+export function tablesWrittenBy(body, tables, { inserts = false } = {}) {
   const out = new Set();
   const toks = statementsOf(body).flatMap((x) => x.tokens);
   const nameAt = (k) => (isSqlWord(toks[k], "public") && toks[k + 1]?.value === "." ? toks[k + 2] : toks[k]);
   for (let k = 0; k < toks.length; k++) {
     let t = null;
     if (isSqlWord(toks[k], "insert") && isSqlWord(toks[k + 1], "into")) t = nameAt(k + 2);
+    else if (inserts) continue;
     else if (isSqlWord(toks[k], "delete") && isSqlWord(toks[k + 1], "from")) t = nameAt(k + 2);
     else if (isSqlWord(toks[k], "update") && !["do", "for", "key"].some((w) => isSqlWord(toks[k - 1], w)))
       t = nameAt(isSqlWord(toks[k + 1], "only") ? k + 2 : k + 1);
@@ -237,7 +239,8 @@ const MANY_WRITERS_BY_DESIGN = new Set(["events", "decisions", "sweep_status"]);
  * A writer that only removes what age or an erasure takes, which reaches its tables by design: a purge, a scrub, the
  * erasure's own legs (erase_contact, and the triggers its tombstone fires, `<table>_erase_on_contact` and
  * `<column>_on_erase`), and lead_blank, the one function retention and erasure blank a lead through. 0036's registry is
- * what holds those, not this count.
+ * what holds those, not this count. Waived for what such a writer updates and deletes, never for a table it inserts into:
+ * a row it adds (a suppression an erasure leaves, say) is a writer of that table like any other.
  */
 const takesAway = (who) =>
   /^(purge_|erase_)|scrub|(_erase_on_contact|_on_erase)\(\)$|^lead_blank\(\)$/.test(who) ||
@@ -246,20 +249,23 @@ const takesAway = (who) =>
 /**
  * Each table and who writes it: every source module whose supabase-js chain writes it (_ast.mjs tablesWrittenIn), and
  * every live SQL function whose body does, as supabase/schema.sql holds the functions the migrations leave standing.
- * A table written from many places by design, and a writer that only takes rows away, are left out.
+ * A table written from many places by design, and what a writer that takes away updates or deletes, are left out.
  */
 export function writersByTable() {
   const sql = readRaw(SCHEMA_SQL);
   const tables = schemaTables(sql);
   const writers = new Map();
-  const add = (table, who) => {
-    if (!tables.has(table) || MANY_WRITERS_BY_DESIGN.has(table) || takesAway(who)) return;
+  const add = (table, who, inserted = false) => {
+    if (!tables.has(table) || MANY_WRITERS_BY_DESIGN.has(table) || (takesAway(who) && !inserted)) return;
     if (!writers.has(table)) writers.set(table, new Set());
     writers.get(table).add(who);
   };
   for (const f of SRC) for (const t of tablesWrittenIn(parse(f))) add(t, f);
   for (const c of functionChangesIn(sql))
-    if (c.kind === "create" && c.body) for (const t of tablesWrittenBy(c.body, tables)) add(t, `${c.name}()`);
+    if (c.kind === "create" && c.body) {
+      const inserted = tablesWrittenBy(c.body, tables, { inserts: true });
+      for (const t of tablesWrittenBy(c.body, tables)) add(t, `${c.name}()`, inserted.has(t));
+    }
   return writers;
 }
 
@@ -314,8 +320,12 @@ export function doorsWithoutEventsIn(sql) {
   }
   const out = {};
   for (const n of [...definer].sort()) {
-    if (evented.has(n) || takesAway(`${n}()`)) continue;
-    const records = [...(writes.get(n) ?? [])].filter((t) => !MANY_WRITERS_BY_DESIGN.has(t) && !SPINE.has(t));
+    if (evented.has(n)) continue;
+    // A writer that takes away is waived for what it updates and deletes, as the writers measure waives it.
+    const inserted = takesAway(`${n}()`) ? tablesWrittenBy(bodies.get(n), tables, { inserts: true }) : null;
+    const records = [...(writes.get(n) ?? [])].filter(
+      (t) => !MANY_WRITERS_BY_DESIGN.has(t) && !SPINE.has(t) && (!inserted || inserted.has(t)),
+    );
     if (records.length) out[`${n}()`] = records.length;
   }
   return out;

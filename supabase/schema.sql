@@ -5170,7 +5170,8 @@ CREATE FUNCTION public.lead_blank(p_lead_id uuid) RETURNS integer
     SET search_path TO 'public'
     AS $$
 declare
-  v_n integer;
+  v_n      integer;
+  v_tenant uuid;
 begin
   -- Kept: id, tenant_id, stage, closed_reason, contact_id, converted_at,
   -- contacted_at, exported_at, found_at, erased_at, the counts on its
@@ -5184,7 +5185,8 @@ begin
          -- What the listing showed about the business goes with the rest (D2).
          about = null, hours = '[]'::jsonb, image_url = null, price = null, reviews_dist = null,
          facebook_url = null, linkedin_url = null, tiktok_url = null, claimed = null, maps_url = null, rank = null, neighborhood = null, logo_url = null, mark_path = null
-   where id = p_lead_id;
+   where id = p_lead_id
+  returning tenant_id into v_tenant;
   get diagnostics v_n = row_count;
   delete from public.lead_places where lead_id = p_lead_id;
   update public.lead_search_members
@@ -5194,11 +5196,12 @@ begin
   -- reason and the digest of the words it checked.
   update public.reach_out_sends
      set opening = null, angle = null, hold_detail = null
-   where lead_id = p_lead_id and (opening is not null or angle is not null or hold_detail is not null);
+   where tenant_id = v_tenant and lead_id = p_lead_id
+     and (opening is not null or angle is not null or hold_detail is not null);
   -- A preference's example copied from this lead (00383).
   update public.lead_preferences
      set example = null
-   where from_lead_id = p_lead_id and example is not null;
+   where tenant_id = v_tenant and from_lead_id = p_lead_id and example is not null;
   return v_n;
 end $$;
 
@@ -26337,6 +26340,13 @@ CREATE INDEX lead_operations_search ON public.lead_operations USING btree (searc
 --
 
 CREATE INDEX lead_places_lead ON public.lead_places USING btree (lead_id);
+
+
+--
+-- Name: lead_preferences_from_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_preferences_from_lead ON public.lead_preferences USING btree (tenant_id, from_lead_id) WHERE (from_lead_id IS NOT NULL);
 
 
 --

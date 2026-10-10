@@ -53,6 +53,8 @@ let B;
 let route;
 let setServiceClient;
 const made = { providerEvents: [] };
+/** The Ask threads seeded, by what makes them the person's. */
+const asked = {};
 
 const ok = (r, what) => {
   assert.equal(r.error, null, `${what}: ${r.error?.message}`);
@@ -455,13 +457,26 @@ async function seed() {
     source: "page",
   });
 
-  const thread = await insert("ask_threads", {
+  // Two Ask threads that outlive the scrub, each with a turn that is not theirs: one their words make theirs, its title
+  // and scope quoting them; one scoped to them by their id alone. Each keeps its other turn and loses its title and scope.
+  asked.quoted = await insert("ask_threads", {
     tenant_id: T,
     user_id: U,
     title: WORDS,
     scope: { kind: "person", id: A, label: WORDS },
   });
-  await insert("ask_messages", { thread_id: thread, tenant_id: T, user_id: U, role: "user", content: { text: WORDS } });
+  asked.scoped = await insert("ask_threads", {
+    tenant_id: T,
+    user_id: U,
+    title: "Their booking",
+    scope: { kind: "person", id: A, label: "Their booking" },
+  });
+  for (const [thread, text] of [
+    [asked.quoted, WORDS],
+    [asked.quoted, "Anything else?"],
+    [asked.scoped, "Anything else?"],
+  ])
+    await insert("ask_messages", { thread_id: thread, tenant_id: T, user_id: U, role: "user", content: { text } });
 
   const pe = `pe-${RUN}`;
   made.providerEvents.push(pe);
@@ -539,6 +554,19 @@ test(
     );
     const [row] = query(`select facts from public.broadcast_recipients where tenant_id = '${T}'`);
     assert.equal(row.facts, null, "the run's row for them is kept, the words it kept for them gone");
+    // Their Ask threads are kept with the turns that are not theirs, the title and the scope cleared.
+    const asks = query(
+      `select id, title, scope, (select count(*)::int from public.ask_messages m where m.thread_id = t.id) as turns
+         from public.ask_threads t where t.id in ('${asked.quoted}', '${asked.scoped}')`,
+    );
+    assert.deepEqual(
+      asks.map((t) => [t.id === asked.quoted ? "quoted" : "scoped", t.title, t.scope, t.turns]).sort(),
+      [
+        ["quoted", "", null, 1],
+        ["scoped", "", null, 1],
+      ],
+      "a thread their words or their id made theirs keeps its other turn, and loses its title and scope",
+    );
 
     // Someone else's record is kept, with only the needles gone.
     const [note] = query(`select body from public.person_notes where contact_id = '${B}'`);
