@@ -585,23 +585,23 @@ test("the detail says what it keeps to: the workspace's mode for its class, and 
 
   // The guardrails: who it reaches for the channels it goes by (contracts consentGuardWords), the moment's own rule, and
   // who the wire holds back (contracts heldBackWords). WhatsApp's reach is a recorded yes and a phone number.
-  const guard = pbGuardWords("visit", ["whatsapp"], "conversational");
+  const guard = pbGuardWords({ kind: "visit", word: "visit" }, ["whatsapp"], "conversational");
   assert.equal(
     guard,
     "Only people with a recorded yes to hearing from you and a phone number. One message per visit. People who asked to stop, have no phone number, or are mid-thread with a person are held back at the wire.",
   );
   assert.doesNotMatch(guard, /gap|a week/, "no gap and no breath are promised for a visit trigger");
   assert.match(
-    pbGuardWords("list", ["whatsapp"], "marketing"),
+    pbGuardWords({ kind: "list", word: "visit" }, ["whatsapp"], "marketing"),
     /^Only people with a recorded yes to offers and a phone number\. Never twice within its gap, and one campaign message per person a week, across every campaign\./,
   );
   assert.match(
-    pbGuardWords("deal", ["whatsapp"], "conversational"),
+    pbGuardWords({ kind: "deal", word: "visit" }, ["whatsapp"], "conversational"),
     /Their proposal has its link and nothing back\. One message per proposal, and one campaign message per person a week, across every campaign\./,
   );
   // An offer by email asks no recorded yes and no number: a yes to offers by email or a relationship on record, and an
   // address that works, and the wire's holds name an address, not a number.
-  const byMail = pbGuardWords("list", ["email"], "marketing");
+  const byMail = pbGuardWords({ kind: "list", word: "visit" }, ["email"], "marketing");
   assert.ok(
     byMail.startsWith(
       "Only people with a yes to offers by email or a relationship with you on record, and an email address that works.",
@@ -610,6 +610,32 @@ test("the detail says what it keeps to: the workspace's mode for its class, and 
   );
   assert.doesNotMatch(byMail, /phone number|a number/);
   assert.match(byMail, /have no email address that works/);
+});
+
+test("the drawer and the composer say the workspace's own word for an appointment, never a visit written in (spec §4.8)", () => {
+  const session = { shape: { calendar: "feed", dealsOn: false, word: "session" } };
+  const W = contracts.appointmentWords("session");
+  // The composer's clock, on each moment of the appointment.
+  const before = textOf(byTestId(composing(session, "visit_tomorrow"), "pb-clock"));
+  assert.ok(before.includes(`to ${W.tomorrowWho} — one message per ${W.one}.`), before);
+  assert.ok(before.includes("everyone with a session tomorrow — one message per session."), before);
+  const after = textOf(byTestId(composing(session, "visited"), "pb-clock"));
+  assert.ok(after.includes(`to ${W.yesterdayWho} — one message per ${W.one}.`), after);
+  assert.doesNotMatch(before + after, /\bvisit/i);
+  // Its guardrails, behind the shield.
+  const guard = byTestId(composing(session, "visit_tomorrow"), "pb-guard").props["data-tip"];
+  assert.match(guard, /One message per session\./);
+  assert.equal(
+    pbGuardWords({ kind: "visit", word: "session" }, ["whatsapp"], "conversational"),
+    "Only people with a recorded yes to hearing from you and a phone number. One message per session. People who asked to stop, have no phone number, or are mid-thread with a person are held back at the wire.",
+  );
+  // The drawer's count: the day's sessions are picked from the people who said yes.
+  const pane = paneOf(
+    playbook({ id: "pb-v", name: "The day before", trigger: "visit_tomorrow", policy_class: "booking" }),
+    session,
+  );
+  const tip = find(pane, (n) => n.props?.["data-testid"] === "pb-audience");
+  assert.match(tip.props["data-tip"], /^Everyone with a recorded yes — the day's sessions are picked from them/);
 });
 
 /* ------------------------------- Send by (One message, every channel, step 3) ------------------------------- */
@@ -1226,7 +1252,7 @@ test("the preview steps through the channels the playbook goes by, each as that 
     ),
     "the foot is the one the run sends (contracts emailFoot), with a visit's reason",
   );
-  assert.ok(now.foot.startsWith("You're getting this because of your visit with Northside Studio."));
+  assert.ok(now.foot.startsWith("You're getting this because of your appointment with Northside Studio."));
   assert.ok(now.foot.includes("Reply STOP to stop these emails."));
   // Back to the first, from the last: the walk wraps.
   nextChannel();

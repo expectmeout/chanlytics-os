@@ -93,7 +93,7 @@ export { ROLES, ROLE_PERMS, ROLE_SAYS, TEAM_ROLES, roleSays, roleTable } from ".
 export { isOptedOutContact, isOfferByEmail, mayMessageFor, relationshipOnRecord, consentChangeOf, purposeOfTemplate, purposeOfPlaybook, OPT_OUT_REFUSAL, optOutWords, stopRequestQuestion, DELIVERY_REFUSALS, PURPOSE_REFUSALS } from "./consent/consent";
 export { yesAsked, consentGuardWords, consentRuleWords } from "./consent/consent-asks";
 export { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, channelsOfYes, yesCovers, coveredChannels, channelsWords } from "./consent/consent-channels";
-export { policyLinks, optInConfirmation, verbalOptInScript, consentPageVM, consentFormVM, consentPageMetadata, consentFormMetadata, deskSignVM, deskSignMetadata, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE } from "./consent/consent-page";
+export { policyLinks, optInConfirmation, verbalOptInScript, consentPageVM, consentFormVM, consentPageMetadata, consentFormMetadata, deskSignVM, deskSignMetadata, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, CONVERSATIONAL_ASK_TITLE } from "./consent/consent-page";
 export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./consent/offers-unsubscribe";
 export { ABANDONED_MS, abandonedCall, callAttemptWords, missedCall, reachedVoicemail, DISCONNECTION_LABELS } from "./conversations/call-dto";
 export { spokenDuration, toCallVM } from "./conversations/call-vm";

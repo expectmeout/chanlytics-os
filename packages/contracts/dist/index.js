@@ -2493,7 +2493,7 @@ var SENDER_WORDS = {
     offerAsked: (who) => `You asked for offers from ${who}.`,
     offerCustomer: (who) => `You're a customer of ${who}.`,
     visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
-    visitBooked: (who) => `You're getting this because of your visit with ${who}.`,
+    visitBooked: (who) => `You're getting this because of your appointment with ${who}.`,
     visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`
   },
   es: {
@@ -2506,7 +2506,7 @@ var SENDER_WORDS = {
     offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
     offerCustomer: (who) => `Eres cliente de ${who}.`,
     visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
-    visitBooked: (who) => `Recibes esto por tu visita con ${who}.`,
+    visitBooked: (who) => `Recibes esto por tu cita con ${who}.`,
     visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`
   }
 };
@@ -13449,7 +13449,7 @@ var STARTER_TEMPLATES = [
     },
     texts: {
       en_US: {
-        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next visit, pick a time here: {{3}}.",
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
         footer: STOP_EN,
         slots: [FIRST, BUSINESS, LINK]
       },
@@ -19901,10 +19901,11 @@ function waysFor(f, phrase) {
   }
   return ways;
 }
+var CONVERSATIONAL_ASK_TITLE = "Messages about your appointment";
 function askWords(name) {
   return {
     conversational: {
-      title: "Messages about your visit",
+      title: CONVERSATIONAL_ASK_TITLE,
       lead: `Appointment reminders and confirmations from ${name}, and a reply when you write to them.`,
       optional: null,
       terms: [
@@ -19943,7 +19944,7 @@ function consentPageVM(f) {
   ];
   return {
     title: `Text messages from ${name}`,
-    lead: empty ? `${name} is not set up to take sign-ups here yet.` : asks.length > 1 ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.` : `One thing you can say yes to, in your own message from your own phone: messages about your visit. ${name} never sells or shares your number.`,
+    lead: empty ? `${name} is not set up to take sign-ups here yet.` : asks.length > 1 ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.` : `One thing you can say yes to, in your own message from your own phone: messages about your appointment. ${name} never sells or shares your number.`,
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: bothTerms(name),
@@ -20021,19 +20022,19 @@ var SAYS = {
     ask: {
       title: "Unsubscribe",
       lead: (b) => `Stop offers from ${b}?`,
-      body: (b) => `Press the button and ${b} won't send you offers by email again. You'll still get messages about your visits.`,
+      body: (b) => `Press the button and ${b} won't send you offers by email again. You'll still get messages about your appointments.`,
       button: "Unsubscribe from offers"
     },
     done: {
       title: "Unsubscribed",
       lead: (b) => `You're unsubscribed from offers from ${b}.`,
-      body: "You'll still get messages about your visits.",
+      body: "You'll still get messages about your appointments.",
       button: "Stop all messages"
     },
     stopAsk: {
       title: "Stop all messages",
       lead: (b) => `Stop every message from ${b}?`,
-      body: "That includes reminders and confirmations about your visits. Nothing more will go to you by email, text or WhatsApp.",
+      body: "That includes reminders and confirmations about your appointments. Nothing more will go to you by email, text or WhatsApp.",
       button: "Yes, stop all messages"
     },
     stopped: {
@@ -20048,19 +20049,19 @@ var SAYS = {
     ask: {
       title: "Darme de baja",
       lead: (b) => `\xBFDejar de recibir ofertas de ${b}?`,
-      body: (b) => `Pulsa el bot\xF3n y ${b} no volver\xE1 a enviarte ofertas por correo. Seguir\xE1s recibiendo mensajes sobre tus visitas.`,
+      body: (b) => `Pulsa el bot\xF3n y ${b} no volver\xE1 a enviarte ofertas por correo. Seguir\xE1s recibiendo mensajes sobre tus citas.`,
       button: "Darme de baja de las ofertas"
     },
     done: {
       title: "Te diste de baja",
       lead: (b) => `Te diste de baja de las ofertas de ${b}.`,
-      body: "Seguir\xE1s recibiendo mensajes sobre tus visitas.",
+      body: "Seguir\xE1s recibiendo mensajes sobre tus citas.",
       button: "Dejar de recibir todos los mensajes"
     },
     stopAsk: {
       title: "Dejar de recibir todos los mensajes",
       lead: (b) => `\xBFDejar de recibir todos los mensajes de ${b}?`,
-      body: "Eso incluye los recordatorios y las confirmaciones de tus visitas. No recibir\xE1s nada m\xE1s por correo, mensaje de texto ni WhatsApp.",
+      body: "Eso incluye los recordatorios y las confirmaciones de tus citas. No recibir\xE1s nada m\xE1s por correo, mensaje de texto ni WhatsApp.",
       button: "S\xED, dejar de recibir todos los mensajes"
     },
     stopped: {
@@ -38637,6 +38638,7 @@ export {
   CONSENT_STATES,
   CONSULT_FIRST_DEAL_HINT,
   CONSULT_FOLLOW_DAYS,
+  CONVERSATIONAL_ASK_TITLE,
   CONVERSATION_MOVES,
   CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_PHRASE,

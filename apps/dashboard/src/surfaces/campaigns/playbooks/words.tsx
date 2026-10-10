@@ -4,6 +4,7 @@
  */
 import {
   PLAYBOOK_REACH_WORDS,
+  appointmentWords,
   clockHour,
   consentGuardWords,
   heldBackWords,
@@ -13,6 +14,7 @@ import {
   playbookReachDoor,
 } from "@chanlytics/contracts";
 import type {
+  AppointmentWord,
   AskedPurpose,
   ConsentChannel,
   MessageAbout,
@@ -232,15 +234,17 @@ const pbSentence = (clause: string) => `${clause.charAt(0).toUpperCase()}${claus
 // What every run keeps to, behind the shield: who it reaches (pbWhoWords), the moment's own rule, and who the wire holds back
 // (contracts heldBackWords) for the channels it goes by.
 // `about` is the moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs (decision D1).
+// `on` is the moment's kind and what the workspace calls an appointment: a reminder's rule says the page's one word.
 export const pbGuardWords = (
-  kind: string,
+  on: { kind: string; word: AppointmentWord },
   channels: readonly ConsentChannel[],
   purpose: AskedPurpose,
   about: MessageAbout,
 ) => {
+  const { kind } = on;
   const moment =
     kind === "visit"
-      ? "One message per visit."
+      ? `One message per ${appointmentWords(on.word).one}.`
       : kind === "deal"
         ? "Their proposal has its link and nothing back. One message per proposal, and one campaign message per person a week, across every campaign."
         : "Never twice within its gap, and one campaign message per person a week, across every campaign.";

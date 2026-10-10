@@ -15,6 +15,7 @@ import {
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
   appointmentWordOf,
+  appointmentWords,
   pipelineRoute,
   poolWords,
 } from "@chanlytics/contracts";
@@ -307,7 +308,7 @@ function sentenceCounted(c: CardCtx) {
         className="ob-link"
         data-tip={
           trig && trig.kind === "visit"
-            ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People"
+            ? `Everyone with a recorded yes — the day's ${appointmentWords(word).many} are picked from them · click to open them in People`
             : trig && trig.kind === "deal"
               ? "The proposals waiting with nothing back — before their links, their follow-ups and the week's breath · click to open them in the Pipeline"
               : "The list this campaign watches — before the gap and the week's breath · click to open it in People"

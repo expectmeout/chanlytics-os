@@ -15,6 +15,7 @@ import {
   PREVIEW_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
+  appointmentWords,
   messageAboutOfTrigger,
   momentHoldsWords,
   noMessageWords,
@@ -472,6 +473,8 @@ export function viaSection(x: SectionCtx) {
 function whenSentence(x: SectionCtx) {
   const { f, trig, visits, monthly, city, setHour, setCap, setGap, setCadence } = x;
   const repeat = monthly ? f.cadence : f.gap;
+  // Who a moment of the appointment reaches, in the workspace's own word (spec §4.8: one page, one word).
+  const W = appointmentWords(x.data.shape.word);
   return (
     <p className="pb-when">
       Every day at{" "}
@@ -486,11 +489,7 @@ function whenSentence(x: SectionCtx) {
       {city ? ` ${city} time` : ""}
       {visits ? (
         <>
-          , to{" "}
-          {f.trigger === "visit_tomorrow"
-            ? "everyone with a visit the next day"
-            : "everyone who came in the day before"}{" "}
-          — one message per visit.
+          , to {f.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} — one message per {W.one}.
         </>
       ) : (
         <>
@@ -538,7 +537,7 @@ function whenSentence(x: SectionCtx) {
 export function underLine(x: SectionCtx) {
   const { trig, runsUnder, kept, purpose } = x;
   const about = messageAboutOfTrigger(trig ? trig.id : null);
-  const guard = pbGuardWords(trig ? trig.kind : "", kept, purpose, about);
+  const guard = pbGuardWords({ kind: trig ? trig.kind : "", word: x.data.shape.word }, kept, purpose, about);
   return (
     <div className="pb-rules-line">
       {runsUnder && (

@@ -263,7 +263,7 @@ test("one batch, three channels: WhatsApp's template, the text version with its 
     [
       "Hi Cy, your visit is tomorrow at 2:00 PM.",
       "",
-      "You're getting this because of your visit with Marisa's.",
+      "You're getting this because of your appointment with Marisa's.",
       // The foot now says how to stop these emails: they carry no unsubscribe link.
       "Reply STOP to stop these emails.",
       "Marisa's · 12 Main St, Springfield",

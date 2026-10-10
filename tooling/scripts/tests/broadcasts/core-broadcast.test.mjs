@@ -1239,7 +1239,7 @@ test("an email is written queued first, frozen from the version's subject and bo
     body: "Hi Ada, your visit is tomorrow at 2:00 PM.",
     // The foot now says how to stop these emails (they carry no unsubscribe link).
     footer:
-      "You're getting this because of your visit with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
+      "You're getting this because of your appointment with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
   });
   const queued = f.of("queueEmail")[0][1];
   assert.deepEqual(queued, {
@@ -1314,7 +1314,7 @@ test("an email's foot says why they hear from the business and from whom: the vi
     "You're getting this because you've been in touch with Marisa's.\nReply STOP to stop these emails.",
   ]);
   assert.deepEqual(await footers(VISIT), [
-    "You're getting this because of your visit with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
+    "You're getting this because of your appointment with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
   ]);
 });
 

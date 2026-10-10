@@ -5,7 +5,7 @@
  * composes it again and `resubmitRejectedCampaign` (a2p-refile.ts) sends the fields
  * Twilio lets it edit.
  */
-import { optInConfirmation, verbalOptInScript } from "../packages/contracts.js";
+import { CONVERSATIONAL_ASK_TITLE, optInConfirmation, verbalOptInScript } from "../packages/contracts.js";
 
 /**
  * What the workspace tells a reviewer about the messages it will send.
@@ -277,7 +277,7 @@ function campaignMessageFlow(
   const flowEnding = (autoReply: string, purchase: boolean) =>
     [
       `${name} collects opt-in directly from the customer, for one program: replies to what they write, and confirmations and reminders about their own appointments. No promotional messages are sent under this campaign.`,
-      `(1) KEYWORD START on the sign-up page (${o.optInUrl}), public: under "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, and to reply HELP for help and STOP to stop; ${purchase ? "at its foot, that consent is not a condition of purchase; " : ""}privacy policy and terms are linked on the page. It shows the number; the customer opts in by texting START to it from their own phone and ${autoReply}`,
+      `(1) KEYWORD START on the sign-up page (${o.optInUrl}), public: under "${CONVERSATIONAL_ASK_TITLE}" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, and to reply HELP for help and STOP to stop; ${purchase ? "at its foot, that consent is not a condition of purchase; " : ""}privacy policy and terms are linked on the page. It shows the number; the customer opts in by texting START to it from their own phone and ${autoReply}`,
       `(2) PAPER FORM (${formUrl}), public: the same statement above an unticked box, signed and dated at the business; staff record it on the profile as "Sign-up form" with the date and keep the sheet.`,
       `(3) IN PERSON OR ON THE PHONE: staff ask "${script}" and record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions.`,
       `A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by (1), (2) or (3). STOP at any time ends all messages. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,

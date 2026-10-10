@@ -47,6 +47,51 @@ test("no salon words reach a customer of another trade", () => {
   assert.deepEqual(hits, [], `salon words in code a customer reads:\n${hits.join("\n")}`);
 });
 
+test("what a customer of any trade reads says appointment, never one trade's visit (decision 6)", async () => {
+  const c = await import("@chanlytics/contracts");
+  const VISIT = /(?<![\w-])visit(?:a)?s?(?![\w-])/i;
+  const both = { businessName: "Harbor Studio", whatsappE164: "+13055550100", smsE164: "+13055550100" };
+  // Both asks, and the one a workspace with its texting line alone shows, whose lead names what it is for.
+  const pages = [both, { ...both, whatsappE164: null }].map((f) => c.consentPageVM(f));
+  const consent = pages.flatMap((page) => [
+    page.title,
+    page.lead,
+    ...page.asks.flatMap((a) => [a.title, a.lead, ...a.terms]),
+  ]);
+  const form = c.consentFormVM(both);
+  const paper = [form.title, form.lead, ...form.sections.flatMap((s) => [s.title, s.lead, s.box, ...s.terms])];
+  const unsubscribe = ["en", "es"].flatMap((language) =>
+    ["ask", "done", "stop_ask", "stopped"].flatMap((kind) => {
+      const w = c.offerUnsubscribeWords({ kind, business: "Harbor Studio" }, language);
+      return [w.title, w.lead, w.body, w.foot ?? ""];
+    }),
+  );
+  const foot = Object.values(c.SENDER_WORDS).flatMap((w) => [
+    w.visitProposal("Harbor Studio"),
+    w.visitBooked("Harbor Studio"),
+    w.visitInTouch("Harbor Studio"),
+  ]);
+  // Every version of every starter, the retired among them: WhatsApp's, the email's and the text's.
+  const starters = c.STARTER_TEMPLATES.flatMap((s) =>
+    [s.texts, s.email ?? {}, s.sms ?? {}].flatMap((set) =>
+      Object.values(set).flatMap((t) => [t.body, t.subject ?? "", t.footer ?? ""]),
+    ),
+  );
+  const said = [...consent, ...paper, ...unsubscribe, ...foot, ...starters];
+  assert.ok(said.length > 20, "the builders were read");
+  assert.deepEqual(
+    said.filter((s) => VISIT.test(s)),
+    [],
+    "a customer reads the glossary's word, appointment (cita), whatever the business's trade",
+  );
+  assert.equal(
+    c.CONVERSATIONAL_ASK_TITLE,
+    "Messages about your appointment",
+    "the consent page's heading, in one place",
+  );
+  assert.equal(pages[0].asks[0].title, c.CONVERSATIONAL_ASK_TITLE);
+});
+
 test("the scanner reads what a reader reads", () => {
   const lines = readerLines(
     `// a stylist in a comment\nconst a = c.therapist; /* salon */ const b = "salon"; // trade-word: kept on purpose\nconst c = "haircut";\n/* stylist\n balayage */\nconst d = 1;`,
