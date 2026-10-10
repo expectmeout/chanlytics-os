@@ -16,11 +16,11 @@ import {
   PLAYBOOK_NAME_MAX,
   PLAYBOOK_VETO_DELAY_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
-  allowanceBeforeSend,
   cleanParam,
   dealPaceOf,
   dealsAreOn,
   defaultParamSpecs,
+  heldBackOfOneRun,
   parseListToken,
   parseParamSpec,
   playbookChannelsRead,
@@ -28,6 +28,7 @@ import {
   proposalChannelsWords,
   purposeOfPlaybook,
   readyOrWhatsApp,
+  runReadingOf,
   saidYesWords,
   scheduleLine,
   slotLabels,
@@ -43,6 +44,7 @@ import {
   type ListRef,
   type MessageAbout,
   type ParamSpec,
+  type RunReading,
   type StarterTemplate,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
@@ -50,7 +52,15 @@ import { followUpOnFile, listPolicies, runningTwins } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead, sellsByOf } from "../../../people/deals";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
-import { checkPlaybookInput, noFollowUps, proposalFollowUps, type PlaybookInput } from "../../../campaigns/playbooks";
+import { PLAYBOOK_POOL } from "../../../campaigns/playbook-pools";
+import {
+  checkPlaybookInput,
+  noFollowUps,
+  poolTouches,
+  proposalFollowUps,
+  recentTouches,
+  type PlaybookInput,
+} from "../../../campaigns/playbooks";
 import { checkStarterPlaybook } from "../../../campaigns/starter-templates";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
@@ -416,11 +426,12 @@ async function twinRefusal(t: ToolContext, checked: PlaybookInput, named: string
 }
 
 /**
- * Who a new playbook's run reaches now, and who its moment names said the yes it needs, as a run counts them (audience.ts
- * poolList over the pool, the week's touches, a proposal's pace less whoever had their follow-up), with the workspace's
- * autonomy rows; or why not, in the model's words. `message` is the yes its words need; `how` the channels it goes by,
- * the workspace ready on them or not: a run holds the people it cannot reach there. `cap` is the campaign's own
- * cap_per_run: `oneRun` is who one run of it reaches on each channel, what the month's allowance is held against.
+ * Who a new playbook's run reaches now, and who its moment names said the yes it needs, as the page's pools count them
+ * (audience.ts poolList over the pool; the week's touches and a proposal's follow-ups by poolTouches, as triggerPools
+ * reads them; a proposal's pace), with the workspace's autonomy rows; or why not, in the model's words. `message` is the
+ * yes its words need; `how` the channels it goes by, the workspace ready on them or not: a run holds the people it cannot
+ * reach there. `cap` is the campaign's own cap_per_run: `reading` carries who one run of it reaches on each channel, read
+ * off the same draw (contracts runReadingOf), what the month's allowance is held against.
  */
 async function reachNow(
   t: ToolContext,
@@ -431,51 +442,53 @@ async function reachNow(
   cap: number,
 ) {
   const deal = trig.kind === "deal";
-  const [pool, policies, paceRead, followUps] = await Promise.all([
+  const [pool, policies, paceRead, followUps, touched] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
     deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(noFollowUps()),
+    // Who any campaign reached this week (the week's breath), the page's own read of it.
+    recentTouches(t.ctx, t.tenantId, t.now).catch(() => null),
   ]);
   if (!followUps)
     return {
       refusal: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
     };
-  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>(), ...followUps };
+  if (!touched)
+    return {
+      refusal: "who heard from a campaign this week could not be read just now; say so, and try again in a moment",
+    };
   // A list's people, as a run counts them (listedPeople).
   const listed = listRef ? await listedPeople(t, pool, listRef) : { ids: null, label: null };
   if ("refusal" in listed) return listed;
-  // The yes its message needs, with its moment's: the check held the two to agree, so the stricter is either.
-  const draw = (capPerRun: number) =>
-    playbookRunReach(
-      pool.rows,
-      { trigger: trig.id, cap_per_run: capPerRun, gap_days: 0, cadence_days: 0, message, ...how },
-      untouched,
-      t.now.getTime(),
-      dealPaceOf(paceRead),
-      listed.ids,
-    );
-  // Everyone the moment names now, uncapped (the page's count), and one run of it at its own cap, as the run takes them.
-  const drawn = draw(100_000);
-  const oneRun = draw(cap).reach.by_channel;
-  return { drawn, oneRun, policies, listLabel: listed.label };
+  // Everyone the moment reaches now, uncapped (the page's count), with the yes its message needs and its moment's: the
+  // check held the two to agree, so the stricter is either.
+  const drawn = playbookRunReach(
+    pool.rows,
+    { trigger: trig.id, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0, message, ...how },
+    poolTouches(touched, followUps),
+    t.now.getTime(),
+    dealPaceOf(paceRead),
+    listed.ids,
+  );
+  return { drawn, reading: runReadingOf(drawn, trig.id, [cap]), policies, listLabel: listed.label };
 }
 
 /**
- * What the month's email and text allowance will hold back of a run that goes by them (A7; contracts
- * allowanceBeforeSend, the composer's own sentence), with its separator; nothing while there is room, where it goes by
- * WhatsApp alone (no count is read), or where the month could not be counted.
+ * What the month's email and text allowance will hold back of one run of it at its cap, where it goes by them (A7;
+ * contracts heldBackOfOneRun, the composer's own rule and sentence), with its separator; nothing while there is room,
+ * where it goes by WhatsApp alone (no count is read), or where the month could not be counted.
  */
 async function allowanceHeld(
   t: ToolContext,
   channels: readonly ConsentChannel[],
-  byChannel: Record<ConsentChannel, number> | undefined,
-  trigger: string | null,
+  reading: RunReading,
+  run: { trigger: string; cap_per_run: number },
   purpose: AskedPurpose,
 ): Promise<string> {
-  if (!byChannel || !channels.some((c) => c !== "whatsapp")) return "";
-  const words = allowanceBeforeSend(byChannel, await monthSentOrNull(t.tenantId, t.now), trigger, purpose);
+  if (!channels.some((c) => c !== "whatsapp")) return "";
+  const words = heldBackOfOneRun(reading, run, await monthSentOrNull(t.tenantId, t.now), purpose);
   return words ? `${words} · ` : "";
 }
 
@@ -560,8 +573,8 @@ async function proposeOnStarter(
     clock.cap_per_run,
   );
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { drawn, oneRun, policies, listLabel } = reach;
-  const held = await allowanceHeld(t, channels, oneRun, trig.id, purposeOfPlaybook(cls));
+  const { drawn, reading, policies, listLabel } = reach;
+  const held = await allowanceHeld(t, channels, reading, clock, purposeOfPlaybook(cls));
   const under = underMode(cls, policies);
   const name = str(input.name, PLAYBOOK_NAME_MAX);
   // Its WhatsApp version goes for review at Approve only where none is on file; one on file is said as it stands, by the
@@ -630,9 +643,9 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   const how = await playbookHow(t, message, by, about);
   const reach = await reachNow(t, trig, listRef, { category: message.category }, how, checked.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { drawn, oneRun, policies, listLabel } = reach;
+  const { drawn, reading, policies, listLabel } = reach;
   const cls = checked.policy_class;
-  const held = await allowanceHeld(t, by.channels, oneRun, trig.id, purposeOfPlaybook(cls));
+  const held = await allowanceHeld(t, by.channels, reading, checked, purposeOfPlaybook(cls));
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);

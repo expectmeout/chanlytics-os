@@ -963,7 +963,13 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // (packages/db runningTwins): one `playbooks` read more for a call that reaches its card.
     const readsTwins = NAMES[old] === "propose_campaign.playbook" && !want.isError;
     const withTwins = readsTwins ? [...withTotals, "playbooks.select"] : withTotals;
-    const reads = NAMES[old] === "report" ? withReviewReads(withTwins) : withTwins;
+    // 10 Oct 2026 (a moment holds many campaigns: the month's allowance, one rule): a playbook proposed is counted against
+    // the week's touches as the page's pools are (server/campaigns/playbooks.ts recentTouches, db touchesSince: the week's
+    // runs, and the workspace's zone a waiting run is judged by), where it was counted with nobody touched: two reads more
+    // for a call that reaches its card, and no read of the runs' people where the week holds no run. Its bytes are
+    // unchanged: nobody here heard from a campaign this week.
+    const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
+    const reads = NAMES[old] === "report" ? withReviewReads(withWeek) : withWeek;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))

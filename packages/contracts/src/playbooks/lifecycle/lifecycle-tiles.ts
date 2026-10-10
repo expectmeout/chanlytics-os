@@ -34,6 +34,7 @@ import { todayRunWords } from "../../today/today-runs";
 import { waitingRunOffer } from "../playbook-approval";
 import { DAY_MS } from "../playbook-time";
 import { playbookReach } from "../playbook-reach";
+import { runCapOf } from "../playbook-run-split";
 import { nextOpenMoment, nextRunOf } from "../playbook-schedule";
 import { triggerOf } from "../playbook-triggers";
 
@@ -151,15 +152,6 @@ export function nextRunLine(
   const today = zoneDayKey(nowMs, tz);
   const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
   return { day: word, at: clockHour(next.hour), atMs };
-}
-
-/**
- * The most one run of a campaign sends, or 0 where nothing caps it: an appointment moment has no cap (contracts
- * playbookRunReach: a reminder is owed to everyone with an appointment, and tomorrow's have no later run), and a card
- * drawn without its cap is said whole. The one reading of it: Coming up's line and Resume's question both ask it.
- */
-function runCapOf(p: Pick<LifecyclePlaybook, "trigger" | "cap_per_run">): number {
-  return triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
 }
 
 /** How many a running campaign's next run reaches: its cap's share, or everyone where nothing caps it (runCapOf). */

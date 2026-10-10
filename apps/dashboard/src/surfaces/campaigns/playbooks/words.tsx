@@ -192,16 +192,17 @@ export const pbLabel = (id: string) => starters.langLabel(id);
 
 // The composer's numbers, a few sensible ones each, chosen in place; a playbook
 // made before them keeps its own among them (pbWith). The route takes any whole
-// number in its range: 1-500 a run, a gap of 7-365 days, a cadence of 1-90.
-export const PB_CAPS = [5, 10, 25, 50, 100, 250, 500];
-
+// number in its range: 1-500 a run, a gap of 7-365 days, a cadence of 1-90. The
+// caps are contracts' (PLAYBOOK_CAP_CHOICES), which GET playbooks counts one
+// run's split at.
 export const PB_GAPS = [7, 14, 30, 60, 90, 180, 365];
 
 export const PB_CADENCES = [7, 14, 30, 60, 90];
 
 export const PB_TEXT: ParamSourceKind[] = ["text"];
 
-export const pbWith = (list: number[], n: number) => (list.includes(n) ? list : [...list, n].sort((a, b) => a - b));
+export const pbWith = (list: readonly number[], n: number) =>
+  list.includes(n) ? list : [...list, n].sort((a, b) => a - b);
 
 // The moments nothing is doing yet, among the ones a new playbook may start from (`offered`: none retired, one win-back).
 // The win-backs are one moment, read the one way the workspace can, so a playbook on either leaves none to set up.

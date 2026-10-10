@@ -3022,6 +3022,7 @@ var PLAYBOOK_LIMITS = {
   gap_days: { min: 7, max: 365, what: "The gap" },
   cadence_days: { min: 1, max: 90, what: "The cadence" }
 };
+var PLAYBOOK_CAP_CHOICES = [5, 10, 25, 50, 100, 250, 500];
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
   max: PLAYBOOK_HOURS.max,
@@ -27953,6 +27954,49 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 
+// src/playbooks/playbook-run-split.ts
+function runCapOf(p) {
+  return triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+}
+var noOne = () => ({ whatsapp: 0, sms: 0, email: 0 });
+function runReadingOf(drawn, trigger, caps) {
+  const whole = drawn.reach.by_channel ?? noOne();
+  const reading = { candidates: drawn.reach.will, by_channel: whole };
+  const below = [
+    ...new Set(
+      caps.map((cap) => runCapOf({ trigger, cap_per_run: cap })).filter((cap) => cap >= 1 && cap < reading.candidates)
+    )
+  ];
+  if (below.length === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
+  const last = Math.max(...below);
+  const counts = noOne();
+  const run_split = {};
+  let taken = 0;
+  for (const person of drawn.eligible) {
+    if (taken === last) break;
+    const channel = drawn.channelOf[person.id];
+    if (channel) counts[channel] += 1;
+    taken += 1;
+    if (below.includes(taken)) run_split[String(taken)] = { ...counts };
+  }
+  return { ...reading, run_split };
+}
+function oneRunByChannel(reading, run) {
+  const whole = reading.by_channel;
+  if (!whole) return null;
+  const cap = runCapOf(run);
+  if (cap === 0 || cap >= reading.candidates) return whole;
+  const atCap = reading.run_split?.[String(cap)];
+  if (atCap) return atCap;
+  const carrying = CONSENT_CHANNELS.filter((c) => whole[c] > 0);
+  const [only] = carrying;
+  return carrying.length === 1 && only ? { ...noOne(), [only]: cap } : null;
+}
+function heldBackOfOneRun(reading, run, sent2, purpose) {
+  const split = oneRunByChannel(reading, run) ?? reading.by_channel;
+  return split ? allowanceBeforeSend(split, sent2, run.trigger, purpose) : null;
+}
+
 // src/playbooks/lifecycle/lifecycle-tiles.ts
 var COMING_DAYS = 7;
 var RESULTS_DAYS = fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD);
@@ -28020,9 +28064,6 @@ function nextRunLine(p, nowMs, tz) {
   const today = zoneDayKey(nowMs, tz);
   const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
   return { day: word, at: clockHour(next.hour), atMs };
-}
-function runCapOf(p) {
-  return triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
 }
 function nextShare(p) {
   const all = p.candidates ?? 0;
@@ -37803,6 +37844,7 @@ export {
   PLATFORM_VERDICTS,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CALENDAR_UNREAD,
+  PLAYBOOK_CAP_CHOICES,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_DELETE_WORDS,
@@ -38499,6 +38541,7 @@ export {
   headlineOf,
   heardSinceProposal,
   heardWords,
+  heldBackOfOneRun,
   heldBackWords,
   heldByAllowance,
   heldDraftWaits,
@@ -39172,6 +39215,7 @@ export {
   runCountsOf,
   runDayPassed,
   runDueNow,
+  runReadingOf,
   runStoppedWords,
   runningTotal,
   runsWords,

@@ -21,6 +21,7 @@ import {
   type PlaybookPolicyClass,
   type PlaybookTotalsDto,
   type PlaybookTrigger,
+  type Touches,
 } from "@chanlytics/contracts";
 import {
   checkPlaybook,
@@ -140,6 +141,20 @@ export interface FollowUpsRead {
 
 /** No follow-up had: no proposal out, or deals off. */
 export const noFollowUps = (): FollowUpsRead => ({ followUps: new Map(), followUpKeys: new Map() });
+
+/**
+ * The touches a moment is counted against before a campaign on it has run (contracts playbookRunReach): nobody heard from
+ * that campaign yet, who any campaign reached this week (`touched`, recentTouches: the week's breath), and who had a
+ * proposal's follow-up. The page's pools (playbook-pools.ts triggerPools) and Ask's campaign card count by it, so the
+ * card's count is the page's.
+ */
+export function poolTouches(touched: Readonly<Record<string, string>>, followUps: FollowUpsRead): Touches {
+  return {
+    byThis: new Map(),
+    byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),
+    ...followUps,
+  };
+}
 
 /**
  * Who had a proposal follow-up, or is in a run made for one, from any playbook, one since deleted too (packages/db

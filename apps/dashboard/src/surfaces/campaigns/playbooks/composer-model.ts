@@ -13,12 +13,13 @@ import {
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
   campaignChannelsOf,
+  heldBackOfOneRun,
   playbookChannelsRead,
   playbookName,
   poolWords,
   reachLines,
 } from "@chanlytics/contracts";
-import type { ConsentChannel, PlaybookTrigger, ReachSplit, TemplateGroup } from "@chanlytics/contracts";
+import type { ConsentChannel, PlaybookTrigger, ReachSplit, SendPurpose, TemplateGroup } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { policyStore } from "../../legacy-verbs";
@@ -305,9 +306,11 @@ function channelsModelOf({ data, f }: ModelIn, { trig, onList }: Moment, { tpl }
  * Who it reaches today: the moment's own count, or this playbook's while it keeps its moment, for the channels it goes by,
  * with the cap as it is set here -- the cards' bar and the approval sheet's reasons (contracts reachLines), before anything
  * is saved. Where it goes by more than WhatsApp alone, the split by channel; who has no address, an address that stopped
- * or no channel to go by is among the reasons, as contracts' reachLines says them.
+ * or no channel to go by is among the reasons, as contracts' reachLines says them. And what the month's emails and texts
+ * hold back of one run at that cap, as Ask's campaign card says it (contracts heldBackOfOneRun): a message about their
+ * visit is never held (heldByAllowance), which the run's purpose says.
  */
-function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
+function reachOf(input: ModelIn, mo: Moment, { on, purpose }: { on: readonly ConsentChannel[]; purpose: SendPurpose }) {
   const { f } = input;
   const { visits } = mo;
   const monthly = f.trigger === "everyone_monthly";
@@ -352,7 +355,16 @@ function reachOf(input: ModelIn, mo: Moment, on: readonly ConsentChannel[]) {
   const split: ReachSplit | null =
     named && named.byChannel ? { reached: base.candidates, byChannel: named.byChannel, held: 0, heldBy: {} } : null;
   const splitBy = cmReachBy(split, on);
-  return { monthly, base, named, counted, capN, overCap, will, pool, reasons, of, split, splitBy };
+  const allowance =
+    named && named.byChannel
+      ? heldBackOfOneRun(
+          { candidates: base.candidates, by_channel: named.byChannel, run_split: named.runSplit },
+          { trigger: f.trigger, cap_per_run: capN },
+          input.data.month_sent,
+          purpose,
+        )
+      : null;
+  return { monthly, base, named, counted, capN, overCap, will, pool, reasons, of, split, splitBy, allowance };
 }
 
 /**
@@ -462,7 +474,7 @@ export function composerModel(input: ModelIn) {
   const msg = composerMessage(input, mo);
   const sl = slotsModelOf(input, msg);
   const via = channelsModelOf(input, mo, msg);
-  const reach = reachOf(input, mo, via.on);
+  const reach = reachOf(input, mo, via);
   const walk = walkOf(input, mo, via, reach);
   const ch = choicesOf(input, mo, msg);
   const words = composerWords(input, mo, msg, { ...sl, paused: via.channelReady.paused === true });

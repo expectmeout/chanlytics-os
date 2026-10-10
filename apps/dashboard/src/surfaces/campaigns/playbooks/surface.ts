@@ -14,6 +14,7 @@ import {
   type ConsentChannel,
   type MonthSent,
   type NumberHealth,
+  type RunSplit,
   FOLLOW_UP_NEEDS_DEALS,
   PLAYBOOK_TRIGGERS,
   appointmentWordOf,
@@ -122,6 +123,11 @@ export interface PlaybookNamed {
   noChannel?: number;
   /** Who a run reaches on each channel, adding up to who it reaches now. Absent from a count made before channels. */
   byChannel?: Record<ConsentChannel, number>;
+  /**
+   * One run's split by channel at each cap, where it differs from `byChannel` (contracts runReadingOf): what the month's
+   * allowance is held against (heldBackOfOneRun). Absent where `byChannel` is every run's, and from an older server.
+   */
+  runSplit?: RunSplit;
 }
 
 /**
@@ -141,6 +147,7 @@ export interface PoolRead {
   address_stopped?: number;
   no_channel?: number;
   by_channel?: Record<ConsentChannel, number>;
+  run_split?: RunSplit;
   by?: Array<Omit<PoolRead, "by"> & { channels: readonly string[] }>;
 }
 
@@ -157,6 +164,7 @@ export function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNam
         ...(x.address_stopped === undefined ? {} : { addressStopped: x.address_stopped }),
         ...(x.no_channel === undefined ? {} : { noChannel: x.no_channel }),
         ...(x.by_channel ? { byChannel: x.by_channel } : {}),
+        ...(x.run_split ? { runSplit: x.run_split } : {}),
       }
     : null;
 }

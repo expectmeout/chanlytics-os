@@ -14,7 +14,7 @@ import {
   MESSAGE_GONE_WORDS,
   PREVIEW_WORDS,
   STARTER_LINE_WORDS,
-  allowanceBeforeSend,
+  PLAYBOOK_CAP_CHOICES,
   appointmentWords,
   messageAboutOfTrigger,
   momentHoldsWords,
@@ -40,7 +40,6 @@ import type { Fields, Model } from "./composer-model";
 import type { PlaybooksSurface } from "./surface";
 import {
   PB_CADENCES,
-  PB_CAPS,
   PB_GAPS,
   PB_LIST_CLASSES,
   PB_LIST_GROUPS,
@@ -194,9 +193,8 @@ function calendarWarning(x: SectionCtx) {
  * which channel, and the reasons anybody is held back behind "Who's held back" -- with a thin bar under it.
  */
 export function whoSection(x: SectionCtx) {
-  const { data, trig, counted, will, pool, of, base, reasons, split, splitBy } = x;
-  // The month's emails or texts running out for this moment (a message about a visit is never held, contracts heldByAllowance).
-  const allowance = split ? allowanceBeforeSend(split.byChannel, data.month_sent, x.f.trigger, x.purpose) : null;
+  // `allowance`: what the month's emails or texts hold back of one run at its cap (the model's, contracts heldBackOfOneRun).
+  const { trig, counted, will, pool, of, base, reasons, split, splitBy, allowance } = x;
   return (
     <section className="pb-sec" data-testid="pb-who">
       <span className="pb-sec-k">Who it's for</span>
@@ -498,7 +496,7 @@ function whenSentence(x: SectionCtx) {
             label="The most one run sends"
             value={String(f.cap)}
             onValueChange={(n) => setCap(Number(n))}
-            groups={cmNumbers(pbWith(PB_CAPS, Number(f.cap)).map((n) => ({ v: n, t: String(n) })))}
+            groups={cmNumbers(pbWith(PLAYBOOK_CAP_CHOICES, Number(f.cap)).map((n) => ({ v: n, t: String(n) })))}
             chevron={cmChevron()}
             data-testid="pb-cap"
           />{" "}

@@ -152,6 +152,12 @@ export const PLAYBOOK_LIMITS = {
   cadence_days: { min: 1, max: 90, what: "The cadence" },
 } as const;
 
+/**
+ * The caps the composer offers, a few sensible ones chosen in place (a campaign made before them keeps its own among
+ * them): what GET playbooks counts one run's split at (playbook-run-split.ts), beside each campaign's own cap.
+ */
+export const PLAYBOOK_CAP_CHOICES: readonly number[] = [5, 10, 25, 50, 100, 250, 500];
+
 /** The hours a send may go out in, as the pages say them: "9:00–20:59", "between 9:00 and 20:59", and the hour a moved send waits for. */
 export const SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,

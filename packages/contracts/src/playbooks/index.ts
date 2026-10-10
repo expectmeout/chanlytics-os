@@ -21,6 +21,7 @@ export {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_LIMITS,
+  PLAYBOOK_CAP_CHOICES,
   SENDING_HOURS_WORDS,
   sendsWaitWords,
   PLAYBOOK_BREATH_MS,
@@ -81,6 +82,8 @@ export {
   passesHandoverPause,
 } from "./playbook-purpose";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
+export { heldBackOfOneRun, runReadingOf } from "./playbook-run-split";
+export type { RunReading, RunSplit } from "./playbook-run-split";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbook-patch";
