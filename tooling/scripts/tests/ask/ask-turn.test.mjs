@@ -1893,6 +1893,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "campaigns.audiences",
       "campaigns.broadcast",
       "campaigns.broadcasts",
+      "campaigns.messages",
       "campaigns.playbooks",
       "inbox.list",
       "inbox.search",
@@ -1912,7 +1913,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten and PR 4.5's search",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search and the library",
   );
   const found = JSON.parse(out["inbox.search"].result);
   assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);
@@ -1952,6 +1953,8 @@ test("the fourteen reads, each an action of the nine read tools, run against the
   assert.equal(out["calendar.week"].isError, false, out["calendar.week"].result);
   assert.equal(out["campaigns.audiences"].isError, false, out["campaigns.audiences"].result);
   assert.equal(out["campaigns.playbooks"].isError, false, out["campaigns.playbooks"].result);
+  assert.equal(out["campaigns.messages"].isError, false, out["campaigns.messages"].result);
+  assert.deepEqual(JSON.parse(out["campaigns.messages"].result).messages, [], "an empty library, said as no message");
   assert.equal(out["leads.searches"].isError, false, out["leads.searches"].result);
   assert.deepEqual(
     JSON.parse(out["leads.searches"].result).searches,

@@ -10,11 +10,12 @@
  * The route that runs the model lives in the dashboard; the Line that shows
  * the answer lives in the legacy pages; both read from here.
  *
- * This module holds the limits, the message and its cards (and what became of each), and where a question is asked
- * from: the row in view (AskScope, scopeFromRoute) and the pages Ask knows it is on (ASK_SURFACES). The rest is beside
- * it: the languages and the guess at a question's (ask-language.ts), the rules an answer's text passes
- * (answer-text.ts), the jump index (ask-jump.ts), the suggestions (ask-suggestions.ts), the three questions answered
- * without a model (ask-fast-paths.ts) and the settings a card may change (ask-settings-change.ts).
+ * This module holds the limits, the message and its cards (and what became of each), where a question is asked
+ * from: the row in view (AskScope, scopeFromRoute) and the pages Ask knows it is on (ASK_SURFACES), and the shapes of
+ * what a read hands a plan of Ask's (MessageRead). The rest is beside it: the languages and the guess at a question's
+ * (ask-language.ts), the rules an answer's text passes (answer-text.ts), the jump index (ask-jump.ts), the suggestions
+ * (ask-suggestions.ts), the three questions answered without a model (ask-fast-paths.ts) and the settings a card may
+ * change (ask-settings-change.ts).
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import { DAY_MS, MIN_MS } from "../shared/time";
@@ -26,6 +27,9 @@ import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
 import type { AskLanguage } from "./ask-language";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
+import type { TemplateStatus } from "../shared/enums";
+import type { VersionChannel } from "../templates/message-versions";
+import type { TemplateCategoryChoice } from "../templates/templates";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -376,3 +380,21 @@ export const ASK_SURFACES = [
   "other",
 ] as const;
 export type AskSurface = (typeof ASK_SURFACES)[number];
+
+/* ------------------------------------------------------------ what Ask reads */
+
+/**
+ * One message of the library as campaigns with action messages reads it (the dashboard's readers/templates.ts
+ * messageReadsOf), and what a plan of Ask's is checked against: a name in a language, its category as a send judges a
+ * yes (an authentication message is a utility one), each version on its channel with its row's status (a WhatsApp
+ * version still in Meta's review among them; an email's or a text's is written approved), the numbered values it fills
+ * with what each is called and most likely takes, and the campaigns that send it by name.
+ */
+export interface MessageRead {
+  name: string;
+  language: string;
+  category: TemplateCategoryChoice;
+  versions: { channel: VersionChannel; id: string; state: TemplateStatus }[];
+  slots: { position: number; label: string; kind: string }[];
+  used_by: { id: string; name: string }[];
+}

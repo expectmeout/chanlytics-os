@@ -283,7 +283,7 @@ export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING, SESSION_ENDED,
 export { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "./shell/route-prefetch";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./shell/tone";
 export { PAGE_VITALS, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
-export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage, messageStandingWords, variablesSlotCount, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
+export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage, messageStandingWords, metaStatusOf, variablesSlotCount, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
 export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./templates/inbox-templates";
 export { libraryCount, isLibrarySample } from "./templates/library-count";

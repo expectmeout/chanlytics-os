@@ -171,6 +171,12 @@ const MESSAGE_WORDS = [
   ],
 ];
 /**
+ * 10 Oct 2026 (Ask, the marketing manager, task 3): campaigns gained an action, messages, the library whole, a version in
+ * review included: its words stand between broadcast's and the tail, its name is last in the enum and its one example
+ * last, and nothing else campaigns says, takes or shows moved.
+ */
+const LIBRARY = "messages";
+/**
  * 9 Oct 2026 (the moment spec, A7): propose_autonomy is judged by the Autonomy page's rule (policyModeRefusal), so its
  * words say each class takes the modes its row offers, where they said veto is for replies only. The one sentence.
  */
@@ -369,7 +375,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens) and campaigns (a run's channels, a message where it said a template, and the library whole) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -428,7 +434,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
     // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; (lane 1, T11): a message, where it said
     // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by; (10
-    // Oct 2026) a broadcast sent by a campaign; nothing else it says moved.
+    // Oct 2026) a broadcast sent by a campaign, and the library whole (LIBRARY); nothing else it says moved.
+    const campaigns = DEFS.get("campaigns");
     assert.equal(
       tool(role, "campaigns").description,
       MESSAGE_WORDS.reduce(
@@ -440,10 +447,28 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       )
         .replace(...PLAYBOOK_CHANNELS_WORDS)
         .replace(...PLAYBOOK_RESULTS_WORDS)
-        .replace(...BROADCAST_BY_WORDS),
+        .replace(...BROADCAST_BY_WORDS)
+        .replace(` ${campaigns.tail}`, ` ${campaigns.actions[LIBRARY].words} ${campaigns.tail}`),
       role,
     );
-    assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);
+    const now = words(tool(role, "campaigns"));
+    assert.equal(now.input_schema.properties.action.enum.at(-1), LIBRARY, `${role}: messages last`);
+    assert.deepEqual(now.input_examples.at(-1), { action: LIBRARY }, `${role}: its one example, last`);
+    assert.deepEqual(
+      {
+        ...now,
+        input_schema: {
+          ...now.input_schema,
+          properties: {
+            ...now.input_schema.properties,
+            action: { type: "string", enum: now.input_schema.properties.action.enum.slice(0, -1) },
+          },
+        },
+        input_examples: now.input_examples.slice(0, -1),
+      },
+      words(was(role, "campaigns")),
+      role,
+    );
   }
   for (const role of ["operator", "partner", "owner"]) {
     // propose_thread_verb: the sentence that sent every role to an owner's action now says whose it is, which is true for

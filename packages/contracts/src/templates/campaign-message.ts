@@ -116,8 +116,11 @@ export function variablesSlotCount(variables: unknown): number {
   return Math.max(variables.length, ...positions);
 }
 
-/** A row's status as the set holds it: a row that names none (or one the set does not know) is waiting, as the column's default is. */
-function statusOf(raw: string | null | undefined): TemplateStatus {
+/**
+ * A row's status as the set holds it: a row that names none (or one the set does not know) is waiting, as the column's
+ * default is. The one reading of a row's `meta_status`, a WhatsApp version's here and any version's Ask reads.
+ */
+export function metaStatusOf(raw: string | null | undefined): TemplateStatus {
   return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
 }
 
@@ -128,7 +131,7 @@ function strictestCategory(categories: readonly (string | null)[]): string | nul
 }
 
 function whatsappVersionOf(row: CampaignMessageRow): NonNullable<CampaignMessage["versions"]["whatsapp"]> {
-  const status = statusOf(row.meta_status);
+  const status = metaStatusOf(row.meta_status);
   return {
     id: row.id,
     status,
@@ -342,7 +345,7 @@ export const STARTER_LINE_WORDS = {
     `Your starter messages' WhatsApp versions are in review (${n}) — they appear here once approved, usually within minutes.`,
   /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
   standing: (status: string | null | undefined): string => {
-    const at = statusOf(status);
+    const at = metaStatusOf(status);
     return at === "pending"
       ? "has its WhatsApp version in review — it appears here once approved, usually within minutes."
       : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at]} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;

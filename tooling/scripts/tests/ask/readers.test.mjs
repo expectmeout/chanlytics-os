@@ -5419,3 +5419,57 @@ test("poolList takes the turn's lists: handed the workspace's lists as the lists
   );
   assert.deepEqual(asked(builtin), []);
 });
+
+/**
+ * 10 Oct 2026 (Ask, the marketing manager, task 3): before Ask writes a message it reads the library whole, a version
+ * still in Meta's review among its message's versions, so it never writes a twin of one the workspace holds. One message
+ * here, an approved email and a WhatsApp version in review, which a campaign sends; another workspace's beside it.
+ */
+test("campaigns.messages reads the whole library, a WhatsApp version still in review among its message's versions with each version's state, its slots and the campaigns that send it, each version a row a citation names; campaigns.audiences still lists the message by the one version a broadcast may go by now", async () => {
+  const slot = [{ position: 1, label: "First name", example: "Ana" }];
+  const w = countsWorld(pagedPeople([]), {
+    templates: [
+      tplRow(TP1, A, { name: "spring_offer", meta_status: "pending", category: "marketing", variables: slot }),
+      tplRow(EM1, A, {
+        channel: "email",
+        name: "spring_offer",
+        category: "marketing",
+        source: "chanlytics",
+        variables: slot,
+      }),
+      tplRow(TP9, B, { name: "spring_offer", meta_status: "pending", category: "marketing" }),
+    ],
+    playbooks: [
+      pbRow(PB1, { name: "Spring", template_name: "spring_offer" }),
+      pbRow(PB2, { tenant_id: B, name: "Elsewhere", template_name: "spring_offer" }),
+    ],
+  });
+  const tc = newToolContext(worldCtx(w), A, "viewer", "America/New_York", new Date());
+  const out = await runTool(tc, { name: "campaigns", input: { action: "messages" } });
+  assert.equal(out.isError, false, out.result);
+  assert.deepEqual(
+    JSON.parse(out.result).messages,
+    [
+      {
+        name: "spring_offer",
+        language: "en_US",
+        category: "marketing",
+        versions: [
+          { channel: "whatsapp", id: TP1, state: "pending" },
+          { channel: "email", id: EM1, state: "approved" },
+        ],
+        slots: [{ position: 1, label: "First name", kind: "first_name" }],
+        used_by: [{ id: PB1, name: "Spring" }],
+      },
+    ],
+    "one message, both versions with their states; this workspace's campaign alone",
+  );
+  assert.deepEqual([...tc.read.template.keys()].sort(), [TP1, EM1].sort(), "each version a template a citation names");
+  // The composers' list is as it was: the message, by the email a broadcast may go by now, and not the version in review.
+  const aud = await runTool(tc, { name: "campaigns", input: { action: "audiences" } });
+  assert.equal(aud.isError, false, aud.result);
+  assert.deepEqual(
+    JSON.parse(aud.result).templates.map((m) => [m.template_id, m.name, m.channels]),
+    [[EM1, "spring_offer", { whatsapp: false, email: true, sms: false }]],
+  );
+});

@@ -27799,7 +27799,7 @@ function variablesSlotCount(variables) {
   const positions = variables.map((v) => Number(v?.position)).filter((position) => Number.isFinite(position));
   return Math.max(variables.length, ...positions);
 }
-function statusOf(raw) {
+function metaStatusOf(raw) {
   return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
 }
 function strictestCategory(categories) {
@@ -27807,7 +27807,7 @@ function strictestCategory(categories) {
   return categories.find((c) => c !== null) ?? null;
 }
 function whatsappVersionOf(row2) {
-  const status = statusOf(row2.meta_status);
+  const status = metaStatusOf(row2.meta_status);
   return {
     id: row2.id,
     status,
@@ -27928,7 +27928,7 @@ var STARTER_LINE_WORDS = {
   reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
   /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
   standing: (status) => {
-    const at3 = statusOf(status);
+    const at3 = metaStatusOf(status);
     return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at3]} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
   },
   /** The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number is. */
@@ -39007,6 +39007,7 @@ export {
   messageWhy,
   messageWhyNot,
   messageWords,
+  metaStatusOf,
   missedCall,
   missedCallIsNews,
   mmss,

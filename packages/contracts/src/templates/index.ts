@@ -108,6 +108,7 @@ export {
   messageWhyNot,
   readyForMessage,
   messageStandingWords,
+  metaStatusOf,
   variablesSlotCount,
   MESSAGE_GONE_WORDS,
   MESSAGE_BEGIN_WORDS,

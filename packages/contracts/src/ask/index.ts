@@ -39,6 +39,7 @@ export type {
   AskThreadVM,
   AskScope,
   AskSurface,
+  MessageRead,
 } from "./ask";
 export { detectLanguage, ASK_LANGUAGES } from "./ask-language";
 export type { AskLanguage } from "./ask-language";

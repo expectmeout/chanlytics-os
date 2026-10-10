@@ -46,7 +46,7 @@ import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { playbooks } from "../../../readers/playbooks";
-import { templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
+import { messageReadsOf, templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
 import {
   UUID,
   defineActions,
@@ -445,9 +445,28 @@ async function readBroadcast(t: ToolContext, input: { broadcast_id: string }): P
 }
 
 /**
+ * The message library whole (readers/templates.ts messageReadsOf), over Settings' read (`all`), the one the Library's
+ * page and Ask's context of it read: every message, a version still in Meta's review among its versions with its state,
+ * the values it fills and the campaigns that send it, so a message Ask writes is never a twin of one the workspace holds.
+ * Every version is a row an answer may cite, as the read gave it: a template, opened on the Library.
+ */
+async function readMessages(t: ToolContext): Promise<unknown> {
+  const read = await load(t.rc, templatesReader, { all: true });
+  const library = read.data;
+  if (library.usedBy === undefined) throw new Error("templates: Settings' read came back without what sends each");
+  const messages = messageReadsOf(library);
+  const versions = new Set(messages.flatMap((m) => m.versions.map((v) => v.id)));
+  noteRows(
+    t.read,
+    read.rows.filter((r) => versions.has(r.id)),
+  );
+  return { route: "messages", messages };
+}
+
+/**
  * What goes out to the people who said yes (D11): a broadcast's audiences and templates (audiences, once
  * list_audiences) and the playbooks (playbooks, once list_playbooks); since Phase 4, the broadcasts as their page lists
- * them (broadcasts) and one broadcast's run (broadcast).
+ * them (broadcasts) and one broadcast's run (broadcast); since 10 Oct 2026, the library whole (messages).
  */
 export const campaignsTool = defineActions({
   name: "campaigns",
@@ -483,6 +502,14 @@ export const campaignsTool = defineActions({
       label: "Reading the broadcast",
       words: `Action broadcast takes broadcast_id, the id action broadcasts returned or a playbook's waiting run, and reads one broadcast as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop) with what each means, the people it touched in the page's words, and what came back, quoted, with what happened since. Call it for who a broadcast reached and what they said. It returns at most ${RUN_CAP.people} people and ${RUN_CAP.replies} replies, the figures counting everyone, each person as the page names them and their id; a broadcast the workspace does not hold is an error, said in words.`,
       run: readBroadcast,
+    }),
+    messages: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the messages",
+      words:
+        "Action messages takes nothing more and reads the message library whole: every message, a name in a language, with its category, each version on its channel with its state (approved, pending while WhatsApp reviews it, rejected, paused or disabled), the values it fills (slots: each one's position, name and what it most likely takes) and the campaigns that send it (used_by). Call it before a new message is written, to find one that already says it, a version still in review or a message the pickers hide included, so the library never holds a twin. To pick a message a broadcast or a playbook can go out on now, and to say who it reaches, call action audiences instead: this one lists versions nothing can send yet. It counts nobody and quotes no message's words.",
+      run: readMessages,
     }),
   },
 });
