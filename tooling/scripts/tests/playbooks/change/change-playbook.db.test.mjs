@@ -12,6 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { playbookForChange, runningTwins, writePlaybookChange } from "@chanlytics/db";
 import { showSecondFactor } from "../../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -96,7 +97,7 @@ async function passwordAlone(who) {
 }
 
 /** A win-back by silence, running at ten, as the service role writes one for the suite. */
-const winBack = async () =>
+const winBack = async (over = {}) =>
   ok(
     await db
       .from("playbooks")
@@ -114,6 +115,7 @@ const winBack = async () =>
         cap_per_run: 25,
         gap_days: 90,
         cadence_days: 30,
+        ...over,
       })
       .select("id")
       .single(),
@@ -235,6 +237,137 @@ test(
     assert.deepEqual(
       (await decisions(id)).map((d) => [d.verb, d.actor_user_id]),
       [["change_playbook", partner.id]],
+    );
+  },
+);
+
+test(
+  "packages/db's writePlaybookChange is that door on the member's session: its row, what each field held and its decision, or the database's P0002, which the caller words",
+  { skip },
+  async () => {
+    const id = await winBack();
+    const operator = await signedIn("operator", tenantId);
+    const viewer = await signedIn("viewer", tenantId);
+    const args = {
+      tenantId,
+      playbookId: id,
+      set: { cap_per_run: 40 },
+      decision: { name: "Win-back", cap_per_run: 40 },
+    };
+    const out = await writePlaybookChange(operator.client, { ...args, via: "ask", undoOf: null });
+    assert.notEqual(out, "missing", "this database has the door");
+    assert.equal(out.error, null, out.error?.message);
+    assert.deepEqual([out.data.id, out.data.was, typeof out.data.decisionId], [id, { cap_per_run: 25 }, "string"]);
+    const [line] = await decisions(id);
+    assert.deepEqual([line.verb, line.payload.via, line.payload.cap_per_run], ["change_playbook", "ask", 40]);
+    const refused = await writePlaybookChange(viewer.client, {
+      ...args,
+      set: { state: "paused" },
+      via: null,
+      undoOf: null,
+    });
+    assert.deepEqual([refused.data, refused.error?.code], [null, "P0002"]);
+    assert.equal((await row(id)).state, "running");
+  },
+);
+
+test(
+  "playbookForChange reads the row a change is judged against and the run that waits, with how many it is for; none of another workspace's",
+  { skip },
+  async () => {
+    const id = await winBack({ name: "Judged" });
+    const operator = await signedIn("operator", tenantId);
+    const read = await playbookForChange(operator.client, tenantId, id);
+    assert.deepEqual(read, {
+      id,
+      name: "Judged",
+      trigger: "quiet_30",
+      state: "running",
+      policy_class: "reengage",
+      run_hour: 10,
+      cap_per_run: 25,
+      gap_days: 90,
+      cadence_days: 30,
+      list_id: null,
+      list_key: null,
+      waiting: null,
+    });
+    const run = ok(
+      await db
+        .from("broadcasts")
+        .insert({
+          tenant_id: tenantId,
+          name: "Judged",
+          template_id: templateId,
+          template_name: "winback_offer",
+          template_language: "en_US",
+          state: "pending_approval",
+          scheduled_for: new Date(Date.now() + 86_400_000).toISOString(),
+          playbook_id: id,
+          recipient_count: 12,
+        })
+        .select("id")
+        .single(),
+    ).id;
+    assert.deepEqual((await playbookForChange(operator.client, tenantId, id)).waiting, {
+      id: run,
+      recipient_count: 12,
+    });
+    const stranger = await signedIn("owner", elsewhere);
+    assert.equal(await playbookForChange(stranger.client, tenantId, id), null);
+    assert.equal(await playbookForChange(operator.client, elsewhere, id), null);
+  },
+);
+
+test(
+  "runningTwins names the running playbooks on one moment, list and message, each by its id and name; a paused one, another list or another message is no twin",
+  { skip },
+  async () => {
+    const twinTemplate = ok(
+      await db
+        .from("templates")
+        .insert({
+          tenant_id: tenantId,
+          channel: "whatsapp",
+          name: "twin_offer",
+          language: "en_US",
+          meta_status: "approved",
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const on = { template_id: twinTemplate, template_name: "twin_offer" };
+    const twin = await winBack({ ...on, name: "Twin" });
+    await winBack({ ...on, name: "Asleep", state: "paused" });
+    await winBack({ name: "Other message" });
+    const listed = await winBack({ ...on, name: "On a list", trigger: "saved_list", list_key: "all_people" });
+    const operator = await signedIn("operator", tenantId);
+    assert.deepEqual(
+      await runningTwins(operator.client, tenantId, {
+        trigger: "quiet_30",
+        listId: null,
+        listKey: null,
+        templateId: twinTemplate,
+      }),
+      [{ id: twin, name: "Twin" }],
+    );
+    assert.deepEqual(
+      await runningTwins(operator.client, tenantId, {
+        trigger: "saved_list",
+        listId: null,
+        listKey: "all_people",
+        templateId: twinTemplate,
+      }),
+      [{ id: listed, name: "On a list" }],
+    );
+    assert.deepEqual(
+      await runningTwins(operator.client, tenantId, {
+        trigger: "saved_list",
+        listId: null,
+        listKey: "regulars",
+        templateId: twinTemplate,
+      }),
+      [],
     );
   },
 );

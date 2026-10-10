@@ -982,6 +982,20 @@ async function playbookForChannels(db, tenantId, playbookId) {
   if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
 }
+async function playbookForChange(db, tenantId, playbookId) {
+  const { data, error } = await db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
+  if (error) throw new Error(`playbook_for_change: ${error.message}`);
+  if (!data) return null;
+  const waiting = await db.from("broadcasts").select("id, recipient_count").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
+  if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
+  const [w] = waiting.data ?? [];
+  return { ...data, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
+}
+async function runningTwins(db, tenantId, on) {
+  const { data, error } = await db.from("playbooks").select("id, name, list_id, list_key").eq("tenant_id", tenantId).eq("state", "running").eq("trigger", on.trigger).eq("template_id", on.templateId);
+  if (error) throw new Error(`running_twins: ${error.message}`);
+  return (data ?? []).filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey).map((p) => ({ id: p.id, name: p.name }));
+}
 function noChannelColumns(error) {
   return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
@@ -3586,6 +3600,22 @@ async function startPlaybook(db, p) {
     throw new Error("start_playbook: the door answered without its row and its decision");
   return { data: { id: made.id, decisionId: made.decision_id }, error: null };
 }
+async function writePlaybookChange(db, p) {
+  const { data, error } = await db.rpc("change_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook_id: p.playbookId,
+    p_set: p.set,
+    p_decision: p.decision,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) return isMissingDoor(error) ? "missing" : { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (typeof made.id !== "string" || typeof made.decision_id !== "string")
+    throw new Error("change_playbook: the door answered without its row and its decision");
+  const was = made.was !== null && typeof made.was === "object" && !Array.isArray(made.was) ? made.was : {};
+  return { data: { id: made.id, was, decisionId: made.decision_id }, error: null };
+}
 
 // src/repositories/lists.ts
 var missingColumn = (message, column) => new RegExp(`\\b${column}\\b`).test(message) && /does not exist|could not find/i.test(message);
@@ -4746,6 +4776,7 @@ export {
   platformHoldStands,
   platformWide,
   playbookChannels,
+  playbookForChange,
   playbookForChannels,
   playbookTotals,
   playbooksOnList,
@@ -4821,6 +4852,7 @@ export {
   runCounts,
   runGoesByOthers,
   runSending,
+  runningTwins,
   runsWaitingOf,
   saveTemplateVersion,
   savedListFor,
@@ -4908,6 +4940,7 @@ export {
   workspaceMayUseModels,
   workspaceNameAndConfig,
   workspacePaused,
+  writePlaybookChange,
   writtenEmail,
   writtenEmails,
   yesesSince
