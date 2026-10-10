@@ -78,6 +78,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "calendar_person_add_failed",
   "calendar_person_email_failed",
   "campaign_channels_failed",
+  "campaign_last_days_read_failed",
   "campaign_month_failed",
   "cancel_pending_ai_reply_failed",
   "card_receipt_unkept",

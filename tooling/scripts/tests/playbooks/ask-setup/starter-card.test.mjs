@@ -288,6 +288,26 @@ test("a starter card says every channel it goes by and which hold their people u
   assert.match(closed.proposal.summary, / · Email waits: [^·]+ Its runs hold those people until it can\./);
 });
 
+test("a starter card on a number WhatsApp flagged keeps the workspace's own reason why WhatsApp waits, and says the review beside it: approving the version does not release those people", async () => {
+  const red = [
+    { tenant_id: A, kind: "whatsapp", status: "active", config: { quality_rating: "RED", messaging_limit: "TIER_1K" } },
+  ];
+  const r = await propose({ trigger: "quiet_30" }, { tenant_channels: red }).made;
+  assert.equal(r.isError, false, r.result);
+  const s = r.proposal.summary;
+  assert.match(
+    s,
+    / · WhatsApp waits: WhatsApp flagged this number's quality[^·]* Its runs hold those people until it can\./,
+  );
+  assert.ok(!s.includes(LIBRARY_STARTER_WORDS.whatsappForReview), s);
+  assert.ok(!s.includes("until WhatsApp approves it"), s);
+  assert.equal(
+    LIBRARY_STARTER_WORDS.whatsappSentForReview,
+    "Its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back.",
+  );
+  assert.ok(s.includes(` · ${LIBRARY_STARTER_WORDS.whatsappSentForReview}`), s);
+});
+
 /** The starter's WhatsApp version on file, as the filing finds it (in English, as a new campaign's starter is filed). */
 const onFile = (status, over = {}) =>
   template("dddddddd-dddd-4ddd-8ddd-ddddddddddd7", STARTER.name, {

@@ -1759,7 +1759,9 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   const w = turnWords(facts);
   assert.ok(w.includes("They are on Campaigns,"), w);
   assert.ok(w.includes("is action change on its playbook_id"), w);
-  assert.ok(w.includes("their numbers are the last 30 days"), w);
+  // A campaign's row says its last 30 days; a one-off send's (the ledger's, and Sent's) says that send's own totals.
+  assert.ok(w.includes("a campaign's numbers are its last 30 days, and a one-off send's are that send's own"), w);
+  assert.ok(!w.includes("their numbers are the last 30 days"), w);
   assert.ok(!w.includes("They are on the campaigns page."), "the line, never the bare page");
   assert.ok(!turnWords({ ...facts, surface: "today" }).includes("They are on Campaigns,"));
   // A card approved since the last answer sends Ask back to the reads; one dismissed, failed or undone does not.

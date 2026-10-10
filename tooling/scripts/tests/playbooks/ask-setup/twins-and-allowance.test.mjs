@@ -317,4 +317,26 @@ test("a broadcast card by email says what the month's allowance holds back, as t
   );
   assert.equal(later.isError, false, later.result);
   assert.doesNotMatch(later.proposal.summary, /held back/);
+  // Counted at the moment it really goes, as the door counts it (core createBroadcast, nextOpenMoment), and in the
+  // workspace's own month, as the database's count is: set for 10 PM on 30 September in New York, it moves to 9 AM on
+  // 1 October, so September's used-up emails hold nobody back.
+  const monthIn = (iso) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit" }).format(new Date(iso));
+  const septemberHere = (a) =>
+    a.p_channel === "email" && monthIn(a.p_at ?? NOW.toISOString()) === "2026-09" ? CAMPAIGN_MONTH_ALLOWANCE.email : 0;
+  const lateOnTheLast = await propose(
+    { ...byEmail, scheduled_for: "2026-09-30T22:00:00-04:00" },
+    {},
+    septemberHere,
+    OFFERS_BY_EMAIL,
+  );
+  assert.equal(lateOnTheLast.isError, false, lateOnTheLast.result);
+  assert.doesNotMatch(lateOnTheLast.proposal.summary, /held back/, lateOnTheLast.proposal.summary);
+  const lastAfternoon = await propose(
+    { ...byEmail, scheduled_for: "2026-09-30T15:00:00-04:00" },
+    {},
+    septemberHere,
+    OFFERS_BY_EMAIL,
+  );
+  assert.match(lastAfternoon.proposal.summary, /used up: .* held back/, "within the hours, it goes in September");
 });

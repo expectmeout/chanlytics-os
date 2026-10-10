@@ -397,7 +397,7 @@ function rowName(r: AskScope): string {
  * same bytes on every page: what a sentence on Campaigns is, and which action each kind of sentence is.
  */
 const CAMPAIGNS_LINE =
-  "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe a message at a moment or to a list are a campaign to propose: read campaigns with action playbooks and action audiences together, then call propose_campaign with action playbook once per campaign in the same round. Pausing, resuming, renaming, or a new hour, cap, gap or cadence of one that exists is action change on its playbook_id, which the page's rows carry. A question about results is answered from the page's rows: their numbers are the last 30 days.";
+  "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe a message at a moment or to a list are a campaign to propose: read campaigns with action playbooks and action audiences together, then call propose_campaign with action playbook once per campaign in the same round. Pausing, resuming, renaming, or a new hour, cap, gap or cadence of one that exists is action change on its playbook_id, which the page's rows carry. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
 
 /** Said once a card of the thread was approved since the last answer (A4): the shape is minutes old; campaigns are read. */
 const AFTER_APPROVAL_LINE =

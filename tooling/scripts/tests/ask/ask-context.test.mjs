@@ -771,9 +771,11 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
       },
     ],
   });
-  const pb = await buildContext(
-    rcIn(ctxFor(t)),
-    page("campaigns", [{ kind: "playbook", id: PB1 }], { route: "outbound", view: "playbooks" }),
+  const { result: pb, lines: unread } = await logs(() =>
+    buildContext(
+      rcIn(ctxFor(t)),
+      page("campaigns", [{ kind: "playbook", id: PB1 }], { route: "outbound", view: "playbooks" }),
+    ),
   );
   assert.deepEqual(
     pb.blocks.map((x) => [x.source, x.title]),
@@ -782,13 +784,43 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
       [`playbook://${PB1}`, "Win-back"],
     ],
   );
-  // Its last 30 days, as its row on Campaigns says them (this world models no campaign_series, so said unread), and
-  // where its drawer opens (the moment spec, A6).
+  // Its last 30 days, as its row on Campaigns says them (this world models no campaign_series, so said unread, and the
+  // failed read logged), and where its drawer opens (the moment spec, A6).
   assert.ok(
     textOf(pb.blocks[1]).endsWith(` · last 30 days not read · route: campaigns/moment:${PB1}`),
     textOf(pb.blocks[1]),
   );
   assert.match(textOf(pb.blocks[0]), /^Campaigns, playbooks: 1 on screen · playbooks: 1, 1 running/);
+  assert.equal(unread.filter((l) => l.includes('"campaign_last_days_read_failed"')).length, 1, unread.join("\n"));
+  // Read, its numbers are its row's (contracts sentResultsOfSource): a reply to an older send, with nothing sent in these
+  // days, is nothing sent, as the ledger says it.
+  const sources = (sent, replied) => ({
+    ...RPCS,
+    campaign_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today: "2026-09-14",
+      series: [],
+      sources: [
+        { id: PB1, kind: "playbook", name: "Win-back", template_name: "winback_offer", runs: 1, sent, delivered: sent },
+      ].map((s) => ({ ...s, read: 0, replied, last_at: "2026-09-10T12:00:00Z" })),
+      by_channel: [],
+    }),
+  });
+  // (A line is clipped at its cap, CONTEXT_CAPS.text: this row's runs to "nothing sent in the last 30 da…".)
+  for (const [sent, replied, said] of [
+    [0, 2, " · nothing sent in the last 30"],
+    [4, 1, " · last 30 days 4 sent, 1 replied"],
+  ]) {
+    clearContextCache();
+    readerCache.clear();
+    const got = await buildContext(
+      rcIn(ctxFor(t, sources(sent, replied))),
+      page("campaigns", [{ kind: "playbook", id: PB1 }], { route: "outbound", view: "playbooks" }),
+    );
+    assert.ok(textOf(got.blocks[1]).includes(said), textOf(got.blocks[1]));
+  }
 
   // The home's ledger (the moment spec, A2): its view says its status, group and search; its rows are its campaigns and
   // its one-off sends, each as its own page says it, and each a row a citation names.

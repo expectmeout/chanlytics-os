@@ -12,6 +12,7 @@ import {
   clockWhen,
   eligibleFor,
   emptyAudienceRefusal,
+  nextOpenMoment,
   parseParamSpec,
   proposalChannelsWords,
   reachSplit,
@@ -139,9 +140,11 @@ function broadcastReach(
 
 /**
  * What the month's email and text allowance will hold back of a broadcast that goes by them (A7), with its separator:
- * the send screen's own sentence (contracts allowanceBeforeSend), counted against the month the send is set to go in, as
- * that screen counts it (`when`, the ISO time it is set for; now where it goes at once). Nothing while there is room,
- * where it goes by WhatsApp alone (no count is read), or where the month could not be counted.
+ * the send screen's own sentence (contracts allowanceBeforeSend), counted against the month the send really goes in, as
+ * that screen and the door count it: the next open moment of `when` (the ISO time it is set for; now where it goes at
+ * once), so one set for 10 PM on the month's last day goes, and is counted, the next morning (core createBroadcast).
+ * Nothing while there is room, where it goes by WhatsApp alone (no count is read), or where the month could not be
+ * counted.
  */
 async function broadcastHeld(
   t: ToolContext,
@@ -151,7 +154,7 @@ async function broadcastHeld(
   when: string | null,
 ): Promise<string> {
   if (!channels.some((c) => c !== "whatsapp")) return "";
-  const goesAt = when ? new Date(Date.parse(when)) : t.now;
+  const goesAt = nextOpenMoment(t.timezone, when ? new Date(Date.parse(when)) : t.now).at;
   const words = allowanceBeforeSend(byChannel, await monthSentOrNull(t.tenantId, goesAt), null, purpose);
   return words ? ` · ${words}` : "";
 }

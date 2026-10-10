@@ -42,14 +42,18 @@ export const campaignReport: Reader<ReportWindow, { report: CampaignReportDto }>
 /**
  * Each campaign's numbers over Campaigns' own period (contracts CAMPAIGNS_RESULTS_PERIOD, 30 days ending today), read as
  * GET reports/campaigns?period=30d reads them (its window from the route's own reportWindowFor): campaign_series'
- * sources, the numbers a campaign's row on Campaigns says (D35). Null where they could not be read, never all-time
- * totals in their place. Ask's campaigns read and the Campaigns page's context say them.
+ * sources, the numbers a campaign's row on Campaigns says (D35). Null where they could not be read, logged, never
+ * all-time totals in their place. Ask's campaigns read and the Campaigns page's context say them.
  */
 export async function lastDaysBySource(rc: ReaderContext): Promise<CampaignSourceDto[] | null> {
   try {
     const window = await reportWindowFor(rc, { period: CAMPAIGNS_RESULTS_PERIOD });
     return (await load(rc, campaignReport, window)).data.report.sources ?? [];
-  } catch {
+  } catch (e) {
+    log.error("campaign_last_days_read_failed", {
+      tenant_id: rc.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 }

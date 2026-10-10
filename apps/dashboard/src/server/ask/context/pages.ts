@@ -4,6 +4,7 @@ import {
   nextRunLabel,
   reportDaysAsked,
   reportRangeOfKey,
+  sentResultsOfSource,
   setupSteps,
   toBookingReportVM,
   toBroadcastVM,
@@ -79,12 +80,14 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   const pb = read.data;
   const byId = new Map(pb.playbooks.map((p) => [p.id, p]));
   const refs = refsOf(read.rows);
+  // Nothing sent is the row's own rule (contracts sentResultsOfSource): a reply to an older send is no sending in these days.
   const lastDays = (id: string) => {
     const days = lastDaysOf(sources, id);
     if (!days) return "last 30 days not read";
-    return days.sent === 0 && days.replied === 0
+    const said = sentResultsOfSource(days);
+    return said === "none"
       ? "nothing sent in the last 30 days"
-      : `last 30 days ${days.sent} sent, ${days.replied} replied`;
+      : `last 30 days ${said.sent} sent, ${said.replied} replied`;
   };
   const rows: ContextRow[] = [];
   for (const id of ids) {

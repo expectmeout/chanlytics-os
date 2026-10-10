@@ -498,6 +498,22 @@ function underMode(cls: PlaybookInput["policy_class"], policies: readonly { clas
  * are open). Its slots are the starter's own sources, which the payload carries and the commit sends. It says what the
  * message card says (the moment and its schedule, the month's allowance, who said yes, the class's mode).
  */
+/**
+ * What a starter card says of the channels that wait (channelsWaitWords) where its Approve sends a WhatsApp version for
+ * review (`forReview`). Where the workspace is ready on WhatsApp, the review is why WhatsApp waits, said in its place;
+ * where a reason of the workspace's own holds WhatsApp (a number WhatsApp flagged), that reason stands, since approving
+ * the version releases nobody, and the review is said beside it.
+ */
+function starterWaitWords(
+  read: Parameters<typeof channelsWaitWords>[0],
+  forReview: boolean,
+  whatsappReady: boolean,
+): string {
+  if (!forReview || !read.kept.includes("whatsapp")) return channelsWaitWords(read);
+  if (whatsappReady) return channelsWaitWords(read, { whatsapp: LIBRARY_STARTER_WORDS.whatsappForReview });
+  return `${channelsWaitWords(read)} · ${LIBRARY_STARTER_WORDS.whatsappSentForReview}`;
+}
+
 async function proposeOnStarter(
   t: ToolContext,
   input: PlaybookProposed,
@@ -551,7 +567,7 @@ async function proposeOnStarter(
   // Its WhatsApp version goes for review at Approve only where none is on file; one on file is said as it stands, by the
   // drawer's reading (in review, refused), and the filing leaves it so.
   const forReview = judged.whatsappOnFile === null && judged.message.versions.whatsapp !== null;
-  const waits = channelsWaitWords(read, forReview ? { whatsapp: LIBRARY_STARTER_WORDS.whatsappForReview } : {});
+  const waits = starterWaitWords(read, forReview, workspace.whatsapp.ready);
   // The moment and its schedule in the workspace's word, as the message card says them.
   const { word, moment } = await wordedMoment(t, trig);
   return propose({

@@ -143,11 +143,21 @@ export function tallyOf(own: readonly LifecyclePlaybook[]): {
   return t;
 }
 
+/**
+ * A source's last 30 days as its row says them: what it sent and how many replied where it sent anything, "none" where
+ * it sent nothing (a reply to an older send is no sending in these days). The one rule a row of the ledger and Ask's
+ * context of the page (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
+ */
+export function sentResultsOfSource(
+  s: { sent: number; replied: number } | null | undefined,
+): { kind: "sent"; sent: number; replied: number } | "none" {
+  return s && s.sent > 0 ? { kind: "sent", sent: s.sent, replied: s.replied } : "none";
+}
+
 /** A playbook's or a one-off's last 30 days, by its source in campaign_series. */
 function sentResultsOf(id: string, report: LifecycleInput["report"]): LifecycleRowResults {
   if (!report) return "uncounted";
-  const s = report.sources.find((x) => x.id === id);
-  return s && s.sent > 0 ? { kind: "sent", sent: s.sent, replied: s.replied } : "none";
+  return sentResultsOfSource(report.sources.find((x) => x.id === id));
 }
 
 /** A reach-out's, by its root: past the report's twenty, absent is "none" only where every chain was counted. */
@@ -413,7 +423,7 @@ function sentOnceRow(s: LifecycleSource, at: { input: LifecycleInput; caps: stri
     needsWords: "",
     channels: [],
     people: { n: null, unit: "" },
-    results: s.sent > 0 ? { kind: "sent", sent: s.sent, replied: s.replied } : "none",
+    results: sentResultsOfSource(s),
     next: NO_NEXT,
     open: { kind: "route", label: "Open", route: `${SENT_ROUTE}/run:${s.id}` },
     waiting: null,

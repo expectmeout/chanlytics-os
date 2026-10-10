@@ -93,6 +93,7 @@ export {
   ledgerPeopleWords,
   ledgerPhoneLine,
   ledgerRowIn,
+  sentResultsOfSource,
 } from "./lifecycle/lifecycle-ledger";
 export type { LedgerSort, LedgerStatus } from "./lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./lifecycle/lifecycle-tiles";

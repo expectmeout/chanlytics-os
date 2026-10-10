@@ -8117,6 +8117,11 @@ var LIBRARY_STARTER_WORDS = {
    */
   whatsappForReview: "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.",
   /**
+   * The same review, said beside the workspace's own reason WhatsApp waits (a number WhatsApp flagged): there, WhatsApp's
+   * approval of the version releases nobody, so the reason stands and the review is a clause of its own.
+   */
+  whatsappSentForReview: "Its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back.",
+  /**
    * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
    * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
    * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).
@@ -27948,10 +27953,12 @@ function tallyOf(own) {
   }
   return t;
 }
+function sentResultsOfSource(s) {
+  return s && s.sent > 0 ? { kind: "sent", sent: s.sent, replied: s.replied } : "none";
+}
 function sentResultsOf(id, report) {
   if (!report) return "uncounted";
-  const s = report.sources.find((x) => x.id === id);
-  return s && s.sent > 0 ? { kind: "sent", sent: s.sent, replied: s.replied } : "none";
+  return sentResultsOfSource(report.sources.find((x) => x.id === id));
 }
 function chainResultsOf(rootId, chains) {
   if (!chains) return "uncounted";
@@ -28153,7 +28160,7 @@ function sentOnceRow(s, at3) {
     needsWords: "",
     channels: [],
     people: { n: null, unit: "" },
-    results: s.sent > 0 ? { kind: "sent", sent: s.sent, replied: s.replied } : "none",
+    results: sentResultsOfSource(s),
     next: NO_NEXT,
     open: { kind: "route", label: "Open", route: `${SENT_ROUTE}/run:${s.id}` },
     waiting: null,
@@ -40695,6 +40702,7 @@ export {
   sendingDomainWords,
   sendingDomainsFootWords,
   sentByWords,
+  sentResultsOfSource,
   serverNotificationRows,
   serviceNamedIn,
   serviceOf2 as serviceOf,
