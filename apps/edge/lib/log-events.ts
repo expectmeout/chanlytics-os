@@ -184,8 +184,6 @@ export const LOG_EVENTS = [
   "email_yes_unauthenticated",
   "emit_event_failed",
   "env_invalid",
-  "escalation_change_failed",
-  "escalation_refresh_failed",
   "escalation_upsert_failed",
   "event_deliver_event_gone",
   "events_relay_failed",

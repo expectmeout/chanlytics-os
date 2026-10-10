@@ -235,47 +235,19 @@ import {
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
-import { emitEvent } from "../../db/dist/index.js";
+import { openEscalation } from "../../db/dist/index.js";
 import { logger as logger2 } from "../../channels/dist/index.js";
 async function upsertEscalation(db, tenantId, conversationId, reason, details) {
-  const { error } = await db.from("escalations").insert({
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    reason,
-    details
-  });
-  if (!error) {
-    await emitEvent(db, tenantId, "escalation.opened", "conversation", conversationId, { reason });
-    return "opened";
+  try {
+    return await openEscalation(db, { tenantId, conversationId, reason, details });
+  } catch (e) {
+    logger2().error("escalation_upsert_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: e instanceof Error ? e.message : String(e)
+    });
+    return "failed";
   }
-  if (error.code === "23505") {
-    const { data: replaced, error: changeErr } = await db.from("escalations").update({ details, reason }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open").neq("reason", reason).select("id");
-    if (changeErr) {
-      logger2().error("escalation_change_failed", {
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        error: changeErr.message
-      });
-      return "failed";
-    }
-    if (replaced && replaced.length > 0) return "changed";
-    const { error: refreshErr } = await db.from("escalations").update({ details }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open");
-    if (refreshErr) {
-      logger2().error("escalation_refresh_failed", {
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        error: refreshErr.message
-      });
-      return "failed";
-    }
-    return "refreshed";
-  }
-  logger2().error("escalation_upsert_failed", {
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    error: error.message
-  });
-  return "failed";
 }
 
 // src/broadcast-send.ts
@@ -298,7 +270,7 @@ import {
   appointmentStates,
   campaignMonthSent,
   claimQueuedSend,
-  emitEvent as emitEvent2,
+  emitEvent,
   insertQueuedEmail,
   mailboxOfTenant,
   messageVersionRowsOf,
@@ -526,7 +498,7 @@ async function broadcastSend(ctx, job) {
         );
         if (!moved?.length) return;
         const sent = await countRecipients(db, job.tenant_id, id, "sent").catch(() => null);
-        await emitEvent2(db, job.tenant_id, "broadcast.stopped", "broadcast", id, { failure, sent });
+        await emitEvent(db, job.tenant_id, "broadcast.stopped", "broadcast", id, { failure, sent });
       },
       startSending: async (id) => {
         const rows = must(
@@ -775,7 +747,7 @@ import {
   tenantZoneOf,
   updateAppointment,
   clearForwardingConfirmation,
-  emitEvent as emitEvent3
+  emitEvent as emitEvent2
 } from "../../db/dist/index.js";
 var STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
 var OUTCOMES = ["booked", "changed", "cancelled", "held", "dismissed"];
@@ -785,11 +757,11 @@ async function sayBooking(db, p) {
   if (!p.appointmentId) return;
   const data = { source: "booking_email", tool: p.tool };
   if (p.outcome === "booked")
-    await emitEvent3(db, p.tenantId, "appointment.booked", "appointment", p.appointmentId, data);
+    await emitEvent2(db, p.tenantId, "appointment.booked", "appointment", p.appointmentId, data);
   if (p.outcome === "changed")
-    await emitEvent3(db, p.tenantId, "appointment.moved", "appointment", p.appointmentId, data);
+    await emitEvent2(db, p.tenantId, "appointment.moved", "appointment", p.appointmentId, data);
   if (p.outcome === "cancelled")
-    await emitEvent3(db, p.tenantId, "appointment.cancelled", "appointment", p.appointmentId, data);
+    await emitEvent2(db, p.tenantId, "appointment.cancelled", "appointment", p.appointmentId, data);
 }
 function stored(r) {
   if (!isStatus(r.status)) throw new Error(`booking_read: an appointment is ${r.status}`);
@@ -1320,7 +1292,7 @@ async function dispatchJob(ctx, job) {
 // src/settle.ts
 import { isCampaignEmail } from "../../contracts/dist/index.js";
 import { logger as logger7 } from "../../channels/dist/index.js";
-import { emitEvent as emitEvent4, failQueuedSend } from "../../db/dist/index.js";
+import { emitEvent as emitEvent3, failQueuedSend } from "../../db/dist/index.js";
 var NEVER_SENT = "the job that would have sent this never ran";
 var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 var MAY_HAVE_SENT = "the run that was sending this did not finish";
@@ -1354,7 +1326,7 @@ async function failBroadcast(db, job, broadcastId, why, far) {
   const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).in("state", ["scheduled", "sending"]).select("id");
   if (error) return [{ what: "broadcast", changed: false, ...far, error: `${why}; then ${error.message}` }];
   if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
-  await emitEvent4(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
+  await emitEvent3(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
     failure: "run_interrupted",
     sent: far.reached
   });

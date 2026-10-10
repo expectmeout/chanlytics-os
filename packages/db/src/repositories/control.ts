@@ -286,3 +286,26 @@ export async function callBackMessage(
   if (typeof id !== "string") throw new Error("message_call_back: the door answered without its decision");
   return { decisionId: id, undoDropped: data.undo_dropped === true };
 }
+
+/* -------------------------------------------------------------------- a thread handed to a person (00380) -- */
+
+/**
+ * A thread handed to a person, through the one door (00380 escalation_open), the service role's: a new open escalation
+ * with its escalation.opened event ("opened"), the open one taking another reason ("changed"), or the same reason's
+ * words moved ("refreshed"), in one transaction. A failure throws, and then nothing moved.
+ */
+export async function openEscalation(
+  db: Db,
+  p: { tenantId: string; conversationId: string; reason: string; details: string },
+): Promise<"opened" | "changed" | "refreshed"> {
+  const { data, error } = await db.rpc("escalation_open", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_reason: p.reason,
+    p_details: p.details,
+  });
+  if (error) throw new Error(`escalation_open: ${error.message}`);
+  if (data !== "opened" && data !== "changed" && data !== "refreshed")
+    throw new Error(`escalation_open: the door answered ${String(data)}`);
+  return data;
+}

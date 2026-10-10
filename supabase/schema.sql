@@ -3587,6 +3587,60 @@ $$;
 
 
 --
+-- Name: escalation_open(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  if p_tenant_id is null or p_conversation_id is null or nullif(btrim(coalesce(p_reason, '')), '') is null then
+    raise exception 'escalation_open: a thread is handed to a person in a workspace, for a reason' using errcode = '22004';
+  end if;
+  -- Twice at most: a hold found open and resolved before it could be changed leaves room for a new one.
+  for attempt in 1 .. 2 loop
+    insert into public.escalations (tenant_id, conversation_id, reason, details)
+    values (p_tenant_id, p_conversation_id, p_reason, p_details)
+    on conflict (conversation_id) where state = 'open' do nothing
+    returning id into v_id;
+    if v_id is not null then
+      insert into public.events (tenant_id, kind, category, version, subject_type, subject_id, data)
+      values (p_tenant_id, 'escalation.opened', 'message', 1, 'conversation', p_conversation_id,
+              jsonb_build_object('reason', p_reason));
+      return 'opened';
+    end if;
+    -- One open escalation per thread (escalations_one_open): another reason replaces it, held by the row it updates.
+    update public.escalations e
+       set reason = p_reason, details = p_details
+     where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id and e.state = 'open'
+       and e.reason is distinct from p_reason
+    returning e.id into v_id;
+    if v_id is not null then
+      return 'changed';
+    end if;
+    update public.escalations e
+       set details = p_details
+     where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id and e.state = 'open'
+    returning e.id into v_id;
+    if v_id is not null then
+      return 'refreshed';
+    end if;
+  end loop;
+  raise exception 'escalation_open: the thread''s hold moved twice while it was opened' using errcode = '40001';
+end $$;
+
+
+--
+-- Name: FUNCTION escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00380): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. An open one resolved in between leaves room, and a new one is opened. The service role''s.';
+
+
+--
 -- Name: escalations_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31501,6 +31555,14 @@ GRANT ALL ON FUNCTION public.erasure_rekey(p_apply boolean, p_tenant_id uuid) TO
 
 REVOKE ALL ON FUNCTION public.erasure_rekey_hashes(p_list jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.erasure_rekey_hashes(p_list jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) TO service_role;
 
 
 --

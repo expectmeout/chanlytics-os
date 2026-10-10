@@ -1078,6 +1078,18 @@ async function callBackMessage(db, p) {
   if (typeof id !== "string") throw new Error("message_call_back: the door answered without its decision");
   return { decisionId: id, undoDropped: data.undo_dropped === true };
 }
+async function openEscalation(db, p) {
+  const { data, error } = await db.rpc("escalation_open", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_reason: p.reason,
+    p_details: p.details
+  });
+  if (error) throw new Error(`escalation_open: ${error.message}`);
+  if (data !== "opened" && data !== "changed" && data !== "refreshed")
+    throw new Error(`escalation_open: the door answered ${String(data)}`);
+  return data;
+}
 
 // src/repositories/ingest.ts
 import {
@@ -4806,6 +4818,7 @@ export {
   oldestActiveChannel,
   openConversation,
   openDoubtsOf,
+  openEscalation,
   ourLastWire,
   outreachFactsOf,
   outreachModeOf,

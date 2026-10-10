@@ -381,6 +381,7 @@
     "00376_a_person_s_resolution_is_recorded_when_it_changed_something.sql": "c2aa4e6c00a8367a602c9a418ab1d55458e562ca114318e24397aa8bbec00d59",
     "00377_a_hold_s_expiry_is_found_by_index.sql": "9809fd8e15307c43dc742d766b398060c7b3dc4e1e4374cf111bbe9497672417",
     "00378_a_thread_is_taken_over_and_handed_back_in_one_transaction.sql": "451087b0d3ba5a5d2cbb4dc95378b9dbb82ac03b60025dc358c6906e7fda19f1",
-    "00379_a_queued_message_is_withdrawn_by_one_door.sql": "0bcdbf72be138189a96cc57b253092a17afe215ba9908b9eac077da3c92caf51"
+    "00379_a_queued_message_is_withdrawn_by_one_door.sql": "0bcdbf72be138189a96cc57b253092a17afe215ba9908b9eac077da3c92caf51",
+    "00380_an_escalation_is_opened_with_its_event.sql": "37c765650138c01ae3a4fa224d19f3af2eaa5aecff9949e86d7a137cee3a69b9"
   }
 }

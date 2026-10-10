@@ -6460,6 +6460,15 @@ export type Database = {
         Returns: Json
       }
       erasure_rekey_hashes: { Args: { p_list: Json }; Returns: Json }
+      escalation_open: {
+        Args: {
+          p_conversation_id: string
+          p_details: string
+          p_reason: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       event_deliveries_redrive: {
         Args: { p_subscriber: string }
         Returns: number

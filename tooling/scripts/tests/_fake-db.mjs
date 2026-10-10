@@ -1048,6 +1048,58 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       });
       return { decision_id: decision.id, undo_dropped: Boolean(p_undo_of) && undo === null };
     },
+    /**
+     * A thread handed to a person, by its one door (00380 escalation_open), over the rows a world holds: a new open
+     * escalation with its escalation.opened ("opened"), the open one taking another reason with escalation.changed
+     * ("changed"), or the same reason's words moved ("refreshed"). A fault on `escalations.insert` that is the one-open
+     * key's 23505 is a thread already held (as Postgres would answer it); any other refuses the door, with nothing kept.
+     */
+    escalation_open: ({ p_tenant_id, p_conversation_id, p_reason, p_details }) => {
+      const insertFault = faults["escalations.insert"];
+      if (insertFault && insertFault.code !== "23505")
+        throw Object.assign(new Error(insertFault.message), insertFault.code ? { code: insertFault.code } : {});
+      const open = (tables.escalations ?? []).find(
+        (e) => e.tenant_id === p_tenant_id && e.conversation_id === p_conversation_id && (e.state ?? "open") === "open",
+      );
+      if (!open) {
+        insertRow("escalations", {
+          tenant_id: p_tenant_id,
+          conversation_id: p_conversation_id,
+          reason: p_reason,
+          details: p_details,
+          state: "open",
+        });
+        insertRow("events", {
+          tenant_id: p_tenant_id,
+          kind: "escalation.opened",
+          category: "message",
+          version: 1,
+          subject_type: "conversation",
+          subject_id: p_conversation_id,
+          data: { reason: p_reason },
+        });
+        return "opened";
+      }
+      const updateFault = faults["escalations.update"];
+      if (updateFault)
+        throw Object.assign(new Error(updateFault.message), updateFault.code ? { code: updateFault.code } : {});
+      if (open.reason !== p_reason) {
+        const from = open.reason;
+        Object.assign(open, { reason: p_reason, details: p_details });
+        insertRow("events", {
+          tenant_id: p_tenant_id,
+          kind: "escalation.changed",
+          category: "conversation",
+          version: 1,
+          subject_type: "escalation",
+          subject_id: open.id,
+          data: { from, to: p_reason },
+        });
+        return "changed";
+      }
+      open.details = p_details;
+      return "refreshed";
+    },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of

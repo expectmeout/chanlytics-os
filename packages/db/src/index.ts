@@ -315,6 +315,7 @@ export {
   memberWithdrawDrafts,
   memberWithdrawMessage,
   callBackMessage,
+  openEscalation,
 } from "./repositories/control";
 export type {
   ControlHolder,
