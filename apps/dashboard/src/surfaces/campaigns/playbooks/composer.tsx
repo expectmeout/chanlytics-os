@@ -45,7 +45,7 @@ interface ComposerProps {
   data: PlaybooksSurface;
   editing: PlaybookCardVM | null;
   initialTrigger?: string | null;
-  onDone: (d: { name?: string }, changed: boolean) => void;
+  onDone: (d: { id?: string; name?: string }, changed: boolean) => void;
   onCancel: () => void;
 }
 

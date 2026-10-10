@@ -916,3 +916,207 @@ test("under seven rows the phone has no strip, and sorts by Next in its groups",
   assert.equal(byTestId(tree, "cmh-phone-strip"), null);
   assert.equal(allBy(tree, "cmh-row").length, 1);
 });
+
+/* ------------------------------------------------------ the page ------------------------------------------------------ */
+
+const { CampaignsHome } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/home/home-page.tsx");
+const { PaneSheet } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/home/pane-sheet.tsx");
+const { PlaybookComposer } =
+  await import("../../../../../apps/dashboard/src/surfaces/campaigns/playbooks/composer.tsx");
+const { playbooksSample } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/playbooks/sample.ts");
+const { broadcastsSample } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/sample.ts");
+
+/** The surfaces of a workspace with a calendar: a win-back running, a visit reminder paused, a welcome with a run waiting. */
+function surfaces(over = {}) {
+  const now = new Date(NOW);
+  const pb = playbooksSample(now);
+  const bc = broadcastsSample(now);
+  const pool = (pool, candidates = 0, saidYes = pool) => ({
+    candidates,
+    held: 0,
+    pool,
+    noYes: pool - saidYes,
+    stopped: 0,
+    noNumber: 0,
+    saidYes,
+  });
+  // The call's text and the Library's count are the playbooks surface's own read of the templates (Settings is no longer
+  // drawn on Campaigns): a test that hands Settings a library hands it here.
+  const lib = over.settings && "templatesAll" in over.settings ? over.settings.templatesAll : pb.templates;
+  setSurfaceValue("playbooks", {
+    ...pb,
+    pools: {
+      new_week: pool(0),
+      visit_tomorrow: pool(3, 3),
+      visited: pool(2, 2),
+      quiet_30: pool(5, 0, 0),
+      ...(over.pools ?? {}),
+    },
+    library: lib,
+    messages:
+      over.settings && "messages" in over.settings
+        ? over.settings.messages
+        : lib
+          ? contracts.campaignMessagesOf(lib)
+          : null,
+    ...(over.playbooks ?? {}),
+  });
+  // A report a test hands the broadcasts surface is Campaigns' own 30 days now (campaign_results), drawn from there.
+  const { report: handed, ...broadcastsOver } = over.broadcasts ?? {};
+  setSurfaceValue("broadcasts", {
+    ...bc,
+    reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
+    ...broadcastsOver,
+  });
+  setSurfaceValue("campaign_results", {
+    period: "30d",
+    report:
+      over.broadcasts && "report" in over.broadcasts
+        ? handed
+        : { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2 }, sources: [] },
+    chains: null,
+    fetchedAt: 0,
+  });
+  setSurfaceValue("reach_outs", over.reachOuts ?? []);
+  setSurfaceValue("settings", {
+    templatesAll: pb.templates,
+    messages: contracts.campaignMessagesOf(pb.templates),
+    ...(over.settings ?? {}),
+  });
+}
+
+const page = (param = null) => again(() => CampaignsHome({ param, nowMs: NOW }));
+const sheetOf = (tree) => find(tree, (n) => n.type === PaneSheet);
+const rowIds = (tree) => allBy(tree, "cmh-row").map((r) => r.props["data-row"]);
+/** A document that finds every row's opener, focuses and presses it, and opens nothing over the page. */
+const documentOf = (log) => (sel) =>
+  sel.includes("[role=")
+    ? null
+    : {
+        focus: () => log.push(["focus", sel]),
+        click: () => log.push(["click", sel]),
+        scrollIntoView: () => log.push(["scroll", sel]),
+      };
+const keydown = (k) =>
+  globalThis.dispatchEvent({
+    type: "keydown",
+    key: k,
+    target: { nodeType: 1, tagName: "DIV", closest: () => null, getAttribute: () => null },
+    defaultPrevented: false,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    repeat: false,
+    preventDefault() {},
+  });
+
+test("the page draws every campaign as a row of the ledger, in the rail's pane under the moments", () => {
+  surfaces();
+  fresh();
+  const tree = page();
+  const rail = byTestId(tree, "cmh-rail");
+  assert.ok(byTestId(rail, "cmh-ledger"), "the ledger stands in the moments' pane");
+  for (const id of ["pb-sample-winback", "pb-sample-welcome", "pb-sample-reminder"])
+    assert.ok(rowIds(tree).includes(id), `${id} is a row`);
+  assert.ok(allBy(tree, "cmh-stage").length >= 4, "and the moments above it");
+});
+
+test("a card's press replaces the address with its group; a drawer over the narrowed ledger keeps it; closing goes back to it", () => {
+  surfaces();
+  fresh();
+  let tree = page();
+  const quiet = allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === "quiet");
+  press(byTestId(quiet, "cmh-stage-press"));
+  assert.deepEqual(replaced, ["campaigns/in:quiet"], "replaced, never pushed");
+  tree = page("in:quiet");
+  assert.deepEqual(rowIds(tree), ["pb-sample-winback"], "the ledger shows the moment's campaigns alone");
+  assert.equal(allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === "quiet").props["data-chosen"], "true");
+  press(byTestId(allBy(tree, "cmh-row")[0], "cmh-row-open"));
+  assert.deepEqual(went, ["campaigns/moment:pb-sample-winback"], "the drawer is pushed");
+  tree = page("moment:pb-sample-winback");
+  assert.deepEqual(rowIds(tree), ["pb-sample-winback"], "the ledger behind the drawer keeps its group");
+  sheetOf(tree).props.onClose();
+  assert.deepEqual(said, [["back"]], "closing goes back to campaigns/in:quiet");
+});
+
+test("a sheet a link arrived at closes to the home; one another door pushed over the home closes back to it", () => {
+  surfaces();
+  fresh();
+  sheetOf(page("moment:pb-sample-winback")).props.onClose();
+  assert.deepEqual(replaced, ["campaigns"], "nothing of the page's behind it: replaced");
+  fresh();
+  page();
+  // A bell row, or Ask's card, moves the address over the home the page stands on.
+  sheetOf(page("moment:pb-sample-winback")).props.onClose();
+  assert.deepEqual(said, [["back"]], "the home is behind it: back");
+  assert.deepEqual(replaced, []);
+});
+
+test("the keys: J walks to a row and gives its name the focus, Enter presses it, and behind a sheet the keys are the sheet's", () => {
+  surfaces();
+  fresh();
+  const log = [];
+  globalThis.document.querySelector = documentOf(log);
+  page();
+  keydown("j");
+  page();
+  const focused = log.find(([what]) => what === "focus");
+  assert.ok(focused && focused[1].endsWith("[data-row-open]"), "the first row's name has the focus");
+  keydown("Enter");
+  assert.deepEqual(log.at(-1), ["click", focused[1]], "Enter opens the row under the cursor");
+  log.length = 0;
+  fresh();
+  page("moment:pb-sample-winback");
+  keydown("j");
+  assert.deepEqual(
+    log.filter(([what]) => what !== "scroll"),
+    [],
+    "behind the drawer nothing moves",
+  );
+});
+
+test("a drawer opened from a moment's card gives the focus back to the card as it closes, never to the row under it", () => {
+  surfaces();
+  fresh();
+  const log = [];
+  globalThis.document.querySelector = documentOf(log);
+  const quiet = (t) => allBy(t, "cmh-stage").find((s) => s.props["data-stage"] === "quiet");
+  press(byTestId(quiet(page()), "cmh-open"));
+  assert.deepEqual(went, ["campaigns/moment:pb-sample-winback"], "the card's name pushes its lead's drawer");
+  page("moment:pb-sample-winback");
+  page();
+  const focused = log.filter(([what]) => what === "focus").map(([, sel]) => sel);
+  assert.equal(focused.length, 1);
+  assert.match(focused[0], /data-stage="quiet"\] \[data-row-open\]$/, "the card's name, where the press was");
+});
+
+test("a campaign the composer just saved arrives: the sheet closes, the toast says it, its row is scrolled to and washed", () => {
+  surfaces();
+  fresh();
+  const log = [];
+  globalThis.document.querySelector = documentOf(log);
+  const tree = page("new:edit:pb-sample-winback");
+  find(tree, (n) => n.type === PlaybookComposer).props.onDone({ id: "pb-sample-winback", name: "Win-back" }, true);
+  assert.deepEqual(replaced, ["campaigns"], "the sheet a link arrived at closes to the home");
+  assert.match(textOf(toasts.at(-1).msg), /Win-back changed/);
+  const row = allBy(page(), "cmh-row").find((r) => r.props["data-row"] === "pb-sample-winback");
+  assert.equal(row.props["data-arrived"], "true");
+  assert.deepEqual(
+    log.find(([what]) => what === "scroll"),
+    ["scroll", '[data-row="pb-sample-winback"]'],
+  );
+});
+
+test("on a phone the moments' pane holds the one list on the journey's line, and no rail of its own", () => {
+  surfaces();
+  globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  fresh();
+  const tree = page();
+  assert.ok(byTestId(byTestId(tree, "cmh-rail"), "cmh-ledger"));
+  assert.ok(
+    allBy(tree, "cmh-group-head").some((g) => g.props["data-stage"] === "quiet"),
+    "a moment's head is its node",
+  );
+  assert.equal(allBy(tree, "cmh-stage").length, 0, "no desk rail on a phone");
+  assert.equal(byTestId(tree, "cmh-also"), null);
+});

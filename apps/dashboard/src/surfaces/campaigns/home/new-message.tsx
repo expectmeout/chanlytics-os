@@ -44,8 +44,8 @@ interface NewMessageProps {
   onYes: (route: string) => void;
   /** The choice at the head: Send once, or Every time a moment comes (the address is replaced, never pushed). */
   onKind: (mode: "once" | "every") => void;
-  /** The server took a playbook: its name, and whether it was changed. */
-  onSaved: (d: { name?: string }, changed: boolean) => void;
+  /** The server took a playbook: its id and name, and whether it was changed. */
+  onSaved: (d: { id?: string; name?: string }, changed: boolean) => void;
 }
 
 /** The send screen, once the broadcasts it is made of are read: reading while they are out, said when they could not be. */

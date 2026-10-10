@@ -4888,19 +4888,19 @@ div.tpl-slotbox:not([data-lines="1"]) {
   background: var(--bg-raised);
   color: var(--ink-dim);
 }
-/* The desk's card, the phone's spine head (ledger-phone.tsx) and, until the page draws that spine, the phone's old rail. */
-:is(.cmh-stage, .cmh-spine-head, .cmh-vstage):is([data-state="always"], [data-state="on"]) .cmh-node {
+/* The desk's card and the phone's spine head (ledger-phone.tsx). */
+:is(.cmh-stage, .cmh-spine-head):is([data-state="always"], [data-state="on"]) .cmh-node {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--bg-raised);
 }
-:is(.cmh-stage, .cmh-spine-head, .cmh-vstage)[data-hint] .cmh-node {
+:is(.cmh-stage, .cmh-spine-head)[data-hint] .cmh-node {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
 /* A moment whose run waits for the owner: the node gives up its filled ground and wears the amber, a clock where the
    check stood ("needs you" is amber on every badge, the badges' rule). */
-:is(.cmh-stage, .cmh-spine-head, .cmh-vstage)[data-waits] .cmh-node {
+:is(.cmh-stage, .cmh-spine-head)[data-waits] .cmh-node {
   border-color: var(--warn);
   background: var(--bg-raised);
   color: var(--warn-ink);
@@ -5663,7 +5663,7 @@ div.tpl-slotbox:not([data-lines="1"]) {
    clipped, not hidden (the kit's flush panel hides), so the page's scroll is the one the strip sticks to. */
 .cmh .cmh-spine-block {
   /* The strip's height: a thumb's 44px control, its padding and its hairline (.cmh-phone-strip). */
-  --cmh-strip-h: 53px;
+  --cmh-phone-strip-h: 53px;
   overflow: clip;
 }
 .cmh-meta {
@@ -5708,7 +5708,7 @@ div.tpl-slotbox:not([data-lines="1"]) {
   align-items: center;
   gap: var(--space-2);
   box-sizing: border-box;
-  min-height: var(--cmh-strip-h);
+  min-height: var(--cmh-phone-strip-h);
   padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--line);
   background: var(--surface-pane-solid);
@@ -5774,7 +5774,7 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 /* A row brought into view (ledger-keys.ts) stops under the strip where the strip sticks, never beneath it. */
 .cmh-spine[data-tools="true"] .cmh-phone-row {
-  scroll-margin-top: var(--cmh-strip-h);
+  scroll-margin-top: var(--cmh-phone-strip-h);
 }
 .cmh-phone-row + .cmh-phone-row {
   border-top: 1px solid var(--line);
@@ -5828,124 +5828,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
   .cmh-phone-row[data-arrived="true"] > .cmh-phone-line {
     transition: none;
   }
-}
-/* Who can hear you, a line in the Moments head (8 Oct 2026; it was a tile of its own over them): the figure in words with
-   the yes to offers at its right, and the channels' standing under it, in the head's own quiet size. */
-.cmh-vrail-reach {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-1) 22px var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-}
-.cmh-vrail-hear {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-  margin: 0;
-}
-.cmh-vrail-reach > .cmh-channels {
-  margin-top: 0;
-}
-/* Its reading and its failed read stand at the line's own gutter: each carries a tile's gutter of its own, which here
-   was a second one inside the first. */
-.cmh-vrail-reach > .route-reading.cmh-reading {
-  padding: 0;
-}
-.cmh-vrail-reach > .cmh-failed {
-  margin: 0;
-}
-/* The door to how the yes to offers is got, under the line that counts it, at the line's edge: a thumb's height to
-   press, and a line's height in the head, so the moments stay the first thing on the screen (its box reaches into the
-   gaps over and under it, where nothing else is pressed). */
-.cmh-vrail-yes {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  min-height: 44px;
-  margin-block: calc(var(--space-3) * -1);
-}
-.cmh-vrail {
-  margin: 0;
-  padding: var(--space-1) 10px 10px;
-  list-style: none;
-}
-.cmh-vstage {
-  position: relative;
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: center;
-  min-height: 62px;
-  padding: var(--space-2) 6px;
-}
-.cmh-vstage::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 20px;
-  border-left: 2px dashed var(--line-strong);
-}
-.cmh-vstage:is([data-state="always"], [data-state="on"])::before {
-  border-left-style: solid;
-  border-left-color: var(--ink);
-}
-.cmh-vstage:first-child::before {
-  top: 50%;
-}
-.cmh-vstage:last-child::before {
-  bottom: 50%;
-}
-.cmh-vstage > .cmh-node {
-  width: 28px;
-  height: 28px;
-}
-.cmh-vwords {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  font-size: var(--text-sm);
-}
-.cmh[data-phone] .cmh-strip-words {
-  display: flex;
-  flex-direction: column;
-  font-size: var(--text-sm);
-}
-.cmh[data-phone] .cmh-strip-more::before {
-  content: none;
-}
-.cmh-also-block .cmh-strips {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin: 0;
-  padding: 6px var(--space-2);
-}
-.cmh-also-block .cmh-strip {
-  background: none;
-}
-/* A strip's glyph keeps its size beside words that wrap (on a phone it shrank to a dot), and its name reads from the left. */
-.cmh-strip > svg {
-  flex: none;
-}
-.cmh .cmh-strip-name {
-  text-align: start;
-}
-/* On a phone a strip is two rows: what it is across the line, then its state and its act at the right (3 Oct: the words
-   were squeezed into a column a word wide beside them). */
-.cmh[data-phone] .cmh-strip {
-  flex-wrap: wrap;
-  row-gap: var(--space-2);
-}
-.cmh[data-phone] .cmh-strip-words {
-  flex-basis: calc(100% - 40px);
-}
-.cmh[data-phone] .cmh-strip-words + * {
-  margin-inline-start: auto;
 }
 /* The Library keeps its icon and its count where the page is a phone's (useCmPhone's 900px), and its word goes to a screen
    reader alone: the act beside it is New. Hidden by size, never display: none, which left the link named by its count; and

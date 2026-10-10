@@ -3,11 +3,10 @@
  * came back. Each draws its part of the view model (contracts campaignsHomeOf) and nothing it was not told: a tile whose read
  * is still out says it is reading (after the standard beat), one whose read failed is the kit's failed read with its Retry, a
  * number that could not be counted is not drawn, and a zero is a zero. The phone says the first as a line in its Moments
- * head (PhoneReachLine, which the rail draws) and draws the other two the same as the desk.
+ * head (ledger/ledger-phone.tsx PhoneMeta) and draws the other two the same as the desk.
  */
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type {
-  ChannelStandingPart,
   LifecycleComing,
   LifecycleComingTile,
   LifecycleFailed,
@@ -25,7 +24,6 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
 import { cmChannelColour } from "../parts/channels";
-import { ChannelsLine } from "../parts/channels-line";
 import { HomeFailed, HomeReading } from "./failed";
 import type { RailActs } from "./rail";
 
@@ -156,36 +154,6 @@ function Yes({ yes, acts }: { yes: NonNullable<LifecycleReachTile["yes"]>; acts:
           <Icon name="copy" size={12} /> {yes.copy}
         </Button>
       </div>
-    </div>
-  );
-}
-
-/**
- * The phone's line in the Moments head: how many can hear you and the offers pill, the door to how that yes is got
- * (where the desk's tile has one), and where the workspace stands on its channels, which is the readiness's to say and
- * so is drawn whether or not the reach has been read. Its read, where there is none yet, at the line's own gutter.
- */
-export function PhoneReachLine({
-  tile,
-  failed,
-  channels,
-}: ReachProps & { channels: readonly ChannelStandingPart[] | null }) {
-  const phone = tile.phone;
-  return (
-    <div className="cmh-vrail-reach" role="group" aria-label={LIFECYCLE_WORDS.reach.title} data-testid="cmh-reach">
-      <TileRead read={tile.read} failed={failed} testid="cmh-reach" />
-      {phone ? (
-        <p className="cmh-vrail-hear">
-          <span>{phone.words}</span>
-          <StatePill kind="tone" value={phone.offers.tone} label={phone.offers.words} />
-        </p>
-      ) : null}
-      {phone?.yes ? (
-        <LinkButton className="cmh-vrail-yes" {...routeDoor(phone.yes.route)} data-testid="cmh-phone-yes">
-          {phone.yes.label}
-        </LinkButton>
-      ) : null}
-      <ChannelsLine parts={channels} testid="cmh-channels" />
     </div>
   );
 }

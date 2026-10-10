@@ -23,7 +23,7 @@ interface ActsIn {
   setAdding: Dispatch<SetStateAction<boolean>>;
   /** The server took it: there is nothing left to keep of the words. */
   done: () => void;
-  onDone: (d: { name?: string }, changed: boolean) => void;
+  onDone: (d: { id?: string; name?: string }, changed: boolean) => void;
 }
 
 export function composerActs(a: ActsIn) {

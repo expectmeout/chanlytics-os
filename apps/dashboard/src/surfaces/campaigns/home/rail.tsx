@@ -1,13 +1,12 @@
 /**
  * Campaigns' home, the rail (canvas A): "Your customer, start to finish", five moments in order with how many people are at
  * each, whether it is covered, and the yes it needs; and under it the ledger, every campaign in one place
- * (ledger/ledger.tsx), which a card's body narrows to its moment. On a phone the same moments stand one under another on a
- * line down the left (A4). Every word and number is the view model's (contracts campaignsHomeOf); this draws it and
+ * (ledger/ledger.tsx), which a card's body narrows to its moment. On a phone the same moments are the heads of the one list
+ * (ledger/ledger-phone.tsx). Every word and number is the view model's (contracts campaignsHomeOf); this draws it and
  * presses.
  */
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type { LifecycleAct, LifecycleBar, LifecycleHome, LifecycleStage } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -19,7 +18,6 @@ import type { RouteDoor } from "../../legacy-verbs";
 import { ChannelMarks, ChannelsLine } from "../parts/channels-line";
 import { HomeFailed } from "./failed";
 import { ResumeAct } from "./ledger/ledger-acts";
-import { PhoneReachLine } from "./tiles";
 
 /** What a press on the rail does: the page decides (home-page.tsx), the rail only says which. */
 export interface RailActs {
@@ -221,82 +219,6 @@ export function Rail({ home, acts, children }: { home: LifecycleHome; acts: Rail
         </ol>
       ) : null}
       {children}
-    </Panel>
-  );
-}
-
-/** One moment on the phone's rail: a node on the line, its name and what it stands at, and its state or Turn on. */
-function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
-  const act = s.act;
-  const turnOn = s.state === "off" && act && act.kind === "turn_on" ? act : null;
-  const open = act && act.kind === "open" ? act : null;
-  return (
-    <li
-      className="cmh-vstage"
-      data-stage={s.id}
-      data-state={s.state}
-      data-hint={s.hint ? "true" : undefined}
-      data-waits={s.waits ? "true" : undefined}
-      data-testid="cmh-stage"
-    >
-      <span className="cmh-node" aria-hidden="true">
-        <Icon name={nodeGlyph(s)} size={13} />
-      </span>
-      <span className="cmh-vwords">
-        {open ? (
-          <LinkButton className="cmh-moment-name" onClick={() => acts.onAct(open)} data-testid="cmh-open">
-            {s.name}
-          </LinkButton>
-        ) : (
-          <span className="cmh-moment-name">{s.name}</span>
-        )}
-        <span className="cmh-dim">
-          {s.caps} · <span className="tabular">{s.people === null ? "—" : s.people}</span> {s.unit}
-          <ChannelMarks marks={s.channels} testid="cmh-chans" />
-        </span>
-      </span>
-      {turnOn ? (
-        <Button
-          size="sm"
-          variant={s.hint ? "primary" : "secondary"}
-          onClick={() => acts.onAct(turnOn)}
-          data-testid="cmh-turn-on"
-          {...acts.gated}
-        >
-          {s.hint ? <Icon name="plus" size={12} /> : null} {LIFECYCLE_WORDS.phone.turnOn}
-        </Button>
-      ) : (
-        <StateWords tone={s.tone} words={s.phoneWords} />
-      )}
-    </li>
-  );
-}
-
-/** The phone's rail: the moments down a line, until the phone's spine (ledger/ledger-phone.tsx) takes the page. */
-export function PhoneRail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
-  const { rail } = home;
-  if (rail.stages.length === 0) return null;
-  return (
-    <Panel
-      as="section"
-      size="flush"
-      className="cmh-block cmh-vrail-block"
-      aria-label={rail.title}
-      data-testid="cmh-rail"
-    >
-      <header className="cmh-block-head">
-        <h2 className="cmh-h">{LIFECYCLE_WORDS.phone.moments}</h2>
-        {rail.phoneWords ? <span className="cmh-dim">{rail.phoneWords}</span> : null}
-      </header>
-      {/* Who can hear you, and where the workspace stands on its channels: a line in the head (8 Oct 2026), so the
-          moments are the first thing on the page. It was a tile of its own over them. */}
-      <PhoneReachLine tile={home.reach} failed={home.failed.reach} channels={home.head.channels} />
-      {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
-      <ol className="cmh-vrail">
-        {rail.stages.map((s) => (
-          <PhoneStage key={s.id} s={s} acts={acts} />
-        ))}
-      </ol>
     </Panel>
   );
 }
