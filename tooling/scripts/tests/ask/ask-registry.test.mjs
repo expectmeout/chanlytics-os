@@ -91,6 +91,12 @@ const REPORT_CAMPAIGNS_WORDS =
  */
 const REPORT_REVIEWS_WORDS =
   "campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for";
+/**
+ * 9 Oct 2026 (a moment holds many campaigns, lane 2, task 6): report says the Reach-outs section after the Reviews lens,
+ * through the page's own reader: the one sentence, and nothing else it says moved.
+ */
+const REPORT_REACH_OUTS_WORDS =
+  "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: how many emails the reach-outs wrote, how many were delivered and bounced, and how many businesses wrote back, were interested, booked, said no or were handed to the owner, with the funnel's sentence and the line on what was handed (empty says nothing was written); reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for";
 const RUN_CHANNEL_WORDS = [
   "how many were sent, the share of those delivered and read, and how many replied,",
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
@@ -380,7 +386,11 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       was(role, "report")
         .description.replace("the median and p90 reply time,", `the median and p90 reply time ${REPORT_HOLD_WORDS},`)
         .replace("and the Deals section where deals are on.", REPORT_CAMPAIGNS_WORDS)
-        .replace("campaigns says error where its numbers could not be read. Call it for", REPORT_REVIEWS_WORDS),
+        .replace("campaigns says error where its numbers could not be read. Call it for", REPORT_REVIEWS_WORDS)
+        .replace(
+          "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for",
+          REPORT_REACH_OUTS_WORDS,
+        ),
       role,
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
