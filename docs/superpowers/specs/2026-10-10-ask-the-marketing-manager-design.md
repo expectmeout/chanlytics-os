@@ -326,7 +326,7 @@ A held send card wears "Waits for the plan" in place of Approve until the plan i
 review"). The kit's classes only; the route's JS growth is argued in the pull request's `Bundle:` line against the
 800 KB ceiling (the route sat at 94.9% on 10 October).
 
-### 5.9 Melany's salon, through this spec
+### 5.9 A salon with a calendar and nothing running, through this spec
 
 On "set up my campaigns": the journey read says First contact covered (the receptionist), the day before and after
 uncovered (calendar connected), Quiet uncovered; the plan proposes three campaigns (reminder, after-appointment with the

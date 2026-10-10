@@ -76,7 +76,8 @@
   node --conditions=react-server --import tsx --input-type=module -e '
   import fs from "node:fs";
   import { pathToFileURL } from "node:url";
-  const { toApiTools } = await import(pathToFileURL("apps/dashboard/src/server/ask/tools/index.ts").href);
+  const m = await import(pathToFileURL("apps/dashboard/src/server/ask/tools/index.ts").href);
+  const { toApiTools } = m.toApiTools ? m : m.default; // tsx hands the module's exports under `default` (Task 3)
   const out = Object.fromEntries(["viewer", "operator", "partner", "owner"].map((r) => [r, toApiTools(r, true)]));
   fs.writeFileSync("tooling/scripts/tests/fixtures/ask-tools-4-7.json", JSON.stringify(out, null, 2) + "\n");
   '
