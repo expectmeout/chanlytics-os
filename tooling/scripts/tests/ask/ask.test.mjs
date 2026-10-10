@@ -1585,6 +1585,44 @@ test("the cross-page reads: what a question names plainly of another page is rea
   assert.deepEqual(names("any drafts held?", "inbox"), []);
   assert.deepEqual(names("what's on the calendar tomorrow?", "calendar"), []);
   assert.deepEqual(names("what playbooks are running right now?", "campaigns"), []);
+  // "Set up" as a state, never a setup: a question whether something is set up, or how, reads what it always read --
+  // the eval's `connections_read` its calendar, a question about campaigns their audiences alone -- and Start's own setup
+  // is not a campaign's.
+  assert.deepEqual(names("is our email mailbox set up, and is the calendar connected?", "today"), [
+    'calendar {"action":"week","day":"today"}',
+  ]);
+  assert.deepEqual(names("how far along is my setup?", "start"), []);
+  assert.deepEqual(names("is the follow-up set up?"), []);
+  assert.deepEqual(names("when did we start the follow-ups?"), []);
+  assert.deepEqual(names("¿ya configuraste mis campañas?"), []);
+  for (const q of [
+    "are my campaigns set up?",
+    "did you set up my campaigns?",
+    "have I set up my campaigns yet?",
+    "how do I set up my campaigns?",
+    "who set up our campaigns?",
+  ])
+    assert.deepEqual(names(q), ['campaigns {"action":"audiences"}'], q);
+  // A setup (the moment spec, A4), asked for: what runs, the moments offered with their starters, the lists and the
+  // messages, read before round 1 on any page -- on Campaigns too, whose rows are the playbooks and hold neither the
+  // moments nor a message. Asked as a request: a sentence's start, or after a please, a "can you", a "help me".
+  const setupReads = ['campaigns {"action":"playbooks"}', 'campaigns {"action":"audiences"}'];
+  assert.deepEqual(names("Set up my campaigns", "campaigns"), setupReads);
+  assert.deepEqual(names("set up my campaigns"), setupReads);
+  assert.deepEqual(names("Prepara mis campañas", "campaigns"), setupReads);
+  assert.deepEqual(names("set up campaigns for a consultancy that sends proposals", "today"), setupReads);
+  for (const q of [
+    "We're an online B2B consultancy: people book a discovery call, then most get a proposal. Set up my campaigns.",
+    "Somos una consultoría B2B en línea: primero una llamada, luego casi siempre una propuesta. Prepara mis campañas.",
+    "Can you set up my campaigns?",
+    "please setup a few follow-ups",
+    "help me set up our nudges",
+    "Start my campaigns",
+    "¿Puedes preparar mis campañas?",
+  ])
+    assert.deepEqual(names(q, "campaigns"), setupReads, q);
+  // The audiences are no page's rows: asked of offers on Campaigns, they are read.
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"audiences"}']);
   for (const surface of ["conversations", "live"]) assert.deepEqual(names("any missed calls today?", surface), []);
   // Today counts the day's calls and lists none of them: a question about them reads the list there too.
   assert.deepEqual(names("Were there any calls today?", "today"), ['calls {"action":"list","filter":"recent"}']);

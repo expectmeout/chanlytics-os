@@ -81,11 +81,31 @@ const MISSED = /\bmissed calls?\b|\bllamadas? perdidas?\b/i;
 const CALLS = /\btranscripts?\b|\brecordings?\b|\bcalls?\b|\bcalled\b|\bllam(ó|o|aron|ada|adas|ar)\b|\bgrabaci[oó]n\b/i;
 /** Drafts held for approval (D12): the snapshot carried them on every page; now one read carries them off the Inbox. */
 const HELD = /\bheld\b|\bdrafts?\b|\bwaiting (for|on) (my |your )?approval\b|\bborradores?\b|\bretenid[oa]s?\b/i;
+/**
+ * A setup, asked for (the moment spec, A4): what runs and the moments offered with their starters (campaigns.playbooks),
+ * and the lists and messages a campaign may go by (campaigns.audiences), read before round 1 on any page, Campaigns
+ * included, so the first round can propose the cards. Only a request to set campaigns up: said at a sentence's start, or
+ * after a please, a "can you", a "help me", a "let's" or an "I want to". A question whether something is set up, or how
+ * ("is our mailbox set up?", "did you set up my campaigns?", "how do I set up…?"), and Start's own setup are not one, and
+ * read what they always read.
+ */
+const SETUP = new RegExp(
+  [
+    String.raw`(?:^|[.!?;:,¿¡]\s*)`,
+    String.raw`(?:(?:please|ok(?:ay)?|now|so|then|just|go ahead and|(?:can|could|would|will) you|help (?:me|us)|let[’']?s|let us|i(?: want| need|[’']d like| would like)(?: you)? to|por favor|ahora|puedes|podr[ií]as|ay[uú]da(?:me|nos) a|quiero)\s+)*`,
+    String.raw`(?:(?:set[- ]?up|start) (?:all |a few |an? )?(?:my |our |the |some )?(?:campaigns?|playbooks?|nudges?|follow[- ]?ups?|win-?backs?|reminders?)\b`,
+    String.raw`|(?:prepara|configura)r? (?:mis |las |unas |nuestras )?campañas)`,
+  ].join(""),
+  "i",
+);
 
-/** The reads each page's own rows already answer, by tool and action: on that page, its context answers the question. */
+/**
+ * The reads each page's own rows already answer, by tool and action: on that page, its context answers the question.
+ * Campaigns' rows are its campaigns: no audience or message is among them.
+ */
 const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
   calendar: new Set(["calendar.openings", "calendar.week"]),
-  campaigns: new Set(["campaigns.playbooks", "campaigns.audiences"]),
+  campaigns: new Set(["campaigns.playbooks"]),
   today: new Set(["today"]),
   pipeline: new Set(["people.pipeline"]),
   conversations: new Set(["calls.list"]),
@@ -95,7 +115,8 @@ const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
 
 /**
  * The reads a question names on another page, at most CROSS_PAGE_MAX, in the order below. On Reports a
- * report is read only for a period other than the one on screen (the context's view).
+ * report is read only for a period other than the one on screen (the context's view). A setup's reads (SETUP) come
+ * first, on every page.
  */
 export function crossPagePlan(text: string, surface: string | null, view: string | null = null): ToolRun[] {
   const q = text.replace(/\s+/g, " ").trim();
@@ -105,6 +126,9 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     const called = calledName(name, input);
     if (!own.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
+  // A setup's two reads come first and are read whatever page asks (A4): the page's rows hold neither.
+  if (SETUP.test(q))
+    for (const action of ["playbooks", "audiences"]) out.push({ name: "campaigns", input: { action } });
   const overview = OVERVIEW.test(q);
   if (overview) add("today", {});
   if (overview || REPORT.test(q)) {
