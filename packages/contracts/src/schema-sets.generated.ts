@@ -63,6 +63,7 @@ export const SCHEMA_SETS = {
     "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call",
     "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list",
     "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge",
+    "change_playbook",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

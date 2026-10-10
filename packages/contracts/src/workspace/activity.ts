@@ -146,6 +146,7 @@ const WORDS: Record<string, string> = {
   cancel_broadcast: "Canceled a broadcast",
   start_playbook: "Started a campaign",
   pause_playbook: "Paused a campaign",
+  change_playbook: "Changed a campaign",
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",

@@ -458,6 +458,11 @@ var DECISION_VERBS = [
   "start_playbook",
   "pause_playbook",
   /**
+   * A playbook changed in place (the change_playbook door): its name, hour, cap, gap or cadence. Subject 'playbook'; the
+   * payload names what changed. A pause or a resume stays pause_playbook or start_playbook.
+   */
+  "change_playbook",
+  /**
    * An answer to a review on Google, in the business's own words: subject
    * 'review' (the row's id), payload the words and when Google took them.
    * Replaces the previous answer; Google keeps one per review.
@@ -6822,6 +6827,7 @@ var WORDS = {
   cancel_broadcast: "Canceled a broadcast",
   start_playbook: "Started a campaign",
   pause_playbook: "Paused a campaign",
+  change_playbook: "Changed a campaign",
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",
@@ -7410,6 +7416,7 @@ var VERB_FAMILY = {
   cancel_broadcast: "campaigns",
   start_playbook: "campaigns",
   pause_playbook: "campaigns",
+  change_playbook: "campaigns",
   reply_review: "google",
   export: "settings",
   end_call: "calls",
@@ -30723,7 +30730,8 @@ var SCHEMA_SETS = {
     "delete_list",
     "import",
     "open_recording",
-    "merge"
+    "merge",
+    "change_playbook"
   ],
   "escalations.reason": [
     "human_token",

@@ -1123,6 +1123,77 @@ COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_e
 
 
 --
+-- Name: change_playbook(uuid, uuid, jsonb, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_set   jsonb := case when jsonb_typeof(p_set) = 'object' then p_set else '{}'::jsonb end;
+  v_was   public.playbooks;
+  v_rows  integer;
+  v_verb  text;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or p_playbook_id is null then
+    raise exception 'change_playbook: a playbook is named by its workspace and its id' using errcode = '22004';
+  end if;
+  -- The six columns a change may name, and nothing else: a key outside them is refused, never ignored.
+  if v_set = '{}'::jsonb or exists (
+    select 1 from jsonb_object_keys(v_set) k
+     where k not in ('state', 'name', 'run_hour', 'cap_per_run', 'gap_days', 'cadence_days')
+  ) then
+    raise exception 'change_playbook: name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days'
+      using errcode = '22023';
+  end if;
+  -- The row as it stands, locked until the transaction ends, read on the caller's rights: a lock asks the update
+  -- policy as well as the select policy, so another workspace's row, or one their seat may not change, is no row.
+  select * into v_was
+    from public.playbooks
+   where id = p_playbook_id and tenant_id = p_tenant_id
+   for update;
+  if not found then
+    raise exception 'Playbook not found.' using errcode = 'P0002';
+  end if;
+  update public.playbooks p
+     set state        = coalesce(v_set ->> 'state', p.state),
+         name         = coalesce(v_set ->> 'name', p.name),
+         run_hour     = coalesce((v_set ->> 'run_hour')::integer, p.run_hour),
+         cap_per_run  = coalesce((v_set ->> 'cap_per_run')::integer, p.cap_per_run),
+         gap_days     = coalesce((v_set ->> 'gap_days')::integer, p.gap_days),
+         cadence_days = coalesce((v_set ->> 'cadence_days')::integer, p.cadence_days)
+   where p.id = p_playbook_id and p.tenant_id = p_tenant_id;
+  -- A forbidden update raises nothing: counted, so a change the policy refused is never answered as made.
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then
+    raise exception 'Playbook not found.' using errcode = 'P0002';
+  end if;
+  v_verb := case v_set ->> 'state'
+              when 'running' then 'start_playbook'
+              when 'paused' then 'pause_playbook'
+              else 'change_playbook'
+            end;
+  return jsonb_build_object(
+           'id', p_playbook_id,
+           'was', (select jsonb_object_agg(k, to_jsonb(v_was) -> k) from jsonb_object_keys(v_set) k))
+      || public.member_decision(p_tenant_id, 'playbook', p_playbook_id, v_verb, coalesce(p_decision, '{}'::jsonb),
+                                p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, only the columns p_set names written (state, name, run_hour, cap_per_run, gap_days, cadence_days), then start_playbook, pause_playbook or change_playbook as theirs (member_decision), in one transaction. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped.';
+
+
+--
 -- Name: channel_keep_quality(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -21636,7 +21707,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text])))
 );
 
 
@@ -30878,6 +30949,15 @@ GRANT ALL ON FUNCTION public.campaign_reply_window() TO service_role;
 REVOKE ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
+-- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
 
 
 --

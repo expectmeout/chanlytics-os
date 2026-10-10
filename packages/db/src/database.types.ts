@@ -6186,6 +6186,17 @@ export type Database = {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
+      change_playbook: {
+        Args: {
+          p_decision?: Json
+          p_playbook_id: string
+          p_set: Json
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       channel_keep_quality: {
         Args: { p_channel_id: string; p_rating: string; p_tenant_id: string }
         Returns: string
