@@ -1673,6 +1673,25 @@ test("the cross-page reads: what a question names plainly of another page is rea
     for (const surface of ["campaigns", "people"]) assert.deepEqual(names(q, surface), setupReads, `${q} (${surface})`);
   // A setup that names an appointment's moment is a setup, never a look at the calendar.
   assert.deepEqual(names("Set up an appointment reminder", "today"), setupReads);
+  // Every idea Campaigns' first day offers (contracts buildAskSuggestions, A3) is a setup, in either language: a win-back
+  // asked in two words, and what should go out this month, read the moments and the lists before round 1 too.
+  for (const language of ["en", "es"]) {
+    const ideas = buildAskSuggestions({
+      surface: "campaigns",
+      language,
+      needsYou: 0,
+      heldDrafts: 0,
+      missedToday: 0,
+      liveNow: 0,
+      hasCalendar: false,
+      campaigns: { rows: [] },
+    })
+      .filter((s) => s.icon === "bolt")
+      .map((s) => s.q);
+    assert.equal(ideas.length, 3, language);
+    for (const q of ideas) assert.deepEqual(names(q, "campaigns"), setupReads, `${q} (${language})`);
+  }
+  assert.deepEqual(names("win back my quiet clients", "today"), setupReads);
   // Asked whether something will start, or to start it again, is no setup: the follow-ups and reminders run already.
   for (const q of ["Will you start the follow-ups tomorrow?", "Can you start the reminders again?"])
     assert.deepEqual(names(q, "campaigns"), [], q);

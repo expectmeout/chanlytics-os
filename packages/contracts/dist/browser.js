@@ -9308,16 +9308,16 @@ function pageChips(input, t, add) {
     return false;
   }
   const rows2 = input.surface === "campaigns" ? input.campaigns?.rows ?? null : null;
-  const winBackRuns = !!rows2?.some((r2) => isWinBack(r2.trigger) && r2.state === "running");
-  if (rows2 && rows2.length === 0)
+  if (!rows2) return false;
+  if (rows2.length === 0) {
     for (const k of ["setUp", "winBackIdea", "offerIdea"]) add(t[k], "ask", "bolt");
-  if (rows2 && rows2.length > 0) {
-    const waiting = rows2.find((r2) => r2.waiting);
-    if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
-    add(t.working, "ask", "trending-up");
-    if (!winBackRuns) add(t.winBackIdea, "ask", "bolt");
+    return true;
   }
-  return winBackRuns;
+  const waiting = rows2.find((r2) => r2.waiting);
+  if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+  add(t.working, "ask", "trending-up");
+  if (!rows2.some((r2) => isWinBack(r2.trigger) && r2.state === "running")) add(t.winBackIdea, "ask", "bolt");
+  return true;
 }
 function buildAskSuggestions(input) {
   const t = T[input.language === "es" ? "es" : "en"];
@@ -9332,7 +9332,7 @@ function buildAskSuggestions(input) {
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
-  const winBackRuns = pageChips(input, t, add);
+  const winBackSaid = pageChips(input, t, add);
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");
   if (input.liveNow > 0) add(t.live, "ask", "phone");
@@ -9360,7 +9360,7 @@ function buildAskSuggestions(input) {
   if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
   if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
-  if ((at3 === "people" || at3 === "other") && !winBackRuns) act2(t.actPlaybook, t.actPlaybookQ, "bolt");
+  if ((at3 === "people" || at3 === "other") && !winBackSaid) act2(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }
 
@@ -14831,7 +14831,8 @@ function needsAnswer(w, language) {
     })),
     ...w.runs.map((r2) => ({
       title: r2.label,
-      meta: "Campaign",
+      // The word a cited campaign's item says, in the answer's language.
+      meta: KIND_WORDS[es ? "es" : "en"].playbook,
       line: es ? `${r2.reach} ${r2.reach === 1 ? "persona" : "personas"}` : `${r2.reach} ${r2.reach === 1 ? "person" : "people"}`,
       source: { kind: "page", id: r2.to, label: r2.label, to: r2.to, door: true }
     }))

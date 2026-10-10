@@ -37,6 +37,7 @@ import {
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "@/surfaces/surface-values";
+import { focusAsDrawn } from "@/surfaces/legacy-verbs";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
 
@@ -286,6 +287,8 @@ export function askPalette(win: Window, storage: Storage | null) {
     rememberLanguage,
     timezone,
     sameQuestion,
+    /** Whether the Line's field may take focus as it opens: not on a touch screen, whatever its width (legacy-verbs). */
+    focusAsDrawn,
   };
 }
 

@@ -111,8 +111,13 @@ const SETUP_WORD = String.raw`(?:(?!(?:the|el|las?|los)\s)[\p{L}'’-]+ )?`;
 const SETUP_MAKE = String.raw`(?:set[- ]?up|configurar?|preparar?|crear?) (?:(?:all|a few|todas) )?(?:(?:an?|my|our|the|some|mis?|las?|unas?|nuestras?) )?`;
 /** Start, begin, launch: of something not yet named, never "the" ones that run. */
 const SETUP_START = String.raw`(?:start|iniciar?|lanzar?) (?:(?:all|a few|todas) )?(?:(?:an?|my|our|some|mis?|unas?|nuestras?) )?`;
+/**
+ * The first day's other ideas on Campaigns (contracts buildAskSuggestions, A3), each a setup however it is typed: a
+ * win-back of customers gone quiet, and what should go out this month.
+ */
+const SETUP_IDEAS = String.raw`win[- ]?back\b|recuperar? a\b|what should (?:go|we send) out\b|qu[eé] deber[ií]a(?:mos)? (?:salir|enviar)\b`;
 const SETUP = new RegExp(
-  String.raw`(?:^|[.!?;:,¿¡]\s*)(?:(?:${SETUP_OPENERS})\s+)*(?:${SETUP_MAKE}|${SETUP_START})${SETUP_WORD}${SETUP_NOUN}`,
+  String.raw`(?:^|[.!?;:,¿¡]\s*)(?:(?:${SETUP_OPENERS})\s+)*(?:(?:${SETUP_MAKE}|${SETUP_START})${SETUP_WORD}${SETUP_NOUN}|${SETUP_IDEAS})`,
   "iu",
 );
 

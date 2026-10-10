@@ -184,7 +184,8 @@ function clipWords(s: string, cap: number): string {
  * A page's own chips, which come first: on Leads the first day's ideas, each a search to propose, or the latest
  * searches' own words to find more; on Campaigns (the moment spec, A3) three ideas on the first day, each a setup to
  * ask, then why a campaign waits and what is working, and a win-back only where none runs. Answers whether a win-back
- * runs here, which the Act group reads. (Out of buildAskSuggestions, which the complexity ratchet holds.)
+ * needs no act here -- one runs, or a chip of the page's offers it already -- which the Act group reads, so it is
+ * offered once. (Out of buildAskSuggestions, which the complexity ratchet holds.)
  */
 function pageChips(
   input: SuggestionInput,
@@ -202,16 +203,17 @@ function pageChips(
     return false;
   }
   const rows = input.surface === "campaigns" ? (input.campaigns?.rows ?? null) : null;
-  const winBackRuns = !!rows?.some((r) => isWinBack(r.trigger) && r.state === "running");
-  if (rows && rows.length === 0)
+  if (!rows) return false;
+  if (rows.length === 0) {
     for (const k of ["setUp", "winBackIdea", "offerIdea"] as const) add(t[k], "ask", "bolt");
-  if (rows && rows.length > 0) {
-    const waiting = rows.find((r) => r.waiting);
-    if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
-    add(t.working, "ask", "trending-up");
-    if (!winBackRuns) add(t.winBackIdea, "ask", "bolt");
+    return true;
   }
-  return winBackRuns;
+  const waiting = rows.find((r) => r.waiting);
+  if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+  add(t.working, "ask", "trending-up");
+  // A win-back is offered where none runs, and then as the page's own chip alone.
+  if (!rows.some((r) => isWinBack(r.trigger) && r.state === "running")) add(t.winBackIdea, "ask", "bolt");
+  return true;
 }
 
 /**
@@ -232,8 +234,8 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
-  // A page's own chips come first (Leads', Campaigns'), and whether a win-back runs here.
-  const winBackRuns = pageChips(input, t, add);
+  // A page's own chips come first (Leads', Campaigns'), and whether they leave a win-back no act to offer.
+  const winBackSaid = pageChips(input, t, add);
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");
   if (input.liveNow > 0) add(t.live, "ask", "phone");
@@ -266,6 +268,6 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
   if (at === "people" || at === "other") act(t.actOffer, t.actOfferQ, "wave", true);
-  if ((at === "people" || at === "other") && !winBackRuns) act(t.actPlaybook, t.actPlaybookQ, "bolt");
+  if ((at === "people" || at === "other") && !winBackSaid) act(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }

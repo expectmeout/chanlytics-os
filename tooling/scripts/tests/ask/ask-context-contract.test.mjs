@@ -162,12 +162,25 @@ test("Ask at rest on Campaigns (the moment spec, A3): three ideas on the first d
   assert.ok(!later.includes("Start a win-back campaign for the quiet clients"), "nor its act");
   const none = qs({ campaigns: { rows: [{ ...rows[0], state: "paused", waiting: false }] } });
   assert.ok(none.includes("Win back customers who went quiet"), "a paused win-back runs nothing");
-  assert.ok(none.includes("Start a win-back campaign for the quiet clients"), "and its act, said as a campaign");
+  // Offered once: the page's own chip is the win-back, and the Act group does not offer it again.
+  assert.ok(!none.includes("Start a win-back campaign for the quiet clients"), "never twice");
+  assert.ok(!first.includes("Start a win-back campaign for the quiet clients"), "nor on the first day");
+  const winBacks = (q) => q.filter((x) => /win.?back/i.test(x)).length;
+  for (const q of [first, none]) assert.equal(winBacks(q), 1, q.join(" | "));
   const es = buildAskSuggestions({ ...base, language: "es", campaigns: { rows: [] } });
   assert.equal(es[0].q, "Prepara mis campañas");
+  assert.equal(es.filter((s) => /recupera/i.test(s.q)).length, 1, "once in Spanish too");
+  // Where no chip of the page's offers it, the act stands, said as a campaign.
   assert.ok(
-    es.some((s) => s.kind === "act" && s.q === "Inicia una campaña de recuperación para los clientes inactivos"),
+    buildAskSuggestions({ ...base, surface: "other", language: "es" }).some(
+      (s) => s.kind === "act" && s.q === "Inicia una campaña de recuperación para los clientes inactivos",
+    ),
     "the act in Spanish says campaña",
+  );
+  assert.ok(
+    buildAskSuggestions({ ...base, surface: "other" }).some(
+      (s) => s.kind === "act" && s.q === "Start a win-back campaign for the quiet clients",
+    ),
   );
 });
 

@@ -355,7 +355,8 @@ export function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAns
     })),
     ...w.runs.map((r) => ({
       title: r.label,
-      meta: "Campaign",
+      // The word a cited campaign's item says, in the answer's language.
+      meta: KIND_WORDS[es ? "es" : "en"].playbook,
       line: es
         ? `${r.reach} ${r.reach === 1 ? "persona" : "personas"}`
         : `${r.reach} ${r.reach === 1 ? "person" : "people"}`,
