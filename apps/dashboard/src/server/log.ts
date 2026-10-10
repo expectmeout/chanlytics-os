@@ -154,6 +154,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "rate_store_memory_by_configuration",
   "recording_audit_unavailable",
   "reply_claim_failed",
+  "reply_orphan_withdraw_failed",
   "resolve_escalation_failed",
   "resolve_escalation_noop",
   "resolve_link_decision_failed",

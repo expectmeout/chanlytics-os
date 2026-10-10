@@ -1,10 +1,11 @@
 -- 00379 · A queued message is withdrawn by one door.
 --
--- Withdrawing a queued message was written in eight places, each its own way: the reply path's withdrawal of the
+-- Withdrawing a queued message was written in nine places, each its own way: the reply path's withdrawal of the
 -- receptionist's drafts (the dashboard), a member's call-back of a send in its grace (the dashboard), the reply's own
 -- row when its job could not be scheduled (the dashboard), the edge's pause on a handoff (packages/db ingest), a
 -- rewrite retiring the draft it replaces (the edge's steer), a draft whose job could not be scheduled (the edge's draft
--- queue), a reach-out email taken back (packages/db reach-out), and the take-over (00378). Each kept the rule its own
+-- queue), a reach-out email taken back (packages/db reach-out), the take-over (00378), and a newer message taking the
+-- thread's reply turn from an older one's held drafts (claim_reply_turn, 00362). Each kept the rule its own
 -- way: some asked that no run had claimed the row (sending_at, 00352) and some did not; some took the send job with
 -- the row, on a second client, and some left the job to find its row canceled. One rule now, in one place:
 --
@@ -27,8 +28,8 @@
 --       transaction (member_decision, 00357). Null when the message was no longer withdrawable (sent, claimed, gone),
 --       and then nothing was written.
 --
--- conversation_take_over (00378) withdraws through withdraw_ai_drafts now, re-created whole with that one block
--- changed. A member's session still may not touch jobs: the doors are definers, each with its own floor.
+-- conversation_take_over (00378) and claim_reply_turn (00284, 00362) withdraw through it now, each re-created whole
+-- with that one block changed: nine writers were one rule's, and are one door's. A member's session still may not touch jobs: the doors are definers, each with its own floor.
 --
 -- Deploy order: this migration first. An app that calls a door the database does not hold answers the act with an
 -- error and changes nothing. Re-runnable.
@@ -245,3 +246,66 @@ revoke execute on function public.conversation_take_over(uuid, uuid, timestamptz
 grant execute on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) to authenticated, service_role;
 comment on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) is
   'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00378; its drafts through withdraw_ai_drafts since 00379): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
+
+/* -------------------------------------------------------------------------- an older turn's drafts, through it */
+
+-- claim_reply_turn (00284, 00362) withdrew an older turn's held drafts with an update of its own, and left their jobs to
+-- find the rows canceled: re-created whole from 00362 with that one write through withdraw_queued.
+create or replace function public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_mine timestamptz;
+  v_before uuid;
+  v_held uuid;
+begin
+  select m.created_at into v_mine
+    from public.messages m
+   where m.id = p_message and m.conversation_id = p_conversation and m.tenant_id = p_tenant;
+  if v_mine is null then
+    raise exception 'claim_reply_turn: message % is not in thread % of workspace %', p_message, p_conversation, p_tenant;
+  end if;
+  -- The thread's row, locked: two claims at once are taken one after the other.
+  insert into public.reply_turns (conversation_id, tenant_id, message_id)
+  values (p_conversation, p_tenant, p_message)
+  on conflict (conversation_id) do nothing;
+  select t.message_id into v_before from public.reply_turns t where t.conversation_id = p_conversation for update;
+  if v_before = p_message then
+    return true;
+  end if;
+  update public.reply_turns t
+     set message_id = p_message, claimed_at = now()
+   where t.conversation_id = p_conversation
+     and not exists (
+       select 1 from public.messages h
+        where h.id = t.message_id
+          and (h.created_at, h.id) > (v_mine, p_message)
+     )
+  returning t.message_id into v_held;
+  if v_held is null then
+    return false;
+  end if;
+  -- The older turn's replies still waiting to go are superseded by this one. One a run has claimed is already on its
+  -- way to the person (00362): it is left to say what became of it.
+  -- Through the one door (00379), with the job that would send each.
+  perform public.withdraw_queued(
+    p_tenant,
+    array(select d.id from public.messages d
+           where d.conversation_id = p_conversation
+             and d.tenant_id = p_tenant
+             and d.direction = 'outbound'
+             and d.sender = 'ai'
+             and d.status = 'queued'
+             and d.sending_at is null
+             and d.meta->>'source' in ('veto_window', 'low_confidence')),
+    jsonb_build_object('reason', 'superseded_by_newer_message', 'by', p_message));
+  return true;
+end $$;
+
+revoke all on function public.claim_reply_turn(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.claim_reply_turn(uuid, uuid, uuid) to service_role;
+comment on function public.claim_reply_turn(uuid, uuid, uuid) is
+  'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362), each with its send job through withdraw_queued (00379). True when held.';

@@ -64,9 +64,17 @@ test("pausing a thread withdraws the receptionist's queued drafts on it, keeps t
 });
 
 test("a draft its send job has already claimed is on its way: the pause leaves it to say what became of it", async () => {
+  const job = (id, state = "scheduled") => ({
+    id: `job-${id}`,
+    tenant_id: T,
+    kind: "outbound_send",
+    state,
+    payload: { message_id: id },
+  });
   const t = {
     conversations: [{ id: "c1", tenant_id: T, state: "open", paused_until: null }],
     messages: [row("waiting"), row("on-its-way", { sending_at: "2026-09-10T10:00:00.000Z" })],
+    jobs: [job("waiting"), job("on-its-way", "fired")],
   };
   assert.equal(await pauseConversation(fakeDb(t), T, "c1", "2026-09-10T11:00:00.000Z"), true);
   assert.deepEqual(
@@ -75,6 +83,11 @@ test("a draft its send job has already claimed is on its way: the pause leaves i
     "REGRESSION: a draft whose send was in flight was marked canceled, and the person got words the row said never left",
   );
   assert.equal(t.messages[1].error, undefined);
+  // The withdrawn draft's job goes with it (00379): it used to be left to find its row canceled.
+  assert.deepEqual(Object.fromEntries(t.jobs.map((j) => [j.payload.message_id, j.state])), {
+    waiting: "canceled",
+    "on-its-way": "fired",
+  });
 });
 
 test("a pause that landed on no row withdraws nothing", async () => {

@@ -249,9 +249,15 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     schedule: async (tenantId, dueAt, payload) => {
       await schedule(tenantId, "outbound_send", dueAt, payload);
     },
-    // Through the one door (00379), on the member's own session: the row, and a job that did get written with it.
+    // Through the one door (00379), on the member's own session: the row, and a job that did get written with it. The
+    // reply is already failing, and that failure is the caller's: a withdrawal that fails too is logged, never thrown
+    // over it.
     cancelOrphan: async (tenantId, id) => {
-      await memberWithdrawMessage(ctx.supabase, { tenantId, messageId: id, reason: null });
+      try {
+        await memberWithdrawMessage(ctx.supabase, { tenantId, messageId: id, reason: null });
+      } catch (e) {
+        log.error("reply_orphan_withdraw_failed", { tenant_id: tenantId, message_id: id, error: e });
+      }
     },
     // A write that fails throws, like every other port here: before the job the
     // verb fails the reply on it (nothing was sent); after, it lets it go.

@@ -1575,15 +1575,18 @@ begin
   end if;
   -- The older turn's replies still waiting to go are superseded by this one. One a run has claimed is already on its
   -- way to the person (00362): it is left to say what became of it.
-  update public.messages d
-     set status = 'canceled', error = jsonb_build_object('reason', 'superseded_by_newer_message', 'by', p_message)
-   where d.conversation_id = p_conversation
-     and d.tenant_id = p_tenant
-     and d.direction = 'outbound'
-     and d.sender = 'ai'
-     and d.status = 'queued'
-     and d.sending_at is null
-     and d.meta->>'source' in ('veto_window', 'low_confidence');
+  -- Through the one door (00379), with the job that would send each.
+  perform public.withdraw_queued(
+    p_tenant,
+    array(select d.id from public.messages d
+           where d.conversation_id = p_conversation
+             and d.tenant_id = p_tenant
+             and d.direction = 'outbound'
+             and d.sender = 'ai'
+             and d.status = 'queued'
+             and d.sending_at is null
+             and d.meta->>'source' in ('veto_window', 'low_confidence')),
+    jsonb_build_object('reason', 'superseded_by_newer_message', 'by', p_message));
   return true;
 end $$;
 
@@ -1592,7 +1595,7 @@ end $$;
 -- Name: FUNCTION claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) IS 'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362). True when held.';
+COMMENT ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) IS 'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362), each with its send job through withdraw_queued (00379). True when held.';
 
 
 --

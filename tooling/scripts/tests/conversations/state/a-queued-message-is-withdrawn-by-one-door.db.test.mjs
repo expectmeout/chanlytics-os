@@ -18,6 +18,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
@@ -374,5 +375,149 @@ test(
       error: { reason: "superseded_by_human" },
     });
     assert.deepEqual(await sendOf(claimed), ["queued", "scheduled"]);
+  },
+);
+
+/* ------------------------------------------------------------------------------- the review round's cases */
+
+const CLI = process.env.SUPABASE_CLI || "supabase";
+// The database the CLI is pointed at: the one the environment names when it is on this machine, else the stack
+// `supabase start` runs here. psql, with no CLI, takes the same database.
+const DB_URL = process.env.SUPABASE_DB_URL;
+const LOCAL_DB = DB_URL && /^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL) ? DB_URL : null;
+const CLI_TARGET = LOCAL_DB
+  ? ["--db-url", `${LOCAL_DB}${LOCAL_DB.includes("?") ? "&" : "?"}sslmode=disable`]
+  : ["--local"];
+const PSQL_TARGET = LOCAL_DB ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+
+/**
+ * A transaction on this machine's database that never commits (as the take-over's suite runs one): `body` runs in a DO
+ * block that ends by raising what it `seen`, so everything it did, the trigger it made included, goes with it.
+ */
+function rolledBack(body) {
+  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
+  const opts = { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 };
+  let r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], opts);
+  if (r.error?.code === "ENOENT") r = spawnSync("psql", [PSQL_TARGET, "-v", "ON_ERROR_STOP=0", "-c", sql], opts);
+  if (r.error)
+    throw new Error(`could not run ${CLI} or psql (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  const said = [r.stdout, r.stderr]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+  if (/not_this_database/.test(said))
+    throw new Error(
+      "the block reached a database that does not hold this suite's rows: point SUPABASE_DB_URL at the stack",
+    );
+  const seen = /seen (7b[0-9a-f]*)/.exec(said);
+  if (!seen) throw new Error(`the block did not get to say what it saw: ${said.slice(-800)}`);
+  return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
+}
+
+test("one message on a member's own session: the reply's orphan row, with the member's floor", { skip }, async () => {
+  const { t, seats } = await workspace("one", ["operator", "viewer"]);
+  const [operator, viewer] = seats;
+  const stranger = (await workspace("one-other", ["owner"])).seats[0];
+  const conv = await thread(t);
+  const orphan = await queued(conv, "human");
+  const call = (client) => client.rpc("member_withdraw_message", { p_tenant_id: t, p_message_id: orphan.messageId });
+  for (const who of [viewer, stranger]) assert.equal((await call(await session(who))).error?.code, "P0002", who.role);
+  assert.equal((await call(db)).error?.code, "28000", "the service role with no person is no member");
+  assert.ok((await call(createClient(URL_, ANON, { auth: { persistSession: false } }))).error, "signed out");
+  assert.deepEqual(await sendOf(orphan), ["queued", "scheduled"], "none of them withdrew anything");
+  const mine = await call(await session(operator));
+  assert.equal(mine.error, null, mine.error?.message);
+  assert.equal(mine.data, true);
+  assert.deepEqual(await sendOf(orphan), ["canceled", "canceled"]);
+  assert.equal((await call(await session(operator))).data, false, "a second time withdraws nothing");
+});
+
+test(
+  "a call-back is a member's: refused to a viewer and to anyone signed out, with nothing written",
+  { skip },
+  async () => {
+    const { t, seats } = await workspace("callback-floor", ["viewer"]);
+    const [viewer] = seats;
+    const send = await queued(await thread(t), "human");
+    const args = { p_tenant_id: t, p_message_id: send.messageId };
+    assert.equal((await (await session(viewer)).rpc("message_call_back", args)).error?.code, "P0002");
+    assert.ok(
+      (await createClient(URL_, ANON, { auth: { persistSession: false } }).rpc("message_call_back", args)).error,
+    );
+    assert.deepEqual(await sendOf(send), ["queued", "scheduled"]);
+    assert.deepEqual(await ledger(t), []);
+  },
+);
+
+test("a call-back whose line cannot be written takes its withdrawal back with it", { skip }, async () => {
+  // A ledger that refuses every decision of the workspace, in a transaction that never commits: the row and its job
+  // were withdrawn first, then the line failed, and both must be as they were.
+  const { t, seats } = await workspace("callback-atomic", ["owner"]);
+  const [owner] = seats;
+  const send = await queued(await thread(t), "human");
+  const seen = rolledBack(`
+    if not exists (select 1 from public.tenants where id = '${t}') then
+      raise exception 'not_this_database';
+    end if;
+    perform set_config('request.jwt.claims', '{"sub":"${owner.id}","role":"authenticated"}', true);
+    create function public.__call_back_refused() returns trigger language plpgsql as $f$
+    begin raise exception 'the ledger is unavailable'; end $f$;
+    create trigger __call_back_refused before insert on public.decisions
+      for each row when (new.tenant_id = '${t}') execute function public.__call_back_refused();
+    begin
+      perform public.message_call_back('${t}', '${send.messageId}');
+      seen := seen || jsonb_build_object('raised', false);
+    exception when others then
+      seen := seen || jsonb_build_object('raised', true, 'message', sqlerrm);
+    end;
+    seen := seen || jsonb_build_object(
+      'row', (select m.status from public.messages m where m.id = '${send.messageId}'),
+      'job', (select j.state from public.jobs j where j.id = '${send.jobId}'));
+  `);
+  assert.equal(seen.raised, true, `a ledger that refuses the line must refuse the call-back (${JSON.stringify(seen)})`);
+  assert.match(seen.message, /ledger is unavailable/, "it was the line that failed, after the withdrawal");
+  assert.deepEqual([seen.row, seen.job], ["queued", "scheduled"], "the row and its job went back with the line");
+});
+
+test(
+  "a newer message's turn withdraws an older turn's held drafts through the one door, with their jobs",
+  { skip },
+  async () => {
+    const { t } = await workspace("turn", []);
+    const conv = await thread(t);
+    const inbound = async (offsetMs) =>
+      ok(
+        await db
+          .from("messages")
+          .insert({
+            tenant_id: t,
+            conversation_id: conv.id,
+            contact_id: conv.contactId,
+            channel: "whatsapp",
+            direction: "inbound",
+            sender: "customer",
+            body: "hello",
+            status: "received",
+            created_at: new Date(Date.now() + offsetMs).toISOString(),
+          })
+          .select("id")
+          .single(),
+        "inbound",
+      ).id;
+    const older = await inbound(-60_000);
+    ok(await db.rpc("claim_reply_turn", { p_tenant: t, p_conversation: conv.id, p_message: older }), "older turn");
+    const held = await queued(conv, "ai", { meta: { source: "veto_window" } });
+    const claimed = await queued(conv, "ai", { meta: { source: "veto_window" }, sending_at: new Date().toISOString() });
+    const newer = await inbound(0);
+    assert.equal(
+      ok(await db.rpc("claim_reply_turn", { p_tenant: t, p_conversation: conv.id, p_message: newer }), "newer"),
+      true,
+    );
+    assert.deepEqual(await sendOf(held), ["canceled", "canceled"], "the older turn's draft and its job");
+    assert.deepEqual(await messageOf(held.messageId), {
+      status: "canceled",
+      error: { reason: "superseded_by_newer_message", by: newer },
+    });
+    assert.deepEqual(await sendOf(claimed), ["queued", "scheduled"], "one on its way is left to its run");
   },
 );
