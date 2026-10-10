@@ -32204,7 +32204,7 @@ function firstRunOf(vm, at3, who) {
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
 var CARD_REMIND = {
-  words: "Your calendar is in. Remind tomorrow's customers of their appointment too?",
+  words: "Your calendar is in. Remind each customer the day before?",
   label: "Turn on",
   to: "campaigns/new:moment:visit_tomorrow"
 };
@@ -32246,7 +32246,10 @@ function setupCardOf(vm) {
     rows: rows2,
     hide: { put: "Hide", said },
     skip: CARD_SKIP,
-    remind: calendar && calendar.state === "ready" ? { ...CARD_REMIND } : null
+    // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
+    // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
+    // the composer's moment is not offered and core refuses it.
+    remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null
   };
 }
 var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
@@ -33648,6 +33651,7 @@ function setupSteps(i, nowMs = Date.now()) {
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
     forwardingOwed: forwardingOwedOf(i, later),
+    calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
   };
 }

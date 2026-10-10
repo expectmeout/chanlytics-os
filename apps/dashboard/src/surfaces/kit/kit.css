@@ -2840,12 +2840,11 @@ select.rec-input :is(option, optgroup) {
 .link-btn:hover {
   color: var(--ink);
 }
-/* A pointer over words that take where they stand's ink keeps that ink: the quiet link's hover above outranked the
-   variant's `inherit`, and a name lost its line's ink under the pointer. */
-@media (hover: hover) {
-  .link-btn-inherit:hover {
-    color: inherit;
-  }
+/* Words that take where they stand's ink keep that ink under any hover: the quiet link's hover above outranked the
+   variant's `inherit`, and a name lost its line's ink. What the variant promises, not a hover style, so it holds under a
+   touch too, which keeps `:hover` on the last thing tapped (touch-hover.test.mjs). */
+.link-btn-inherit:hover {
+  color: inherit;
 }
 
 /* ---------- Face: a person, a lead, a conversation, as initials in a circle ----------
@@ -3486,7 +3485,8 @@ a.list-row {
 /* A press drawn as text: an area of a page's words that is one press (Campaigns' moment card, whose caps, figure and
    unit narrow the ledger), not a control's label. No gap of a button's between its parts, a text's weight and tracking
    and never a control's, its height its words', which wrap: a button's gap made the card 12 to 18px taller, and its
-   weight set every word of the card in bold. After the kinds, so a primary drawn as text keeps a text's weight. */
+   weight set every word of the card in bold. The quiet kind is the one drawn as text (button.tsx's ButtonSize); after
+   the kinds, so a text's weight holds over whatever weight a kind sets. */
 .btn-text {
   gap: 0;
   height: auto;

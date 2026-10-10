@@ -1566,6 +1566,35 @@ test("a Turn on opens a sheet titled for its moment, with no kind switch; New me
   assert.ok(plain.props.tools, "New message chooses between Send once and Every time a moment comes");
 });
 
+test("a Turn on's title follows the moment its field holds: another moment chosen in the sheet is the title's", () => {
+  setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
+  fresh();
+  const draw = () => again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW }));
+  const titleOf = (tree) => find(tree, (n) => n.type === PaneSheet).props.title;
+  let tree = draw();
+  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  // The win-back's moment (by visits: the sample has a calendar), whose stage already runs the sample's Win-back: no
+  // second campaign's title is its name.
+  const moment = pickerOf(tree, "pb-moment");
+  assert.ok(
+    offered(moment).some((o) => o.value === "lapsed"),
+    "the field offers the win-back's moment",
+  );
+  moment.props.onValueChange("lapsed");
+  tree = draw();
+  assert.equal(titleOf(tree), "New message", "not 'Turn on How did it go' over a Win-back");
+  // Back to the day after: its Turn on again, the address never moved.
+  pickerOf(tree, "pb-moment").props.onValueChange("visited");
+  tree = draw();
+  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  assert.equal(find(tree, (n) => n.type === PlaybookComposer).props.initialTrigger, "visited", "the sheet stays open");
+  // A choice is the sheet's it was made in: closed and opened again by the same Turn on, it is titled for its moment.
+  pickerOf(tree, "pb-moment").props.onValueChange("lapsed");
+  again(() => CampaignsHome({ param: null, nowMs: NOW }));
+  again(() => CampaignsHome({ param: null, nowMs: NOW }));
+  assert.equal(titleOf(draw()), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+});
+
 test("a moment that already holds a campaign says so as the composer opens on it; the one being changed is not news", () => {
   // The harness's surface holds no campaign (`surface()`, rows []): this one holds the file's own Win-back (`playbook()`).
   const holds = { rows: [playbook()] };

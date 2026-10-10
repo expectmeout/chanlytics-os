@@ -3711,6 +3711,12 @@ interface SetupVM {
      */
     forwardingOwed: boolean;
     /**
+     * A calendar link is connected (the setup read's `calendar.state` is not "none"), whether or not it reads just now:
+     * the fact Campaigns' moments read as a calendar (playbook-triggers.ts momentOffered's `calendarOn`, core's refusal).
+     * The calendar row's Ready is wider (booked by hand, bookings by email alone), so a door to a reminder asks this.
+     */
+    calendarLinked: boolean;
+    /**
      * What the first run's Check reads (first-run.ts): whether the receptionist is set up (none yet, set up, or a
      * config the parser refused, whose repair only Chanlytics can make), whether a Google listing is on record, and the
      * days whose hours it asks about (the setup read's google.unsure).
@@ -28847,8 +28853,8 @@ interface SetupCardVM {
     };
     /**
      * After the first run, with the calendar in: the one door to the appointment reminder, at the payoff (decision 22 of
-     * the spec of 9 Oct 2026: no new first-run step). Null while a step is open, and without a calendar, which the
-     * reminder reads.
+     * the spec of 9 Oct 2026: no new first-run step). Null while a step is open, and without a calendar link connected,
+     * which the reminder reads (booked by hand or by email alone, Setup's row is ready and the reminder cannot be made).
      */
     remind: {
         words: string;

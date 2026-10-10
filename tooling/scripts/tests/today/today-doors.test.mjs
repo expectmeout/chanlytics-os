@@ -520,7 +520,7 @@ test("after the first run, with the calendar in, the card carries one door to th
     const card = mountSetup();
     const line = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind");
     assert.ok(line, "the reminder's line, under the card's rows");
-    assert.ok(textOf(line).startsWith("Your calendar is in. Remind tomorrow's customers of their appointment too?"));
+    assert.ok(textOf(line).startsWith("Your calendar is in. Remind each customer the day before?"));
     const remind = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind-go");
     assert.ok(remind, "one door to the appointment reminder");
     assert.match(String(remind.props.href), /campaigns\/new:moment:visit_tomorrow$/);

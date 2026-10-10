@@ -47,6 +47,11 @@ interface ComposerProps {
   data: PlaybooksSurface;
   editing: PlaybookCardVM | null;
   initialTrigger?: string | null;
+  /**
+   * Another moment chosen in the field, told to the sheet that hosts it: a Turn on's sheet is titled for the moment the
+   * field holds, never only the one its address opened it on (home/new-message.tsx).
+   */
+  onTrigger?: (trigger: string) => void;
   onDone: (d: { id?: string; name?: string }, changed: boolean) => void;
   onCancel: () => void;
 }
@@ -146,7 +151,7 @@ function sheetBodyGlass(x: SectionCtx) {
   );
 }
 
-export function PlaybookComposer({ data, editing, initialTrigger = null, onDone, onCancel }: ComposerProps) {
+export function PlaybookComposer({ data, editing, initialTrigger = null, onTrigger, onDone, onCancel }: ComposerProps) {
   // As on Broadcasts: a template this product cannot put on the wire is not
   // offered, rather than offered and refused by Meta for every recipient.
   const offered = useMemo(() => composerOffered(data.templates), [data.templates]);
@@ -201,7 +206,10 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
     f: held,
     editing,
     adding,
-    setTrigger,
+    setTrigger: (id) => {
+      setTrigger(id);
+      onTrigger?.(id);
+    },
     setTplId,
     setPicked,
     setBusy,

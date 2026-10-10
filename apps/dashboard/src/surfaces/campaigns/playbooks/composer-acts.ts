@@ -15,7 +15,8 @@ interface ActsIn {
   f: Fields;
   editing: PlaybookCardVM | null;
   adding: boolean;
-  setTrigger: Dispatch<SetStateAction<string>>;
+  /** A moment chosen in the field: held, and told to the sheet that hosts the composer (composer.tsx `onTrigger`). */
+  setTrigger: (id: string) => void;
   setTplId: Dispatch<SetStateAction<string>>;
   setPicked: Dispatch<SetStateAction<boolean>>;
   setBusy: Dispatch<SetStateAction<boolean>>;

@@ -54,6 +54,10 @@ function _buttonTakes(
   Button({ size: "lg", variant: "primary", children: "Open the thread" });
   // Drawn as text: an area of a page's words that is one press (a moment's card on Campaigns' rail).
   Button({ size: "text", variant: "quiet", "aria-pressed": now.flag, children: [glyph, "Visit reminder"] });
+  // @ts-expect-error drawn as text is the quiet kind's alone: a primary as text would take a text's weight, and no page wants one
+  Button({ size: "text", variant: "primary", children: "Visit reminder" });
+  // @ts-expect-error drawn as text names its kind, the quiet one: the default kind, secondary, is a control's
+  Button({ size: "text", children: "Visit reminder" });
   // @ts-expect-error the size of its words is said as text: `fit` is no size the kit names
   Button({ size: "fit", children: "Visit reminder" });
   // @ts-expect-error the kit draws the sizes it names: another comes with its first reader

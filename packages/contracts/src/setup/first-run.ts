@@ -438,17 +438,21 @@ export interface SetupCardVM {
   skip: { put: string; said: string };
   /**
    * After the first run, with the calendar in: the one door to the appointment reminder, at the payoff (decision 22 of
-   * the spec of 9 Oct 2026: no new first-run step). Null while a step is open, and without a calendar, which the
-   * reminder reads.
+   * the spec of 9 Oct 2026: no new first-run step). Null while a step is open, and without a calendar link connected,
+   * which the reminder reads (booked by hand or by email alone, Setup's row is ready and the reminder cannot be made).
    */
   remind: { words: string; label: string; to: string } | null;
 }
 
 const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." } as const;
 
-/** Today's door to the reminder (decision 22): the composer opened on the day-before moment. */
+/**
+ * Today's door to the reminder (decision 22): the composer opened on the day-before moment. Its sentence names no
+ * appointment: Setup holds no word for one, and the composer it opens says the workspace's own (a meeting where deals
+ * are on, journey/appointment-word.ts), so the two never disagree.
+ */
 const CARD_REMIND = {
-  words: "Your calendar is in. Remind tomorrow's customers of their appointment too?",
+  words: "Your calendar is in. Remind each customer the day before?",
   label: "Turn on",
   to: "campaigns/new:moment:visit_tomorrow",
 } as const;
@@ -500,7 +504,10 @@ export function setupCardOf(vm: SetupVM): SetupCardVM | null {
     rows,
     hide: { put: "Hide", said },
     skip: CARD_SKIP,
-    remind: calendar && calendar.state === "ready" ? { ...CARD_REMIND } : null,
+    // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
+    // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
+    // the composer's moment is not offered and core refuses it.
+    remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null,
   };
 }
 
