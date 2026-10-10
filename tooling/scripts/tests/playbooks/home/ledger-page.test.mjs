@@ -795,6 +795,15 @@ test("past seven rows a strip of chips, one choice: a moment's chip narrows to i
     "a chip only above zero: After holds nothing, so it has none",
   );
   assert.ok("data-own-drag" in strip.props, "the strip scrolls across under a thumb: no swipe starts on it");
+  // The kit's chips stand unclipped under 900px, where the frame's strip scrolls them; here the page's own box does
+  // (seen on the rig at 375px, 10 Oct: nine chips ran 825px past a 293px strip and under the search circle).
+  const tabs = byTestId(strip, "cmh-phone-scroll");
+  assert.ok(tabs, "the chips stand in a box of their own that scrolls across");
+  assert.ok(
+    find(tabs, (n) => typeof n.props?.onValueChange === "function"),
+    "the chips themselves inside it",
+  );
+  assert.equal(byTestId(tabs, "cmh-phone-find"), null, "and the search circle outside it, beside the chips");
   assert.ok(byTestId(strip, "cmh-phone-find"), "and the search circle");
   const root = find(strip, (n) => typeof n.props?.onValueChange === "function");
   root.props.onValueChange("in:quiet");

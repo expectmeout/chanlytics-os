@@ -119,7 +119,10 @@ function PhoneStrip({ ledger, view, searchRef }: StripProps) {
   };
   return (
     <div className="cmh-phone-strip" data-own-drag data-testid="cmh-phone-strip">
-      <SubTabs label={W.strip} value={value} tabs={chipsOf(ledger)} onSelect={pick} quietCounts dense />
+      {/* The kit's chips stand unclipped under 900px, where the frame's strip scrolls them: here this box does. */}
+      <div className="cmh-phone-scroll" data-testid="cmh-phone-scroll">
+        <SubTabs label={W.strip} value={value} tabs={chipsOf(ledger)} onSelect={pick} quietCounts dense />
+      </div>
       {finding ? (
         // A search its button revealed: ready to type under a mouse and keys, waiting for a tap on a touch screen
         // (legacy-verbs focusAsDrawn; Ruben, 8 and 9 Oct 2026), where its box holds the focus the circle had.

@@ -5733,9 +5733,24 @@ div.tpl-slotbox:not([data-lines="1"]) {
   min-height: 44px;
   padding: 0 22px;
 }
+/* The strip's parts keep their size (the search circle was squeezed to 16px, under a thumb's 44), but the chips' box,
+   which takes the rest and scrolls across; its 5px above and below keep the chips' 44px press areas inside the box,
+   which a scroller clips. */
+.cmh-phone-strip > * {
+  flex: none;
+}
 .cmh-phone-strip > :first-child {
   flex: 1 1 auto;
   min-width: 0;
+}
+.cmh-phone-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-block: -5px;
+  padding-block: 5px;
+}
+.cmh-phone-scroll::-webkit-scrollbar {
+  display: none;
 }
 .cmh-phone-find {
   flex: 0 1 160px;
