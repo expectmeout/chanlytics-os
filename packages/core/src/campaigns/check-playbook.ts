@@ -7,8 +7,11 @@ import {
   FOLLOW_UP_NEEDS_LINK,
   MOMENTS_RETIRED,
   PLAYBOOK_DEFAULTS,
-  PLAYBOOK_HOURS,
+  PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
+  PLAYBOOK_PATCH_KEYS,
+  PLAYBOOK_PATCH_WORDS,
+  PLAYBOOK_STATES,
   appointmentWords,
   channelNeverCarries,
   enrolPurpose,
@@ -29,6 +32,8 @@ import {
   type CampaignMessage,
   type ConsentChannel,
   type ParamSpec,
+  type PlaybookPatch,
+  type PlaybookPatchKey,
   type PlaybookPolicyClass,
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
@@ -57,15 +62,12 @@ export interface PlaybookInput {
   channels: ConsentChannel[];
 }
 
-/** One whole-number field of the body: what it is when none is sent, the range it must fall in, and its name. */
-interface IntRule {
-  fallback: number;
-  min: number;
-  max: number;
-  what: string;
-}
-
-function int(v: unknown, { fallback, min, max, what }: IntRule): number {
+/**
+ * One whole number of a playbook, by its field's bounds (contracts PLAYBOOK_LIMITS): `fallback` when none is sent, and a
+ * refusal in the save's own sentence otherwise. A new playbook's check, a change's and Ask's starter card read it.
+ */
+export function playbookNumber(field: keyof typeof PLAYBOOK_LIMITS, v: unknown, fallback: number): number {
+  const { min, max, what } = PLAYBOOK_LIMITS[field];
   if (v === undefined || v === null || v === "") return fallback;
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isInteger(n) || n < min || n > max)
@@ -212,18 +214,100 @@ export async function checkPlaybookChannels(
   return channelsItMayGoBy(Array.isArray(asked) ? asked : [], row.channels, cls, message);
 }
 
+/** What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null. */
+export interface CheckPlaybookPatchPorts {
+  archivedList(row: { id: string; trigger: string }): Promise<string | null>;
+}
+
+/** A playbook as a change is judged against it: its row as the database holds it now, never a caller's copy. */
+export interface PlaybookPatchRow {
+  id: string;
+  name: string;
+  trigger: string;
+  state: string;
+  run_hour: number;
+  cap_per_run: number;
+  gap_days: number;
+  cadence_days: number;
+}
+
+/** A name as a change keeps it: trimmed, its runs of space one, never empty and never past the bound (D25). */
+function patchName(v: unknown): string {
+  const name = typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+  if (!name) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nameMissing);
+  if (name.length > PLAYBOOK_NAME_MAX)
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nameLong(PLAYBOOK_NAME_MAX));
+  return name;
+}
+
+/** A number a change names, by its field's bounds; undefined where the change names none. */
+const patchNumber = (k: keyof typeof PLAYBOOK_LIMITS, v: unknown, was: number): number | undefined =>
+  v === undefined ? undefined : playbookNumber(k, v, was);
+
 /**
- * Everything a playbook names, checked the way a broadcast is: the trigger,
- * then the message and its values through the one judgement, then the
- * whole numbers. A playbook can never name a message a broadcast could not
- * send or a slot the workspace cannot fill. `existing` is the playbook being changed, null for a new one.
+ * A playbook changed in place (the moment spec §4.9 A5): what Ask's change card proposes and PUT playbooks/:id's patch
+ * writes, judged one way. `asked` names any of the six fields (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each is
+ * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
+ * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), and a reach-out's
+ * step to its state alone (its sheet changes the rest). It answers only what differs from the row as it stands, `set`,
+ * and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in words and
+ * the route answers without a write.
  */
-export async function checkPlaybook(
+export async function checkPlaybookPatch(
+  ports: CheckPlaybookPatchPorts,
+  row: PlaybookPatchRow,
+  asked: Record<string, unknown>,
+): Promise<{ set: PlaybookPatch; was: PlaybookPatch }> {
+  const keys = Object.keys(asked).filter((k) => asked[k] !== undefined);
+  if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nothing);
+  // A reach-out's step is changed on its own sheet (Reach out, Part 4); here it is paused or resumed, as the sheet's
+  // Pause asks, and nothing else.
+  if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
+    throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
+  if (asked.state !== undefined && !(PLAYBOOK_STATES as readonly unknown[]).includes(asked.state))
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.state);
+  const next: Record<PlaybookPatchKey, unknown> = {
+    state: asked.state,
+    name: asked.name === undefined ? undefined : patchName(asked.name),
+    run_hour: patchNumber("run_hour", asked.run_hour, row.run_hour),
+    cap_per_run: patchNumber("cap_per_run", asked.cap_per_run, row.cap_per_run),
+    gap_days: patchNumber("gap_days", asked.gap_days, row.gap_days),
+    cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
+  };
+  const set: Record<string, unknown> = {};
+  const was: Record<string, unknown> = {};
+  for (const k of PLAYBOOK_PATCH_KEYS)
+    if (next[k] !== undefined && next[k] !== row[k]) {
+      set[k] = next[k];
+      was[k] = row[k];
+    }
+  if (set.cadence_days !== undefined && row.trigger !== "everyone_monthly")
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.cadenceOffer(row.name));
+  if (set.state === "running") {
+    const archived = await ports.archivedList(row);
+    if (archived) throw new AppError("validation", archived);
+  }
+  return { set, was };
+}
+
+/**
+ * What a new playbook names before its message, judged: its moment (one offered here, never a reach-out's step), its
+ * list, and the class it runs under. A starter card is refused for all of it before its starter is filed (a WhatsApp
+ * version sent to Meta cannot be taken back), and checkPlaybook asks it first, so a new playbook is judged one way, in
+ * one order and in the same words.
+ */
+export async function checkPlaybookMoment(
   ports: CheckPlaybookPorts,
   body: Record<string, unknown> | null,
-  existing: { trigger: string; channels?: string[] | null } | null,
-): Promise<PlaybookInput> {
-  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  existing: { trigger: string } | null,
+): Promise<{
+  trig: NonNullable<ReturnType<typeof triggerOf>>;
+  cls: PlaybookPolicyClass;
+  listName: string | null;
+  listKey: string | null;
+  listId: string | null;
+}> {
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
   if (!trig)
     throw new AppError(
@@ -239,6 +323,22 @@ export async function checkPlaybook(
     trig.kind === "saved" && (LIST_PLAYBOOK_CLASSES as readonly string[]).includes(String(body?.policy_class))
       ? (body!.policy_class as PlaybookPolicyClass)
       : trig.cls;
+  return { trig, cls, listName, listKey, listId };
+}
+
+/**
+ * Everything a playbook names, checked the way a broadcast is: the trigger,
+ * then the message and its values through the one judgement, then the
+ * whole numbers. A playbook can never name a message a broadcast could not
+ * send or a slot the workspace cannot fill. `existing` is the playbook being changed, null for a new one.
+ */
+export async function checkPlaybook(
+  ports: CheckPlaybookPorts,
+  body: Record<string, unknown> | null,
+  existing: { trigger: string; channels?: string[] | null } | null,
+): Promise<PlaybookInput> {
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { message, specs } = await templateValues(ports, {
     templateId,
@@ -268,20 +368,10 @@ export async function checkPlaybook(
     template_language: message.language,
     params: specs,
     policy_class: cls,
-    run_hour: int(body?.run_hour, {
-      fallback: PLAYBOOK_DEFAULTS.runHour,
-      min: PLAYBOOK_HOURS.min,
-      max: PLAYBOOK_HOURS.max,
-      what: "The hour",
-    }),
-    cap_per_run: int(body?.cap_per_run, { fallback: PLAYBOOK_DEFAULTS.capPerRun, min: 1, max: 500, what: "The cap" }),
-    gap_days: int(body?.gap_days, { fallback: PLAYBOOK_DEFAULTS.gapDays, min: 7, max: 365, what: "The gap" }),
-    cadence_days: int(body?.cadence_days, {
-      fallback: PLAYBOOK_DEFAULTS.cadenceDays,
-      min: 1,
-      max: 90,
-      what: "The cadence",
-    }),
+    run_hour: playbookNumber("run_hour", body?.run_hour, PLAYBOOK_DEFAULTS.runHour),
+    cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun),
+    gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
+    cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
     channels,
   };
 }

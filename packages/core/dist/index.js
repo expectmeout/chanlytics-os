@@ -3021,8 +3021,11 @@ import {
   FOLLOW_UP_NEEDS_LINK,
   MOMENTS_RETIRED,
   PLAYBOOK_DEFAULTS,
-  PLAYBOOK_HOURS,
+  PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
+  PLAYBOOK_PATCH_KEYS,
+  PLAYBOOK_PATCH_WORDS,
+  PLAYBOOK_STATES,
   appointmentWords,
   channelNeverCarries as channelNeverCarries2,
   enrolPurpose as enrolPurpose3,
@@ -3040,7 +3043,8 @@ import {
   UUID as UUID3,
   winBackWords
 } from "../../contracts/dist/index.js";
-function int(v, { fallback, min, max, what }) {
+function playbookNumber(field, v, fallback) {
+  const { min, max, what } = PLAYBOOK_LIMITS[field];
   if (v === void 0 || v === null || v === "") return fallback;
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isInteger(n) || n < min || n > max)
@@ -3106,8 +3110,46 @@ async function checkPlaybookChannels(ports, row, asked2) {
   const cls = row.policy_class ?? triggerOf4(row.trigger)?.cls ?? null;
   return channelsItMayGoBy(Array.isArray(asked2) ? asked2 : [], row.channels, cls, message);
 }
-async function checkPlaybook(ports, body, existing) {
-  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+function patchName(v) {
+  const name = typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+  if (!name) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameMissing);
+  if (name.length > PLAYBOOK_NAME_MAX)
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameLong(PLAYBOOK_NAME_MAX));
+  return name;
+}
+var patchNumber = (k, v, was) => v === void 0 ? void 0 : playbookNumber(k, v, was);
+async function checkPlaybookPatch(ports, row, asked2) {
+  const keys = Object.keys(asked2).filter((k) => asked2[k] !== void 0);
+  if (keys.length === 0 || keys.some((k) => !PLAYBOOK_PATCH_KEYS.includes(k)))
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
+  if (triggerOf4(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
+    throw new AppError15("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
+  if (asked2.state !== void 0 && !PLAYBOOK_STATES.includes(asked2.state))
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.state);
+  const next = {
+    state: asked2.state,
+    name: asked2.name === void 0 ? void 0 : patchName(asked2.name),
+    run_hour: patchNumber("run_hour", asked2.run_hour, row.run_hour),
+    cap_per_run: patchNumber("cap_per_run", asked2.cap_per_run, row.cap_per_run),
+    gap_days: patchNumber("gap_days", asked2.gap_days, row.gap_days),
+    cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days)
+  };
+  const set = {};
+  const was = {};
+  for (const k of PLAYBOOK_PATCH_KEYS)
+    if (next[k] !== void 0 && next[k] !== row[k]) {
+      set[k] = next[k];
+      was[k] = row[k];
+    }
+  if (set.cadence_days !== void 0 && row.trigger !== "everyone_monthly")
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.cadenceOffer(row.name));
+  if (set.state === "running") {
+    const archived = await ports.archivedList(row);
+    if (archived) throw new AppError15("validation", archived);
+  }
+  return { set, was };
+}
+async function checkPlaybookMoment(ports, body, existing) {
   const trig = typeof body?.trigger === "string" ? triggerOf4(body.trigger) : null;
   if (!trig)
     throw new AppError15(
@@ -3118,6 +3160,11 @@ async function checkPlaybook(ports, body, existing) {
   await refuseMoment(ports, trig, existing);
   const { listName, listKey, listId } = await listOf(ports, trig, body);
   const cls = trig.kind === "saved" && LIST_PLAYBOOK_CLASSES.includes(String(body?.policy_class)) ? body.policy_class : trig.cls;
+  return { trig, cls, listName, listKey, listId };
+}
+async function checkPlaybook(ports, body, existing) {
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { message, specs } = await templateValues(ports, {
     templateId,
@@ -3145,20 +3192,10 @@ async function checkPlaybook(ports, body, existing) {
     template_language: message.language,
     params: specs,
     policy_class: cls,
-    run_hour: int(body?.run_hour, {
-      fallback: PLAYBOOK_DEFAULTS.runHour,
-      min: PLAYBOOK_HOURS.min,
-      max: PLAYBOOK_HOURS.max,
-      what: "The hour"
-    }),
-    cap_per_run: int(body?.cap_per_run, { fallback: PLAYBOOK_DEFAULTS.capPerRun, min: 1, max: 500, what: "The cap" }),
-    gap_days: int(body?.gap_days, { fallback: PLAYBOOK_DEFAULTS.gapDays, min: 7, max: 365, what: "The gap" }),
-    cadence_days: int(body?.cadence_days, {
-      fallback: PLAYBOOK_DEFAULTS.cadenceDays,
-      min: 1,
-      max: 90,
-      what: "The cadence"
-    }),
+    run_hour: playbookNumber("run_hour", body?.run_hour, PLAYBOOK_DEFAULTS.runHour),
+    cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun),
+    gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
+    cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
     channels
   };
 }
@@ -39068,6 +39105,8 @@ export {
   check,
   checkPlaybook,
   checkPlaybookChannels,
+  checkPlaybookMoment,
+  checkPlaybookPatch,
   checkable,
   cleanPlace,
   collect,
@@ -39112,6 +39151,7 @@ export {
   outboundGate,
   parseChannels,
   photoUserText,
+  playbookNumber,
   probeAsk,
   probeYield,
   provisionLine,
