@@ -6,7 +6,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { relative, sep } from "node:path";
 import * as C from "@chanlytics/contracts";
+import { ratchet } from "../_ratchet.mjs";
+import { ROOT, readerFiles, readerLines } from "../_source.mjs";
 
 /** The four shapes: a calendar connected or not, deals on or not. */
 const SHAPES = [
@@ -150,4 +154,235 @@ test("the drawer's schedule and a card's pool say the workspace's word; a propos
   assert.equal(C.poolWords("visit_tomorrow", "appointment"), "with an appointment tomorrow");
   assert.equal(C.poolWords("visited", "lesson"), "who had a lesson yesterday");
   assert.equal(C.poolWords("proposal_waiting", "lesson"), "with a proposal waiting");
+});
+
+/* ------------------------------------------- one page, one word ------------------------------------------- */
+
+const ZONE = "America/New_York";
+/** Friday 2 Oct 2026, 9:44 PM in New York. */
+const NOW = Date.parse("2026-10-03T01:44:00Z");
+
+/** Every string in a value, at any depth: what a view model says. The words' builders are functions, not strings. */
+function stringsOf(value, out = []) {
+  if (typeof value === "string") out.push(value);
+  else if (Array.isArray(value)) for (const v of value) stringsOf(v, out);
+  else if (value && typeof value === "object") for (const v of Object.values(value)) stringsOf(v, out);
+  return out;
+}
+/** A word's forms as a sentence writes them: the noun, its plural, and visit's verb. */
+const formsOf = (w) => new RegExp(`\\b${w}(s|ed)?\\b`, "i");
+/** A moment's id is no word (`visited` keeps it, D46): a view model carries it in a stage's `moment` and a Turn on's. */
+const MOMENT_IDS = new Set(C.PLAYBOOK_TRIGGERS.map((t) => t.id));
+
+/** Campaigns made on every moment, named in no word, so whatever the page says of an appointment is its own sentence. */
+const card = (id, name, trigger, over = {}) => ({
+  id,
+  name,
+  trigger,
+  state: "running",
+  run_hour: 10,
+  cadence_days: 30,
+  cap_per_run: 25,
+  last_run_for: "2026-09-14",
+  next: "tomorrow 10:00 AM",
+  triggerLabel: name,
+  candidates: 2,
+  held: 1,
+  named: { pool: 4, saidYes: 2 },
+  off: null,
+  totals: { waiting: null },
+  ...over,
+});
+const MADE = [
+  card("pb-b", "Reminder", "visit_tomorrow", { totals: { waiting: { id: "r-1", recipient_count: 3 } } }),
+  card("pb-a", "Check-in", "visited", { state: "paused", next: "paused" }),
+  card("pb-q", "Come back", "quiet_30"),
+  card("pb-f", "Follow-up", "proposal_waiting"),
+];
+const homeFor = (shape, word, rows) => {
+  const pools = Object.fromEntries(
+    ["new_week", "visit_tomorrow", "visited", "quiet_30", "lapsed", "proposal_waiting"].map((k) => [
+      k,
+      { candidates: 3, held: 0, pool: 4, saidYes: 3 },
+    ]),
+  );
+  const triggers = C.MOMENT_TRIGGERS.filter((t) => C.triggerOffered(t, shape.dealsOn)).map((t) => ({
+    id: t.id,
+    offered: C.momentOffered(t, shape),
+    candidates: 3,
+    named: null,
+  }));
+  return C.campaignsHomeOf({
+    nowMs: NOW,
+    tz: ZONE,
+    playbooks: { rows, pools, triggers, timezone: ZONE, countsRead: true },
+    broadcasts: {
+      rows: [
+        {
+          id: "r-1",
+          name: "Reminder · Oct 2",
+          state: "pending_approval",
+          when: "tomorrow 10:00 AM",
+          scheduled_for: "2026-10-03T14:00:00Z",
+          started_at: null,
+          finished_at: null,
+          recipient_count: 3,
+          playbook_id: "pb-b",
+          counts: { sent: 0, replied: 0 },
+          // Made for the business's day (2 Oct in New York), so the row offers Approve, as a live run's does.
+          run_for: "2026-10-02",
+        },
+      ],
+      number: { present: true },
+      optIn: { phrase: "YES OFFERS", link: null },
+      reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 4 },
+    },
+    library: [],
+    messages: [],
+    reachOuts: [],
+    report: { days: 30, totals: { sent: 0, delivered: 0, read: 0, replied: 0, optIns: 0, optOuts: 0 }, sources: [] },
+    shape: { calendar: shape.calendarOn ? "feed" : "none", dealsOn: shape.dealsOn, word },
+    chains: undefined,
+  });
+};
+/** What the drawer, a card, the composer's moments, the win-back's refusals and the approval sheet say in a word. */
+const sentencesOf = (word) => {
+  const W = C.appointmentWords(word);
+  const clock = { run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  const approval = (trigger) =>
+    C.toApprovalVM(
+      {
+        broadcast: { recipient_count: 3, playbook_id: "pb-b", run_for: "2026-10-03", params: [{ kind: "first_name" }] },
+        recipients: [{ contact_id: "c1", name: "Priya Nair", first_name: "Priya", state: "queued" }],
+      },
+      {
+        playbook: { trigger, ...clock, word },
+        businessName: "Harbor",
+        today: "2026-10-02",
+        open: { time: "10:00", moved: false, on: "2026-10-03" },
+        day: (d) => d,
+        paused: false,
+      },
+    );
+  return [
+    ...stringsOf(W),
+    W.offTomorrow(1),
+    W.offTomorrow(3),
+    W.offYesterday(2),
+    ...["visit_tomorrow", "visited"].flatMap((t) => [
+      C.scheduleLine({ ...clock, trigger: t }, word),
+      C.poolWords(t, word),
+    ]),
+    ...C.PLAYBOOK_TRIGGERS.flatMap((t) => Object.values(C.triggerWords(t, word))),
+    ...Object.values(C.winBackWords(word)),
+    ...["visit_tomorrow", "visited"].flatMap((t) => stringsOf(approval(t))),
+  ];
+};
+
+test("one page, one word: for 4 shapes × 5 words, every string Campaigns' view models say holds its word and no other", () => {
+  for (const shape of SHAPES)
+    for (const word of C.APPOINTMENT_WORDS) {
+      const said = [
+        ...stringsOf(homeFor(shape, word, MADE)),
+        ...stringsOf(homeFor(shape, word, [])),
+        ...sentencesOf(word),
+      ].filter((s) => !MOMENT_IDS.has(s));
+      assert.ok(
+        said.some((s) => formsOf(word).test(s)),
+        `${JSON.stringify(shape)}: ${word} is said`,
+      );
+      for (const other of C.APPOINTMENT_WORDS.filter((w) => w !== word)) {
+        const bad = said.filter((s) => formsOf(other).test(s));
+        assert.deepEqual(bad, [], `${JSON.stringify(shape)}, ${word}: says ${other}`);
+      }
+    }
+});
+
+/* ------------------------------------- the words not yet the word's ------------------------------------- */
+
+/** A quoted string a reader reads: its content is the second group. */
+const QUOTED = /(["'`])((?:\\.|(?!\1).)*)\1/g;
+const VISIT_WORD = /\bvisit(?:s|ed)?\b/i;
+
+/** A template's own text, and the code of each `${…}` in it, found by its braces (a `{ timeZone }` inside one is its own). */
+function templateParts(content) {
+  let text = "";
+  const code = [];
+  for (let i = 0; i < content.length; i += 1) {
+    if (content[i] !== "$" || content[i + 1] !== "{") {
+      text += content[i];
+      continue;
+    }
+    let depth = 1;
+    let j = i + 2;
+    for (; j < content.length && depth > 0; j += 1) {
+      if (content[j] === "{") depth += 1;
+      else if (content[j] === "}") depth -= 1;
+    }
+    code.push(content.slice(i + 2, j - 1));
+    i = j - 1;
+  }
+  return { text, code };
+}
+
+/**
+ * The words a quoted string says "visit" in: its own text, where it holds a space, and each string quoted inside its
+ * `${…}`s. The code there is no word: `${visitStartTime(visit, tz)}` names a variable, and a reader never reads it.
+ */
+function visitWordsIn(content) {
+  const { text, code } = templateParts(content);
+  let n = /\s/.test(text) && VISIT_WORD.test(text) ? 1 : 0;
+  for (const c of code) for (const m of c.matchAll(QUOTED)) n += visitWordsIn(m[2]);
+  return n;
+}
+
+/**
+ * Per file in the reader scope, the quoted strings a reader reads that hold a space and the whole word visit (ids like
+ * "visit_tomorrow" hold neither), comments, member accesses and `trade-word:` lines left out (readerLines). It may only
+ * fall: each sweep banks its file, and when it reaches zero "visit" joins trade-neutral's banned words.
+ */
+function appointmentWordsWrittenIn() {
+  const out = {};
+  for (const file of readerFiles()) {
+    let n = 0;
+    for (const { text } of readerLines(readFileSync(file, "utf8")))
+      for (const m of text.matchAll(QUOTED)) n += visitWordsIn(m[2]);
+    if (n > 0) out[relative(ROOT, file).split(sep).join("/")] = n;
+  }
+  return out;
+}
+
+test("the count reads what a reader reads: a sentence's word, not an id, a variable in a template's code, or a marked line", () => {
+  const count = (src) =>
+    readerLines(src).reduce(
+      (n, { text }) => n + [...text.matchAll(QUOTED)].reduce((k, m) => k + visitWordsIn(m[2]), 0),
+      0,
+    );
+  assert.equal(count(`const a = "Visit reminder";`), 1);
+  assert.equal(
+    count(`const a = "visit_tomorrow"; const b = "visit"; const c = p.visit;`),
+    0,
+    "ids and a member are no words",
+  );
+  assert.equal(
+    count("const a = `${visitDayWord(visit, tz)} at ${visitStartTime(visit, tz)}`;"),
+    0,
+    "a template's code",
+  );
+  assert.equal(count("const a = `Last visit · ${p}`;"), 1);
+  assert.equal(
+    count('const a = `${ahead ? "Next visit ahead" : "None"} · ${x}`;'),
+    1,
+    "a sentence quoted inside its code",
+  );
+  assert.equal(count(`const a = "a visit"; // trade-word: the word's own forms`), 0, "a marked line");
+  assert.equal(count(`// "about your visit" in a comment`), 0);
+});
+
+ratchet({
+  name: "appointment words written in",
+  file: "appointment-words.json",
+  measure: appointmentWordsWrittenIn,
+  advice:
+    'A sentence a person reads says the workspace\'s appointment word (contracts appointmentWords), or none: never "visit" written in.',
 });

@@ -7,32 +7,15 @@
  *
  * Comments are skipped (they are not copy), member accesses are skipped
  * (`c.therapist` is a seed field, not a word), and a line may carry
- * `trade-word:` in a comment to say why it must keep one.
+ * `trade-word:` in a comment to say why it must keep one. The trees it reads and the lines a reader reads are
+ * `_source.mjs`'s (READER_SCOPE, readerFiles, readerLines), which the appointment words' ratchet reads too.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { relative, sep } from "node:path";
+import { ROOT as REPO, readerFiles, readerLines } from "../_source.mjs";
 
-const ROOT = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "..");
-const SCOPE = [
-  "packages/contracts/src",
-  "packages/channels/src",
-  "packages/jobs/src",
-  "apps/dashboard/src/server",
-  "apps/dashboard/src/legacy-bridge",
-  // A surface that has left the shell (decision 0015) is TSX here, and the words a page draws are scanned where its JSX
-  // was: the sample a demo session draws (sample.ts) is scanned with them. The Inbox's own sample, which still says a salon's
-  // words as its mockup's twin did, is not yet (its surface's lane).
-  "apps/dashboard/src/surfaces/campaigns",
-  "apps/dashboard/src/surfaces/live",
-  "apps/dashboard/src/legacy/pages",
-  "apps/dashboard/src/legacy/demo/pages",
-  "apps/dashboard/src/legacy/components",
-  "apps/edge/lib",
-  "apps/edge/api",
-];
 /** Files that may keep a trade's words, and why. */
 const ALLOWED = new Map([
   [
@@ -49,60 +32,16 @@ const ALLOWED = new Map([
   ],
 ]);
 const BANNED = /\b(salons?|stylists?|balayage|therapists?|chair rental|haircuts?|keratin|blowouts?|lash(?:es)?)\b/i;
-const EXT = new Set([".ts", ".tsx", ".jsx", ".js"]);
-
-function* walk(dir) {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) {
-      if (name !== "node_modules" && name !== "dist") yield* walk(p);
-    } else if ([...EXT].some((e) => name.endsWith(e)) && !name.endsWith(".d.ts") && !name.includes(".test.")) yield p;
-  }
-}
-
-/** Lines that reach a reader: no comments, no member accesses, no `trade-word:` exemptions. */
-export function readerLines(src) {
-  const out = [];
-  let inBlock = false;
-  src.split(/\r?\n/).forEach((raw, i) => {
-    let line = raw;
-    if (inBlock) {
-      const end = line.indexOf("*/");
-      if (end === -1) return;
-      line = line.slice(end + 2);
-      inBlock = false;
-    }
-    // Block comments that open on this line: drop what they cover.
-    for (;;) {
-      const start = line.indexOf("/*");
-      if (start === -1) break;
-      const end = line.indexOf("*/", start + 2);
-      if (end === -1) {
-        line = line.slice(0, start);
-        inBlock = true;
-        break;
-      }
-      line = line.slice(0, start) + line.slice(end + 2);
-    }
-    if (/trade-word:/.test(raw)) return;
-    line = line.replace(/(^|\s)\/\/.*$/, "$1");
-    line = line.replace(/\.\w+/g, "");
-    if (line.trim()) out.push({ n: i + 1, text: line });
-  });
-  return out;
-}
 
 test("no salon words reach a customer of another trade", () => {
   const hits = [];
-  for (const dir of SCOPE) {
-    for (const file of walk(join(ROOT, dir))) {
-      const rel = relative(ROOT, file).split(sep).join("/");
-      if (ALLOWED.has(rel)) continue;
-      const src = readFileSync(file, "utf8");
-      for (const { n, text } of readerLines(src)) {
-        const m = BANNED.exec(text);
-        if (m) hits.push(`${rel}:${n}: “${m[0]}” — ${text.trim().slice(0, 110)}`);
-      }
+  for (const file of readerFiles()) {
+    const rel = relative(REPO, file).split(sep).join("/");
+    if (ALLOWED.has(rel)) continue;
+    const src = readFileSync(file, "utf8");
+    for (const { n, text } of readerLines(src)) {
+      const m = BANNED.exec(text);
+      if (m) hits.push(`${rel}:${n}: “${m[0]}” — ${text.trim().slice(0, 110)}`);
     }
   }
   assert.deepEqual(hits, [], `salon words in code a customer reads:\n${hits.join("\n")}`);
