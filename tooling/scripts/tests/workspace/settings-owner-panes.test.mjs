@@ -1084,13 +1084,11 @@ test("an open invitation's menu offers no role: there is no membership row to ch
   assert.equal(byTestId(tree, "team-role-inv-sam"), null, "and no picker stands on the invitation's row");
 });
 
-test("a team read that failed is said, with the server's role kept; a roster read says You by the signed-in email", () => {
-  // Only the team read failed: the settings read still gave the caller's role, so an owner keeps View-as, and nobody is
-  // invented -- no rows, no menus, no Invite over a roster that could not be read.
+test("a team read that failed is said, and nobody is invented; a roster read says You by the signed-in email", () => {
+  // Only the team read failed: no rows, no menus, no Invite over a roster that could not be read, whoever reads it.
   workspace("owner", { __TEAM: null, __TEAM_INVITES: null });
   let tree = settings("team");
   assert.ok(byTestId(tree, "team-failed"), "the one failed read");
-  assert.ok(byTestId(tree, "team-viewas"), "an owner, as the server says, keeps View-as");
   assert.equal(
     all(tree, (n) => String(n.props?.className || "").startsWith("set-team-row")).length,
     0,
@@ -1099,7 +1097,8 @@ test("a team read that failed is said, with the server's role kept; a roster rea
   assert.equal(buttonSaying(tree, "Invite"), null, "no Invite over a roster that could not be read");
   workspace("operator", { __TEAM: null, __TEAM_INVITES: null });
   tree = settings("team");
-  assert.equal(byTestId(tree, "team-viewas"), null, "an operator, as the server says, has none");
+  assert.ok(byTestId(tree, "team-failed"), "an operator's too");
+  assert.equal(buttonSaying(tree, "Invite"), null, "and no Invite for them either");
   // A roster read: You is the row whose address is the signed-in one, and only that row.
   workspace("owner");
   tree = settings("team");

@@ -144,6 +144,7 @@ test("the owner's card, state by state: none asks, waiting takes back, declined 
     /^ada-co was your partner: .* are no longer on your team\. A workspace has one partner\.$/,
   );
   assert.equal(removed.canInvite, false, "the credit stays, and so does the one partner a workspace has");
+  assert.deepEqual([joined.seated, removed.seated, none.seated, waiting.seated], [true, false, false, false]);
   assert.match(
     workspacePartnerVM({
       partner: { code: "bo", origin: "link", since: "2026-09-01T00:00:00Z", seated: true },
