@@ -1,8 +1,8 @@
 /**
  * Campaigns' home, the lifecycle (canvas A): the view model the page draws, EXECUTED over fixtures in the real surfaces' shape.
  *
- * Five moments around a customer, each covered or not, with the campaigns that are not one of them in quiet lines under
- * them; and three tiles: who can hear the workspace, what goes out in the next seven days, what came back in the last
+ * Five moments around a customer, each covered or not, with every campaign in a ledger under them (ledger.test.mjs proves
+ * its rows); and three tiles: who can hear the workspace, what goes out in the next seven days, what came back in the last
  * thirty. Every word and number the page says is made by `campaignsHomeOf`, so the page composes and never derives; a
  * number the workspace could not count is null and never a zero, a surface not read leaves its sections out, and a zero is
  * shown as zero.
@@ -462,117 +462,6 @@ test("the stage names the playbook the owner made when there is one, and the mom
   const h = home({ playbooks: playbooks({ rows: [playbook({ name: "Come back soon" })] }) });
   assert.equal(stage(h, "quiet").name, "Come back soon");
   assert.equal(stage(h, "before").name, "Visit reminder");
-});
-
-/* ------------------------------------------------ the strips ------------------------------------------------- */
-
-const strip = (h, id) => h.strips.find((s) => s.id === id);
-
-test("the call's text: on while the phone agent has a message to text a caller who asks to book, said otherwise", () => {
-  const on = strip(home(), "call_text");
-  assert.deepEqual(
-    [on.stateWords, on.tone, on.act],
-    ["When a caller asks", "ok", { kind: "route", label: "Open", route: "messages" }],
-  );
-  const none = strip(home({ library: [template("visit_reminder", { variables: [] })] }), "call_text");
-  assert.deepEqual([none.stateWords, none.tone], ["No message for it yet", "warn"]);
-  assert.equal(
-    strip(home({ library: null }), "call_text").stateWords,
-    "",
-    "a library that failed is the page's failed read",
-  );
-  assert.equal(strip(home({ library: undefined }), "call_text").stateWords, "", "not read yet: nothing said");
-  const unapproved = strip(home({ library: [template("call_text", { meta_status: "pending" })] }), "call_text");
-  assert.equal(
-    unapproved.stateWords,
-    "No message for it yet",
-    "one WhatsApp has not approved cannot be texted (bookingTemplate)",
-  );
-});
-
-test("the month's offer: its playbook's state and act, or a line that turns it on", () => {
-  const month = (over) => playbook({ id: "pb-m", name: "The month's offer", trigger: "everyone_monthly", ...over });
-  const running = strip(home({ playbooks: playbooks({ rows: [playbook(), month()] }) }), "pb-m");
-  assert.deepEqual(
-    [running.stateWords, running.act.kind, running.words],
-    ["On · every 30 days", "open", "Every 30 days, to a yes to offers"],
-  );
-  const paused = strip(home({ playbooks: playbooks({ rows: [playbook(), month({ state: "paused" })] }) }), "pb-m");
-  assert.deepEqual(
-    [paused.stateWords, paused.tone, paused.act],
-    ["Paused", "plain", { kind: "resume", label: "Resume", playbookId: "pb-m" }],
-  );
-  const off = strip(home(), "everyone_monthly");
-  assert.deepEqual(
-    [off.stateWords, off.act],
-    ["Off", { kind: "turn_on", label: "Turn on", moment: "everyone_monthly" }],
-  );
-  const pb = playbooks();
-  const gone = home({ playbooks: { ...pb, triggers: pb.triggers.filter((t) => t.id !== "everyone_monthly") } });
-  assert.equal(strip(gone, "everyone_monthly"), undefined, "a moment the workspace is not offered is no line");
-});
-
-test("playbooks on a list, and any other that still runs, are lines of their own; a stage's playbook is not said twice", () => {
-  const h = home({
-    playbooks: playbooks({
-      rows: [
-        playbook(),
-        playbook({ id: "pb-l", name: "Regulars", trigger: "saved_list", triggerLabel: "VIP regulars" }),
-        playbook({ id: "pb-w", name: "Welcome", trigger: "new_week", triggerLabel: "Welcome" }),
-        playbook({
-          id: "pb-a",
-          name: "Old list",
-          trigger: "saved_list",
-          triggerLabel: "Bridal",
-          state: "paused",
-          listArchived: true,
-        }),
-      ],
-    }),
-  });
-  assert.deepEqual(
-    h.strips.map((s) => s.id),
-    ["call_text", "everyone_monthly", "pb-l", "pb-a", "pb-w"],
-    "the call's text, the month's offer, the lists, then any other moment",
-  );
-  assert.equal(strip(h, "pb-l").words, "On a list · VIP regulars");
-  assert.deepEqual(
-    [strip(h, "pb-a").stateWords, strip(h, "pb-a").tone, strip(h, "pb-a").act.kind],
-    ["Its list is archived", "warn", "open"],
-  );
-  assert.equal(strip(h, "pb-w").kind, "moment");
-  assert.equal(strip(h, "pb-1"), undefined, "the win-back is the rail's");
-});
-
-test("a reach-out is a line: on, waiting on you, or paused with Resume", () => {
-  const chain = (over = {}) => ({
-    root_id: "ch-1",
-    name: "Cold email to studios",
-    search: { id: "s-1", name: "Studios near us" },
-    state: "running",
-    steps: [{}, {}],
-    next: { waiting_run_id: null },
-    ...over,
-  });
-  const on = strip(home({ reachOuts: [chain()] }), "ch-1");
-  assert.deepEqual(
-    [on.kind, on.words, on.stateWords, on.tone],
-    ["reach_out", "Cold email to Studios near us · 2 steps", "On", "ok"],
-  );
-  assert.equal(
-    strip(home({ reachOuts: [chain({ next: { waiting_run_id: "r-3" } })] }), "ch-1").stateWords,
-    "Waiting on you",
-  );
-  const paused = strip(home({ reachOuts: [chain({ state: "paused" })] }), "ch-1");
-  assert.deepEqual(
-    [paused.stateWords, paused.act],
-    ["Paused", { kind: "resume", label: "Resume", playbookId: "ch-1" }],
-  );
-  assert.equal(
-    home({ reachOuts: null }).strips.some((s) => s.kind === "reach_out"),
-    false,
-    "a read that failed draws none",
-  );
 });
 
 /* ------------------------------------------------- the head -------------------------------------------------- */

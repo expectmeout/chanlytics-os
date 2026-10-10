@@ -7,10 +7,13 @@
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type {
   LifecycleAct,
+  LifecycleChannelMark,
   LifecycleFailed,
+  LifecycleGlyph,
   LifecycleHome,
+  LifecycleRow,
   LifecycleStage,
-  LifecycleStrip,
+  LifecycleTone,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -101,8 +104,66 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
   );
 }
 
+/**
+ * A line under the rail, until the ledger draws every campaign (lane 3 of the 9 Oct 2026 plan replaces these lines and
+ * their styles): a ledger row that is no moment's lead, in the strips' markup and words.
+ */
+interface AlsoLine {
+  id: string;
+  kind: "call_text" | "moment" | "list" | "reach_out";
+  glyph: LifecycleGlyph;
+  name: string;
+  words: string;
+  stateWords: string;
+  tone: LifecycleTone;
+  open: LifecycleAct;
+  act: LifecycleAct;
+  channels: readonly LifecycleChannelMark[];
+}
+
+/** The kind of line a ledger row was among the strips. */
+function alsoKind(kind: LifecycleRow["kind"]): AlsoLine["kind"] | null {
+  if (kind === "call_text") return "call_text";
+  if (kind === "list") return "list";
+  if (kind === "chain") return "reach_out";
+  return kind === "playbook" || kind === "offer" ? "moment" : null;
+}
+
+/** The glyph a line drew among the strips: the call's text its phone, the month's offer its gift, else its group's. */
+function alsoGlyph(kind: LifecycleRow["kind"], group: LifecycleGlyph): LifecycleGlyph {
+  if (kind === "call_text") return "phone";
+  return kind === "offer" ? "gift" : group;
+}
+
+/** The ledger's rows that lead no moment: the call's text, a moment's other campaigns, the offers and lists, the reach-outs. */
+function alsoLines(home: LifecycleHome): AlsoLine[] {
+  const leads = new Set(home.rail.stages.flatMap((s) => (s.playbookId ? [s.playbookId] : [])));
+  return home.ledger.groups.flatMap((g) =>
+    g.rows.flatMap((r) => {
+      const kind = alsoKind(r.kind);
+      const open = r.open ?? r.act;
+      if (!kind || !open || leads.has(r.id)) return [];
+      // A line's act was Resume, Turn on or its door; a chain's waiting run is opened from its door, as it was.
+      const act = r.act && r.act.kind !== "route" ? r.act : open;
+      const line: AlsoLine = {
+        id: r.id,
+        kind,
+        glyph: alsoGlyph(r.kind, g.glyph),
+        name: r.name,
+        words: r.hint,
+        stateWords: r.stateWords,
+        tone: r.tone,
+        open,
+        act,
+        channels: r.channels,
+      };
+      return [line];
+    }),
+  );
+}
+
 /** One line under the rail: what it is, its state, and the one act at its right. */
-function StripLine({ l, acts }: { l: LifecycleStrip; acts: RailActs }) {
+function StripLine({ l, acts }: { l: AlsoLine; acts: RailActs }) {
   const act = l.act;
   const resumes = act.kind === "resume" || act.kind === "turn_on";
   return (
@@ -133,7 +194,7 @@ function StripLines({
   failed,
   acts,
 }: {
-  strips: readonly LifecycleStrip[];
+  strips: readonly AlsoLine[];
   failed: LifecycleFailed;
   acts: RailActs;
 }) {
@@ -159,7 +220,8 @@ function StripLines({
 
 /** The desk's rail and the lines under it. */
 export function Rail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
-  const { rail, strips } = home;
+  const { rail } = home;
+  const strips = alsoLines(home);
   if (rail.stages.length === 0) return null;
   return (
     <Panel
@@ -183,7 +245,7 @@ export function Rail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
         ))}
       </ol>
       {strips.length > 0 ? (
-        <ul className="cmh-strips" aria-label={LIFECYCLE_WORDS.alsoRunning}>
+        <ul className="cmh-strips" aria-label={LIFECYCLE_WORDS.phone.also}>
           <StripLines strips={strips} failed={home.failed} acts={acts} />
         </ul>
       ) : null}
@@ -240,7 +302,8 @@ function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
 
 /** The phone's rail: the moments down a line, and under it the other lines as one list ("Also"). */
 export function PhoneRail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
-  const { rail, strips } = home;
+  const { rail } = home;
+  const strips = alsoLines(home);
   if (rail.stages.length === 0) return null;
   return (
     <>

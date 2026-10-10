@@ -214,14 +214,20 @@ async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = fals
 }
 /**
  * The home over a surface (what its page draws, from the view model alone: campaigns-home.test.mjs draws the page), and the
- * moments it offers a Turn on for: a moment of its rail that is off, and a line under it that is (the month's offer), in the
- * order the home draws them. A moment to turn on is what a person is offered, so a playbook already on it leaves it out.
+ * moments it offers a Turn on for: a moment of its rail that is off, and a row of its ledger that is (the month's offer), in
+ * the order the home draws them. A moment to turn on is what a person is offered, so a playbook already on it leaves it out.
+ * A group's own add (another campaign on a moment that holds many, a list's in Lists & offers) is `addOf`'s.
  */
 const homeOf = (surface) => campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: surface, shape: surface.shape });
 const turnOns = (home) =>
-  [...home.rail.stages.map((s) => s.act), ...home.strips.map((s) => s.act)]
+  [...home.rail.stages.map((s) => s.act), ...home.ledger.groups.flatMap((g) => g.rows.map((r) => r.act))]
     .filter((a) => a?.kind === "turn_on")
     .map((a) => a.moment);
+/** The moment a ledger group's Turn on adds a campaign on, or null where it adds none. */
+const addOf = (home, id) => {
+  const add = home.ledger.groups.find((g) => g.id === id)?.add;
+  return add?.kind === "turn_on" ? add.moment : null;
+};
 const stageOf = (home, id) => home.rail.stages.find((s) => s.id === id);
 /** The moments in the product's order, as the picker and the surface list them. */
 const inOrder = (ids) => [...ids].sort((a, b) => IDS.indexOf(a) - IDS.indexOf(b));
@@ -319,7 +325,10 @@ test("the home's moments to turn on: none retired, and one win-back -- the one t
     }),
   );
   assert.deepEqual(
-    welcome.strips.filter((l) => l.id.startsWith("pb-")).map((l) => [l.id, l.name, l.act.kind]),
+    welcome.ledger.groups
+      .flatMap((g) => g.rows)
+      .filter((r) => r.id.startsWith("pb-"))
+      .map((r) => [r.id, r.name, (r.act ?? r.open).kind]),
     [
       ["pb-welcome", "Welcome", "open"],
       ["pb-save", "Save our number", "open"],
@@ -347,6 +356,11 @@ test("the home's moments to turn on: none retired, and one win-back -- the one t
   // And with none made, exactly one of them is there: the one the workspace can read.
   assert.deepEqual(turnOns(homeOf(await surfaceFor({ calendar: "none" }))).filter(isWinBack), ["quiet_30"]);
   assert.deepEqual(turnOns(homeOf(await surfaceFor({ calendar: "ok" }))).filter(isWinBack), ["lapsed"]);
+  // A moment holds many campaigns: its group adds another, and only on the win-back the workspace can read now, whichever
+  // the one made stands on.
+  const addOn = async (trigger, calendar) =>
+    addOf(homeOf(await surfaceFor({ calendar, playbooks: [row("pb-win", trigger)] })), "quiet");
+  assert.deepEqual([await addOn("lapsed", "none"), await addOn("quiet_30", "ok")], ["quiet_30", "lapsed"]);
 });
 
 test("a playbook whose message makes it stricter than its moment is counted on its own key: the card reads its own count, and every other card the moment's", async () => {

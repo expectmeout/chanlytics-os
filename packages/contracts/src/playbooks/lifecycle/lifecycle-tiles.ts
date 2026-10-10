@@ -140,13 +140,24 @@ export function lifecycleReach(input: LifecycleInput, stages: readonly Lifecycle
  * sorted by. Made from the schedule's own rule over the playbook's hour and the day it last ran for (playbook-schedule.ts
  * nextRunOf, which the card's label is said from too), at the moment the page is read: never from the label's words.
  */
-function nextRunLine(p: LifecyclePlaybook, nowMs: number, tz: string): { day: string; at: string; atMs: number } {
+export function nextRunLine(
+  p: LifecyclePlaybook,
+  nowMs: number,
+  tz: string,
+): { day: string; at: string; atMs: number } {
   const next = nextRunOf(p, tz, new Date(nowMs));
   const word = next.day === "tomorrow" ? "Tomorrow" : "Today";
   if (next.soon) return { day: word, at: "Within the hour", atMs: nowMs };
   const today = zoneDayKey(nowMs, tz);
   const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
   return { day: word, at: clockHour(next.hour), atMs };
+}
+
+/** How many a running campaign's next run reaches: its cap's share, or everyone for an appointment moment, which has no cap. */
+export function nextShare(p: Pick<LifecyclePlaybook, "trigger" | "candidates" | "cap_per_run">): number {
+  const all = p.candidates ?? 0;
+  const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
+  return cap > 0 ? Math.min(all, cap) : all;
 }
 
 /** Who a running moment will reach on its next run, and the reason when it reaches nobody. */
@@ -163,7 +174,7 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
       // reminder is owed to everyone with a visit, and tomorrow's visits have no later run), so its count is whole.
       const all = p.candidates ?? 0;
       const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
-      const next = cap > 0 ? Math.min(all, cap) : all;
+      const next = nextShare(p);
       const later = all - next;
       return {
         why:
@@ -252,6 +263,15 @@ function offerOf(r: LifecycleRun, nowMs: number, tz: string, at: WaitingAt) {
     },
     at,
   );
+}
+
+/** What a waiting run may offer where it is drawn, by the business's clock (offerOf): a ledger row reads it, as Coming up's line does. */
+export function waitingOffer(
+  r: LifecycleRun,
+  input: Pick<LifecycleInput, "nowMs" | "tz">,
+  at: { paused: boolean; known: boolean },
+) {
+  return offerOf(r, input.nowMs, input.tz, at);
 }
 
 /**

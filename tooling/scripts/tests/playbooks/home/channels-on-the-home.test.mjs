@@ -221,7 +221,7 @@ const home = (over = {}) =>
 const marksOf = (row, readiness, templates = playbooks().templates) => {
   const h = home({ playbooks: playbooks({ rows: [row], ready: readiness, templates }), broadcasts: undefined });
   const stage = h.rail.stages.find((s) => s.playbookId === row.id);
-  return (stage ?? h.strips.find((s) => s.id === row.id)).channels.map((m) => m.state);
+  return (stage ?? h.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === row.id)).channels.map((m) => m.state);
 };
 
 test("a playbook's marks are its drawer's reading: on, waits, could and off by its purpose, its message and the workspace", () => {
@@ -398,7 +398,7 @@ test("the home draws the channel facts: the head's line, a mark per channel on e
     quiet: ["on", "off", "could"],
   });
   // The month's offer names no channels: WhatsApp alone, as it was made; one more tick would open email.
-  const month = h.strips.find((s) => s.id === "pb-month");
+  const month = h.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "pb-month");
   assert.deepEqual(
     month.channels.map((m) => [m.word, m.state]),
     [
@@ -408,7 +408,7 @@ test("the home draws the channel facts: the head's line, a mark per channel on e
     ],
   );
   // The call's text carries none.
-  assert.deepEqual(h.strips.find((s) => s.id === "call_text").channels, []);
+  assert.deepEqual(h.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "call_text").channels, []);
   // The ladder's "messages" rung in parts, the rung's own bar cut by channel (24 of 29: 17 and 7), its words beside the
   // count. The parts are shares of everyone, so they are the bar: 17/29 and 7/29, never a share of a sum that overlaps.
   const rung = h.reach.rungs.find((r) => r.id === "messages");
@@ -449,7 +449,8 @@ test("a reach-out's mark: it goes by email alone, on where the workspace can sen
       broadcasts: broadcasts({ ready: readiness }),
       reachOuts: [chain],
     })
-      .strips.find((s) => s.id === "ro-1")
+      .ledger.groups.flatMap((g) => g.rows)
+      .find((r) => r.id === "ro-1")
       .channels.map((m) => m.state);
   assert.deepEqual(mark(ready({ whatsapp: true, email: true })), ["off", "off", "on"]);
   assert.deepEqual(mark(ready({ whatsapp: true, email: false })), ["off", "off", "waits"]);

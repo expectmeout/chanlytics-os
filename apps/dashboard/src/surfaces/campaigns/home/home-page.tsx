@@ -88,7 +88,7 @@ function useActs(
 ): { onAct: (act: LifecycleAct) => void; onCopy: (phrase: string) => void } {
   const nameOf = (id: string) =>
     home.rail.stages.find((s) => s.playbookId === id)?.name ??
-    home.strips.find((s) => s.id === id)?.name ??
+    home.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === id)?.name ??
     LIFECYCLE_TOAST.nameless;
   const resume = async (id: string) => {
     const name = nameOf(id);

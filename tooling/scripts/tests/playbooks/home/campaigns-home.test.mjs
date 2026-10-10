@@ -731,7 +731,7 @@ test("a link to a playbook that is gone says so once the chains were read, and a
     find(tree, (n) => n.type === ReachOutPane),
     "a chain's own pane",
   );
-  assert.equal(sheet(tree).props.title, "Reach-out");
+  assert.equal(sheet(tree).props.title, "Reach-outs", "the drawer's kicker is the campaign's group");
 });
 
 test("New message hosts the send screen under Send once and the playbook composer under Every time a moment comes", () => {
@@ -912,7 +912,11 @@ test("a campaign report that failed is said in the numbers' place, with a Retry;
 test("what came back says what a read is where a text or an email went too (0030), under the funnel, and nothing where WhatsApp alone sent", () => {
   surfaces({
     broadcasts: {
-      report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, readOf: 6 } },
+      report: {
+        days: 30,
+        totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, readOf: 6 },
+        sources: [],
+      },
     },
   });
   let tree = page();

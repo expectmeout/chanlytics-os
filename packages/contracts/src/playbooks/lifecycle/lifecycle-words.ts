@@ -1,6 +1,6 @@
 /**
  * The words Campaigns' home says once, and what a playbook says of itself as a state (lifecycle.ts reads them to make the
- * rail and the strips, lifecycle-tiles.ts to make the tiles). A sentence of the page is here or made from here, never in the
+ * rail, lifecycle-ledger.ts the ledger, lifecycle-tiles.ts the tiles). A sentence of the page is here or made from here, never in the
  * page.
  */
 import type { ConsentChannel } from "../../consent/consent-channels";
@@ -10,7 +10,7 @@ import { joinWords, plural } from "../../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
 import { SENDING_HOURS_WORDS } from "../playbook-triggers";
-import type { LifecyclePlaybook, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
+import type { LifecyclePlaybook, LifecycleRowResults, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
 
 /** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
 export const channelsGoesByWords = (channels: readonly ConsentChannel[]): string =>
@@ -35,7 +35,6 @@ export const LIFECYCLE_WORDS = {
   noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
   // An appointment moment where no calendar feeds it (decision 44 of 9 Oct 2026): what it says instead of a figure, and its door.
   needsCalendar: { none: "Needs your calendar", email: "Needs your calendar feed", door: "Connect your calendar" },
-  alsoRunning: "Also running",
   callText: {
     name: "The call's text",
     words: "The booking link and your WhatsApp, sent while they're on the phone",
@@ -43,8 +42,6 @@ export const LIFECYCLE_WORDS = {
     none: "No message for it yet",
   },
   monthsOffer: { name: "The month's offer" },
-  // What the drawer's head calls a line that is not a stage.
-  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
   gone: {
     title: "That playbook isn't here any more.",
     body: "Its runs stay in Sent, with their numbers.",
@@ -110,6 +107,60 @@ export const LIFECYCLE_WORDS = {
       body: "The numbers show once they read. Everything else here is current.",
       surface: "broadcasts",
     },
+  },
+  // Campaigns' ledger (spec 2026-10-09 §4.3, §4.4): every word its page says once; each row's own are the view model's.
+  ledger: {
+    heads: { campaign: "Campaign", goesBy: "Goes by", people: "People now", results: "Last 30 days", next: "Next" },
+    tabs: { all: "All", needs: "Needs you", paused: "Paused" },
+    /** "Needs you" names its unit, where its count is said: "2 campaigns need you". */
+    needsOf: (n: number): string => `${plural(n, "campaign")} ${n === 1 ? "needs" : "need"} you`,
+    search: (n: number): string => `Search ${plural(n, "campaign")}`,
+    showing: (n: number, of: number): string => `Showing ${n} of ${of}`,
+    showingIn: (caps: string, n: number, of: number): string => `${caps} · showing ${n} of ${of}`,
+    clear: "Clear",
+    sort: { label: "Sort", next: "Next", name: "Name", people: "People now", replied: "Replied" },
+    group: { label: "Group", moment: "By moment", none: "No groups" },
+    groups: { lists: "Lists & offers", reach_out: "Reach-outs", sent_once: "Sent once" },
+    /** A group no campaign stands on yet. */
+    none: "No campaign yet",
+    empty: "No campaigns match",
+    /** What is not counted, or not known, in a cell: never a zero nobody counted. */
+    dash: "—",
+    turnOn: "Turn on",
+    findBusinesses: "Find businesses to write to",
+    archived: "Its list is archived",
+    businesses: "businesses",
+    chainNeeds: "Writes to the businesses a search found",
+    openRun: "Open the run",
+    /** A row's last 30 days, as its cell says them. */
+    results: (r: LifecycleRowResults): string =>
+      r === "uncounted"
+        ? "—"
+        : r === "none"
+          ? "Nothing sent"
+          : r.kind === "sent"
+            ? `${r.sent} sent · ${r.replied} replied`
+            : `${r.written} written · ${r.wroteBack} wrote back`,
+    sentOnce: {
+      footer: (n: number): string => `Sent once · last 30 days · ${n}`,
+      open: "Sent",
+      state: "Sent",
+      hint: (when: string | null): string => (when ? `Sent once · ${when}` : "Sent once"),
+    },
+    /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
+    approve: (n: number): string => `Approve · ${plural(n, "person", "people")}`,
+    skip: "Skip",
+    resume: {
+      label: "Resume",
+      question: (name: string): string => `Resume ${name}?`,
+      detail: (when: string, n: number): string => `Next run ${when}, about ${plural(n, "person", "people")}`,
+      chain: "Its next emails go out on its next run.",
+      /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
+      auto: "It sends on its own: nothing will wait for your approval.",
+      yes: "Yes, resume it",
+    },
+    /** What the drawer's head calls a campaign whose group the page does not hold. */
+    kicker: "Campaign",
   },
   reach: {
     title: "Who can hear you",
