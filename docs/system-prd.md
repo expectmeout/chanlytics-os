@@ -700,7 +700,7 @@ Every real surface went through the interface plan (12 September; A1–A8 the co
 One JSON document per workspace, parsed by the same zod schema (`TenantConfigSchema`, zod 4) in the Settings form, the routes and the edge — so an option in the UI exists in the runtime by construction.
 
 - `brain` — the business name and booking link; the profile: hours (up to four intervals a day, read by one reader wherever a day's openness is asked), closures, services with their durations and whether a consultation comes first, booking rules, guardrails, notes, the handoff number, the tone, and the instructions box, which holds the prompt it came from and stays empty when emptied; and the fallbacks the receptionist says when it cannot answer.
-- `notifications` — who is alerted.
+- `notifications` — who is alerted, and what the business is not emailed (`email_off`).
 - `calendar` — the calendar link's address (an iCal feed).
 - `bookings` — what the owner books with: the booking tool whose emails become appointments, or their own word that they book by hand. A section of its own, so a build from before it leaves it out and reads on.
 - `features` — `vision`, off by default.
@@ -1100,6 +1100,7 @@ Evaluation: `eval-brain.mjs` runs `tooling/evals/whatsapp-cases.json` against th
 - `chooseAddressing` picks the recipients from the workspace's own settings. A workspace that cannot be addressed produces a **redacted** notice to the platform — never someone else's mailbox with a customer's words in it. An owner's alert names the channel the reply failed on.
 - Resend is called with a timeout and its response is checked; an expired key once silenced every alert at once.
 - `recordNotification` writes the same alert to `notifications`, which the bell reads in real time. Each person keeps their own read marks across devices — the seen moment is the server's, the marks are keyed by the workspace's id and pruned with the feed — and the browser can raise a system notification while the app is in the background.
+- Where each alert goes is chosen (decision 0040): the business turns a kind off by email (`notifications.email_off`, asked by `emailsFor` before every mail; a customer who needs a person and still waiting are always emailed), and each member turns kinds off for their own phones (`memberships.push_off`, 00372, read by the `push_send` job). `keepAndPush` keeps a bell row and queues its push where no mail follows (a review, a card declined). Settings › Notifications draws the topics (contracts `ALERT_TOPICS`) and sends a test to the addresses (`/api/admin/email/alert-test`).
 
 Kinds: needs_you, held_draft, missed_call, invite, handoff, deadman, call, number, sweep, job_failed, playbook, calendar_people, alert, review, billing, note_for_you (addressed to one member, 00158). The platform mailbox (`LEAD_TO`) hears about new sign-ups, setup requests, lines that failed and traffic nobody routes.
 
@@ -1112,7 +1113,7 @@ Every table has RLS. Writers: **E** the edge (service role), **S** the dashboard
 | Domain        | Table                                                                            | Holds                                                                                                                          | Written by                          |
 | ------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
 | Tenancy       | `tenants`                                                                        | The workspace: name, slug, timezone, status                                                                                    | D; an owner may change the timezone |
-|               | `memberships`                                                                    | Person × workspace × role; the member's views of a page (00113)                                                                | D; team routes; `views/:page`       |
+|               | `memberships`                                                                    | Person × workspace × role; the member's views of a page (00113); what reaches their phones (00372)                             | D; team routes; `views/:page`       |
 |               | `platform_admins`                                                                | Chanlytics staff                                                                                                               | D (`platform_admin_add`)            |
 |               | `profiles`                                                                       | The name a person goes by                                                                                                      | D (`profile_set`)                   |
 |               | `invitations`                                                                    | Open invites, each with its expiry                                                                                             | team routes                         |

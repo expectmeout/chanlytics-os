@@ -481,6 +481,8 @@ var ERASURE_STRATEGIES = {
     "logo_url",
     "mark_path"
   ),
+  // The kinds a member's phones are not told (00372): the member's own setting, never a customer's.
+  memberships: { push_off: NOT_PERSONAL },
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
@@ -2770,6 +2772,43 @@ async function forgetActivityTokens(db, tokens) {
   const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
   if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
 }
+var UNDEFINED_COLUMN2 = "42703";
+async function memberAlertsOf(db, p) {
+  const [mine, phones] = await Promise.all([
+    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
+    db.from("push_devices").select("platform, app_version, last_seen_at").eq("user_id", p.userId).order("last_seen_at", { ascending: false, nullsFirst: false })
+  ]);
+  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
+  if (mine.error && mine.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
+  return {
+    pushOff: mine.error ? [] : mine.data?.push_off ?? [],
+    phones: (phones.data ?? []).map((d) => ({
+      platform: d.platform,
+      app_version: d.app_version,
+      last_seen_at: d.last_seen_at
+    })),
+    choosable: !mine.error
+  };
+}
+async function setMemberPushOff(db, p) {
+  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
+  if (error) throw error;
+  return data ?? [];
+}
+async function membersPushedFor(db, p) {
+  if (p.userIds && !p.userIds.length) return [];
+  const ids = p.userIds ? [...p.userIds] : null;
+  const chosen = ids ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids) : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
+  if (!chosen.error)
+    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
+  if (chosen.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
+  if (ids) return ids;
+  const all2 = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
+  if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
+  return (all2.data ?? []).map((m) => m.user_id);
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -3519,6 +3558,11 @@ async function workspaceAnswersOnItsOwn(db, tenantId) {
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
   return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
+}
+async function workspaceNamed(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data ? { name: data.name, slug: data.slug } : null;
 }
 async function membershipCountOf(db, userId) {
   const { count: count2, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
@@ -4681,7 +4725,9 @@ export {
   markReplyDraft,
   markReplyTold,
   markWaitlistInvited,
+  memberAlertsOf,
   memberHasAddress,
+  membersPushedFor,
   membershipCountOf,
   mergePeople,
   messageByExternalId,
@@ -4813,6 +4859,7 @@ export {
   setEmailOffersYes,
   setEmailUnsubscribed,
   setListRule,
+  setMemberPushOff,
   setPartnerLetters,
   setPartnerStanding,
   setPartnerStatus,
@@ -4876,6 +4923,7 @@ export {
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,
+  workspaceNamed,
   workspacePaused,
   writtenEmail,
   writtenEmails,

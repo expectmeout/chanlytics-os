@@ -152,6 +152,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "logo_url",
     "mark_path",
   ),
+  // The kinds a member's phones are not told (00372): the member's own setting, never a customer's.
+  memberships: { push_off: NOT_PERSONAL },
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
