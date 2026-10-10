@@ -32,6 +32,61 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 --
+-- Name: add_person(uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_user   uuid := auth.uid();
+  v_name   text := nullif(btrim(regexp_replace(coalesce(p_display_name, ''), '\s+', ' ', 'g')), '');
+  v_phone  text := nullif(btrim(coalesce(p_phone_e164, '')), '');
+  v_email  text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  v_source text := coalesce(nullif(btrim(p_source), ''), 'manual');
+  v_out    jsonb;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if v_phone is not null and v_phone !~ '^\+[1-9][0-9]{7,14}$' then
+    raise exception 'A phone number in international form is needed.' using errcode = '22023';
+  end if;
+  -- import_person's rule for an address (00170), so a person added by hand and one brought in from a file are read alike.
+  if v_email is not null and (
+       char_length(v_email) not between 3 and 254
+       or v_email !~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$') then
+    raise exception 'That is not an email address.' using errcode = '22023';
+  end if;
+  if v_phone is null and v_email is null then
+    raise exception 'A number or an address is needed.' using errcode = '22023';
+  end if;
+  if v_name is not null and char_length(v_name) > 80 then
+    raise exception 'A name is at most 80 characters.' using errcode = '22023';
+  end if;
+  v_out := public.resolve_person(p_tenant_id, null, null, v_phone, v_email, v_name, 'asserted', v_source,
+                                 jsonb_build_object('title', null));
+  return jsonb_build_object(
+    'contact_id', v_out->>'contact_id',
+    'existed', (v_out->>'existed')::boolean,
+    'email', v_out->'email',
+    'source', v_source
+  );
+end $_$;
+
+
+--
+-- Name: FUNCTION add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) IS 'Owner or operator adds a person by their number, their address or both, through resolve_person (00342): get-or-create by number then address; a name and an address fill only what is empty; consent stays unknown; the added event says where they came from. A person who asked to be forgotten is refused (PE001).';
+
+
+--
 -- Name: ai_failures_hour(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31814,6 +31869,15 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
+
+
+--
+-- Name: FUNCTION add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) TO authenticated;
+GRANT ALL ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_email text, p_display_name text, p_source text) TO service_role;
 
 
 --

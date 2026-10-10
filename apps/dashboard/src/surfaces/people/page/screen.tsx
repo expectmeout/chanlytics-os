@@ -641,6 +641,8 @@ export function peopleScreen(s: PeopleState) {
             onClose={() => setAddOpen(false)}
             onAdded={onOpenProfile}
             canImport={canExport}
+            // A list a rule keeps takes nobody by hand: the ones kept by hand are offered.
+            lists={saved.filter((l) => !l.rule).map((l) => ({ id: l.id, name: l.name }))}
             flash={plFlash}
           />
         )}

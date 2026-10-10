@@ -407,6 +407,7 @@ export {
   scrubPersonNotes,
   mergePeople,
   recordConsent,
+  addPersonByHand,
   resolvePerson,
   PERSON_FORGOTTEN,
   openDoubtsOf,
