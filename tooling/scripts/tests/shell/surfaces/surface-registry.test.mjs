@@ -379,7 +379,7 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   assert.deepEqual(registry.routeDrawsFor("clients"), []);
 });
 
-test("a pane that names its draws is asked before its page too: Settings' Connections pane draws Google's read, no other pane of Settings does", async () => {
+test("a pane that names its draws is asked before its page too: Settings' Connections pane draws Google's read, Notifications the member's own alerts, no other pane of Settings anything", async () => {
   const { routeOfPath } = await import("@chanlytics/contracts");
   // The pane's own address, the one a person opens, is the route the table names.
   assert.equal(routeOfPath("/w/acme/settings/integrations"), "admin/integrations");
@@ -387,7 +387,10 @@ test("a pane that names its draws is asked before its page too: Settings' Connec
   assert.deepEqual(registry.routeDrawsFor("admin", "integrations"), ["google"]);
   assert.equal(registry.routeSurfaceFor("admin", "integrations"), "settings", "its own surface is still Settings'");
   assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", "settings", "google"]);
-  for (const pane of [undefined, null, "workspace", "profile", "team", "autonomy", "notifications", "billing"])
+  // What reaches the member's own phones (decision 0040), read where the Notifications pane is drawn and nowhere else.
+  assert.deepEqual(registry.routeDrawsFor("admin", "notifications"), ["alerts"]);
+  assert.deepEqual(registry.routeSurfaces("admin", "notifications"), ["workspace", "settings", "alerts"]);
+  for (const pane of [undefined, null, "workspace", "profile", "team", "autonomy", "billing"])
     assert.deepEqual(registry.routeDrawsFor("admin", pane), [], String(pane));
   assert.deepEqual(registry.routeSurfaces("admin", "team"), ["workspace", "settings"]);
 });

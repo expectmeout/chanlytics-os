@@ -243,3 +243,80 @@ test(
     assert.deepEqual(marks.data, [], "the marks went with their row");
   },
 );
+
+test(
+  "a member's phone choices are their own (00372): written through member_push_off_set on their own membership, each kind once, read back by them and by nobody else",
+  { skip },
+  async () => {
+    const a = await memberClient("operator");
+    const b = await memberClient("owner");
+    const set = await a.client.rpc("member_push_off_set", {
+      p_tenant_id: tenantId,
+      p_kinds: ["review", "call", "review"],
+    });
+    assert.equal(set.error, null, set.error?.message);
+    assert.deepEqual(set.data, ["call", "review"], "kept in order, each once");
+    const own = await a.client.from("memberships").select("push_off").eq("tenant_id", tenantId).eq("user_id", a.userId);
+    assert.deepEqual(
+      own.data,
+      [{ push_off: ["call", "review"] }],
+      "read back through the row the member already reads",
+    );
+    const theirs = await b.client.from("memberships").select("push_off").eq("user_id", a.userId);
+    assert.deepEqual(theirs.data, [], "another member never reads it");
+    const elsewhere = await a.client.rpc("member_push_off_set", { p_tenant_id: otherTenantId, p_kinds: ["call"] });
+    assert.equal(elsewhere.error?.code, "42501", "no membership there, nothing written there");
+    for (const bad of [["Call!"], ["call", null], Array.from({ length: 41 }, (_, i) => `kind_${i}`)]) {
+      const r = await a.client.rpc("member_push_off_set", { p_tenant_id: tenantId, p_kinds: bad });
+      assert.equal(r.error?.code, "22023", JSON.stringify(bad).slice(0, 40));
+    }
+    const back = await a.client.rpc("member_push_off_set", { p_tenant_id: tenantId, p_kinds: [] });
+    assert.deepEqual(back.data, [], "everything back on");
+    const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    const refused = await anon.rpc("member_push_off_set", { p_tenant_id: tenantId, p_kinds: [] });
+    assert.notEqual(refused.error, null, "no session, no door");
+  },
+);
+
+test(
+  "a note left for a member queues the push its bell row is told by (00372), and a note for its own writer neither rings nor pushes",
+  { skip },
+  async () => {
+    const writer = await memberClient("owner");
+    const reader = await memberClient("operator");
+    const contact = "5a7c1e2d-3b4f-4a6e-8c9d-0e1f2a3b4c5d";
+    const rung = await db.rpc("note_for_you_notify", {
+      p_tenant_id: tenantId,
+      p_contact_id: contact,
+      p_note_id: contact,
+      p_by: writer.userId,
+      p_for: reader.userId,
+    });
+    assert.equal(rung.error, null, rung.error?.message);
+    const kept = await db
+      .from("notifications")
+      .select("id, recipient_user_id")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "note_for_you")
+      .eq("recipient_user_id", reader.userId);
+    assert.equal(kept.data.length, 1);
+    const jobs = await db
+      .from("jobs")
+      .select("kind, payload")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "push_send")
+      .contains("payload", { notification_id: kept.data[0].id });
+    assert.equal(jobs.error, null, jobs.error?.message);
+    assert.equal(jobs.data.length, 1, "one push_send, naming the row");
+    const before = await db.from("notifications").select("id").eq("tenant_id", tenantId).eq("kind", "note_for_you");
+    await db.rpc("note_for_you_notify", {
+      p_tenant_id: tenantId,
+      p_contact_id: contact,
+      p_note_id: contact,
+      p_by: writer.userId,
+      p_for: writer.userId,
+    });
+    const after_ = await db.from("notifications").select("id").eq("tenant_id", tenantId).eq("kind", "note_for_you");
+    assert.equal(after_.data.length, before.data.length, "a note for its own writer rings nobody");
+  },
+);

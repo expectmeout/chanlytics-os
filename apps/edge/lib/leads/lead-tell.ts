@@ -47,7 +47,8 @@ export async function tellLeadQuestion(
       sentence: q.sentence,
       link: `${dashboardOrigin()}${page}#/${leadQuestionRoute(r.search_id)}`,
     });
-    return await mail(target, words, ports);
+    // Its kind, so the business's choice holds (decision 0040): a question it turned off by email is on the bell alone.
+    return await mail(target, { ...words, kind: "leads_question" }, ports);
   } catch (e) {
     logger().error("lead_tell_failed", { round: roundId, error: errField(e) });
     return false;

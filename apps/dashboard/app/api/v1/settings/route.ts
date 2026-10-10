@@ -11,7 +11,7 @@ export const GET = read({
 });
 
 /**
- * PUT /api/v1/settings — owner-only, whole-config write with optimistic
+ * PUT /api/v1/settings — the owner's and the partner's (role "partner"), a whole-config write with optimistic
  * concurrency: {config, version}. A stale version is a 409, never a silent
  * clobber of another owner's edit. The zod schema is the SAME one the edge
  * parses, so an option that saves here exists in the runtime by construction.

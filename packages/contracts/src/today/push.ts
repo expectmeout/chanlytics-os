@@ -42,11 +42,15 @@ export function parseDevice(body: unknown): { ok: true; device: PushDevice } | {
 
 /**
  * The kept kinds a phone is told about. A list, not everything: a sweep's
- * health, the deadman and a plain alert are the platform's news or the
- * bell's, and a phone that buzzes for them is a phone put on silent.
+ * health and a plain alert are the platform's news or the bell's, and a phone
+ * that buzzes for them is a phone put on silent. Each member turns any of them
+ * off for their own phones (memberships.push_off, 00372: `pushesFor`).
  */
 export const PUSH_KINDS = [
   "handoff",
+  // A customer still waiting is the second alert about someone nobody answered (decision 0040): the phone is where it is
+  // most likely seen, and it was emailed alone.
+  "deadman",
   "call",
   "note_for_you",
   "leads_ready",
@@ -64,6 +68,48 @@ export const PUSH_KINDS = [
 ] as const satisfies readonly ServerNotificationKind[];
 export type PushKind = (typeof PUSH_KINDS)[number];
 export const isPushKind = (kind: string): kind is PushKind => (PUSH_KINDS as readonly string[]).includes(kind);
+
+/**
+ * The kinds a member turned off for their phones, from what their membership holds (memberships.push_off, 00372): the
+ * kinds a phone is told and nothing else, each once. Read leniently, as the config is: a kind this build does not know,
+ * written by a newer one, is left out rather than refused, and anything that is not a list is none.
+ */
+export function pushOffOf(raw: unknown): PushKind[] {
+  if (!Array.isArray(raw)) return [];
+  return PUSH_KINDS.filter((k) => raw.includes(k));
+}
+
+/** Whether a member's phones are told a kept row of this kind: a kind phones are told, which the member did not turn off. */
+export function pushesFor(pushOff: readonly string[] | null | undefined, kind: string): boolean {
+  return isPushKind(kind) && !(pushOff ?? []).includes(kind);
+}
+
+/** One of the member's own phones, as Settings › Notifications names it: never its token. */
+export interface PhoneDto {
+  platform: PushPlatform;
+  app_version: string | null;
+  last_seen_at: string | null;
+}
+
+/**
+ * What `GET /api/v1/me/alerts` answers: the kinds this member's phones are not told in this workspace, their phones, and
+ * whether the choice can be saved yet (false where 00372 is not applied: the page then shows what a phone is told, and
+ * offers no tick).
+ */
+export interface MemberAlertsDto {
+  push_off: PushKind[];
+  phones: PhoneDto[];
+  choosable: boolean;
+}
+
+/** What `PUT /api/v1/me/alerts` accepts, or why not, in one sentence: `{ push_off: [kind, …] }`. */
+export function parseMemberAlerts(body: unknown): { ok: true; pushOff: PushKind[] } | { ok: false; reason: string } {
+  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  if (!Array.isArray(b.push_off)) return { ok: false, reason: "Send the kinds your phone is not told, as push_off." };
+  const unknown = b.push_off.filter((k) => typeof k !== "string" || !isPushKind(k));
+  if (unknown.length) return { ok: false, reason: "That is not something a phone is told." };
+  return { ok: true, pushOff: pushOffOf(b.push_off) };
+}
 
 /** One message to one device, in the shape Expo's push service takes. */
 export interface PushMessage {

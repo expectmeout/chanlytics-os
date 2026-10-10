@@ -3907,6 +3907,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          push_off: string[] | null
           role: string
           tenant_id: string
           user_id: string
@@ -3915,6 +3916,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          push_off?: string[] | null
           role?: string
           tenant_id: string
           user_id: string
@@ -3923,6 +3925,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          push_off?: string[] | null
           role?: string
           tenant_id?: string
           user_id?: string
@@ -6969,6 +6972,10 @@ export type Database = {
       member_has_address: {
         Args: { p_address: string; p_tenant_id: string }
         Returns: boolean
+      }
+      member_push_off_set: {
+        Args: { p_kinds: string[]; p_tenant_id: string }
+        Returns: string[]
       }
       member_view_set: {
         Args: { p_page: string; p_tenant_id: string; p_view: Json }
