@@ -10,7 +10,7 @@
  * 520, and the twelve new people by how they came.
  */
 
-/** people_series's answer for the thirty days (00394): the window it was read for, and counts, never a name. */
+/** people_series's answer for the thirty days (00395): the window it was read for, and counts, never a name. */
 export const SERIES = {
   timezone: "America/New_York",
   today: "2026-09-04",

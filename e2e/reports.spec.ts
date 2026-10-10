@@ -22,12 +22,12 @@ import { routeOf } from "./address";
  * 00380 answers that route `series: null` and the lens draws its kept cards and none of its own parts: the spec reads which
  * of the two it is on and asserts the cards that database can draw.
  *
- * The People lens has two halves in one read (`GET reports/people`): the window (00394: who reached you and how many were new, how
+ * The People lens has two halves in one read (`GET reports/people`): the window (00395: who reached you and how many were new, how
  * they came, the yeses and stops, the steps done on time) and the book as it stands now (how fresh it is, where they stand, the
  * steps overdue). The nightly's workspace holds the rows the window counts (e2e-workspace.mjs, convergePeople: a yes for each of
  * its three people on the ledger, and three steps the owner finished) and no open step, so the book's steps overdue is a count
  * the seed does not set; what each part says is the unit tests', and here it is that each is drawn and agrees with the read. A
- * database without 00394 answers `series: null`: the lens draws the book and its kept cards and no window card.
+ * database without 00395 answers `series: null`: the lens draws the book and its kept cards and no window card.
  */
 const INVENTED = [
   "Revenue",
@@ -128,7 +128,7 @@ async function theReceptionistLens(page: Page, report: Locator) {
 
 /**
  * The parts of `GET reports/people` this spec reads (contracts' PeopleDto): the window's people reached, and the book's count of
- * the Said yes to messages list. `series` is null on a database without the window's read (00394), and `now` where the book
+ * the Said yes to messages list. `series` is null on a database without the window's read (00395), and `now` where the book
  * could not be counted.
  */
 type PeopleRead = {
@@ -143,7 +143,7 @@ async function readPeople(page: Page): Promise<PeopleRead> {
 }
 
 /**
- * Whether this database has the lens's own window (`people_series`, 00394), as the route says it: a database without it answers
+ * Whether this database has the lens's own window (`people_series`, 00395), as the route says it: a database without it answers
  * `series: null`, and the lens then draws the book and its kept cards and no window card.
  */
 async function hasPeopleSeries(page: Page): Promise<boolean> {
@@ -159,7 +159,7 @@ const figureLabelled = (strip: Locator, page: Page, label: RegExp) =>
  * for each of its three people a week ago, and three steps finished, none open). The kept cards (the rhythm and the new people
  * adding up) and the book are drawn either way: the book is counted from the people, and it needs no function of the
  * database's. The window (the strip, how they came by channel, how the new ones first came, the yeses and stops, the steps done
- * and the email that stopped working) is 00394's, so on a database without it no window card is drawn and nothing failed.
+ * and the email that stopped working) is 00395's, so on a database without it no window card is drawn and nothing failed.
  *
  * The numbers are read, never written here: the nightly's other specs write to the workspace, and the sum is what the seed
  * and they together made. The strip's first figure is the read's people reached; the stand's Said yes to messages is the
@@ -424,7 +424,7 @@ test.describe("Reports on a real workspace", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("reports-real")).toBeVisible();
     await expect(page.getByTestId("lens-people")).toHaveAttribute("aria-current", "page");
-    // On a database without 00394 the window's card is not drawn: the book is the proof the lens's own read was drawn.
+    // On a database without 00395 the window's card is not drawn: the book is the proof the lens's own read was drawn.
     await expect(page.getByTestId((await hasPeopleSeries(page)) ? "people-strip" : "chart-people-wires")).toBeVisible({
       timeout: 20_000,
     });

@@ -1633,7 +1633,7 @@ const BOOK_NOW = {
   email_stopped: 0,
   wires: { whatsapp_only: 7, sms_only: 0, phone_only: 0, email_only: 0, several: 1, none: 0 },
 };
-/** What people_series answers (00394) for the days asked, as the database says it: SERIES's counts, or `over` in their place. */
+/** What people_series answers (00395) for the days asked, as the database says it: SERIES's counts, or `over` in their place. */
 const peopleSeriesFor = (a, over = {}) => ({
   ...SERIES,
   timezone: TZ,
@@ -1788,7 +1788,7 @@ test("report says the People lens as the page does (Reports C3, the People lens)
     "the report's own parts stand beside it",
   );
 
-  // A database that does not have the function yet (00394 not applied): the book alone, no head of the window's, once in the log.
+  // A database that does not have the function yet (00395 not applied): the book alone, no head of the window's, once in the log.
   const absent = await logged("people_series_missing", () => run({ people_series: gone }));
   assert.deepEqual(absent.result.said.people, { head: null, window: null, book: BOOK_SAID });
   assert.deepEqual(absent.lines, [JSON.stringify({ tenant_id: A })], "said once for the read, naming the workspace");

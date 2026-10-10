@@ -82,7 +82,7 @@ Avoid: the voice provider's `call_successful` as an accuracy score (it grades ag
 | Add | Form | Status | Source |
 | --- | --- | --- | --- |
 | **How fresh your book is**: in touch < 7 days, 7-30, 30-60, 60-90, 90+ | histogram | Built 10 Oct 2026 (C3) | People's Quiet rule over the people pool (`PersonRowVM.heardDays`, the days since they were last heard in the workspace's days; the buckets end where the Quiet list begins), not `person_moments.in_touch_at`. `recencyCells`, which bucketed 24-hour blocks and had no reader, is gone |
-| **How the yeses were won**: in person, sign-up form, their own message, imported | bar list | Built 10 Oct 2026 (C3) | `contact.consent_changed.source` (`people_series`, 00394) |
+| **How the yeses were won**: in person, sign-up form, their own message, imported | bar list | Built 10 Oct 2026 (C3) | `contact.consent_changed.source` (`people_series`, 00395) |
 | **Repeat contact**: people by how many times they wrote or called | histogram | Not drawn (C3) | `people_list.conversation_count` is 0 or 1; no count of the days a person reached you is kept |
 | **Channels per person**: WhatsApp only, phone only, both | bar | Built 10 Oct 2026 (C3) | People's `PersonRowVM.channels` over the pool, and the window's people per channel (`people_series`) |
 | **Steps you owe**: due, overdue, done on time | figures + list | Built 10 Oct 2026 (C3) | `person_notes.due_on`, `done_at` (`people_series` for the window; `PersonRowVM.nextStep` over the pool for now) |

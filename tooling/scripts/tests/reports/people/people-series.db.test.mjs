@@ -1,5 +1,5 @@
 /**
- * 00394 on a real Postgres: people_series, the People lens's own read (Reports). Who reached the business in the days
+ * 00395 on a real Postgres: people_series, the People lens's own read (Reports). Who reached the business in the days
  * picked and the same number before them (people, not messages; new and known; on which channel), how the new ones
  * first came, the yeses and stops recorded, the email addresses that stopped working, and the steps done, each part by
  * the workspace's own day. Counts only, never a name.

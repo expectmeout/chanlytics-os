@@ -395,7 +395,7 @@
     "00390_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "d6775bf1d2836ce20f21b193c85ab236e072d81af4e464dab717f69d91157b81",
     "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd",
     "00392_a_review_google_no_longer_shows_and_a_closed_invitation_go.sql": "a2f60beed4051a4b072b0db14e7584e6bb5d1101cd0a5a1da1c8da244352660d",
-    "00393_a_new_person_is_one_who_reached_you.sql": "44d4e4774f9e8ca57d6b841ad14d9cb0e5759158c3d35f3e75a2c687fe374451",
-    "00394_the_people_lens_is_read_beyond_the_days_counts.sql": "0b55c048405965419b4cc487fc02dd3fe2215a30b3b46438a8223759bc67bd30"
+    "00394_a_new_person_is_one_who_reached_you.sql": "8a3e70409ab7eb04060a591956846c3b4bdbecd551f8a00a09d6e67a1fed0a2f",
+    "00395_the_people_lens_is_read_beyond_the_days_counts.sql": "2c4b85c3506e5dba229b3f37da31b87b2c7f50f684b73d8a4a50bf6fb805a5cf"
   }
 }

@@ -1,9 +1,9 @@
 /**
- * 00393 on a real Postgres: a new person is one who reached you. contact_first_moments names a person's first reach-in,
+ * 00394 on a real Postgres: a new person is one who reached you. contact_first_moments names a person's first reach-in,
  * the earlier of their first inbound message in their own words and their first inbound call that connected, and
  * nobody else: not automated mail, not a reply we wrote, not a call we placed, not a history moved in, not an erased
  * person, not a dial nobody took. report_series (Overview's New people), metrics_summary (Today's, and Ask's `today`)
- * and people_series (00394) read it, so the three say one number.
+ * and people_series (00395) read it, so the three say one number.
  * Runs against the database `supabase start` builds on this machine, never production.
  */
 import { test, before, after } from "node:test";

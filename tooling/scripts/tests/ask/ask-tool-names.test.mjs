@@ -345,7 +345,7 @@ function quietReceptionist({ p_days: days }, over = {}) {
     ...over,
   };
 }
-/** What people_series answers (00394) for a quiet period: nobody reached the business and nothing was answered or done. */
+/** What people_series answers (00395) for a quiet period: nobody reached the business and nothing was answered or done. */
 const quietPeople = ({ p_days: days }) => ({ timezone: TZ, today: dayKey(NOW.getTime()), days, ...QUIET });
 const RPCS = {
   people_list: (a) => (a?.p_contact_id && a.p_contact_id !== P1 ? [] : [rosaRow]),

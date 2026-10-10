@@ -35752,7 +35752,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     meta: !p.new_contacts ? "nobody new yet" : !agree ? "first contact today" : newWires.length === 1 ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}` : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
     // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
     // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
-    // today (00393), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
+    // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
     // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length ? {
       text: `${andList(names3.length > 3 ? [...said, `${names3.length - 3} more`] : said)} wrote for the first time today.`,

@@ -8,7 +8,7 @@
  *
  * A mix names a key the words do not know in a way that cannot lose a person: a way in is said as it was kept, a source
  * of an answer is summed into "Another way" (so the rows add up to the figure over them), and a reason an address stopped
- * is said as it was kept. A source or a reason the database could not name (00394 says `unknown`) is last, as it is the
+ * is said as it was kept. A source or a reason the database could not name (00395 says `unknown`) is last, as it is the
  * least said.
  */
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "../../people/person-words";

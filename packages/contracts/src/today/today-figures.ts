@@ -247,7 +247,7 @@ export function figuresOf(
   };
 
   // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
-  // people whose first message of their own, or first call to us, came today (00393; 00254: never one with neither);
+  // people whose first message of their own, or first call to us, came today (00394; 00254: never one with neither);
   // the threads the page holds may be fewer (a name is said only for a person the figure counts) or more (someone who
   // existed before and first wrote today is not new), so a wire or a name is said only when the two agree.
   const newThreads = conversations.filter((c) => {
@@ -273,7 +273,7 @@ export function figuresOf(
           : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
     // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
     // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
-    // today (00393), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
+    // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
     // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length
       ? {
