@@ -4101,6 +4101,7 @@ export type Database = {
           kind: string
           recipient_user_id: string | null
           route: string | null
+          source_event: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -4113,6 +4114,7 @@ export type Database = {
           kind: string
           recipient_user_id?: string | null
           route?: string | null
+          source_event?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -4125,6 +4127,7 @@ export type Database = {
           kind?: string
           recipient_user_id?: string | null
           route?: string | null
+          source_event?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string

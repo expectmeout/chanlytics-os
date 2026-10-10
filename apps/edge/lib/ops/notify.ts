@@ -67,6 +67,8 @@ export interface NotifyMessage {
    *  notice a sweep raises again until its mail goes (the deadman), so a failing provider does not push it to every
    *  phone on every tick (decision 0040). Unsaid, a kept row of a PUSH_KINDS kind is pushed at once, mail or not. */
   push?: boolean | "after_mail";
+  /** The event this notice answers (decision 0043): kept on the row, unique, so a second delivery of it tells nobody. */
+  sourceEvent?: string;
 }
 
 export function platformFrom(): string | null {
@@ -196,7 +198,14 @@ const KEPT_KINDS: ReadonlySet<string> = new Set(SERVER_NOTIFICATION_KINDS);
  */
 export async function recordNotification(
   tenantId: string | null,
-  n: { kind?: string; title: string; body: string; route?: string | null; about?: { type: string; id: string } | null },
+  n: {
+    kind?: string;
+    title: string;
+    body: string;
+    route?: string | null;
+    about?: { type: string; id: string } | null;
+    sourceEvent?: string;
+  },
   db: Db | null = pg(),
 ): Promise<{ id: string; kind: string } | null> {
   if (!tenantId) return null;
@@ -214,6 +223,7 @@ export async function recordNotification(
         route: n.route ?? null,
         subject_type: n.about?.type ?? null,
         subject_id: n.about?.id ?? null,
+        ...(n.sourceEvent ? { source_event: n.sourceEvent } : {}),
       })
       .select("id")
       .single();
@@ -269,7 +279,14 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
   const db = ports.db === undefined ? pg() : ports.db;
   const kept = await recordNotification(
     target.tenantId,
-    { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
+    {
+      kind: msg.kind,
+      title: msg.subject,
+      body: msg.body,
+      route: msg.route,
+      about: msg.about,
+      sourceEvent: msg.sourceEvent,
+    },
     db,
   );
   if (kept && target.tenantId && msg.push !== false && msg.push !== "after_mail")

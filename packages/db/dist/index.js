@@ -3198,6 +3198,7 @@ async function firstReplies(db, tenantId, since) {
 }
 
 // src/repositories/notifications.ts
+import { HOUR_MS as HOUR_MS2, MIN_MS } from "../../contracts/dist/index.js";
 async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
@@ -3258,6 +3259,57 @@ async function membersPushedFor(db, p) {
   if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
   return (all2.data ?? []).map((m) => m.user_id);
 }
+var oneOr = (r, what) => {
+  if (r.error) throw new Error(`cannot read ${what}: ${r.error.message}`);
+  return r.data?.[0] ?? null;
+};
+async function holdFactsOf(db, tenantId, ref, nowMs) {
+  const holds = db.from("escalations").select("id, conversation_id, reason, details").eq("tenant_id", tenantId).eq("state", "open");
+  const hold = oneOr(
+    await ("conversationId" in ref ? holds.eq("conversation_id", ref.conversationId) : holds.eq("id", ref.escalationId)).limit(1),
+    "the hold"
+  );
+  if (!hold) return null;
+  const thread = oneOr(
+    await db.from("conversations").select("contact_id, paused_until").eq("tenant_id", tenantId).eq("id", hold.conversation_id).limit(1),
+    "the thread"
+  );
+  if (!thread) return null;
+  const person = oneOr(
+    await db.from("contacts").select("display_name, wa_profile_name, phone_e164, email, erased_at, erasing_since").eq("tenant_id", tenantId).eq("id", thread.contact_id).limit(1),
+    "the person"
+  );
+  const theirs = oneOr(
+    await db.from("messages").select("body, channel, created_at").eq("tenant_id", tenantId).eq("conversation_id", hold.conversation_id).eq("direction", "inbound").eq("sender", "customer").order("created_at", { ascending: false }).limit(1),
+    "their words"
+  );
+  const reply = theirs ? oneOr(
+    await db.from("messages").select("body").eq("tenant_id", tenantId).eq("conversation_id", hold.conversation_id).eq("direction", "outbound").eq("sender", "ai").gte("created_at", theirs.created_at).order("created_at", { ascending: false }).limit(1),
+    "the receptionist's reply"
+  ) : null;
+  const pausedMs = thread.paused_until ? Date.parse(thread.paused_until) - nowMs : 0;
+  return {
+    conversationId: hold.conversation_id,
+    reason: hold.reason,
+    details: hold.details,
+    who: person?.display_name ?? person?.wa_profile_name ?? null,
+    address: person?.phone_e164 ?? person?.email ?? null,
+    channel: theirs?.channel ?? null,
+    customerWords: theirs?.body ?? null,
+    replyWords: reply?.body ?? null,
+    pausedHours: pausedMs > 0 ? Math.max(1, Math.round(pausedMs / HOUR_MS2)) : null,
+    erased: !person || !!person.erased_at || !!person.erasing_since
+  };
+}
+async function holdTold(db, p) {
+  const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).limit(1);
+  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if ((answered.data ?? []).length) return true;
+  const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
+  const inline = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", "handoff").eq("subject_type", "conversation").eq("subject_id", p.conversationId).gte("created_at", since).limit(1);
+  if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);
+  return (inline.data ?? []).length > 0;
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -3267,9 +3319,9 @@ async function workspacePaused(db, tenantId) {
 }
 
 // src/repositories/routing.ts
-import { MIN_MS } from "../../contracts/dist/index.js";
-var POS_TTL_MS = 5 * MIN_MS;
-var NEG_TTL_MS = MIN_MS;
+import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
+var POS_TTL_MS = 5 * MIN_MS2;
+var NEG_TTL_MS = MIN_MS2;
 var cache = /* @__PURE__ */ new Map();
 async function resolveChannelDetailed(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
@@ -5129,7 +5181,9 @@ export {
   heldNoticeDue,
   heldNoticesOf,
   heldStale,
+  holdFactsOf,
   holdRecipients,
+  holdTold,
   holdsReplyTurn,
   ingestCall,
   ingestInbound,

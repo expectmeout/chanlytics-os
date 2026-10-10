@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, EmailHold, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, EmailHold, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -4377,12 +4377,30 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the
  *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
  *                     run moves nothing.
+ *   owner_notice      a thread handed to a person (escalation.opened, or an open hold taking another reason:
+ *                     escalation.changed; 00388, 00393) is told to its workspace once, from its rows (decision 0043):
+ *                     the hold read again, so one answered since tells nobody; the notice keeps its event, so a second
+ *                     run, or a notice an edge from before told inline, sends nothing again.
  */
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
 interface SubscriberPorts {
     /** The booking door over one appointment of the record (00389 reach_out_booked_from): how many leads moved. */
     bookedFromAppointment(tenantId: string, appointmentId: string): Promise<number>;
+    /** A hold's notice as its rows say it (packages/db holdFactsOf), or null when the thread no longer waits for a person. */
+    holdFacts(tenantId: string, ref: {
+        conversationId: string;
+    } | {
+        escalationId: string;
+    }): Promise<HoldFacts | null>;
+    /** Whether the workspace was told of this hold already: this event's notice, or an inline one about the thread. */
+    holdTold(tenantId: string, p: {
+        eventId: string;
+        conversationId: string;
+        at: string;
+    }): Promise<boolean>;
+    /** Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040). */
+    tell(news: JobNews): Promise<void>;
 }
 /** A subscriber: the event, once; nothing to return, a throw is a failed delivery. */
 type Subscriber = (event: DeliveredEvent, ports: SubscriberPorts) => Promise<void>;

@@ -91,6 +91,7 @@ export {
   SERVER_NOTIFICATION_KINDS,
   SERVER_KEY_PREFIX,
   REACH_OUT_DAY_ROUTE,
+  holdNotice,
 } from "./notifications";
 export type {
   NotificationKind,
@@ -108,6 +109,7 @@ export type {
   NotificationDto,
   NotificationsDto,
   JobEnd,
+  HoldFacts,
 } from "./notifications";
 export {
   parseDevice,

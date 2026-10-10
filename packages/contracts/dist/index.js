@@ -17100,7 +17100,7 @@ var JOB_KINDS = [
    */
   "inbound_answer"
 ];
-var EVENT_SUBSCRIBERS = ["audit", "reach_out_booked"];
+var EVENT_SUBSCRIBERS = ["audit", "reach_out_booked", "owner_notice"];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
   "phone_number_quality_update",
@@ -36522,6 +36522,57 @@ function nameKnownCustomers(rows2, threads, calls) {
     return who ? { ...r2, title: r2.title.replace(NUMBER_IN_WORDS, who) } : r2;
   });
 }
+var HOLD_REASON_WORDS = {
+  human_token: "asked for a person",
+  non_text: "sent something other than words",
+  refusal: "asked something the receptionist will not answer",
+  rate_cap: "the receptionist reached its daily limit",
+  policy_block: "the receptionist held its reply for you",
+  send_failed: "a reply failed to send",
+  deadman: "has waited two hours for a person",
+  brain_error: "the receptionist could not finish its answer",
+  manual: "was handed to a person",
+  opt_out: "asked to stop",
+  state_unavailable: "the receptionist could not read the thread",
+  stale: "arrived too late to answer automatically",
+  person_hold: "is someone you answer yourself",
+  budget: "the day's model budget is used up",
+  policy_ask: "asked about a booking or a price you answer first",
+  callback: "needs a call back",
+  paused: "the workspace is paused",
+  carriers: "texted before the carriers approved the line",
+  email_review: "sent an email that waits for you"
+};
+var HOLD_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email",
+  voice: "Phone"
+};
+var clipped = (s, max) => {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1)}\u2026` : t;
+};
+function holdNotice(f) {
+  const why = HOLD_REASON_WORDS[f.reason] ?? "needs a person";
+  const where = HOLD_CHANNEL_WORDS[f.channel ?? ""] ?? "The";
+  const shown = f.erased ? null : f.address?.startsWith("+") ? formatPhoneDisplay(f.address) ?? f.address : f.address;
+  const name = !f.erased && f.who?.trim() || shown || "A customer";
+  const lines = f.erased ? [] : [
+    ...f.customerWords ? [`They wrote: \u201C${clipped(f.customerWords, 600)}\u201D`] : [],
+    ...f.replyWords ? [`The receptionist: \u201C${clipped(f.replyWords, 600)}\u201D`] : [],
+    ...f.details ? [clipped(f.details, 600)] : []
+  ];
+  const pause = f.pausedHours ? `Reply from the Inbox \u2014 the receptionist is paused on this thread for ${f.pausedHours}h.` : "Reply from the Inbox.";
+  return {
+    kind: "handoff",
+    route: `inbox/th-${f.conversationId}`,
+    about: { type: "conversation", id: f.conversationId },
+    subject: clipped(`${name} needs a person \u2014 ${why}`, 200),
+    body: [...lines, "", `${where} conversation${shown ? ` \xB7 ${shown}` : ""}`, pause].join("\n").replace(/^\n/, ""),
+    redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person (${why}), and nobody could be told.`
+  };
+}
 
 // src/today/today-away.ts
 var readyRunTitles = (label) => [`Campaign \u201C${label}\u201D is ready`, `Playbook \u201C${label}\u201D is ready`];
@@ -40736,6 +40787,7 @@ export {
   heldWords,
   hexOf,
   holdDoors,
+  holdNotice,
   holdOf,
   holdWords,
   holderOf,

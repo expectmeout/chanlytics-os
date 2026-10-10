@@ -39038,6 +39038,14 @@ function bookingPageLinkedFrom(html, pageUrl) {
 }
 
 // src/subscribers.ts
+import { holdNotice } from "../../contracts/dist/index.js";
+function holdOfEvent(event2) {
+  if (!event2.subject_id) return null;
+  if (event2.kind === "escalation.opened" && event2.subject_type === "conversation")
+    return { conversationId: event2.subject_id };
+  if (event2.kind === "escalation.changed") return { escalationId: event2.subject_id };
+  return null;
+}
 var BOOKS = /* @__PURE__ */ new Set(["added", "confirmed", "moved"]);
 var SUBSCRIBERS = {
   audit: async () => {
@@ -39048,6 +39056,19 @@ var SUBSCRIBERS = {
     const { change, source } = data;
     if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
     await ports.bookedFromAppointment(event2.tenant_id, event2.subject_id);
+  },
+  owner_notice: async (event2, ports) => {
+    const ref = holdOfEvent(event2);
+    if (!ref) return;
+    const facts = await ports.holdFacts(event2.tenant_id, ref);
+    if (!facts) return;
+    const told = await ports.holdTold(event2.tenant_id, {
+      eventId: event2.id,
+      conversationId: facts.conversationId,
+      at: event2.created_at
+    });
+    if (told) return;
+    await ports.tell({ ...holdNotice(facts), sourceEvent: event2.id });
   }
 };
 export {

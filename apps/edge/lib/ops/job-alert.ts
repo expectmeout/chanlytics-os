@@ -60,8 +60,10 @@ export function alertFor(db: ReturnType<typeof pg>, job: AlertableJob, ports: No
         about: news.about ?? null,
         subject: news.subject,
         body: news.body,
-        redactedBody: REDACTED[news.kind](job.kind),
+        // The news says what it is when it can (a hold's notice names the hold); the job's kind otherwise.
+        redactedBody: news.redactedBody ?? REDACTED[news.kind](job.kind),
         push: !NEVER_PUSHED.has(job.kind),
+        sourceEvent: news.sourceEvent,
       },
       ports,
     );

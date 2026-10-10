@@ -24143,6 +24143,7 @@ CREATE TABLE public.notifications (
     subject_id text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     recipient_user_id uuid,
+    source_event uuid,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
     CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
@@ -24161,6 +24162,13 @@ COMMENT ON TABLE public.notifications IS 'What needed the workspace''s attention
 --
 
 COMMENT ON COLUMN public.notifications.recipient_user_id IS 'The one member this is for (0007); null for everyone in the workspace. Only the recipient reads an addressed row.';
+
+
+--
+-- Name: COLUMN notifications.source_event; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice answers (decision 0043, 00393): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised.';
 
 
 --
@@ -27434,6 +27442,13 @@ COMMENT ON INDEX public.messages_tenant_inbound_recent IS 'The back office asks 
 --
 
 CREATE INDEX notifications_recipient ON public.notifications USING btree (tenant_id, recipient_user_id, created_at DESC) WHERE (recipient_user_id IS NOT NULL);
+
+
+--
+-- Name: notifications_source_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX notifications_source_event ON public.notifications USING btree (source_event) WHERE (source_event IS NOT NULL);
 
 
 --

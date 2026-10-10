@@ -233,6 +233,8 @@ export { firstReplies } from "./repositories/reports/first-replies";
 export {
   forgetNotification,
   noticeKept,
+  holdFactsOf,
+  holdTold,
   activityTokensOf,
   forgetActivityTokens,
   memberAlertsOf,

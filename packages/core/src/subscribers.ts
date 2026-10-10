@@ -13,18 +13,37 @@
  *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the
  *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
  *                     run moves nothing.
+ *   owner_notice      a thread handed to a person (escalation.opened, or an open hold taking another reason:
+ *                     escalation.changed; 00388, 00393) is told to its workspace once, from its rows (decision 0043):
+ *                     the hold read again, so one answered since tells nobody; the notice keeps its event, so a second
+ *                     run, or a notice an edge from before told inline, sends nothing again.
  */
-import type { EventSubscriber } from "@chanlytics/contracts";
+import { holdNotice, type EventSubscriber, type HoldFacts, type JobNews } from "@chanlytics/contracts";
 import type { DeliveredEvent } from "@chanlytics/db";
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
 export interface SubscriberPorts {
   /** The booking door over one appointment of the record (00389 reach_out_booked_from): how many leads moved. */
   bookedFromAppointment(tenantId: string, appointmentId: string): Promise<number>;
+  /** A hold's notice as its rows say it (packages/db holdFactsOf), or null when the thread no longer waits for a person. */
+  holdFacts(tenantId: string, ref: { conversationId: string } | { escalationId: string }): Promise<HoldFacts | null>;
+  /** Whether the workspace was told of this hold already: this event's notice, or an inline one about the thread. */
+  holdTold(tenantId: string, p: { eventId: string; conversationId: string; at: string }): Promise<boolean>;
+  /** Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040). */
+  tell(news: JobNews): Promise<void>;
 }
 
 /** A subscriber: the event, once; nothing to return, a throw is a failed delivery. */
 export type Subscriber = (event: DeliveredEvent, ports: SubscriberPorts) => Promise<void>;
+
+/** Which hold an escalation event names: an opened one by its thread, a change by the hold's own id. */
+function holdOfEvent(event: DeliveredEvent): { conversationId: string } | { escalationId: string } | null {
+  if (!event.subject_id) return null;
+  if (event.kind === "escalation.opened" && event.subject_type === "conversation")
+    return { conversationId: event.subject_id };
+  if (event.kind === "escalation.changed") return { escalationId: event.subject_id };
+  return null;
+}
 
 /** The changes that may book a lead: an appointment that is there now (a cancelled one books nobody). */
 const BOOKS = new Set(["added", "confirmed", "moved"]);
@@ -37,5 +56,18 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     const { change, source } = data as Record<string, unknown>;
     if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
     await ports.bookedFromAppointment(event.tenant_id, event.subject_id);
+  },
+  owner_notice: async (event, ports) => {
+    const ref = holdOfEvent(event);
+    if (!ref) return;
+    const facts = await ports.holdFacts(event.tenant_id, ref);
+    if (!facts) return;
+    const told = await ports.holdTold(event.tenant_id, {
+      eventId: event.id,
+      conversationId: facts.conversationId,
+      at: event.created_at,
+    });
+    if (told) return;
+    await ports.tell({ ...holdNotice(facts), sourceEvent: event.id });
   },
 };
