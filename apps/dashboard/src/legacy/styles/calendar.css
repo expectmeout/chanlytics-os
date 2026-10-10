@@ -787,6 +787,12 @@
 .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
   background: transparent;
 }
+/* The heads leave the pane's top pixel to the pane: its specular edge is an inset shadow, drawn under what the pane holds,
+   so the heads' blur (and on a phone their solid) took it, and the outline over week and day read thinner than over the
+   month and the agenda, whose heads are clear (Ruben, 10 Oct 2026). That pixel of a head is padding, never words. */
+.main-scroll > .calendar :is(.cal-corner, .cal-dayhead) {
+  clip-path: inset(1px 0 0);
+}
 /* On a desk alone: a phone scrolls its days sideways under the heads, and a blur redrawn on every frame of that is the
    one cost the board's motion could not spare, so there they take the pane's solid (the phone block below). */
 @media (min-width: 721px) {
