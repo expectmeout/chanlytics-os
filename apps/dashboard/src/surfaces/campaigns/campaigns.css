@@ -5188,6 +5188,288 @@ div.tpl-slotbox:not([data-lines="1"]) {
   content: " · ";
 }
 
+/* The ledger (home/ledger/ledger.tsx; spec 2026-10-09 §4.3): every campaign in the rail's pane, under the moments. One
+   grid for the whole list, and each group, row and line a subgrid of it, as Sent's runs are (.bc-runs, above), so a
+   column is one width down the list whatever a row holds. The columns: the campaign (its dot, name and hint), what it
+   goes by, who is at it now, the last 30 days, the next run, its act (fit to it, as Sent's acts' track is: "Approve ·
+   7 people" and Skip side by side). The tool line sticks at the page's top past seven rows, at a height of its own so
+   the groups' heads can stick under it. The pane is clipped, not hidden, so the page's scroll is the one they stick to. */
+.cmh .cmh-rail-block {
+  overflow: clip;
+}
+.cmh-ledger {
+  --cmh-tools-h: 52px;
+  display: grid;
+  /* Sent's track shape (.bc-runs): every column but the act's may give way to nothing, so the grid never runs past the
+     clipped pane and never clips a row's acts. The columns give way together, each by its share: a track with a fixed
+     most is filled before any fr track is, so beside 150px, 96px, 190px and 168px most the campaign's name was what gave
+     way, to under 100px between the fold below (1000px of page) and about 1,130px. */
+  grid-template-columns:
+    minmax(0, 1.7fr) minmax(0, 0.8fr) minmax(0, 0.5fr) minmax(0, 1fr) minmax(0, 0.9fr)
+    fit-content(240px);
+  column-gap: 14px;
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.cmh-ledger > *,
+.cmh-group > *,
+.cmh-row-line {
+  grid-column: 1 / -1;
+}
+.cmh-group,
+.cmh-row,
+.cmh-row-line,
+.cmh-ledger-heads {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+.cmh-ledger-line {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-height: var(--cmh-tools-h);
+  padding: var(--space-2) 22px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  /* The pane's own fill, laid opaque over what it sits on (tokens.css, the glass's solids): the rows do not show through
+     the band, and the band reads as the clear pane it stands in. */
+  background: var(--surface-pane-solid);
+}
+.cmh-ledger-find {
+  flex: 0 1 240px;
+  min-width: 160px;
+}
+.cmh-ledger-states {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cmh-ledger-say {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.cmh-ledger-heads {
+  padding: var(--space-2) 22px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cmh-ledger-head {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-ledger-head[data-sorted="true"] {
+  color: var(--ink);
+}
+.cmh-ledger-none {
+  padding: var(--space-4) 22px;
+}
+/* A group's head: its glyph in a 22px ring, its caps, what it says of itself, its add at the right. It sticks under the
+   tool line where there is one, at the page's top where there is not. */
+.cmh-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 22px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 22px var(--space-1);
+  background: var(--surface-pane-solid);
+}
+.cmh-ledger[data-tools="true"] .cmh-group-head {
+  top: var(--cmh-tools-h);
+}
+.cmh-group-ring {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-circle);
+  color: var(--ink-dim);
+}
+.cmh-group-caps {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.cmh-group-meta {
+  min-width: 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A row: 44px, a hairline between two, no zebra; the hover's grey, and the keys' cursor wearing it too. */
+.cmh-row + .cmh-row {
+  border-top: 1px solid var(--line);
+}
+.cmh-row-line {
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: var(--space-1) 22px;
+  cursor: pointer;
+}
+.cmh-row[data-cursor="true"] > .cmh-row-line {
+  background: var(--bg-hover);
+}
+/* A pointer's hover alone: a touch screen keeps :hover on the last row tapped (memory reference_touch_hover_sticks). */
+@media (hover: hover) {
+  .cmh-row-line:hover {
+    background: var(--bg-hover);
+  }
+  .cmh .cmh-row-name:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+.cmh-row-what {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.cmh-row-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-circle);
+  background: var(--line-strong);
+}
+.cmh-row-dot[data-tone="ok"] {
+  background: var(--ok);
+}
+.cmh-row-dot[data-tone="warn"] {
+  background: var(--warn);
+}
+.cmh .cmh-row-name {
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-row-hint {
+  min-width: 0;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-row-fold {
+  display: none;
+}
+.cmh-row-people,
+.cmh-row-results,
+.cmh-row-next {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-row-results[data-dim="true"] {
+  color: var(--ink-faint);
+}
+.cmh-row[data-state="waiting"] .cmh-row-next {
+  color: var(--warn-ink);
+}
+.cmh-row-acts {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.cmh-row-decide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.cmh-row-why {
+  font-size: var(--text-xs);
+}
+.cmh-once {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) 22px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* A row decided where it stands (Approve, Skip, Resume) keeps its place and settles once: its next run arrives on the
+   kit's own rise-in, as a record row's value does after its editor's save (kit.css, the save settle). */
+.cmh-row[data-settled="true"] .cmh-row-next {
+  animation: rise-in var(--duration-base) var(--ease-out) backwards;
+}
+/* A campaign just made or changed is scrolled to and washed once in the kit's on-and-ok tint, let go over 400ms, as the
+   kit washes the line a draft changed (kit.css, .rec-says-line[data-changed]): the row is a new element as it arrives
+   (keyed by its mark, ledger.tsx), so the transition from where it starts plays once. Its ground alone moves. */
+.cmh-row[data-arrived="true"] > .cmh-row-line {
+  transition: background-color calc(2 * var(--duration-base)) var(--ease-out);
+}
+@starting-style {
+  .cmh-row[data-arrived="true"] > .cmh-row-line {
+    background-color: var(--ok-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmh-row[data-settled="true"] .cmh-row-next {
+    animation: none;
+  }
+  .cmh-row[data-arrived="true"] > .cmh-row-line {
+    transition: none;
+  }
+}
+/* Under 1000px of page the channels and the people fold under the campaign's name, and their columns leave; the rest
+   give way by their shares, as above. */
+@container cmh (max-width: 1000px) {
+  .cmh-ledger {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.9fr) fit-content(220px);
+  }
+  .cmh-row-by,
+  .cmh-row-people,
+  .cmh-ledger-head:is([data-col="goesBy"], [data-col="people"]) {
+    display: none;
+  }
+  .cmh-row-what {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .cmh-row-fold {
+    display: flex;
+    flex-basis: 100%;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--ink-dim);
+  }
+}
+/* A thumb needs no more of the name than its row: the whole 44px line presses the name (cmRowPress), and a margin round
+   the name would be cut by the ellipsis's own clip. */
+
 /* The three tiles. */
 .cmh-grid {
   display: grid;
