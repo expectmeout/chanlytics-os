@@ -13910,9 +13910,10 @@ interface AskThreadVM {
 /**
  * The kinds a scope may have: a page and the rows a page opens, each a kind a citation names (citations.ts) but the
  * run, a Broadcasts row, which its address spells so and a citation names a broadcast. A scope is what the person was
- * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar.
+ * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar. A
+ * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1).
  */
-declare const ASK_SCOPE_KINDS: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+declare const ASK_SCOPE_KINDS: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "run", "playbook"];
 type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];
 /** What the person was looking at when they asked. Carried into the turn as a fact. */
 interface AskScope {
@@ -13922,8 +13923,9 @@ interface AskScope {
 }
 /**
  * The scope a route implies, when it names a row: every address a page opens a row at. Conversations writes
- * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run `broadcasts/run:<id>`;
- * the Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts), never a second one.
+ * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run `broadcasts/run:<id>`,
+ * a campaign `campaigns/moment:<id>`; People's, its Leads and Pipeline peeks among them, are clientsScope's, never a
+ * second reading.
  */
 declare function scopeFromRoute(page: string, param: string | null | undefined, label?: string | null): AskScope | null;
 /**
@@ -13967,6 +13969,7 @@ declare const PageContextSchema: z$1.ZodObject<{
             person: "person";
             call: "call";
             lead: "lead";
+            playbook: "playbook";
             page: "page";
             thread: "thread";
             run: "run";
@@ -14632,8 +14635,8 @@ interface PageContext {
 /**
  * The row an answer's n-th item names, as a focus (the Phase 5 plan, D7): "open the second", asked in an open thread,
  * is its last answer's second item, in the answer's order -- an answer made before the Line has the rows it cited
- * (answerFromV1). A broadcast is the run its page spells; a thread, a conversation, a call, a person, a lead and a
- * search are as they are. Null for an item of any other kind (a deal, a list, a playbook, a template, a domain, a page):
+ * (answerFromV1). A broadcast is the run its page spells; a thread, a conversation, a call, a person, a lead, a search
+ * and a playbook are as they are. Null for an item of any other kind (a deal, a list, a template, a domain, a page):
  * the words point at no row a focus may be, and never at the page's row at that place. Undefined when the answer has
  * fewer items: then the page's rows are asked. The tab's context and the eval's both read the words by it.
  */

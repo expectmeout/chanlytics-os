@@ -181,3 +181,26 @@ test("a scope from every address a page can open, by the page's own parser", () 
   assert.deepEqual(scopeFromRoute("clients", P, "Rosa"), { kind: "person", id: P, label: "Rosa" });
   assert.equal(scopeFromRoute("clients", "seg:vip"), null);
 });
+
+test("a campaign's drawer is a scope of its own (the moment spec, A1): campaigns/moment:<id>, and the old outbound address, name its playbook", () => {
+  assert.ok(ASK_SCOPE_KINDS.includes("playbook"));
+  assert.deepEqual(scopeFromRoute("campaigns", `moment:${RUN}`, "Win-back"), {
+    kind: "playbook",
+    id: RUN,
+    label: "Win-back",
+  });
+  assert.deepEqual(scopeFromRoute("outbound", `moment:${RUN}`), { kind: "playbook", id: RUN, label: "this campaign" });
+  assert.equal(scopeFromRoute("campaigns", "moment:nope"), null);
+  assert.equal(scopeFromRoute("campaigns", "new:moment:quiet_30"), null, "the composer is no row");
+  assert.equal(scopeFromRoute("campaigns", `new:edit:${RUN}`), null, "a change in the composer is no scope either");
+  assert.equal(scopeFromRoute("campaigns", "in:before"), null, "a group is a view, not a row");
+  assert.equal(scopeFromRoute("campaigns", null), null);
+  // The tab sends it, and the one schema takes it.
+  const sent = PageContextSchema.safeParse({
+    ...ok,
+    surface: "campaigns",
+    route: `campaigns/moment:${RUN}`,
+    focus: { kind: "playbook", id: RUN, label: "Win-back" },
+  });
+  assert.ok(sent.success, JSON.stringify(sent.error?.issues));
+});

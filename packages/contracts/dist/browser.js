@@ -11174,8 +11174,31 @@ function askCardLapsed(p, nowMs) {
   const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
   return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
 }
-var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SCOPE_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "run",
+  "playbook"
+];
 var UUID = /^[0-9a-f-]{36}$/;
+function clientsScope(param, label) {
+  const leads = parseLeadsRoute(`clients/${param}`);
+  if (leads) {
+    if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
+    if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
+    return null;
+  }
+  const pipeline = parsePipelineRoute(`clients/${param}`);
+  if (pipeline)
+    return pipeline.peek ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" } : null;
+  if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  return null;
+}
 function scopeFromRoute(page, param, label) {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
@@ -11189,18 +11212,9 @@ function scopeFromRoute(page, param, label) {
   if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
-  if (page === "clients") {
-    const leads = parseLeadsRoute(`clients/${param}`);
-    if (leads) {
-      if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
-      if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
-      return null;
-    }
-    const pipeline = parsePipelineRoute(`clients/${param}`);
-    if (pipeline)
-      return pipeline.peek ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" } : null;
-    if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
-  }
+  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7)))
+    return { kind: "playbook", id: param.slice(7), label: label || "this campaign" };
+  if (page === "clients") return clientsScope(param, label);
   return null;
 }
 var ASK_SURFACES = [

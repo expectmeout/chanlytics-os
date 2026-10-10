@@ -454,11 +454,22 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
     "a run is the one scope word no citation spells: its address's word for a Broadcasts row",
   );
   assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a broadcast");
+  // A campaign is one now, open in its drawer (the moment spec, A1): campaigns/moment:<id>.
   assert.deepEqual(
     ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
-    ["deal", "list", "broadcast", "playbook", "template", "domain"],
+    ["deal", "list", "broadcast", "template", "domain"],
     "the rows a reader returns that no page opens as a scope",
   );
+});
+
+test("a campaign's scope is read before the model is asked, by the read that names it (campaigns.playbooks)", async () => {
+  const { scopedRead } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/cross-page.ts")).href
+  );
+  assert.deepEqual(scopedRead({ kind: "playbook", id: "p1", label: "Win-back" }), {
+    name: "campaigns",
+    input: { action: "playbooks" },
+  });
 });
 
 test("on Leads, the chips are the first day's ideas, each a search; after that, more like the latest two searches; then the usual questions", () => {

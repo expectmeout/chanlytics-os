@@ -151,8 +151,8 @@ export function crossPagePlan(text: string, surface: string | null, view: string
 /**
  * The row the scope names, read whole by the tool and action that read it, to ride in with the page (as the snapshot's
  * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.thread), a lead
- * (leads.lead), a search (leads.search), and a run -- the Broadcasts row its address calls one -- (campaigns.broadcast).
- * A lead is read as the search the page is on found it (its address's `s-<id>`), the membership its peek shows, never
+ * (leads.lead), a search (leads.search), a run -- the Broadcasts row its address calls one -- (campaigns.broadcast),
+ * and a campaign (campaigns.playbooks, which names it among the rest). A lead is read as the search the page is on found it (its address's `s-<id>`), the membership its peek shows, never
  * its newest in another search. A page needs no read: none. Moved here from loop.ts (PR 4.3): the reads made before
  * the model is asked live here.
  */
@@ -170,6 +170,7 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
   }
   if (scope?.kind === "search") return { name: "leads", input: { action: "search", search_id: scope.id } };
   if (scope?.kind === "run") return { name: "campaigns", input: { action: "broadcast", broadcast_id: scope.id } };
+  if (scope?.kind === "playbook") return { name: "campaigns", input: { action: "playbooks" } };
   return null;
 }
 
