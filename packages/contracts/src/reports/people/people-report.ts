@@ -1,7 +1,7 @@
 /**
  * Reports › People — what the lens's own read says, counted once.
  *
- * The route answers the lens's two halves in one DTO (people-record.ts): the window, from the database (people_series, 00393:
+ * The route answers the lens's two halves in one DTO (people-record.ts): the window, from the database (people_series, 00394:
  * who reached the business and how, how the new ones first came, the yeses and stops they gave, the addresses that stopped
  * working, the steps finished on time), and the book as it stands now, from the people pool by People's own rules
  * (people-now.ts). This puts them in words: the head, the four figures against the period before, the mixes, the book's

@@ -435,7 +435,7 @@ async function bookOf(rc: ReaderContext): Promise<PeopleNowDto | null> {
  * beside it the book as it stands now (bookOf). Contracts' peopleDtoOf makes the route's answer of the two. The two reads
  * are independent, so they are made together, and each fails alone: a book that cannot be counted is `now: null`. A
  * function that answers nothing is the page's 404, in its words; any other failure of the series is the route's. A database
- * that does not have the function yet (00393 is applied on the owner's word, after the dashboard deploys) answers null for
+ * that does not have the function yet (00394 is applied on the owner's word, after the dashboard deploys) answers null for
  * a period and for picked days alike: the answer is then the window the route was asked with `series: null`, the lens draws
  * the book and its kept cards and none of its own parts, and the log says `people_series_missing` once a read. If the
  * workspace's zone cannot be read either, the book is null as well (bookOf says so in the log) and the answer is

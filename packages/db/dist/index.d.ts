@@ -38516,7 +38516,7 @@ declare function markHeldNotice(db: Db$n, p: {
 }): Promise<boolean>;
 
 /**
- * The report functions Reports reads (00251, 00304, 00241, 00350, 00380, 00393): the receptionist's series, the campaigns',
+ * The report functions Reports reads (00251, 00304, 00241, 00350, 00380, 00394): the receptionist's series, the campaigns',
  * the reviews', the Receptionist lens's, the People lens's and the reach-outs', each over a period of days and the period
  * before it; and the counts Campaigns reads (00374, 00375): a playbook's totals, a run's counts, a message's sends and
  * every chain's numbers. The one place they are called by name; the dashboard asks on the session client, so RLS decides
@@ -38565,10 +38565,10 @@ declare function reviewsLedger(db: Db$m, tenantId: string, window: ReportWindow)
  */
 declare function receptionistSeries(db: Db$m, tenantId: string, window: ReportWindow): Promise<Json | null>;
 /**
- * The People lens's numbers, over the window and the period before it (`people_series`, 00393): the people who reached
+ * The People lens's numbers, over the window and the period before it (`people_series`, 00394): the people who reached
  * the business and how many of them were new, by the way they came in and the way they first came, the answers recorded
  * about being written to, the email addresses that stopped working and the steps done and done on time. Counts only.
- * Null is a database that does not have the function yet: the dashboard deploys at the merge and 00393 goes to production
+ * Null is a database that does not have the function yet: the dashboard deploys at the merge and 00394 goes to production
  * on the owner's word (either order works), so for that window every read answers it, and the lens draws the book
  * (People's own pool) and its kept cards and none of its series parts (the function itself never answers null). A window
  * that names its last day is the same answer, for the same reason: the one function takes the last day, so a database

@@ -250,7 +250,7 @@ test("the mix says its rows and its line", () => {
     ["Another way", 1],
   ]);
   assert.equal(sum(Object.fromEntries(rows(sms.yeses))), sms.strip[2].value * 1, "the rows add up to the figure");
-  // A yes recorded with no source at all (00393 says `unknown`) is another way too, with any other.
+  // A yes recorded with no source at all (00394 says `unknown`) is another way too, with any other.
   const noSource = vm({
     consent: withYes({ total: 10, by_source: { customer_message: 6, unknown: 3, sms_reply: 1 } }),
   });
@@ -303,7 +303,7 @@ test("the mix says its rows and its line", () => {
     ],
     "the four a member records are one row; any other source is another way",
   );
-  // A stop recorded with no source at all (00393 says `unknown`) is another way.
+  // A stop recorded with no source at all (00394 says `unknown`) is another way.
   assert.deepEqual(
     rows(vm({ consent: withStop({ total: 3, by_source: { customer_message: 2, unknown: 1 } }) }).stops),
     [

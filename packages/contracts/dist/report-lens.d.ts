@@ -308,7 +308,7 @@ declare function toReceptionistReportVM(dto: ReceptionistDto, opts: {
  * Reports › People — the book as it stands now, counted over the people pool by People's own rules.
  *
  * The window of the lens (who reached the business, how they came, what they answered) is the database's, counted over
- * days (people_series, 00393). The book is not: it is everyone People holds at this moment, and it is counted here, from
+ * days (people_series, 00394). The book is not: it is everyone People holds at this moment, and it is counted here, from
  * the same rows People draws (`people_list`'s, through the pool's builder, `poolRowsOf`) by the predicates People already
  * has, never restated. How long since a person was heard is `PersonRowVM.heardDays`; who is quiet, who said yes to
  * messages or to offers and who asked to stop are the built-in lists (`membersOf` over `BUILTIN_LISTS`, which People's rail
@@ -379,7 +379,7 @@ interface AnswersDto {
         email_offers: number;
     };
 }
-/** people_series's own answer (00393). */
+/** people_series's own answer (00394). */
 interface PeopleSeriesDto {
     timezone: string;
     /** The workspace's day in that zone when the read was made: "2026-10-06". */
@@ -435,7 +435,7 @@ interface PeopleDto {
 /**
  * Reports › People — what the lens's own read says, counted once.
  *
- * The route answers the lens's two halves in one DTO (people-record.ts): the window, from the database (people_series, 00393:
+ * The route answers the lens's two halves in one DTO (people-record.ts): the window, from the database (people_series, 00394:
  * who reached the business and how, how the new ones first came, the yeses and stops they gave, the addresses that stopped
  * working, the steps finished on time), and the book as it stands now, from the people pool by People's own rules
  * (people-now.ts). This puts them in words: the head, the four figures against the period before, the mixes, the book's

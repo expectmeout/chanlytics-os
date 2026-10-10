@@ -2,7 +2,7 @@
  * Reports › People — the book as it stands now, counted over the people pool by People's own rules.
  *
  * The window of the lens (who reached the business, how they came, what they answered) is the database's, counted over
- * days (people_series, 00393). The book is not: it is everyone People holds at this moment, and it is counted here, from
+ * days (people_series, 00394). The book is not: it is everyone People holds at this moment, and it is counted here, from
  * the same rows People draws (`people_list`'s, through the pool's builder, `poolRowsOf`) by the predicates People already
  * has, never restated. How long since a person was heard is `PersonRowVM.heardDays`; who is quiet, who said yes to
  * messages or to offers and who asked to stop are the built-in lists (`membersOf` over `BUILTIN_LISTS`, which People's rail

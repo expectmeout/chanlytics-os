@@ -1,7 +1,7 @@
 /**
  * Reports › People — what the lens is read from, counted once on the server.
  *
- * The lens has two halves. The window is the database's (people_series, 00393): the people who reached the business in the
+ * The lens has two halves. The window is the database's (people_series, 00394): the people who reached the business in the
  * days asked and the days before, by the wire they used, how the new ones first came, the yeses and stops they gave, the
  * addresses that stopped working, and the steps the team finished on time. The book is the pool's (people-now.ts): everyone
  * as they stand now, counted by People's own rules. This is the window's shape, its guard, and the one place the two become
@@ -32,7 +32,7 @@ interface AnswersDto {
   by_purpose: { messages: number; offers: number; email_offers: number };
 }
 
-/** people_series's own answer (00393). */
+/** people_series's own answer (00394). */
 export interface PeopleSeriesDto {
   timezone: string;
   /** The workspace's day in that zone when the read was made: "2026-10-06". */

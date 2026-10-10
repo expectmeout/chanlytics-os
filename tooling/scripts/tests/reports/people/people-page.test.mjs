@@ -442,7 +442,7 @@ test("a pick whose own read could not be made says so with its Retry, and never 
   }
 });
 
-test("a database without 00393 draws the book and the kept cards, nothing of the window and no failure", () => {
+test("a database without 00394 draws the book and the kept cards, nothing of the window and no failure", () => {
   const tree = draw({ own: held(NO_FUNCTION, "7d") });
   assert.deepEqual(
     present(tree, WINDOW_IDS),
@@ -510,9 +510,9 @@ test("every row of cards fills the grid's twelve columns, whichever of the lens'
     ["everything", draw(), full],
     // The pool failed: the failed read takes the last row alone, and the rhythm card moves up to fill the second.
     ["no pool", draw({ own: held(NO_POOL, "7d") }), [[4, 4, 4], [4, 4, 4], [12], [5, 7]]],
-    // 00393 not applied: the kept cards fill their row (8 and 4), and the book's cards theirs (4 and 8).
+    // 00394 not applied: the kept cards fill their row (8 and 4), and the book's cards theirs (4 and 8).
     [
-      "no 00393",
+      "no 00394",
       draw({ own: held(NO_FUNCTION, "7d") }),
       [
         [8, 4],
@@ -547,7 +547,7 @@ test("every row of cards fills the grid's twelve columns, whichever of the lens'
   assert.deepEqual(
     present(states[2][1], [...BOOK_CARDS, ...KEPT_IDS]),
     yes([...BOOK_CARDS, ...KEPT_IDS]),
-    "no 00393: the book's cards and the kept ones",
+    "no 00394: the book's cards and the kept ones",
   );
   assert.ok(byTestId(states[1][1], "chart-rhythm"), "no pool: the rhythm card is still drawn");
   assert.ok(byTestId(states[1][1], "people-now-failed"), "no pool: and the failed read where the book stands");

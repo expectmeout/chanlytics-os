@@ -3040,7 +3040,7 @@ const BOOK = [
 ];
 /** The counts of the People world's busy thirty days, without the window they were read for. */
 const { timezone: _zone, today: _day, days: _span, ...BUSY } = SERIES;
-/** What people_series answers (00393) for the days asked, ending where it was asked to: a quiet window, or what `over` puts in it. */
+/** What people_series answers (00394) for the days asked, ending where it was asked to: a quiet window, or what `over` puts in it. */
 const peopleSeriesAnswer = (a, over = {}) => ({
   timezone: "America/New_York",
   today: "2026-09-08",
@@ -3056,7 +3056,7 @@ const peopleLensWorld = (over = {}, rpcs = {}, channels = WHATSAPP_ON) => ({
   tables: { ...calTables(null), tenant_channels: channels },
   rpcs: { people_series: (a) => peopleSeriesAnswer(a, over), people_list: () => BOOK, ...rpcs },
 });
-/** What a database that has not run 00393 answers a call to people_series. */
+/** What a database that has not run 00394 answers a call to people_series. */
 const peopleSeriesGone = () => {
   throw Object.assign(
     new Error("Could not find the function public.people_series(p_days, p_tenant_id) in the schema cache"),
@@ -3135,7 +3135,7 @@ test("the People lens carries the series as the database gave it and the book as
   );
 });
 
-test("the People lens on a database that does not have its function yet (00393 not applied) answers 200 with `series: null`, the book and the window it was asked, said once in the log with the workspace; any other refusal is still the route's failure", async (t) => {
+test("the People lens on a database that does not have its function yet (00394 not applied) answers 200 with `series: null`, the book and the window it was asked, said once in the log with the workspace; any other refusal is still the route's failure", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
   const absent = peopleLensWorld(BUSY, { people_series: peopleSeriesGone });
   const { result: page, lines } = await logged("people_series_missing", () =>

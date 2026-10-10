@@ -1,4 +1,4 @@
--- 00393 · The People lens is read beyond the days' counts (Reports, the People lens).
+-- 00394 · The People lens is read beyond the days' counts (Reports, the People lens).
 --
 -- report_series (00304, 00360, 00379) counts messages and calls day by day: how many arrived, never how many people they
 -- were. The People lens asks what that cannot: who reached the business, and how many of them were new; on which
@@ -18,7 +18,7 @@
 --                moved in (`meta.backfill`) does not touch, by the row's `created_at`; or an inbound call that connected
 --                (call_connected, 00303) by `started_at`. A call note, an automatic reply, a delivery report, what the
 --                business sent and a call nobody took reach nobody. `new` is a person reached in the period whose first
---                reach-in, contact_first_moments (00392), falls in the same period; the rest are known. This is not
+--                reach-in, contact_first_moments (00393), falls in the same period; the rest are known. This is not
 --                report_series.messages_in (messages, of anyone, counted not as people), and not People's lists (as of
 --                now, by People's own rules, read from the pool).
 --   by_channel   The same population by the way they came, as people: `count(distinct contact_id)` for each of
@@ -135,7 +135,7 @@ begin
   reach_people as (
     select distinct r.contact_id, r.is_now from reach_rows r
   ),
-  -- Each person's first reach-in (00392), told by the period it falls in; a first moment outside both is no one's here.
+  -- Each person's first reach-in (00393), told by the period it falls in; a first moment outside both is no one's here.
   firsts as (
     select f.contact_id, (f.first_at >= v_start) as is_now
       from public.contact_first_moments(p_tenant_id) f
@@ -278,4 +278,4 @@ revoke all on function public.people_series(uuid, integer, date) from public, an
 grant execute on function public.people_series(uuid, integer, date) to authenticated, service_role;
 
 comment on function public.people_series(uuid, integer, date) is
-  'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00392, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+  'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00393, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';

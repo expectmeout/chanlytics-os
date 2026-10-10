@@ -160,7 +160,7 @@ test(
 );
 
 // 00379 left a person's first moment as it was (their first word in either direction, whatever it said) and left "a new
-// person" to the People lens. 00392 gave it its one rule: a first reach-in in their own words (or a call that connected),
+// person" to the People lens. 00393 gave it its one rule: a first reach-in in their own words (or a call that connected),
 // so an out-of-office from a new address is no one arriving. What this test said before (that the person is counted) is
 // the number that was wrong; first-moments.db.test.mjs holds the rule's other edges.
 test(
