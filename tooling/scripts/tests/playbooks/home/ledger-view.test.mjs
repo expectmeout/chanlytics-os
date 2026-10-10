@@ -265,7 +265,7 @@ test("Escape lets go of the words first, then of the filter; Clear lets go of al
 
 /* ------------------------------------------------------- the keys ------------------------------------------------------- */
 
-const { onLedgerKey, rowOpener, useFocusComesHome } =
+const { onLedgerKey, rowOpener, useArrivalLands, useFocusComesHome, useLedgerCursor, useRowMarks } =
   await import("../../../../../apps/dashboard/src/surfaces/campaigns/home/ledger/ledger-keys.ts");
 
 /** A key event as the window hears it, pressed on the page (a div), unless a test says where. */
@@ -360,16 +360,99 @@ test("never behind a sheet or a menu, never with a modifier, and Enter on a focu
   assert.deepEqual(d.did, []);
 });
 
+/**
+ * A page whose rows are these ids, each with its name (its opener) unless it is `bare`, and the search where `search`:
+ * what each element was asked, written down: a focus (and whether it kept the page where it was) or a scroll.
+ */
+const pageOf = ({ rows = [], bare = [], search = true } = {}) => {
+  const did = [];
+  const el = (name) => ({
+    focus: (o) => did.push(["focus", name, o?.preventScroll === true ? "still" : "scrolls"]),
+    scrollIntoView: (o) => did.push(["scroll", name, o?.block]),
+  });
+  globalThis.document.querySelector = (sel) => {
+    for (const id of rows) {
+      if (sel === rowOpener(id)) return bare.includes(id) ? null : el(`name:${id}`);
+      if (sel === `[data-row="${id}"]`) return el(`row:${id}`);
+    }
+    return search && sel.includes('[data-testid="cmh-ledger-search"]') ? el("search") : null;
+  };
+  return did;
+};
+/** A sheet's life over the ledger: the page drawn with nothing open, the sheet opened from a row, then closed. */
+const sheetFrom = (id, before, after) => {
+  fresh();
+  again(() => useFocusComesHome(null, before));
+  again(() => useFocusComesHome(id, before));
+  again(() => useFocusComesHome(null, after));
+};
+
 test("a row's opener is found by its id, and a sheet that closes gives the focus back to the row it was opened from", () => {
   assert.equal(rowOpener("pb-1"), '[data-row="pb-1"] [data-row-open]');
   assert.equal(rowOpener('a"b'), '[data-row="a\\"b"] [data-row-open]');
-  const focused = [];
-  globalThis.document.querySelector = (sel) => ({ focus: () => focused.push(sel), scrollIntoView() {} });
+  const ids = ["r1", "r2", "r3"];
+  const did = pageOf({ rows: ids });
+  sheetFrom("r2", ids, ids);
+  assert.deepEqual(did, [["focus", "name:r2", "still"]], "its name, and the page holds still");
+  again(() => useFocusComesHome(null, ids));
+  assert.equal(did.length, 1, "once");
+  globalThis.document.querySelector = () => null;
+});
+
+test("focus never scrolls a phone: a sheet reached by its address gives nothing back, and a row decided keeps its place", () => {
+  const ids = ["r1", "r2"];
+  const did = pageOf({ rows: ids });
+  // Today's door, the bell, a reload of campaigns/moment:r2: the drawer is open at the first draw, from no row.
   fresh();
-  again(() => useFocusComesHome("pb-1"));
-  again(() => useFocusComesHome(null));
-  assert.deepEqual(focused, ['[data-row="pb-1"] [data-row-open]']);
-  again(() => useFocusComesHome(null));
-  assert.equal(focused.length, 1, "once");
+  again(() => useFocusComesHome("r2", ids));
+  again(() => useFocusComesHome("r2", ids));
+  again(() => useFocusComesHome(null, ids));
+  assert.deepEqual(did, [], "nothing is focused, and nothing scrolls, for a row the person never saw");
+  fresh();
+  again(() => useRowMarks()).settle("r1");
+  assert.deepEqual(
+    did,
+    [["focus", "name:r1", "still"]],
+    "an act decided in a row leaves the focus on its name, in place",
+  );
+  globalThis.document.querySelector = () => null;
+});
+
+test("the keys' cursor and an arrival are brought into view, the least scroll that shows them", () => {
+  const ids = ["r1", "r2"];
+  const did = pageOf({ rows: ids });
+  fresh();
+  again(() => useLedgerCursor(ids)).move(1);
+  assert.deepEqual(did, [
+    ["focus", "name:r1", "still"],
+    ["scroll", "row:r1", "nearest"],
+  ]);
+  did.length = 0;
+  fresh();
+  again(() => useArrivalLands({ id: "r2", kind: "arrived" }, ids));
+  assert.deepEqual(did, [
+    ["focus", "name:r2", "still"],
+    ["scroll", "row:r2", "nearest"],
+  ]);
+  globalThis.document.querySelector = () => null;
+});
+
+test("a row gone when its sheet closes gives the focus to the row now in its place, else the last row, else the search", () => {
+  // Deleted: the row after it stands in its place now.
+  let did = pageOf({ rows: ["r1", "r3"] });
+  sheetFrom("r2", ["r1", "r2", "r3"], ["r1", "r3"]);
+  assert.deepEqual(did, [["focus", "name:r3", "still"]], "the row now at its index");
+  // The last row left the tab: the row before it is the last now.
+  did = pageOf({ rows: ["r1", "r2"] });
+  sheetFrom("r3", ["r1", "r2", "r3"], ["r1", "r2"]);
+  assert.deepEqual(did, [["focus", "name:r2", "still"]], "else the last row");
+  // The row now in its place has no page to open (the receptionist): the last row's name.
+  did = pageOf({ rows: ["r1", "receptionist", "r3"], bare: ["receptionist"] });
+  sheetFrom("r2", ["r1", "r2", "r3"], ["r1", "receptionist", "r3"]);
+  assert.deepEqual(did, [["focus", "name:r3", "still"]]);
+  // No row is left: the search, never the page's body.
+  did = pageOf({ rows: [] });
+  sheetFrom("r1", ["r1"], []);
+  assert.deepEqual(did, [["focus", "search", "still"]], "else the search");
   globalThis.document.querySelector = () => null;
 });

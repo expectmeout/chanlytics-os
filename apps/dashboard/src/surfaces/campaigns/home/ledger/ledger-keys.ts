@@ -6,11 +6,13 @@
  * opens the row under the cursor, Escape lets go of the words searched and then of the filter. Never while typing (but
  * Escape in the search box), never with a modifier, never behind a menu or a sheet.
  *
- * Focus comes home: a sheet that closes gives it to the opener of the row it was opened from
- * (`[data-row="<id>"] [data-row-open]`): the kit's Sheet would give it to what held it when it opened, which an Edit that
- * swapped one sheet for another has taken away. An act decided in a row leaves it on the row's name, since the button
- * that held it is gone. And the marks a row wears for its next draw: decided in place, it settles once (the kit's save
- * settle); arrived (just made, just changed), it is scrolled to and washed once (the kit's wash of a changed line).
+ * Focus comes home: a sheet opened from a row gives it, as it closes, to that row's opener
+ * (`[data-row="<id>"] [data-row-open]`), or where the row is gone to the row now in its place, the last row or the search:
+ * the kit's Sheet would give it to what held it when it opened, which an Edit that swapped one sheet for another has
+ * taken away. An act decided in a row leaves it on the row's name, since the button that held it is gone. No focus here
+ * scrolls the page (a phone jumped to the row): only the cursor and an arrival bring a row into view, by the least scroll
+ * that shows it. And the marks a row wears for its next draw: decided in place, it settles once (the kit's save settle);
+ * arrived (just made, just changed), it is scrolled to and washed once (the kit's wash of a changed line).
  */
 import { useEffect, useRef, useState } from "react";
 import { PL_CONTROL, PL_OVERLAY, plTyping } from "@/surfaces/people/words";
@@ -52,19 +54,33 @@ function afterDraw(run: () => void): void {
   else run();
 }
 
-/** Focus to a row's opener, once the page has drawn. */
+/**
+ * Focus that keeps the page where it is. A plain focus scrolls an element out of sight to the middle of the screen, so a
+ * phone jumped to a row the person never saw (a drawer reached by its address, closing).
+ */
+function focusStill(el: HTMLElement | null): void {
+  el?.focus({ preventScroll: true });
+}
+
+/** Focus to a row's opener, once the page has drawn, the page held still: a row decided where it stands. */
 function focusRowOpener(id: string): void {
-  afterDraw(() => found(rowOpener(id))?.focus());
+  afterDraw(() => focusStill(found(rowOpener(id))));
+}
+
+/**
+ * A row walked to or just arrived: its opener takes the focus, and the row is brought into view by the least scroll that
+ * shows it, as People's cursor walks its rows (people/hooks/use-place.ts).
+ */
+function bringRowToView(id: string): void {
+  afterDraw(() => {
+    focusStill(found(rowOpener(id)));
+    found(rowSelector(id))?.scrollIntoView({ block: "nearest" });
+  });
 }
 
 /** A row's opener pressed: what Enter does to the row under the cursor. */
 export function pressRowOpener(id: string): void {
   found(rowOpener(id))?.click();
-}
-
-/** A row brought into view, the least scroll that shows it: an arrival. */
-function scrollToRow(id: string): void {
-  afterDraw(() => found(rowSelector(id))?.scrollIntoView({ block: "nearest" }));
 }
 
 /** A key typed in a box: only Escape in the ledger's own search is the ledger's. */
@@ -138,21 +154,55 @@ export function useLedgerCursor(ids: readonly string[]): { cursor: string | null
     const next = ids[Math.min(ids.length - 1, Math.max(0, from + step))];
     if (next === undefined) return;
     setCursor(next);
-    focusRowOpener(next);
+    bringRowToView(next);
   };
   return { cursor: at, move };
 }
 
-/** The row a sheet was opened from gets the focus back as the sheet closes. `open`: the row the open sheet is about. */
-export function useFocusComesHome(open: string | null): void {
-  const from = useRef<string | null>(open);
+/** The row a sheet was opened from: its id, and where it stood among the rows shown. */
+type CameFrom = { id: string; at: number };
+
+/** The search, or on a phone the circle that opens it: where focus goes when no row is left to take it. */
+const SEARCH_OR_CIRCLE = `[data-testid="${SEARCH_ID}"], [data-testid="cmh-phone-find"]`;
+
+/** A row's opener by its id, where the row is drawn and has one (the receptionist has none). */
+const openerOf = (id: string | undefined): HTMLElement | null => (id === undefined ? null : found(rowOpener(id)));
+
+/**
+ * Where focus comes home as a sheet closes: the row's own name; else, the row gone (deleted, or out of the tab), the name
+ * of the row now in its place; else the last row's; else the search. Never the page's body, which sends the next Tab, and
+ * a screen reader, back to the top of the page (legacy-verbs editorBox).
+ */
+function homeOf(from: CameFrom, ids: readonly string[]): HTMLElement | null {
+  return (
+    openerOf(from.id) ??
+    openerOf(ids[Math.min(from.at, ids.length - 1)]) ??
+    openerOf(ids[ids.length - 1]) ??
+    found(SEARCH_OR_CIRCLE)
+  );
+}
+
+/**
+ * The row a sheet was opened from gets the focus back as the sheet closes, the page held still. `open`: the row the open
+ * sheet is about; `ids`: the rows the screen shows, in order. Only a sheet opened from a row shown here comes home: one
+ * open as the page is first drawn (reached by its address: Today, the bell, a reload) was opened from no row the person
+ * saw, and gives nothing back.
+ */
+export function useFocusComesHome(open: string | null, ids: readonly string[]): void {
+  const was = useRef(open);
+  const from = useRef<CameFrom | null>(null);
   useEffect(() => {
-    if (open !== null) from.current = open;
-    else if (from.current !== null) {
-      focusRowOpener(from.current);
-      from.current = null;
+    if (open === was.current) return;
+    was.current = open;
+    if (open !== null) {
+      const at = ids.indexOf(open);
+      if (at >= 0) from.current = { id: open, at };
+      return;
     }
-  }, [open]);
+    const came = from.current;
+    from.current = null;
+    if (came) afterDraw(() => focusStill(homeOf(came, ids)));
+  }, [open, ids]);
 }
 
 /** What a row wears for its next draw: decided in place (it settles once), or arrived (scrolled to, washed once). */
@@ -186,8 +236,7 @@ export function useArrivalLands(mark: RowMark, ids: readonly string[]): void {
   useEffect(() => {
     if (!here || arrived === null || landed.current === arrived) return;
     landed.current = arrived;
-    scrollToRow(arrived);
-    focusRowOpener(arrived);
+    bringRowToView(arrived);
   }, [arrived, here]);
 }
 

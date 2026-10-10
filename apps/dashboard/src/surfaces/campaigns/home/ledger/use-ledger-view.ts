@@ -60,8 +60,10 @@ interface LedgerShown {
 const rowAnswers = (r: LifecycleRow, words: string): boolean => words === "" || r.search.toLowerCase().includes(words);
 
 /**
- * A group's rows in the order chosen: its own rows that are no campaign (First contact's receptionist and the call's
- * text) first, as the view model ordered them (lifecycle-ledger.ts journeyGroup), then its campaigns, sorted.
+ * A group's rows in the order chosen: its own rows that are no campaign first, as the view model ordered them, then its
+ * campaigns, sorted. What is no campaign is contracts' isLedgerCampaign: First contact's receptionist and the call's text
+ * (lifecycle-ledger.ts journeyGroup), and the month's offer before it is made, which so stands at the top of Lists &
+ * offers with its Turn on (listsGroup).
  */
 const groupInOrder = (rows: readonly LifecycleRow[], order: (a: LifecycleRow, b: LifecycleRow) => number) => [
   ...rows.filter((r) => !isLedgerCampaign(r)),
