@@ -212,7 +212,7 @@ test("archive: the thread closed and the escalation resolved, held or not", asyn
  * that used to be covered by a compensation step nobody could see failing. The
  * take-over's and the hand-back's UPDATEs are SQL's own now (00364), held to
  * the same table on a real database in
- * conversations/take-over-and-hand-back-are-one-write.db.test.mjs.
+ * conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs.
  * -------------------------------------------------------------------------- */
 
 test("every state a verb writes clears what that state cannot coexist with", async () => {

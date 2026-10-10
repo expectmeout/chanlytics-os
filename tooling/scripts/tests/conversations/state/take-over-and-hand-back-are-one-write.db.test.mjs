@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { conversationPatch } from "@chanlytics/contracts";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const CLI = process.env.SUPABASE_CLI || "supabase";
 // The database the CLI is pointed at: the one the environment names when it is on this machine, else the stack

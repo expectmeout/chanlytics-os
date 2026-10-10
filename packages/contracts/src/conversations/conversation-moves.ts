@@ -5,7 +5,7 @@
  * every move of the thread by name: the states it may start from, the state it ends in, and what else it writes. A
  * TypeScript writer builds its update with `conversationPatch`; `take_over` and `hand_back` (the member's two doors,
  * 00364) and the last three (the function each names) are SQL's own, written by hand to agree with this and run
- * against it on a real database (tests/conversations/take-over-and-hand-back-are-one-write.db.test.mjs and
+ * against it on a real database (tests/conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs and
  * tests/conversations/state/conversation-moves.db.test.mjs). A few SQL doors of another subject clear a thread's
  * assignee as a side effect (a partner's pause, a member's departure); they are not moves of the thread.
  *
