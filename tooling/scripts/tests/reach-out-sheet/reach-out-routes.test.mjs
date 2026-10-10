@@ -281,6 +281,24 @@ test("GET reach-outs lists each chain, steps in order, with what decides its nex
   );
 });
 
+test("GET reach-outs answers its reader's payload (readers/playbooks.ts reachOutChains), each chain a row a citation names", async () => {
+  const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const { reachOutChains } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
+  const page = await chains.GET.run(get(), ctxFor(tables("viewer")));
+  const read = await load(
+    readerContext(ctxFor(tables("viewer")), { tenantId: A, role: "viewer" }),
+    reachOutChains,
+    undefined,
+  );
+  assert.deepEqual(read.data, page, "the route's payload is the reader's");
+  assert.deepEqual(
+    read.rows.map((r) => [r.kind, r.id, r.route, r.label]),
+    page.chains.map((c) => ["playbook", c.root_id, `outbound/${c.root_id}`, c.name]),
+    "each chain is a row a citation names, opened where its row opens",
+  );
+  assert.equal(read.rows.length, 1);
+});
+
 test("POST reach-outs: an operator's chain is validated, saved by the service role with the member's id, then started through the run-now door; its answer is said (R13–R15)", async () => {
   const asked = serviceSave();
   const calls = edge({

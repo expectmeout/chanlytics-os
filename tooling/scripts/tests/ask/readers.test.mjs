@@ -38,6 +38,7 @@ const {
   sellsBy,
   policies,
   config,
+  businessShape,
   channelsReady: channelsReadyReader,
 } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { metrics } = await import(at("apps/dashboard/src/server/readers/metrics.ts"));
@@ -2739,6 +2740,37 @@ test("the cross-turn cache is opt-in: a context that does not keep reads a ttl r
   });
 });
 
+test("the business's shape (readers/facts.ts businessShape): how its customers buy, the word it derives, and whether bookings arrive by a tool's emails", async () => {
+  const t = calTables(null);
+  t.tenants[0].sells_by = "proposal";
+  t.tenant_config[0].config.bookings = { tool: "booksy" };
+  const r = await kernel.load(turnIn(ctxFor(t)), businessShape, undefined);
+  assert.deepEqual(r.data, { sellsBy: "proposal", dealsOn: true, word: "meeting", bookingsByEmail: true });
+  assert.deepEqual(r.rows, [], "no row of its own");
+  const bare = await kernel.load(turnIn(ctxFor(calTables(null))), businessShape, undefined);
+  assert.deepEqual(bare.data, { sellsBy: null, dealsOn: false, word: "appointment", bookingsByEmail: false });
+  const unreadable = calTables(null);
+  unreadable.tenant_config = [];
+  const none = await kernel.load(turnIn(ctxFor(unreadable)), businessShape, undefined);
+  assert.equal(none.data.bookingsByEmail, false, "no settings row: no booking tool, and the shape still answers");
+  const down = await kernel.load(
+    turnIn({ ...ctxFor(t), supabase: fakeDb(t, { "tenant_config.select": { message: "config down" } }) }),
+    businessShape,
+    undefined,
+  );
+  assert.deepEqual(
+    down.data,
+    { sellsBy: "proposal", dealsOn: true, word: "meeting", bookingsByEmail: false },
+    "settings that cannot be read cost the booking tool's word, never the shape",
+  );
+  // A turn that holds how its customers buy and the settings reads neither again.
+  const turn = turnIn(ctxFor(t));
+  await Promise.all([sellsBy, config].map((x) => kernel.load(turn, x, undefined)));
+  const held = turn.ctx.supabase.seen.length;
+  await kernel.load(turn, businessShape, undefined);
+  assert.equal(turn.ctx.supabase.seen.length, held, "the turn's own reads");
+});
+
 /* ------------------------------------------------- the people list, the lists, the broadcasts (PR 1.6) */
 
 const P3 = "33333333-3333-4333-8333-333333333333";
@@ -3484,6 +3516,13 @@ const PLAYBOOKS_KEYS = [
   // and what its campaigns have sent by email and by text this month (server/campaigns/month-sent.ts).
   "ready",
   "month_sent",
+  // 9 Oct 2026 (spec 2026-10-09 §4.8): what the workspace calls an appointment, and whether its bookings arrive by a tool's
+  // emails (readers/facts.ts businessShape), which the home's moments are said and counted by.
+  "appointment_word",
+  "bookings_by_email",
+  // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): each autonomy class's mode as stored (readers/facts.ts policies), so a
+  // Resume asked on Campaigns says in full that a campaign under `auto` sends on its own.
+  "modes",
 ];
 /** A playbook row as the page's read selects it (server/campaigns/playbooks.ts COLUMNS), a moment. */
 const pbRow = (id, over = {}) => ({
@@ -3665,6 +3704,12 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
     ],
     ["ok", true, [P2], [SEG1], 1],
   );
+  // 9 Oct 2026 (spec 2026-10-09 §4.8, §4.3): the shape's word and booking tool, and the matrix's modes by class.
+  assert.deepEqual(
+    [rich.appointment_word, rich.bookings_by_email, pages["deals off"].appointment_word, pages["deals off"].modes],
+    ["meeting", false, "appointment", {}],
+    "a meeting where deals are on, else an appointment; no autonomy row is no mode",
+  );
 });
 
 /**
@@ -3758,6 +3803,9 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       want.findIndex(([k, cols]) => k === "broadcast_recipients.select" && cols.includes("messages(")),
       1,
     );
+    // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): the autonomy matrix's rows, so the page knows a class under `auto`
+    // (control-plane listPolicies, the readers/facts.ts policies reader Ask's campaigns.playbooks already reads).
+    want.push(["policies.select", "id, class, mode, subject_type, subject_id, limits, updated_at"]);
     // 9 Oct 2026: the pools' reads leave with the page's first ones (server/campaigns/playbook-pools.ts poolReads), so the
     // reads no longer reach the database one behind another: the same reads, each as often, the door before them all.
     const w = playbooksWorld();

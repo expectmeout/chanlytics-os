@@ -1,5 +1,5 @@
 import "server-only";
-import { dealsAreOn, parseTenantConfig, MIN_MS } from "@chanlytics/contracts";
+import { parseTenantConfig, type AppointmentWord, MIN_MS } from "@chanlytics/contracts";
 import { connectionFor } from "../connections/google";
 import { emailLineFor } from "../connections/email";
 import { playbookRows } from "../campaigns/playbooks";
@@ -20,6 +20,8 @@ export interface WorkspaceShape {
   name: string;
   timezone: string;
   deals_on: boolean;
+  /** What the workspace calls an appointment (readers/facts.ts businessShape). */
+  appointment_word: AppointmentWord;
   calendar_feed: boolean;
   booking_link: boolean;
   channels: Array<{ kind: string; status: string }>;
@@ -35,10 +37,10 @@ export const shape: Reader<undefined, WorkspaceShape> = {
   name: "shape",
   ttlMs: 5 * MIN_MS,
   async read(rc) {
-    const [f, cfg, sells, chans, email, google, saved, playbooks] = await Promise.all([
+    const [f, cfg, biz, chans, email, google, saved, playbooks] = await Promise.all([
       load(rc, facts.facts, undefined).then((r) => r.data),
       load(rc, facts.config, undefined).then((r) => r.data),
-      load(rc, facts.sellsBy, undefined).then((r) => r.data),
+      load(rc, facts.businessShape, undefined).then((r) => r.data),
       load(rc, channels, undefined).then((r) => r.data.channels),
       // The line alone: the shape says whether there is a mailbox, and nothing of how the workspace sends.
       emailLineFor(rc.ctx.supabase, rc.tenantId),
@@ -51,7 +53,8 @@ export const shape: Reader<undefined, WorkspaceShape> = {
     const data: WorkspaceShape = {
       name: f.name,
       timezone: f.timezone,
-      deals_on: dealsAreOn(sells),
+      deals_on: biz.dealsOn,
+      appointment_word: biz.word,
       calendar_feed: !!config?.calendar?.ical_url,
       booking_link: !!config?.brain?.booking_link,
       channels: chans

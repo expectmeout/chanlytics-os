@@ -1,7 +1,6 @@
 import "server-only";
 import {
   AppError,
-  appointmentWordOf,
   audienceTrigger,
   campaignMessageOf,
   FOLLOW_UP_ONE,
@@ -44,6 +43,7 @@ import { archivedListWords } from "@/server/people/audience";
 import { templateValuePorts } from "@/server/ports/campaign-ports";
 import { whatsappHealthOf } from "@/server/campaigns/channels-ready";
 import { sellsByOf } from "@/server/people/deals";
+import { appointmentWordFor } from "@/server/readers/facts";
 import { lazily } from "@/server/lazy";
 
 /**
@@ -487,9 +487,10 @@ export async function checkPlaybookInput(
         const c = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
         return !!c.url || c.lostCalendar;
       },
-      // What the workspace calls an appointment (contracts appointmentWordOf, the one derivation): a refusal's words, and
-      // a new campaign's name on an appointment moment. Read only when one of them is said.
-      appointmentWord: async () => appointmentWordOf({ stored: null, sellsBy: await sellsByOf(ctx, tenantId) }),
+      // What the workspace calls an appointment, worked out where businessShape works it out (readers/facts.ts
+      // appointmentWordFor): a refusal's words, and a new campaign's name on an appointment moment. Read only when one
+      // of them is said.
+      appointmentWord: async () => appointmentWordFor(await sellsByOf(ctx, tenantId)),
     },
     body,
     existing,

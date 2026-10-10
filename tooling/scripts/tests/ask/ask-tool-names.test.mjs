@@ -556,6 +556,19 @@ function withReviews(result) {
   const said = JSON.parse(result);
   return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false, words: NOTHING_LINKED } });
 }
+
+/**
+ * 9 Oct 2026 (spec 2026-10-09 §4.5): the report says the Reach-outs section after the Reviews lens, from its own reader
+ * (readers/campaign-report.ts reachOutReport). This world's database models neither reach_out_report nor
+ * reach_out_chain_totals (a function it does not have is no read it counts), so it says the read failed. The one change
+ * to the bytes of a report it answers; its reads are unchanged.
+ */
+function withReachOuts(result) {
+  const said = JSON.parse(result);
+  return said.error
+    ? result
+    : JSON.stringify({ ...said, reach_outs: { error: "the reach-out numbers could not be read just now" } });
+}
 /** What the Reviews fold says of a workspace with nothing linked, where nothing can be looked up (this world's deployment). */
 const NOTHING_LINKED = toReviewsReportVM(
   {
@@ -789,7 +802,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withReviews(withCampaigns(withHold(result)));
+    if (NAMES[old] === "report") result = withReachOuts(withReviews(withCampaigns(withHold(result))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);

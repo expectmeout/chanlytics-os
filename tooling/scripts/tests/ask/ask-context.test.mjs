@@ -1137,6 +1137,8 @@ test("the shape block: sorted and byte-stable -- the same workspace read in anot
   assert.equal(two, one, "the same bytes for a reordered fixture");
   assert.match(one, /^The workspace: Harbor · zone America\/New_York\nLines: sms pending, whatsapp active\n/);
   assert.match(one, /booking link set/);
+  // 9 Oct 2026 (spec 2026-10-09 §4.8): the word the workspace calls an appointment (readers/facts.ts businessShape).
+  assert.match(one, /the appointment word: appointment/);
   assert.match(one, /Lists: Brides \(archived\), Regulars\n/);
   assert.match(one, /Playbooks: Reminder \(visit_tomorrow, paused\); Win-back \(quiet_30, running\)$/);
 
@@ -1164,6 +1166,7 @@ test("the shape block: sorted and byte-stable -- the same workspace read in anot
     name: "Harbor",
     timezone: TZ,
     deals_on: false,
+    appointment_word: "appointment",
     calendar_feed: false,
     booking_link: false,
     channels: [],

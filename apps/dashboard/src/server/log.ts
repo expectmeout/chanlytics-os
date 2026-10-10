@@ -152,6 +152,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "prompt_preview_refused",
   "rate_store_failed",
   "rate_store_memory_by_configuration",
+  "reach_out_chain_totals_read_failed",
   "recording_audit_unavailable",
   "reply_claim_failed",
   "resolve_escalation_failed",
