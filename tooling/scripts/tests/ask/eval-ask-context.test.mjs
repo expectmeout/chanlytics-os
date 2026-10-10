@@ -43,6 +43,8 @@ import {
   resolveContext,
   secondScope,
   secondTurn,
+  setupCardsFails,
+  toolsOrderNote,
   turnShapes,
   usageRows,
 } from "../../eval-ask-context.mjs";
@@ -1281,4 +1283,46 @@ test("--list says every case and its second turn, its page, the turns and their 
       ),
     ),
   );
+});
+
+test("a setup's keys (the moment spec, A8): proposals_max fails more cards, card_fields_not a field the words ruled out, next_any a next question that says none of the words; tools_order is a note, never a fail", () => {
+  const card = (kind, payload) => ({ id: "p", kind, title: "t", summary: "s", payload });
+  const m = (over = {}) => ({ text: "", proposals: [], tools: [], answer: { do: { next: [] } }, ...over });
+  assert.deepEqual(
+    setupCardsFails({ proposals_max: 2 }, m({ proposals: [card("playbook", {}), card("playbook", {})] })),
+    [],
+  );
+  assert.match(
+    setupCardsFails({ proposals_max: 1 }, m({ proposals: [card("playbook", {}), card("playbook", {})] }))[0],
+    /2 cards/,
+  );
+  const ruled = { card_fields_not: { playbook: { trigger: ["visit_tomorrow", "visited"] } } };
+  assert.deepEqual(setupCardsFails(ruled, m({ proposals: [card("playbook", { trigger: "quiet_30" })] })), []);
+  assert.match(
+    setupCardsFails(ruled, m({ proposals: [card("playbook", { trigger: "visited" })] }))[0],
+    /trigger "visited"/,
+  );
+  // A card of another kind is never judged by a playbook's ruled-out fields.
+  assert.deepEqual(setupCardsFails(ruled, m({ proposals: [card("list", { trigger: "visited" })] })), []);
+  const next = { next_any: ["nudge", "once the list"] };
+  assert.deepEqual(setupCardsFails(next, m({ answer: { do: { next: ["Start the nudge on the new list"] } } })), []);
+  assert.match(setupCardsFails(next, m({ answer: { do: { next: ["What else?"] } } }))[0], /no next question/);
+  // An answer made before the Line says its next questions as followups.
+  assert.deepEqual(setupCardsFails(next, { text: "", followups: ["Once the list is saved, start it?"] }), []);
+  assert.deepEqual(setupCardsFails({}, m()), [], "a case with none of the keys asks nothing of the cards");
+  const order = { tools_order: ["campaigns.playbooks", "propose_campaign.playbook"] };
+  assert.deepEqual(
+    toolsOrderNote(order, m({ tools: ["campaigns.playbooks", "campaigns.audiences", "propose_campaign.playbook"] })),
+    [],
+  );
+  assert.match(
+    toolsOrderNote(order, m({ tools: ["propose_campaign.playbook", "campaigns.playbooks"] }))[0],
+    /not in the order/,
+  );
+  // The names are read through the rename table on both sides, as the judge reads tools_any.
+  assert.deepEqual(
+    toolsOrderNote({ tools_order: ["list_playbooks", "propose_playbook"] }, m({ tools: order.tools_order })),
+    [],
+  );
+  assert.deepEqual(toolsOrderNote({}, m()), []);
 });

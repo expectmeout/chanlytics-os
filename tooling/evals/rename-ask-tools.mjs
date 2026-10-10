@@ -3,9 +3,9 @@
  *
  * PR 3.4 consolidated the twenty-six tools to nineteen, each old tool now one tool and action, recorded by a turn as
  * `name.action` (D11). `tooling/evals/tool-names.json` is the one table of it: old name -> new. This rewrites a case
- * file's `expect.tools_any` and `expect.tools_also_any`, and a second turn's (`then.expect`, PR 5.2), through that
- * table, once; a name already new is kept, so a second run changes nothing, and a name the table does not know is
- * refused by case and name, with nothing written.
+ * file's `expect.tools_any`, `expect.tools_also_any` and `expect.tools_order`, and a second turn's (`then.expect`, PR
+ * 5.2), through that table, once; a name already new is kept, so a second run changes nothing, and a name the table
+ * does not know is refused by case and name, with nothing written.
  * The judge (eval-ask.mjs) reads names through the table too (`usedAny`), on both sides: a case or a stored turn that still says
  * an old name is judged as the new one, so PR 2.3's baseline stays comparable.
  *
@@ -59,8 +59,8 @@ export function usedAny(names, tools) {
   return names.some((n) => used.has(toolNow(n)));
 }
 
-/** The keys of a case's `expect` that name tools. */
-const TOOL_KEYS = ["tools_any", "tools_also_any"];
+/** The keys of a case's `expect` that name tools: `tools_order` (a note's names, the moment spec's A8) since 9 Oct 2026. */
+const TOOL_KEYS = ["tools_any", "tools_also_any", "tools_order"];
 
 /**
  * The cases with every tool name new: `{ cases, changed, unknown }`, a case's second turn (`then.expect`, PR 5.2) as

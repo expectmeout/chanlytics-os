@@ -28,6 +28,9 @@
  * Beside the pure parts, the runner's few requests that are more than one question live here too, each over what the
  * runner hands in, so a test hands a fake: a settings note approved between the turns and put back (approveBetween,
  * putBack, over an injected fetch), and what a run cost (usageRows, turnShapes, over an injected PostgREST read).
+ *
+ * A setup's keys live here too (the moment spec, A8: setupCardsFails, toolsOrderNote), pure over a turn's final message,
+ * since eval-ask.mjs runs on import and its judge can only be proved through what it calls.
  */
 import {
   ASK_ANSWER_CAPS,
@@ -46,6 +49,7 @@ import {
   unquoted,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db";
+import { toolNow } from "../evals/rename-ask-tools.mjs";
 
 /** A row of a GET's answer: its id, the name the page shows for it, and when it last moved (for a merge by time). */
 const at = (...vs) => {
@@ -501,6 +505,45 @@ export function namesCard(m, first) {
   if (again.length) fails.push(`a second ${again.join("/")} card, where turn 1's is one press above`);
   if (claimsWrite(text)) fails.push(`the answer claims the card was done: “${text.slice(0, 120)}”`);
   return fails;
+}
+
+/**
+ * A setup's cards (the moment spec, A8): `proposals_max` fails more cards than N (four is near where presses go reflex);
+ * `card_fields_not` fails a card of the kind whose field holds a value the words ruled out (a reminder of an appointment
+ * in a setup); `next_any` fails unless one of the answer's next questions holds one of the words (a campaign on a list
+ * made in the same answer waits for a next question, A2). `e` is a case's expect, `m` the turn's final message.
+ */
+export function setupCardsFails(e, m) {
+  const fails = [];
+  const cards = m?.proposals ?? [];
+  if (typeof e.proposals_max === "number" && cards.length > e.proposals_max)
+    fails.push(`${cards.length} cards, where at most ${e.proposals_max} were expected`);
+  for (const [kind, fields] of Object.entries(e.card_fields_not ?? {}))
+    for (const p of cards.filter((x) => x.kind === kind))
+      for (const [k, banned] of Object.entries(fields))
+        if (banned.includes(p.payload?.[k]))
+          fails.push(`a ${kind} card with ${k} ${JSON.stringify(p.payload?.[k])}, which the words ruled out`);
+  if (Array.isArray(e.next_any)) {
+    const next = (m?.answer?.do?.next ?? m?.followups ?? []).map((q) => String(q).toLowerCase());
+    if (!e.next_any.some((w) => next.some((q) => q.includes(w.toLowerCase()))))
+      fails.push(`no next question holds any of ${e.next_any.join("/")}: ${JSON.stringify(next)}`);
+  }
+  return fails;
+}
+
+/**
+ * `tools_order`, a note and never a fail: the names expected, read through the rename table, are not a subsequence of the
+ * tools the turn ran. What a reviewer would mark; the cards are the grade (Anthropic, "Demystifying evals for AI agents":
+ * grade what the agent produced, not the path it took).
+ */
+export function toolsOrderNote(e, m) {
+  if (!Array.isArray(e.tools_order)) return [];
+  const tools = (m?.tools ?? []).map(toolNow);
+  let at = 0;
+  for (const t of tools) if (at < e.tools_order.length && toolNow(e.tools_order[at]) === t) at++;
+  return at === e.tools_order.length
+    ? []
+    : [`tools ${JSON.stringify(tools)} not in the order ${e.tools_order.join(" → ")}`];
 }
 
 /** Where an item opens: its source's route as the answer's grounding gave it, else where its kind opens. */
