@@ -121,7 +121,10 @@ jobs:
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # Seven minutes of checks before the tests, then the whole suite where a pull request changes a helper every test
+    # loads (21 to 40 minutes on 6-9 Oct 2026), then the build and the bundle: at 35 the suite was cut off on #1535 and
+    # #1539 and the build never ran (Ruben, 10 Oct 2026). An hour is the most workflow-rules.test.mjs allows.
+    timeout-minutes: 60
     # The bundle check reads the pull request's description as it runs (below), so a re-run reads an edited one; the
     # token reads nothing else.
     permissions:
