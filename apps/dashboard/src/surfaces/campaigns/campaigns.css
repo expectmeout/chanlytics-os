@@ -5443,13 +5443,23 @@ div.tpl-slotbox:not([data-lines="1"]) {
     flex-wrap: wrap;
     row-gap: 2px;
   }
+  /* Each of the fold's parts keeps its own line, and the fold wraps whole parts when the name's cell is narrow (seen on
+     the rig at 1000px, 10 Oct: both parts shrank, so "WhatsApp" stood over "Email" and "7" over "people"). */
   .cmh-row-fold {
     display: flex;
     flex-basis: 100%;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-2);
+    gap: 2px var(--space-2);
     font-size: var(--text-xs);
     color: var(--ink-dim);
+  }
+  .cmh-row-fold > * {
+    flex: none;
+    white-space: nowrap;
+  }
+  .cmh-row-fold .cmh-chans {
+    flex-wrap: nowrap;
   }
 }
 /* A thumb needs no more of the name than its row: the whole 44px line presses the name (cmRowPress), and a margin round
