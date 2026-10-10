@@ -1,5 +1,5 @@
 /**
- * A billing reading and the workspace's switch are one write (00379 billing_apply), on a real Postgres: the row under
+ * A billing reading and the workspace's switch are one write (00382 billing_apply), on a real Postgres: the row under
  * its compare-and-set and tenants.status in one transaction. They were two statements on the edge, and a failure
  * between them left a workspace paid and paused until Stripe's next event. Here the switch is made to fail AFTER the
  * row is written (a status tenants' own CHECK refuses), and the row's write goes back with it; a reading planned

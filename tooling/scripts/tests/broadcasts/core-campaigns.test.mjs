@@ -175,7 +175,7 @@ function fakes(over = {}) {
     timezone: "America/New_York",
     // Whether the workspace is paused (tenants.status): not, unless a test says so.
     paused: false,
-    // The run, its people, its job and its decision, whole (00378): the run's id, and the decision's when one was asked for.
+    // The run, its people, its job and its decision, whole (00381): the run's id, and the decision's when one was asked for.
     assemble: (_row, _recipients, _sendAt, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
     // The month's allowance, counted before anyone is enrolled: the emails and texts this workspace's campaigns have sent
     // this month. None here; a test gives the count, or a refusal to read it.
@@ -1020,7 +1020,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     { contact_id: "b", facts: null, channel: "whatsapp" },
   ]);
   assert.deepEqual(f.of("assemble")[0][3], NOW);
-  // The ledger's line rides with the run (00378): whose decision the send is, and what is kept of it.
+  // The ledger's line rides with the run (00381): whose decision the send is, and what is kept of it.
   assert.deepEqual(f.of("assemble")[0][4], {
     by: { kind: "user", userId: "u1" },
     payload: {
@@ -1919,7 +1919,7 @@ test("a hold that could not be written leaves the people queued, and the run is 
   assert.deepEqual(f.ops(), ["assemble", "holdRecipients"], "the run stands, and the ledger's line with it");
   assert.equal(r.id, "b1");
   assert.equal(r.held_for_allowance, 0, "none was held at enrolment: the receipt says what was actually held");
-  // The ledger's line is written with the run, before the hold (00378): it says how many the month holds, as a
+  // The ledger's line is written with the run, before the hold (00381): it says how many the month holds, as a
   // playbook's run does; what the hold's own write then left queued is the receipt's and the log's to say.
   const decision = f.of("assemble")[0][4].payload;
   assert.equal(decision.held_for_allowance, 4, "the month holds four");

@@ -259,7 +259,7 @@ export async function writtenEmails(db: Db, ids: string[]): Promise<Set<string>>
   return out;
 }
 
-/** An email withdrawn while it is still queued and no run has begun to send it, through the one door (00384): its job
+/** An email withdrawn while it is still queued and no run has begun to send it, through the one door (00387): its job
  *  then sends nothing. False when it was not: it had moved on, or it is on its way, and what became of it is its job's. */
 export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; reason: string }): Promise<boolean> {
   const withdrawn = await withdrawQueued(db, {

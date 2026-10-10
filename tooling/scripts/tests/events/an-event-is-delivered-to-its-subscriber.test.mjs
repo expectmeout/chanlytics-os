@@ -69,7 +69,7 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
       },
     ],
   };
-  // The booking door over one appointment (00386): what it was asked, and one lead moved.
+  // The booking door over one appointment (00389): what it was asked, and one lead moved.
   const db = fakeDb(
     tables,
     {},

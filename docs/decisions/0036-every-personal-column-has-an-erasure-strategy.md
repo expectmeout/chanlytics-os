@@ -5,7 +5,7 @@ other people's notes, nothing of anyone else's is deleted, names are left); step
 and its ratchet, and the notes' scrub, 00341); step 2's test built on 7 October 2026
 (`people/erasure/erasure-completeness.db.test.mjs`: the needles seeded into every registered column, the real route run
 as the owner, every column searched after; its number on the back office is not yet written); step 3 built on
-10 October 2026 (00388): 187 of the 195 classified, 8 left counted, each waiting on a word below. Proposed the same day: the registry 0031's invariant 10 names ("every
+10 October 2026 (00391): 187 of the 195 classified, 8 left counted, each waiting on a word below. Proposed the same day: the registry 0031's invariant 10 names ("every
 table has a tenant, a floor and an erasure strategy") and leaves to a note of its own. Written against commit
 `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, and built on `266fff9a`. Where this note
 and the code disagree, the code wins.
@@ -79,7 +79,7 @@ someone else's thread stays, and stays counted, until an exception to that trigg
    first to decide: they can name a person and only their 400 days remove them. Built on 10 October 2026: each of the
    195 read against its writers, 187 named. `ai_usage`'s are labels from the question's own options (the CHECK holds
    them to shadow rows of 80 characters), and named by age, which is true whatever a later writer puts there. Three held
-   words no leg or clock reached, and 00388 reaches them: the words a run kept for each person (a visit's time, service
+   words no leg or clock reached, and 00391 reaches them: the words a run kept for each person (a visit's time, service
    and calendar key, a proposal's link) are cleared when the person is erased (`broadcast_recipients_on_erase`, a new
    leg), and `lead_blank` blanks a reach-out's opening, angle and note, and a preference's example, with the lead they
    were written from. A finished job's error is cleared with its payload (`scrubErasedJobs`): a provider's refusal can

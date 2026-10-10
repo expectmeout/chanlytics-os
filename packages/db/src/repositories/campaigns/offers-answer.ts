@@ -39,7 +39,7 @@ export async function offersAnswerOf(
  * WhatsApp's report that a person stopped marketing messages from this business (131050 on a message of ours),
  * recorded as their no to offers: the answer about offers, its source and its time together, and one
  * contact.consent_changed row with the purpose named, WhatsApp as its source and the message Meta refused, in one
- * transaction through the one door a provider's stop is recorded by (record_provider_stop, 00380). The person is the
+ * transaction through the one door a provider's stop is recorded by (record_provider_stop, 00383). The person is the
  * one the message was written to. A person who already said no, or who was erased, is left as they are, with no
  * second ledger row, and the door answers false. `dnc` is not touched: this is a no to offers, and messages about
  * their own visit still reach them. A write that fails THROWS; the receipts door catches it in its own guard, so it

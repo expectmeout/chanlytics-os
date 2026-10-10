@@ -1,4 +1,4 @@
--- 00379 · A billing reading and the workspace's switch are one write.
+-- 00382 · A billing reading and the workspace's switch are one write.
 --
 -- A subscription reading (a Stripe event, a sync, a resume) was applied in two statements on the edge: the billing row
 -- under a compare-and-set (the status and updated_at the reading was planned against), then tenants.status when the
@@ -106,4 +106,4 @@ end $$;
 revoke all on function public.billing_apply(uuid, jsonb, jsonb, text) from public, anon, authenticated;
 grant execute on function public.billing_apply(uuid, jsonb, jsonb, text) to service_role;
 comment on function public.billing_apply(uuid, jsonb, jsonb, text) is
-  'The edge''s one writer of a workspace''s billing row (00379): the columns a reading or a stamp writes (p_row), written only if the row is still what the caller planned against (p_expect {status, updated_at} for a reading, {stripe_customer_id} for a deleted customer; null when nothing races the write), the row locked first and the columns laid over it as the lock found it, and the workspace''s switch (p_tenant_status, null when it does not move), in one transaction. True when written; false when another reading won or there is no row, and then nothing moved. The rules are contracts'' planBilling''s; the bell and the event are the edge''s, after. Service role only.';
+  'The edge''s one writer of a workspace''s billing row (00382): the columns a reading or a stamp writes (p_row), written only if the row is still what the caller planned against (p_expect {status, updated_at} for a reading, {stripe_customer_id} for a deleted customer; null when nothing races the write), the row locked first and the columns laid over it as the lock found it, and the workspace''s switch (p_tenant_status, null when it does not move), in one transaction. True when written; false when another reading won or there is no row, and then nothing moved. The rules are contracts'' planBilling''s; the bell and the event are the edge''s, after. Service role only.';

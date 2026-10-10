@@ -16,7 +16,7 @@
  * The last two cases put a ledger that refuses the row on `events`, inside a transaction that never commits (through
  * the CLI, as team-changes-and-their-audit.db.test.mjs does for `decisions`; SUPABASE_CLI names the binary when
  * `supabase` is not on PATH): the change event's trap lets the change land without it (00308), and the door refuses a
- * hold whose escalation.opened the ledger refused (00385).
+ * hold whose escalation.opened the ledger refused (00388).
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -281,7 +281,7 @@ test(
           .eq("kind", "escalation.changed")
           .eq("subject_id", esc.id)
       ).data;
-    // The writer is the one door (escalation_open, 00385), SQL, so the block calls it as upsertEscalation does.
+    // The writer is the one door (escalation_open, 00388), SQL, so the block calls it as upsertEscalation does.
     const replace = (reason, details) => `
     declare said text;
     begin

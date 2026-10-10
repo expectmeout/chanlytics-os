@@ -183,7 +183,7 @@ function edge(doors = {}) {
   return calls;
 }
 
-/** The service role's save, as the door answers it: what it was asked, recorded; a new chain's start with its line (00378). */
+/** The service role's save, as the door answers it: what it was asked, recorded; a new chain's start with its line (00381). */
 function serviceSave(
   answer = (a) => ({
     root_id: ROOT_ID,
@@ -320,7 +320,7 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
     p_tenant_id: A,
     p_user_id: USER,
     p_chain: { ...CHAIN(), root_id: null },
-    // The start's line in the ledger rides with the chain (00378): the door writes it, the route no longer does.
+    // The start's line in the ledger rides with the chain (00381): the door writes it, the route no longer does.
     p_decision: { name: CHAIN().name },
   });
   assert.deepEqual(

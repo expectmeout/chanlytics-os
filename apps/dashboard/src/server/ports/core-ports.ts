@@ -46,7 +46,7 @@ export async function changed(
 export function threadPorts(ctx: RouteContext): ThreadPorts {
   return {
     pauseMs: (tenantId) => pauseMsFor(ctx, tenantId),
-    // A take-over and a hand-back are each one door on the member's own session (00383): the session's claim, the
+    // A take-over and a hand-back are each one door on the member's own session (00386): the session's claim, the
     // service role's hold, the drafts and the ledger were four writes on two clients, and the ones after the first
     // could stand while a later one failed. The door's refusal (not a member who may act here) is answered as a door's
     // is; the undo link it dropped is logged as recordDecision logs it.
@@ -129,7 +129,7 @@ export function escalationPorts(ctx: RouteContext): EscalationPorts {
 
 export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
   return {
-    // One door on the member's own session (00384 message_call_back): the row, its send job and the cancel_send line,
+    // One door on the member's own session (00387 message_call_back): the row, its send job and the cancel_send line,
     // only while the row is queued and no run has claimed it (sending_at, 00352): a claimed row is on its way to the
     // person, and stays queued only until the provider answers. Null is the verb's "too late". The undo link it
     // dropped is logged as recordDecision logs it.
@@ -249,7 +249,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     schedule: async (tenantId, dueAt, payload) => {
       await schedule(tenantId, "outbound_send", dueAt, payload);
     },
-    // Through the one door (00384), on the member's own session: the row, and a job that did get written with it. The
+    // Through the one door (00387), on the member's own session: the row, and a job that did get written with it. The
     // reply is already failing, and that failure is the caller's: a withdrawal that fails too is logged, never thrown
     // over it.
     cancelOrphan: async (tenantId, id) => {

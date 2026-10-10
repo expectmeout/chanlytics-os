@@ -2,7 +2,7 @@
  * A thread's state moves by one table (contracts conversation-moves.ts), and every TypeScript writer of
  * `conversations.state` writes its move's patch: the dashboard's thread ports and a reply's claim, db's hand-off and
  * the owner's echo, each run over the database in memory and read back from the statement it sent. A take-over and
- * a hand-back are SQL's own now (00383), held to the same table on a real database in
+ * a hand-back are SQL's own now (00386), held to the same table on a real database in
  * ./take-over-and-hand-back-are-one-write.db.test.mjs.
  */
 import { test } from "node:test";

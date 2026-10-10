@@ -340,7 +340,7 @@ interface ThreadPorts {
     /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
     pauseMs(tenantId: TenantId): Promise<number>;
     /**
-     * A person takes the thread, whole (00383): needs_human, paused until, snooze cleared, theirs; the live hold on who
+     * A person takes the thread, whole (00386): needs_human, paused until, snooze cleared, theirs; the live hold on who
      * is speaking; the receptionist's held drafts withdrawn; and the take_over decision, in one transaction. Null iff no
      * row changed: the thread moved while they looked, and nothing was written.
      */
@@ -349,7 +349,7 @@ interface ThreadPorts {
         decision_id: string;
     } | null>;
     /**
-     * The thread handed back, whole (00383): open with nothing paused, snoozed or claimed; this person's hold let go
+     * The thread handed back, whole (00386): open with nothing paused, snoozed or claimed; this person's hold let go
      * (somebody else's is left alone); the hand_back decision; and the open escalation resolved by it, in one
      * transaction. Null iff no row changed, and then nothing was written.
      */
@@ -405,7 +405,7 @@ type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "takeOver" | "now">;
  * is a different question and a shorter one, and a hold that outlives the
  * person holding it is the defect this fact was added to end -- so the pause
  * window is the ceiling, and a day is the ceiling on that. The take-over's own
- * door keeps the same ceiling (00383, over 00132's claim); a reply's hold is
+ * door keeps the same ceiling (00386, over 00132's claim); a reply's hold is
  * taken here (reply.ts).
  */
 declare const PERSON_CONTROL_MAX_S: number;
@@ -1968,7 +1968,7 @@ interface AssembledRun {
 interface AssemblePorts {
     /**
      * The run, its people, its send job when `sendAt` is set and the send_broadcast decision on it when `decision` is
-     * given, written whole in one transaction (00378 assemble_broadcast): the run's id back with the decision's, or a
+     * given, written whole in one transaction (00381 assemble_broadcast): the run's id back with the decision's, or a
      * throw, and then nothing was written. A run that waits for a person is made with no decision: its approval is its
      * decision (ApproveRunPorts).
      */
@@ -2217,7 +2217,7 @@ interface CancelBroadcastPorts {
 /**
  * A run's assembly, the one implementation: the broadcast row, the people on it, the send job when the plan sends now
  * or later, and the decision to send when one is given, in one transaction (00282 assemble_broadcast, with its
- * decision since 00378). All are written or none is, so no run is left with no people, no people with no job to send
+ * decision since 00381). All are written or none is, so no run is left with no people, no people with no job to send
  * to them, and no run sending with nothing in the ledger saying who said so; a function that dies halfway leaves
  * nothing to clean up. It was three writes with a compensating fail between them, then the ledger's line after, and a
  * death between two left a broadcast that showed as scheduled and that nothing would ever send, or one the route
@@ -4372,7 +4372,7 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  * (0031, invariant 3). The harness in tooling/scripts/tests/events runs each subscriber twice on one delivery.
  *
  *   audit             settles and does nothing else: it measures the relay (0032, step 3).
- *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00386) is handed
+ *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00389) is handed
  *                     to the booking door, so the lead a reach-out wrote to is booked however the booking arrived: a
  *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the
  *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
@@ -4381,7 +4381,7 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
 interface SubscriberPorts {
-    /** The booking door over one appointment of the record (00386 reach_out_booked_from): how many leads moved. */
+    /** The booking door over one appointment of the record (00389 reach_out_booked_from): how many leads moved. */
     bookedFromAppointment(tenantId: string, appointmentId: string): Promise<number>;
 }
 /** A subscriber: the event, once; nothing to return, a throw is a failed delivery. */

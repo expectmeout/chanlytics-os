@@ -429,7 +429,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     lib.includes("expect: { status: row.status, updated_at: row.updated_at }") &&
       lib.includes("tenantStatus: plan.tenantStatus,") &&
       lib.includes('L.info("billing_apply_raced"'),
-    "two events for one change: the loser writes nothing and rings nothing; the row and the switch are one write (00379)",
+    "two events for one change: the loser writes nothing and rings nothing; the row and the switch are one write (00382)",
   );
   assert.ok(
     !lib.includes('.from("billing_accounts").update(') && !lib.includes('.from("tenants").update('),

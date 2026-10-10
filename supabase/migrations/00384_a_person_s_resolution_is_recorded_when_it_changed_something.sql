@@ -1,4 +1,4 @@
--- 00381 · A person's resolution is on the ledger only when it changed something.
+-- 00384 · A person's resolution is on the ledger only when it changed something.
 --
 -- resolve_person wrote person.resolved on every call. The calendar's hourly read resolves every person on the calendar,
 -- so a workspace with a full week wrote one "matched, nothing new" row per appointment per hour: the largest kind in the
@@ -301,7 +301,7 @@ begin
     end;
   end if;
 
-  -- The ledger's row, when the call changed something (00381): a person made, a field filled (the outcome says
+  -- The ledger's row, when the call changed something (00384): a person made, a field filled (the outcome says
   -- either), an identity added or its word raised, a doubt written, or a lead linked. A call that found the person
   -- and learned nothing writes none: the message, the call or the appointment that asked is the record.
   if v_outcome <> 'matched' or v_identity in ('added', 'raised') or v_doubt_id is not null or v_lead is not null then
@@ -320,7 +320,7 @@ begin
 end $_$;
 
 
-COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00381). The service role''s and the doors'' alone.';
+COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00384). The service role''s and the doors'' alone.';
 
 REVOKE ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) FROM PUBLIC, anon, authenticated;
 GRANT ALL ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) TO service_role;

@@ -1,7 +1,7 @@
 /**
  * The reach-out sheet's reads and writes (Reach out, Part 4 PRs 4–5): a workspace's chains as their rows, a chain's
  * root and a send by their ids, the emails' words, a run's sends, a step stamped for its day, the one reset of a
- * send's check (00211 reach_out_recheck), a chain saved whole with its start's line (00378 reach_out_save) and the
+ * send's check (00211 reach_out_recheck), a chain saved whole with its start's line (00381 reach_out_save) and the
  * outreach mode. The one place these tables are typed for them. The
  * dashboard asks on the session client (RLS decides what a member reads); the edge on the service role. A read that
  * fails throws: "we could not read" is never "none".
@@ -170,7 +170,7 @@ export interface ReachOutSaved {
 
 /**
  * A chain made or edited whole and, when it is new, the start_playbook decision on its root as the member's, in one
- * transaction (00378 reach_out_save over 00211's door). The service role's alone (R15): the route has checked the
+ * transaction (00381 reach_out_save over 00211's door). The service role's alone (R15): the route has checked the
  * member's role and validated every word, and names who they are (`userId`); the door checks the membership again.
  * `decision` is what the ledger keeps of the start, for a new chain, and null for an edit (a chain is started once:
  * the door refuses a decision given with a root_id). The door's own answer, or its refusal with the code it refused

@@ -4,7 +4,7 @@
  * `conversations.state` is written by the dashboard's thread ports, db's inbound pauses and SQL's sweeps. This table is
  * every move of the thread by name: the states it may start from, the state it ends in, and what else it writes. A
  * TypeScript writer builds its update with `conversationPatch`; `take_over` and `hand_back` (the member's two doors,
- * 00383) and the last three (the function each names) are SQL's own, written by hand to agree with this and run
+ * 00386) and the last three (the function each names) are SQL's own, written by hand to agree with this and run
  * against it on a real database (tests/conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs and
  * tests/conversations/state/conversation-moves.db.test.mjs). A few SQL doors of another subject clear a thread's
  * assignee as a side effect (a partner's pause, a member's departure); they are not moves of the thread.
@@ -27,7 +27,7 @@ interface ConversationMove {
 const ANY: readonly ConversationState[] = CONVERSATION_STATES;
 
 export const CONVERSATION_MOVES = {
-  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00383). */
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00386). */
   take_over: {
     from: ANY,
     to: "needs_human",
@@ -39,7 +39,7 @@ export const CONVERSATION_MOVES = {
     to: "needs_human",
     sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" },
   },
-  /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00383). */
+  /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00386). */
   hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
   /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
   snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },

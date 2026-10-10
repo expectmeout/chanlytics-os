@@ -288,7 +288,7 @@ function touchEnrolled(r: Run, goesAt: Date, eligible: readonly PersonRowVM[], h
 }
 
 /**
- * Whose decision a run that sends is, written with the run (00378): the system's under the mode the owner chose; a
+ * Whose decision a run that sends is, written with the run (00381): the system's under the mode the owner chose; a
  * person's when they asked for it. None for a run that waits for a person: their approval is its decision.
  */
 function decisionOf(run: Run, send: { n: number; at: Date; movedFrom: string | null }): AssembleDecision {

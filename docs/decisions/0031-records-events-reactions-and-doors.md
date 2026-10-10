@@ -273,10 +273,10 @@ _Ruben's._ The merge settings (`enforce_admins`, branches kept up to date: both 
 WhatsApp switch; the alarm path the numbers of invariant 12 will ring.
 
 **10 October 2026**, the sweep and the road brought onto main at `c368115b4` and reviewed once, each branch by a reader
-who had not written it. The doors are 00378 to 00383, renumbered above main's 00371 and #1533's 00372: the run and
-the chain with their decisions (00378), the billing row and the switch (00379), a provider's STOP (00380), the
-resolution recorded on a change (00381), the hold's index (00382, built concurrently, alone in its file), the take-over
-and the hand-back (00383). The review changed six things: `resolve_person` is 00367's body with only its ledger row
+who had not written it. The doors are 00381 to 00386, renumbered above main's 00371 and #1533's 00372: the run and
+the chain with their decisions (00381), the billing row and the switch (00382), a provider's STOP (00383), the
+resolution recorded on a change (00384), the hold's index (00385, built concurrently, alone in its file), the take-over
+and the hand-back (00386). The review changed six things: `resolve_person` is 00367's body with only its ledger row
 gated (copied from 00346, it would have undone 00367's rule for a number written with its +); the take-over withdraws
 only a draft no run has claimed (`sending_at` null, as 00362 and #1527's pause do: as a definer it reads past the row
 policy); `billing_apply` locks the row before it lays the columns over it (read from a second scan, a stamp waiting
@@ -292,14 +292,14 @@ read by name that day, holds no clash. Invariant 11, every model turn a record, 
 note and not yet on main.
 
 The same day, on the same branch, the items the 9 October review left: a queued message is withdrawn by one door
-(`withdraw_queued` and the member's doors over it, 00384), so the nine places that cancelled a send each in its own way
+(`withdraw_queued` and the member's doors over it, 00387), so the nine places that cancelled a send each in its own way
 call it; one predicate says whether an automated message may go (`unattendedHold`, core), the receptionist's reply and
 the outbound gate asking it in one order and failing closed; an escalation is opened with its event (`escalation_open`,
-00385), the hold refused with an event the ledger refused; the spine's first subscriber that acts (00386): an
+00388), the hold refused with an event the ledger refused; the spine's first subscriber that acts (00389): an
 appointment's change writes `appointment.changed` in its own transaction, and `reach_out_booked` books the lead a
-reach-out wrote to however the booking arrived; a paused subscription keeps what it would have been handed (00387), a
+reach-out wrote to however the booking arrived; a paused subscription keeps what it would have been handed (00390), a
 re-drive replaying it, and that re-drive is a delivery's one way back: the back office's requeue hands a delivery's job
-to it rather than running a second beside a row it would leave failed. Invariant 10's registry names 187 of its 195 columns (0036 step 3, 00388), and 0035's client
+to it rather than running a second beside a row it would leave failed. Invariant 10's registry names 187 of its 195 columns (0036 step 3, 00391), and 0035's client
 keys the workspace's other writes. Invariant 2 is held in part: the doors-without-events baseline is built (sixty-eight
 doors writing seventy-seven tables, `baselines/doors-without-events.json`), and each door the day built has its event
 proved on a real database; the conformance test across every door is not. Invariant 12 waits on Ruben's targets.

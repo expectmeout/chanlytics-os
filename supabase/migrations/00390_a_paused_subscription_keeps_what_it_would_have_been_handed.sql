@@ -1,4 +1,4 @@
--- 00387 · A paused subscription keeps what it would have been handed.
+-- 00390 · A paused subscription keeps what it would have been handed.
 --
 -- Decision 0032 (4): "A paused subscriber keeps its deliveries; a re-drive door replays them." What 00334 built dropped
 -- them instead: the copy wrote no outbox row for a kind whose only subscriptions were paused, and the relay wrote no
@@ -31,7 +31,7 @@ end $$;
 revoke all on function public.events_outbox_copy() from public, anon, authenticated;
 grant execute on function public.events_outbox_copy() to service_role;
 comment on function public.events_outbox_copy() is
-  'After each event: a row on event_outbox when a subscription names its kind, paused or not (decision 0032, 4; 00387). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
+  'After each event: a row on event_outbox when a subscription names its kind, paused or not (decision 0032, 4; 00390). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
 
 create or replace function public.relay_events(p_limit integer default 500)
 returns integer
@@ -85,4 +85,4 @@ end $$;
 revoke all on function public.relay_events(integer) from public, anon, authenticated;
 grant execute on function public.relay_events(integer) to service_role;
 comment on function public.relay_events(integer) is
-  'The first step of every tick (decision 0032): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per subscriber, a paused one''s held as paused with no job until a re-drive (00387), and one event_deliver job for each other (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
+  'The first step of every tick (decision 0032): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per subscriber, a paused one''s held as paused with no job until a re-drive (00390), and one event_deliver job for each other (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';

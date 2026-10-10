@@ -105,7 +105,7 @@ test("EVERY path where a human takes control withdraws the draft", () => {
 });
 
 // How a held draft is withdrawn (the row and the job that would send it, in one transaction; by message, never by
-// conversation; the receptionist's drafts alone, and only one no run has claimed) is one door's since 00384, and
+// conversation; the receptionist's drafts alone, and only one no run has claimed) is one door's since 00387, and
 // conversations/state/a-queued-message-is-withdrawn-by-one-door.db.test.mjs runs it on a real database. These held the
 // four writers it replaced by their text.
 

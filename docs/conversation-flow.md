@@ -89,7 +89,7 @@ Three things fall out of that table.
 
 Three columns on `conversations` carry ownership, and one function decides what each of them stops.
 
-`takeOver` (`packages/core/src/conversations/take-over.ts`) pauses the receptionist, claims the thread, takes the hold on who is speaking, and **withdraws the drafts already written** — a held reply landing after a person arrives is exactly what the veto window exists to prevent. `handBack` (`hand-back.ts`) releases it, lets the hold go and resolves the open escalation. Each is one SQL door on the member's own session (`conversation_take_over`, `conversation_hand_back`, 00383), so all of it lands or none of it does: a door that changed no row did nothing, and the verb answers a 409.
+`takeOver` (`packages/core/src/conversations/take-over.ts`) pauses the receptionist, claims the thread, takes the hold on who is speaking, and **withdraws the drafts already written** — a held reply landing after a person arrives is exactly what the veto window exists to prevent. `handBack` (`hand-back.ts`) releases it, lets the hold go and resolves the open escalation. Each is one SQL door on the member's own session (`conversation_take_over`, `conversation_hand_back`, 00386), so all of it lands or none of it does: a door that changed no row did nothing, and the verb answers a 409.
 
 At the wire, `refusalFor` (`packages/core/src/deliver.ts:216`) decides which pause holds which kind of send. This matrix is the product's manners:
 

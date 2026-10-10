@@ -17287,7 +17287,7 @@ var EVENT_KINDS = [
   /**
    * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
    * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
-   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00386). On
+   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00389). On
    * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
    * appointment.
    */
@@ -17297,7 +17297,7 @@ var EVENT_KINDS = [
    * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
    *
    * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
-   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00385), once per hold; a
+   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00388), once per hold; a
    * reason that changes under an open hold is escalation.changed.
    */
   "escalation.opened",
@@ -20790,7 +20790,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
 // src/conversations/conversation-moves.ts
 var ANY = CONVERSATION_STATES;
 var CONVERSATION_MOVES = {
-  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00383). */
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00386). */
   take_over: {
     from: ANY,
     to: "needs_human",
@@ -20802,7 +20802,7 @@ var CONVERSATION_MOVES = {
     to: "needs_human",
     sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" }
   },
-  /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00383). */
+  /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00386). */
   hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
   /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
   snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },

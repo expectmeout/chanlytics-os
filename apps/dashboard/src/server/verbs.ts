@@ -322,7 +322,7 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
  * and the customer received nothing. Withdrawing the receptionist's draft must
  * not touch a colleague's words.
  *
- * Row and job are one write since 00384 (member_withdraw_drafts over the one door, withdraw_queued): the row cannot be
+ * Row and job are one write since 00387 (member_withdraw_drafts over the one door, withdraw_queued): the row cannot be
  * canceled with its job left to fire, nor the job withdrawn with its row left queued for ever. Only a draft no send job
  * has claimed yet (sending_at, 00352): a claimed one is already on its way to the customer and stays queued only until
  * the provider answers, and is left to say what became of it, not counted.

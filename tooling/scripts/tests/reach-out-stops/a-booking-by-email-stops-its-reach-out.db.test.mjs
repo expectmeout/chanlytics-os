@@ -1,5 +1,5 @@
 /**
- * A booking reaches its reach-out through its event (00386): the spine's first subscriber that acts, on a real Postgres.
+ * A booking reaches its reach-out through its event (00389): the spine's first subscriber that acts, on a real Postgres.
  *
  *   1. an appointment kept on the record from a booking tool's notice by email writes appointment.changed in its own
  *      transaction ({change, source, starts_at}), and the relay owes the reach_out_booked subscriber a delivery of it;
@@ -12,7 +12,7 @@
  *   4. the business's own addresses book nobody, as People's import leaves them out: its members' and the ones it is
  *      alerted at.
  *
- * Before 00386 the booking door ran only from the hourly calendar sweep, over the feed's items, so a booking that
+ * Before 00389 the booking door ran only from the hourly calendar sweep, over the feed's items, so a booking that
  * arrived by email never reached it, and its lead kept being written to.
  */
 import { test, before, after } from "node:test";

@@ -8,7 +8,7 @@
  * never overwrites, a name the wire gave following the wire; keeps the identity with how sure the door was of it, and
  * raises that word, never lowers it; never merges, and writes a doubt instead, once per pair the merge could join;
  * contact.added for a new person a member, a feed or the finder brought, person.resolved for every call that changed
- * something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00381), in
+ * something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00384), in
  * the same transaction. A definer door with locks and unique keys is what reading source cannot prove. Runs against Postgres in
  * the database workflow; skipped without a local database. The service role calls it, as the doors do; a session is
  * refused, which the last case holds. The queue's own doors (dismiss, the merge's and the erasure's legs) are
@@ -146,7 +146,7 @@ test(
       [mail.contact_id, mail.outcome, mail.matched_by, mail.email],
       [wa.contact_id, "matched", "email", "kept"],
     );
-    // The same wire again, with nothing new: matched, the identity kept, and no row on the ledger (00381). The
+    // The same wire again, with nothing new: matched, the identity kept, and no row on the ledger (00384). The
     // calendar's hourly read asks this of every person on the calendar.
     const again = ok(
       await door({ p_channel: "whatsapp", p_external: "16465550141", p_phone: phone, p_name: "Ana Ruiz" }),
@@ -361,7 +361,7 @@ test(
     assert.deepEqual(await rowsOf(a.contact_id), expected, "the pair, the lower id first, open");
     assert.deepEqual(await rowsOf(b.contact_id), expected, "the same row from the other side");
     // The same arrival again: named in the answer, and not a second row; and no row on the ledger, since the pair
-    // was already a doubt and nothing else changed (00381).
+    // was already a doubt and nothing else changed (00384).
     const written = (await eventsOf("person.resolved", b.contact_id)).length;
     const again = ok(
       await door({ p_phone: number, p_email: email, p_assurance: "found", p_source: "calendar" }),

@@ -311,7 +311,7 @@ export async function appointmentStates(
 }
 
 /**
- * The booking door over one appointment of the record (00386 reach_out_booked_from), the service role's: the lead a
+ * The booking door over one appointment of the record (00389 reach_out_booked_from), the service role's: the lead a
  * reach-out wrote to, whose address or number the appointment or its person carries, booked after an email left, is
  * stamped and converted once. How many leads moved. A failure throws.
  */

@@ -8,7 +8,7 @@
  * (0031, invariant 3). The harness in tooling/scripts/tests/events runs each subscriber twice on one delivery.
  *
  *   audit             settles and does nothing else: it measures the relay (0032, step 3).
- *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00386) is handed
+ *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00389) is handed
  *                     to the booking door, so the lead a reach-out wrote to is booked however the booking arrived: a
  *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the
  *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
@@ -19,7 +19,7 @@ import type { DeliveredEvent } from "@chanlytics/db";
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
 export interface SubscriberPorts {
-  /** The booking door over one appointment of the record (00386 reach_out_booked_from): how many leads moved. */
+  /** The booking door over one appointment of the record (00389 reach_out_booked_from): how many leads moved. */
   bookedFromAppointment(tenantId: string, appointmentId: string): Promise<number>;
 }
 

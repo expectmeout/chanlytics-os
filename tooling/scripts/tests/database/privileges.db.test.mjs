@@ -254,7 +254,7 @@ test(
   },
 );
 
-test("a hold that ran out is found by index, not by a scan of every thread (00382)", { skip }, () => {
+test("a hold that ran out is found by index, not by a scan of every thread (00385)", { skip }, () => {
   // expire_stale_pauses clears control_until < now() every ten seconds under pg_cron (00132) and read the whole table
   // for it; conversations_pause_due served the pause the same sweep clears, and the hold had nothing.
   const [row] = query("select indexdef from pg_indexes where indexname = 'conversations_control_due'");

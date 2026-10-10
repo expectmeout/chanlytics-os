@@ -3,7 +3,7 @@
  *
  * events_outbox_copy writes one outbox row per event of a subscribed kind, in the event's own transaction; relay_events
  * drains the outbox under skip locked with no cursor, writes one delivery per subscriber (a paused one's waits, paused,
- * until a re-drive: 00387) and one event_deliver job for each other, keyed so a second relay writes none, and takes the
+ * until a re-drive: 00390) and one event_deliver job for each other, keyed so a second relay writes none, and takes the
  * row off; an outbox row asks for the tick; a failed
  * delivery is re-driven; and the day's roll keeps relay lag. The subscription used here is the suite's own, on a kind
  * the product writes rarely, made before and removed after, so no other suite's events ride on it. Runs against the
@@ -207,7 +207,7 @@ test(
     let held;
     try {
       held = await event(t, KIND);
-      assert.equal((await outbox([held.id])).length, 1, "paused, the event is still copied (decision 0032, 4; 00387)");
+      assert.equal((await outbox([held.id])).length, 1, "paused, the event is still copied (decision 0032, 4; 00390)");
       await relay();
       const [waiting] = await deliveries([held.id]);
       assert.deepEqual([waiting.state, waiting.job_id], ["paused", null], "its delivery waits, paused, with no job");

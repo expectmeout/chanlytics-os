@@ -291,7 +291,7 @@ export async function createBroadcast(
     ...(kept ? { list: kept } : {}),
   };
 
-  // 5. The rows, the job and the ledger's line, whole (00282, with its decision since 00378): a decision that could not
+  // 5. The rows, the job and the ledger's line, whole (00282, with its decision since 00381): a decision that could not
   // be written is a run that was not made, never a 500 for one that was, which a person answers by pressing again.
   const decision = {
     by: { kind: "user" as const, userId: cmd.userId },

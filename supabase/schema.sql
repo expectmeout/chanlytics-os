@@ -341,7 +341,7 @@ end $$;
 -- Name: FUNCTION appointments_note_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00386), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
+COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00389), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
 
 
 --
@@ -650,7 +650,7 @@ end $$;
 -- Name: FUNCTION assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_decision jsonb, p_send_at timestamp with time zone, p_actor uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_decision jsonb, p_send_at timestamp with time zone, p_actor uuid, p_via text, p_undo_of uuid) IS 'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00378): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
+COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_decision jsonb, p_send_at timestamp with time zone, p_actor uuid, p_via text, p_undo_of uuid) IS 'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00381): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
 
 
 --
@@ -741,7 +741,7 @@ end $$;
 -- Name: FUNCTION billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text) IS 'The edge''s one writer of a workspace''s billing row (00379): the columns a reading or a stamp writes (p_row), written only if the row is still what the caller planned against (p_expect {status, updated_at} for a reading, {stripe_customer_id} for a deleted customer; null when nothing races the write), the row locked first and the columns laid over it as the lock found it, and the workspace''s switch (p_tenant_status, null when it does not move), in one transaction. True when written; false when another reading won or there is no row, and then nothing moved. The rules are contracts'' planBilling''s; the bell and the event are the edge''s, after. Service role only.';
+COMMENT ON FUNCTION public.billing_apply(p_tenant_id uuid, p_row jsonb, p_expect jsonb, p_tenant_status text) IS 'The edge''s one writer of a workspace''s billing row (00382): the columns a reading or a stamp writes (p_row), written only if the row is still what the caller planned against (p_expect {status, updated_at} for a reading, {stripe_customer_id} for a deleted customer; null when nothing races the write), the row locked first and the columns laid over it as the lock found it, and the workspace''s switch (p_tenant_status, null when it does not move), in one transaction. True when written; false when another reading won or there is no row, and then nothing moved. The rules are contracts'' planBilling''s; the bell and the event are the edge''s, after. Service role only.';
 
 
 --
@@ -865,7 +865,7 @@ end $$;
 -- Name: FUNCTION broadcast_recipients_on_erase(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.broadcast_recipients_on_erase() IS 'When a person is erased, the words each run kept for them (a visit''s time, service and calendar key, a proposal''s link) are cleared; the row keeps its state and reason, which the run''s counts read (00388).';
+COMMENT ON FUNCTION public.broadcast_recipients_on_erase() IS 'When a person is erased, the words each run kept for them (a visit''s time, service and calendar key, a proposal''s link) are cleared; the row keeps its state and reason, which the run''s counts read (00391).';
 
 
 --
@@ -1742,7 +1742,7 @@ begin
   end if;
   -- The older turn's replies still waiting to go are superseded by this one. One a run has claimed is already on its
   -- way to the person (00362): it is left to say what became of it.
-  -- Through the one door (00384), with the job that would send each.
+  -- Through the one door (00387), with the job that would send each.
   perform public.withdraw_queued(
     p_tenant,
     array(select d.id from public.messages d
@@ -1762,7 +1762,7 @@ end $$;
 -- Name: FUNCTION claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) IS 'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362), each with its send job through withdraw_queued (00384). True when held.';
+COMMENT ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) IS 'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362), each with its send job through withdraw_queued (00387). True when held.';
 
 
 --
@@ -2179,7 +2179,7 @@ end $$;
 -- Name: FUNCTION conversation_hand_back(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.conversation_hand_back(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) IS 'A member hands a thread back, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00383): the release (open, nothing paused, snoozed or claimed), this person''s hold let go and nobody else''s (release_conversation_control), the hand_back decision recorded as theirs, and the open escalation resolved by it. Returns released, resolved_escalations, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written.';
+COMMENT ON FUNCTION public.conversation_hand_back(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) IS 'A member hands a thread back, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00386): the release (open, nothing paused, snoozed or claimed), this person''s hold let go and nobody else''s (release_conversation_control), the hand_back decision recorded as theirs, and the open escalation resolved by it. Returns released, resolved_escalations, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written.';
 
 
 --
@@ -2286,7 +2286,7 @@ end $$;
 -- Name: FUNCTION conversation_take_over(p_tenant_id uuid, p_conversation_id uuid, p_paused_until timestamp with time zone, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.conversation_take_over(p_tenant_id uuid, p_conversation_id uuid, p_paused_until timestamp with time zone, p_via text, p_undo_of uuid) IS 'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00383; its drafts through withdraw_ai_drafts since 00384): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
+COMMENT ON FUNCTION public.conversation_take_over(p_tenant_id uuid, p_conversation_id uuid, p_paused_until timestamp with time zone, p_via text, p_undo_of uuid) IS 'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00386; its drafts through withdraw_ai_drafts since 00387): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
 
 
 --
@@ -3804,7 +3804,7 @@ end $$;
 -- Name: FUNCTION escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00385): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. An open one resolved in between leaves room, and a new one is opened. The service role''s.';
+COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00388): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. An open one resolved in between leaves room, and a new one is opened. The service role''s.';
 
 
 --
@@ -4125,7 +4125,7 @@ end $$;
 -- Name: FUNCTION events_outbox_copy(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.events_outbox_copy() IS 'After each event: a row on event_outbox when a subscription names its kind, paused or not (decision 0032, 4; 00387). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
+COMMENT ON FUNCTION public.events_outbox_copy() IS 'After each event: a row on event_outbox when a subscription names its kind, paused or not (decision 0032, 4; 00390). One insert, no subscriber''s rule, so a bad subscriber can never roll back a customer''s message.';
 
 
 --
@@ -5299,13 +5299,13 @@ begin
   update public.lead_search_members
      set judgment = '{}'::jsonb, reason = '', blanked_at = coalesce(blanked_at, now())
    where lead_id = p_lead_id;
-  -- What a reach-out wrote from the lead's record, and the checker's note on it (00388). The send keeps its state, its
+  -- What a reach-out wrote from the lead's record, and the checker's note on it (00391). The send keeps its state, its
   -- reason and the digest of the words it checked.
   update public.reach_out_sends
      set opening = null, angle = null, hold_detail = null
    where tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null);
-  -- A preference's example copied from this lead (00388).
+  -- A preference's example copied from this lead (00391).
   update public.lead_preferences
      set example = null
    where tenant_id = v_tenant and from_lead_id = p_lead_id and example is not null;
@@ -5317,7 +5317,7 @@ end $$;
 -- Name: FUNCTION lead_blank(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00388), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
 
 
 --
@@ -9051,7 +9051,7 @@ end $$;
 -- Name: FUNCTION member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid) IS 'A member withdraws the receptionist''s queued drafts on a thread, on their own session (00384): an owner or an operator, or a partner whose session showed its second factor. superseded_by_human, through withdraw_ai_drafts. Answers how many.';
+COMMENT ON FUNCTION public.member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid) IS 'A member withdraws the receptionist''s queued drafts on a thread, on their own session (00387): an owner or an operator, or a partner whose session showed its second factor. superseded_by_human, through withdraw_ai_drafts. Answers how many.';
 
 
 --
@@ -9077,7 +9077,7 @@ end $$;
 -- Name: FUNCTION member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb) IS 'A member withdraws one queued message of the workspace, on their own session (00384), through withdraw_queued: the reply''s own row when its send job could not be scheduled. True when it was withdrawn.';
+COMMENT ON FUNCTION public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb) IS 'A member withdraws one queued message of the workspace, on their own session (00387), through withdraw_queued: the reply''s own row when its send job could not be scheduled. True when it was withdrawn.';
 
 
 --
@@ -9530,7 +9530,7 @@ end $$;
 -- Name: FUNCTION message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) IS 'A member calls back a send in its grace (00384): the message withdrawn with its send job through withdraw_queued, and the cancel_send decision as the member''s own, in one transaction. Null when it was too late (sent, claimed, gone), with nothing written. Returns decision_id and undo_dropped.';
+COMMENT ON FUNCTION public.message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) IS 'A member calls back a send in its grace (00387): the message withdrawn with its send job through withdraw_queued, and the cancel_send decision as the member''s own, in one transaction. Null when it was too late (sent, claimed, gone), with nothing written. Returns decision_id and undo_dropped.';
 
 
 --
@@ -14907,7 +14907,7 @@ end $$;
 -- Name: FUNCTION reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid) IS 'The booking door (reach_out_booked) over one appointment of the record (00386), booked or kept and not vanished: its client''s address and number and its person''s, each with its start, the business''s own addresses left out. Answers how many leads moved. The service role''s; the reach_out_booked subscriber calls it.';
+COMMENT ON FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid) IS 'The booking door (reach_out_booked) over one appointment of the record (00389), booked or kept and not vanished: its client''s address and number and its person''s, each with its start, the business''s own addresses left out. Answers how many leads moved. The service role''s; the reach_out_booked subscriber calls it.';
 
 
 --
@@ -17044,7 +17044,7 @@ end $$;
 -- Name: FUNCTION reach_out_save(p_tenant_id uuid, p_user_id uuid, p_chain jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_save(p_tenant_id uuid, p_user_id uuid, p_chain jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A reach-out chain saved whole and, when it is new, the start_playbook decision on its root as the member''s (p_user_id), in one transaction (00378): 00228''s door called whole, then team_decision. A decision given with an edit (a root_id named) is refused: a chain is started once. The service role''s alone. Returns what the door returns, with decision_id and undo_dropped when a decision was written.';
+COMMENT ON FUNCTION public.reach_out_save(p_tenant_id uuid, p_user_id uuid, p_chain jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A reach-out chain saved whole and, when it is new, the start_playbook decision on its root as the member''s (p_user_id), in one transaction (00381): 00228''s door called whole, then team_decision. A decision given with an edit (a root_id named) is refused: a chain is started once. The service role''s alone. Returns what the door returns, with decision_id and undo_dropped when a decision was written.';
 
 
 --
@@ -17821,7 +17821,7 @@ end $$;
 -- Name: FUNCTION record_provider_stop(p_tenant_id uuid, p_contact_id uuid, p_purpose text, p_channel text, p_source text, p_message_external_id text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.record_provider_stop(p_tenant_id uuid, p_contact_id uuid, p_purpose text, p_channel text, p_source text, p_message_external_id text) IS 'A no a provider reported on the person''s behalf (the carrier''s 21610 on a text, WhatsApp''s 131050 on an offer), recorded with its contact.consent_changed event in one transaction (00380): for conversational, consent opted_out with dnc, the source and the time; for marketing, the answer about offers, its source and its time; the event carries the purpose, the row''s previous answer, the source, the channel and the message the provider refused when named. A person already stopped, or erased, is left as they are and nothing is written. Answers whether it changed. Service role only.';
+COMMENT ON FUNCTION public.record_provider_stop(p_tenant_id uuid, p_contact_id uuid, p_purpose text, p_channel text, p_source text, p_message_external_id text) IS 'A no a provider reported on the person''s behalf (the carrier''s 21610 on a text, WhatsApp''s 131050 on an offer), recorded with its contact.consent_changed event in one transaction (00383): for conversational, consent opted_out with dnc, the source and the time; for marketing, the answer about offers, its source and its time; the event carries the purpose, the row''s previous answer, the source, the channel and the message the provider refused when named. A person already stopped, or erased, is left as they are and nothing is written. Answers whether it changed. Service role only.';
 
 
 --
@@ -17953,7 +17953,7 @@ end $$;
 -- Name: FUNCTION relay_events(p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.relay_events(p_limit integer) IS 'The first step of every tick (decision 0032): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per subscriber, a paused one''s held as paused with no job until a re-drive (00387), and one event_deliver job for each other (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
+COMMENT ON FUNCTION public.relay_events(p_limit integer) IS 'The first step of every tick (decision 0032): takes up to p_limit outbox rows under skip locked, oldest first and with no cursor, writes one delivery per subscriber, a paused one''s held as paused with no job until a re-drive (00390), and one event_deliver job for each other (keyed, so a second relay writes none), and takes the rows off the outbox. Answers how many events it relayed.';
 
 
 --
@@ -18623,7 +18623,7 @@ begin
     end;
   end if;
 
-  -- The ledger's row, when the call changed something (00381): a person made, a field filled (the outcome says
+  -- The ledger's row, when the call changed something (00384): a person made, a field filled (the outcome says
   -- either), an identity added or its word raised, a doubt written, or a lead linked. A call that found the person
   -- and learned nothing writes none: the message, the call or the appointment that asked is the record.
   if v_outcome <> 'matched' or v_identity in ('added', 'raised') or v_doubt_id is not null or v_lead is not null then
@@ -18646,7 +18646,7 @@ end $_$;
 -- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00381). The service role''s and the doors'' alone.';
+COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00384). The service role''s and the doors'' alone.';
 
 
 --
@@ -21796,7 +21796,7 @@ end $$;
 -- Name: FUNCTION withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid) IS 'The receptionist''s queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00384). The service role''s.';
+COMMENT ON FUNCTION public.withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid) IS 'The receptionist''s queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00387). The service role''s.';
 
 
 --
@@ -21841,7 +21841,7 @@ end $$;
 -- Name: FUNCTION withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb) IS 'The one door a queued message is withdrawn by (00384): each named message of the workspace still queued and claimed by no run (sending_at null) canceled, with the reason on its row when one is given, and the outbound_send job that would send it canceled with it, in one transaction. Answers the ids withdrawn; a row on its way or gone is left to its run. The service role''s.';
+COMMENT ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb) IS 'The one door a queued message is withdrawn by (00387): each named message of the workspace still queued and claimed by no run (sending_at null) canceled, with the reason on its row when one is given, and the outbound_send job that would send it canceled with it, in one transaction. Answers the ids withdrawn; a row on its way or gone is left to its run. The service role''s.';
 
 
 --

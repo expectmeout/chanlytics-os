@@ -4,7 +4,7 @@
  * The decisions are pure (contracts/billing.ts planBilling); this file is
  * the only place the secret key is handled and the only caller that writes
  * billing_accounts and tenants.status for a stripe-mode workspace, through
- * the row's one door (db applyBilling, 00379 billing_apply: the row and the
+ * the row's one door (db applyBilling, 00382 billing_apply: the row and the
  * switch in one write), and the only writer of billing_events. A
  * direct-arrangement workspace is never touched from here.
  */
@@ -231,7 +231,7 @@ export async function applySubscription(
   const plan = ended ? keptEnded(planned) : planned;
   const customerId = idOf(sub.customer);
   // Written only if the row is still what this reading was planned against,
-  // and with the switch it throws, in one write (00379): a death between the
+  // and with the switch it throws, in one write (00382): a death between the
   // row and the switch left a workspace paid and paused until Stripe's next
   // event about it. Stripe sends several events for one change within
   // milliseconds (subscription.created, checkout.session.completed,

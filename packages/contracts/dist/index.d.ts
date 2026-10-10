@@ -914,7 +914,7 @@ type JobKind = (typeof JOB_KINDS)[number];
  * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's
  * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
  * relay's lag is measured on real traffic; `reach_out_booked` hands a booking on the appointments record to the
- * booking door (00386), the first that acts.
+ * booking door (00389), the first that acts.
  */
 declare const EVENT_SUBSCRIBERS: readonly ["audit", "reach_out_booked"];
 type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
@@ -19190,7 +19190,7 @@ escalation: EscalationDto | null, tz: string, now?: Date): ConversationVM;
  * `conversations.state` is written by the dashboard's thread ports, db's inbound pauses and SQL's sweeps. This table is
  * every move of the thread by name: the states it may start from, the state it ends in, and what else it writes. A
  * TypeScript writer builds its update with `conversationPatch`; `take_over` and `hand_back` (the member's two doors,
- * 00383) and the last three (the function each names) are SQL's own, written by hand to agree with this and run
+ * 00386) and the last three (the function each names) are SQL's own, written by hand to agree with this and run
  * against it on a real database (tests/conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs and
  * tests/conversations/state/conversation-moves.db.test.mjs). A few SQL doors of another subject clear a thread's
  * assignee as a side effect (a partner's pause, a member's departure); they are not moves of the thread.
@@ -19203,7 +19203,7 @@ escalation: EscalationDto | null, tz: string, now?: Date): ConversationVM;
 type MoveColumn = "paused_until" | "snooze_until" | "assignee_user_id" | "last_message_at";
 type MoveInputName = "until" | "user" | "now";
 declare const CONVERSATION_MOVES: {
-    /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00383). */
+    /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00386). */
     readonly take_over: {
         readonly from: readonly ("open" | "needs_human" | "snoozed" | "archived")[];
         readonly to: "needs_human";
@@ -19224,7 +19224,7 @@ declare const CONVERSATION_MOVES: {
             readonly last_message_at: "now";
         };
     };
-    /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00383). */
+    /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00386). */
     readonly hand_back: {
         readonly from: readonly ("open" | "needs_human" | "snoozed" | "archived")[];
         readonly to: "open";

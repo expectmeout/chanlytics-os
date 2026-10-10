@@ -34,7 +34,7 @@ null` and `assignee_user_id: userId` — the take-over path; `release` (`:31`),
 drafts. `handBack` (`hand-back.ts:7-23`) calls `release`, lets the hold go, and
 resolves the open escalation.
 
-Since 00383 (October 2026) each is one door on the member's own session,
+Since 00386 (October 2026) each is one door on the member's own session,
 `conversation_take_over` and `conversation_hand_back`, writing the move, the
 hold, the drafts or the escalation, and the decision in one transaction; the
 `claim`, `release` and `letControlGo` ports are gone.

@@ -1,5 +1,5 @@
 /**
- * A run is assembled with its decision (00378 assemble_broadcast, over 00282's door), on a real Postgres: the run, its
+ * A run is assembled with its decision (00381 assemble_broadcast, over 00282's door), on a real Postgres: the run, its
  * people, its send job and the send_broadcast decision on it in one transaction. The decision was the route's own
  * write after the door, and one that failed answered 500 for a run that had landed, which a person presses again.
  * Here the decision is made to fail AFTER the run is written (a ledger that refuses the row, in a transaction that never
@@ -122,7 +122,7 @@ const two = () => [
   { contact_id: people.a2, facts: null },
 ];
 const DECISION = { name: "the run", recipients: 2, channels: ["whatsapp"] };
-/** 00378's door: the run with its decision. `p_decision` is what tells it from 00282's. */
+/** 00381's door: the run with its decision. `p_decision` is what tells it from 00282's. */
 const assemble = (client, name, over = {}) =>
   client.rpc("assemble_broadcast", {
     p_tenant: A,
@@ -305,7 +305,7 @@ test("a run the four-argument door refuses writes no decision either; an undo li
   assert.equal(data.undo_dropped, true, "the link named a decision nobody holds");
   assert.equal((await heldFor("Dropped undo")).decisions[0].undo_of, null);
 
-  // A link onto another workspace's line is dropped too (team_decision, 00378): the same-workspace key used to refuse
+  // A link onto another workspace's line is dropped too (team_decision, 00381): the same-workspace key used to refuse
   // it after the run was written, failing the whole run for a link the ledger could not keep.
   const theirs = await db
     .from("decisions")
@@ -327,7 +327,7 @@ test("a run the four-argument door refuses writes no decision either; an undo li
   assert.deepEqual([held.rows.length, held.decisions.length, held.decisions[0].undo_of], [1, 1, null]);
 });
 
-test("00282's door still answers the id alone, for an app deployed before 00378", async (t) => {
+test("00282's door still answers the id alone, for an app deployed before 00381", async (t) => {
   if (skip) return t.skip(skip);
   const { data, error } = await db.rpc("assemble_broadcast", {
     p_tenant: A,

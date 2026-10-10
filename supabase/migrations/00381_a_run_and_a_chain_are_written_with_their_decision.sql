@@ -1,4 +1,4 @@
--- 00378 · A run is assembled with its decision, and a chain is started with its decision.
+-- 00381 · A run is assembled with its decision, and a chain is started with its decision.
 --
 -- Two writes the pattern of 00353 to 00357 had not reached: a change on the service role's door, then the route's own
 -- line in the ledger, each a write of its own.
@@ -97,7 +97,7 @@ revoke all on function public.assemble_broadcast(uuid, jsonb, jsonb, jsonb, time
 grant execute on function public.assemble_broadcast(uuid, jsonb, jsonb, jsonb, timestamptz, uuid, text, uuid)
   to service_role;
 comment on function public.assemble_broadcast(uuid, jsonb, jsonb, jsonb, timestamptz, uuid, text, uuid) is
-  'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00378): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
+  'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00381): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
 
 /* ------------------------------------------------------ a member's line, its undo link this workspace's -- */
 
@@ -176,4 +176,4 @@ end $$;
 revoke all on function public.reach_out_save(uuid, uuid, jsonb, jsonb, text, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_save(uuid, uuid, jsonb, jsonb, text, uuid) to service_role;
 comment on function public.reach_out_save(uuid, uuid, jsonb, jsonb, text, uuid) is
-  'A reach-out chain saved whole and, when it is new, the start_playbook decision on its root as the member''s (p_user_id), in one transaction (00378): 00228''s door called whole, then team_decision. A decision given with an edit (a root_id named) is refused: a chain is started once. The service role''s alone. Returns what the door returns, with decision_id and undo_dropped when a decision was written.';
+  'A reach-out chain saved whole and, when it is new, the start_playbook decision on its root as the member''s (p_user_id), in one transaction (00381): 00228''s door called whole, then team_decision. A decision given with an edit (a root_id named) is refused: a chain is started once. The service role''s alone. Returns what the door returns, with decision_id and undo_dropped when a decision was written.';
