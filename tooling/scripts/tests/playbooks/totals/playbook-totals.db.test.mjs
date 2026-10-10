@@ -624,6 +624,10 @@ begin
            'text', 'Yes please', 'received', '{}'::jsonb, ${at} + interval '1 hour'
       from generate_series(0, ${SCALE.moments - 1}) p, generate_series(0, ${SCALE.runs - 1}, 5) j;
 end $$`);
+  // Read as production reads it, on statistics that know these rows, as "a workspace that talks" reads them. Asked
+  // straight after 180,000 rows landed, on statistics the suite's earlier files left, CI's member passed 8 s where
+  // the same call answers in about a second here and in 461 ms on CI once analyzed (PR #1535's first run).
+  query("analyze public.messages, public.broadcasts, public.broadcast_recipients, public.playbooks");
   return tenant;
 }
 let busy;
