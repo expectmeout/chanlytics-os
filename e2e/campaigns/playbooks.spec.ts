@@ -347,4 +347,26 @@ test.describe("Campaigns' home on a real workspace", () => {
       `the head starts at ${h?.x} and the rail at ${r?.x}`,
     ).toBe(true);
   });
+
+  /**
+   * Ask's door in the head (the moment spec, A1): a quiet button wearing the three, between the Library and New message,
+   * from 721px up (campaigns.css `.cmh-ask`); under it the shell's ✦ is the door. It opens Ask on Campaigns, whose field
+   * asks in Campaigns' own words (A3). Nothing is written: no turn is sent.
+   */
+  test("Ask's door stands in the head from 721px up and opens Ask on Campaigns' own words; under it the shell's ✦ is the door", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/#/campaigns");
+    await page.waitForLoadState("networkidle");
+    const door = page.getByTestId("cmh-ask");
+    await expect(door).toBeVisible();
+    await door.click();
+    await expect(page.getByTestId("ask-line")).toBeVisible();
+    await expect(page.getByTestId("ask-input")).toHaveAttribute("placeholder", "Describe what should go out, and when");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("ask-line")).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByTestId("cmh-ask")).toBeHidden();
+  });
 });
