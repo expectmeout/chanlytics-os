@@ -7,7 +7,7 @@
 import { useEffect } from "react";
 import { ASK_CONTEXT_MAX_ROWS, LIFECYCLE_WORDS, isLedgerCampaign } from "@chanlytics/contracts";
 import type { LifecycleRow } from "@chanlytics/contracts";
-import { askAbout, askOnScreenKey, gate, setAskOnScreen, type AskOnScreen } from "../../legacy-verbs";
+import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, type AskOnScreen } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import type { MenuItem } from "../../kit/menu/menu";
@@ -82,9 +82,15 @@ export function SetUpAsk() {
   );
 }
 
-/** The drawer's More (A1): "Ask about this campaign", opening Ask on the drawer's own scope (campaigns/moment:<id>). */
-export const askAboutItem = (): MenuItem => ({
+/**
+ * The drawer's More (A1): "Ask about this campaign". The drawer closes first, the way it closes (`close`: Back where the
+ * page opened it, the home's address where a link did), since on a phone it is a modal sheet Ask would open under; then
+ * Ask opens over the home on that campaign, by its id and its name, so its chip names it. Ask waits for the address to
+ * have left the drawer (afterMove), so a Back lands before a phone's Back entry of Ask's own is made, and is never
+ * taken for Ask's.
+ */
+export const askAboutItem = (p: { id: string; name: string }, close: () => void): MenuItem => ({
   label: LIFECYCLE_WORDS.ask.about,
   glyph: <Icon name="three" size={13} />,
-  onSelect: () => askAbout({}),
+  onSelect: () => afterMove(close, () => askAbout({ about: { kind: "playbook", id: p.id, label: p.name } })),
 });

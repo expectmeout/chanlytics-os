@@ -60,7 +60,7 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
-const { askAboutItem, useLedgerOnScreen } = await import(`${SRC}/surfaces/campaigns/home/ask-on-campaigns.tsx`);
+const { useLedgerOnScreen } = await import(`${SRC}/surfaces/campaigns/home/ask-on-campaigns.tsx`);
 const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
 const { Icon } = await import(`${SRC}/surfaces/kit/icon/icon.tsx`);
 const { Button } = await import(`${SRC}/surfaces/kit/button/button.tsx`);
@@ -1554,6 +1554,7 @@ test("under Reach-outs Ask is told every row the screen shows (A2): each reach-o
 test("Ask's doors on Campaigns (the moment spec, A1): Ask in the head between the Library and New message, wearing the three; the drawer's More asks about its campaign; the first day's 'Set up my campaigns' asks it", () => {
   const asked = [];
   const askWas = globalThis.askAbout;
+  const matchWas = globalThis.matchMedia;
   globalThis.askAbout = (about) => asked.push(about);
   try {
     surfaces();
@@ -1576,11 +1577,8 @@ test("Ask's doors on Campaigns (the moment spec, A1): Ask in the head between th
     );
     pressed(door);
     assert.deepEqual(asked.at(-1), {}, "Ask opens on the page, its scope the address's");
-    const item = askAboutItem();
-    assert.equal(item.label, "Ask about this campaign");
-    item.onSelect();
-    assert.deepEqual(asked.at(-1), {}, "on the drawer's address, its scope is the campaign");
     // The drawer's More starts with it on a desk; on a phone it follows the menu's own acts (Pause or Resume, Edit).
+    // What it does is the next test's.
     const moreOf = (tree) =>
       find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? "")).props.groups[0].items.map(
         (i) => i.label,
@@ -1636,5 +1634,72 @@ test("Ask's doors on Campaigns (the moment spec, A1): Ask in the head between th
     );
   } finally {
     globalThis.askAbout = askWas;
+    globalThis.matchMedia = matchWas;
+  }
+});
+
+test("'Ask about this campaign' (A1) closes the drawer the way the drawer closes, then opens Ask over the home on that campaign, by its id and its name, once the address has left the drawer: on a phone the drawer is a modal sheet Ask would open under", () => {
+  const asked = [];
+  const heard = [];
+  const askWas = globalThis.askAbout;
+  const chanlyWas = globalThis.CHANLY;
+  const matchWas = globalThis.matchMedia;
+  globalThis.askAbout = (about) => asked.push(about);
+  // The frame's address (legacy-bridge/workspace.ts hearAddress): each listener until it stops, told when the route moves.
+  const hear = (fn) => {
+    heard.push(fn);
+    return () => heard.splice(heard.indexOf(fn), 1);
+  };
+  globalThis.CHANLY = { ...chanlyWas, address: { hear, href: (route) => `/w/studio/${route}` } };
+  const moved = () => {
+    for (const fn of [...heard]) fn();
+  };
+  // The item the drawer's More draws, as a press reaches it.
+  const askItem = (tree) =>
+    find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""))
+      .props.groups.flatMap((g) => g.items)
+      .find((i) => i.label === "Ask about this campaign");
+  const winBack = { about: { kind: "playbook", id: "pb-sample-winback", label: "Win-back" } };
+  try {
+    surfaces();
+    // Arrived at by a link: the drawer closes by putting the home's address in its place.
+    fresh();
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual(replaced, ["campaigns"], "the drawer closed, the way it closes");
+    assert.deepEqual(asked, [], "Ask waits until the address has left the drawer");
+    moved();
+    assert.deepEqual(asked, [winBack], "then opens on that campaign, named: the chip says it");
+    assert.equal(heard.length, 0, "and stops listening");
+    moved();
+    assert.equal(asked.length, 1, "once");
+    // Opened by a press: the drawer closes by Back, and Ask opens once the Back has landed, so a phone's Back entry of
+    // Ask's own (ask-real.jsx useArClose) stands over the home and that Back is never taken for Ask's.
+    fresh();
+    asked.length = 0;
+    const home = page();
+    const quiet = allBy(home, "cmh-stage").find((s) => s.props["data-stage"] === "quiet");
+    pressed(find(quiet, (n) => n.props?.["data-testid"] === "cmh-open"));
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual([said, replaced, asked], [[["back"]], [], []]);
+    moved();
+    assert.deepEqual(asked, [winBack]);
+    // On a phone, the item its menu draws after the drawer's own acts does the same.
+    globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    asked.length = 0;
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual([replaced, asked], [["campaigns"], []]);
+    moved();
+    assert.deepEqual(asked, [winBack]);
+    // Where the frame hears no address (the standalone mockup), Ask opens as the drawer closes.
+    globalThis.CHANLY = chanlyWas;
+    fresh();
+    asked.length = 0;
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual([replaced, asked], [["campaigns"], [winBack]]);
+  } finally {
+    globalThis.askAbout = askWas;
+    globalThis.CHANLY = chanlyWas;
+    globalThis.matchMedia = matchWas;
   }
 });

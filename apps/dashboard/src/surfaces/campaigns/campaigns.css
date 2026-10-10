@@ -5917,7 +5917,8 @@ div.tpl-slotbox:not([data-lines="1"]) {
   }
 }
 /* The first day's "Set up my campaigns" on a phone (home/ask-on-campaigns.tsx SetUpAsk): under the hinted moment's head, at
-   the list's width past its line, as a row's acts stand under it; the kit's touch floor gives it its 44px. */
+   the list's width past its line, as a row's acts stand under it; legacy.css's touch floor (`html.legacy-on .btn` under
+   a coarse pointer) gives it its 44px. */
 .cmh-first-ask-row {
   display: flex;
   padding: 0 var(--space-3) var(--space-2) calc(var(--space-3) + 28px);

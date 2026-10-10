@@ -264,6 +264,8 @@ interface CardCtx extends ReturnType<typeof cardRead> {
   word: AppointmentWord;
   canAct: boolean;
   onEdit: (p: PlaybookRow) => void;
+  /** Close the pane, the way its sheet closes (the home's drawer: Back, or the home's address). */
+  onClose: () => void;
   busy: boolean;
   sure: boolean;
   skipSure: boolean;
@@ -567,12 +569,12 @@ function cardWaitActs(c: CardCtx) {
 
 /**
  * What a role that may change it does to it, at the head of its pane: Pause or Resume and Edit in words, and behind the
- * kit's menu Ask about this campaign (the moment spec, A1: Ask on the drawer's own scope), then the two that are pressed
- * least and cost most -- Run now, and Delete, which asks first. They were five buttons in a row under the card, the red
- * Delete among them. A viewer asks from the shell's ✦, on the same scope.
+ * kit's menu Ask about this campaign (the moment spec, A1: the drawer closes, and Ask opens on the campaign by its name),
+ * then the two that are pressed least and cost most -- Run now, and Delete, which asks first. They were five buttons in
+ * a row under the card, the red Delete among them. A viewer asks from the shell's ✦, on the drawer's address.
  */
 function cardOwnActs(c: CardCtx, phone = false) {
-  const { p, canAct, busy, sure, setSure, waiting, acts, onEdit } = c;
+  const { p, canAct, busy, sure, setSure, waiting, acts, onEdit, onClose } = c;
   if (!canAct) return null;
   const hours = pageClock().hours;
   const pauseItem: MenuItem = {
@@ -592,7 +594,7 @@ function cardOwnActs(c: CardCtx, phone = false) {
   // Ask first on a desk; on a phone after the menu's own acts, so its first item stays the act the drawer is for.
   const more: MenuItem[] = [
     ...words,
-    askAboutItem(),
+    askAboutItem(p, onClose),
     ...(p.state === "running" && !waiting
       ? [
           {
@@ -691,7 +693,7 @@ function useCard({ p, canAct, onEdit, flash, onClose }: CardProps & { onClose: (
   const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone: onClose });
   // The workspace's word, from the surface the card reads; unread, the one derivation over nothing known.
   const word = surface ? surface.shape.word : appointmentWordOf({ stored: null, sellsBy: null });
-  return { ...read, p, word, canAct, onEdit, busy, sure, skipSure, setSure, setSkipSure, acts };
+  return { ...read, p, word, canAct, onEdit, onClose, busy, sure, skipSure, setSure, setSkipSure, acts };
 }
 
 interface PaneProps {
