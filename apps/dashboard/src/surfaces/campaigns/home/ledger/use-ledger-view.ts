@@ -28,8 +28,9 @@ interface LedgerAsk {
   sort: LedgerSort;
   grouping: LedgerGrouping;
   /**
-   * A row decided where it stands (approved, skipped, resumed): it keeps its place under the filter it was decided in,
-   * its state changed in place, until the filter changes (spec §4.3: nothing slides out from under the pointer).
+   * A row decided where it stands (approved, skipped, resumed): it stays shown under the filter it was decided in, its
+   * state changed in place, until the filter changes (spec §4.3: it does not leave from under the pointer). It is sorted
+   * with the rest, so its new state may move it within its group.
    */
   keep?: string | null;
 }
@@ -58,6 +59,15 @@ interface LedgerShown {
 /** Whether a row answers the words searched: its own words for a search (the view model's `search`), any case. */
 const rowAnswers = (r: LifecycleRow, words: string): boolean => words === "" || r.search.toLowerCase().includes(words);
 
+/**
+ * A group's rows in the order chosen: its own rows that are no campaign (First contact's receptionist and the call's
+ * text) first, as the view model ordered them (lifecycle-ledger.ts journeyGroup), then its campaigns, sorted.
+ */
+const groupInOrder = (rows: readonly LifecycleRow[], order: (a: LifecycleRow, b: LifecycleRow) => number) => [
+  ...rows.filter((r) => !isLedgerCampaign(r)),
+  ...rows.filter(isLedgerCampaign).sort(order),
+];
+
 /** The ledger as the screen shows it, for what the page asks. */
 export function ledgerViewOf(ledger: LifecycleLedger, ask: LedgerAsk): LedgerShown {
   const words = ask.query.trim().toLowerCase();
@@ -69,7 +79,7 @@ export function ledgerViewOf(ledger: LifecycleLedger, ask: LedgerAsk): LedgerSho
   const keep = (r: LifecycleRow) => r.id === ask.keep || (ledgerRowIn(r, ask.status) && rowAnswers(r, words));
   const groups = ledger.groups
     .filter((g) => chosen === null || g.id === chosen.id)
-    .map((g) => ({ ...g, rows: g.rows.filter(keep).sort(order) }))
+    .map((g) => ({ ...g, rows: groupInOrder(g.rows.filter(keep), order) }))
     // Under All an empty moment stands with its Turn on (decision 16); under a filter a group with no row is not drawn.
     .filter((g) => g.rows.length > 0 || (!filtered && g.add !== null));
   const total = ledger.groups.reduce((n, g) => n + g.rows.filter(isLedgerCampaign).length, 0);
@@ -87,7 +97,7 @@ interface LedgerAt {
   group: string | null;
   onGroup: (group: string | null) => void;
   phone: boolean;
-  /** The row just decided where it stands, which keeps its place. */
+  /** The row just decided where it stands, which stays shown. */
   keep?: string | null;
 }
 

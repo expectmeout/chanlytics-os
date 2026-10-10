@@ -193,7 +193,7 @@ export function useArrivalLands(mark: RowMark, ids: readonly string[]): void {
 
 /**
  * Let go of something when a key changes after the first draw: the page lets go of a row's mark when the list's filter
- * changes (the status, the group and the words, as one key), so a row decided under a tab keeps its place until then.
+ * changes (the status, the group and the words, as one key), so a row decided under a tab stays shown until then.
  */
 export function useLetGo(key: string, letGo: () => void): void {
   const was = useRef(key);

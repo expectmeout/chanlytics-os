@@ -652,6 +652,32 @@ test("the home reopens once, when the playbooks are first read, and never over a
   }
 });
 
+test("a draft reopened over a narrowed ledger closes back to that group: replaced, never a step Back past the home", () => {
+  const backs = [];
+  const keep = globalThis.history.back;
+  globalThis.history.back = () => backs.push("back");
+  try {
+    keepWords({}, "Sunday quiet");
+    unmount();
+    fresh();
+    // Arrived at the home narrowed to a moment: the kept words swap the composer in, over nothing of the page's.
+    again(() => home("in:quiet"));
+    assert.deepEqual(replaced, ["campaigns/new:every"], "swapped in, never pushed");
+    const draw = () => again(() => home("new:every"));
+    let tree = draw();
+    assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
+    // Closed (its words asked about first): nothing of the page's stands behind it, so the address is replaced with the
+    // home, still narrowed to the group the ledger had under the sheet.
+    press(byTestId(tree, "pb-cancel"));
+    tree = draw();
+    press(byTestId(tree, "pb-leave-yes"));
+    assert.deepEqual(backs, [], "no step Back: it would leave the page");
+    assert.equal(replaced.at(-1), "campaigns/in:quiet", "the home, narrowed as it was");
+  } finally {
+    globalThis.history.back = keep;
+  }
+});
+
 /* ---------------------------------- G: the send screen ---------------------------------- */
 
 test("the send screen keeps its words -- a name, a typed value, a picked time -- and opens again on them; a list or a message chosen alone keeps nothing; Cancel asks once and Yes clears it", () => {

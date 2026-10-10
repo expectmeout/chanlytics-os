@@ -115,6 +115,24 @@ test("how many is campaigns': the receptionist and the call's text are drawn, ne
   assert.deepEqual([shown.rows.length, shown.shown, shown.total], [3, 1, 1]);
 });
 
+test("First contact's own rows stand before its campaigns in every order: only the campaigns are sorted", () => {
+  const l = ledgerOf([
+    group("first_contact", [
+      row("receptionist", { kind: "receptionist", status: "always", next: { words: "", atMs: null } }),
+      row("call_text", { kind: "call_text", next: { words: "", atMs: null } }),
+      row("welcome", { name: "Welcome", next: { words: "tomorrow", atMs: NOW + 20 * HOUR } }),
+      row("again", { name: "Again", next: { words: "today", atMs: NOW + HOUR } }),
+    ]),
+  ]);
+  assert.deepEqual(
+    ids(ledgerViewOf(l, ASK)),
+    ["receptionist", "call_text", "again", "welcome"],
+    "Next: a campaign running soon never climbs over the receptionist and the call's text",
+  );
+  assert.deepEqual(ids(ledgerViewOf(l, { ...ASK, sort: "name" })), ["receptionist", "call_text", "again", "welcome"]);
+  assert.deepEqual(ids(ledgerViewOf(l, { ...ASK, sort: "people" }))[0], "receptionist");
+});
+
 test("words searched match the row's own words for a search, any case, and an empty moment stands with its Turn on under All alone", () => {
   const l = ledgerOf([
     group("before", [row("r1", { name: "Reminder", search: "reminder whatsapp" })]),
@@ -134,7 +152,7 @@ test("words searched match the row's own words for a search, any case, and an em
   );
 });
 
-test("a row decided under a filter keeps its place until the filter changes: nothing slides from under the pointer", () => {
+test("a row decided under a filter stays shown until the filter changes: it does not leave from under the pointer", () => {
   const l = ledgerOf([
     group("before", [row("approved", { status: "on" }), row("waits", { status: "waiting", tone: "warn" })]),
   ]);

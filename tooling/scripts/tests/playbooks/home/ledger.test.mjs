@@ -529,16 +529,20 @@ test("a status tab counts what it shows: the counts and the page's filter read o
     { kind: "sent_once", status: "on", tone: "plain" },
     // The call's text with no message is amber, but it is First contact's own row, not a campaign: no tab counts it.
     { kind: "call_text", status: "off", tone: "warn" },
+    // Nor the receptionist's, nor a one-off send's, whatever their tone or state: they stand under All alone.
+    { kind: "receptionist", status: "always", tone: "warn" },
+    { kind: "sent_once", status: "waiting", tone: "warn" },
+    { kind: "sent_once", status: "paused", tone: "plain" },
   ];
   assert.deepEqual([...C.LEDGER_STATUSES], ["all", "needs", "paused"]);
   assert.deepEqual(
     rows.map((r) => C.ledgerRowIn(r, "needs")),
-    [true, true, false, false, false, false],
+    [true, true, false, false, false, false, false, false, false],
     "a run waiting, an archived list",
   );
   assert.deepEqual(
     rows.map((r) => C.ledgerRowIn(r, "paused")),
-    [false, false, true, false, false, false],
+    [false, false, true, false, false, false, false, false, false],
   );
   assert.ok(
     rows.every((r) => C.ledgerRowIn(r, "all")),
