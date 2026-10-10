@@ -238,7 +238,7 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit             80   of which over 200 lines: 13
+functions over the limit             79   of which over 200 lines: 13
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                      100   names
@@ -261,7 +261,7 @@ literal style values                927   in 22 stylesheets
 primitives outside the kit         1744   selectors naming 724 classes
 inline style props                  200   in 51 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     283
+dead exports, types and modules     282
 source-text reads in tests          759
 lint warnings                       348   in 150 files, 59 of them exhaustive-deps
 workspace route JS, KB gzipped      752   the shell included

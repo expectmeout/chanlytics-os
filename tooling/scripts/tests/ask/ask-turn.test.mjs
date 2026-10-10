@@ -2059,13 +2059,12 @@ test("the proposal builders run against the database in memory: each kind is a c
     /Rosa opted out; nothing can be sent to them/,
   );
   t.conversations[0].contacts = was;
-  // A playbook with no template takes the trigger's starter, and says so when the workspace does not hold it; a
-  // template with a typed slot and no words is a question for the person, never invented words (pinned as text in
-  // playbooks.test.mjs until PR 3.1).
-  assert.match(
-    (await p("propose_campaign", { action: "playbook", trigger: "quiet_30" })).result,
-    /starter has no version this workspace can send yet/,
-  );
+  // A playbook with no template takes the trigger's starter, and where the workspace does not hold it the card adds it
+  // at its Approve (the moment spec's A0; tests/playbooks/ask-setup/starter-card.test.mjs); a template with a typed slot
+  // and no words is a question for the person, never invented words (pinned as text in playbooks.test.mjs until PR 3.1).
+  const onStarter = JSON.parse((await p("propose_campaign", { action: "playbook", trigger: "quiet_30" })).result);
+  assert.equal(onStarter.card, "Campaign: Win-back");
+  assert.match(onStarter.summary, /adds the “Win-back” starter first/);
   // 2 Oct 2026: welcome is no longer a moment a new playbook starts from (it was this case's trigger): the schema says so.
   const welcome = (await p("propose_campaign", { action: "playbook", trigger: "new_week" })).result;
   assert.match(welcome, /Invalid option: expected one of/);

@@ -990,10 +990,17 @@ test("a moment's starter is found among the messages the composers offer: one wh
   assert.equal(found.isError, false, found.result);
   assert.equal(found.proposal.payload.template_id, "ffffffff-ffff-4fff-8fff-ffffffffff21", "the message's anchor");
   endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
-  // With no version of it in hand the workspace holds no starter, and says so.
+  // With no version of it in hand the workspace holds no starter: the card adds it at its Approve (the moment spec's A0),
+  // named by its key and with no message (tooling/scripts/tests/playbooks/ask-setup/starter-card.test.mjs).
+  const onStarter = (r) => [
+    r.isError,
+    r.proposal?.payload.starter_key,
+    r.proposal && "template_id" in r.proposal.payload,
+  ];
   const none = await propose({ ...quiet, channels: ["email"] }, { templates: [] });
-  assert.match(said(none), /starter has no version this workspace can send yet/);
-  // A WhatsApp version this product cannot put on the wire whole holds nothing: a starter filed only so is not held.
+  assert.deepEqual(onStarter(none), [false, starter, false], none.result);
+  // A WhatsApp version this product cannot put on the wire whole holds nothing: a starter filed only so is not held, and
+  // the card adds the starter's email version.
   const picture = template("dddddddd-dddd-4ddd-8ddd-ddddddddddd5", starter, {
     components: [
       { type: "HEADER", format: "IMAGE" },
@@ -1001,8 +1008,8 @@ test("a moment's starter is found among the messages the composers offer: one wh
     ],
   });
   const blocked = await propose({ ...quiet, channels: ["email"] }, { templates: [picture] });
-  assert.match(said(blocked), /starter has no version this workspace can send yet/);
-  // The one the workspace hid is not held, whichever channel its version is on.
+  assert.deepEqual(onStarter(blocked), [false, starter, false], blocked.result);
+  // The one the workspace hid is not held, whichever channel its version is on, and no card adds it back.
   const hidden = await propose(
     { ...quiet, channels: ["email"] },
     {
@@ -1082,9 +1089,11 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
   assert.equal(found.isError, false, found.result);
   assert.equal(found.proposal.payload.template_id, WAITING, "the message's anchor, whichever of its rows is held");
   endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
-  // With its WhatsApp row in review alone, no version of the starter can be sent: not held, as before.
+  // With its WhatsApp row in review alone, no version of the starter can be sent: not held, as before, and the card adds
+  // the starter's email version at its Approve (A0).
   const alone = await propose(quiet, { templates: [waiting] });
-  assert.match(said(alone), /starter has no version this workspace can send yet/);
+  assert.equal(alone.isError, false, alone.result);
+  assert.equal(alone.proposal.payload.starter_key, starter);
 });
 
 test("Ask is told what a message is: a name with a version on each channel it is written for, sent on the channels it holds; its tools say to propose by the `channels` the listing gives, and none says one approved WhatsApp template", async () => {

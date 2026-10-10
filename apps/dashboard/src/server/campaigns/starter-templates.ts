@@ -312,10 +312,10 @@ async function heldAtOnce(ctx: RouteContext, tenantId: string, starter: StarterT
  * its message holds at once (heldAtOnce): a WhatsApp version in review carries nothing until WhatsApp approves it, so a
  * campaign on that alone is refused and nothing is filed. Named none, it goes by the channels held at once and by WhatsApp
  * where there is a number, its people there held until WhatsApp approves, as a run holds the people on any channel not
- * ready yet. POST playbooks runs it before it files (withStarterMessage); Ask's starter card is to run it at the card,
- * one judgement, and exports it then (knip counts an export nothing imports).
+ * ready yet. POST playbooks runs it before it files (withStarterMessage), and Ask's starter card runs it at the card
+ * (act/playbook.ts proposeOnStarter): one judgement, in one set of words.
  */
-async function checkStarterPlaybook(
+export async function checkStarterPlaybook(
   ctx: RouteContext,
   tenantId: string,
   body: Record<string, unknown>,

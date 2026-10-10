@@ -749,6 +749,16 @@ function withTheClocksHour(frozen) {
 }
 
 /**
+ * 9 Oct 2026 (the moment spec, decision 19): a playbook card's title says what a person calls it, "Campaign: …", where
+ * these bytes say "Playbook: …". The kind, the action and the payload keep their names. The fixture stays as it was made.
+ */
+function withCampaignWord(frozen) {
+  return frozen
+    .replace('"card":"Playbook: ', '"card":"Campaign: ')
+    .replace('"title":"Playbook: ', '"title":"Campaign: ');
+}
+
+/**
  * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
  * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
  * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
@@ -812,8 +822,17 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // in their result and in the card they propose.
     const campaignsOwn = NAMES[old].startsWith("campaigns.") || NAMES[old].startsWith("propose_campaign.");
     if (campaignsOwn) result = withTheClocksHour(result);
+    // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
+    const playbookCard = NAMES[old] === "propose_campaign.playbook";
+    if (playbookCard) result = withCampaignWord(result);
     const card =
-      campaignsOwn && typeof want.proposal === "string" ? { proposal: withTheClocksHour(want.proposal) } : {};
+      campaignsOwn && typeof want.proposal === "string"
+        ? {
+            proposal: playbookCard
+              ? withCampaignWord(withTheClocksHour(want.proposal))
+              : withTheClocksHour(want.proposal),
+          }
+        : {};
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -913,7 +932,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withTotals = countsInTheDatabase
       ? [...withOurWire.toSpliced(withOurWire.indexOf("broadcasts.select"), 1), "rpc:playbook_totals"]
       : withOurWire;
-    const reads = NAMES[old] === "report" ? withReviewReads(withTotals) : withTotals;
+    // 9 Oct 2026 (the moment spec, D9): a playbook proposed is held to the running ones on its moment, list and message
+    // (packages/db runningTwins): one `playbooks` read more for a call that reaches its card.
+    const readsTwins = NAMES[old] === "propose_campaign.playbook" && !want.isError;
+    const withTwins = readsTwins ? [...withTotals, "playbooks.select"] : withTotals;
+    const reads = NAMES[old] === "report" ? withReviewReads(withTwins) : withTwins;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)

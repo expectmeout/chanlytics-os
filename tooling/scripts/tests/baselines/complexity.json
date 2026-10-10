@@ -129,11 +129,6 @@
     "branches": 66,
     "depth": 2
   },
-  "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
-    "lines": 138,
-    "branches": 33,
-    "depth": 2
-  },
   "apps/dashboard/src/server/campaigns/broadcasts.ts::getBroadcast/map(fn)#1": {
     "lines": 23,
     "branches": 35,

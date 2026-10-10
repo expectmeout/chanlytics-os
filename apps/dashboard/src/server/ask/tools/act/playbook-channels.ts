@@ -11,6 +11,7 @@ import {
   readyOrWhatsApp,
   triggerOf,
   type ConsentChannel,
+  type PlaybookChannelsRead,
 } from "@chanlytics/contracts";
 import { channelsChanged, playbookChannelsRow } from "../../../campaigns/playbook-channels";
 import { checkPlaybookChannelsInput } from "../../../campaigns/playbooks";
@@ -29,6 +30,21 @@ import {
 
 /** Where a playbook's id is read, said as the model calls it. */
 const PLAYBOOK_FROM = "campaigns with action playbooks";
+
+/**
+ * What a playbook card says of each channel it keeps and cannot go by yet, by the drawer's own reading (contracts
+ * playbookChannelsRead): " · Email waits: <why> Its runs hold those people until it can.", one after another, and
+ * nothing where every channel it keeps can go. The channels card's sentence, and the starter card's (act/playbook.ts).
+ */
+export function channelsWaitWords(read: PlaybookChannelsRead): string {
+  return read.kept
+    .filter((c) => read.stands[c] === "waits")
+    .map((c) => {
+      const why = read.choices.find((x) => x.channel === c)?.why;
+      return ` · ${VERSION_CHANNEL_WORDS[c]} waits${why ? `: ${why}` : "."} Its runs hold those people until it can.`;
+    })
+    .join("");
+}
 
 /**
  * The channels an existing playbook goes by, changed (8 Oct 2026; the spec "A campaign says where it goes"): what a press
@@ -69,14 +85,7 @@ async function proposePlaybookChannels(
   if ("refusal" in asked) return refuse(asked.refusal);
   // What the workspace can send on, as the turn already holds it (readers/facts.ts); unread, it is WhatsApp alone.
   const ready = readyOrWhatsApp((await load(t.rc, channelsReady, undefined)).data);
-  const read = playbookChannelsRead(p, next, asked.message, ready);
-  const waits = read.kept
-    .filter((c) => read.stands[c] === "waits")
-    .map((c) => {
-      const why = read.choices.find((x) => x.channel === c)?.why;
-      return ` · ${VERSION_CHANNEL_WORDS[c]} waits${why ? `: ${why}` : "."} Its runs hold those people until it can.`;
-    })
-    .join("");
+  const waits = channelsWaitWords(playbookChannelsRead(p, next, asked.message, ready));
   // A run that already waits for approval was made with the channels the playbook had (core run-playbook stores them).
   const runKeeps = p.run_waits ? ` · ${LIFECYCLE_WORDS.channels.runKeeps}` : "";
   return propose({
