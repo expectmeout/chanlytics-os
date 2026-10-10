@@ -5307,20 +5307,8 @@ div.tpl-slotbox:not([data-lines="1"]) {
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-/* A waiting run's two acts, or the question Skip asks, stand under its words on a desk and a phone alike: the tile is a
-   third of the page, and two buttons beside the state would squeeze the name they act on. */
-.cmh-coming-acts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  grid-column: 2 / -1;
-  min-width: 0;
-}
-.cmh[data-phone] .cmh-coming-line > .cmh-coming-acts {
-  justify-self: stretch;
-}
-/* Why a waiting run cannot be approved, the verb's whole sentence: across the line under its name, where the acts stand. */
+/* Why a waiting run cannot be approved, the verb's whole sentence: across the line under its name, since the tile is a
+   third of the page and beside the state it would squeeze into a narrow column. */
 .cmh-coming-why {
   grid-column: 2 / -1;
   min-width: 0;
