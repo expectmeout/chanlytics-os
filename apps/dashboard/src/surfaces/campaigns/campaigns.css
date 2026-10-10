@@ -4775,15 +4775,9 @@ div.tpl-slotbox:not([data-lines="1"]) {
   margin: 0;
   padding: 14px 22px;
 }
-/* A read that failed, the kit's failed read as a line: at the tile's gutter, and across both of the strips' columns. */
+/* A read that failed, the kit's failed read as a line: at the tile's gutter. */
 .cmh-failed {
   margin: 0 22px;
-}
-.cmh-strips .cmh-failed {
-  margin: 0;
-}
-.cmh-strips > .cmh-strip-failed {
-  grid-column: 1 / -1;
 }
 
 /* The rail: five moments on a line, each a column. A workspace without deals has four. */
@@ -4814,8 +4808,12 @@ div.tpl-slotbox:not([data-lines="1"]) {
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-.cmh-stage > .cmh-figure {
+.cmh-stage-press > .cmh-figure {
   margin-top: var(--space-2);
+}
+/* The rail's figures a step down (spec §4.2): the page's figure scale's next step, so the rail stands about 170px. */
+.cmh-stage .cmh-figure {
+  font-size: var(--text-hero);
 }
 .cmh-unit {
   height: 16px;
@@ -4823,13 +4821,37 @@ div.tpl-slotbox:not([data-lines="1"]) {
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
+/* A card's caps, figure, unit and summary are one press (rail.tsx Stage): a quiet button the width of the column, its
+   words standing as they stood, that narrows the ledger to its moment. Chosen, it wears the kit's selected ground, and so
+   does the card under it. */
+.cmh .cmh-stage-press {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: auto;
+  padding: 0 0 var(--space-1);
+  white-space: normal;
+}
+.cmh-stage[data-chosen="true"] > .cmh-stage-press,
+.cmh-stage[data-chosen="true"] > .cmh-moment {
+  background: var(--selected-fill);
+}
+.cmh-summary {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cmh-stage-bar {
+  align-self: stretch;
+}
 .cmh-track {
   position: relative;
   display: grid;
   place-items: center;
   width: 100%;
-  height: 34px;
-  margin: var(--space-3) 0 10px;
+  height: 30px;
+  margin: var(--space-2) 0;
 }
 .cmh-track::before {
   content: "";
@@ -4862,31 +4884,35 @@ div.tpl-slotbox:not([data-lines="1"]) {
   background: var(--bg-raised);
   color: var(--ink-dim);
 }
-:is(.cmh-stage, .cmh-vstage):is([data-state="always"], [data-state="on"]) .cmh-node {
+/* The desk's card, the phone's spine head (ledger-phone.tsx) and, until the page draws that spine, the phone's old rail. */
+:is(.cmh-stage, .cmh-spine-head, .cmh-vstage):is([data-state="always"], [data-state="on"]) .cmh-node {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--bg-raised);
 }
-:is(.cmh-stage, .cmh-vstage)[data-hint] .cmh-node {
+:is(.cmh-stage, .cmh-spine-head, .cmh-vstage)[data-hint] .cmh-node {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
 /* A moment whose run waits for the owner: the node gives up its filled ground and wears the amber, a clock where the
    check stood ("needs you" is amber on every badge, the badges' rule). */
-:is(.cmh-stage, .cmh-vstage)[data-waits] .cmh-node {
+:is(.cmh-stage, .cmh-spine-head, .cmh-vstage)[data-waits] .cmh-node {
   border-color: var(--warn);
   background: var(--bg-raised);
   color: var(--warn-ink);
 }
+/* No floor of its own (it was 104px, which kept the cards one height): each card fills its column's height instead, so a
+   card with Turn on stands as tall as one with its marks and its bar. */
 .cmh-moment {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   box-sizing: border-box;
   width: 100%;
-  min-height: 104px;
-  padding: var(--space-3) 10px;
+  min-height: 0;
+  padding: var(--space-2) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
 }
@@ -4961,10 +4987,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 .cmh-chan-waits {
   color: var(--warn-ink);
-}
-/* After a line's words on the desk, with the space the words have between them. */
-.cmh-strip-words > .cmh-chans {
-  margin-left: var(--space-2);
 }
 /* On a phone the marks take a line of their own, under the moment's count or the line's words. */
 .cmh[data-phone] .cmh-chans {
@@ -5080,112 +5102,29 @@ div.tpl-slotbox:not([data-lines="1"]) {
   white-space: normal;
 }
 
-/* Under 1100px of page the five moments no longer fit side by side, and they stand down the line instead: the phone's vertical
-   rail, drawn from the desk's own markup (a moment's people on the left of its card, its node on the line between). */
+/* Under 1100px of page the moments keep their one line and the rail scrolls across (J3), a moment snapping to its start.
+   It stood down a line under 1100px, which put the ledger a screen below the moments. */
 @container cmh (max-width: 1100px) {
   .cmh-rail {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    grid-template-columns: minmax(0, 1fr);
-    padding: var(--space-2) 22px 0;
+    grid-auto-columns: minmax(168px, 1fr);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
   }
   .cmh-stage {
-    display: grid;
-    grid-template-columns: 30px minmax(5.5rem, auto) minmax(0, 1fr);
-    grid-template-areas:
-      "track caps moment"
-      "track figure moment"
-      "track unit moment";
-    align-items: center;
-    column-gap: var(--space-3);
-    padding: var(--space-2) 0;
-    text-align: start;
-  }
-  .cmh-caps {
-    grid-area: caps;
-    justify-content: flex-start;
-    height: auto;
-  }
-  .cmh-stage > .cmh-figure {
-    grid-area: figure;
-    margin: 0;
-  }
-  .cmh-unit {
-    grid-area: unit;
-    height: auto;
-    margin: 0;
-  }
-  .cmh-track {
-    grid-area: track;
-    align-self: stretch;
-    width: 30px;
-    height: auto;
-    margin: calc(-1 * var(--space-2)) 0;
-  }
-  .cmh-track::before {
-    top: 0;
-    right: auto;
-    bottom: 0;
-    left: 50%;
-    border-top: 0;
-    border-left: 2px dashed var(--line-strong);
-  }
-  .cmh-stage:is([data-state="always"], [data-state="on"]) .cmh-track::before {
-    border-top: 0;
-    border-left-style: solid;
-    border-left-color: var(--ink);
-  }
-  .cmh-stage:first-child .cmh-track::before {
-    top: 50%;
-    left: 50%;
-  }
-  .cmh-stage:last-child .cmh-track::before {
-    right: auto;
-    bottom: 50%;
-  }
-  .cmh-moment {
-    grid-area: moment;
-    flex-flow: row wrap;
-    justify-content: space-between;
-    min-height: 0;
-    padding: var(--space-3) var(--space-4);
-    text-align: start;
-  }
-  .cmh-moment > .cmh-needs {
-    flex-basis: 100%;
+    scroll-snap-align: start;
   }
 }
-
-/* Under the rail: one quiet line for every other playbook or campaign, two to a row. */
-.cmh-strips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: var(--space-4) 22px 18px;
-  padding: 0;
-  list-style: none;
-}
-.cmh-strip {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-3) 14px var(--space-3) var(--space-4);
-  border-radius: var(--radius-xl);
-  background: var(--surface-inset-fill);
-}
-.cmh-strip-words {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--text-base);
-}
-.cmh .cmh-strip-name {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-}
-.cmh-strip-more::before {
-  content: " · ";
+/* The edges fade only while more stands past them (rail.tsx useOverflows): a rail that fits draws its first and last
+   card whole, at whatever width. */
+.cmh-rail[data-overflows="true"] {
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    var(--ink) var(--space-5),
+    var(--ink) calc(100% - var(--space-5)),
+    transparent
+  );
 }
 
 /* The ledger (home/ledger/ledger.tsx; spec 2026-10-09 §4.3): every campaign in the rail's pane, under the moments. One
@@ -5486,9 +5425,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 @container cmh (max-width: 720px) {
   .cmh-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .cmh-strips {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -5875,16 +5811,14 @@ div.tpl-slotbox:not([data-lines="1"]) {
   }
 }
 
-/* A thumb's press area where the home's words are small (as mobile.css gives a playbook's name its own): the moments' and
-   the lines' names, a run's and a coming-up line's, keep the size they are drawn at and answer a press toward 44px. */
+/* A thumb's press area where the home's words are small (as mobile.css gives a playbook's name its own): the moments'
+   names and a coming-up line's keep the size they are drawn at and answer a press toward 44px. */
 @media (pointer: coarse) {
   .cmh .cmh-moment-name,
-  .cmh .cmh-strip-name,
   .cmh .cmh-what-name {
     position: relative;
   }
   .cmh .cmh-moment-name::after,
-  .cmh .cmh-strip-name::after,
   .cmh .cmh-what-name::after {
     content: "";
     position: absolute;

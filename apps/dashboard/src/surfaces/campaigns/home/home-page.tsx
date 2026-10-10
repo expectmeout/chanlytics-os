@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import { LIFECYCLE_TOAST } from "@chanlytics/contracts";
 import type { LifecycleAct, LifecycleHome } from "@chanlytics/contracts";
 import { canDo, gate, routeDoor, navigate, useLegacyToast } from "../../legacy-verbs";
+import type { RouteDoor } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { playbooks as verbs } from "../playbooks/verbs";
@@ -138,10 +139,18 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
   useReopenDrafts(address, playbooks, nav.swap);
   const { onAct, onCopy } = useActs(home, nav, flash);
   if (!playbooks) return null;
+  const door = (act: LifecycleAct): RouteDoor | null => {
+    if (act.kind === "open") return routeDoor(momentRoute(act.playbookId), nav.push);
+    if (act.kind === "route") return routeDoor(act.route);
+    return null;
+  };
   const acts: RailActs & { onCopy: (phrase: string) => void } = {
     onAct,
     onCopy,
-    gated: gate("approve", "turn on, resume or start a playbook"),
+    door,
+    gated: gate("approve", "turn on, resume or start a campaign"),
+    chosen: group,
+    onChoose: nav.narrow,
   };
   const newMessage = () => nav.push(composeRoute("once"));
   // A change is pushed over the drawer that showed it, so Cancel, and Back, return to the detail.

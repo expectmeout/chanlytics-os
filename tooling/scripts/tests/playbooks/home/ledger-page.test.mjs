@@ -493,3 +493,158 @@ test("a read that failed keeps its place: the templates in First contact, the ch
   assert.ok(inGroup("reach_out", "pb-chains-failed"));
   assert.ok(byTestId(byTestId(tree, "cmh-ledger-tools"), "cmh-ledger-failed"));
 });
+
+/* ------------------------------------------------------- the rail ------------------------------------------------------- */
+
+const { Rail } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/home/rail.tsx");
+const { Meter } = await import("../../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx");
+
+/** A moment on the rail in the view model's shape (contracts LifecycleStage), on with one campaign by default. */
+const stageOf = (id, over = {}) => ({
+  id,
+  caps: id.toUpperCase(),
+  name: `${id} lead`,
+  glyph: "bell",
+  moment: id === "first_contact" ? null : `${id}_trigger`,
+  playbookId: `pb-${id}`,
+  people: 3,
+  unit: "people",
+  state: "on",
+  stateWords: "On · daily 9:00 AM",
+  phoneWords: "daily 9:00 AM",
+  tone: "ok",
+  needs: "messages",
+  needsWords: "Reaches a yes to messages",
+  covered: true,
+  waits: false,
+  hint: null,
+  act: { kind: "open", label: "Open", playbookId: `pb-${id}` },
+  channels: [],
+  summary: "daily 9:00 AM",
+  bar: null,
+  ...over,
+});
+const railHome = (stages, groups = []) => ({
+  rail: {
+    title: "Your customer, start to finish",
+    coveredWords: "3 of 4 moments covered",
+    phoneWords: "3 of 4 on",
+    stages,
+  },
+  head: { channels: null },
+  failed: { counts: null },
+  // The ledger's groups, as far as the rail reads them: a paused moment's Resume is its lead row's own act.
+  ledger: { groups },
+});
+const railActs = (chosen = null) => {
+  const did = [];
+  return {
+    did,
+    onAct: (act) => did.push(act.kind),
+    door: (act) =>
+      act.kind === "open"
+        ? { href: `/w/studio/campaigns/moment:${act.playbookId}`, onClick: () => did.push(`open:${act.playbookId}`) }
+        : null,
+    gated: {},
+    chosen,
+    onChoose: (g) => did.push(["choose", g]),
+  };
+};
+const card = (tree, id) => allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === id);
+
+test("a card's body is one toggle that narrows the ledger to its moment, and lets go pressed again; its name and Turn on stand beside it", () => {
+  fresh();
+  const stages = [
+    stageOf("before"),
+    stageOf("after", {
+      state: "off",
+      playbookId: null,
+      act: { kind: "turn_on", label: "Turn on · 3 tomorrow", moment: "visited" },
+      hint: "Turn on · 3 tomorrow",
+    }),
+  ];
+  let acts = railActs();
+  let tree = again(() => h(Rail, { home: railHome(stages), acts }));
+  const toggle = byTestId(card(tree, "before"), "cmh-stage-press");
+  assert.equal(toggle.props["aria-pressed"], false);
+  assert.equal(
+    find(toggle, (n) => n.props?.["data-testid"] === "cmh-open"),
+    null,
+    "the name is never inside the toggle",
+  );
+  assert.equal(
+    find(byTestId(card(tree, "after"), "cmh-stage-press"), (n) => n.props?.["data-testid"] === "cmh-turn-on"),
+    null,
+    "nor Turn on",
+  );
+  press(toggle);
+  assert.deepEqual(acts.did, [["choose", "before"]]);
+  press(byTestId(card(tree, "before"), "cmh-open"));
+  assert.deepEqual(acts.did.at(-1), "open:pb-before", "the name opens the drawer");
+  assert.equal(byTestId(card(tree, "before"), "cmh-open").props.href, "/w/studio/campaigns/moment:pb-before");
+  press(byTestId(card(tree, "after"), "cmh-turn-on"));
+  assert.equal(acts.did.at(-1), "turn_on");
+  // Chosen: the card wears the chosen state, and its toggle lets go.
+  acts = railActs("before");
+  tree = again(() => h(Rail, { home: railHome(stages), acts }));
+  assert.equal(card(tree, "before").props["data-chosen"], "true");
+  assert.equal(byTestId(card(tree, "before"), "cmh-stage-press").props["aria-pressed"], true);
+  press(byTestId(card(tree, "before"), "cmh-stage-press"));
+  assert.deepEqual(acts.did, [["choose", null]]);
+});
+
+test("a Meter stands only where a moment holds two or more; a paused moment offers Resume, asked", () => {
+  fresh();
+  const bar = { on: 2, waiting: 0, paused: 1, of: 3 };
+  const ask = { question: "Resume Win-back?", detail: "Next run today 10:00 AM, about 25 people" };
+  const stages = [
+    stageOf("before", { summary: "before lead · daily 9:00 AM" }),
+    stageOf("quiet", { summary: "3 campaigns · 2 on · 1 paused", bar }),
+    // Lane 2's stage keeps its act the drawer's door (`open`); the Resume a paused card offers is its lead row's act.
+    stageOf("after", { state: "paused", tone: "plain", stateWords: "Paused" }),
+  ];
+  const groups = [
+    { id: "after", rows: [{ id: "pb-after", act: { kind: "resume", label: "Resume", playbookId: "pb-after", ask } }] },
+  ];
+  const tree = again(() => h(Rail, { home: railHome(stages, groups), acts: railActs() }));
+  assert.equal(
+    find(card(tree, "before"), (n) => n.type === Meter),
+    null,
+    "one campaign: no bar",
+  );
+  assert.equal(
+    find(byTestId(card(tree, "before"), "cmh-stage-press"), (n) => n.props?.className === "cmh-summary"),
+    null,
+    "one campaign's name and clock are its door's and its state's, not said twice",
+  );
+  const meter = find(card(tree, "quiet"), (n) => n.type === Meter);
+  assert.equal(meter.props.size, "sm");
+  assert.deepEqual(
+    meter.props.parts.map((p) => p.share),
+    [2, 0, 1],
+    "on, waiting, paused",
+  );
+  assert.equal(meter.props["aria-label"], "3 campaigns · 2 on · 1 paused");
+  assert.match(
+    textOf(byTestId(card(tree, "quiet"), "cmh-stage-press")),
+    /3 campaigns · 2 on · 1 paused/,
+    "the summary is the toggle's",
+  );
+  assert.ok(byTestId(card(tree, "after"), "cmh-stage-resume"), "Resume, which asks first");
+  assert.equal(
+    byTestId(card(tree, "after"), "cmh-open").props.href,
+    "/w/studio/campaigns/moment:pb-after",
+    "and a paused moment's name still opens its drawer",
+  );
+});
+
+test("the rail holds the ledger under its moments, and its edges fade only where it is wider than its pane", () => {
+  fresh();
+  const five = ["first_contact", "before", "after", "proposal", "quiet"].map((id) => stageOf(id));
+  const tree = again(() =>
+    h(Rail, { home: railHome(five), acts: railActs() }, h("div", { "data-testid": "the-ledger" })),
+  );
+  // Nothing measured (the stub has no ResizeObserver): nothing is said to overflow, so nothing fades.
+  assert.equal(find(tree, (n) => n.props?.className === "cmh-rail").props["data-overflows"], undefined);
+  assert.ok(byTestId(byTestId(tree, "cmh-rail"), "the-ledger"), "the ledger stands in the rail's pane");
+});
