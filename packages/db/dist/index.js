@@ -386,24 +386,30 @@ async function migrationHead(db) {
   const row = data?.[0];
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
+var NAMES_PER_READ = 100;
 async function platformDay(db, day) {
   const { data, error } = await db.from("platform_metrics").select("tenant_id, brain_p95_ms, job_lag_ms, duplicate_sends, dead_letters, relay_lag_ms, intake_lag_ms").eq("day", day);
   if (error) throw new Error(error.message);
   const rows = data ?? [];
   const ids = [...new Set(rows.map((r) => r.tenant_id))];
-  const names = /* @__PURE__ */ new Map();
-  if (ids.length) {
-    const t = await db.from("tenants").select("id, name").in("id", ids);
+  const live = /* @__PURE__ */ new Map();
+  for (let i = 0; i < ids.length; i += NAMES_PER_READ) {
+    const t = await db.from("tenants").select("id, name, status").in("id", ids.slice(i, i + NAMES_PER_READ));
     if (t.error) throw new Error(t.error.message);
-    for (const w of t.data ?? []) names.set(w.id, w.name);
+    for (const w of t.data ?? []) if (w.status === "active") live.set(w.id, w.name);
   }
-  return rows.map((r) => ({
-    ...r,
-    name: names.get(r.tenant_id) ?? r.tenant_id,
-    job_lag_ms: r.job_lag_ms,
-    dead_letters: r.dead_letters,
-    intake_lag_ms: r.intake_lag_ms
-  }));
+  return rows.flatMap((r) => {
+    const name = live.get(r.tenant_id);
+    return name === void 0 ? [] : [
+      {
+        ...r,
+        name,
+        job_lag_ms: r.job_lag_ms,
+        dead_letters: r.dead_letters,
+        intake_lag_ms: r.intake_lag_ms
+      }
+    ];
+  });
 }
 
 // src/erasure-registry.ts

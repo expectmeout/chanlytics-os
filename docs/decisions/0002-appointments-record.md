@@ -470,7 +470,7 @@ Ruben: "review and go with the best suggestions for chanlytics". Each answer as 
    Step 3 is dropped.
 3. **An operator or above** says `kept`, `missed` or `cancelled`, through a `route()` write that records a decision, as
    consent, a deal and a note are. A mistaken `kept` and `missed` may be corrected one into the other through that door
-   alone; the guard keeps every other end final. **The sweep never stores `kept`:** attendance the database cannot
+   alone, `appointments_guard` changed to allow that one move (it refuses it today); every other end stays final. **The sweep never stores `kept`:** attendance the database cannot
    support is not written. A visit past its end and neither missed nor cancelled is read, and worded, as past.
 4. **`missed` reaches no customer by itself.** It holds the after-the-visit moment and any reminder (`appointmentHolds`
    already treats it as off), and it becomes a field of a list's rule, so an owner may run a win-back moment on it under

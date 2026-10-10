@@ -14468,11 +14468,13 @@ begin
       delete from public.invitations i
        where i.id in (select c.id from public.invitations c
                        where greatest(c.accepted_at, c.revoked_at) < now() - p_keep limit 1000)
-      returning i.id
+      returning i.id, i.tenant_id
     ), said as (
+      -- By the workspace and the invitation, as decisions_tenant_subject leads.
       update public.decisions d
          set payload = d.payload - 'email'
-       where d.subject_type = 'invitation' and d.subject_id in (select id from gone) and d.payload ? 'email'
+        from gone g
+       where d.tenant_id = g.tenant_id and d.subject_type = 'invitation' and d.subject_id = g.id and d.payload ? 'email'
       returning d.id
     )
     select (select count(*) from gone) into v_n;

@@ -10147,8 +10147,9 @@ interface PlatformDayPromises {
     intake_lag_ms: Record<string, number> | null;
 }
 /**
- * The rollup's day for every workspace that worked in it, with the workspace's name: what the health sweep holds to
- * contracts' PLATFORM_NUMBERS once a day. A read that fails throws, with the database's words.
+ * The rollup's day for every live workspace that worked in it (status active, as the silence alarm reads it: a paused
+ * or test workspace pages nobody), with its name: what the health sweep holds to contracts' PLATFORM_NUMBERS once a day.
+ * A read that fails throws, with the database's words.
  */
 declare function platformDay(db: Db$x, day: string): Promise<PlatformDayPromises[]>;
 

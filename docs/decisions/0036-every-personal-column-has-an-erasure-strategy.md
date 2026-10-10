@@ -114,7 +114,7 @@ someone else's thread stays, and stays counted, until an exception to that trigg
   stated (`RETENTION_DAYS.lead_judgments`) and by age in the registry.
 - Answered (10 October 2026, built in 00392): **a closed invitation goes after 30 days** with its address
   (`purge_invitations`, `RETENTION_DAYS.invitations_closed`), from the decisions that recorded it too; an open or
-  expired one stays, for the Team card to send again. **A handover's address is cleared once accepted**
+  expired one stays, for the Team card to send again. The sign-in account an invitation makes for a new address (Supabase Auth, `inviteUserByEmail`) is not the purge's: one never confirmed and holding no seat is a sweep still owed. **A handover's address is cleared once accepted**
   (`handover_accept`); a declined or expired one keeps it, for the partner to send again. Both stay with the workspace
   in the registry, since the open ones do.
 - Answered: a person's words in a workspace's own notes are scrubbed in place, numbers and addresses only, and nothing

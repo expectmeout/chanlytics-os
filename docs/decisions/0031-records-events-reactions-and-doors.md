@@ -302,7 +302,7 @@ re-drive replaying it, and that re-drive is a delivery's one way back: the back 
 to it rather than running a second beside a row it would leave failed. Invariant 10's registry names 187 of its 195 columns (0036 step 3, 00391), and 0035's client
 keys the workspace's other writes. Invariant 2 is held in part: the doors-without-events baseline is built (sixty-eight
 doors writing seventy-seven tables, `baselines/doors-without-events.json`), and each door the day built has its event
-proved on a real database; the conformance test across every door is not. Invariant 12 waits on Ruben's targets.
+proved on a real database; the conformance test across every door is not.
 
 **10 October 2026, what was Ruben's,** settled the same evening on his word ("review and go with the best suggestions
 for chanlytics"), each as recommended:

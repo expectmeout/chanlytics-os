@@ -54,7 +54,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   );
   assert.match(
     words,
-    /A team invitation that was accepted or taken back is removed 30 days later, with the address it was sent to, and the address a workspace was handed over to is cleared once its new owner accepts\./,
+    /A team invitation that was accepted or taken back is removed 30 days later, with the address on it, and the address a workspace was handed over to is cleared once its new owner accepts\./,
   );
   assert.match(
     words,

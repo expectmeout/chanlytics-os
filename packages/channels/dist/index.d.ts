@@ -3126,8 +3126,9 @@ interface ProfileSyncPlan {
     complete: boolean;
     /**
      * Whether the reviews on record that this read did not list may go (decision 0036, 00392): only after a complete read
-     * that holds reviews, or one Google says holds none. A complete read with no reviews and no count is a page that came
-     * back without its list, never a location that lost them all.
+     * that holds as many reviews as Google counts (or holds reviews, when Google gives no count), or one Google says holds
+     * none. A complete read with no reviews and no count is a page that came back without its list, and one with fewer
+     * than the count a list cut short, never a location that lost them: the purge's ninety days take what this leaves.
      */
     prune: boolean;
 }

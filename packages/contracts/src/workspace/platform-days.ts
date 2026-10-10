@@ -289,7 +289,9 @@ interface PlatformBreach {
 /** The most a target allows for a key, or for the number itself. */
 function mostFor(t: PlatformTarget, key: string | null): number {
   if (typeof t.most === "number") return t.most;
-  return (key !== null ? t.most[key] : undefined) ?? t.otherwise ?? Number.POSITIVE_INFINITY;
+  return (
+    (key !== null && Object.hasOwn(t.most, key) ? t.most[key] : undefined) ?? t.otherwise ?? Number.POSITIVE_INFINITY
+  );
 }
 
 /** One number's breaches: a single figure past its most, or each key past its own. */

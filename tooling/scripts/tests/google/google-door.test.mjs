@@ -1506,7 +1506,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     if (u === TOKEN_URL)
       return { status: 200, body: { access_token: "at-new", expires_in: 3600, scope: SCOPE, token_type: "Bearer" } };
     if (u === REVIEWS_URL("accounts/111", "222"))
-      return { status: 200, body: { reviews: [NEW, GBP_REVIEW], averageRating: 4.8, totalReviewCount: 13 } };
+      return { status: 200, body: { reviews: [NEW, GBP_REVIEW], averageRating: 4.8, totalReviewCount: 2 } };
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   const t0 = Date.now();
@@ -1517,7 +1517,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   assert.ok(Date.parse(b2.connection.last_synced_at) >= t0, "the stamp is the successful sync");
   assert.deepEqual(
     [b2.listing.rating, b2.listing.review_count],
-    [4.8, 13],
+    [4.8, 2],
     "the rating and the count as the profile reports them",
   );
   assert.deepEqual(
@@ -1554,7 +1554,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
   assert.deepEqual(
     tables.events.map((e) => [e.kind, e.data]),
-    [["google.reviews", { source: "profile", fresh: 1, counted: 0, rating: 4.8, review_count: 13 }]],
+    [["google.reviews", { source: "profile", fresh: 1, counted: 0, rating: 4.8, review_count: 2 }]],
   );
   assert.ok(
     !net.calls.some((c) => c.url.startsWith("https://places.googleapis.com")),

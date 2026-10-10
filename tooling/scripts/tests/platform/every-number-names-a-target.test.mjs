@@ -93,6 +93,7 @@ test("a day past a target: each key against its own, a key not named against the
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const P = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const row = (tenant_id, day, over = {}) => ({
   tenant_id,
   day,
@@ -119,13 +120,16 @@ const row = (tenant_id, day, over = {}) => ({
 test("the morning's sweep pages once for yesterday's numbers past their targets, every workspace in one page; a quiet day, or the afternoon, pages nothing", async () => {
   const tables = {
     tenants: [
-      { id: A, name: "Harbor Moving", slug: "harbor" },
-      { id: B, name: "Bayside Dental", slug: "bayside" },
+      { id: A, name: "Harbor Moving", slug: "harbor", status: "active" },
+      { id: B, name: "Bayside Dental", slug: "bayside", status: "active" },
+      { id: P, name: "Paused Movers", slug: "paused", status: "paused" },
     ],
     platform_metrics: [
       row(A, "2026-10-09", { relay_lag_ms: 20_000, job_lag_ms: { 0: 2_000 } }),
       row(B, "2026-10-09", { relay_lag_ms: 1_000, first_answer_ms: { sms: 90_000 } }),
       row(A, "2026-10-08", { relay_lag_ms: 99_000 }),
+      // A paused workspace pages nobody, as the silence alarm reads only live ones.
+      row(P, "2026-10-09", { relay_lag_ms: 50_000 }),
     ],
     operator_pages: [],
   };
@@ -155,6 +159,7 @@ test("the morning's sweep pages once for yesterday's numbers past their targets,
     "a customer's wait past its target is the workspace's, shown and not paged",
   );
   assert.doesNotMatch(sent[0].body, /99\.0 s/, "only yesterday");
+  assert.doesNotMatch(sent[0].body, /Paused Movers/, "a paused workspace pages nobody");
 
   const afternoon = Date.parse("2026-10-10T12:17:00Z");
   assert.equal(await watchTargets(db, afternoon, { ...pager, now: () => afternoon }), 0, "the afternoon does not ask");
