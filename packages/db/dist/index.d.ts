@@ -37143,10 +37143,9 @@ declare function countSentToday(db: Db$v, p: {
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
 declare function recordStatusByExternalId(db: Db$v, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /**
- * The message of this workspace a provider's id names (Meta's wamid, Twilio's sid), as it stands, and where it went:
- * what a receipt that reports a failure needs to know before it moves the row (core raiseLateFailure). Null when none
- * carries the id: a receipt for history we never wrote. `to` is the number a text or a WhatsApp message went to, or the
- * address an email did, as the person's row has it now. A read that fails THROWS.
+ * The message of this workspace a provider's id names (Meta's wamid, Twilio's sid), as it stands: what a receipt that
+ * reports a failure needs to know before it moves the row (core raiseLateFailure). Null when none carries the id: a
+ * receipt for history we never wrote. A read that fails THROWS.
  */
 declare function messageByExternalId(db: Db$v, tenantId: string, externalId: string): Promise<{
     messageId: string;
@@ -37155,7 +37154,6 @@ declare function messageByExternalId(db: Db$v, tenantId: string, externalId: str
     sender: string;
     status: string;
     meta: Json;
-    to: string | null;
 } | null>;
 /**
  * What it cost to send a message, as Meta's receipt said it, kept once on its outbound row (message_keep_cost, 00319):

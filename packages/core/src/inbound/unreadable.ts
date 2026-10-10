@@ -81,7 +81,7 @@ export function seeingOf(at: Answering) {
     await Promise.all([
       ...(pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : []),
       asked,
-      tell(`[${raw.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null),
+      tell(asked, `[${raw.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null),
     ]);
     L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
     return { pausedUntil, way: { escalation: escalationOf(await asked), reply: acked ? "sent" : "none" } };

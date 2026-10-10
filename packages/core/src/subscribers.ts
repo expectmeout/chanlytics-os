@@ -36,6 +36,15 @@ export interface SubscriberPorts {
 /** A subscriber: the event, once; nothing to return, a throw is a failed delivery. */
 export type Subscriber = (event: DeliveredEvent, ports: SubscriberPorts) => Promise<void>;
 
+/**
+ * Whether a hold's write landed, so its event tells the owner (owner_notice, once, after the commit). Anything else, a
+ * write the database refused or one never answered, is told where the hold was decided, so a database that refuses the
+ * hold never silences it (decision 0043, step 3).
+ */
+export function toldFromItsEvent(written: string | null | undefined): boolean {
+  return written === "opened" || written === "changed" || written === "refreshed";
+}
+
 /** Which hold an escalation event names: an opened one by its thread, a change by the hold's own id. */
 function holdOfEvent(event: DeliveredEvent): { conversationId: string } | { escalationId: string } | null {
   if (!event.subject_id) return null;
@@ -44,6 +53,19 @@ function holdOfEvent(event: DeliveredEvent): { conversationId: string } | { esca
   if (event.kind === "escalation.changed") return { escalationId: event.subject_id };
   return null;
 }
+
+/** The reason a hold's event says it holds for: an opened hold's, or the one a change moved it to. */
+function reasonOfEvent(event: DeliveredEvent): unknown {
+  const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : {};
+  return (data as Record<string, unknown>)[event.kind === "escalation.changed" ? "to" : "reason"];
+}
+
+/**
+ * An email's hold is told where it is taken in, never here: by the intake, in its job, naming the sender and the subject
+ * (core email-ingest.ts); by its reading, for a reach-out's reply (reply-read.ts); or by the failure notice of a job
+ * that died taking it in (jobs settle.ts). Told here as well, the owner would hear of one email twice.
+ */
+const TOLD_WHERE_TAKEN_IN = "email_review";
 
 /** The changes that may book a lead: an appointment that is there now (a cancelled one books nobody). */
 const BOOKS = new Set(["added", "confirmed", "moved"]);
@@ -59,9 +81,9 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
   },
   owner_notice: async (event, ports) => {
     const ref = holdOfEvent(event);
-    if (!ref) return;
+    if (!ref || reasonOfEvent(event) === TOLD_WHERE_TAKEN_IN) return;
     const facts = await ports.holdFacts(event.tenant_id, ref);
-    if (!facts) return;
+    if (!facts || facts.reason === TOLD_WHERE_TAKEN_IN) return;
     const told = await ports.holdTold(event.tenant_id, {
       eventId: event.id,
       conversationId: facts.conversationId,

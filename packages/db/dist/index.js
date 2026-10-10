@@ -1654,7 +1654,7 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
   }
 }
 async function messageByExternalId(db, tenantId, externalId) {
-  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
+  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, status, meta").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
   if (error) throw new Error(`messageByExternalId: ${error.message}`);
   if (!data) return null;
   return {
@@ -1663,8 +1663,7 @@ async function messageByExternalId(db, tenantId, externalId) {
     direction: data.direction,
     sender: data.sender,
     status: data.status,
-    meta: data.meta,
-    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null
+    meta: data.meta
   };
 }
 async function keepMessageCost(db, tenantId, externalId, pricing) {

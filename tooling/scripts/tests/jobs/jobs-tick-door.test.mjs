@@ -502,19 +502,19 @@ test("each job leaves on its own workspace's WhatsApp credentials from the vault
     "its thread is flagged for a person",
   );
   assert.deepEqual(
-    L.left().mail.map((m) => [m.to, m.subject]),
-    [[[none.owner], "Reply delivery failed: +13475550103"]],
-    "and its own owner is told, nobody else",
+    L.tables.events.filter((e) => e.kind === "escalation.opened").map((e) => [e.tenant_id, e.subject_id]),
+    [[none.T, refused.message.conversation_id]],
+    "and its own owner is told by the hold's event, after the commit (decision 0043, owner_notice), nobody else",
   );
+  assert.deepEqual(L.left().mail, [], "not by the send as well");
   assert.deepEqual(
     L.tables.jobs.map((j) => [j.kind, j.tenant_id, j.state ?? "scheduled"]),
     [
       ["outbound_send", a.T, "done"],
       ["outbound_send", b.T, "done"],
       ["outbound_send", none.T, "done"],
-      ["push_send", none.T, "scheduled"],
     ],
-    "the three ran; the refused one's kept row leaves one push job for its own owner's phone (00162), for the next heartbeat",
+    "the three ran",
   );
 });
 
@@ -620,11 +620,13 @@ test("a workspace whose vault did not answer is not a workspace that holds none:
   assert.deepEqual(L.left().graph, [], "nothing left on any wire");
   assert.deepEqual(
     L.left().mail.map((m) => [m.to, m.subject]),
-    [
-      [[MAIL.LEAD_TO], "[Chanlytics] whatsapp: a workspace's credentials could not be read"],
-      [[none.owner], "Reply delivery failed: +13475550105"],
-    ],
-    "the platform is paged for its own condition, the workspace that holds none is told; the one whose vault blinked is not",
+    [[[MAIL.LEAD_TO], "[Chanlytics] whatsapp: a workspace's credentials could not be read"]],
+    "the platform is paged for its own condition",
+  );
+  assert.deepEqual(
+    L.tables.events.filter((e) => e.kind === "escalation.opened").map((e) => e.tenant_id),
+    [none.T],
+    "the workspace that holds none is told, by its hold's event (decision 0043); the one whose vault blinked is not",
   );
   const page = JSON.stringify(L.left().mail[0]);
   assert.ok(page.includes(blip.T) && page.includes("vault unavailable"), "the page names the workspace and the read");

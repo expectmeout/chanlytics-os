@@ -56,6 +56,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     await Promise.all([
       asked,
       tell(
+        asked,
         n.body ?? `[${raw.type}]`,
         "(no reply sent — the receptionist could not read the thread state)",
         "state unavailable",
@@ -105,7 +106,9 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
       : null;
     await Promise.all([
       processedAfter(sink, asked, "none"),
-      ...(asked ? [asked, tell(n.body ?? `[${raw.type}]`, "(no reply sent — the customer opted out)", "opt-out")] : []),
+      ...(asked
+        ? [asked, tell(asked, n.body ?? `[${raw.type}]`, "(no reply sent — the customer opted out)", "opt-out")]
+        : []),
     ]);
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
@@ -125,6 +128,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     await Promise.all([
       asked,
       tell(
+        asked,
         n.body ?? `[${raw.type}]`,
         "(no reply sent — the carriers have not approved this line for texting yet)",
         "carriers",
@@ -162,7 +166,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
     await Promise.all([
       asked,
-      tell(n.body ?? `[${raw.type}]`, "(no reply sent — passed to a human)", n.kind),
+      tell(asked, n.body ?? `[${raw.type}]`, "(no reply sent — passed to a human)", n.kind),
       processedAfter(sink, asked, "none"),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });

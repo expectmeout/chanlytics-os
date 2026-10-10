@@ -11,7 +11,7 @@ import type { BrainConfig, NotificationsConfig, SendPurpose } from "@chanlytics/
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Delivered } from "../deliver";
 import { replyPosture } from "./reply-posture";
-import type { InboundHandoff, InboundPorts, InboundSink } from "./ports";
+import type { EscalateOutcome, InboundHandoff, InboundPorts, InboundSink } from "./ports";
 import { MAX_REPLIES_PER_DAY } from "./steps";
 import type { ThreadState } from "./thread";
 import type { InboundInput } from "./answer";
@@ -89,7 +89,17 @@ export interface Ingested {
   sink: InboundSink;
   wire: (text: string) => string;
   send: (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: "system") => Promise<Delivered>;
-  tell: (userText: string, botText: string, reason: string, pausedHours?: number | null) => Promise<void>;
+  /**
+   * The owner's handoff notice, for a hold that was not written (`asked` answered failed, or nothing: no database): a hold
+   * that was is told from its event, once, after the commit (decision 0043, core SUBSCRIBERS.owner_notice).
+   */
+  tell: (
+    asked: Promise<EscalateOutcome> | null,
+    userText: string,
+    botText: string,
+    reason: string,
+    pausedHours?: number | null,
+  ) => Promise<void>;
 }
 
 /** The mode in force for this one message, once the person's own setting is known. */

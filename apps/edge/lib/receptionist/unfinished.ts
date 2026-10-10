@@ -37,6 +37,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS } from "../packages/contracts.js";
 import type { EscalationOutcome } from "../packages/jobs.js";
+import { toldFromItsEvent } from "../packages/core.js";
 import type { logger } from "../log.js";
 import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "../ops/notify.js";
 import type { loadTenantNotifications as loadFn } from "../tenant-runtime.js";
@@ -266,18 +267,27 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
         const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / MIN_MS));
         const words = short(r.body);
         const detail = `The receptionist never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). No reply has been sent — ${words ? `"${words}"` : "no text"}`;
-        await p.upsertEscalation(p.db, r.tenant_id, r.conversation_id, "brain_error", detail.slice(0, 400));
+        const flagged = await p.upsertEscalation(
+          p.db,
+          r.tenant_id,
+          r.conversation_id,
+          "brain_error",
+          detail.slice(0, 400),
+        );
         out.unanswered += 1;
-        const told = await tell(r.tenant_id, {
-          kind: "deadman",
-          route: "inbox",
-          subject: "A customer wrote and nothing answered",
-          body:
-            `A message arrived ${waitedMin} minutes ago and the receptionist never finished with it, so the customer has had no reply.\n\n` +
-            `${words ? `They wrote: "${words}"\n\n` : ""}` +
-            `The thread is flagged for you in the Inbox. Reply there; nothing will be sent on its own.`,
-          redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
-        });
+        // A flag written is told from its event (decision 0043, owner_notice); a flag that could not be is told here.
+        const told =
+          !toldFromItsEvent(flagged) &&
+          (await tell(r.tenant_id, {
+            kind: "deadman",
+            route: "inbox",
+            subject: "A customer wrote and nothing answered",
+            body:
+              `A message arrived ${waitedMin} minutes ago and the receptionist never finished with it, so the customer has had no reply.\n\n` +
+              `${words ? `They wrote: "${words}"\n\n` : ""}` +
+              `The thread is flagged for you in the Inbox. Reply there; nothing will be sent on its own.`,
+            redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
+          }));
         if (told) out.told += 1;
         p.L.warn("unfinished_inbound_flagged", {
           tenant_id: r.tenant_id,
@@ -337,20 +347,23 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
       // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).
       if (s.conversation_id && !isCampaignEmail(s.meta?.email?.request)) {
         const who = s.sender === "ai" ? "The receptionist's reply" : "A reply";
-        await p.upsertEscalation(
+        const flagged = await p.upsertEscalation(
           p.db,
           s.tenant_id,
           s.conversation_id,
           "send_failed",
           `${who} never left: ${ORPHAN_NOTE}. Check the conversation before sending it again.`,
         );
-        const told = await tell(s.tenant_id, {
-          kind: "deadman",
-          route: "inbox",
-          subject: "A reply never left",
-          body: `${who} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
-          redactedBody: "A queued reply in this workspace never left; the thread is flagged.",
-        });
+        // Told from its event when written (decision 0043); here only when it could not be.
+        const told =
+          !toldFromItsEvent(flagged) &&
+          (await tell(s.tenant_id, {
+            kind: "deadman",
+            route: "inbox",
+            subject: "A reply never left",
+            body: `${who} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
+            redactedBody: "A queued reply in this workspace never left; the thread is flagged.",
+          }));
         if (told) out.told += 1;
       }
       p.L.warn("unfinished_queued_failed", { tenant_id: s.tenant_id, message: s.id });

@@ -215,10 +215,13 @@ export interface InboundSink {
    * rather than once per message. Undefined when Postgres is off or the write
    * failed. The set is packages/jobs escalate.ts `EscalationOutcome`.
    */
-  escalate(reason: string, details: string): Promise<"opened" | "changed" | "refreshed" | "failed" | undefined>;
+  escalate(reason: string, details: string): Promise<EscalateOutcome>;
   /** Download from the provider, upload to storage, record where it went. The bytes when they were fetched. */
   media(n: NormalizedInbound): Promise<{ bytes: ArrayBuffer; mime: string | null } | null | undefined>;
 }
+
+/** How a hold landed (packages/jobs EscalationOutcome), or nothing where no database keeps it. */
+export type EscalateOutcome = "opened" | "changed" | "refreshed" | "failed" | undefined;
 
 export interface InboundPorts {
   /** The database, or null when this deployment persists nothing. */

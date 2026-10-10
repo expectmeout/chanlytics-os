@@ -335,3 +335,31 @@ test("owner_notice reads a change by its hold, and names nobody erased", async (
   assert.equal(n.subject, "A customer needs a person — the receptionist reached its daily limit");
   assert.doesNotMatch(n.body, /Rosa|Friday|305|Thread hit/, "no name, no words, no number of someone erased");
 });
+
+test("owner_notice leaves an email's hold to where it is taken in: opened, changed to it, or holding it now", async () => {
+  // The intake tells it in its job (sender, subject), a reach-out's reading tells its reply, a dead job's notice tells
+  // the rest: told here too, one email would be heard of twice.
+  const opened = world({ subscriber: "owner_notice" });
+  Object.assign(opened.tables.events[0], { data: { reason: "email_review" } });
+  opened.tables.escalations[0].reason = "email_review";
+  const changed = world({ subscriber: "owner_notice" });
+  Object.assign(changed.tables.events[0], {
+    kind: "escalation.changed",
+    subject_type: "escalation",
+    subject_id: changed.tables.escalations[0].id,
+    data: { from: "carriers", to: "email_review" },
+  });
+  changed.tables.escalations[0].reason = "email_review";
+  // Opened for the cap, then an email moved it before the delivery ran: the hold is the intake's to tell now.
+  const since = world({ subscriber: "owner_notice" });
+  since.tables.escalations[0].reason = "email_review";
+  for (const [name, w] of [
+    ["opened", opened],
+    ["changed", changed],
+    ["since", since],
+  ]) {
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", name);
+    assert.deepEqual(w.told, [], name);
+    assert.equal(w.delivery().state, "done", `${name}: delivered, and nothing owed`);
+  }
+});

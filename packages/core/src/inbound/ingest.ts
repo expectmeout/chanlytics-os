@@ -29,7 +29,8 @@ import { shortCode, addressInMessage } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Wire } from "../deliver";
-import { IngestFailed } from "./ports";
+import { type EscalateOutcome, IngestFailed } from "./ports";
+import { toldFromItsEvent } from "../subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
 import { errField } from "@chanlytics/channels";
@@ -209,8 +210,17 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
    * pause, and an owner who believes in one that did not happen answers at
    * their leisure and is talked over by the bot's next reply.
    */
-  const tell = (userText: string, botText: string, reason: string, pausedHours: number | null = null) =>
-    ports.alertStaff(from, userText, botText, reason, {
+  const tell = async (
+    asked: Promise<EscalateOutcome> | null,
+    userText: string,
+    botText: string,
+    reason: string,
+    pausedHours: number | null = null,
+  ) => {
+    // A hold written is told from its event (decision 0043): once, after the commit, out of this request. One whose
+    // write failed, or a deployment with no database to write it in, is told here, as it was decided.
+    if (toldFromItsEvent(asked ? await asked.catch(() => undefined) : undefined)) return;
+    await ports.alertStaff(from, userText, botText, reason, {
       target: notifyTarget,
       channel,
       pausedHours,
@@ -218,6 +228,7 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
       who: n.profileName ?? null,
       about: ing ? { type: "conversation", id: ing.conversation_id } : null,
     });
+  };
 
   // Atomic concurrent-redelivery gate. ingest_inbound's is_new claim IS the
   // dedupe, and it is stronger than the `seen` array the retired store kept (a

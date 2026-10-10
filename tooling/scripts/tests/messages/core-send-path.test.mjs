@@ -139,30 +139,41 @@ test("a job may say what its send IS, and only ever more strictly: an offer is m
   );
 });
 
-test("a wire that could not carry it flags the thread and tells the owner; a provider's 401 or 403 pages the platform as well; a refusal does neither", async () => {
+test("a wire that could not carry it flags the thread, whose event tells the owner; a provider's 401 or 403 pages the platform as well; a refusal does neither", async () => {
   const failed = fakes({
     deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "boom", messageId: "m1" },
   });
   await core.sendQueued(failed.ports, send());
-  assert.deepEqual(failed.ops(), ["deliver", "escalate", "alert"]);
+  assert.deepEqual(
+    failed.ops(),
+    ["deliver", "escalate"],
+    "the flag is written, so its event tells the owner, not the send (decision 0043)",
+  );
   assert.deepEqual(failed.log[1], [
     "escalate",
     "c1",
     "send_failed",
     "Dashboard reply could not be delivered (HTTP 500).",
   ]);
-  assert.match(failed.log[2][1].subject, /Reply delivery failed: \+13475550101/);
-  assert.match(failed.log[2][1].body, /HTTP 500/);
+  // A flag the database refused is told here, in the send's words: the job completes, and nothing will say it again.
+  const unwritten = fakes({
+    escalate: "failed",
+    deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "boom", messageId: "m1" },
+  });
+  await core.sendQueued(unwritten.ports, send());
+  assert.deepEqual(unwritten.ops(), ["deliver", "escalate", "alert"]);
+  assert.match(unwritten.log[2][1].subject, /Reply delivery failed: \+13475550101/);
+  assert.match(unwritten.log[2][1].body, /HTTP 500/);
   // A reply that could not be delivered is a thread that needs a person, and its button opens THAT thread; the job itself finished.
   assert.deepEqual(
-    [failed.log[2][1].kind, failed.log[2][1].route, failed.log[2][1].about],
+    [unwritten.log[2][1].kind, unwritten.log[2][1].route, unwritten.log[2][1].about],
     ["handoff", "inbox/th-c1", { type: "conversation", id: "c1" }],
   );
   const creds = fakes({
     deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "bad token", messageId: "m1" },
   });
   await core.sendQueued(creds.ports, send());
-  assert.deepEqual(creds.ops(), ["deliver", "page", "escalate", "alert"]);
+  assert.deepEqual(creds.ops(), ["deliver", "page", "escalate"]);
   assert.equal(creds.log[1][1], "provider_auth:whatsapp");
   assert.match(creds.log[1][3], /Credentials, not content/);
   const noPager = fakes({
@@ -170,14 +181,14 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
     page: ABSENT,
   });
   await core.sendQueued(noPager.ports, send());
-  assert.deepEqual(noPager.ops(), ["deliver", "escalate", "alert"], "a runtime without a pager still flags and tells");
+  assert.deepEqual(noPager.ops(), ["deliver", "escalate"], "a runtime without a pager still flags");
   const noWire = fakes({
     deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" },
   });
   await core.sendQueued(noWire.ports, send());
   assert.deepEqual(
     noWire.ops(),
-    ["deliver", "escalate", "alert"],
+    ["deliver", "escalate"],
     "no credentials is the thread's problem to show, not the pager's",
   );
   assert.deepEqual(
@@ -185,7 +196,6 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
     ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the WhatsApp number is not connected)."],
     "and it is shown as what it is, never as an HTTP status",
   );
-  assert.match(noWire.log[2][1].body, /the WhatsApp number is not connected/);
   const noLine = fakes({
     queued: { status: "queued", body: "See you at 3", channel: "sms", sender: "human" },
     deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" },
@@ -196,7 +206,6 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
     ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the texting line is not connected)."],
     "a text is told as a text: its line, never a WhatsApp number it was not sent on",
   );
-  assert.match(noLine.log[2][1].body, /the texting line is not connected/);
   const draft = fakes({
     queued: { status: "queued", body: "Hi!", channel: "whatsapp", sender: "ai" },
     deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "x", messageId: "m1" },
@@ -261,8 +270,10 @@ test("an email's queued row leaves as the request it was frozen with, to the add
   await assert.rejects(core.sendQueued(texted.ports, byEmail()), /goes out by whatsapp and the job names no number/);
   assert.deepEqual([...crossed.ops(), ...texted.ops()], [], "nothing reached the door");
 
-  // A row with no sendable request still goes to the door, which fails it by name; the owner reads words, not "HTTP 0".
+  // A row with no sendable request still goes to the door, which fails it by name; the owner reads words, not "HTTP 0"
+  // (here in the send's own notice, for a flag the database refused).
   const bare = fakes({
+    escalate: "failed",
     queued: { ...row, email: null },
     deliver: { outcome: "failed", reason: "provider", status: 0, errorBody: "no_frozen_request", messageId: "m1" },
   });
@@ -343,7 +354,7 @@ test("a limit at the mail provider is said as one: a used-up day or month is rec
   });
   const day = fakes({ queued: emailRow, deliver: refusedBy("daily") });
   await core.sendQueued(day.ports, byEmail);
-  assert.deepEqual(day.ops(), ["deliver", "page", "escalate", "alert"]);
+  assert.deepEqual(day.ops(), ["deliver", "page", "escalate"]);
   assert.deepEqual(
     [day.log[1][1], day.log[1][2]],
     ["provider_quota:email", "email: the daily sending limit is used up"],
@@ -354,11 +365,11 @@ test("a limit at the mail provider is said as one: a used-up day or month is rec
   );
   const busy = fakes({ queued: emailRow, deliver: refusedBy("rate") });
   await core.sendQueued(busy.ports, byEmail);
-  assert.deepEqual(busy.ops(), ["deliver", "escalate", "alert"], "a busy second is nobody's page");
+  assert.deepEqual(busy.ops(), ["deliver", "escalate"], "a busy second is nobody's page");
   assert.equal(busy.log[1][3], "Dashboard reply could not be delivered (the mail provider asked us to slow down).");
   const month = fakes({ queued: emailRow, deliver: refusedBy("monthly") });
   await core.sendQueued(month.ports, byEmail);
-  assert.deepEqual(month.ops(), ["deliver", "page", "escalate", "alert"]);
+  assert.deepEqual(month.ops(), ["deliver", "page", "escalate"]);
   assert.equal(month.log[1][2], "email: the monthly sending limit is used up");
   assert.equal(
     month.log[2][3],
@@ -367,7 +378,7 @@ test("a limit at the mail provider is said as one: a used-up day or month is rec
   // A try still being worked may yet arrive: the owner is told to look before sending again, and nobody is paged.
   const inFlight = fakes({ queued: emailRow, deliver: refusedBy("in_flight") });
   await core.sendQueued(inFlight.ports, byEmail);
-  assert.deepEqual(inFlight.ops(), ["deliver", "escalate", "alert"]);
+  assert.deepEqual(inFlight.ops(), ["deliver", "escalate"]);
   assert.equal(
     inFlight.log[1][3],
     "Dashboard reply could not be delivered (the mail provider is still sending an earlier try of it; check the thread before sending it again).",
@@ -489,7 +500,7 @@ test("a cold email's failure is recorded on its row and its run's to report: no 
     "a domain the provider will not send from is the domain's fact, not our credentials",
   );
 
-  // A reply's failure is unchanged: flagged and told.
+  // A reply's failure is unchanged: flagged, and its flag's event tells.
   // A reply is frozen without an unsubscribe: it answers someone who wrote.
   const replyRow = { ...coldRow, sender: "human", email: { to: ["owner@example.com"], idempotency_key: "m1" } };
   const reply = fakes({ queued: replyRow, deliver: failed(0, "fetch failed") });
@@ -497,7 +508,7 @@ test("a cold email's failure is recorded on its row and its run's to report: no 
     tenantId: "t1",
     payload: { message_id: "m1", conversation_id: "c1", to_email: "owner@example.com" },
   });
-  assert.deepEqual(reply.ops(), ["deliver", "escalate", "alert"]);
+  assert.deepEqual(reply.ops(), ["deliver", "escalate"]);
   // And a 403 on a WhatsApp send is still credentials.
   const wa = fakes({ deliver: failed(403, "Unsupported post request") });
   await core.sendQueued(wa.ports, send());
