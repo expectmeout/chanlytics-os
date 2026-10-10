@@ -59,7 +59,7 @@ export function teamPeopleOf(r: TeamRead): { members: TeamPerson[]; waiting: Tea
       initials: personInitials(m.displayName, m.email),
       role: m.role,
       isMe: sameAddress(m.email, r.me),
-      when: joinedWords(m.joinedAt, r.tz, r.now),
+      when: joinedWords(m.joined_at, r.tz, r.now),
       left: null,
       expired: false,
       alerts: memberGetsAlerts(email, r.notifications),

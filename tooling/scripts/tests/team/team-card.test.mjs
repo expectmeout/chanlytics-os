@@ -71,7 +71,7 @@ const OWNER = {
   email: "ruben@rjcapital.io",
   displayName: "",
   role: "owner",
-  joinedAt: "2026-08-28T05:00:00Z",
+  joined_at: "2026-08-28T05:00:00Z",
 };
 const OTHER_OWNER = {
   membershipId: "m-s",
@@ -79,7 +79,7 @@ const OTHER_OWNER = {
   email: "s@example.com",
   displayName: "",
   role: "owner",
-  joinedAt: "2026-09-03T15:00:00Z",
+  joined_at: "2026-09-03T15:00:00Z",
 };
 const ALEX = {
   membershipId: "m-alex",
@@ -87,7 +87,7 @@ const ALEX = {
   email: "alex@example.com",
   displayName: "Alex Rivera",
   role: "operator",
-  joinedAt: "2026-10-01T15:00:00Z",
+  joined_at: "2026-10-01T15:00:00Z",
 };
 const PARTNER = {
   membershipId: "m-p",
@@ -95,7 +95,7 @@ const PARTNER = {
   email: "ada@example.com",
   displayName: "",
   role: "partner",
-  joinedAt: null,
+  joined_at: null,
 };
 const later = (days) => new Date(Date.now() + days * 86_400_000).toISOString();
 const JAMIE = {

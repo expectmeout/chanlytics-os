@@ -39,7 +39,7 @@ const teamRead = () =>
         email: "owner@example.com",
         displayName: "",
         role: "owner",
-        joinedAt: null,
+        joined_at: null,
       },
     ],
     invites: [],

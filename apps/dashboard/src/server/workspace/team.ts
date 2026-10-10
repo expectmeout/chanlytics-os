@@ -28,7 +28,7 @@ interface TeamMember {
   displayName: string;
   role: string;
   /** When they joined the workspace (team_roster's `joined_at`, 00068); null where the read did not say. */
-  joinedAt: string | null;
+  joined_at: string | null;
   isMe?: boolean;
 }
 
@@ -114,7 +114,7 @@ export async function teamRoster(db: SupabaseClient<Database>, tenantId: string)
     email: m.email,
     displayName: m.display_name,
     role: m.role,
-    joinedAt: m.joined_at ?? null,
+    joined_at: m.joined_at ?? null,
   }));
   return { members: roster, invites: (invites.data ?? []) as OpenInvite[] };
 }
