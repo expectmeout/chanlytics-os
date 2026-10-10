@@ -1,9 +1,9 @@
 import "server-only";
-import type { NotificationDto, NotificationsDto } from "@chanlytics/contracts";
+import type { MemberAlertsDto, NotificationDto, NotificationsDto, PushPlatform } from "@chanlytics/contracts";
 import { stamp, type Reader } from "./index";
-import { DAY_MS } from "@chanlytics/contracts";
+import { BELL_WINDOW_DAYS, DAY_MS, PUSH_PLATFORMS, pushOffOf } from "@chanlytics/contracts";
+import { memberAlertsOf } from "@chanlytics/db";
 
-const KEEP_DAYS = 30;
 const LIMIT = 60;
 
 /**
@@ -15,7 +15,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
   name: "notifications",
   async read(rc) {
     const tenantId = rc.tenantId;
-    const since = new Date(rc.now.getTime() - KEEP_DAYS * DAY_MS).toISOString();
+    const since = new Date(rc.now.getTime() - BELL_WINDOW_DAYS * DAY_MS).toISOString();
     const sb = rc.ctx.supabase;
     const [rows, seen] = await Promise.all([
       sb
@@ -59,6 +59,28 @@ export const notifications: Reader<undefined, NotificationsDto> = {
       };
     });
     const out: NotificationsDto = { notifications, seen_at: seen.data?.seen_at ?? null };
+    return { data: out, rows: [], stamp: stamp() };
+  },
+};
+
+/**
+ * GET me/alerts, as the route answers it: what this member chose for their phones in this workspace (memberships.push_off,
+ * 00372, read leniently by contracts' pushOffOf) and their own phones, never a token. `choosable` is false on a database
+ * without 00372: the page then shows what a phone is told and offers no tick (decision 0040).
+ */
+export const memberAlerts: Reader<undefined, MemberAlertsDto> = {
+  name: "member_alerts",
+  async read(rc) {
+    const row = await memberAlertsOf(rc.ctx.supabase, { tenantId: rc.tenantId, userId: rc.userId });
+    const out: MemberAlertsDto = {
+      push_off: pushOffOf(row.pushOff),
+      phones: row.phones
+        .filter((p): p is typeof p & { platform: PushPlatform } =>
+          (PUSH_PLATFORMS as readonly string[]).includes(p.platform),
+        )
+        .map((p) => ({ platform: p.platform, app_version: p.app_version, last_seen_at: p.last_seen_at })),
+      choosable: row.choosable,
+    };
     return { data: out, rows: [], stamp: stamp() };
   },
 };

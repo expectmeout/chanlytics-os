@@ -361,7 +361,15 @@ var BrainConfigSchema = z2.object({
 // src/config/workspace-config/config-schema.ts
 var NotificationsConfigSchema = z3.object({
   escalation_emails: z3.array(z3.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
-  from: z3.string().max(200).optional()
+  from: z3.string().max(200).optional(),
+  /**
+   * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
+   * set: a kind a newer dashboard writes must not make an older edge's read fail, and `emailOffOf` reads only the kinds
+   * that may be turned off. An edge older than the field drops it and keeps emailing, the safe side.
+   */
+  // `.catch`: a stored value that is not a short list of short names reads as none (everything emailed), never as a
+  // config that cannot be parsed, which would leave the receptionist silent.
+  email_off: z3.array(z3.string().max(40)).max(40).optional().catch(void 0)
 }).strip();
 var CalendarConfigSchema = z3.object({
   ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")

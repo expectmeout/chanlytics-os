@@ -12,19 +12,19 @@ export default function TermsPage() {
   return (
     <main className="legal">
       <h1>Terms of service</h1>
-      <p className="legal-meta">Chanlytics OS · last updated September 14, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated September 14, 2026</p>
 
       <p>
-        These terms are the agreement between Chanlytics ("we", "us") and the business that opens a workspace in
-        Chanlytics OS ("you"). Opening a workspace, or using one you were invited to, means you agree to them.
+        These terms are the agreement between Chanlytics ("we", "us") and the business that opens a workspace in the
+        Chanlytics app ("you"). Opening a workspace, or using one you were invited to, means you agree to them.
       </p>
 
       <h2>The service</h2>
       <p>
-        Chanlytics OS answers your customers on the channels you connect — WhatsApp, a phone line, text messages — using
-        an AI receptionist that speaks from the facts you give it, within the limits you set. It keeps every
-        conversation where you and your team can read it, lets a person take over, and helps you reply to reviews and
-        reach customers who asked to hear from you.
+        Chanlytics answers your customers on the channels you connect — WhatsApp, a phone line, text messages — using an
+        AI receptionist that speaks from the facts you give it, within the limits you set. It keeps every conversation
+        where you and your team can read it, lets a person take over, and helps you reply to reviews and reach customers
+        who asked to hear from you.
       </p>
 
       <h2>Your account</h2>
@@ -142,7 +142,7 @@ export default function TermsPage() {
       </p>
 
       <p className="legal-foot">
-        Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="/login">Sign in</a> ·{" "}
+        Chanlytics · <a href="/privacy">Privacy policy</a> · <a href="/login">Sign in</a> ·{" "}
         <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">
           chanlytics.com
         </a>

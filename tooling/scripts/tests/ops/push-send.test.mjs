@@ -35,9 +35,9 @@ function world(over = {}) {
   const db = fakeDb({
     notifications: [row(over.notification)],
     memberships: [
-      { user_id: "u1", tenant_id: T, role: "owner" },
-      { user_id: "u2", tenant_id: T, role: "staff" },
-      { user_id: "u9", tenant_id: OTHER, role: "owner" },
+      { user_id: "u1", tenant_id: T, role: "owner", push_off: over.pushOff?.u1 ?? [] },
+      { user_id: "u2", tenant_id: T, role: "staff", push_off: over.pushOff?.u2 ?? [] },
+      { user_id: "u9", tenant_id: OTHER, role: "owner", push_off: [] },
     ],
     push_devices: devices,
   });
@@ -270,4 +270,55 @@ test("a transport that fails throws, so the ledger tries again; a runtime withou
   await assert.rejects(dispatchJob(ctx(world().db, { push: p.push }), job), /push_rejected 503/);
   await assert.rejects(dispatchJob(ctx(world().db, {}), job), /push_send: this runtime holds no push transport/);
   assert.deepEqual(RETRY_WAITS_MS.push_send, [2 * 60_000, 10 * 60_000], "two minutes, then ten, before the row fails");
+});
+
+// Decision 0040: a member who turned a kind off for their phones (memberships.push_off, 00372) is left out of its
+// push; everyone else is told as before, and before the column exists everyone is told.
+test("a member who turned a kind off for their phones is not told it; the rest of the workspace is (0040)", async () => {
+  const { db } = world({ pushOff: { u1: ["handoff"] } });
+  const p = port();
+  await dispatchJob(ctx(db, { push: p.push }), job);
+  assert.deepEqual(
+    p.sent.map((m) => m.to),
+    ["tok-u2"],
+    "u1's two phones stay quiet",
+  );
+  // Another kind still reaches u1.
+  const other = world({ notification: { kind: "call" }, pushOff: { u1: ["handoff"] } });
+  const q = port();
+  await dispatchJob(ctx(other.db, { push: q.push }), job);
+  assert.deepEqual(q.sent.map((m) => m.to).sort(), ["tok-u1-a", "tok-u1-b", "tok-u2"]);
+});
+
+test("a note's one reader who turned notes off for their phones is told nothing, and the job is done (0040)", async () => {
+  const { db } = world({
+    notification: { kind: "note_for_you", recipient_user_id: "u2" },
+    pushOff: { u2: ["note_for_you"] },
+  });
+  const p = port();
+  assert.equal(await dispatchJob(ctx(db, { push: p.push }), job), "done");
+  assert.deepEqual(p.sent, []);
+});
+
+test("before 00372 there is no push_off to read, and every member is told as before (either deploy order)", async () => {
+  const { db } = world();
+  // The real database answers a column it does not have with 42703; the in-memory one is told to.
+  const from = db.from.bind(db);
+  db.from = (table) => {
+    const q = from(table);
+    if (table !== "memberships") return q;
+    const select = q.select.bind(q);
+    q.select = (cols, ...rest) => {
+      if (String(cols).includes("push_off")) {
+        const refused = { data: null, error: { code: "42703", message: "column memberships.push_off does not exist" } };
+        const chain = { eq: () => chain, in: () => chain, then: (ok, ko) => Promise.resolve(refused).then(ok, ko) };
+        return chain;
+      }
+      return select(cols, ...rest);
+    };
+    return q;
+  };
+  const p = port();
+  await dispatchJob(ctx(db, { push: p.push }), job);
+  assert.deepEqual(p.sent.map((m) => m.to).sort(), ["tok-u1-a", "tok-u1-b", "tok-u2"]);
 });

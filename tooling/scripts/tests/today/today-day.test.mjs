@@ -18,7 +18,6 @@ import {
   todayAwayGrouped,
   todaySteps,
   withReplies,
-  NOTIFICATION_KIND_GROUPS,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { installLegacyReact, fresh, all, byTestId, textOf } from "../_legacy-react.mjs";
@@ -298,7 +297,6 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       "steps",
       "withReplies",
       "withoutWrongPerson",
-      "notificationKinds",
     ],
     "the helpers, in order",
   );
@@ -315,11 +313,6 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     steps: todaySteps,
   }))
     assert.equal(TODAY_HELPERS[key].name, own.name, `${key} is contracts' ${own.name}`);
-  assert.deepEqual(
-    TODAY_HELPERS.notificationKinds,
-    NOTIFICATION_KIND_GROUPS,
-    "and the notification kinds are contracts'",
-  );
   assert.deepEqual(TODAY_HELPERS.day(null, null), todayDay(null, null));
   assert.deepEqual(TODAY_HELPERS.runsSub(2), todayRunsSub(2));
   assert.deepEqual(

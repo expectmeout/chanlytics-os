@@ -44,7 +44,7 @@ export default function OsError({ error, reset }: { error: Error & { digest?: st
   return (
     <main className="auth-card" style={{ marginTop: "24vh" }}>
       <h1>Something broke on this screen</h1>
-      <p>The rest of Chanlytics OS is fine. Reloading usually fixes it.</p>
+      <p>The rest of Chanlytics is fine. Reloading usually fixes it.</p>
       <button onClick={() => window.location.reload()}>Reload</button>
       <div className="hint">
         Still stuck? Try again in a minute.{" "}

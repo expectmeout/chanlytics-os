@@ -839,6 +839,10 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .pol-phone-locked { display: inline-flex; align-items: center; gap: 6px; }
 .pol-phone-locked .icon { color: var(--warn-ink); flex: none; }
 @media (max-width: 640px) {
+  /* Notifications' grid keeps its table on a phone: its two columns of ticks narrow, and their heads say one word. */
+  .settings .ntf-col { width: 52px; }
+  .ntf-grid .pol-mode-sub { display: none; }
+  .settings .ntf-topic { padding-right: 8px; }
   .settings .pol-table { display: block; min-width: 0; }
   .pol-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .pol-table tbody { display: block; }
@@ -982,14 +986,41 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .cw-legal a:focus-visible,
 .cw-link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 
-/* Settings truth: a broken configuration lists what the parser refused, and
-   the notification rows that go to the platform say so beside their title. */
+/* Settings truth: a broken configuration lists what the parser refused. */
 .set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
 .set-broken-issues li { margin: 2px 0; }
-.set-notif-platform { margin-left: 8px; vertical-align: middle; }
-/* What you'll get, grouped (contracts notification-kinds.ts): each group its head and its rows, the groups apart. */
-.set-notif-group { display: grid; padding-top: 12px; }
-.set-notif-group:first-of-type { padding-top: 0; }
+
+/* Settings › Notifications (decision 0040). Where alerts reach you: the bell and this browser say their state beside
+   their words; the email row opens its addresses under it, each with whose it is. */
+.ntf-bell, .ntf-browser { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ntf-phones { display: grid; gap: 2px; }
+.ntf-email-edit { display: grid; gap: 10px; margin-top: 10px; }
+.ntf-addrs { list-style: none; margin: 0; padding: 0; display: grid; }
+.ntf-addr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; }
+.ntf-addr-who { display: grid; min-width: 0; }
+.ntf-addr-mail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ntf-addr-sub { font-size: var(--set-hint); color: var(--ink-dim); }
+.ntf-addbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ntf-addbar > :first-child { flex: 1; min-width: 180px; }
+.ntf-teammates, .ntf-email-foot { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
+.ntf-email-foot { justify-content: space-between; }
+/* What you're told about: a topic a row in its group, a column a channel, Autonomy's ticks (pol-dot). A table at every
+   width: two columns of ticks fit a phone, where Autonomy's four did not. "Needs you" wears the amber of needing you. */
+.ntf-grid { width: 100%; border-collapse: collapse; margin: 2px 0 4px; }
+.ntf-grid th, .ntf-grid td { border-bottom: 1px solid var(--line); vertical-align: middle; }
+.ntf-grid thead th { font-weight: 500; padding: 4px 0 8px; }
+.ntf-col { width: 96px; text-align: center; vertical-align: bottom; }
+.ntf-topic-head, .ntf-topic { text-align: left; }
+.ntf-topic { font-weight: inherit; padding: 11px 16px 11px 0; }
+.ntf-cell { text-align: center; padding: 8px 0; }
+.ntf-group th { text-align: left; padding: 18px 0 6px; font-size: var(--text-xs); font-weight: 600; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.ntf-grid tbody[data-group="needs_you"] .ntf-group th::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: var(--radius-full); background: var(--warn); vertical-align: 1px; }
+.ntf-grid tbody:last-child tr:last-child > * { border-bottom: none; }
+/* Always emailed: the dot's ring with a lock where its tick would be, as Autonomy draws a mode its charter locks. */
+.ntf-lock { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-full); border: 1px solid var(--ink-dim); color: var(--ink-dim); cursor: help; }
+.ntf-told { cursor: help; }
+.ntf-bell-line { margin: 0; padding: 12px 0 2px; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); }
+.ntf-foot { margin: 0; padding: 0 4px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
 
 /* Setup's rows, wherever they are drawn: the first run (first-run.jsx) and Today's card. The rows are the attention
    row People and Today share (attention-bits.jsx). A row put off for later fades. */

@@ -1,4 +1,4 @@
-# Chanlytics OS
+# Chanlytics
 
 A multi-tenant, omnichannel AI receptionist and lead engine for any business
 that turns a conversation into a booked appointment: a local shop or clinic, an
