@@ -541,7 +541,6 @@
      shows only for a search or a pick. Together they took 251px above the first thread. Each tap target keeps its
      44px: the box's is a thumb wide around it, without growing the row. */
   .inbox .ix-search-row { padding: 6px 14px; }
-  .inbox .ix-search-wrap { padding: 0 8px; }
   .inbox .ix-list-head { min-height: 40px; padding: 0 12px; }
   .inbox .ix-search-row .ix-checkall { width: 44px; min-height: 44px; margin: 0 -15px; }
   html.legacy-on .inbox .ix-checkall input { min-height: 0; }

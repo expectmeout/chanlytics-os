@@ -38,6 +38,8 @@ export { Popover } from "./popover/popover";
 export type { PopoverProps } from "./popover/popover";
 export { Segmented } from "./segmented/segmented";
 export type { SegmentedOption, SegmentedProps } from "./segmented/segmented";
+export { Search } from "./search/search";
+export type { SearchProps } from "./search/search";
 export { Select } from "./select/select";
 export type { SelectOption, SelectProps } from "./select/select";
 export { Sheet } from "./sheet/sheet";

@@ -658,8 +658,10 @@
 .ask-overlay {
   position: fixed;
   inset: 0;
-  background: oklch(from var(--ink) l c h / 0.35);
-  backdrop-filter: blur(8px);
+  /* The wash every sheet and dialog stands over on a desk (tokens.css): it was the ink at 35% over an 8px blur. blur(0),
+     not none: the build drops a `none` written beside its -webkit- twin. */
+  background: var(--surface-scrim);
+  backdrop-filter: blur(0);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -1028,7 +1030,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The receipt: a popover under its figure on a desktop, placed by the figure's index (--i, set by the page over four
    equal columns); a panel under the row on a phone (the media rule below). One sentence, one door. The last figure's
    opens to the left so it stays inside the page. */
-.tc-receipt { position: absolute; z-index: 5; top: calc(100% - 2px); left: calc(18px + var(--i, 0) * 25%); width: 312px; max-width: calc(100vw - 2 * var(--gutter-page)); padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-raised); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; gap: 8px; }
+.tc-receipt { position: absolute; z-index: 5; top: calc(100% - 2px); left: calc(18px + var(--i, 0) * 25%); width: 312px; max-width: calc(100vw - 2 * var(--gutter-page)); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .tc-receipt[data-last="true"] { left: auto; right: 18px; }
 .tc-receipt-t { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink); }
 .tc-receipt-door { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 0; border: none; background: transparent; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; }
@@ -1136,7 +1138,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .tq-list .cl-attn-status { white-space: normal; overflow: visible; text-overflow: clip; }
   /* Two figures a row, and the receipt a panel in the flow under the row: a popover has nowhere to go on a phone. */
   .tc-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
-  .tc-receipt { position: static; grid-column: 1 / -1; width: auto; max-width: none; box-shadow: none; background: var(--bg-sunken); border-color: var(--line); }
+  /* On a phone it is not a pop but a panel in the card's flow, under its row: the sunken ground, no glass. */
+  .tc-receipt { position: static; grid-column: 1 / -1; width: auto; max-width: none; box-shadow: none; background: var(--bg-sunken); backdrop-filter: none; border: 1px solid var(--line); }
   .tc-receipt[data-last="true"] { right: auto; }
   .tc-foot { flex-wrap: wrap; }
 }

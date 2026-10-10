@@ -318,7 +318,7 @@ test("REGRESSION: the list has no head line until a search or a pick -- it said 
   assert.equal(box.props["aria-label"], "Select all 2 conversations");
 
   // A search says what it found, by the words the rows show: what they asked, not only the last message.
-  find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input").props.onChange({
+  find(tree, (n) => n.props?.["data-testid"] === "inbox-search").props.onChange({
     target: { value: "friday" },
   });
   tree = listOf(threads);

@@ -170,7 +170,7 @@ const TodayReceipt = ({ f, i, last, nav }: ReceiptProps) => {
   const { door } = f.receipt;
   return (
     <div
-      className="tc-receipt"
+      className="tc-receipt panel panel-pop"
       role="dialog"
       id={`today-receipt-${f.id}`}
       aria-label={`Why ${f.value} ${f.label}`}
