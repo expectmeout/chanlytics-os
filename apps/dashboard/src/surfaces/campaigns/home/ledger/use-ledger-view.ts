@@ -68,6 +68,18 @@ const groupInOrder = (rows: readonly LifecycleRow[], order: (a: LifecycleRow, b:
   ...rows.filter(isLedgerCampaign).sort(order),
 ];
 
+/** First contact's own rows, the receptionist and the call's text: never a campaign, never sorted among them. */
+const firstContactsOwn = (r: LifecycleRow): boolean => r.kind === "receptionist" || r.kind === "call_text";
+
+/**
+ * The rows as one list in the order chosen: First contact's own rows at its head, as the view model ordered them, then
+ * every other row, sorted. In no order does a campaign climb over the receptionist and the call's text.
+ */
+const flatInOrder = (rows: readonly LifecycleRow[], order: (a: LifecycleRow, b: LifecycleRow) => number) => [
+  ...rows.filter(firstContactsOwn),
+  ...rows.filter((r) => !firstContactsOwn(r)).sort(order),
+];
+
 /** The ledger as the screen shows it, for what the page asks. */
 export function ledgerViewOf(ledger: LifecycleLedger, ask: LedgerAsk): LedgerShown {
   const words = ask.query.trim().toLowerCase();
@@ -88,8 +100,7 @@ export function ledgerViewOf(ledger: LifecycleLedger, ask: LedgerAsk): LedgerSho
   if (ask.grouping === "moment") {
     return { groups, rows: inGroups, grouped: true, chosen, total, shown, filtered };
   }
-  const rows = [...inGroups].sort(order);
-  return { groups: [], rows, grouped: false, chosen, total, shown, filtered };
+  return { groups: [], rows: flatInOrder(inGroups, order), grouped: false, chosen, total, shown, filtered };
 }
 
 /** Where the group lives and how it changes (the address's, replaced: home-page.tsx), and whether this is a phone. */

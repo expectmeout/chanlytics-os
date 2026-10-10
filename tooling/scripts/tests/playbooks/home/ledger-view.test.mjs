@@ -172,6 +172,35 @@ test("without grouping the rows are one list in the order chosen", () => {
   assert.deepEqual(ids(flat), ["a", "b", "c"]);
 });
 
+test("without grouping the receptionist and the call's text head the one list in every order, never counted", () => {
+  const l = ledgerOf([
+    group("first_contact", [
+      row("receptionist", { kind: "receptionist", name: "Receptionist", status: "always" }),
+      row("call_text", { kind: "call_text", name: "Call text", next: { words: "", atMs: null } }),
+      row("welcome", { name: "Welcome", next: { words: "today", atMs: NOW + HOUR } }),
+    ]),
+    group("before", [
+      row("asks", { name: "Asks", status: "waiting", tone: "warn", next: { words: "now", atMs: NOW } }),
+      row("busy", { name: "Busy", people: { n: 40, unit: "people" }, results: { kind: "sent", sent: 9, replied: 9 } }),
+    ]),
+  ]);
+  const flat = (sort) => ledgerViewOf(l, { ...ASK, sort, grouping: "none" });
+  for (const sort of ["next", "name", "people", "replied"]) {
+    assert.deepEqual(
+      ids(flat(sort)).slice(0, 2),
+      ["receptionist", "call_text"],
+      `${sort}: First contact's own rows first`,
+    );
+  }
+  assert.deepEqual(
+    ids(flat("next")),
+    ["receptionist", "call_text", "asks", "welcome", "busy"],
+    "then the campaigns, sorted",
+  );
+  assert.deepEqual(ids(flat("name")), ["receptionist", "call_text", "asks", "busy", "welcome"]);
+  assert.deepEqual([flat("name").shown, flat("name").total], [3, 3], "and never among the campaigns counted");
+});
+
 test("under seven rows only the group narrows; a phone holds one choice, sorts by Next and keeps the groups", () => {
   const groups = [
     group("before", [row("b", { next: { words: "", atMs: NOW + 2 * HOUR } })]),
