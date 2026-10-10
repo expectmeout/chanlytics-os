@@ -33,8 +33,7 @@ function fakes(over = {}) {
     record: "d1",
     resolve: true,
     link: undefined,
-    cancelQueued: true,
-    cancelJob: 1,
+    callBack: { decision_id: "d1" },
     ...over,
   };
   const ports = { now: () => NOW };

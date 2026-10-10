@@ -2097,25 +2097,12 @@ begin
   if v_hold not in ('claimed', 'renewed') then
     raise exception 'conversation_take_over: the hold on % answered %', p_conversation_id, v_hold using errcode = 'XX000';
   end if;
-  -- 3. The receptionist's held drafts withdrawn, rows then their send jobs (the dashboard's cancelPendingAiReply): a
-  --    held reply must not land after a person has taken the thread. Only the receptionist's, and only one no run has
-  --    claimed (sending_at null, 00352 and 00362): a claimed draft may be at the provider, and its run settles it. A
-  --    colleague's queued words, and the job behind them, are left alone.
-  with withdrawn as (
-    update public.messages
-       set status = 'canceled', error = jsonb_build_object('reason', 'superseded_by_human')
-     where conversation_id = p_conversation_id and tenant_id = p_tenant_id
-       and status = 'queued' and sender = 'ai' and sending_at is null
-    returning id
-  ), jobs_withdrawn as (
-    update public.jobs j
-       set state = 'canceled'
-      from withdrawn w
-     where j.tenant_id = p_tenant_id and j.kind = 'outbound_send' and j.state = 'scheduled'
-       and j.payload ->> 'message_id' = w.id::text
-    returning j.id
-  )
-  select count(*) into v_withdrawn from withdrawn;
+  -- 3. The receptionist's held drafts withdrawn with their send jobs, through the one door (withdraw_ai_drafts): a held
+  --    reply must not land after a person has taken the thread. Only the receptionist's, and only one no run has
+  --    claimed: a claimed draft may be at the provider, and its run settles it. A colleague's queued words, and the
+  --    job behind them, are left alone.
+  v_withdrawn := cardinality(public.withdraw_ai_drafts(p_tenant_id, p_conversation_id,
+                                                       '{"reason": "superseded_by_human"}'::jsonb));
   -- 4. The ledger, with the moment the pause ends as the dashboard wrote it (an ISO instant in UTC with milliseconds,
   --    what Date.toISOString() spells), so a reader of older rows reads these the same.
   v_until := to_char(p_paused_until at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
@@ -2129,7 +2116,7 @@ end $$;
 -- Name: FUNCTION conversation_take_over(p_tenant_id uuid, p_conversation_id uuid, p_paused_until timestamp with time zone, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.conversation_take_over(p_tenant_id uuid, p_conversation_id uuid, p_paused_until timestamp with time zone, p_via text, p_undo_of uuid) IS 'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00378): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
+COMMENT ON FUNCTION public.conversation_take_over(p_tenant_id uuid, p_conversation_id uuid, p_paused_until timestamp with time zone, p_via text, p_undo_of uuid) IS 'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00378; its drafts through withdraw_ai_drafts since 00379): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
 
 
 --
@@ -8741,6 +8728,59 @@ COMMENT ON FUNCTION public.member_view_set(p_tenant_id uuid, p_page text, p_view
 
 
 --
+-- Name: member_withdraw_drafts(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  return cardinality(public.withdraw_ai_drafts(p_tenant_id, p_conversation_id,
+                                               '{"reason": "superseded_by_human"}'::jsonb));
+end $$;
+
+
+--
+-- Name: FUNCTION member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid) IS 'A member withdraws the receptionist''s queued drafts on a thread, on their own session (00379): an owner or an operator, or a partner whose session showed its second factor. superseded_by_human, through withdraw_ai_drafts. Answers how many.';
+
+
+--
+-- Name: member_withdraw_message(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  return cardinality(public.withdraw_queued(p_tenant_id, array[p_message_id], p_reason)) > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb) IS 'A member withdraws one queued message of the workspace, on their own session (00379), through withdraw_queued: the reply''s own row when its send job could not be scheduled. True when it was withdrawn.';
+
+
+--
 -- Name: memberships_keep_an_owner(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9160,6 +9200,37 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) IS 'An owner merges two records of one person (decision 0028): the kept record takes the other''s identities, thread (folded into its own), deals, leads, visits, notes, lists, receptionist mode and ledger; the other is left marked merged_into_contact_id with no number or address. Consent is the most careful answer on each question (D5), each change written to the ledger with the source merge. Refuses two different phone numbers or email addresses, an erased or already merged record, and two open deals for one service. One transaction; never undone. The caller is auth.uid(); a stranger is told not found.';
+
+
+--
+-- Name: message_call_back(uuid, uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- The withdrawal, as a call-back has always written it (no reason on the row), and nothing when it was too late.
+  if cardinality(public.withdraw_queued(p_tenant_id, array[p_message_id], null)) = 0 then
+    return null;
+  end if;
+  -- The ledger's line as the member's own, in the same transaction.
+  return public.member_decision(p_tenant_id, 'message', p_message_id, 'cancel_send', '{}'::jsonb, p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) IS 'A member calls back a send in its grace (00379): the message withdrawn with its send job through withdraw_queued, and the cancel_send decision as the member''s own, in one transaction. Null when it was too late (sent, claimed, gone), with nothing written. Returns decision_id and undo_dropped.';
 
 
 --
@@ -20767,6 +20838,77 @@ COMMENT ON FUNCTION public.wake_stale_snoozes() IS 'Reopens conversations whose 
 
 
 --
+-- Name: withdraw_ai_drafts(uuid, uuid, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid DEFAULT NULL::uuid) RETURNS uuid[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  return public.withdraw_queued(
+    p_tenant_id,
+    array(select m.id from public.messages m
+           where m.tenant_id = p_tenant_id and m.conversation_id = p_conversation_id
+             and m.sender = 'ai' and m.status = 'queued' and m.sending_at is null
+             and m.id is distinct from p_keep_message_id),
+    p_reason);
+end $$;
+
+
+--
+-- Name: FUNCTION withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid) IS 'The receptionist''s queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00379). The service role''s.';
+
+
+--
+-- Name: withdraw_queued(uuid, uuid[], jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb DEFAULT NULL::jsonb) RETURNS uuid[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ids uuid[];
+begin
+  if p_tenant_id is null then
+    raise exception 'withdraw_queued: a message is withdrawn in a workspace' using errcode = '22004';
+  end if;
+  if p_reason is not null and (jsonb_typeof(p_reason) <> 'object' or nullif(p_reason->>'reason', '') is null) then
+    raise exception 'withdraw_queued: a reason is an object that names its reason' using errcode = '22023';
+  end if;
+  -- The rows, then the jobs that would send them, in this one statement: a row a run has claimed is on its way and is
+  -- left to say what became of it, and its job with it.
+  with withdrawn as (
+    update public.messages m
+       set status = 'canceled', error = coalesce(p_reason, m.error)
+     where m.tenant_id = p_tenant_id and m.id = any (coalesce(p_message_ids, '{}'::uuid[]))
+       and m.status = 'queued' and m.sending_at is null
+    returning m.id
+  ), jobs_withdrawn as (
+    update public.jobs j
+       set state = 'canceled'
+      from withdrawn w
+     where j.tenant_id = p_tenant_id and j.kind = 'outbound_send' and j.state = 'scheduled'
+       and j.payload ->> 'message_id' = w.id::text
+    returning j.id
+  )
+  select coalesce(array_agg(w.id order by w.id), '{}'::uuid[]) into v_ids from withdrawn w;
+  return v_ids;
+end $$;
+
+
+--
+-- Name: FUNCTION withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb) IS 'The one door a queued message is withdrawn by (00379): each named message of the workspace still queued and claimed by no run (sending_at null) canceled, with the reason on its row when one is given, and the outbound_send job that would send it canceled with it, in one transaction. Answers the ids withdrawn; a row on its way or gone is left to its run. The service role''s.';
+
+
+--
 -- Name: workspace_days(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32256,6 +32398,24 @@ GRANT ALL ON FUNCTION public.member_view_set(p_tenant_id uuid, p_page text, p_vi
 
 
 --
+-- Name: FUNCTION member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.member_withdraw_drafts(p_tenant_id uuid, p_conversation_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION memberships_keep_an_owner(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32270,6 +32430,15 @@ GRANT ALL ON FUNCTION public.memberships_keep_an_owner() TO service_role;
 REVOKE ALL ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.message_call_back(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) TO service_role;
 
 
 --
@@ -34178,6 +34347,22 @@ GRANT ALL ON FUNCTION public.trigger_sweep_health() TO service_role;
 
 REVOKE ALL ON FUNCTION public.wake_stale_snoozes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.wake_stale_snoozes() TO service_role;
+
+
+--
+-- Name: FUNCTION withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.withdraw_ai_drafts(p_tenant_id uuid, p_conversation_id uuid, p_reason jsonb, p_keep_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb) TO service_role;
 
 
 --

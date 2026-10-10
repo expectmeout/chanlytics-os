@@ -72,7 +72,6 @@ test("garbage in the config falls back rather than producing NaN", () => {
 // The mode in force (reply-gates.ts) and the hold window (dispatch.ts).
 const edge = ["reply-gates", "dispatch"].map((m) => read(`packages/core/src/inbound/${m}.ts`)).join("\n");
 const sink = read("apps/edge/lib/whatsapp/persist.ts");
-const verbs = read("apps/dashboard/src/server/verbs.ts");
 const reply = read("packages/core/src/conversations/reply.ts");
 const takeOver = read("apps/dashboard/src/server/ports/core-ports.ts");
 
@@ -101,43 +100,10 @@ test("EVERY path where a human takes control withdraws the draft", () => {
   }
 });
 
-test("the ROW is canceled before the job is", () => {
-  // This pinned the opposite order, on a rationale that contradicted its own
-  // first sentence: marking the row canceled while its job still runs IS
-  // harmless, because outbound_send re-reads the row and no-ops on anything
-  // that is not still queued — so "a send with nothing left to stop it" cannot
-  // happen. The real asymmetry runs the other way. Cancel the job first and
-  // then fail to update the row, and the row sits `queued` forever with
-  // nothing that will ever send it: the Inbox says "Sending…", the customer
-  // receives nothing, and no alert fires. Row first makes the worst case a
-  // redundant job that finds nothing to do.
-  const fn = verbs.slice(verbs.indexOf("export async function cancelPendingAiReply"));
-  assert.ok(
-    fn.indexOf('.update({ status: "canceled"') < fn.indexOf("cancelJobs("),
-    "cancel the row first, then its job",
-  );
-});
-
-test("drafts are withdrawn BY MESSAGE, never by conversation", () => {
-  // Cancelling every outbound_send on the conversation also withdrew the job
-  // behind a HUMAN reply still inside its 15-second grace window, while the
-  // row update only touched sender='ai' rows. Two quick replies, or a reply
-  // followed by Take over, therefore stranded the operator's first message:
-  // job gone, row still queued, nothing to send it. Withdrawing the
-  // receptionist's draft must not touch a colleague's words.
-  const fn = verbs.slice(verbs.indexOf("export async function cancelPendingAiReply"));
-  assert.match(fn, /cancelJobs\([^)]*"message_id"/s, "cancel jobs keyed on the message, not the thread");
-  assert.ok(
-    !/cancelJobs\([^)]*"conversation_id"/s.test(fn),
-    "cancelling by conversation_id also withdraws a human reply's job",
-  );
-});
-
-test("only the BOT's drafts are withdrawn, never a colleague's queued reply", () => {
-  const fn = verbs.slice(verbs.indexOf("export async function cancelPendingAiReply"));
-  assert.match(fn, /\.eq\("sender", "ai"\)/);
-  assert.match(fn, /\.eq\("status", "queued"\)/);
-});
+// How a held draft is withdrawn (the row and the job that would send it, in one transaction; by message, never by
+// conversation; the receptionist's drafts alone, and only one no run has claimed) is one door's since 00379, and
+// conversations/state/a-queued-message-is-withdrawn-by-one-door.db.test.mjs runs it on a real database. These held the
+// four writers it replaced by their text.
 
 test("a veto draft that could not be scheduled is retired, not left pending", () => {
   // The row is written before the job is published. A scheduling failure used
@@ -153,9 +119,8 @@ test("a veto draft that could not be scheduled is retired, not left pending", ()
   // The rollback lives in the catch, so slice from there rather than measuring
   // a character distance a future comment would break.
   const rollback = body.slice(body.indexOf("} catch"));
-  assert.ok(rollback.includes('status: "canceled"'), "a draft that could not be scheduled must be canceled");
+  assert.ok(rollback.includes("withdrawQueued("), "a draft that could not be scheduled is withdrawn, by the one door");
   assert.ok(rollback.includes("scheduling_failed"), "and the row must say why");
-  assert.ok(rollback.includes('.eq("status", "queued")'), "only retire a row that has not already been sent");
 });
 
 test("a delayed bot reply is not recorded as a human's", () => {

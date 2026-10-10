@@ -387,11 +387,13 @@ interface EscalationPorts {
     record: ThreadPorts["record"];
 }
 interface CancelSendPorts {
-    /** queued → canceled, only while queued: zero rows means the send job won. */
-    cancelQueued(messageId: string): Promise<boolean>;
-    /** The outbound_send job for the message withdrawn; how many. */
-    cancelJob(tenantId: TenantId, messageId: string): Promise<number>;
-    record: ThreadPorts["record"];
+    /**
+     * The message withdrawn with its send job and the cancel_send decision as the member's, in one write, only while it
+     * is queued and no run has claimed it: null when the send won, and then nothing was written.
+     */
+    callBack(tenantId: TenantId, messageId: string): Promise<{
+        decision_id: string;
+    } | null>;
 }
 
 type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "takeOver" | "now">;
@@ -723,8 +725,8 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "with
     queue(row: QueuedReply): Promise<string>;
     /** The send job, due after the grace window; throws when it could not be scheduled. */
     schedule(tenantId: TenantId, dueAt: Date, payload: SendPayload): Promise<void>;
-    /** A queued row with no job to send it, canceled so it never sits "Sending…" forever. */
-    cancelOrphan(messageId: string): Promise<void>;
+    /** A queued row with no job to send it, withdrawn so it never sits "Sending…" forever. */
+    cancelOrphan(tenantId: TenantId, messageId: string): Promise<void>;
     /**
      * The receipt kept under the key, written only onto the row that still carries this caller's stamp: true iff it
      * does, false when another caller took the key over since. Throws when the write itself could not be made; where

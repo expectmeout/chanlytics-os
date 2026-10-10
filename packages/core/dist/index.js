@@ -550,11 +550,9 @@ import { AppError as AppError7 } from "../../contracts/dist/index.js";
 async function cancelSend(ports, cmd) {
   const { msg } = cmd;
   if (msg.status !== "queued") throw new AppError7("conflict", "Too late \u2014 this message has already been sent.");
-  if (!await ports.cancelQueued(msg.id))
-    throw new AppError7("conflict", "Too late \u2014 this message went out while you were canceling it.");
-  await ports.cancelJob(msg.tenant_id, msg.id);
-  const decision_id = await ports.record(msg.tenant_id, "message", msg.id, "cancel_send");
-  return { status: "canceled", decision_id };
+  const called = await ports.callBack(msg.tenant_id, msg.id);
+  if (!called) throw new AppError7("conflict", "Too late \u2014 this message went out while you were canceling it.");
+  return { status: "canceled", decision_id: called.decision_id };
 }
 
 // src/conversations/reply.ts
@@ -777,7 +775,7 @@ async function queueReply(ports, cmd, facts) {
       ...cmd.starts ? { starts: true } : {}
     });
   } catch (e) {
-    await ports.cancelOrphan(message_id);
+    await ports.cancelOrphan(conv.tenant_id, message_id);
     throw e;
   }
   return { receipt, templateName: template?.name ?? null };

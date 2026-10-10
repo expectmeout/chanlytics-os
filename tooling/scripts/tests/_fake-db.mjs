@@ -775,6 +775,7 @@ function recordProviderStopIn(tables, args, insertRow) {
 /**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
+ * @param opts.userId the session's person, where a member's door writes a line as theirs (message_call_back).
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
  *   `"<table>.update"` to make that call fail the way PostgREST fails.
  */
@@ -979,6 +980,73 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         if (tenant) tenant.status = p_tenant_status;
       }
       return true;
+    },
+    /**
+     * The one door a queued message is withdrawn by (00379 withdraw_queued), over the rows a world holds: each named
+     * row of the workspace still queued and claimed by no run (sending_at) canceled, with the reason on it (none keeps
+     * its error as it was), and the scheduled outbound_send job naming it canceled with it. A fault on
+     * `messages.update` refuses the whole door, with nothing of it kept. Answers the ids withdrawn.
+     */
+    withdraw_queued: ({ p_tenant_id, p_message_ids, p_reason }) => {
+      const fault = faults["messages.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const named = new Set(p_message_ids ?? []);
+      const rows = (tables.messages ?? []).filter(
+        (m) => m.tenant_id === p_tenant_id && named.has(m.id) && m.status === "queued" && !m.sending_at,
+      );
+      for (const m of rows) {
+        m.status = "canceled";
+        if (p_reason) m.error = p_reason;
+        for (const j of tables.jobs ?? [])
+          if (
+            j.tenant_id === p_tenant_id &&
+            j.kind === "outbound_send" &&
+            (j.state ?? "scheduled") === "scheduled" &&
+            j.payload?.message_id === m.id
+          )
+            j.state = "canceled";
+      }
+      return rows.map((m) => m.id).sort();
+    },
+    withdraw_ai_drafts: ({ p_tenant_id, p_conversation_id, p_reason, p_keep_message_id }) =>
+      derived.withdraw_queued({
+        p_tenant_id,
+        p_message_ids: (tables.messages ?? [])
+          .filter(
+            (m) =>
+              m.tenant_id === p_tenant_id &&
+              m.conversation_id === p_conversation_id &&
+              m.sender === "ai" &&
+              m.status === "queued" &&
+              !m.sending_at &&
+              m.id !== p_keep_message_id,
+          )
+          .map((m) => m.id),
+        p_reason,
+      }),
+    // The member's doors (00379): who may act is the route's check here, and the database's floor is its own suite's.
+    member_withdraw_drafts: ({ p_tenant_id, p_conversation_id }) =>
+      derived.withdraw_ai_drafts({ p_tenant_id, p_conversation_id, p_reason: { reason: "superseded_by_human" } })
+        .length,
+    member_withdraw_message: ({ p_tenant_id, p_message_id, p_reason }) =>
+      derived.withdraw_queued({ p_tenant_id, p_message_ids: [p_message_id], p_reason }).length > 0,
+    message_call_back: ({ p_tenant_id, p_message_id, p_via, p_undo_of }) => {
+      if (!derived.withdraw_queued({ p_tenant_id, p_message_ids: [p_message_id], p_reason: null }).length) return null;
+      const undo =
+        p_undo_of && (tables.decisions ?? []).some((d) => d.id === p_undo_of && d.tenant_id === p_tenant_id)
+          ? p_undo_of
+          : null;
+      const decision = insertRow("decisions", {
+        tenant_id: p_tenant_id,
+        subject_type: "message",
+        subject_id: p_message_id,
+        verb: "cancel_send",
+        actor_type: "user",
+        actor_user_id: opts.userId ?? null,
+        payload: p_via ? { via: p_via } : {},
+        undo_of: undo,
+      });
+      return { decision_id: decision.id, undo_dropped: Boolean(p_undo_of) && undo === null };
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),

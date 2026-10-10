@@ -7377,10 +7377,34 @@ type Database = {
                 };
                 Returns: Json;
             };
+            member_withdraw_drafts: {
+                Args: {
+                    p_conversation_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
+            member_withdraw_message: {
+                Args: {
+                    p_message_id: string;
+                    p_reason?: Json;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             merge_people: {
                 Args: {
                     p_keep: string;
                     p_merge: string;
+                };
+                Returns: Json;
+            };
+            message_call_back: {
+                Args: {
+                    p_message_id: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
                 };
                 Returns: Json;
             };
@@ -9430,6 +9454,23 @@ type Database = {
             wake_stale_snoozes: {
                 Args: never;
                 Returns: number;
+            };
+            withdraw_ai_drafts: {
+                Args: {
+                    p_conversation_id: string;
+                    p_keep_message_id?: string;
+                    p_reason: Json;
+                    p_tenant_id: string;
+                };
+                Returns: string[];
+            };
+            withdraw_queued: {
+                Args: {
+                    p_message_ids: string[];
+                    p_reason?: Json;
+                    p_tenant_id: string;
+                };
+                Returns: string[];
             };
             workspace_days: {
                 Args: {

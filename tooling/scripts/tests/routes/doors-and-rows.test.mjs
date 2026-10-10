@@ -29,7 +29,8 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
   // 409; what is pinned here is that every port the adapter hands them is
   // row-counted through the one helper.
   const ports = readCode("apps/dashboard/src/server/ports/core-ports.ts");
-  for (const port of ["claim", "release", "snooze", "wake", "archive", "resolve", "cancelQueued"]) {
+  // The take-over, the hand-back (00378) and the call-back (00379) are doors that count their own rows.
+  for (const port of ["snooze", "wake", "archive", "resolve"]) {
     assert.ok(
       ports.includes(`${port}: (`) &&
         ports.includes(`${port}: (`) &&
@@ -40,9 +41,8 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
   assert.ok(ports.includes("return !!data && data.length > 0;"), "changed() is the one place zero rows is judged");
   assert.ok(
     /\.eq\("state", "snoozed"\)\s*\.select\("id"\)/.test(ports) &&
-      /\.eq\("state", "open"\)\s*\.select\("id"\)/.test(ports) &&
-      /\.eq\("status", "queued"\)\s*\.select\("id"\)/.test(ports),
-    "wake, resolve and cancel-send are guarded on the state they leave",
+      /\.eq\("state", "open"\)\s*\.select\("id"\)/.test(ports),
+    "wake and resolve are guarded on the state they leave",
   );
 });
 

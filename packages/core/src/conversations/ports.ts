@@ -72,9 +72,9 @@ export interface EscalationPorts {
 }
 
 export interface CancelSendPorts {
-  /** queued → canceled, only while queued: zero rows means the send job won. */
-  cancelQueued(messageId: string): Promise<boolean>;
-  /** The outbound_send job for the message withdrawn; how many. */
-  cancelJob(tenantId: TenantId, messageId: string): Promise<number>;
-  record: ThreadPorts["record"];
+  /**
+   * The message withdrawn with its send job and the cancel_send decision as the member's, in one write, only while it
+   * is queued and no run has claimed it: null when the send won, and then nothing was written.
+   */
+  callBack(tenantId: TenantId, messageId: string): Promise<{ decision_id: string } | null>;
 }

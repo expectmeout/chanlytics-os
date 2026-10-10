@@ -956,6 +956,129 @@ async function recordConsent(db, p) {
   return { data, error };
 }
 
+// src/repositories/control.ts
+var CALL_CONTROL_S = 15 * 60;
+async function claimControl(db, p) {
+  const { data, error } = await db.rpc("claim_conversation_control", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_kind: p.holder.kind,
+    p_by: p.holder.kind === "person" ? p.holder.userId : null,
+    p_ref: p.holder.kind === "call" ? p.holder.callId : null,
+    p_seconds: p.seconds
+  });
+  if (error) throw new Error(`claim_conversation_control: ${error.message}`);
+  return data;
+}
+async function releaseControl(db, p) {
+  const { data, error } = await db.rpc("release_conversation_control", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_kind: p.holder.kind,
+    p_by: p.holder.kind === "person" ? p.holder.userId : null,
+    p_ref: p.holder.kind === "call" ? p.holder.callId : null
+  });
+  if (error) throw new Error(`release_conversation_control: ${error.message}`);
+  return data === true;
+}
+async function claimReplyTurn(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId
+  });
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function holdsReplyTurn(db, conversationId, messageId) {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function takeOverThread(db, p) {
+  const { data, error } = await db.rpc("conversation_take_over", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_paused_until: p.pausedUntil,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.paused_until !== "string" || typeof data.withdrawn_drafts !== "number")
+    throw new Error("conversation_take_over: the door answered without its decision");
+  return {
+    pausedUntil: data.paused_until,
+    withdrawnDrafts: data.withdrawn_drafts,
+    decisionId: id,
+    undoDropped: data.undo_dropped === true
+  };
+}
+async function handBackThread(db, p) {
+  const { data, error } = await db.rpc("conversation_hand_back", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.resolved_escalations !== "number")
+    throw new Error("conversation_hand_back: the door answered without its decision");
+  return { decisionId: id, resolvedEscalations: data.resolved_escalations, undoDropped: data.undo_dropped === true };
+}
+async function withdrawQueued(db, p) {
+  const { data, error } = await db.rpc("withdraw_queued", {
+    p_tenant_id: p.tenantId,
+    p_message_ids: p.messageIds,
+    ...p.reason ? { p_reason: p.reason } : {}
+  });
+  if (error) throw new Error(`withdraw_queued: ${error.message}`);
+  return Array.isArray(data) ? data : [];
+}
+async function withdrawAiDrafts(db, p) {
+  const { data, error } = await db.rpc("withdraw_ai_drafts", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_reason: p.reason,
+    ...p.keepMessageId ? { p_keep_message_id: p.keepMessageId } : {}
+  });
+  if (error) throw new Error(`withdraw_ai_drafts: ${error.message}`);
+  return Array.isArray(data) ? data : [];
+}
+async function memberWithdrawDrafts(db, p) {
+  const { data, error } = await db.rpc("member_withdraw_drafts", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
+}
+async function memberWithdrawMessage(db, p) {
+  const { data, error } = await db.rpc("member_withdraw_message", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    ...p.reason ? { p_reason: p.reason } : {}
+  });
+  if (error) throw error;
+  return data === true;
+}
+async function callBackMessage(db, p) {
+  const { data, error } = await db.rpc("message_call_back", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string") throw new Error("message_call_back: the door answered without its decision");
+  return { decisionId: id, undoDropped: data.undo_dropped === true };
+}
+
 // src/repositories/ingest.ts
 import {
   CARRIER_CONSENT_SOURCE,
@@ -1324,15 +1447,18 @@ async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, o
     dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
-  let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued").is("sending_at", null);
-  if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
-  const { error: wErr } = await withdraw;
-  if (wErr)
-    dbLog().error("pause_withdraw_drafts_failed", {
+  await withdrawAiDrafts(db, {
+    tenantId,
+    conversationId,
+    reason: { reason: "superseded_by_human" },
+    keepMessageId: opts.keepMessageId ?? null
+  }).catch(
+    (e) => dbLog().error("pause_withdraw_drafts_failed", {
       tenant_id: tenantId,
       conversation_id: conversationId,
-      error: wErr.message
-    });
+      error: e instanceof Error ? e.message : String(e)
+    })
+  );
   return true;
 }
 
@@ -2331,9 +2457,12 @@ async function writtenEmails(db, ids) {
   return out;
 }
 async function withdrawEmail(db, p) {
-  const { data, error } = await db.from("messages").update({ status: "canceled", error: { reason: p.reason } }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").is("sending_at", null).select("id");
-  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
-  return (data ?? []).length > 0;
+  const withdrawn = await withdrawQueued(db, {
+    tenantId: p.tenantId,
+    messageIds: [p.id],
+    reason: { reason: p.reason }
+  });
+  return withdrawn.length > 0;
 }
 async function dueDomains(db, at, limit, opts = {}) {
   const { data, error } = await db.rpc("reach_out_due_domains", {
@@ -3408,80 +3537,6 @@ async function scrubProviderEvents(db, tenantId, needles) {
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new Error(`provider_events_scrub: ${error.message}`);
   return data ?? 0;
-}
-
-// src/repositories/control.ts
-var CALL_CONTROL_S = 15 * 60;
-async function claimControl(db, p) {
-  const { data, error } = await db.rpc("claim_conversation_control", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_kind: p.holder.kind,
-    p_by: p.holder.kind === "person" ? p.holder.userId : null,
-    p_ref: p.holder.kind === "call" ? p.holder.callId : null,
-    p_seconds: p.seconds
-  });
-  if (error) throw new Error(`claim_conversation_control: ${error.message}`);
-  return data;
-}
-async function releaseControl(db, p) {
-  const { data, error } = await db.rpc("release_conversation_control", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_kind: p.holder.kind,
-    p_by: p.holder.kind === "person" ? p.holder.userId : null,
-    p_ref: p.holder.kind === "call" ? p.holder.callId : null
-  });
-  if (error) throw new Error(`release_conversation_control: ${error.message}`);
-  return data === true;
-}
-async function claimReplyTurn(db, tenantId, conversationId, messageId) {
-  const { data, error } = await db.rpc("claim_reply_turn", {
-    p_tenant: tenantId,
-    p_conversation: conversationId,
-    p_message: messageId
-  });
-  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
-  return data !== false;
-}
-async function holdsReplyTurn(db, conversationId, messageId) {
-  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
-  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
-  return data !== false;
-}
-async function takeOverThread(db, p) {
-  const { data, error } = await db.rpc("conversation_take_over", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_paused_until: p.pausedUntil,
-    ...p.via ? { p_via: p.via } : {},
-    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
-  });
-  if (error) throw error;
-  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = data.decision_id;
-  if (typeof id !== "string" || typeof data.paused_until !== "string" || typeof data.withdrawn_drafts !== "number")
-    throw new Error("conversation_take_over: the door answered without its decision");
-  return {
-    pausedUntil: data.paused_until,
-    withdrawnDrafts: data.withdrawn_drafts,
-    decisionId: id,
-    undoDropped: data.undo_dropped === true
-  };
-}
-async function handBackThread(db, p) {
-  const { data, error } = await db.rpc("conversation_hand_back", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    ...p.via ? { p_via: p.via } : {},
-    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
-  });
-  if (error) throw error;
-  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = data.decision_id;
-  if (typeof id !== "string" || typeof data.resolved_escalations !== "number")
-    throw new Error("conversation_hand_back: the door answered without its decision");
-  return { decisionId: id, resolvedEscalations: data.resolved_escalations, undoDropped: data.undo_dropped === true };
 }
 
 // src/repositories/control-plane.ts
@@ -4600,6 +4655,7 @@ export {
   assembleBroadcast,
   assembleHistory,
   becomePartner,
+  callBackMessage,
   callerNameOf,
   callersOf,
   campaignMonthSent,
@@ -4727,6 +4783,8 @@ export {
   markReplyTold,
   markWaitlistInvited,
   memberHasAddress,
+  memberWithdrawDrafts,
+  memberWithdrawMessage,
   membershipCountOf,
   mergePeople,
   messageByExternalId,
@@ -4915,8 +4973,10 @@ export {
   whatsappNumberOf,
   whatsappNumbersToRead,
   wireRowOf,
+  withdrawAiDrafts,
   withdrawEmail,
   withdrawPartnerInvite,
+  withdrawQueued,
   workspaceAbout,
   workspaceAnswersOnItsOwn,
   workspaceIdsOf,

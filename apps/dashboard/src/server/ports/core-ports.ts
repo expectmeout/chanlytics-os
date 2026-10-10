@@ -16,13 +16,15 @@ import {
   releaseIdempotencyKey,
   takeIdempotencyKey,
   takeOverThread,
+  callBackMessage,
+  memberWithdrawMessage,
   type Json,
 } from "@chanlytics/db";
 import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
 import { conversationPatch } from "@chanlytics/contracts";
 import { dbRefusal, type RouteContext } from "../with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "../verbs";
-import { cancelKindFor, schedule } from "../jobs";
+import { schedule } from "../jobs";
 import { takeThreadControl } from "../conversations/thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { storedConfigOf } from "../workspace/config-row";
@@ -99,8 +101,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
     // columns off from a member's own session (00132), exactly as it fences the
     // ledger -- so it goes the way scheduling a job goes.
     takeControl: (tenantId, id, userId, seconds) => takeThreadControl(tenantId, id, userId, seconds),
-    withdrawDrafts: (tenantId, id) =>
-      cancelPendingAiReply(ctx, { id, tenant_id: tenantId }, (tid, k, v) => cancelKindFor(tid, "outbound_send", k, v)),
+    withdrawDrafts: (tenantId, id) => cancelPendingAiReply(ctx, { id, tenant_id: tenantId }),
     resolveEscalation: (id, decisionId) => resolveOpenEscalation(ctx, id, decisionId),
     record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
     now: Date.now,
@@ -128,21 +129,24 @@ export function escalationPorts(ctx: RouteContext): EscalationPorts {
 
 export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
   return {
-    // Queued and not yet claimed: a row its send job has claimed (sending_at, 00352) is on its way to the person, and
-    // stays queued only until the provider answers. Called back then, the person got the words under a row that said
-    // canceled for ever. Zero rows is the verb's "too late".
-    cancelQueued: (id) =>
-      changed(
-        ctx.supabase
-          .from("messages")
-          .update({ status: "canceled" })
-          .eq("id", id)
-          .is("sending_at", null)
-          .eq("status", "queued")
-          .select("id"),
-      ),
-    cancelJob: (tenantId, id) => cancelKindFor(tenantId, "outbound_send", "message_id", id),
-    record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
+    // One door on the member's own session (00379 message_call_back): the row, its send job and the cancel_send line,
+    // only while the row is queued and no run has claimed it (sending_at, 00352): a claimed row is on its way to the
+    // person, and stays queued only until the provider answers. Null is the verb's "too late". The undo link it
+    // dropped is logged as recordDecision logs it.
+    callBack: async (tenantId, id) => {
+      const done = await callBackMessage(ctx.supabase, {
+        tenantId,
+        messageId: id,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      }).catch((e: { code?: string | null; message: string }) => {
+        throw dbRefusal(e);
+      });
+      if (!done) return null;
+      if (done.undoDropped)
+        log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "cancel_send", subject: "message" });
+      return { decision_id: done.decisionId };
+    },
   };
 }
 
@@ -245,8 +249,9 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     schedule: async (tenantId, dueAt, payload) => {
       await schedule(tenantId, "outbound_send", dueAt, payload);
     },
-    cancelOrphan: async (id) => {
-      await ctx.supabase.from("messages").update({ status: "canceled" }).eq("id", id);
+    // Through the one door (00379), on the member's own session: the row, and a job that did get written with it.
+    cancelOrphan: async (tenantId, id) => {
+      await memberWithdrawMessage(ctx.supabase, { tenantId, messageId: id, reason: null });
     },
     // A write that fails throws, like every other port here: before the job the
     // verb fails the reply on it (nothing was sent); after, it lets it go.

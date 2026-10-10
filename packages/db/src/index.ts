@@ -310,8 +310,20 @@ export {
   CALL_CONTROL_S,
   claimReplyTurn,
   holdsReplyTurn,
+  withdrawQueued,
+  withdrawAiDrafts,
+  memberWithdrawDrafts,
+  memberWithdrawMessage,
+  callBackMessage,
 } from "./repositories/control";
-export type { ControlHolder, ControlOutcome, TakenOver, HandedBack } from "./repositories/control";
+export type {
+  ControlHolder,
+  ControlOutcome,
+  TakenOver,
+  HandedBack,
+  WithdrawReason,
+  CalledBack,
+} from "./repositories/control";
 export {
   templatesFor,
   templatesToSend,

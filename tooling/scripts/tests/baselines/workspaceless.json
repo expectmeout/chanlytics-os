@@ -7,7 +7,6 @@
   "apps/edge/lib/lines/line-admin.ts": 2,
   "apps/edge/lib/lines/line-release.ts": 1,
   "apps/edge/lib/reach-out/clock.ts": 2,
-  "apps/edge/lib/receptionist/draft-queue.ts": 1,
   "apps/edge/lib/receptionist/steer.ts": 1,
   "apps/edge/lib/voice/forwarding.ts": 1,
   "apps/edge/lib/whatsapp/connect-number.ts": 3,

@@ -25,7 +25,7 @@ import { json, refuse } from "../http.js";
 import { tokenWorkspace, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { readThreadState, readLeadContext, describeLead, oldestActiveChannel } from "../packages/db.js";
+import { readThreadState, readLeadContext, describeLead, oldestActiveChannel, withdrawQueued } from "../packages/db.js";
 import {
   resolveSystemPrompt,
   describeNow,
@@ -36,7 +36,6 @@ import {
   fallbackMessages,
   UUID,
 } from "../packages/contracts.js";
-import { cancelJobsFor } from "../packages/jobs.js";
 import { smsBody } from "../packages/channels.js";
 import { brainCallOf, generateReply } from "./brain.js";
 import { queueDraft } from "./draft-queue.js";
@@ -124,25 +123,28 @@ async function retireForTheRewrite(
   old: { id: string; tenant_id: string },
   newId: string,
 ): Promise<Response | null> {
-  const { data: retired, error: cancelErr } = await db
-    .from("messages")
-    .update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })
-    .eq("id", old.id)
-    .eq("tenant_id", old.tenant_id)
-    .eq("status", "queued")
-    .is("sending_at", null)
-    .select("id");
-  if (!cancelErr && retired?.length) return null;
-  const lost = !cancelErr;
-  steerLog.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: old.id, error: cancelErr?.message });
-  await db
-    .from("messages")
-    .update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } })
-    .eq("id", newId)
-    .eq("tenant_id", old.tenant_id)
-    .eq("status", "queued")
-    .is("sending_at", null);
-  await cancelJobsFor(db, old.tenant_id, "outbound_send", "message_id", newId);
+  // Through the one door (00379): the old draft and its send job, only while no run has claimed it.
+  const failed = (e: unknown) => (e instanceof Error ? e.message : String(e));
+  const retired = await withdrawQueued(db, {
+    tenantId: old.tenant_id,
+    messageIds: [old.id],
+    reason: { reason: "steered", replaced_by: newId },
+  }).then(
+    (ids) => ({ ids, error: null as string | null }),
+    (e: unknown) => ({ ids: [] as string[], error: failed(e) }),
+  );
+  if (retired.ids.length) return null;
+  const lost = retired.error === null;
+  steerLog.error(lost ? "steer_lost_race" : "steer_retire_failed", {
+    message_id: old.id,
+    error: retired.error ?? undefined,
+  });
+  // The rewrite taken back the same way, with its job.
+  await withdrawQueued(db, {
+    tenantId: old.tenant_id,
+    messageIds: [newId],
+    reason: { reason: lost ? "steer_lost_race" : "steer_rolled_back" },
+  }).catch((e: unknown) => steerLog.error("steer_retire_failed", { message_id: newId, error: failed(e) }));
   return lost ? refuse(409, "already_sent") : refuse(500, "could_not_retire_old_draft");
 }
 
@@ -255,7 +257,6 @@ export async function steerHeldDraft(
   // Then the old one, counted (retireForTheRewrite): a draft the tick sent or claimed meanwhile takes the rewrite back.
   const lost = await retireForTheRewrite(db, m, newId);
   if (lost) return lost;
-  await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 
   // The words are the owner's and the model's and stay out of the log.
   steerLog.info("admin_steer", {
