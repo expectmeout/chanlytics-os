@@ -220,8 +220,9 @@ export function todayDay(
     reminders =
       visit.length === 0
         ? {
-            // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
-            text: `No ${W.one} reminders yet — a playbook can write the day before ${W.a} and the day after.`,
+            // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
+            // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
+            text: `No ${W.one} reminders yet — a campaign can write the day before ${W.a} and the day after.`,
             to: "outbound",
           }
         : {

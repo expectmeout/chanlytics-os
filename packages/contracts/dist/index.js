@@ -35113,8 +35113,9 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     );
     const W = appointmentWords(word);
     reminders = visit.length === 0 ? {
-      // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
-      text: `No ${W.one} reminders yet \u2014 a playbook can write the day before ${W.a} and the day after.`,
+      // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
+      // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
+      text: `No ${W.one} reminders yet \u2014 a campaign can write the day before ${W.a} and the day after.`,
       to: "outbound"
     } : {
       text: visit.map((p) => {

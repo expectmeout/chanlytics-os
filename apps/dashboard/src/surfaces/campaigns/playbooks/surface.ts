@@ -266,9 +266,10 @@ export interface PlaybooksSurface {
   templates: PlaybookTemplate[] | null;
   /**
    * The call's text as its templates read names it (`booking`: found over every WhatsApp row, a hidden one too, as the
-   * edge texts it after a call), one row or none: Campaigns' home says whether there is one. Null where that read failed.
+   * edge texts it after a call), one row or none: Campaigns' home says whether there is one. Null where that read failed;
+   * undefined where the answer does not say (a server from before `booking`), and the home then says nothing of it.
    */
-  library: LifecycleTemplate[] | null;
+  library: LifecycleTemplate[] | null | undefined;
   /** Every message of the workspace, on every channel (its templates read's `messages`): the Library's count. Null where unread. */
   messages: CampaignMessage[] | null;
   /** Each autonomy class's mode (GET playbooks' `modes`): Resume says a class under `auto` in full. Null where unread. */
@@ -310,12 +311,15 @@ function templatesReadOf(
   tpl: Output<"GET templates"> | Error,
 ): Pick<PlaybooksSurface, "templates" | "library" | "messages"> {
   if (tpl instanceof Error) return { templates: null, library: null, messages: null };
+  // An answer from before `booking` (a tab open across a rollback) does not say: never "No message for it yet" for a
+  // call's text that may exist. Null is the reader's "none found".
+  const booking: LifecycleTemplate | null | undefined = tpl.booking;
   return {
     // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
     templates: cmOfferedMessages(tpl),
     // The call's text is looked up as today and as the edge sends it (voice/call-booking-link.ts): among EVERY WhatsApp
     // row, a hidden one too. The composers' rows leave hidden ones out, so the read names the one it found (`booking`).
-    library: tpl.booking ? [tpl.booking] : [],
+    library: booking === undefined ? undefined : booking ? [booking] : [],
     messages: tpl.messages,
   };
 }

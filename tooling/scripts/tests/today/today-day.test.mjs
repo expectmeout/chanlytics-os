@@ -205,10 +205,11 @@ test("without a feed the day says nothing; with one and no visit playbook it off
     pb([{ trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused" }]),
   );
   assert.match(paused.reminders.text, /^No appointment reminders yet/, "a paused playbook is not a reminder going out");
-  // A playbook goes by WhatsApp, text or email, so the offer to start one says "write", not "text".
+  // A campaign goes by WhatsApp, text or email, so the offer to start one says "write", not "text"; and a person reads
+  // "campaign", never "playbook" (decision 19).
   assert.equal(
     on.reminders.text,
-    "No appointment reminders yet — a playbook can write the day before an appointment and the day after.",
+    "No appointment reminders yet — a campaign can write the day before an appointment and the day after.",
   );
   // A count the server could not make is left out, never said as "null people".
   const uncounted = todayDay(
@@ -244,7 +245,7 @@ test("the day's reminders say the workspace's word, as Campaigns does, from the 
   );
   assert.equal(
     todayDay(today, pb([], "session")).reminders.text,
-    "No session reminders yet — a playbook can write the day before a session and the day after.",
+    "No session reminders yet — a campaign can write the day before a session and the day after.",
   );
   // The playbooks not read yet (or a read that failed): the day does not know whether a reminder runs, so it says none.
   assert.equal(todayDay(today, null).reminders, null);

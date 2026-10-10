@@ -185,8 +185,16 @@ const answer = (data) =>
 /**
  * The surface the bridge builds from what GET playbooks answers for a workspace whose calendar is `calendar`; `shape` is
  * what the answer says of the business beside it (its word and its booking tool), absent from a server from before them.
+ * `templates` is GET templates' answer: by default one from before it named the call's text (`booking`).
  */
-async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = false, shape = {} }) {
+async function surfaceFor({
+  calendar,
+  playbooks = [],
+  pools = {},
+  dealsOn = false,
+  shape = {},
+  templates = { templates: [] },
+}) {
   const kept = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
@@ -201,7 +209,7 @@ async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = fals
         people_lists: [],
         ...shape,
       });
-    if (path === "/api/v1/templates") return answer({ templates: [] });
+    if (path === "/api/v1/templates") return answer(templates);
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
@@ -302,6 +310,26 @@ test("the surface publishes the business's shape and says every appointment mome
   assert.deepEqual(byEmail.shape, { calendar: "email", dealsOn: false, word: "appointment" });
   // Every other moment says its own words, whatever the word.
   assert.equal(session.triggers.find((t) => t.id === "quiet_30").label, triggerOf("quiet_30").label);
+});
+
+test("the call's text is said only where GET templates says whether there is one: an answer from before `booking` says nothing, never 'No message for it yet'", async () => {
+  const callText = (s) =>
+    campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: s, shape: s.shape, library: s.library })
+      .ledger.groups.flatMap((g) => g.rows)
+      .find((r) => r.id === "call_text");
+  // A server from before the call's text was named (a tab open across a rollback): not known, so not said, and not failed.
+  const before = await surfaceFor({ calendar: "ok", templates: { templates: [], messages: [] } });
+  assert.equal(before.library, undefined);
+  assert.deepEqual([callText(before).stateWords, callText(before).tone], ["", "plain"]);
+  assert.equal(
+    campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: before, shape: before.shape, library: before.library }).failed
+      .templates,
+    null,
+  );
+  // The reader found none (`booking: null`): that is a fact, and the row says it.
+  const none = await surfaceFor({ calendar: "ok", templates: { templates: [], messages: [], booking: null } });
+  assert.deepEqual(none.library, []);
+  assert.deepEqual([callText(none).stateWords, callText(none).tone], ["No message for it yet", "warn"]);
 });
 
 test("the home's moments to turn on: none retired, and one win-back -- the one the workspace can read, and none at all when a playbook is on either", async () => {

@@ -167,6 +167,61 @@ test("First contact holds the receptionist and the call's text as rows of their 
   assert.equal(l.counts.needs, 0, "the call's text is not a campaign: its amber is not a campaign needing you");
 });
 
+/** The call's text as WhatsApp holds it once approved: the starter's words and slots, which the booking rule reads. */
+const callTextTemplate = (over = {}) => {
+  const s = C.starterByKey("call_text");
+  const t = C.starterText(s, "en_US");
+  return {
+    id: "t-call-text",
+    channel: "whatsapp",
+    name: s.name,
+    language: "en_US",
+    meta_status: "approved",
+    variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
+    hidden_at: null,
+    ...over,
+  };
+};
+
+test("the call's text says what the library holds: one WhatsApp approved is on, one it has not is none yet, and a library unread or failed says nothing", () => {
+  const callText = (library) => row(ledger({ library }), "call_text");
+  const on = callText([callTextTemplate()]);
+  assert.deepEqual([on.status, on.stateWords, on.tone], ["always", "When a caller asks", "ok"]);
+  const unapproved = callText([callTextTemplate({ meta_status: "pending" })]);
+  assert.deepEqual(
+    [unapproved.status, unapproved.stateWords, unapproved.tone],
+    ["off", "No message for it yet", "warn"],
+    "one WhatsApp has not approved cannot be texted (bookingTemplate)",
+  );
+  for (const library of [undefined, null])
+    assert.deepEqual(
+      [callText(library).stateWords, callText(library).tone],
+      ["", "plain"],
+      `${library}: the page's failed read says it, or nothing is known yet`,
+    );
+});
+
+test("the month's offer not offered here is no row, and the chains a read could not reach are no rows: the group stands with its door", () => {
+  const pb = playbooks([playbook()]);
+  const notOffered = ledger({ playbooks: { ...pb, triggers: pb.triggers.filter((t) => t.id !== "everyone_monthly") } });
+  assert.equal(row(notOffered, "everyone_monthly"), undefined, "a moment the workspace is not offered is no line");
+  assert.deepEqual(group(notOffered, "lists").rows, [], "and Lists & offers holds nothing in its place");
+  assert.equal(group(notOffered, "lists").meta, "No campaign yet");
+  const offered = row(ledger(), "everyone_monthly");
+  assert.deepEqual(
+    [offered.kind, offered.stateWords, offered.act],
+    ["offer", "Off", { kind: "turn_on", label: "Turn on", moment: "everyone_monthly" }],
+  );
+  const failed = C.campaignsHomeOf(input({ reachOuts: null }));
+  assert.deepEqual(group(failed.ledger, "reach_out").rows, [], "a read that failed draws no chain");
+  assert.deepEqual(group(failed.ledger, "reach_out").add, {
+    kind: "route",
+    label: "Find businesses to write to",
+    route: "clients/leads",
+  });
+  assert.equal(failed.failed.chains.surface, "reach_outs", "the page says the read failed, with its Retry");
+});
+
 test("three campaigns on one moment: all in its group, the stage's lead first, the group saying how they stand", () => {
   const rows = [
     playbook({ id: "pb-p", name: "Win-back · paused", state: "paused", next: "paused" }),
