@@ -24,6 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { QUIET } from "../reports/people/_people-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -344,6 +345,8 @@ function quietReceptionist({ p_days: days }, over = {}) {
     ...over,
   };
 }
+/** What people_series answers (00393) for a quiet period: nobody reached the business and nothing was answered or done. */
+const quietPeople = ({ p_days: days }) => ({ timezone: TZ, today: dayKey(NOW.getTime()), days, ...QUIET });
 const RPCS = {
   people_list: (a) => (a?.p_contact_id && a.p_contact_id !== P1 ? [] : [rosaRow]),
   metrics_summary: () => ({
@@ -409,6 +412,8 @@ const RPCS = {
   }),
   // The Receptionist lens's read, which the report reads beside the series (readers/report.ts receptionistReport): a quiet period.
   receptionist_series: (a) => quietReceptionist(a),
+  // The People lens's read, which the report reads beside the series (readers/report.ts peopleReport): a quiet period.
+  people_series: (a) => quietPeople(a),
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
   lead_niche_prior: () => null,
 };
@@ -687,6 +692,66 @@ function withReceptionist(result) {
 }
 const withReceptionistReads = (reads) => [...reads, "rpc:receptionist_series"];
 
+/**
+ * 10 Oct 2026 (Reports, the People lens, C3 T13): the report says the People lens after the Receptionist lens, from the
+ * lens's own read (readers/report.ts peopleReport): the database's people_series, and the book as People counts it over
+ * the people the turn already reads for the booking line (readers/everyone.ts, once), judged against the channels the
+ * workspace can send on. This world's period is quiet and its book is Rosa alone, so it says the page's words for each part
+ * of the window with nothing in it, and a book of one: her wires, her freshness, no step, no stopped address, and where she
+ * stands. Of fewer than five, the head says no share of yes.
+ */
+const QUIET_PEOPLE_SAID = {
+  head: "Nobody reached you in this period.",
+  window: {
+    reached: [
+      { label: "People who reached you", value: "0", meta: "nobody wrote or called in this period", change: null },
+      { label: "New people", value: "0", meta: "nobody new", change: null },
+      { label: "Yeses won", value: "0", meta: "nobody said yes in this period", change: null },
+      { label: "Stops", value: "0", meta: "nobody asked to stop in this period", change: null },
+    ],
+    channels: { empty: "Nobody reached you in this period." },
+    first_came: { empty: "Nobody new reached you in this period." },
+    yeses: { empty: "Nobody said yes in this period." },
+    stops: { empty: "Nobody asked to stop in this period." },
+    steps_done: { empty: "No step was done in this period." },
+    email_stopped: { empty: "No address stopped working in this period." },
+  },
+  book: {
+    // Rosa wrote on WhatsApp and phoned: People's own channels for her are two ways in.
+    wires: { rows: ["More than one way: 1"], line: "1 of 1 have reached you more than one way, as of today." },
+    fresh: {
+      rows: [
+        "Under 7 days: 1",
+        "7 to 30 days: 0",
+        "31 to 60 days: 0",
+        "61 to 90 days: 0",
+        "91 days or more: 0",
+        "Never heard from: 0",
+      ],
+      line: "Of 1 person as of today: the days since they last wrote or called. Your own messages do not count.",
+      quiet: null,
+    },
+    stuck: [
+      { label: "Steps overdue", value: "0", meta: "no next step is past its day", change: null },
+      { label: "Steps due today", value: "0", meta: "no next step is due today", change: null },
+      { label: "Email stopped working", value: "0", meta: "every address works", change: null },
+    ],
+    stand: [
+      { label: "Said yes to messages", value: "1", meta: "of 1 person", change: null },
+      { label: "Can receive offers", value: "1", meta: "of 1 person", change: null },
+      { label: "Opted out", value: "0", meta: "of 1 person", change: null },
+      { label: "Quiet 30+ days", value: "0", meta: "of 1 person", change: null },
+    ],
+  },
+};
+function withPeople(result) {
+  const said = JSON.parse(result);
+  return said.error ? result : JSON.stringify({ ...said, people: QUIET_PEOPLE_SAID });
+}
+// The series, and the channels the book is judged against (the number's row and the texting line's: the number's health
+// is the turn's); the zone and the people are the turn's already.
+const withPeopleReads = (reads) => [...reads, "rpc:people_series", "tenant_channels.select", "lines.select"];
+
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
   assert.equal(new Set(Object.values(NAMES)).size, 26, "each to its own name.action");
@@ -935,7 +1000,8 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result)))));
+    if (NAMES[old] === "report")
+      result = withPeople(withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result))))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
@@ -1066,7 +1132,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // unchanged: nobody here heard from a campaign this week.
     const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
-    const reads = NAMES[old] === "report" ? withReceptionistReads(withReviewReads(withWeek)) : withWeek;
+    // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
+    const reads =
+      NAMES[old] === "report" ? withPeopleReads(withReceptionistReads(withReviewReads(withWeek))) : withWeek;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))
@@ -1090,6 +1158,13 @@ test("the report finds the people its booking link went to only where the link w
   assert.equal(none.isError, false, none.result);
   assert.equal(peopleReads(none.reads), 1, "no link sent: nobody to find");
   assert.equal(none.reads.filter((r) => r === "rpc:receptionist_series").length, 1, "the lens's read, once");
+  // The People lens counts the same People: its series is its one call more, and the book is the turn's one read, counted.
+  assert.equal(none.reads.filter((r) => r === "rpc:people_series").length, 1, "the People lens's read, once");
+  assert.equal(
+    none.reads.filter((r) => r === "tenant_channels.select").length,
+    1,
+    "and the channels it is judged against, once",
+  );
 
   const link = (a) => quietReceptionist(a, { links: { total: 1, people: [{ c: P1, at: ago(DAY) }] } });
   const sent = await answer("report", { days: 7 }, "owner", { ...RPCS, receptionist_series: link });

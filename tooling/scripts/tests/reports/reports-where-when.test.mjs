@@ -89,7 +89,6 @@ test("a v2 payload maps as before, and the parts it cannot know are null rather 
   assert.equal(vm.speed, null);
   assert.equal(vm.hours, null);
   assert.equal(vm.channels, null);
-  assert.equal(vm.lines.channels, null, "no channels, no sentence about them");
   assert.equal(vm.tiles.length, 6, "the tiles Ask reads are all still there");
   assert.deepEqual(vm.answered.totals, { in: 17, ai: 13, you: 3, none: 1 });
 });
@@ -270,7 +269,11 @@ test("texts are said as texts, and a channel no message can arrive on is never l
       },
     }),
   );
-  assert.equal(vm.lines.channels, "Mostly texts.");
+  assert.deepEqual(
+    vm.channels.map((c) => [c.key, c.label, c.value]),
+    [["sms", "Text", 6]],
+    "and the view model carries it the same way",
+  );
 });
 
 test("a caller's mood reads in its own order, good then neither then bad, and carries no status of its own", () => {

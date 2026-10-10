@@ -101,8 +101,11 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   assert.deepEqual(PAGE_ONLY, [
     "reports/report-metrics.ts",
     "reports/report-window.ts",
+    "reports/report-mix.ts",
     "reports/receptionist/receptionist-report.ts",
     "reports/receptionist/receptionist-words.ts",
+    "reports/people/people-report.ts",
+    "reports/people/people-words.ts",
   ]);
   for (const name of [
     "metricWordsOf",
@@ -110,14 +113,25 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "reportPickWords",
     "reportShortcuts",
     "toReceptionistReportVM",
+    "toPeopleReportVM",
+    "PEOPLE_RHYTHM_UNIT",
   ])
     assert.ok(!current.names.includes(name), `${name} is the Reports page's, by its own entry`);
   const lens = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
   assert.match(lens, /metricWordsOf/);
   assert.match(lens, /toReceptionistReportVM/);
+  assert.match(lens, /toPeopleReportVM/);
+  assert.match(lens, /PEOPLE_RHYTHM_UNIT/);
   // The Receptionist lens's record is the server's: the root barrel names it, so the browser's entry carries it, and a page
-  // imports only its types.
-  for (const name of ["receptionistDtoOf", "isReceptionistSeriesDto", "MISSED_CALL_TOUCH_WORDS"])
+  // imports only its types. The People lens's record and the book's count are the server's the same way.
+  for (const name of [
+    "receptionistDtoOf",
+    "isReceptionistSeriesDto",
+    "MISSED_CALL_TOUCH_WORDS",
+    "peopleDtoOf",
+    "isPeopleSeriesDto",
+    "peopleNowOf",
+  ])
     assert.ok(current.names.includes(name), `${name} stays in the root barrel for the server`);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
   assert.deepEqual(pkg.exports["./report-lens"], {
@@ -148,7 +162,7 @@ test("every page-only path names a file, since one that names none would filter 
     );
   // The list the generator is given decides what the entry leaves out: with none, the page-only names come back.
   const all = generate(ROOT, []);
-  for (const name of ["metricWordsOf", "toReceptionistReportVM", "reportWindowOf"])
+  for (const name of ["metricWordsOf", "toReceptionistReportVM", "toPeopleReportVM", "reportWindowOf"])
     assert.ok(all.names.includes(name), `${name} is in the entry when nothing is page-only`);
 });
 

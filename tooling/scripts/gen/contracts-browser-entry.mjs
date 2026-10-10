@@ -35,8 +35,11 @@ const SRC = "packages/contracts/src";
 export const PAGE_ONLY = [
   "reports/report-metrics.ts",
   "reports/report-window.ts",
+  "reports/report-mix.ts",
   "reports/receptionist/receptionist-report.ts",
   "reports/receptionist/receptionist-words.ts",
+  "reports/people/people-report.ts",
+  "reports/people/people-words.ts",
 ];
 /** The specifiers that load zod's classic API. zod/mini and zod/v4/core share its core and are cut by the bundler. */
 const CLASSIC_ZOD = new Set(["zod", "zod/v4", "zod/v4/classic"]);

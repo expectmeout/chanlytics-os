@@ -74,6 +74,7 @@ export const ROUTES = {
   "GET reports": { method: "GET", path: "/api/v1/reports" },
   "GET reports/campaigns": { method: "GET", path: "/api/v1/reports/campaigns" },
   "GET reports/headline": { method: "GET", path: "/api/v1/reports/headline" },
+  "GET reports/people": { method: "GET", path: "/api/v1/reports/people" },
   "GET reports/reach-outs": { method: "GET", path: "/api/v1/reports/reach-outs" },
   "GET reports/receptionist": { method: "GET", path: "/api/v1/reports/receptionist" },
   "GET reports/reviews": { method: "GET", path: "/api/v1/reports/reviews" },
@@ -308,6 +309,7 @@ export type Routes = {
   "GET reports": typeof import("../../app/api/v1/reports/route").GET;
   "GET reports/campaigns": typeof import("../../app/api/v1/reports/campaigns/route").GET;
   "GET reports/headline": typeof import("../../app/api/v1/reports/headline/route").GET;
+  "GET reports/people": typeof import("../../app/api/v1/reports/people/route").GET;
   "GET reports/reach-outs": typeof import("../../app/api/v1/reports/reach-outs/route").GET;
   "GET reports/receptionist": typeof import("../../app/api/v1/reports/receptionist/route").GET;
   "GET reports/reviews": typeof import("../../app/api/v1/reports/reviews/route").GET;

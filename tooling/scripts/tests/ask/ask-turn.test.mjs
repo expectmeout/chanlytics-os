@@ -26,6 +26,7 @@ function fromRecord(sent) {
 }
 import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+import { QUIET, SERIES } from "../reports/people/_people-world.mjs";
 import {
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
@@ -50,6 +51,7 @@ import {
   toPersonVM,
   toPersonRowVM,
   nextRunLabel,
+  toPeopleReportVM,
   toReceptionistReportVM,
   toReportVM,
   toReviewsReportVM,
@@ -1543,6 +1545,335 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
     globalThis.fetch = fetchWas;
     forgetFeeds();
   }
+});
+
+/* ------------------------------------------------------------ the People lens (Reports, C3) */
+
+const PEOPLE_DAY = 86_400_000;
+/**
+ * A person as people_list answers it (readers.test.mjs's book): wrote on WhatsApp `daysAgo` days before NOW, said yes to
+ * messages and to offers on it, with nothing else open. `over` is what a case puts in the row.
+ */
+const bookRow = (n, daysAgo, over = {}) => {
+  const heard = iso(NOW.getTime() - daysAgo * PEOPLE_DAY);
+  return {
+    id: `k-${n}`,
+    display_name: `Person ${n}`,
+    wa_profile_name: null,
+    phone_e164: `+1917555${String(n).padStart(4, "0")}`,
+    email: null,
+    consent: "opted_in",
+    consent_source: "customer_message",
+    consent_updated_at: heard,
+    marketing_consent: "opted_in",
+    marketing_consent_source: "form",
+    marketing_consent_updated_at: heard,
+    marketing_channels: ["whatsapp"],
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: `cv-${n}`,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: heard,
+    last_message_at: heard,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "Can I move Saturday to 11?",
+    last_inbound_at: heard,
+    last_call_at: null,
+    last_inbound_call_at: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: heard,
+    earliest_row_at: heard,
+    has_backfill: false,
+    has_chat: true,
+    message_channels: ["whatsapp"],
+    queued_reply_at: null,
+    ...over,
+  };
+};
+/** The next step of a person, due on a day (the workspace's today is 14 Sep 2026): the member's own. */
+const stepDue = (id, on) => ({ step_id: id, step_body: "Call back", step_due_on: on, step_for_user_id: USER });
+/** No yes to offers. */
+const NO_OFFERS = {
+  marketing_consent: null,
+  marketing_consent_source: null,
+  marketing_consent_updated_at: null,
+  marketing_channels: [],
+};
+/**
+ * Eight people, heard 1, 2, 3, 10, 40, 70, 20 and 120 days before NOW: the first six have a step a day past, the seventh
+ * one due today, the first three said yes to offers, the second reaches Harbor by WhatsApp and by phone, and the last asked
+ * to stop.
+ */
+const BOOK = [
+  bookRow(1, 1, stepDue("s1", "2026-09-12")),
+  bookRow(2, 2, { ...stepDue("s2", "2026-09-12"), channels: ["whatsapp", "voice"] }),
+  bookRow(3, 3, stepDue("s3", "2026-09-13")),
+  bookRow(4, 10, { ...NO_OFFERS, ...stepDue("s4", "2026-09-12") }),
+  bookRow(5, 40, { ...NO_OFFERS, ...stepDue("s5", "2026-09-01") }),
+  bookRow(6, 70, { ...NO_OFFERS, ...stepDue("s6", "2026-09-10") }),
+  bookRow(7, 20, { ...NO_OFFERS, ...stepDue("s7", "2026-09-14") }),
+  bookRow(8, 120, { ...NO_OFFERS, consent: "opted_out" }),
+];
+/** The counts of that book, by hand: eight live people, seven with a yes, three with a yes to offers, three quiet. */
+const BOOK_NOW = {
+  people: 8,
+  fresh: { under_7: 3, d7_30: 2, d31_60: 1, d61_90: 1, d91_up: 1, never: 0 },
+  lists: { opted_in: 7, offers_ok: 3, opted_out: 1, quiet: 3 },
+  steps: { overdue: 6, due_today: 1 },
+  email_stopped: 0,
+  wires: { whatsapp_only: 7, sms_only: 0, phone_only: 0, email_only: 0, several: 1, none: 0 },
+};
+/** What people_series answers (00393) for the days asked, as the database says it: SERIES's counts, or `over` in their place. */
+const peopleSeriesFor = (a, over = {}) => ({
+  ...SERIES,
+  timezone: TZ,
+  today: "2026-09-14",
+  days: a.p_days,
+  ...over,
+});
+const PEOPLE_GONE = Object.assign(
+  new Error("Could not find the function public.people_series(p_days, p_tenant_id) in the schema cache"),
+  { code: "PGRST202" },
+);
+
+test("report says the People lens as the page does (Reports C3, the People lens): the head, the window's four figures and six mixes, and the book's wires, freshness, what is stuck and where it stands -- each sentence the fold's, one read of the series and of People; either half alone, an error where it could not be read, and available false where neither could", async () => {
+  const today = "2026-09-14";
+  const quietReport = (a) => ({
+    timezone: TZ,
+    days: a.p_days,
+    span_days: a.p_days * 2,
+    today,
+    series: [],
+    reasons: {},
+    reply_seconds: [],
+    sentiments: {},
+    voicemail: 0,
+  });
+  const rpcs = {
+    ...RPCS,
+    report_series: quietReport,
+    people_list: () => BOOK,
+    people_series: (a) => peopleSeriesFor(a),
+  };
+  const run = async (over = {}) => {
+    const ctx = ctxFor(tables(), { ...rpcs, ...over });
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return { said: JSON.parse(out.result), ctx };
+  };
+  const readsOf = ({ ctx }, rpc) => ctx.supabase.seen.filter((q) => q.rpc === rpc).length;
+  const down = () => {
+    throw new Error("people down");
+  };
+  const gone = () => {
+    throw PEOPLE_GONE;
+  };
+
+  // The book of eight, as the page draws it.
+  const BOOK_SAID = {
+    wires: {
+      rows: ["WhatsApp only: 7", "More than one way: 1"],
+      line: "1 of 8 have reached you more than one way, as of today.",
+    },
+    fresh: {
+      rows: [
+        "Under 7 days: 3",
+        "7 to 30 days: 2",
+        "31 to 60 days: 1",
+        "61 to 90 days: 1",
+        "91 days or more: 1",
+        "Never heard from: 0",
+      ],
+      line: "Of 8 people as of today: the days since they last wrote or called. Your own messages do not count.",
+      quiet: "3 people have been quiet for more than 30 days.",
+    },
+    stuck: [
+      { label: "Steps overdue", value: "6", meta: "people whose next step is past its day", change: null },
+      { label: "Steps due today", value: "1", meta: "people whose next step is due today", change: null },
+      { label: "Email stopped working", value: "0", meta: "every address works", change: null },
+    ],
+    stand: [
+      { label: "Said yes to messages", value: "7", meta: "of 8 people", change: null },
+      { label: "Can receive offers", value: "3", meta: "of 8 people", change: null },
+      { label: "Opted out", value: "1", meta: "of 8 people", change: null },
+      { label: "Quiet 30+ days", value: "3", meta: "of 8 people", change: null },
+    ],
+  };
+
+  // A busy week: every part, in the page's own words.
+  const week = await run();
+  assert.deepEqual(week.said.people, {
+    head: "40 people reached you, 12 new (8 the 7 days before); 7 of 8 have said yes to messages.",
+    window: {
+      reached: [
+        { label: "People who reached you", value: "40", meta: "12 new · 28 you knew already", change: "up from 31" },
+        { label: "New people", value: "12", meta: "of the 40 who reached you", change: "up from 8" },
+        {
+          label: "Yeses won",
+          value: "9",
+          meta: "6 to messages · 2 to offers · 1 to email offers",
+          change: "up from 7",
+        },
+        {
+          label: "Stops",
+          value: "4",
+          meta: "2 stopped all messages · 1 stopped offers · 1 stopped email offers",
+          change: "up from 2",
+        },
+      ],
+      channels: {
+        rows: ["WhatsApp: 25", "Phone: 11", "Email: 6", "Text: 3"],
+        line: "A person who reached you more than one way is counted in each.",
+      },
+      first_came: {
+        rows: ["WhatsApp: 5", "Phone: 3", "Your calendar: 1", "An ad: 1", "Not recorded: 2"],
+        line: "10 of 12 new people have a recorded way in.",
+      },
+      yeses: {
+        rows: ["Their own message: 6", "A form: 2", "In person: 1"],
+        line: "Each person is counted once for each kind of message they said yes to.",
+      },
+      stops: {
+        rows: ["Their own STOP: 2", "The carrier: 1", "An unsubscribe: 1"],
+        line: "Each person is counted once for each kind of message they stopped.",
+      },
+      steps_done: {
+        rows: ["Done on or before their day: 8", "Done after their day: 3"],
+        line: "8 of 11 were done on or before their day.",
+      },
+      email_stopped: {
+        rows: ["Bounced for good: 1", "Marked as spam: 1"],
+        line: "2 addresses stopped working in this period.",
+      },
+    },
+    book: BOOK_SAID,
+  });
+  assert.equal(week.said.people.window.reached[0].value, "40");
+  assert.equal(week.said.people.book.stuck[0].value, "6");
+  assert.equal(week.said.people.book.stand[0].label, "Said yes to messages");
+  // The same fold the page draws: the lens's sentence is the view model's, whoever asks.
+  const folded = toPeopleReportVM({
+    timezone: TZ,
+    today,
+    days: 7,
+    series: peopleSeriesFor({ p_days: 7 }),
+    now: BOOK_NOW,
+  });
+  assert.equal(week.said.people.head, folded.head);
+  assert.equal(week.said.people.book.fresh.quiet, folded.fresh.quiet.line);
+  assert.deepEqual(
+    week.said.people.window.reached.map((x) => x.meta),
+    folded.strip.map((x) => x.meta),
+  );
+  // One read of the series and of People, and of the channels the book is judged against, for the whole report.
+  assert.deepEqual(
+    ["people_series", "people_list"].map((rpc) => readsOf(week, rpc)),
+    [1, 1],
+    "the booking line's read of People and the book's are the turn's one read (readers/everyone.ts)",
+  );
+  assert.equal(week.ctx.supabase.seen.filter((q) => q.table === "tenant_channels").length, 1, "the channels, once");
+  assert.deepEqual(
+    [week.said.range, week.said.campaigns.error, week.said.reviews.linked],
+    ["7 days", "the campaign numbers could not be read just now", false],
+    "the report's own parts stand beside it",
+  );
+
+  // A database that does not have the function yet (00393 not applied): the book alone, no head of the window's, once in the log.
+  const absent = await logged("people_series_missing", () => run({ people_series: gone }));
+  assert.deepEqual(absent.result.said.people, { head: null, window: null, book: BOOK_SAID });
+  assert.deepEqual(absent.lines, [JSON.stringify({ tenant_id: A })], "said once for the read, naming the workspace");
+
+  // People that cannot be read: the window alone, said without the yes of the book, and in the log.
+  const pool = await logged("people_pool_failed", () => run({ people_list: down }));
+  assert.deepEqual(pool.result.said.people, {
+    head: "40 people reached you, 12 new (8 the 7 days before).",
+    window: week.said.people.window,
+    book: null,
+  });
+  assert.equal(pool.lines.length, 1, "said once in the log");
+  assert.match(JSON.parse(pool.lines[0]).error, /people down/);
+  assert.equal(pool.result.said.range, "7 days", "the report's own numbers stand");
+
+  // Neither half: not "nothing", the lens is not kept in this database.
+  const { result: neither } = await logged("people_pool_failed", () => run({ people_series: gone, people_list: down }));
+  assert.deepEqual(neither.said.people, { available: false });
+
+  // A read that fails, here a function nobody scripted, or one that raises: an error in words, never as nobody reached
+  // you, and once in the log; the report's own numbers stand.
+  const { people_series: _scripted, ...unscripted } = rpcs;
+  const failed = await logged("ask_tool_read_failed", async () => {
+    const ctx = ctxFor(tables(), unscripted);
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  });
+  assert.deepEqual(failed.result.people, { error: "the people numbers could not be read just now" });
+  assert.deepEqual(
+    failed.lines.map((l) => JSON.parse(l).read).filter((read) => read === "people"),
+    ["people"],
+    "and said once in the log",
+  );
+  assert.equal(failed.result.range, "7 days");
+  const { result: raised } = await logged("ask_tool_read_failed", () =>
+    run({
+      people_series: () => {
+        throw new Error("connection refused");
+      },
+    }),
+  );
+  assert.deepEqual(raised.said.people, { error: "the people numbers could not be read just now" });
+
+  // A period nobody reached you in: the page's words for each part, and no zero said for what has no source; the book stands.
+  const quiet = await run({ people_series: (a) => peopleSeriesFor(a, QUIET) });
+  assert.deepEqual(quiet.said.people, {
+    head: "Nobody reached you in this period; 7 of 8 have said yes to messages.",
+    window: {
+      reached: [
+        { label: "People who reached you", value: "0", meta: "nobody wrote or called in this period", change: null },
+        { label: "New people", value: "0", meta: "nobody new", change: null },
+        { label: "Yeses won", value: "0", meta: "nobody said yes in this period", change: null },
+        { label: "Stops", value: "0", meta: "nobody asked to stop in this period", change: null },
+      ],
+      channels: { empty: "Nobody reached you in this period." },
+      first_came: { empty: "Nobody new reached you in this period." },
+      yeses: { empty: "Nobody said yes in this period." },
+      stops: { empty: "Nobody asked to stop in this period." },
+      steps_done: { empty: "No step was done in this period." },
+      email_stopped: { empty: "No address stopped working in this period." },
+    },
+    book: BOOK_SAID,
+  });
+  assert.equal(JSON.stringify(quiet.said.people).includes("NaN"), false);
+
+  // A book with nobody in it says its words, not a zero share; a book of four says no share of yes in the head.
+  const empty = await run({ people_list: () => [] });
+  assert.deepEqual(empty.said.people.book.wires, { empty: "Nobody is in your book yet." });
+  assert.deepEqual(empty.said.people.book.fresh, { empty: "Nobody is in your book yet.", quiet: null });
+  assert.deepEqual(empty.said.people.book.stand[0], {
+    label: "Said yes to messages",
+    value: "0",
+    meta: "nobody is in your book yet",
+    change: null,
+  });
+  assert.equal(empty.said.people.head, "40 people reached you, 12 new (8 the 7 days before).");
+  const four = await run({ people_list: () => BOOK.slice(0, 4) });
+  assert.equal(
+    four.said.people.head,
+    "40 people reached you, 12 new (8 the 7 days before).",
+    "of fewer than five: no share",
+  );
+  assert.equal(four.said.people.book.stand[0].meta, "of 4 people");
+  assert.equal(four.said.people.book.stuck[0].value, "4");
 });
 
 test("report says the Reach-outs section as the page does (a moment holds many campaigns, lane 2, task 6): its counts and its sentences from the page's own fold where the workspace has a reach-out, null where it has none, and an error where its read failed", async () => {
@@ -3345,8 +3676,12 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
         "google_connections.select",
         "google_reviews.select",
         "google_listing_days.select",
-        // Everyone, once, for the booking line and the deals alike.
+        // Everyone, once, for the booking line and the deals alike, and for the People lens's book (10 Oct 2026, Reports
+        // C3): which is counted against the channels the workspace can send on (the number's row and the texting line's),
+        // the one read of them; this world's database has no people_series, which no read counts.
         "rpc:people_list",
+        "tenant_channels.select",
+        "lines.select",
         "policies.select",
         // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
         // turn's: none read again. The deals.

@@ -1,6 +1,6 @@
 /**
  * What every chart measures and draws with, as pure functions (moved whole from legacy/components/chart-core.jsx,
- * decision 0015): the axis a data set wants, the curve through it, the arcs of a donut, the frame the plot sits in, and
+ * decision 0015): the axis a data set wants, the curve through it, the arc of a radial, the frame the plot sits in, and
  * the words a point says when the page gives none. Nothing here touches the document.
  */
 import type { CSSProperties } from "react";
@@ -122,20 +122,6 @@ export const ckPolar = (cx: number, cy: number, r: number, a: number): Point => 
   cx + r * Math.sin(a),
   cy - r * Math.cos(a),
 ];
-
-// An annular sector (a donut slice), between radii [inner, outer] and angles [from, to]. A full turn is two halves: an arc from a point to itself draws nothing.
-export function ckArc(cx: number, cy: number, [r0, r1]: Point, [a0, a1]: Point): string {
-  if (a1 - a0 >= Math.PI * 2 - 1e-6) {
-    const mid = a0 + Math.PI;
-    return ckArc(cx, cy, [r0, r1], [a0, mid]) + ckArc(cx, cy, [r0, r1], [mid, a0 + Math.PI * 2]);
-  }
-  const large = a1 - a0 > Math.PI ? 1 : 0;
-  const [x0, y0] = ckPolar(cx, cy, r1, a0),
-    [x1, y1] = ckPolar(cx, cy, r1, a1);
-  const [x2, y2] = ckPolar(cx, cy, r0, a1),
-    [x3, y3] = ckPolar(cx, cy, r0, a0);
-  return `M${x0},${y0}A${r1},${r1} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 ${large} 0 ${x3},${y3}Z`;
-}
 
 // The centre line of an arc between angles [from, to], for a stroked, round-capped radial mark.
 export function ckArcLine(cx: number, cy: number, r: number, [a0, a1]: Point): string {

@@ -393,6 +393,8 @@
     "00388_an_escalation_is_opened_with_its_event.sql": "69997625fab82d67d9e10da807f7f481e927c48a4f2d5d964361023860c2988f",
     "00389_a_booking_reaches_its_reach_out_through_its_event.sql": "f239aae5eddc56e3fcd7d75fbfc02678074bd2cfe6fdb012bff480f9976c4cd3",
     "00390_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "d6775bf1d2836ce20f21b193c85ab236e072d81af4e464dab717f69d91157b81",
-    "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd"
+    "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd",
+    "00392_a_new_person_is_one_who_reached_you.sql": "7fc2ce2b60af0f5643055d07bbed41e4348091a32b9c04edc4f3114f33cb391d",
+    "00393_the_people_lens_is_read_beyond_the_days_counts.sql": "c2014553016ca0882d9dc90fc0b6f50458550ba5b560d75e9e5fe2749ffdc828"
   }
 }

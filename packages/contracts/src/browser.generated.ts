@@ -182,7 +182,7 @@ export { personLikeOf, peopleVisitsOf, withVisitsOf, poolRowOf, poolRowsOf, cons
 export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./people/erasure";
 export { asListRule, draftListRule, ruleFacts, factNeeds, ruleNeeds, ruleLists, listRuleMatches, listFactWords, listConditionWords, listRuleParts, listRuleWhy, listDraftFieldLines, LIST_NEEDS, LIST_RULE_FIELDS, LIST_PURPOSES, LIST_STANDINGS, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_RULE_MAX, LIST_ANY_MAX, ListFactSchema, ListConditionSchema, ListRuleSchema, LIST_DRAFT_JSON_SCHEMA } from "./people/lists/list-rules";
 export { listToken, parseListToken, unmetNeed, listMembers, savedListIds, savedListLookup, listNamer, listNeeds, listsFor, resolveList, membersOf, listUnknownWords, savedListTip, ruleNeedsViewer, pinTokens, todayPins, togglePin, PEOPLE_LIST_GROUPS, BUILTIN_LISTS, PEOPLE_LISTS, viewerListWords, TODAY_PINS_MAX } from "./people/lists/lists";
-export { peopleListAction, savedListAction, noNumberWords, noChannelWords, saidYesWords, peopleAggregates, recencyCells, GET_YES_ROUTE, NO_NUMBER_REACH, NO_CHANNEL_REACH } from "./people/people-lists";
+export { peopleListAction, savedListAction, noNumberWords, noChannelWords, saidYesWords, peopleAggregates, GET_YES_ROUTE, NO_NUMBER_REACH, NO_CHANNEL_REACH } from "./people/people-lists";
 export { attentionRow } from "./people/person-attention";
 export { offersYesRefusal, ownMessageRefusal, consentSourceLabel, mayReceive, whyNotReceive, saidYesTo, CONSENT_SOURCES, CONSENT_RESET_SOURCE, OFFERS_YES_SOURCES, OWN_MESSAGE_REFUSALS, CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./people/person-consent";
 export { DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS } from "./people/person-doubts";
@@ -234,6 +234,8 @@ export { BOOKED_NEEDS_TODAY, toBookingReportVM } from "./reports/booking-report"
 export { toCampaignReportVM } from "./reports/campaign-report";
 export { lensAnswerOf } from "./reports/lens-answer";
 export { REPORT_LENSES, LENS_ROUTES, lensRoute, isLensParam, lensOfRoute, reportsParamParts, reportsRouteParts, lensOf, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
+export { peopleNowOf } from "./reports/people/people-now";
+export { isPeopleSeriesDto, peopleDtoOf } from "./reports/people/people-record";
 export { toReachOutReportVM, reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reports/reach-out-report";
 export { MISSED_CALL_TOUCH_WORDS, isReceptionistSeriesDto, receptionistDtoOf } from "./reports/receptionist/receptionist-record";
 export { closedOf } from "./reports/report-closed";

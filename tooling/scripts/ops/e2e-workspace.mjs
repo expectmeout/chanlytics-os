@@ -48,13 +48,18 @@
  *     back and two handovers (convergeReceptionist says how each is left alone): every row terminal and dated from the
  *     run, and none of it for a sweep, a job or the bell to find. The config keeps no profile, so no opening hours, and
  *     the lens's "answered while you were closed" asks for them, as it does of any workspace that has not set them;
+ *   - Reports' People lens reads the ledger's three yeses, one for each person above and a week old as their own
+ *     columns date them, and three steps the owner finished, two on their day or before and one a day late
+ *     (convergePeople): every row terminal and dated from the run. The workspace holds no open step, no stop and no
+ *     address that stopped working: an open step is a row in Today and a person on the Steps due list, and other specs
+ *     count those, and nothing here is for a sweep, a job or the bell to select;
  *   - under `--seed-win-back` alone (Ruben's run by hand, never the nightly's),
  *     one playbook, a Win-back on silence, paused so no sweep runs it, on a
  *     made-up message of its own: what Ask's change cases resume, rename and
  *     retime (the moment spec, A8; decision D3); without it, an existing
  *     Win-back is only put back paused, and nothing is added;
- *   - and there is no job, open escalation, line or broadcast: the two handovers are resolved, since the deadman pages
- *     the platform for one left open two hours.
+ *   - and there is no job, open escalation, open step, line or broadcast: the two handovers are resolved, since the
+ *     deadman pages the platform for one left open two hours, and the three steps are done.
  *
  * Merging seeds no Win-back: the nightly (.github/workflows/nightly-e2e.yml, every
  * day at 09:00 UTC) passes --apply alone. The Win-back's first run,
@@ -77,6 +82,7 @@ import {
   DAY_MS,
   HOUR_MS,
   MIN_MS,
+  SHARED_EVENT_VERSIONS,
   TenantConfigWriteSchema,
   leadMonth,
   leadQuestionRoute,
@@ -542,6 +548,28 @@ const SAM_HANDOVERS = [
 const MISSED_CALL = { daysAgo: 2, at: "15:20" };
 
 /**
+ * What Reports' People lens reads of the ledger and of the team's steps (convergePeople), found by a run to be deleted and
+ * written again: every yes event carries PEOPLE_NOTE as its `note`, and every step's words start with PEOPLE_PREFIX. A real
+ * yes, another kind of event and a step a person wrote carry neither, so a run never touches them.
+ */
+export const PEOPLE_NOTE = "e2e-seed-p";
+export const PEOPLE_PREFIX = "e2e seed step: ";
+/** The time of day the owner marks a step done, on a day of the workspace's calendar. */
+const STEP_DONE_AT = "11:00";
+const [ROBIN, CASEY] = PEOPLE;
+/**
+ * The three steps the owner finished, by the workspace's days before the run: whose (by phone number), the day each was due,
+ * the day it was done and what it says after the prefix. Casey Example's first was done on its day and the second the day
+ * after its day; Robin Example's was done three days before its day came. So the lens counts three steps done in the month,
+ * two of them on their day or before, and no step is open.
+ */
+const PEOPLE_STEPS = [
+  { person: CASEY.phone, dueDaysAgo: 5, doneDaysAgo: 5, words: "check in after the first visit" },
+  { person: CASEY.phone, dueDaysAgo: 9, doneDaysAgo: 8, words: "send the price list" },
+  { person: ROBIN.phone, dueDaysAgo: 3, doneDaysAgo: 6, words: "confirm the booking link works" },
+];
+
+/**
  * Every person's two answers, in force after each run: a yes to messages, taken
  * in person a week before the run, and nothing yet about offers. The specs
  * (e2e/today/owner-signals.spec.ts) read this state and nothing else; verify() below
@@ -648,6 +676,7 @@ export async function snapshot(db, tenantId, userIds) {
   };
   if (tenantId) {
     keep("tenants", must("backing up tenants", await db.from("tenants").select("*").eq("id", tenantId)));
+    // Not `events`: the ledger rows a run deletes (blocked sends, the Google replies', the People yeses) are the seed's own, written afresh.
     for (const table of [
       "billing_accounts",
       "tenant_config",
@@ -677,6 +706,7 @@ export async function snapshot(db, tenantId, userIds) {
       "google_connections",
       "google_reviews",
       "google_listing_days",
+      "person_notes",
     ]) {
       keep(table, must(`backing up ${table}`, await db.from(table).select("*").eq("tenant_id", tenantId)));
     }
@@ -1106,6 +1136,7 @@ export async function converge(
   const winBack = await convergeWinBack(db, T, ownerId, seedWinBack);
   if (winBack) did.push(winBack);
   await convergeReceptionist(db, T, ownerId, now);
+  await convergePeople(db, T, ownerId, now);
 
   const problems = await verify(db, T, ownerId);
   if (problems.length) throw new Error(`the workspace is not in its known state: ${problems.join("; ")}`);
@@ -1831,6 +1862,103 @@ export async function convergeReceptionist(db, T, ownerId, now) {
   });
 }
 
+/** The workspace's calendar day `daysAgo` days before the run, "2026-09-07": the day the lens judges a step by. */
+function dayBefore(now, daysAgo) {
+  const today = new Date(now).toLocaleDateString("en-CA", { timeZone: TIMEZONE });
+  return new Date(Date.parse(`${today}T00:00:00Z`) - daysAgo * DAY_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * The People lens's rows (Reports, people_series): the yes each seeded person gave, on the ledger, and three steps the
+ * owner finished, deleted and written again every run and dated from it. What they give the lens: three yeses won in the
+ * month, to messages, in their own message on WhatsApp (the date of their columns' own yes, a week before the run, so the
+ * events and the people agree), no stop since their columns say yes; and three steps done, two on their day or before and one
+ * a day late. The book's own figures (steps overdue, steps due today) read open steps, so a done step is on no list.
+ *
+ * All of it terminal, so that nothing production runs in the background finds it:
+ *   - the steps are done, so none is open: an open step is a row in Today and a person on the Steps due list, which other
+ *     specs count. Nothing reads a done step, nor a yes event, to act: no sweep or job selects either, and no event
+ *     subscription (decision 0032) names the yes's kind, so it reaches no reaction;
+ *   - the yeses are events only: the people's own columns already say yes (converge sets them), and the trigger that
+ *     keeps a person's channels by each yes event adds WhatsApp to the person it names, the only channel the workspace has;
+ *   - no suppressed address, no queued message and no job is written, and the notes are team-only, so the receptionist
+ *     never reads one.
+ *
+ * Last night's are found by what marks them and nothing else: the yeses by their kind and `note`, the steps by the
+ * prefix of their words. A real yes, an event of another kind and a step a person wrote are not the seed's to delete.
+ */
+export async function convergePeople(db, T, ownerId, now) {
+  const found = must("reading the people", await db.from("contacts").select("id, phone_e164").eq("tenant_id", T));
+  const idOf = (phone) => {
+    const person = found.find((p) => p.phone_e164 === phone);
+    if (!person) throw new Error("the People lens's rows are about the three seeded people: one is missing");
+    return person.id;
+  };
+  const people = PEOPLE.map((p) => idOf(p.phone));
+
+  // Last night's, whatever the specs did to them, gone first.
+  must(
+    "clearing the yeses",
+    await db
+      .from("events")
+      .delete()
+      .eq("tenant_id", T)
+      .eq("kind", "contact.consent_changed")
+      .eq("data->>note", PEOPLE_NOTE),
+  );
+  const notes = must("reading the notes", await db.from("person_notes").select("id, body").eq("tenant_id", T));
+  await deleteWhere(
+    db,
+    "person_notes",
+    "id",
+    notes.filter((n) => n.body.startsWith(PEOPLE_PREFIX)).map((n) => n.id),
+    "clearing the steps",
+  );
+
+  // The date converge gives each person's own yes (consent_updated_at), so the events and the columns agree.
+  const yesAt = new Date(now - WEEK_MS).toISOString();
+  must(
+    "the yeses",
+    await db.from("events").insert(
+      people.map((id) => ({
+        tenant_id: T,
+        kind: "contact.consent_changed",
+        category: "contact",
+        version: SHARED_EVENT_VERSIONS["contact.consent_changed"],
+        subject_type: "contact",
+        subject_id: id,
+        data: { consent: SAID_YES_TO_MESSAGES, source: "customer_message", channel: "whatsapp", note: PEOPLE_NOTE },
+        created_at: yesAt,
+      })),
+    ),
+  );
+
+  // Written the day before they were done, and done in the middle of the day, by the workspace's own clock.
+  must(
+    "the steps",
+    await db.from("person_notes").insert(
+      PEOPLE_STEPS.map((s) => {
+        const done = atLocal(dayBefore(now, s.doneDaysAgo), STEP_DONE_AT);
+        return {
+          tenant_id: T,
+          contact_id: idOf(s.person),
+          body: `${PEOPLE_PREFIX}${s.words}`,
+          author_kind: "member",
+          // A member's note is kept (person_notes_author_check); a step is the team's (person_notes_step_is_the_teams).
+          state: "kept",
+          author_user_id: ownerId,
+          team_only: true,
+          due_on: dayBefore(now, s.dueDaysAgo),
+          done_at: new Date(done).toISOString(),
+          done_by: ownerId,
+          created_at: new Date(done - DAY_MS).toISOString(),
+          updated_at: new Date(done).toISOString(),
+        };
+      }),
+    ),
+  );
+}
+
 /**
  * The eval's Win-back (the moment spec, A8; decision D3): one playbook on silence, PAUSED, so the hourly sweep never runs
  * it (playbooks_due takes only a running one), on a made-up message of its own: approved, no slot, a WhatsApp row the
@@ -2123,6 +2251,34 @@ export async function verify(db, T, ownerId) {
   if (blocked.length !== 1 || blocked[0].data?.reason !== "human_has_it")
     problems.push(
       "the blocked send the door held back is not on the ledger exactly once, as the Receptionist lens counts it",
+    );
+  // The state the People lens reads (e2e/reports.spec.ts): the three yeses on the ledger, once each, and the three steps,
+  // every one done and with its day. A step left open under the prefix is a row in Today and a person on the Steps due list,
+  // which other specs count. (A queued message is named above, for the Receptionist's rows and these alike.)
+  const yeses = await read(
+    "the yeses",
+    db
+      .from("events")
+      .select("subject_id")
+      .eq("tenant_id", T)
+      .eq("kind", "contact.consent_changed")
+      .eq("data->>note", PEOPLE_NOTE),
+  );
+  if (yeses.length !== PEOPLE.length || new Set(yeses.map((e) => e.subject_id)).size !== PEOPLE.length)
+    problems.push(
+      `the workspace should hold one yes event for each of the ${PEOPLE.length} seeded people, noted ${PEOPLE_NOTE}, and holds ${yeses.length}`,
+    );
+  const steps = (
+    await read("the notes", db.from("person_notes").select("body, due_on, done_at").eq("tenant_id", T))
+  ).filter((n) => n.body.startsWith(PEOPLE_PREFIX));
+  const unfinished = steps.filter((n) => !n.done_at || !n.due_on);
+  if (unfinished.length)
+    problems.push(
+      `${unfinished.length} step(s) under "${PEOPLE_PREFIX}" are open or have no day: an open step is a row in Today and a person on the Steps due list`,
+    );
+  if (steps.length !== PEOPLE_STEPS.length)
+    problems.push(
+      `the workspace should hold the ${PEOPLE_STEPS.length} done steps the People lens counts, and holds ${steps.length}`,
     );
   // The eval's Win-back, where --seed-win-back has seeded it: paused, so no sweep runs it. None is no problem: the
   // nightly seeds none.

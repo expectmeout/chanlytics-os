@@ -70,7 +70,7 @@ export const REPORT_LENSES = [
   {
     id: "people",
     label: "People",
-    sub: "who reached you, and where and when",
+    sub: "who reached you, whether you can reach them, and who is slipping away",
     shownWhen: "always",
     role: "viewer",
     empty: NOTHING_CAME_IN,

@@ -366,3 +366,180 @@ test("the Receptionist lens's read repaints on the tables of the live feed that 
     assert.equal(wantsRefresh(receptionistOverride, table), false, `${table}: not the lens's`);
   assert.equal(receptionistOverride.refreshOnMessageInserts, undefined, "it names its tables");
 });
+
+/**
+ * The writes that change what the People lens counts: who is in the book (a lead converted is a person added), a yes or a stop recorded,
+ * an address changed (a stopped one is cleared), the steps, a channel opened or closed or the postal address an offer by email names
+ * (who can receive offers) and the zone (its days). The lens's read is dropped by each and read as the lens comes on screen.
+ */
+const PEOPLE_WRITES = [
+  // A yes or a stop, for one person or many, and two records made one (consentWrite).
+  "PUT contacts/[id]/consent",
+  "PUT contacts/[id]/marketing-consent",
+  "PUT contacts/consent",
+  "PUT contacts/marketing-consent",
+  "POST contacts/[id]/merge",
+  // Who is in the book.
+  "DELETE contacts/[id]",
+  "POST contacts",
+  "POST contacts/import",
+  "POST leads/[id]/stage",
+  // An address changed clears a stopped one.
+  "PUT contacts/[id]/details",
+  // Steps: written, done, removed, decided from a suggestion, and the bulk write.
+  "POST contacts/[id]/notes",
+  "POST contacts/[id]/notes/done",
+  "POST contacts/[id]/notes/remove",
+  "POST contacts/[id]/notes/decide",
+  "PUT contacts/notes",
+  // A channel opened or closed moves who can receive offers (readiness).
+  "POST channels/whatsapp/connect",
+  "POST lines/buy",
+  "POST lines/retry",
+  "POST lines/register",
+  "POST mailboxes",
+  "PUT mailboxes/[id]",
+  // A settings save carries the postal address an offer by email names (ChannelsReady), so offers_ok moves with it; so does the first
+  // receptionist's, the same list.
+  "PUT settings",
+  "POST settings/receptionist",
+  // The zone moves the days.
+  "PATCH workspaces",
+];
+/**
+ * Writes that move nothing the lens counts: a conversation's (a reply, a hold, a snooze), a resolved escalation, a reply mode, a
+ * playbook. A reply reaches no one new and a hold moves no step, so `thread()` does not name the lens.
+ */
+const LEAVES_PEOPLE = [
+  "POST conversations/[id]/reply",
+  "POST escalations/[id]/resolve",
+  "POST conversations/[id]/take-over",
+  "POST conversations/[id]/hand-back",
+  "POST conversations/[id]/snooze",
+  "POST conversations/[id]/wake",
+  "POST conversations/[id]/archive",
+  "POST messages/[id]/steer",
+  "POST messages/[id]/cancel-send",
+  "PUT contacts/[id]/receptionist",
+  "PUT policies",
+  "POST broadcasts",
+  "POST google/link",
+];
+
+test("a write that changes who is in the book, what they answered, their steps, a channel, a settings save or the zone makes the People lens's read forgotten, not read from the page it was made on; a conversation's write, a reply and a hold leave it", async () => {
+  // None is made from the lens, and the live feed tells it of the messages, calls and notes that move it while it is open, not of
+  // these: so its read is dropped (as a template written is for the Inbox) and read as the lens comes on screen.
+  const { reportsPeople } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
+  const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  const held = () => setSurfaceValue("reports_people", { dto: {}, key: "30d" });
+  try {
+    for (const route of PEOPLE_WRITES) {
+      held();
+      const keys = keysOf(route);
+      assert.equal(
+        keys.includes("reports_people"),
+        false,
+        `${route} does not read the People lens's read from where it was made: ${keys}`,
+      );
+      assert.equal(surfaceValue("reports_people"), undefined, `${route} drops what the lens held`);
+      assert.equal(reportsPeople.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
+    }
+    // Each keeps what it re-read before.
+    assert.deepEqual(keysOf("PATCH workspaces"), [
+      "settings",
+      "people",
+      "reports",
+      "reports_headline",
+      "today",
+      "playbooks",
+    ]);
+    assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), [
+      "broadcasts",
+      "conversations",
+      "inbox",
+      "people",
+      "playbooks",
+      "today",
+    ]);
+    assert.deepEqual(keysOf("POST contacts/[id]/notes"), ["people"]);
+    assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "people", "playbooks", "setup"]);
+    assert.deepEqual(keysOf("POST leads/[id]/stage"), ["leads", "people"]);
+    for (const key of ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"])
+      assert.ok(keysOf("PUT settings").includes(key), `PUT settings still re-reads ${key}`);
+    assert.deepEqual(
+      keysOf("POST settings/receptionist"),
+      keysOf("PUT settings"),
+      "the two writes that carry the hours are one list",
+    );
+    for (const route of LEAVES_PEOPLE) {
+      held();
+      keysOf(route);
+      assert.notEqual(surfaceValue("reports_people"), undefined, `${route} forgets nothing of the lens's`);
+    }
+  } finally {
+    setSurfaceValue("reports_people", undefined);
+  }
+});
+
+test("where the People lens is on screen, the same writes read it again at once, by name and once, over picked days too; the writes that leave it alone read nothing of it", async () => {
+  // Off the lens it is read as it comes on screen (the test above); on it, forgetting alone would leave it saying "coming" for good,
+  // since the feed is told of none of these writes.
+  const { reportsPeople } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
+  const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  const was = globalThis.location.hash;
+  try {
+    for (const hash of ["#/reports/people", "#/reports/people:2026-09-01~2026-09-20"]) {
+      globalThis.location.hash = hash;
+      for (const route of PEOPLE_WRITES) {
+        setSurfaceValue("reports_people", { dto: {}, key: "30d" });
+        const keys = keysOf(route);
+        assert.equal(
+          keys.filter((k) => k === "reports_people").length,
+          1,
+          `${route} on ${hash}: the lens is read again, once, by name`,
+        );
+        assert.equal(
+          surfaceValue("reports_people"),
+          undefined,
+          `${route}: and what it held is dropped first, every period's`,
+        );
+        assert.equal(reportsPeople.isStale(), true);
+      }
+      for (const route of LEAVES_PEOPLE) {
+        setSurfaceValue("reports_people", { dto: {}, key: "30d" });
+        assert.equal(keysOf(route).includes("reports_people"), false, `${route} on ${hash}: not read`);
+        assert.notEqual(surfaceValue("reports_people"), undefined, `${route} on ${hash}: and nothing dropped`);
+      }
+    }
+    // Another lens of Reports, or the Inbox: forgotten, not read.
+    for (const hash of ["#/reports", "#/reports/receptionist", "#/reports/reviews", "#/reports/pipeline", "#/inbox"]) {
+      globalThis.location.hash = hash;
+      setSurfaceValue("reports_people", { dto: {}, key: "30d" });
+      assert.equal(keysOf("POST contacts/import").includes("reports_people"), false, hash);
+      assert.equal(surfaceValue("reports_people"), undefined, `${hash}: forgotten`);
+    }
+  } finally {
+    globalThis.location.hash = was;
+    setSurfaceValue("reports_people", undefined);
+  }
+});
+
+test("the People lens's read repaints on the tables of the live feed that move it, a burst waited out as long as the runner allows, and on no table the feed does not tell a workspace of", async () => {
+  const { reportsPeopleOverride } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
+  assert.deepEqual(reportsPeopleOverride.refreshOnTables, ["messages", "calls", "person_notes"]);
+  // Asked for five seconds; the runner never waits more than three after the first change (people-surface.test.mjs runs it).
+  assert.equal(reportsPeopleOverride.debounceMs, 5_000);
+  for (const table of reportsPeopleOverride.refreshOnTables)
+    assert.ok(watchedTables().includes(table), `${table}: the feed tells of it`);
+  // Which page hears them is the rule `refreshWhen` holds, run on the real routes in message-fan-out.test.mjs.
+  for (const table of reportsPeopleOverride.refreshOnTables)
+    assert.equal(wantsRefresh(reportsPeopleOverride, table), true, table);
+  for (const table of ["conversations", "escalations", "google_reviews", "google_listings", "events", "contacts"])
+    assert.equal(wantsRefresh(reportsPeopleOverride, table), false, `${table}: not the lens's`);
+  assert.equal(reportsPeopleOverride.refreshOnMessageInserts, undefined, "it names its tables");
+  // A message's update (a send's tick) is no one reaching the business: only an arrival is heard.
+  const update = { table: "messages", event: "UPDATE", row: { status: "delivered" } };
+  assert.equal(wantsRefresh(reportsPeopleOverride, "messages", update), false, "a tick is not heard");
+});
