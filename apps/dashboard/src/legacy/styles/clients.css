@@ -1889,7 +1889,9 @@
    (record.css) dress the fields, and the body carries the vertical room the kit's body leaves to its page. ---- */
 .pl-import { display: flex; flex-direction: column; gap: 16px; padding: 20px 0 24px; }
 .pl-import input[type="file"] { font: inherit; font-size: var(--text-sm); color: var(--ink-muted); }
-.pl-import input[type="file"]::file-selector-button { margin-right: 10px; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); font: inherit; font-size: var(--text-sm); color: var(--ink); cursor: pointer; }
+/* The file's button is the sheet's inset capsule, as the choice above it and the boxes beside it are: it was the
+   browser's grey box with a square corner (10 Oct 2026). */
+.pl-import input[type="file"]::file-selector-button { margin-right: 10px; padding: 8px 14px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); cursor: pointer; }
 .pl-import-read { align-self: flex-start; }
 .pl-import-preview, .pl-import-summary { display: flex; flex-direction: column; gap: 8px; }
 .pl-import-counts { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
@@ -2398,6 +2400,14 @@
   .pl-lists .cl-rail-row.has-acts,
   .pl-lists .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
   .pl-lists .cl-rail-group + .cl-rail-group { margin-top: 6px; }
+  /* The open list's own acts at the sheet's foot (screen.tsx listActRows), under a hairline, one to a row, under the
+     sheet's one level of heading: the ⋯ that held them is gone from the bar (Ruben, 10 Oct 2026). */
+  .pl-lists .pl-lists-acts { display: flex; flex-direction: column; margin-top: 8px; padding: 8px 8px 0; border-top: 1px solid var(--line); }
+  /* The bar's words, Select, Sort and Export, on one line beside the list's name (screen.tsx phoneBarActs). The words
+     are the page's quiet buttons, each a thumb tall; the halo the bar gives its one control (below) is not theirs. */
+  .pp-bar-acts { display: flex; align-items: center; flex: none; }
+  .pp-bar-acts .pl-file-acts { gap: 0; }
+  .pp-bar .pp-bar-push > .pp-bar-acts::after { content: none; }
   .pl-lists .cl-rail-label,
   .pl-lists .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
   /* The cell's height is the padding's on a mouse and the touch floor's 44px on a thumb (legacy.css): a min-height

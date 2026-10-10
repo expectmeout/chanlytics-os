@@ -12,14 +12,16 @@ installLegacyReact();
 const W = globalThis.window;
 // The sheet, its plan and the kit's own RecordSheet and FieldError it draws: the TSX over the stub React
 // (installLegacyReact has put the stub's hooks on the react module), the door the real verb over a recorded fake wire.
-const { PeopleImportSheet: Sheet } = await importSrc("apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
+const { PeopleAddSheet } = await importSrc("apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
 const { plImportPlan, plImportCountWords, plImportColumnWords } = await importSrc(
   "apps/dashboard/src/surfaces/people/import/plan.ts",
 );
-assert.equal(typeof Sheet, "function");
+assert.equal(typeof PeopleAddSheet, "function");
+/** Add people opened on its list, as the owner sees it: the import (its first way in is one person). */
+const Sheet = (props) => PeopleAddSheet({ onAdded() {}, canImport: true, way: "list", ...props });
 
-// The sheet's one Save, as the kit's foot names it (RecordSheet id "people-import").
-const SAVE = "rec-sheet-save-people-import";
+// The sheet's one Save, as the kit's foot names it (RecordSheet id "people-add").
+const SAVE = "rec-sheet-save-people-add";
 
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -77,8 +79,7 @@ test("pasted rows are read and counted before anything is written; the door is c
     json(200, { ok: true, data: went({ added: body.rows.length - 1, existed: 1, emails_set: body.rows.length }) }),
   );
   const toasts = [];
-  let done = null;
-  const props = { onClose() {}, onDone: (t) => (done = t), flash: (t) => toasts.push(t) };
+  const props = { onClose() {}, flash: (t) => toasts.push(t) };
   fresh();
   const draw = () => Sheet(props);
   let tree = again(draw);
@@ -126,7 +127,7 @@ test("pasted rows are read and counted before anything is written; the door is c
   assert.equal(byTestId(tree, "import-error"), null);
   assert.equal(byTestId(tree, "import-done").props.onClick, props.onClose, "Done is the sheet's Close");
 
-  assert.equal(done && done.added, 58, "the page is told what was written");
+  // What was written is said to the owner (the flash below) and in the summary; the page re-reads People itself.
   assert.equal(toasts.length, 1);
   assert.ok(textOf(toasts[0].msg).includes("58 new people, 2 already here"), textOf(toasts[0].msg));
 });

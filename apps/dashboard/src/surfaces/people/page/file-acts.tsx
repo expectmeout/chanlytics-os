@@ -1,24 +1,19 @@
 /**
- * A desktop's file acts, in the controls row beside Columns, as plain words (Ruben, 9 Oct 2026: the ⋯ that folded them
- * away is gone, so they are seen and one press away): Import, a client list as a file, read in the browser, counted, then
- * written in parts of fifty (import/import-sheet.tsx), for who may; and Export, everyone or the open list from the route,
- * as an attachment so the page stays where it is, owner only, with its gate or the reason it is held. A phone keeps them
- * in its more-menu (phone-menu.ts).
+ * People's Export, a word wherever it stands: a desktop's controls row beside Columns (Ruben, 9 Oct 2026: the ⋯ that
+ * folded it away is gone, so it is seen and one press away) and a phone's bar beside Select and Sort (10 Oct 2026, for
+ * the same reason). Everyone or the open list, from the route, as an attachment so the page stays where it is, owner
+ * only, with its gate or the reason it is held. Import is the page's act now, Add people (import/import-sheet.tsx).
  */
 import { Button } from "../../kit/button/button";
 import { canDo, gate } from "../../legacy-verbs";
 import type { Flash } from "../types";
 
 export function PeopleFileActs({
-  canImport,
-  onImport,
   exportBlocked,
   exportHref,
   exportName,
   flash,
 }: {
-  canImport: boolean;
-  onImport: () => void;
   /** Why there is no file to take (a list that cannot be counted, or one that is not here), in contracts' own words; else none. */
   exportBlocked: string | null | undefined;
   exportHref: string;
@@ -40,11 +35,6 @@ export function PeopleFileActs({
         };
   return (
     <div className="pl-file-acts">
-      {canImport && (
-        <Button variant="quiet" size="sm" onClick={onImport} data-testid="people-import">
-          Import
-        </Button>
-      )}
       <Button variant="quiet" size="sm" data-testid="people-export" {...press}>
         Export
       </Button>

@@ -8,8 +8,6 @@ import type { ListRule } from "@chanlytics/contracts";
 import { refusalToast } from "../../legacy-verbs";
 import { lists as listsDoor } from "../people-lists";
 import {
-  plAddPerson,
-  plAddedWords,
   plArchivedWords,
   plDeleteList,
   plMakeListWith,
@@ -21,8 +19,8 @@ import {
 import { railToggle } from "../rail/rail-kit";
 import { exportLink } from "../shell-verbs";
 import type { Flash, SavedList, SmartList } from "../types";
-import { PL_ADD_EMPTY, PL_LIST_EMPTY } from "../words";
-import type { AddDraft, ListDraft } from "../words";
+import { PL_LIST_EMPTY } from "../words";
+import type { ListDraft } from "../words";
 import type { PersonRowVM } from "@chanlytics/contracts";
 
 type Setter<T> = Dispatch<SetStateAction<T>>;
@@ -162,9 +160,6 @@ export function peopleListActs({
 
 /** What the phone's sheets are handed: the drafts they hold, the list open, the rule behind the view, and the doors. */
 interface PhoneActsArgs {
-  addDraft: AddDraft;
-  setAddDraft: Setter<AddDraft>;
-  setAddOpen: Setter<boolean>;
   listAct: string | null;
   setListAct: Setter<string | null>;
   listDraft: ListDraft;
@@ -254,28 +249,10 @@ function listActGoOf(a: PhoneActsArgs, closePhoneSheet: () => void) {
 }
 
 export function peoplePhoneSheetActs(a: PhoneActsArgs) {
-  const { addDraft, setAddDraft, setAddOpen, setListAct, setListDraft, plFlash, onOpenProfile } = a;
-  // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their page
-  // opens, as the desktop's form does.
-  const addOnPhone = async () => {
-    const d = addDraft;
-    if (d.busy || !d.phone.trim()) return;
-    setAddDraft({ ...d, busy: true, error: null });
-    const r = await plAddPerson(d);
-    if (!r.ok) {
-      setAddDraft((x) => ({ ...x, busy: false, error: r.error }));
-      return;
-    }
-    plFlash({ msg: plAddedWords(d, r.existed) });
-    setAddOpen(false);
-    setAddDraft(PL_ADD_EMPTY);
-    onOpenProfile(r.id);
-  };
+  const { setListAct, setListDraft } = a;
   const closePhoneSheet = () => {
-    setAddOpen(false);
-    setAddDraft(PL_ADD_EMPTY);
     setListAct(null);
     setListDraft(PL_LIST_EMPTY);
   };
-  return { addOnPhone, closePhoneSheet, listActGo: listActGoOf(a, closePhoneSheet) };
+  return { closePhoneSheet, listActGo: listActGoOf(a, closePhoneSheet) };
 }

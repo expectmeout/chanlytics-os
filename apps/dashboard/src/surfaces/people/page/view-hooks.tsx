@@ -12,8 +12,8 @@ import { plListGone } from "../rail/rail-kit";
 import { surfaceValue } from "../../surface-values";
 import { addressReplace, addressRoute } from "../shell-verbs";
 import type { Flash, PeopleRead, SavedList, SmartList } from "../types";
-import { PL_ADD_EMPTY, PL_LIST_EMPTY, PL_TABS, plPhoneNow, plStandingList } from "../words";
-import type { AddDraft, ListDraft } from "../words";
+import { PL_LIST_EMPTY, PL_TABS, plPhoneNow, plStandingList } from "../words";
+import type { ListDraft } from "../words";
 import { noteOwnAddress } from "./own-address";
 
 /** How long the box is left still before the server is asked past the loaded people. */
@@ -55,10 +55,11 @@ export function usePeopleSheets(newList: boolean, savedId: string | null) {
   const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());
   // Arrived at clients/new-list: the box is open from the first draw (and on a phone, the sheet it sits in).
   const [newListSignal, setNewListSignal] = useState(newList ? 1 : 0);
-  // People's own sheets on a phone -- Add a person, and the open list's rename, delete and "Save these" -- with their
-  // drafts. The page holds them, so its one keyboard listener closes them on Esc and the sheets are hookless.
+  // Add people, the page's act: its sheet, at every width (import/import-sheet.tsx), which holds its own fields. The
+  // refresh-map re-reads People after each part of an import.
   const [addOpen, setAddOpen] = useState(false);
-  const [addDraft, setAddDraft] = useState<AddDraft>(PL_ADD_EMPTY);
+  // The open list's rename, delete and "Save these" on a phone, with their draft. The page holds them, so its one
+  // keyboard listener closes them on Esc and the sheets are hookless.
   const [listAct, setListAct] = useState<string | null>(null);
   // The open smart list's rule, being changed under its title (a desktop's; a phone's is a sheet, listAct "rule").
   const [ruleEditing, setRuleEditing] = useState(false);
@@ -66,8 +67,6 @@ export function usePeopleSheets(newList: boolean, savedId: string | null) {
     setRuleEditing(false);
   }, [savedId]);
   const [listDraft, setListDraft] = useState<ListDraft>(PL_LIST_EMPTY);
-  // Import people: the owner's sheet over the page (import/import-sheet.tsx). The refresh-map re-reads People after each part.
-  const [importOpen, setImportOpen] = useState(false);
   useEffect(() => {
     const onNew = () => {
       setNewListSignal((n) => n + 1);
@@ -84,16 +83,12 @@ export function usePeopleSheets(newList: boolean, savedId: string | null) {
     newListSignal,
     addOpen,
     setAddOpen,
-    addDraft,
-    setAddDraft,
     listAct,
     setListAct,
     ruleEditing,
     setRuleEditing,
     listDraft,
     setListDraft,
-    importOpen,
-    setImportOpen,
   };
 }
 
