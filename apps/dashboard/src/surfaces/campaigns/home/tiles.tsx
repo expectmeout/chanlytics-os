@@ -89,7 +89,7 @@ function BlockHead({ title, note, door }: { title: string; note?: string; door?:
  * What a tile says where its read has not landed: quietly that it is reading, or the kit's failed read with its Retry; nothing
  * for a read that landed. `testid` names the tile (`cmh-coming` says `cmh-coming-reading` or `cmh-coming-failed`).
  */
-function TileRead({
+export function TileRead({
   read,
   failed,
   testid,

@@ -294,7 +294,11 @@ const NINE = () =>
       rowOf("call_text", { kind: "call_text", open: { kind: "route", label: "Library", route: "messages" } }),
     ]),
     groupOf("before", [
-      rowOf("pb-a", { results: { kind: "sent", sent: 212, replied: 48 }, people: { n: 7, unit: "people" } }),
+      rowOf("pb-a", {
+        results: { kind: "sent", sent: 212, replied: 48 },
+        people: { n: 7, unit: "people" },
+        phoneWords: "daily 9:00 AM",
+      }),
       rowOf("pb-b", { status: "waiting", tone: "warn", waiting: { runId: "b-1", people: 7, refusal: null } }),
     ]),
     groupOf("after", [], { kind: "turn_on", label: "Turn on", moment: "visited" }),
@@ -647,4 +651,177 @@ test("the rail holds the ledger under its moments, and its edges fade only where
   // Nothing measured (the stub has no ResizeObserver): nothing is said to overflow, so nothing fades.
   assert.equal(find(tree, (n) => n.props?.className === "cmh-rail").props["data-overflows"], undefined);
   assert.ok(byTestId(byTestId(tree, "cmh-rail"), "the-ledger"), "the ledger stands in the rail's pane");
+});
+
+/* ------------------------------------------------------- the phone ------------------------------------------------------- */
+
+const { LedgerPhone } =
+  await import("../../../../../apps/dashboard/src/surfaces/campaigns/home/ledger/ledger-phone.tsx");
+const { ListRow } = await import("../../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx");
+
+/** The home as the phone reads it: the rail's stages for the heads, who can hear you, the channels, the ledger. */
+const phoneHome = (ledger, over = {}) => ({
+  rail: {
+    title: "Your customer, start to finish",
+    coveredWords: null,
+    phoneWords: "3 of 4 on",
+    stages: [
+      stageOf("first_contact"),
+      stageOf("before"),
+      stageOf("after", { state: "off", people: 2, act: { kind: "turn_on", label: "Turn on", moment: "visited" } }),
+      stageOf("quiet"),
+    ],
+  },
+  reach: {
+    read: "read",
+    rungs: null,
+    yes: null,
+    phone: { words: "41 of 60 can hear you", offers: { words: "12 to offers", tone: "ok" }, yes: null },
+  },
+  head: { channels: [{ channel: null, channels: ["whatsapp"], open: true, words: "Sending on WhatsApp", door: null }] },
+  failed: { counts: null, reach: null, templates: null, chains: null, report: null },
+  ledger,
+  ...over,
+});
+const drawPhone = (home, { group = null } = {}) => {
+  const acts = ledgerActs();
+  const draw = () =>
+    again(() => {
+      const view = useLedgerView(home.ledger, { group, onGroup: (g) => went.push(["group", g]), phone: true });
+      return h(LedgerPhone, { home, view, acts, mark: null, searchRef: { current: null } });
+    });
+  return { draw, acts };
+};
+
+test("on a phone the Moments head says one meta line, and the channels only where one is closed", () => {
+  fresh();
+  let tree = drawPhone(phoneHome(NINE())).draw();
+  const meta = byTestId(tree, "cmh-reach");
+  assert.match(textOf(meta), /3 of 4 on/);
+  assert.match(textOf(meta), /41 of 60 can hear you/);
+  assert.equal(byTestId(meta, "cmh-channels"), null, "every channel open: nothing said of them");
+  fresh();
+  const closed = [
+    { channel: null, channels: ["whatsapp"], open: true, words: "Sending on WhatsApp", door: null },
+    { channel: "sms", channels: ["sms"], open: false, words: "Text: No texting line yet", door: "admin/integrations" },
+  ];
+  tree = drawPhone(phoneHome(NINE(), { head: { channels: closed } })).draw();
+  assert.ok(byTestId(byTestId(tree, "cmh-reach"), "cmh-channels"), "one closed: the line, with its door");
+});
+
+test("past seven rows a strip of chips, one choice: a moment's chip narrows to it, Needs you lets go of it, All of both", () => {
+  fresh();
+  const { draw } = drawPhone(phoneHome(NINE()));
+  const tree = draw();
+  const strip = byTestId(tree, "cmh-phone-strip");
+  assert.deepEqual(
+    all(strip, (n) => /^cmh-chip-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props["data-testid"]),
+    [
+      "cmh-chip-all",
+      "cmh-chip-needs",
+      "cmh-chip-first_contact",
+      "cmh-chip-before",
+      "cmh-chip-quiet",
+      "cmh-chip-lists",
+      "cmh-chip-reach_out",
+    ],
+    "a chip only above zero: After holds nothing, so it has none",
+  );
+  assert.ok("data-own-drag" in strip.props, "the strip scrolls across under a thumb: no swipe starts on it");
+  assert.ok(byTestId(strip, "cmh-phone-find"), "and the search circle");
+  const root = find(strip, (n) => typeof n.props?.onValueChange === "function");
+  root.props.onValueChange("in:quiet");
+  assert.deepEqual(went, [["group", "quiet"]]);
+});
+
+test("the search its circle reveals waits for a tap on a touch screen, and is ready to type under a mouse", () => {
+  for (const coarse of [true, false]) {
+    fresh();
+    globalThis.matchMedia = (q) => ({
+      matches: coarse && q === "(pointer: coarse)",
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    const { draw } = drawPhone(phoneHome(NINE()));
+    press(byTestId(draw(), "cmh-phone-find"));
+    const field = byTestId(byTestId(draw(), "cmh-phone-strip"), "cmh-ledger-search");
+    assert.equal(field.props.autoFocus, !coarse, coarse ? "no keyboard rises by itself" : "the box takes the keys");
+  }
+});
+
+test("each moment's head is its node on the line, an empty one with its Turn on; its rows under it wear their kind as a mark", () => {
+  fresh();
+  const tree = drawPhone(phoneHome(NINE())).draw();
+  const heads = allBy(tree, "cmh-group-head");
+  const head = (id) => heads.find((x) => x.props["data-group"] === id);
+  assert.equal(head("before").props["data-stage"], "before", "a moment's head is its stage");
+  assert.ok(
+    find(head("before"), (n) => n.props?.className === "cmh-node"),
+    "with its node on the line",
+  );
+  assert.match(textOf(head("before")), /BEFORE/);
+  assert.ok(byTestId(head("after"), "cmh-turn-on"), "an empty moment carries its Turn on");
+  assert.equal(head("lists").props["data-stage"], undefined, "Lists stand off the line");
+  const rows = allBy(tree, "cmh-row");
+  const a = rows.find((r) => r.props["data-row"] === "pb-a");
+  const line = find(a, (n) => n.type === ListRow);
+  assert.ok(line.props.mark, "a mark, never a face");
+  assert.equal(line.props.face, undefined);
+  assert.equal(byTestId(a, "cmh-row-open").props.href, "/w/studio/campaigns/moment:pb-a", "the drawer's door");
+  // Its state once, on its pill in the phone's words; its one line is contracts' (ledgerPhoneLine).
+  const pb = NINE().groups[1].rows[0];
+  assert.equal(line.props.said, contracts.ledgerPhoneLine(pb, "BEFORE"));
+  assert.equal(all(a, (n) => n.props?.said !== undefined).length, 1, "the line is drawn once");
+  const pill = find(line, (n) => n.props?.className === "list-row-end" && "label" in n.props);
+  assert.equal(pill.props.label, "daily 9:00 AM", "the pill says the phone's words, once");
+  assert.match(textOf(a), /212 sent · 48 replied/, "and what came back");
+  const b = rows.find((r) => r.props["data-row"] === "pb-b");
+  assert.ok(byTestId(b, "cmh-approve") && byTestId(b, "cmh-skip"), "Approve and Skip under a waiting row");
+  const c = rows.find((r) => r.props["data-row"] === "pb-c");
+  assert.doesNotMatch(String(find(c, (n) => n.type === ListRow).props.said), /\b0 people\b/, "nobody counted is no 0");
+});
+
+test("a paused row's Resume stands at its end, and its question under the row, at the row's whole width", () => {
+  fresh();
+  const { draw } = drawPhone(phoneHome(NINE()));
+  const paused = (t) => allBy(t, "cmh-row").find((r) => r.props["data-row"] === "pb-c");
+  const listRowOf = (t) => find(paused(t), (n) => n.type === ListRow);
+  let tree = draw();
+  const end = byTestId(listRowOf(tree), "cmh-resume");
+  assert.ok(end, "Resume at the row's end, drawn by the row");
+  assert.match(String(end.props.className), /\bcmh-row-resume\b/, "at the small control's height");
+  press(byTestId(paused(tree), "cmh-resume"));
+  tree = draw();
+  assert.ok(byTestId(paused(tree), "cmh-resume-confirm"), "the question is asked");
+  assert.equal(byTestId(listRowOf(tree), "cmh-resume-confirm"), null, "under the row, never inside it");
+});
+
+test("a chain whose run waits opens that run on a phone too, under its row", () => {
+  fresh();
+  const waits = rowOf("ch-w", {
+    kind: "chain",
+    status: "waiting",
+    tone: "warn",
+    act: { kind: "route", label: "Open the run", route: "broadcasts/run:r-9" },
+  });
+  const tree = drawPhone(phoneHome(ledgerOf([groupOf("reach_out", [waits])], { tools: false }))).draw();
+  const row = allBy(tree, "cmh-row")[0];
+  const door = byTestId(row, "cmh-row-run");
+  assert.equal(door.props.href, "/w/studio/broadcasts/run:r-9");
+  assert.equal(
+    byTestId(
+      find(row, (n) => n.type === ListRow),
+      "cmh-row-run",
+    ),
+    null,
+    "under the row, at its width",
+  );
+});
+
+test("under seven rows the phone has no strip, and sorts by Next in its groups", () => {
+  fresh();
+  const few = ledgerOf([groupOf("before", [rowOf("pb-a")])], { tools: false });
+  const tree = drawPhone(phoneHome(few)).draw();
+  assert.equal(byTestId(tree, "cmh-phone-strip"), null);
+  assert.equal(allBy(tree, "cmh-row").length, 1);
 });

@@ -5610,6 +5610,159 @@ div.tpl-slotbox:not([data-lines="1"]) {
   gap: var(--space-3);
   padding: 0 var(--space-3) 120px;
 }
+/* The phone's list on the journey's line (home/ledger/ledger-phone.tsx; spec 2026-10-09 §4.4): the Moments head's one
+   meta line, the strip of chips past seven rows (sticky, scrolling across under a thumb), then the groups, each moment's
+   head its node on a line down the left that runs through its rows, the groups off the line after them. The pane is
+   clipped, not hidden (the kit's flush panel hides), so the page's scroll is the one the strip sticks to. */
+.cmh .cmh-spine-block {
+  overflow: clip;
+}
+.cmh-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) 22px var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cmh-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.cmh-meta > .cmh-channels {
+  margin-top: 0;
+}
+/* Its reading and its failed read stand at the line's own gutter: each carries a tile's gutter of its own. */
+.cmh-meta > .route-reading.cmh-reading {
+  padding: 0;
+}
+.cmh-meta > .cmh-failed {
+  margin: 0;
+}
+/* The door to how the yes to offers is got: a thumb's height to press, and a line's height in the head (its box reaches
+   into the gaps over and under it, where nothing else is pressed). */
+.cmh-meta-yes {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+  margin-block: calc(var(--space-3) * -1);
+}
+.cmh-phone-strip {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-pane-solid);
+}
+.cmh-phone-strip > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cmh-phone-find {
+  flex: 0 1 160px;
+  min-width: 0;
+}
+.cmh-spine {
+  padding: var(--space-1) 0 var(--space-2);
+}
+.cmh-spine-head {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+}
+.cmh-spine-head > .cmh-node {
+  width: 28px;
+  height: 28px;
+}
+.cmh-spine-head > .cmh-figure {
+  font-size: var(--text-lg);
+}
+/* The line down the left, through a moment's head and its rows, solid where the moment is on (the section's own
+   data-on, which LedgerPhone writes: no :has() over its head), dashed where it is not; a group off the line draws none. */
+.cmh-group[data-line="true"] {
+  position: relative;
+}
+.cmh-group[data-line="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--space-3) + 13px);
+  border-left: 2px dashed var(--line-strong);
+}
+.cmh-group[data-on="true"]::before {
+  border-left-style: solid;
+  border-left-color: var(--ink);
+}
+.cmh-phone-row {
+  position: relative;
+  padding-left: calc(var(--space-3) + 28px);
+}
+.cmh-phone-row + .cmh-phone-row {
+  border-top: 1px solid var(--line);
+}
+.cmh-phone-line {
+  cursor: pointer;
+}
+.cmh-phone-row > .cmh-row-decide,
+.cmh-phone-row > .cmh-row-why,
+.cmh-phone-row > .cmh-row-door {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 var(--space-3) var(--space-2);
+}
+/* Resume's question under the row, at its whole width, as a waiting run's acts stand. */
+.cmh-phone-row > .cmh-row-ask {
+  margin: 0 var(--space-3) var(--space-2);
+}
+/* Resume's press at the row's end is a small control: drawn at its height on a touch screen too (legacy.css gives every
+   button 44px there, and a floor outranks a height), its thumb's 44px an invisible margin (memory
+   reference_touch_floor_outranks_height). */
+.cmh .cmh-row-resume {
+  height: var(--control-h-sm);
+  min-height: var(--control-h-sm);
+}
+@media (pointer: coarse) {
+  .cmh .cmh-row-resume {
+    position: relative;
+  }
+  .cmh .cmh-row-resume::after {
+    content: "";
+    position: absolute;
+    inset: -8px 0;
+  }
+}
+.cmh-phone-row[data-settled="true"] .cmh-phone-line {
+  animation: rise-in var(--duration-base) var(--ease-out) backwards;
+}
+.cmh-phone-row[data-arrived="true"] > .cmh-phone-line {
+  transition: background-color calc(2 * var(--duration-base)) var(--ease-out);
+}
+@starting-style {
+  .cmh-phone-row[data-arrived="true"] > .cmh-phone-line {
+    background-color: var(--ok-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmh-phone-row[data-settled="true"] .cmh-phone-line {
+    animation: none;
+  }
+  .cmh-phone-row[data-arrived="true"] > .cmh-phone-line {
+    transition: none;
+  }
+}
 /* Who can hear you, a line in the Moments head (8 Oct 2026; it was a tile of its own over them): the figure in words with
    the yes to offers at its right, and the channels' standing under it, in the head's own quiet size. */
 .cmh-vrail-reach {
