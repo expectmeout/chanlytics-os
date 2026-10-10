@@ -1,5 +1,5 @@
 /**
- * A playbook's totals, a run's counts and a message's sends (00362), as the dashboard reads them: contracts' guards and
+ * A playbook's totals, a run's counts and a message's sends (00373), as the dashboard reads them: contracts' guards and
  * mappings, the fake database's twins of the three functions, and Sent, GET playbooks and Settings' templates saying
  * the same counted by the database as by the fold they replace. Over the database in memory (_fake-db.mjs); the twins
  * are held to SQL in playbook-totals.db.test.mjs, and packages/db's doors in reports/report-repository.test.mjs.
@@ -297,11 +297,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
 
-/** A function a database before 00362 does not have: PostgREST's PGRST202, which packages/db reads as "missing". */
+/** A function a database before 00373 does not have: PostgREST's PGRST202, which packages/db reads as "missing". */
 const gone = (name) => () => {
   throw Object.assign(new Error(`Could not find the function public.${name}`), { code: "PGRST202" });
 };
-/** Harbor as a database before 00362 answers it: the dashboard reads the old way, for one release. */
+/** Harbor as a database before 00373 answers it: the dashboard reads the old way, for one release. */
 const before00362 = (tables) =>
   fakeDb(
     tables,

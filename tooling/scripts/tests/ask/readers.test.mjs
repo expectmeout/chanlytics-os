@@ -3803,7 +3803,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       ["lines.select", "sms_state, reg_mock"],
       ["tenants.select", "status"],
     );
-    // 9 Oct 2026 (00362): what the runs earned is the database's count, one call (playbook_totals), where every run of
+    // 9 Oct 2026 (00373): what the runs earned is the database's count, one call (playbook_totals), where every run of
     // every playbook and every person on one were read to sum it here.
     want.splice(
       want.findIndex(([k, cols]) => k === "broadcasts.select" && cols.startsWith("id, name, template_id")),
@@ -4728,7 +4728,7 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
   "playbooks.select",
 ];
 /**
- * 9 Oct 2026 (00362): how many of each went out is the database's count, one call (template_sends), where every sent
+ * 9 Oct 2026 (00373): how many of each went out is the database's count, one call (template_sends), where every sent
  * person and every templated message was paged here; it is asked as the reads start, ahead of the runs it no longer waits on.
  */
 const TEMPLATES_ALL_ASKED = [

@@ -53,7 +53,7 @@ const doors = (over = {}) => {
     asked,
     rpcs: {
       reach_out_report: rec("reach_out_report", { days: 30, has_reach_out: true, chains: [] }),
-      // 00363: each chain's own totals over the report's window, by its root: none wrote here.
+      // 00374: each chain's own totals over the report's window, by its root: none wrote here.
       reach_out_chain_totals: rec("reach_out_chain_totals", {}),
       reach_out_search_lines: rec("reach_out_search_lines", null),
       reach_out_lead_timeline: rec("reach_out_lead_timeline", { lead_id: LEAD, sends: [], readings: [] }),
@@ -200,7 +200,7 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
     { complete: true, by_root: { r1: { written: 3, wrote_back: 1 }, r2: { written: 0, wrote_back: 0 } } },
     "every chain, the one past the report's own among them",
   );
-  // A database before 00363: PostgREST does not know the function. The report's own chains, summed, and no line.
+  // A database before 00374: PostgREST does not know the function. The report's own chains, summed, and no line.
   const missing = doors({
     reach_out_report: () => ONE_CHAIN,
     reach_out_chain_totals: () => {

@@ -4,7 +4,7 @@
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
  * google/google-reviews-ledger.db.test.mjs over a real database. It answers null where the database does not have its
- * function yet (00350 is applied after the dashboard deploys), and the counts beside it (00362, 00363) answer "missing",
+ * function yet (00350 is applied after the dashboard deploys), and the counts beside it (00373, 00374) answer "missing",
  * for one release.
  *
  * Each reads a window: a count of days and the day they end on (00359). Days that end today name no day, which is the
@@ -166,7 +166,7 @@ test("a database that does not have the reviews' ledger yet (00350 not applied) 
   );
 });
 
-test("the counts' doors (00362, 00363) ask by name for the workspace, answer what the database says, answer 'missing' for a database without the function -- PostgREST's PGRST202, Postgres's 42883 -- so the dashboard reads the old way for one release, and throw every other failure", async () => {
+test("the counts' doors (00373, 00374) ask by name for the workspace, answer what the database says, answer 'missing' for a database without the function -- PostgREST's PGRST202, Postgres's 42883 -- so the dashboard reads the old way for one release, and throw every other failure", async () => {
   const { db, asked } = dbWith({
     playbook_totals: { data: { p1: {} }, error: null },
     run_counts: { data: {}, error: null },

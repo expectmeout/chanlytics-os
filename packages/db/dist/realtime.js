@@ -49,7 +49,7 @@ var WATCHED = [
   // repaint (00321). Its people are not watched: a run's page reads them when it opens.
   { table: "broadcasts", events: EVERY },
   // a playbook paused, resumed, renamed or retimed by a teammate, or stamped by the sweep's run: Campaigns' rows and
-  // their acts repaint (00364)
+  // their acts repaint (00375)
   { table: "playbooks", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
   { table: "appointments", events: EVERY }

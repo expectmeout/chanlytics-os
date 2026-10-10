@@ -11,7 +11,7 @@ import {
   templateUsage,
   type TemplateSends,
 } from "@chanlytics/contracts";
-// The database's count of the same sends (00362); contracts' templateSends is the fold it replaced, read below for a
+// The database's count of the same sends (00373); contracts' templateSends is the fold it replaced, read below for a
 // database before it.
 import { templateSends as sendsByTemplate } from "@chanlytics/db";
 import { stamp, type Reader, type ReaderContext } from "./index";
@@ -50,7 +50,7 @@ async function everyRow<T>(
 }
 
 /**
- * How many of each message went out, and when the latest did, by its name: the database's count (template_sends, 00362),
+ * How many of each message went out, and when the latest did, by its name: the database's count (template_sends, 00373),
  * one call whatever the history, or, on a database before it, for one release, the fold over every person a run sent
  * and every template the Inbox sent that WhatsApp took (contracts templateSends), as this reader read them. `runs` is
  * the reader's own read of every run, which the fold names each send's message by.

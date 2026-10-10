@@ -58,7 +58,7 @@ import { lazily } from "@/server/lazy";
 const COLUMNS =
   "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels";
 
-/** One moment playbook's totals as the database counts them (playbook_totals, 00362): the card's shapes are read off it. */
+/** One moment playbook's totals as the database counts them (playbook_totals, 00373): the card's shapes are read off it. */
 type TotalsRow = PlaybookTotalsDto[string];
 
 /** One run on a card's history: the day it ran for, and what it earned (contracts' shape, the database's answer). */
@@ -303,7 +303,7 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
 }
 
 /**
- * playbook_totals' answer (00362) in the card's words: storage's `last_run` is the wire's `lastRun` (banked in
+ * playbook_totals' answer (00373) in the card's words: storage's `last_run` is the wire's `lastRun` (banked in
  * wire-casing.json, decision 0022), each object written in the order the fold wrote it, so GET playbooks answers the same
  * bytes whichever counted them. The one mapping, behind contracts' isPlaybookTotalsDto, never a cast.
  */
@@ -348,7 +348,7 @@ function toPlaybookTotals(dto: PlaybookTotalsDto): Map<string, PlaybookTotals> {
 }
 
 /**
- * The fold playbook_totals replaced, kept for one release for a database before 00362: each of `runs` (every run of any
+ * The fold playbook_totals replaced, kept for one release for a database before 00373: each of `runs` (every run of any
  * playbook, newest first, listRuns) summed into its playbook's totals. Its runs are read unpaged, so past PostgREST's
  * thousand rows it reads short (playbooks/totals/playbook-totals.db.test.mjs shows where); it leaves with listRuns.
  */
@@ -391,7 +391,7 @@ function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
 
 /**
  * What each moment playbook's runs earned, by its id (one that never ran is absent): the database's count
- * (playbook_totals, 00362), one call however long its history, or, on a database before it, for one release, the fold
+ * (playbook_totals, 00373), one call however long its history, or, on a database before it, for one release, the fold
  * over every run it replaced, so either deploy order works.
  */
 async function playbookTotalsOf(ctx: RouteContext, tenantId: string): Promise<Map<string, PlaybookTotals>> {

@@ -327,7 +327,7 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]):
 }
 
 /**
- * Each run's numbers, by id: the database's count (run_counts, 00362), the one statement of what a run earned, which
+ * Each run's numbers, by id: the database's count (run_counts, 00373), the one statement of what a run earned, which
  * Sent, a run's sheet and a playbook's card all say; or, on a database before it, for one release, the fold here
  * (foldCounts). A run nobody is on is all zeros.
  */
@@ -340,7 +340,7 @@ async function countsOf(ctx: RouteContext, tenantId: string, ids: string[]): Pro
 }
 
 /**
- * The fold run_counts replaced, kept for one release for a database before 00362: every person on every run
+ * The fold run_counts replaced, kept for one release for a database before 00373: every person on every run
  * (peopleOnRuns), and the replies of all their threads in one read (inboundOn) where there was one query for each run
  * with a thread.
  */
@@ -371,7 +371,7 @@ async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRo
 }
 
 /**
- * A run's sheet's numbers: run_counts' (00362), the same a list of runs says of it; on a database before it, for one
+ * A run's sheet's numbers: run_counts' (00373), the same a list of runs says of it; on a database before it, for one
  * release, what the sheet counted of its own people (`own`). `counting` is that call, started beside the sheet's people
  * (getBroadcast), so the sheet pays no round trip at its end for it.
  */
@@ -548,7 +548,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   const threads = threadsOf.get(id);
   const words = new Map<string, string | null>();
   const replied = threads ? await repliedThreads(ctx, tenantId, threads, words) : new Map<string, string>();
-  // The sheet's own count of its people, which a database before 00362 is read by (sheetCountsOf).
+  // The sheet's own count of its people, which a database before 00373 is read by (sheetCountsOf).
   const own = { ...(counts.get(id) ?? emptyCounts()), replied: replied.size };
   const answered = await consentAfter(ctx, tenantId, rows);
   const answers = await answeredAfter(ctx, tenantId, replied);

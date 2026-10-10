@@ -826,7 +826,7 @@ test("the detail reads the channel each person was picked for, and a database 00
   // A database that has no such column refuses the read that asks for it: read again without, never a run that cannot open.
   const db = fakeDb(world);
   const noColumn = {
-    // The run's counts are the database's (run_counts, 00362), which this database answers as it always does.
+    // The run's counts are the database's (run_counts, 00373), which this database answers as it always does.
     rpc: (name, args) => db.rpc(name, args),
     from: (table) => {
       const q = db.from(table);

@@ -906,7 +906,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const readsOurWire = NAMES[old] === "propose_reply.draft" && withSeen.includes("messages.select");
     const withOurWire = readsOurWire ? [...withSeen, "messages.select"] : withSeen;
     // 9 Oct 2026 (a moment holds many campaigns, lane 1, task 14): the playbooks reader asks the database what each
-    // playbook's runs earned (00362 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
+    // playbook's runs earned (00373 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
     // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
     // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
     const countsInTheDatabase = NAMES[old] === "campaigns.playbooks" && withOurWire.includes("broadcasts.select");

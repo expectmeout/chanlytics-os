@@ -1,4 +1,4 @@
--- 00363 · Every chain's numbers are counted, behind one question of who may read a workspace.
+-- 00374 · Every chain's numbers are counted, behind one question of who may read a workspace.
 --
 -- Reach out Part 6's report (reach_out_report: 00241, 00261, 00360) lists at most twenty chains, the ones that wrote or
 -- handed in the period, so a chain past the twentieth and a chain that sent nothing looked the same: absent. Campaigns'
@@ -45,7 +45,7 @@ $$;
 revoke execute on function public.may_read_workspace(uuid) from public, anon;
 grant execute on function public.may_read_workspace(uuid) to authenticated, service_role;
 comment on function public.may_read_workspace(uuid) is
-  'Whether the caller (auth.uid(), never a parameter) may read this workspace: a member of it, a partner''s seat only on a session that showed its second factor (00218, 00261). The one member check for a definer read (00363); the ten that inline it keep theirs until each is next changed.';
+  'Whether the caller (auth.uid(), never a parameter) may read this workspace: a member of it, a partner''s seat only on a session that showed its second factor (00218, 00261). The one member check for a definer read (00374); the ten that inline it keep theirs until each is next changed.';
 
 drop function if exists public.reach_out_chain_totals(uuid, integer);
 
@@ -123,7 +123,7 @@ end $$;
 revoke execute on function public.reach_out_chain_totals(uuid, integer, date) from public, anon;
 grant execute on function public.reach_out_chain_totals(uuid, integer, date) to authenticated, service_role;
 comment on function public.reach_out_chain_totals(uuid, integer, date) is
-  'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, how many businesses it wrote to wrote back (outreach_wrote_back, each once a chain at its last email) and when it last wrote in it; a chain that wrote nothing is { written: 0, wrote_back: 0, last_at: null } (00363). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
+  'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, how many businesses it wrote to wrote back (outreach_wrote_back, each once a chain at its last email) and when it last wrote in it; a chain that wrote nothing is { written: 0, wrote_back: 0, last_at: null } (00374). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
 
 comment on function public.reach_out_report(uuid, integer, date) is
-  'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00363), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+  'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00374), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';

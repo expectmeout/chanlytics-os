@@ -191,7 +191,7 @@ test("the seventeen declare their policy: the lists open to every member, every 
   const rw = (rate) => ({ kind: "write", scope: "row", role: "operator", rate, spend: false });
   assert.deepEqual(broadcasts.GET.policy, open);
   assert.deepEqual(templates.GET.policy, open);
-  // Its numbers are SQL aggregates (00362), so a script that hammers it hammers them: the report routes' bucket.
+  // Its numbers are SQL aggregates (00373), so a script that hammers it hammers them: the report routes' bucket.
   assert.deepEqual(playbooks.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(broadcasts.POST.policy, ws("broadcast"));
   assert.deepEqual(approve.POST.policy, rw("broadcast"));

@@ -1,4 +1,4 @@
--- 00362 · A playbook's runs, a run's people and a message's sends are counted where they are, in one read each.
+-- 00373 · A playbook's runs, a run's people and a message's sends are counted where they are, in one read each.
 --
 -- GET playbooks summed every run's people and replies in the dashboard (listPlaybooks over listRuns, peopleOnRuns and
 -- inboundOn): the runs were read unpaged, so PostgREST's thousand rows kept the newest thousand, reach-out steps' runs
@@ -120,7 +120,7 @@ $$;
 revoke execute on function public.run_counts(uuid, uuid[]) from public, anon;
 grant execute on function public.run_counts(uuid, uuid[]) to authenticated, service_role;
 comment on function public.run_counts(uuid, uuid[]) is
-  'Each named run''s people by state (queued, sent, skipped, failed), its receipts (delivered; read, WhatsApp''s own), the threads it reached that the customer answered in their own words within campaign_reply_window after the run first reached them there (replied), and what went by each channel (sent_by), by run id; a run nobody is on is absent. What Sent, a run''s sheet and a playbook''s card all say (00362). Security invoker: row security decides what is read.';
+  'Each named run''s people by state (queued, sent, skipped, failed), its receipts (delivered; read, WhatsApp''s own), the threads it reached that the customer answered in their own words within campaign_reply_window after the run first reached them there (replied), and what went by each channel (sent_by), by run id; a run nobody is on is absent. What Sent, a run''s sheet and a playbook''s card all say (00373). Security invoker: row security decides what is read.';
 
 create or replace function public.playbook_totals(p_tenant_id uuid, p_history integer default 10)
 returns jsonb
@@ -182,7 +182,7 @@ $$;
 revoke execute on function public.playbook_totals(uuid, integer) from public, anon;
 grant execute on function public.playbook_totals(uuid, integer) to authenticated, service_role;
 comment on function public.playbook_totals(uuid, integer) is
-  'Each moment playbook''s runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history runs (history, newest first), by playbook id, from run_counts; a playbook with no run is absent, and a reach-out step''s runs are never scanned. One jsonb, which PostgREST''s row cap never cuts: what GET playbooks answers of every card (00362). Security invoker: row security decides what is read.';
+  'Each moment playbook''s runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history runs (history, newest first), by playbook id, from run_counts; a playbook with no run is absent, and a reach-out step''s runs are never scanned. One jsonb, which PostgREST''s row cap never cuts: what GET playbooks answers of every card (00373). Security invoker: row security decides what is read.';
 
 create or replace function public.template_sends(p_tenant_id uuid)
 returns jsonb
@@ -215,7 +215,7 @@ $$;
 revoke execute on function public.template_sends(uuid) from public, anon;
 grant execute on function public.template_sends(uuid) to authenticated, service_role;
 comment on function public.template_sends(uuid) is
-  'How many times each message went out (a person a run marked sent; a template the Inbox sent that WhatsApp took, its wamid) and when the latest did, by name; a message never sent is absent. What Settings'' templates say (00362). Security invoker: row security decides what is read.';
+  'How many times each message went out (a person a run marked sent; a template the Inbox sent that WhatsApp took, its wamid) and when the latest did, by name; a message never sent is absent. What Settings'' templates say (00373). Security invoker: row security decides what is read.';
 
 create or replace function public.campaign_series(p_tenant_id uuid, p_days integer default 30, p_end date default null)
 returns jsonb

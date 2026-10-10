@@ -543,7 +543,7 @@ export function templateSends(src: TemplateSendSource): Record<string, TemplateS
 }
 
 /**
- * template_sends' answer (00362), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
+ * template_sends' answer (00373), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
  * number (isCount). Null when it is not that shape, which the reader says as a read that failed, never as a message
  * nothing sent.
  */

@@ -780,9 +780,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,
-    // A run's counts, a moment playbook's totals and a message's sends (00362 run_counts, playbook_totals,
+    // A run's counts, a moment playbook's totals and a message's sends (00373 run_counts, playbook_totals,
     // template_sends), counted out of the tables a fixture holds as the SQL counts them; held to it over a real database
-    // by playbooks/totals/playbook-totals.db.test.mjs. A suite that models a database before 00362 answers them itself
+    // by playbooks/totals/playbook-totals.db.test.mjs. A suite that models a database before 00373 answers them itself
     // (a handler that throws an error with code PGRST202), and the dashboard then reads the old way.
     run_counts: ({ p_tenant_id, p_run_ids }) => runCountsIn(tables, p_tenant_id, p_run_ids ?? []),
     playbook_totals: ({ p_tenant_id, p_history = 10 }) => playbookTotalsIn(tables, p_tenant_id, p_history),
@@ -1370,7 +1370,7 @@ function primaryKeyOf(table) {
   return uniqueKeysOf(SCHEMA, table).find((k) => k.primary)?.columns ?? ["id"];
 }
 
-/* ---- 00362's counts, as the SQL counts them (run_counts, playbook_totals, template_sends) ---- */
+/* ---- 00373's counts, as the SQL counts them (run_counts, playbook_totals, template_sends) ---- */
 
 /** A person's message on a run: the row's own `messages` where a fixture writes one, else the row its message_id names. */
 const messageOfRecipient = (tables, r) =>
