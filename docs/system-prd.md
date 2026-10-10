@@ -282,7 +282,7 @@ flowchart TD
   F -- yes --> F1[Escalate, no reply]
   F -- no --> G{Not words: reaction, location, media}
   G -- yes --> G1[Record, acknowledge or escalate]
-  G -- no --> H{Late · paused · daily cap · token budget · workspace paused · mode ask or never}
+  G -- no --> H{Late · paused · daily cap · workspace paused · mode ask or never · token budget}
   H -- yes --> H1[Escalate with its reason]
   H -- no --> I[Brain composes]
   I --> J[Layer two: price block, ask classes]
@@ -312,9 +312,9 @@ The gates, in the order they run. Each stop reports through the sink, and tells 
 | 13  | More than two hours late                                                            | Escalation `stale` (ten minutes to two hours late is answered, and logged)                                                                                                                                  |
 | 14  | The thread is paused for a person                                                   | Added to history; no reply. The pause is for the machine: a queued draft yields only to a person's words                                                                                                    |
 | 15  | Twenty automatic replies on this thread today (the owner's dial)                    | Escalation `rate_cap`                                                                                                                                                                                       |
-| 16  | The workspace's day of model tokens is spent (`budget.ts`, from `usage.llm_tokens`) | Escalation `budget`                                                                                                                                                                                         |
-| 17  | The workspace is paused (billing)                                                   | Escalation `paused`                                                                                                                                                                                         |
-| 18  | Reply mode `ask` or `never`, or no persona                                          | Escalation `policy_block`, or `person_hold` for a hold set on this person                                                                                                                                   |
+| 16  | The workspace is paused (billing)                                                   | Escalation `paused`                                                                                                                                                                                         |
+| 17  | Reply mode `ask` or `never`, or no persona                                          | Escalation `policy_block`, or `person_hold` for a hold set on this person                                                                                                                                   |
+| 18  | The day of model tokens is spent (`budget.ts`), asked of a reply bound for a model. | Escalation `budget`                                                                                                                                                                                         |
 | 19  | No model key at all                                                                 | A degraded state a person can see: escalation, and the platform paged — never a canned receptionist                                                                                                         |
 | 20  | The brain composes                                                                  | On error: the persona's fallback words and escalation `brain_error`                                                                                                                                         |
 | 21  | Layer two                                                                           | A price in the draft blocks it; a booking or pricing question under "ask me first" escalates `policy_ask`                                                                                                   |

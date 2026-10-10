@@ -15,6 +15,7 @@ import {
   replyPosture,
   effectiveReplyMode,
   speaksUnattended,
+  unattendedHold,
 } from "../../../../packages/core/src/inbound/reply-posture.ts";
 
 test("a routed workspace with a usable runtime follows its OWN policy", () => {
@@ -74,4 +75,41 @@ test("speaksUnattended: auto and veto let the receptionist speak; every other mo
   // it was one rule; a fifth mode added to one of them and not the others would have spoken where the rest held.
   for (const mode of ["auto", "veto"]) assert.equal(speaksUnattended(mode), true, mode);
   for (const mode of ["ask", "never", "", "AUTO", "nonsense"]) assert.equal(speaksUnattended(mode), false, mode);
+});
+
+const NOW = 1_800_000_000_000;
+
+test("may an unattended message go: one order for every sender, the thread's holder first", () => {
+  const go = {
+    pausedUntilMs: 0,
+    nowMs: NOW,
+    sentToday: 0,
+    dailyCap: 20,
+    workspacePaused: false,
+    bookingHeld: false,
+    mode: "auto",
+  };
+  const held = (over) => unattendedHold({ ...go, ...over });
+  assert.equal(held({}), null, "nothing holds it");
+  assert.equal(held({ mode: "veto" }), null, "veto speaks once its window passes");
+  assert.equal(held({ pausedUntilMs: NOW + 1 }), "human_has_it");
+  assert.equal(held({ pausedUntilMs: NOW }), null, "the pause has ended at the very moment");
+  assert.equal(held({ pausedUntilMs: null }), null);
+  assert.equal(held({ sentToday: 20 }), "daily_cap");
+  assert.equal(held({ sentToday: 19 }), null);
+  assert.equal(held({ workspacePaused: true }), "paused");
+  assert.equal(held({ bookingHeld: true }), "booking_needs_a_person");
+  for (const mode of ["ask", "never", "", "nonsense"]) assert.equal(held({ mode }), "policy_hold", mode);
+  // The order: each stop outranks every one after it.
+  const all = { pausedUntilMs: NOW + 1, sentToday: 30, workspacePaused: true, bookingHeld: true, mode: "ask" };
+  assert.deepEqual(
+    [
+      held(all),
+      held({ ...all, pausedUntilMs: 0 }),
+      held({ ...all, pausedUntilMs: 0, sentToday: 0 }),
+      held({ ...all, pausedUntilMs: 0, sentToday: 0, workspacePaused: false }),
+      held({ ...all, pausedUntilMs: 0, sentToday: 0, workspacePaused: false, bookingHeld: false }),
+    ],
+    ["human_has_it", "daily_cap", "paused", "booking_needs_a_person", "policy_hold"],
+  );
 });

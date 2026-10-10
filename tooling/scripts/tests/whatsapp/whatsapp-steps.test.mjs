@@ -15,9 +15,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../../../..");
 const steps = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
 const { ageVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
-const { unattendedHold } = await import(
-  pathToFileURL(path.join(ROOT, "packages/core/src/inbound/reply-posture.ts")).href
-);
 const { handledOf, escalationOf, processedAfter } = await import(
   pathToFileURL(path.join(ROOT, "packages/core/src/inbound/handled.ts")).href
 );
@@ -34,41 +31,6 @@ test("age: fresh inside ten minutes, late inside two hours, stale beyond — and
   assert.equal(ageVerdict(at(STALE_REPLY_MS + 1000), NOW).verdict, "stale");
   assert.deepEqual(ageVerdict(undefined, NOW), { ageMs: 0, verdict: "fresh" });
   assert.ok(ageVerdict(at(STALE_MS + 1000), NOW).ageMs > STALE_MS, "the age travels with the verdict for the log");
-});
-
-test("may an unattended message go: one order for every sender, the thread's holder first", () => {
-  const go = {
-    pausedUntilMs: 0,
-    nowMs: NOW,
-    sentToday: 0,
-    dailyCap: 20,
-    workspacePaused: false,
-    bookingHeld: false,
-    mode: "auto",
-  };
-  const held = (over) => unattendedHold({ ...go, ...over });
-  assert.equal(held({}), null, "nothing holds it");
-  assert.equal(held({ mode: "veto" }), null, "veto speaks once its window passes");
-  assert.equal(held({ pausedUntilMs: NOW + 1 }), "human_has_it");
-  assert.equal(held({ pausedUntilMs: NOW }), null, "the pause has ended at the very moment");
-  assert.equal(held({ pausedUntilMs: null }), null);
-  assert.equal(held({ sentToday: 20 }), "daily_cap");
-  assert.equal(held({ sentToday: 19 }), null);
-  assert.equal(held({ workspacePaused: true }), "paused");
-  assert.equal(held({ bookingHeld: true }), "booking_needs_a_person");
-  for (const mode of ["ask", "never", "", "nonsense"]) assert.equal(held({ mode }), "policy_hold", mode);
-  // The order: each stop outranks every one after it.
-  const all = { pausedUntilMs: NOW + 1, sentToday: 30, workspacePaused: true, bookingHeld: true, mode: "ask" };
-  assert.deepEqual(
-    [
-      held(all),
-      held({ ...all, pausedUntilMs: 0 }),
-      held({ ...all, pausedUntilMs: 0, sentToday: 0 }),
-      held({ ...all, pausedUntilMs: 0, sentToday: 0, workspacePaused: false }),
-      held({ ...all, pausedUntilMs: 0, sentToday: 0, workspacePaused: false, bookingHeld: false }),
-    ],
-    ["human_has_it", "daily_cap", "paused", "booking_needs_a_person", "policy_hold"],
-  );
 });
 
 test("the hold: veto always waits in its window; auto waits only below the dial; the dial off means no wait", () => {

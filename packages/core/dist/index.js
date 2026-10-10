@@ -38620,7 +38620,7 @@ async function heldForThePerson(at, bodyText) {
       return;
     }
   }
-  if (held === "policy_hold" || !brainCfg) {
+  if (held !== null || !brainCfg) {
     const hold = holdCopy({
       brainCfg,
       personMode,

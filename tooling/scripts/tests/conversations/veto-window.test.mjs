@@ -80,7 +80,7 @@ test("'veto' reaches the brain instead of being held as a policy block", () => {
   // but it meant selecting veto silently disabled the receptionist.
   assert.match(
     edge,
-    /unattendedHold\(\{[\s\S]*?mode: replyMode,/,
+    /const held = unattendedHold\(\{[^}]*\bmode: replyMode,\s*\}\);/,
     "the gate asks the one rule, with the mode in force",
   );
 });

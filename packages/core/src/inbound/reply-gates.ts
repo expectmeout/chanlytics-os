@@ -284,7 +284,8 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
   // 'veto' composes a reply like 'auto' and then HOLDS it for a configured
   // window before sending, so the business can redirect the bot before the
   // customer sees it. It reaches the brain; what differs is the dispatch below.
-  if (held === "policy_hold" || !brainCfg) {
+  // Any hold left (the mode in force; one this path never asks, such as a booking's) holds for a person: fail closed.
+  if (held !== null || !brainCfg) {
     // A hold the owner chose for THIS person is its own reason: it is not a
     // workspace setting, and the Inbox should say "you handle this person",
     // not "held by policy". It also alerts ONCE per open hold rather than
