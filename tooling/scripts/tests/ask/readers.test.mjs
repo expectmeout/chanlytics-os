@@ -5206,6 +5206,8 @@ test("the channels, for the page and for Ask: GET channels answers its reader's 
     "quality_at",
     "standing",
     "standing_read_at",
+    // When the number first connected (#1541), which the toast and the row try its link by.
+    "connected_at",
   ]);
   // When each last heard from a customer: WhatsApp's last inbound message, the line's last inbound call.
   const heard = channelsWorld({
