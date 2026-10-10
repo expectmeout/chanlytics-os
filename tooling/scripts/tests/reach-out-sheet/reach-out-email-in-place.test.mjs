@@ -206,7 +206,7 @@ test("a first email written in place: the whole chain goes to the door, saved as
   assert.deepEqual(asked[0], {
     p_tenant_id: A,
     p_user_id: USER,
-    // An edit records no start (00373): the chain was started once, when it was first saved.
+    // An edit records no start (00378): the chain was started once, when it was first saved.
     p_decision: null,
     p_chain: CHAIN({
       subject: "A quick one for {{business}}",

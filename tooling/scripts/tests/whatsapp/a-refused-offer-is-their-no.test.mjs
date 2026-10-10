@@ -194,7 +194,7 @@ test("any other failure, and any receipt that is not a failure, records no answe
 });
 
 test("a database that refuses the answer costs the receipt nothing, and says so on the log", async () => {
-  // The answer is the door's one write (record_provider_stop, 00375): a database that refuses it refuses the rpc.
+  // The answer is the door's one write (record_provider_stop, 00380): a database that refuses it refuses the rpc.
   const w = world();
   const real = w.db.rpc.bind(w.db);
   w.db.rpc = (name, args) =>

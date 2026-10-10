@@ -216,7 +216,7 @@ test("a reply withdraws the receptionist's held drafts no job has claimed, and c
   assert.deepEqual(
     tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload.message_id),
     ["waiting"],
-    "and only its send is withdrawn, with it (00379)",
+    "and only its send is withdrawn, with it (00384)",
   );
 });
 

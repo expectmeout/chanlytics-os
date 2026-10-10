@@ -24,7 +24,7 @@ export interface ThreadPorts {
   /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
   pauseMs(tenantId: TenantId): Promise<number>;
   /**
-   * A person takes the thread, whole (00378): needs_human, paused until, snooze cleared, theirs; the live hold on who
+   * A person takes the thread, whole (00383): needs_human, paused until, snooze cleared, theirs; the live hold on who
    * is speaking; the receptionist's held drafts withdrawn; and the take_over decision, in one transaction. Null iff no
    * row changed: the thread moved while they looked, and nothing was written.
    */
@@ -34,7 +34,7 @@ export interface ThreadPorts {
     untilIso: string,
   ): Promise<{ withdrawn_drafts: number; decision_id: string } | null>;
   /**
-   * The thread handed back, whole (00378): open with nothing paused, snoozed or claimed; this person's hold let go
+   * The thread handed back, whole (00383): open with nothing paused, snoozed or claimed; this person's hold let go
    * (somebody else's is left alone); the hand_back decision; and the open escalation resolved by it, in one
    * transaction. Null iff no row changed, and then nothing was written.
    */

@@ -83,7 +83,7 @@ test("a draft its send job has already claimed is on its way: the pause leaves i
     "REGRESSION: a draft whose send was in flight was marked canceled, and the person got words the row said never left",
   );
   assert.equal(t.messages[1].error, undefined);
-  // The withdrawn draft's job goes with it (00379): it used to be left to find its row canceled.
+  // The withdrawn draft's job goes with it (00384): it used to be left to find its row canceled.
   assert.deepEqual(Object.fromEntries(t.jobs.map((j) => [j.payload.message_id, j.state])), {
     waiting: "canceled",
     "on-its-way": "fired",

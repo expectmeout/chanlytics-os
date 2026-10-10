@@ -1,4 +1,4 @@
--- 00381 · A booking reaches its reach-out through its event: the spine's first subscriber that acts.
+-- 00386 · A booking reaches its reach-out through its event: the spine's first subscriber that acts.
 --
 -- A booking stops a reach-out (Reach out Part 5): reach_out_booked (00227, 00241) stamps the lead a reach-out wrote to
 -- as booked and converts it when it booked after an email left, so its next nudge is never written. It ran only from
@@ -60,7 +60,7 @@ end $$;
 
 revoke all on function public.appointments_note_change() from public, anon, authenticated;
 comment on function public.appointments_note_change() is
-  'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00381), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
+  'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00386), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
 
 drop trigger if exists appointments_note_change on public.appointments;
 create trigger appointments_note_change
@@ -114,7 +114,7 @@ end $$;
 revoke all on function public.reach_out_booked_from(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_booked_from(uuid, uuid) to service_role;
 comment on function public.reach_out_booked_from(uuid, uuid) is
-  'The booking door (reach_out_booked) over one appointment of the record (00381), booked or kept and not vanished: its client''s address and number and its person''s, each with its start, the business''s own addresses left out. Answers how many leads moved. The service role''s; the reach_out_booked subscriber calls it.';
+  'The booking door (reach_out_booked) over one appointment of the record (00386), booked or kept and not vanished: its client''s address and number and its person''s, each with its start, the business''s own addresses left out. Answers how many leads moved. The service role''s; the reach_out_booked subscriber calls it.';
 
 /* ------------------------------------------------------------------------------------------- the subscription */
 

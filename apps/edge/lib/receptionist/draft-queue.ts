@@ -81,7 +81,7 @@ export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: 
       // the draft first so it cannot be sent a second time and cannot render
       // as a pending one, and mark it canceled rather than deleting it — the
       // row is the only record that a hold was attempted and did not happen.
-      // The one door (00379) takes it, and a job that did get written with it, while no run has claimed it.
+      // The one door (00384) takes it, and a job that did get written with it, while no run has claimed it.
       await withdrawQueued(db, {
         tenantId: a.tenantId,
         messageIds: [messageId],

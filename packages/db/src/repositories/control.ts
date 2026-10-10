@@ -12,11 +12,11 @@
  * to answer.
  *
  * A member's take-over and hand-back (takeOverThread, handBackThread) are the
- * two doors of 00378, on the member's own session: a person's hold taken with
+ * two doors of 00383, on the member's own session: a person's hold taken with
  * the claim, the drafts and the ledger around it, and let go with the release,
  * the ledger and the escalation, each in one transaction.
  *
- * What a thread holds queued is withdrawn by one door too (00379 withdraw_queued): a row no run has claimed, with the
+ * What a thread holds queued is withdrawn by one door too (00384 withdraw_queued): a row no run has claimed, with the
  * send job that would send it, wherever the withdrawal starts (a reply, a call-back, a pause, a steer, a take-over).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -116,7 +116,7 @@ interface MemberMove {
   undoOf: string | null;
 }
 
-/** What a take-over leaves (00378 conversation_take_over). */
+/** What a take-over leaves (00383 conversation_take_over). */
 export interface TakenOver {
   /** The moment the receptionist is paused until, as the caller named it. */
   pausedUntil: string;
@@ -129,7 +129,7 @@ export interface TakenOver {
 }
 
 /**
- * A member takes a thread over, whole (00378 conversation_take_over), on their own session: the claim (needs_human,
+ * A member takes a thread over, whole (00383 conversation_take_over), on their own session: the claim (needs_human,
  * paused until `pausedUntil`, the snooze cleared, theirs), the live hold on who is speaking (at most a day), the
  * receptionist's queued drafts on the thread withdrawn with their send jobs, and the take_over decision as theirs, in
  * one transaction. Null when no thread of the workspace's answered (it moved while they looked), and then nothing was
@@ -157,7 +157,7 @@ export async function takeOverThread(db: Db, p: MemberMove & { pausedUntil: stri
   };
 }
 
-/** What a hand-back leaves (00378 conversation_hand_back). */
+/** What a hand-back leaves (00383 conversation_hand_back). */
 export interface HandedBack {
   /** The hand_back decision, recorded as the caller's. */
   decisionId: string;
@@ -168,7 +168,7 @@ export interface HandedBack {
 }
 
 /**
- * A member hands a thread back, whole (00378 conversation_hand_back), on their own session: the release (open, nothing
+ * A member hands a thread back, whole (00383 conversation_hand_back), on their own session: the release (open, nothing
  * paused, snoozed or claimed), this person's hold let go and nobody else's, the hand_back decision as theirs, and the
  * open escalation resolved by it, in one transaction. Null when no thread of the workspace's answered, and then nothing
  * was written; a refusal is thrown as it came, with nothing written either.
@@ -188,7 +188,7 @@ export async function handBackThread(db: Db, p: MemberMove): Promise<HandedBack 
   return { decisionId: id, resolvedEscalations: data.resolved_escalations, undoDropped: data.undo_dropped === true };
 }
 
-/* ------------------------------------------------------------- what a thread holds, withdrawn (00379) -- */
+/* ------------------------------------------------------------- what a thread holds, withdrawn (00384) -- */
 
 /** Why a message was withdrawn, kept on its row (`messages.error`): a member's call-back keeps none. */
 export interface WithdrawReason {
@@ -197,7 +197,7 @@ export interface WithdrawReason {
 }
 
 /**
- * The one door a queued message is withdrawn by (00379 withdraw_queued), the service role's: each named message of the
+ * The one door a queued message is withdrawn by (00384 withdraw_queued), the service role's: each named message of the
  * workspace that is still queued and that no run has claimed (sending_at, 00352) canceled, with `reason` on its row,
  * and the send job that would send it canceled with it, in one transaction. Answers the ids withdrawn: a row on its
  * way, or gone, is left to its run and is not among them. A failure throws, and then nothing moved.
@@ -215,7 +215,7 @@ export async function withdrawQueued(
   return Array.isArray(data) ? data : [];
 }
 
-/** The receptionist's queued drafts on a thread, all but `keepMessageId`, through the one door (00379 withdraw_ai_drafts). */
+/** The receptionist's queued drafts on a thread, all but `keepMessageId`, through the one door (00384 withdraw_ai_drafts). */
 export async function withdrawAiDrafts(
   db: Db,
   p: { tenantId: string; conversationId: string; reason: WithdrawReason; keepMessageId: string | null },
@@ -231,7 +231,7 @@ export async function withdrawAiDrafts(
 }
 
 /**
- * On a member's own session (00379 member_withdraw_drafts): the receptionist's queued drafts on a thread a reply
+ * On a member's own session (00384 member_withdraw_drafts): the receptionist's queued drafts on a thread a reply
  * supersedes, withdrawn with their send jobs. How many. A refusal (not a member who may act here) throws as it came.
  */
 export async function memberWithdrawDrafts(db: Db, p: { tenantId: string; conversationId: string }): Promise<number> {
@@ -243,7 +243,7 @@ export async function memberWithdrawDrafts(db: Db, p: { tenantId: string; conver
   return typeof data === "number" ? data : 0;
 }
 
-/** On a member's own session (00379 member_withdraw_message): one queued message withdrawn with its send job. */
+/** On a member's own session (00384 member_withdraw_message): one queued message withdrawn with its send job. */
 export async function memberWithdrawMessage(
   db: Db,
   p: { tenantId: string; messageId: string; reason: WithdrawReason | null },
@@ -257,7 +257,7 @@ export async function memberWithdrawMessage(
   return data === true;
 }
 
-/** What a call-back leaves (00379 message_call_back). */
+/** What a call-back leaves (00384 message_call_back). */
 export interface CalledBack {
   /** The cancel_send decision, recorded as the caller's. */
   decisionId: string;
@@ -266,7 +266,7 @@ export interface CalledBack {
 }
 
 /**
- * A member calls back a send in its grace, on their own session (00379 message_call_back): the message withdrawn with
+ * A member calls back a send in its grace, on their own session (00384 message_call_back): the message withdrawn with
  * its send job and the cancel_send decision as theirs, in one transaction. Null when it was too late (sent, claimed by
  * its run, gone), and then nothing was written; a refusal throws as it came.
  */
@@ -287,10 +287,10 @@ export async function callBackMessage(
   return { decisionId: id, undoDropped: data.undo_dropped === true };
 }
 
-/* -------------------------------------------------------------------- a thread handed to a person (00380) -- */
+/* -------------------------------------------------------------------- a thread handed to a person (00385) -- */
 
 /**
- * A thread handed to a person, through the one door (00380 escalation_open), the service role's: a new open escalation
+ * A thread handed to a person, through the one door (00385 escalation_open), the service role's: a new open escalation
  * with its escalation.opened event ("opened"), the open one taking another reason ("changed"), or the same reason's
  * words moved ("refreshed"), in one transaction. A failure throws, and then nothing moved.
  */

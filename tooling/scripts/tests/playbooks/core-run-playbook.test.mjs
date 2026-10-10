@@ -199,7 +199,7 @@ function fakes(over = {}) {
     message: messageOf(),
     alreadyRan: false,
     record: undefined,
-    // The run, its people, its job and its decision, whole (00373): the run's id, and the decision's when one was asked for.
+    // The run, its people, its job and its decision, whole (00378): the run's id, and the decision's when one was asked for.
     assemble: (_row, _recipients, _sendAt, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
     // The month's allowance, counted before anyone is enrolled: what this workspace's campaigns have sent by email and by
     // text this month (none here), and the write that holds those past it the moment the run exists.

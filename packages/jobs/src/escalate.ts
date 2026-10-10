@@ -34,7 +34,7 @@ export async function upsertEscalation(
   reason: string,
   details: string,
 ): Promise<EscalationOutcome> {
-  // One door (00380 escalation_open): the row and its escalation.opened on the ledger, or the open one's reason or
+  // One door (00385 escalation_open): the row and its escalation.opened on the ledger, or the open one's reason or
   // words, in one transaction. The event used to be written after the insert, best effort, so a hold could be open with
   // nothing on the ledger saying so; and a hold resolved between the insert that found it and the update after came
   // back "refreshed", leaving the caller quiet about a thread nothing held.

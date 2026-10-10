@@ -1,4 +1,4 @@
--- 00375 · A provider's STOP and its event are one write.
+-- 00380 · A provider's STOP and its event are one write.
 --
 -- Three repository functions recorded a no a provider reported on the person's behalf (the carrier's 21610 on a text,
 -- at the wire and told late on the status callback; WhatsApp's 131050 on an offer) as two statements on two requests:
@@ -94,4 +94,4 @@ end $$;
 revoke all on function public.record_provider_stop(uuid, uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function public.record_provider_stop(uuid, uuid, text, text, text, text) to service_role;
 comment on function public.record_provider_stop(uuid, uuid, text, text, text, text) is
-  'A no a provider reported on the person''s behalf (the carrier''s 21610 on a text, WhatsApp''s 131050 on an offer), recorded with its contact.consent_changed event in one transaction (00375): for conversational, consent opted_out with dnc, the source and the time; for marketing, the answer about offers, its source and its time; the event carries the purpose, the row''s previous answer, the source, the channel and the message the provider refused when named. A person already stopped, or erased, is left as they are and nothing is written. Answers whether it changed. Service role only.';
+  'A no a provider reported on the person''s behalf (the carrier''s 21610 on a text, WhatsApp''s 131050 on an offer), recorded with its contact.consent_changed event in one transaction (00380): for conversational, consent opted_out with dnc, the source and the time; for marketing, the answer about offers, its source and its time; the event carries the purpose, the row''s previous answer, the source, the channel and the message the provider refused when named. A person already stopped, or erased, is left as they are and nothing is written. Answers whether it changed. Service role only.';

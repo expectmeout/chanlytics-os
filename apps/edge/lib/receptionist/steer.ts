@@ -123,7 +123,7 @@ async function retireForTheRewrite(
   old: { id: string; tenant_id: string },
   newId: string,
 ): Promise<Response | null> {
-  // Through the one door (00379): the old draft and its send job, only while no run has claimed it.
+  // Through the one door (00384): the old draft and its send job, only while no run has claimed it.
   const failed = (e: unknown) => (e instanceof Error ? e.message : String(e));
   const retired = await withdrawQueued(db, {
     tenantId: old.tenant_id,

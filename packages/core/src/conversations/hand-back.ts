@@ -9,7 +9,7 @@ export async function handBack(
   cmd: { conv: Pick<Thread, "id" | "tenant_id" | "phone_e164" | "paused_until"> },
 ): Promise<{ state: "open"; decision_id: string }> {
   const { conv } = cmd;
-  // One call, one transaction (00378): the row's own pause cleared by the
+  // One call, one transaction (00383): the row's own pause cleared by the
   // release, this person's hold let go with it (somebody else's is left where
   // it is), the ledger, and the open escalation resolved by that decision. The
   // hold used to be let go after the release on another client, and a release

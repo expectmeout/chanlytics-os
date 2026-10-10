@@ -1,4 +1,4 @@
--- 00380 · An escalation is opened with its event, by one door.
+-- 00385 · An escalation is opened with its event, by one door.
 --
 -- Every path that hands a thread to a person (the text receptionist's holds, the phone's callback and its words, a
 -- send that failed, a model turn that never finished, a reach-out's email receipts) came through one TypeScript
@@ -78,4 +78,4 @@ end $$;
 revoke all on function public.escalation_open(uuid, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.escalation_open(uuid, uuid, text, text) to service_role;
 comment on function public.escalation_open(uuid, uuid, text, text) is
-  'The one door a thread is handed to a person by (00380): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. An open one resolved in between leaves room, and a new one is opened. The service role''s.';
+  'The one door a thread is handed to a person by (00385): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. An open one resolved in between leaves room, and a new one is opened. The service role''s.';

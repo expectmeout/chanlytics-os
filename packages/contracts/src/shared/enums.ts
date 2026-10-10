@@ -133,7 +133,7 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's
  * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
  * relay's lag is measured on real traffic; `reach_out_booked` hands a booking on the appointments record to the
- * booking door (00381), the first that acts.
+ * booking door (00386), the first that acts.
  */
 export const EVENT_SUBSCRIBERS = ["audit", "reach_out_booked"] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
@@ -353,7 +353,7 @@ export const EVENT_KINDS = [
   /**
    * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
    * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
-   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00381). On
+   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00386). On
    * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
    * appointment.
    */
@@ -363,7 +363,7 @@ export const EVENT_KINDS = [
    * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
    *
    * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
-   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00380), once per hold; a
+   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00385), once per hold; a
    * reason that changes under an open hold is escalation.changed.
    */
   "escalation.opened",

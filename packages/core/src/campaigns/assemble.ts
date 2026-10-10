@@ -8,7 +8,7 @@ const assembleLog = logger();
 /**
  * A run's assembly, the one implementation: the broadcast row, the people on it, the send job when the plan sends now
  * or later, and the decision to send when one is given, in one transaction (00282 assemble_broadcast, with its
- * decision since 00373). All are written or none is, so no run is left with no people, no people with no job to send
+ * decision since 00378). All are written or none is, so no run is left with no people, no people with no job to send
  * to them, and no run sending with nothing in the ledger saying who said so; a function that dies halfway leaves
  * nothing to clean up. It was three writes with a compensating fail between them, then the ledger's line after, and a
  * death between two left a broadcast that showed as scheduled and that nothing would ever send, or one the route

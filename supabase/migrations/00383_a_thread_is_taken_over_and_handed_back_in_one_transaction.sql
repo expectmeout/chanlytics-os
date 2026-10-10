@@ -1,4 +1,4 @@
--- 00378 · A thread is taken over, and handed back, in one transaction.
+-- 00383 · A thread is taken over, and handed back, in one transaction.
 --
 -- A member taking a thread over was four writes on two clients: the claim on their own session (needs_human, paused
 -- until, the snooze cleared, theirs), the live hold on who is speaking through the service role (claim_conversation_control,
@@ -110,7 +110,7 @@ end $$;
 revoke execute on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) from public, anon;
 grant execute on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) to authenticated, service_role;
 comment on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) is
-  'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00378): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
+  'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00383): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
 
 create or replace function public.conversation_hand_back(
   p_tenant_id uuid,
@@ -159,4 +159,4 @@ end $$;
 revoke execute on function public.conversation_hand_back(uuid, uuid, text, uuid) from public, anon;
 grant execute on function public.conversation_hand_back(uuid, uuid, text, uuid) to authenticated, service_role;
 comment on function public.conversation_hand_back(uuid, uuid, text, uuid) is
-  'A member hands a thread back, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00378): the release (open, nothing paused, snoozed or claimed), this person''s hold let go and nobody else''s (release_conversation_control), the hand_back decision recorded as theirs, and the open escalation resolved by it. Returns released, resolved_escalations, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written.';
+  'A member hands a thread back, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00383): the release (open, nothing paused, snoozed or claimed), this person''s hold let go and nobody else''s (release_conversation_control), the hand_back decision recorded as theirs, and the open escalation resolved by it. Returns released, resolved_escalations, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written.';

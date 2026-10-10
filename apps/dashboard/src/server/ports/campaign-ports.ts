@@ -53,7 +53,7 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
 
 /**
  * The run, its people, its job and its decision, whole: the one SQL door (00282 assemble_broadcast, with its decision
- * since 00373). It puts the send job on the ledger, which no session may, so it is the service role's, called here after
+ * since 00378). It puts the send job on the ledger, which no session may, so it is the service role's, called here after
  * the route's role check (the door) and naming the person who asked, whose decision the send is; the function itself
  * asks that every person, the template and the playbook are the workspace's, as the insert policies asked of the
  * session. The decision carries the request's `via` and the undo link it named, as recordDecision's did.

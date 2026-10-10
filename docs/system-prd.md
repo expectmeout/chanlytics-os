@@ -449,7 +449,7 @@ The product has one way to do work later: a row.
 stateDiagram-v2
   [*] --> scheduled: scheduleJob (one insert)
   scheduled --> fired: claim_due_jobs (lease 90 s)
-  scheduled --> canceled: cancelJobsFor, or withdraw_queued with its message (00379)
+  scheduled --> canceled: cancelJobsFor, or withdraw_queued with its message (00384)
   fired --> done: completeJob
   fired --> failed: failJob, then settle + tell the workspace
   fired --> fired: lease expired, internal work re-claimed (up to 3)

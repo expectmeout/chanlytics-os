@@ -1,4 +1,4 @@
--- 00377 · A hold's expiry is found by index.
+-- 00382 · A hold's expiry is found by index.
 --
 -- expire_stale_pauses (00132) clears a hold whose control_until has passed, every ten seconds under pg_cron, and read
 -- the whole of conversations to find one. A partial index on control_until where it is set, as

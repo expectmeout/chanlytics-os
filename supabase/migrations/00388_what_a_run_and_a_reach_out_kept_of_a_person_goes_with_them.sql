@@ -1,4 +1,4 @@
--- 00383 · What a run and a reach-out kept of a person goes with them.
+-- 00388 · What a run and a reach-out kept of a person goes with them.
 --
 -- Decision 0036, step 3: the 195 columns that could hold a person's words and named no erasure strategy were read one
 -- by one (10 October 2026). Three kept words of a person or a lead that no leg of an erasure, and no clock, reached:
@@ -44,7 +44,7 @@ end $$;
 
 revoke all on function public.broadcast_recipients_on_erase() from public, anon, authenticated;
 comment on function public.broadcast_recipients_on_erase() is
-  'When a person is erased, the words each run kept for them (a visit''s time, service and calendar key, a proposal''s link) are cleared; the row keeps its state and reason, which the run''s counts read (00383).';
+  'When a person is erased, the words each run kept for them (a visit''s time, service and calendar key, a proposal''s link) are cleared; the row keeps its state and reason, which the run''s counts read (00388).';
 
 drop trigger if exists contacts_erase_clears_run_words on public.contacts;
 create trigger contacts_erase_clears_run_words
@@ -86,13 +86,13 @@ begin
   update public.lead_search_members
      set judgment = '{}'::jsonb, reason = '', blanked_at = coalesce(blanked_at, now())
    where lead_id = p_lead_id;
-  -- What a reach-out wrote from the lead's record, and the checker's note on it (00383). The send keeps its state, its
+  -- What a reach-out wrote from the lead's record, and the checker's note on it (00388). The send keeps its state, its
   -- reason and the digest of the words it checked.
   update public.reach_out_sends
      set opening = null, angle = null, hold_detail = null
    where tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null);
-  -- A preference's example copied from this lead (00383).
+  -- A preference's example copied from this lead (00388).
   update public.lead_preferences
      set example = null
    where tenant_id = v_tenant and from_lead_id = p_lead_id and example is not null;
@@ -101,4 +101,4 @@ end $$;
 
 revoke execute on function public.lead_blank(uuid) from public, anon, authenticated;
 comment on function public.lead_blank(uuid) is
-  'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00383), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+  'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00388), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';

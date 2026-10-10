@@ -11,7 +11,7 @@ import { serviceDb } from "../service-db";
 /**
  * Who is speaking on a thread right now (00132): a person's hold, taken for
  * their reply. A take-over takes it inside its own door, and a hand-back lets
- * it go inside its own (00378), so neither is here.
+ * it go inside its own (00383), so neither is here.
  *
  * On the service client for the same reason a job is: the column grant fences
  * these columns off from a member's own session, so the claim is the database's

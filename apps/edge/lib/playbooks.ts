@@ -344,7 +344,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
           .eq("id", playbookId)
           .eq("tenant_id", tenantId);
       },
-      // The run, its people, its job and its decision, whole (00282 assemble_broadcast, with its decision since 00373):
+      // The run, its people, its job and its decision, whole (00282 assemble_broadcast, with its decision since 00378):
       // a sweep that dies halfway leaves nothing. A run the sweep sends is the system's decision under the mode the
       // owner chose; a run a person asked for is theirs.
       assemble: (row, recipients, sendAt, decision) =>

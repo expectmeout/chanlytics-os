@@ -62,7 +62,7 @@ test("take over: the pause is decided here, and the claim, the hold, the drafts 
   const r = await core.takeOver(ports, { conv: conv() });
   const until = new Date(NOW + 2 * HOUR).toISOString();
   // How long is the verb's (the workspace's pause, from now); the door takes
-  // the moment and writes the rest in one transaction (00378): the claim IS the
+  // the moment and writes the rest in one transaction (00383): the claim IS the
   // pause, the hold on who is speaking (00132) is taken with it, the drafts
   // written before it are withdrawn, and the ledger says who. Four writes on
   // two clients used to make this, and each after the first could fail with the
@@ -95,7 +95,7 @@ test("take over: a door that changed no row is a 409 that leaves nothing behind"
 test("hand back: the thread opened, the hold let go, the decision recorded and the open escalation resolved, as one call", async () => {
   const { ports, log, call, ops } = fakes();
   assert.deepEqual(await core.handBack(ports, { conv: conv() }), { state: "open", decision_id: "d1" });
-  // The release and the hold let go are one transaction (00378): a release that
+  // The release and the hold let go are one transaction (00383): a release that
   // ran and a hold that then failed to go left the receptionist held off a
   // thread the Inbox showed open, which is the one direction this must not fail
   // in. Only this person's hold: somebody else's is the door's to leave alone.
@@ -209,7 +209,7 @@ test("archive: the thread closed and the escalation resolved, held or not", asyn
  * does it, in the same statement that moves the state. That is only true if
  * the UPDATE says so, so it is read here rather than assumed: this is the half
  * that used to be covered by a compensation step nobody could see failing. The
- * take-over's and the hand-back's UPDATEs are SQL's own now (00378), held to
+ * take-over's and the hand-back's UPDATEs are SQL's own now (00383), held to
  * the same table on a real database in
  * conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs.
  * -------------------------------------------------------------------------- */

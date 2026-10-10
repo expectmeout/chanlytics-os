@@ -39,7 +39,12 @@
     "00294": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
-    "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head"
+    "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
+    "00373": "held by the campaigns program's open pull request (#1535, a moment holds many campaigns); the door sweep's doors landed above it as 00378 to 00388",
+    "00374": "held by the campaigns program's open pull request (#1535, a moment holds many campaigns); the door sweep's doors landed above it as 00378 to 00388",
+    "00375": "held by the campaigns program's open pull request (#1535, a moment holds many campaigns); the door sweep's doors landed above it as 00378 to 00388",
+    "00376": "held by the campaigns program's open pull request (#1535, a moment holds many campaigns); the door sweep's doors landed above it as 00378 to 00388",
+    "00377": "held by the campaigns program's open pull request (#1535, a moment holds many campaigns); the door sweep's doors landed above it as 00378 to 00388"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -375,16 +380,16 @@
     "00370_a_partner_s_share_is_read_by_the_owner_alone.sql": "0f5725104586d6fd55c0c9da19e7fe82fd571a2687f15aab947c14732ec1401d",
     "00371_a_member_may_leave_and_an_invitation_is_sent_again.sql": "45451bad4e81406329cd13830e21ec060c17c3fe6d43afcd212f9cc3ed4502e9",
     "00372_a_member_chooses_what_reaches_their_phone.sql": "24e3e33afc479f0073df51c4fec29f9f540aec1f36b62d8bde593162251712b5",
-    "00373_a_run_and_a_chain_are_written_with_their_decision.sql": "9ffd3800714da1bb4355f450ecbbe2abfd7116bec0b4392c30509bc5bef37304",
-    "00374_a_billing_reading_and_the_switch_are_one_write.sql": "bd7a64e2c03ce4d652236ac3a9ee951488c1325679cc712e08725f70e12d85ad",
-    "00375_a_provider_s_stop_and_its_event_are_one_write.sql": "aa5c3b356f006c3be6856f874f0851d36d8793a3b891ce5f5f5978eb67bcec7b",
-    "00376_a_person_s_resolution_is_recorded_when_it_changed_something.sql": "c2aa4e6c00a8367a602c9a418ab1d55458e562ca114318e24397aa8bbec00d59",
-    "00377_a_hold_s_expiry_is_found_by_index.sql": "9809fd8e15307c43dc742d766b398060c7b3dc4e1e4374cf111bbe9497672417",
-    "00378_a_thread_is_taken_over_and_handed_back_in_one_transaction.sql": "451087b0d3ba5a5d2cbb4dc95378b9dbb82ac03b60025dc358c6906e7fda19f1",
-    "00379_a_queued_message_is_withdrawn_by_one_door.sql": "0bcdbf72be138189a96cc57b253092a17afe215ba9908b9eac077da3c92caf51",
-    "00380_an_escalation_is_opened_with_its_event.sql": "96c9a28586c369a5240e5d41ceffe917077294a8688f8bfc8224704fe07ca025",
-    "00381_a_booking_reaches_its_reach_out_through_its_event.sql": "bbb3311670e442b6ea59c68a4ad88b9aaede2bcb50f2af9a6650701a39271525",
-    "00382_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "b838ba482cb1dfa801e1330442b08913bad687e301cea59e7f9f271e77c275d4",
-    "00383_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "9c3d01965e487edd841728822eff3deb72cb28e4ef5198cbe223f51b0b30244a"
+    "00378_a_run_and_a_chain_are_written_with_their_decision.sql": "383a464f98cb62936ae261962e70619cd19fbb0a8f5cd7d3f898b29bc6e52ce6",
+    "00379_a_billing_reading_and_the_switch_are_one_write.sql": "4485040594ca5e967821381fbff2d5b9fd664d374a89a9b27940b9cdf264e40d",
+    "00380_a_provider_s_stop_and_its_event_are_one_write.sql": "dfccfb38b554e054b9e6f3ffadf7c0c0963a740528077e90c1feb9e7e8030fde",
+    "00381_a_person_s_resolution_is_recorded_when_it_changed_something.sql": "abf00eb73916ef8ccc3be0cb1ddc4a506a6c94cb88997660a5318451cbcee7c7",
+    "00382_a_hold_s_expiry_is_found_by_index.sql": "7c5157235138ef1d99d7df79e95abda20537423aa7fbdac85d1a4b71f686a096",
+    "00383_a_thread_is_taken_over_and_handed_back_in_one_transaction.sql": "3d1c720bc755dbb55b6276075af60f54f13a04bf7250b64f69688a8dd85c721d",
+    "00384_a_queued_message_is_withdrawn_by_one_door.sql": "4cc1f371803a7445f9e3670cfc2f4cf91a4ce160052581938ff18f5ea180bc25",
+    "00385_an_escalation_is_opened_with_its_event.sql": "163eaf822bb6d5c71d798115544e667ab77ad48296037d331c821b9e01421c70",
+    "00386_a_booking_reaches_its_reach_out_through_its_event.sql": "f3a01dde0672348a87adbaca4058605863d5f3cb808cf8bff6cfc7dadeeb6340",
+    "00387_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "e70542e1c8c9f7ea7f60efef617222dae0d3a62ff77014c8742399ca4a340142",
+    "00388_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "dd894eb8bcc2866f94ffee9df23e904b4b32e8eaaf4ddbb0d7da935579b021e7"
   }
 }

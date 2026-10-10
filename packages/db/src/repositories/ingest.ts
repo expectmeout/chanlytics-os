@@ -185,7 +185,7 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
  * together, dnc with them, and one contact.consent_changed row -- the carrier
  * as its source, since there is no message of theirs to name -- in one
  * transaction, through the one door a provider's stop is recorded by
- * (record_provider_stop, 00375). It used to be two writes on two requests,
+ * (record_provider_stop, 00380). It used to be two writes on two requests,
  * and an event that was lost left the history silent and the channels the
  * answer covered (00297's trigger reads the event) stale. A person already
  * opted out, or erased, is left as they are with no second ledger row, and
@@ -752,7 +752,7 @@ export async function pauseConversation(
   // handoff queued in this breath, which the caller names. A draft written
   // before the pause must not land after it: the door (packages/core deliver)
   // waives the pause for a queued row on exactly this promise. The one door
-  // (00379) takes each draft no run has claimed with the job that would send
+  // (00384) takes each draft no run has claimed with the job that would send
   // it; a claimed one is on its way and is left to say what became of it. A
   // failure here is logged, never fatal: the pause itself landed.
   await withdrawAiDrafts(db, {

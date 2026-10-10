@@ -10009,7 +10009,7 @@ type Db$z = SupabaseClient<Database>;
 declare function keepInvoiceAmount(db: Db$z, eventId: string, amountCents: number, currency: string): Promise<boolean>;
 
 /**
- * A workspace's billing row (billing_accounts), written through its one door (00374 billing_apply). The edge's billing
+ * A workspace's billing row (billing_accounts), written through its one door (00379 billing_apply). The edge's billing
  * routines (apps/edge/lib/billing/billing.ts) decide what a reading means with contracts' planBilling and write it here.
  *
  *   applyBilling   the columns a reading or a stamp writes, written only if the row is still what the caller planned
@@ -10103,8 +10103,8 @@ declare const ERASURE_LEGS: {
     readonly email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)";
     readonly proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared";
     readonly deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared";
-    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00383), its keys kept as digests";
-    readonly recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00383)";
+    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00388), its keys kept as digests";
+    readonly recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00388)";
     readonly jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared";
     readonly ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)";
     readonly deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)";
@@ -36841,7 +36841,7 @@ declare function ingestInbound(db: Db$v, p: IngestInboundParams): Promise<Ingest
  * together, dnc with them, and one contact.consent_changed row -- the carrier
  * as its source, since there is no message of theirs to name -- in one
  * transaction, through the one door a provider's stop is recorded by
- * (record_provider_stop, 00375). It used to be two writes on two requests,
+ * (record_provider_stop, 00380). It used to be two writes on two requests,
  * and an event that was lost left the history silent and the channels the
  * answer covered (00297's trigger reads the event) stale. A person already
  * opted out, or erased, is left as they are with no second ledger row, and
@@ -37370,7 +37370,7 @@ declare function offersAnswerOf(db: Db$s, tenantId: string, contactId: string): 
  * WhatsApp's report that a person stopped marketing messages from this business (131050 on a message of ours),
  * recorded as their no to offers: the answer about offers, its source and its time together, and one
  * contact.consent_changed row with the purpose named, WhatsApp as its source and the message Meta refused, in one
- * transaction through the one door a provider's stop is recorded by (record_provider_stop, 00375). The person is the
+ * transaction through the one door a provider's stop is recorded by (record_provider_stop, 00380). The person is the
  * one the message was written to. A person who already said no, or who was erased, is left as they are, with no
  * second ledger row, and the door answers false. `dnc` is not touched: this is a no to offers, and messages about
  * their own visit still reach them. A write that fails THROWS; the receipts door catches it in its own guard, so it
@@ -37952,7 +37952,7 @@ declare function closedRunSends(db: Db$o, stuckBefore: Date, limit: number, tena
 declare function finishableRuns(db: Db$o, limit: number, tenantId?: string): Promise<string[]>;
 /** Which of these email ids have a row, a hundred at a time (an id list rides in the request's address). */
 declare function writtenEmails(db: Db$o, ids: string[]): Promise<Set<string>>;
-/** An email withdrawn while it is still queued and no run has begun to send it, through the one door (00379): its job
+/** An email withdrawn while it is still queued and no run has begun to send it, through the one door (00384): its job
  *  then sends nothing. False when it was not: it had moved on, or it is on its way, and what became of it is its job's. */
 declare function withdrawEmail(db: Db$o, p: {
     tenantId: string;
@@ -38170,7 +38170,7 @@ declare function workspaceAbout(db: Db$o, tenantId: string): Promise<string | nu
 /**
  * The reach-out sheet's reads and writes (Reach out, Part 4 PRs 4–5): a workspace's chains as their rows, a chain's
  * root and a send by their ids, the emails' words, a run's sends, a step stamped for its day, the one reset of a
- * send's check (00211 reach_out_recheck), a chain saved whole with its start's line (00373 reach_out_save) and the
+ * send's check (00211 reach_out_recheck), a chain saved whole with its start's line (00378 reach_out_save) and the
  * outreach mode. The one place these tables are typed for them. The
  * dashboard asks on the session client (RLS decides what a member reads); the edge on the service role. A read that
  * fails throws: "we could not read" is never "none".
@@ -38269,7 +38269,7 @@ interface ReachOutSaved {
 }
 /**
  * A chain made or edited whole and, when it is new, the start_playbook decision on its root as the member's, in one
- * transaction (00373 reach_out_save over 00211's door). The service role's alone (R15): the route has checked the
+ * transaction (00378 reach_out_save over 00211's door). The service role's alone (R15): the route has checked the
  * member's role and validated every word, and names who they are (`userId`); the door checks the membership again.
  * `decision` is what the ledger keeps of the start, for a new chain, and null for an edit (a chain is started once:
  * the door refuses a decision given with a root_id). The door's own answer, or its refusal with the code it refused
@@ -39242,7 +39242,7 @@ interface AssembleDecision {
     undoOf: string | null;
 }
 /**
- * A broadcast, its people, its send job and the send_broadcast decision on it, written whole (00373 assemble_broadcast,
+ * A broadcast, its people, its send job and the send_broadcast decision on it, written whole (00378 assemble_broadcast,
  * over 00282's door): the run's id back with the decision's, or a throw and then nothing was written. The function puts
  * the job on the ledger, which no session may, so it is the service role's alone; each caller has checked who may ask
  * (the dashboard's route after its role check, the playbooks sweep), and the function asks for itself that every
@@ -39377,11 +39377,11 @@ declare function scrubProviderEvents(db: Db$c, tenantId: string, needles: readon
  * to answer.
  *
  * A member's take-over and hand-back (takeOverThread, handBackThread) are the
- * two doors of 00378, on the member's own session: a person's hold taken with
+ * two doors of 00383, on the member's own session: a person's hold taken with
  * the claim, the drafts and the ledger around it, and let go with the release,
  * the ledger and the escalation, each in one transaction.
  *
- * What a thread holds queued is withdrawn by one door too (00379 withdraw_queued): a row no run has claimed, with the
+ * What a thread holds queued is withdrawn by one door too (00384 withdraw_queued): a row no run has claimed, with the
  * send job that would send it, wherever the withdrawal starts (a reply, a call-back, a pause, a steer, a take-over).
  */
 
@@ -39441,7 +39441,7 @@ interface MemberMove {
     via: string | null;
     undoOf: string | null;
 }
-/** What a take-over leaves (00378 conversation_take_over). */
+/** What a take-over leaves (00383 conversation_take_over). */
 interface TakenOver {
     /** The moment the receptionist is paused until, as the caller named it. */
     pausedUntil: string;
@@ -39453,7 +39453,7 @@ interface TakenOver {
     undoDropped: boolean;
 }
 /**
- * A member takes a thread over, whole (00378 conversation_take_over), on their own session: the claim (needs_human,
+ * A member takes a thread over, whole (00383 conversation_take_over), on their own session: the claim (needs_human,
  * paused until `pausedUntil`, the snooze cleared, theirs), the live hold on who is speaking (at most a day), the
  * receptionist's queued drafts on the thread withdrawn with their send jobs, and the take_over decision as theirs, in
  * one transaction. Null when no thread of the workspace's answered (it moved while they looked), and then nothing was
@@ -39463,7 +39463,7 @@ interface TakenOver {
 declare function takeOverThread(db: Db$b, p: MemberMove & {
     pausedUntil: string;
 }): Promise<TakenOver | null>;
-/** What a hand-back leaves (00378 conversation_hand_back). */
+/** What a hand-back leaves (00383 conversation_hand_back). */
 interface HandedBack {
     /** The hand_back decision, recorded as the caller's. */
     decisionId: string;
@@ -39473,7 +39473,7 @@ interface HandedBack {
     undoDropped: boolean;
 }
 /**
- * A member hands a thread back, whole (00378 conversation_hand_back), on their own session: the release (open, nothing
+ * A member hands a thread back, whole (00383 conversation_hand_back), on their own session: the release (open, nothing
  * paused, snoozed or claimed), this person's hold let go and nobody else's, the hand_back decision as theirs, and the
  * open escalation resolved by it, in one transaction. Null when no thread of the workspace's answered, and then nothing
  * was written; a refusal is thrown as it came, with nothing written either.
@@ -39485,7 +39485,7 @@ interface WithdrawReason {
     [detail: string]: string;
 }
 /**
- * The one door a queued message is withdrawn by (00379 withdraw_queued), the service role's: each named message of the
+ * The one door a queued message is withdrawn by (00384 withdraw_queued), the service role's: each named message of the
  * workspace that is still queued and that no run has claimed (sending_at, 00352) canceled, with `reason` on its row,
  * and the send job that would send it canceled with it, in one transaction. Answers the ids withdrawn: a row on its
  * way, or gone, is left to its run and is not among them. A failure throws, and then nothing moved.
@@ -39495,7 +39495,7 @@ declare function withdrawQueued(db: Db$b, p: {
     messageIds: string[];
     reason: WithdrawReason | null;
 }): Promise<string[]>;
-/** The receptionist's queued drafts on a thread, all but `keepMessageId`, through the one door (00379 withdraw_ai_drafts). */
+/** The receptionist's queued drafts on a thread, all but `keepMessageId`, through the one door (00384 withdraw_ai_drafts). */
 declare function withdrawAiDrafts(db: Db$b, p: {
     tenantId: string;
     conversationId: string;
@@ -39503,20 +39503,20 @@ declare function withdrawAiDrafts(db: Db$b, p: {
     keepMessageId: string | null;
 }): Promise<string[]>;
 /**
- * On a member's own session (00379 member_withdraw_drafts): the receptionist's queued drafts on a thread a reply
+ * On a member's own session (00384 member_withdraw_drafts): the receptionist's queued drafts on a thread a reply
  * supersedes, withdrawn with their send jobs. How many. A refusal (not a member who may act here) throws as it came.
  */
 declare function memberWithdrawDrafts(db: Db$b, p: {
     tenantId: string;
     conversationId: string;
 }): Promise<number>;
-/** On a member's own session (00379 member_withdraw_message): one queued message withdrawn with its send job. */
+/** On a member's own session (00384 member_withdraw_message): one queued message withdrawn with its send job. */
 declare function memberWithdrawMessage(db: Db$b, p: {
     tenantId: string;
     messageId: string;
     reason: WithdrawReason | null;
 }): Promise<boolean>;
-/** What a call-back leaves (00379 message_call_back). */
+/** What a call-back leaves (00384 message_call_back). */
 interface CalledBack {
     /** The cancel_send decision, recorded as the caller's. */
     decisionId: string;
@@ -39524,7 +39524,7 @@ interface CalledBack {
     undoDropped: boolean;
 }
 /**
- * A member calls back a send in its grace, on their own session (00379 message_call_back): the message withdrawn with
+ * A member calls back a send in its grace, on their own session (00384 message_call_back): the message withdrawn with
  * its send job and the cancel_send decision as theirs, in one transaction. Null when it was too late (sent, claimed by
  * its run, gone), and then nothing was written; a refusal throws as it came.
  */
@@ -39535,7 +39535,7 @@ declare function callBackMessage(db: Db$b, p: {
     undoOf: string | null;
 }): Promise<CalledBack | null>;
 /**
- * A thread handed to a person, through the one door (00380 escalation_open), the service role's: a new open escalation
+ * A thread handed to a person, through the one door (00385 escalation_open), the service role's: a new open escalation
  * with its escalation.opened event ("opened"), the open one taking another reason ("changed"), or the same reason's
  * words moved ("refreshed"), in one transaction. A failure throws, and then nothing moved.
  */
@@ -40991,7 +40991,7 @@ declare function syncFeedAppointments(db: Db$1, p: {
 }): Promise<AppointmentSync>;
 declare function appointmentStates(db: Db$1, tenantId: string, keys: readonly string[]): Promise<Map<string, AppointmentState>>;
 /**
- * The booking door over one appointment of the record (00381 reach_out_booked_from), the service role's: the lead a
+ * The booking door over one appointment of the record (00386 reach_out_booked_from), the service role's: the lead a
  * reach-out wrote to, whose address or number the appointment or its person carries, booked after an email left, is
  * stamped and converted once. How many leads moved. A failure throws.
  */

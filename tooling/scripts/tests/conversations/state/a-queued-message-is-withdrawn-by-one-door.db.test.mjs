@@ -1,5 +1,5 @@
 /**
- * A queued message is withdrawn by one door (00379), on a real Postgres. Eight places withdrew a queued message, each
+ * A queued message is withdrawn by one door (00384), on a real Postgres. Eight places withdrew a queued message, each
  * its own way; now each goes through withdraw_queued, which holds the one rule:
  *
  *   - by message, never by thread: only the rows named, of the workspace named;

@@ -664,7 +664,7 @@ function keepDoubt(tables, tenantId, id, other, seenAs, insertRow) {
  * passive paths, then the identity, the number and the address; fills what is empty and never overwrites; never
  * merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed
  * or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity
- * added or raised, a doubt written; 00376). The SQL itself is proved on a stack in
+ * added or raised, a doubt written; 00381). The SQL itself is proved on a stack in
  * people/doors/resolve-person.db.test.mjs; what this answers is held to the same cases there. Not modelled: the race
  * two doors run (one world, one caller at a time), contact.email_set, which set_person_email writes beside the
  * address, and the lead the door links (person_link_lead), which would be one more reason to write the row.
@@ -682,7 +682,7 @@ function resolvePersonIn(tables, args, insertRow) {
   const outcome = found ? (fill.filled.length ? "filled" : "matched") : "new";
   const identity = keepIdentity(tables, tenantId, r, id, insertRow);
   const doubt = keepDoubt(tables, tenantId, id, fill.other, fill.seenAs, insertRow);
-  // The ledger's row, when the call changed something (00376); a call that found the person and learned nothing
+  // The ledger's row, when the call changed something (00381); a call that found the person and learned nothing
   // writes none.
   if (outcome !== "matched" || identity === "added" || identity === "raised" || doubt.doubtId != null) {
     insertRow("events", {
@@ -720,7 +720,7 @@ function resolvePersonIn(tables, args, insertRow) {
 }
 
 /**
- * A provider's stop and its event, one write (record_provider_stop, 00375), over the rows a world holds, so the send
+ * A provider's stop and its event, one write (record_provider_stop, 00380), over the rows a world holds, so the send
  * door (the carrier's 21610 at the wire), the status door (the same, told late) and the receipts door (WhatsApp's
  * 131050) run their real code over it: the row's own answer is the event's `previous`; a person already stopped, or
  * erased, is left as they are and the door answers false; the message the provider refused rides on the event when
@@ -814,7 +814,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const derived = {
     // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
-    // The one door a provider's stop is recorded by (00375): the send, status and receipts doors call it.
+    // The one door a provider's stop is recorded by (00380): the send, status and receipts doors call it.
     record_provider_stop: (args) => recordProviderStopIn(tables, args, insertRow),
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
@@ -864,9 +864,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are
     // given, 00298) and each person's channel (none stays none, which is WhatsApp), as campaign-channels.db.test.mjs
     // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too. Called
-    // with `p_decision` it is 00373's door: the send_broadcast decision on the run rides in the same write, the
+    // with `p_decision` it is 00378's door: the send_broadcast decision on the run rides in the same write, the
     // member's (p_actor) or the system's (none), and the answer is {id, decision_id, undo_dropped} ({id} alone for a
-    // run that waits); called without, it is 00282's and answers the id, as an app from before 00373 reads it.
+    // run that waits); called without, it is 00282's and answers the id, as an app from before 00378 reads it.
     assemble_broadcast: (args) => {
       const { p_tenant, p_run, p_recipients, p_send_at, p_decision, p_actor, p_via } = args;
       const at = stampOf(tables);
@@ -918,7 +918,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return { id, decision_id: decision.id, undo_dropped: false };
     },
     /**
-     * A billing reading and the workspace's switch as one write (00374 billing_apply): the row's columns laid over it,
+     * A billing reading and the workspace's switch as one write (00379 billing_apply): the row's columns laid over it,
      * only while the row is still what the caller planned against (p_expect: a reading's status and updated_at, or the
      * customer the row names), then tenants.status when the switch
      * moves; true when written, false when another reading won or there is no row. Its two statements are logged as
@@ -982,7 +982,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return true;
     },
     /**
-     * The one door a queued message is withdrawn by (00379 withdraw_queued), over the rows a world holds: each named
+     * The one door a queued message is withdrawn by (00384 withdraw_queued), over the rows a world holds: each named
      * row of the workspace still queued and claimed by no run (sending_at) canceled, with the reason on it (none keeps
      * its error as it was), and the scheduled outbound_send job naming it canceled with it. A fault on
      * `messages.update` refuses the whole door, with nothing of it kept. Answers the ids withdrawn.
@@ -1024,7 +1024,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
           .map((m) => m.id),
         p_reason,
       }),
-    // The member's doors (00379): who may act is the route's check here, and the database's floor is its own suite's.
+    // The member's doors (00384): who may act is the route's check here, and the database's floor is its own suite's.
     member_withdraw_drafts: ({ p_tenant_id, p_conversation_id }) =>
       derived.withdraw_ai_drafts({ p_tenant_id, p_conversation_id, p_reason: { reason: "superseded_by_human" } })
         .length,
@@ -1049,7 +1049,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return { decision_id: decision.id, undo_dropped: Boolean(p_undo_of) && undo === null };
     },
     /**
-     * A thread handed to a person, by its one door (00380 escalation_open), over the rows a world holds: a new open
+     * A thread handed to a person, by its one door (00385 escalation_open), over the rows a world holds: a new open
      * escalation with its escalation.opened ("opened"), the open one taking another reason with escalation.changed
      * ("changed"), or the same reason's words moved ("refreshed"). A fault on `escalations.insert` that is the one-open
      * key's 23505 is a thread already held (as Postgres would answer it); any other refuses the door, with nothing kept.

@@ -209,7 +209,7 @@ function startOf(r: RunPlaybookOutcome): ReachOutStartDto {
 /**
  * A chain saved whole. Every word is validated here first (the database keeps only its CHECKs, R15); then the
  * service role's door, with the member's id and, for a new chain, the start's line in the ledger, in the door's own
- * write (00373); then, for a new chain, its first run asked for now through the run-now door every playbook uses
+ * write (00378); then, for a new chain, its first run asked for now through the run-now door every playbook uses
  * (R13), whose answer is said as it is (R14).
  */
 export async function saveChain(

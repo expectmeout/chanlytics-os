@@ -75,7 +75,7 @@ export interface AssembleDecision {
 }
 
 /**
- * A broadcast, its people, its send job and the send_broadcast decision on it, written whole (00373 assemble_broadcast,
+ * A broadcast, its people, its send job and the send_broadcast decision on it, written whole (00378 assemble_broadcast,
  * over 00282's door): the run's id back with the decision's, or a throw and then nothing was written. The function puts
  * the job on the ledger, which no session may, so it is the service role's alone; each caller has checked who may ask
  * (the dashboard's route after its role check, the playbooks sweep), and the function asks for itself that every

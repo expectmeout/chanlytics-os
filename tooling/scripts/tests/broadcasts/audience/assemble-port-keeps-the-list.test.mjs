@@ -42,7 +42,7 @@ test("the list the audience was counted by reaches the door with the run; an aud
     { broadcasts: [], broadcast_recipients: [], jobs: [] },
     {},
     {
-      // The door with its decision (00373) answers the run's id, and the decision's when one was asked for.
+      // The door with its decision (00378) answers the run's id, and the decision's when one was asked for.
       assemble_broadcast: (args) => {
         doors.push(args);
         return { id: "b-1" };

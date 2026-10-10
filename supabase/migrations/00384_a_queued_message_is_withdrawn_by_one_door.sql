@@ -1,10 +1,10 @@
--- 00379 · A queued message is withdrawn by one door.
+-- 00384 · A queued message is withdrawn by one door.
 --
 -- Withdrawing a queued message was written in nine places, each its own way: the reply path's withdrawal of the
 -- receptionist's drafts (the dashboard), a member's call-back of a send in its grace (the dashboard), the reply's own
 -- row when its job could not be scheduled (the dashboard), the edge's pause on a handoff (packages/db ingest), a
 -- rewrite retiring the draft it replaces (the edge's steer), a draft whose job could not be scheduled (the edge's draft
--- queue), a reach-out email taken back (packages/db reach-out), the take-over (00378), and a newer message taking the
+-- queue), a reach-out email taken back (packages/db reach-out), the take-over (00383), and a newer message taking the
 -- thread's reply turn from an older one's held drafts (claim_reply_turn, 00362). Each kept the rule its own
 -- way: some asked that no run had claimed the row (sending_at, 00352) and some did not; some took the send job with
 -- the row, on a second client, and some left the job to find its row canceled. One rule now, in one place:
@@ -28,7 +28,7 @@
 --       transaction (member_decision, 00357). Null when the message was no longer withdrawable (sent, claimed, gone),
 --       and then nothing was written.
 --
--- conversation_take_over (00378) and claim_reply_turn (00284, 00362) withdraw through it now, each re-created whole
+-- conversation_take_over (00383) and claim_reply_turn (00284, 00362) withdraw through it now, each re-created whole
 -- with that one block changed: nine writers were one rule's, and are one door's. A member's session still may not touch jobs: the doors are definers, each with its own floor.
 --
 -- Deploy order: this migration first. An app that calls a door the database does not hold answers the act with an
@@ -76,7 +76,7 @@ end $$;
 revoke all on function public.withdraw_queued(uuid, uuid[], jsonb) from public, anon, authenticated;
 grant execute on function public.withdraw_queued(uuid, uuid[], jsonb) to service_role;
 comment on function public.withdraw_queued(uuid, uuid[], jsonb) is
-  'The one door a queued message is withdrawn by (00379): each named message of the workspace still queued and claimed by no run (sending_at null) canceled, with the reason on its row when one is given, and the outbound_send job that would send it canceled with it, in one transaction. Answers the ids withdrawn; a row on its way or gone is left to its run. The service role''s.';
+  'The one door a queued message is withdrawn by (00384): each named message of the workspace still queued and claimed by no run (sending_at null) canceled, with the reason on its row when one is given, and the outbound_send job that would send it canceled with it, in one transaction. Answers the ids withdrawn; a row on its way or gone is left to its run. The service role''s.';
 
 create or replace function public.withdraw_ai_drafts(
   p_tenant_id uuid,
@@ -102,7 +102,7 @@ end $$;
 revoke all on function public.withdraw_ai_drafts(uuid, uuid, jsonb, uuid) from public, anon, authenticated;
 grant execute on function public.withdraw_ai_drafts(uuid, uuid, jsonb, uuid) to service_role;
 comment on function public.withdraw_ai_drafts(uuid, uuid, jsonb, uuid) is
-  'The receptionist''s queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00379). The service role''s.';
+  'The receptionist''s queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00384). The service role''s.';
 
 /* ------------------------------------------------------------------------------------- on a member's session */
 
@@ -126,7 +126,7 @@ end $$;
 revoke all on function public.member_withdraw_drafts(uuid, uuid) from public, anon;
 grant execute on function public.member_withdraw_drafts(uuid, uuid) to authenticated, service_role;
 comment on function public.member_withdraw_drafts(uuid, uuid) is
-  'A member withdraws the receptionist''s queued drafts on a thread, on their own session (00379): an owner or an operator, or a partner whose session showed its second factor. superseded_by_human, through withdraw_ai_drafts. Answers how many.';
+  'A member withdraws the receptionist''s queued drafts on a thread, on their own session (00384): an owner or an operator, or a partner whose session showed its second factor. superseded_by_human, through withdraw_ai_drafts. Answers how many.';
 
 create or replace function public.member_withdraw_message(p_tenant_id uuid, p_message_id uuid, p_reason jsonb default null)
 returns boolean
@@ -147,7 +147,7 @@ end $$;
 revoke all on function public.member_withdraw_message(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.member_withdraw_message(uuid, uuid, jsonb) to authenticated, service_role;
 comment on function public.member_withdraw_message(uuid, uuid, jsonb) is
-  'A member withdraws one queued message of the workspace, on their own session (00379), through withdraw_queued: the reply''s own row when its send job could not be scheduled. True when it was withdrawn.';
+  'A member withdraws one queued message of the workspace, on their own session (00384), through withdraw_queued: the reply''s own row when its send job could not be scheduled. True when it was withdrawn.';
 
 create or replace function public.message_call_back(
   p_tenant_id uuid,
@@ -178,7 +178,7 @@ end $$;
 revoke all on function public.message_call_back(uuid, uuid, text, uuid) from public, anon;
 grant execute on function public.message_call_back(uuid, uuid, text, uuid) to authenticated, service_role;
 comment on function public.message_call_back(uuid, uuid, text, uuid) is
-  'A member calls back a send in its grace (00379): the message withdrawn with its send job through withdraw_queued, and the cancel_send decision as the member''s own, in one transaction. Null when it was too late (sent, claimed, gone), with nothing written. Returns decision_id and undo_dropped.';
+  'A member calls back a send in its grace (00384): the message withdrawn with its send job through withdraw_queued, and the cancel_send decision as the member''s own, in one transaction. Null when it was too late (sent, claimed, gone), with nothing written. Returns decision_id and undo_dropped.';
 
 /* ------------------------------------------------------------------------------------- the take-over, through it */
 
@@ -245,7 +245,7 @@ end $$;
 revoke execute on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) from public, anon;
 grant execute on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) to authenticated, service_role;
 comment on function public.conversation_take_over(uuid, uuid, timestamptz, text, uuid) is
-  'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00378; its drafts through withdraw_ai_drafts since 00379): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
+  'A member takes a thread over, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00383; its drafts through withdraw_ai_drafts since 00384): the claim (needs_human, paused until p_paused_until, the snooze cleared, theirs), the live hold on who is speaking (claim_conversation_control, at most a day), the receptionist''s queued drafts on the thread withdrawn with their outbound_send jobs, and the take_over decision recorded as theirs. Returns claimed, paused_until, withdrawn_drafts, decision_id and undo_dropped; null when no thread of the workspace''s answered, with nothing written. How long the pause is stays core''s (takeOver).';
 
 /* -------------------------------------------------------------------------- an older turn's drafts, through it */
 
@@ -290,7 +290,7 @@ begin
   end if;
   -- The older turn's replies still waiting to go are superseded by this one. One a run has claimed is already on its
   -- way to the person (00362): it is left to say what became of it.
-  -- Through the one door (00379), with the job that would send each.
+  -- Through the one door (00384), with the job that would send each.
   perform public.withdraw_queued(
     p_tenant,
     array(select d.id from public.messages d
@@ -308,4 +308,4 @@ end $$;
 revoke all on function public.claim_reply_turn(uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.claim_reply_turn(uuid, uuid, uuid) to service_role;
 comment on function public.claim_reply_turn(uuid, uuid, uuid) is
-  'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362), each with its send job through withdraw_queued (00379). True when held.';
+  'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued, but not one a run has already claimed for the wire (00362), each with its send job through withdraw_queued (00384). True when held.';

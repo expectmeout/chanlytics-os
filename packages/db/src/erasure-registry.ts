@@ -42,9 +42,9 @@ export const ERASURE_LEGS = {
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
   leads_trigger:
-    "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00383), its keys kept as digests",
+    "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00388), its keys kept as digests",
   recipients_trigger:
-    "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00383)",
+    "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00388)",
   jobs_scrub:
     "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
@@ -402,7 +402,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // A reply to a reach-out hangs on the replier's message and thread, and goes with them.
   reach_out_replies: all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
   reach_out_sends: {
-    // Written from the lead's record (00383).
+    // Written from the lead's record (00388).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
     // A digest of the words checked, the facts' keys, and the hold's and the skip's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason"),

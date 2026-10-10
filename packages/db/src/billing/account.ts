@@ -1,5 +1,5 @@
 /**
- * A workspace's billing row (billing_accounts), written through its one door (00374 billing_apply). The edge's billing
+ * A workspace's billing row (billing_accounts), written through its one door (00379 billing_apply). The edge's billing
  * routines (apps/edge/lib/billing/billing.ts) decide what a reading means with contracts' planBilling and write it here.
  *
  *   applyBilling   the columns a reading or a stamp writes, written only if the row is still what the caller planned

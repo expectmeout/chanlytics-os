@@ -11,7 +11,7 @@ export type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "takeOver" | "now">;
  * is a different question and a shorter one, and a hold that outlives the
  * person holding it is the defect this fact was added to end -- so the pause
  * window is the ceiling, and a day is the ceiling on that. The take-over's own
- * door keeps the same ceiling (00378, over 00132's claim); a reply's hold is
+ * door keeps the same ceiling (00383, over 00132's claim); a reply's hold is
  * taken here (reply.ts).
  */
 export const PERSON_CONTROL_MAX_S = 24 * 60 * 60;
@@ -30,7 +30,7 @@ export async function takeOver(
   const { conv } = cmd;
   // How long is decided here, from the workspace's reply policy; the door takes the moment.
   const paused_until = new Date(ports.now() + (await ports.pauseMs(conv.tenant_id))).toISOString();
-  // One call, one transaction (00378): the claim IS the pause; the hold on who is
+  // One call, one transaction (00383): the claim IS the pause; the hold on who is
   // speaking is taken with it, before the drafts are withdrawn, so a draft that
   // reaches the wire meanwhile meets the hold; the drafts written before it are
   // withdrawn; and the ledger says who. These used to be four writes on two

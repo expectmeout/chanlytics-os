@@ -156,7 +156,7 @@ export type Requeued =
  * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
  * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
  * An event's delivery is not run again here: its row is the delivery's, which a fresh job would leave failed and naming
- * the old one, and its one way back is `event_deliveries_redrive` (00334, 00382), which replays every failed or paused
+ * the old one, and its one way back is `event_deliveries_redrive` (00334, 00387), which replays every failed or paused
  * delivery of its subscriber once the subscriber is mended, each with a job of its own (decision 0031's review of
  * 9 October: one of the two re-drive paths goes).
  */

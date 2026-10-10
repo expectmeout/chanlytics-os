@@ -18,7 +18,7 @@
  *     second act: a STOP, and the email unsubscribe with it) and contact_stop_ends_offers_yes (the trigger that ends a
  *     yes to offers when a stop is recorded, 00323) and merge_people (two records of one person become one, 00326:
  *     the more careful answer, from the merge) and record_provider_stop (a no a provider reported on the person's
- *     behalf, the carrier's or WhatsApp's, with its event in one write, 00375);
+ *     behalf, the carrier's or WhatsApp's, with its event in one write, 00380);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
  * one of the three kinds named in them, and the answer must be the list above, so a new SQL writer fails here until it
@@ -614,7 +614,7 @@ test(
 );
 
 test(
-  "record_provider_stop (00375): the carrier's stop on a text, and WhatsApp's refusal of an offer, each with its event in one write",
+  "record_provider_stop (00380): the carrier's stop on a text, and WhatsApp's refusal of an offer, each with its event in one write",
   { skip },
   async () => {
     const texted = await contact(w.t, { consent: "opted_in" });

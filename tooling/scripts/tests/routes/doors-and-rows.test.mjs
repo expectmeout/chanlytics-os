@@ -29,7 +29,7 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
   // 409; what is pinned here is that every port the adapter hands them is
   // row-counted through the one helper.
   const ports = readCode("apps/dashboard/src/server/ports/core-ports.ts");
-  // The take-over, the hand-back (00378) and the call-back (00379) are doors that count their own rows.
+  // The take-over, the hand-back (00383) and the call-back (00384) are doors that count their own rows.
   for (const port of ["snooze", "wake", "archive", "resolve"]) {
     assert.ok(
       ports.includes(`${port}: (`) &&

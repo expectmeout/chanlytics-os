@@ -1,10 +1,10 @@
 /**
- * A chain is started with its decision (00373 reach_out_save, over 00228's door), on a real Postgres: the chain's rows
+ * A chain is started with its decision (00378 reach_out_save, over 00228's door), on a real Postgres: the chain's rows
  * and the start_playbook decision on its root in one transaction. The decision was the route's own write after the
  * door, and one that failed left a chain with no line saying who started it, and a 500 the person answers by saving
  * again. Here the decision is made to fail AFTER the chain is written (a ledger that refuses the row, in a transaction
  * that never commits), and nothing of the chain remains; an undo link onto another workspace's line is dropped and said,
- * never a failure (team_decision, 00373). A chain is started once: an edit records no start.
+ * never a failure (team_decision, 00378). A chain is started once: an edit records no start.
  *
  * Runs against the database `supabase start` builds on this machine, never production; makes its own workspaces and
  * removes them.
@@ -89,7 +89,7 @@ const chainOf = (search, over = {}) => ({
   ],
   ...over,
 });
-/** 00373's door: the chain with its start's line. `p_decision` is what tells it from 00211's. */
+/** 00378's door: the chain with its start's line. `p_decision` is what tells it from 00211's. */
 const save = (chain, over = {}) =>
   db.rpc("reach_out_save", {
     p_tenant_id: A,

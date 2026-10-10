@@ -68,7 +68,7 @@ export interface AssembledRun {
 export interface AssemblePorts {
   /**
    * The run, its people, its send job when `sendAt` is set and the send_broadcast decision on it when `decision` is
-   * given, written whole in one transaction (00373 assemble_broadcast): the run's id back with the decision's, or a
+   * given, written whole in one transaction (00378 assemble_broadcast): the run's id back with the decision's, or a
    * throw, and then nothing was written. A run that waits for a person is made with no decision: its approval is its
    * decision (ApproveRunPorts).
    */

@@ -646,7 +646,7 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
   const inserted = db.seen.findIndex((s) => s.table === "messages" && s.op === "insert");
   const retired = db.seen.findIndex((s) => s.rpc === "withdraw_queued" && s.args.p_message_ids.includes(w.M));
   assert.ok(inserted >= 0 && retired > inserted, "the new draft is queued before the old one is retired");
-  // Retired through the one door (00379): only while still queued and claimed by no run, and the ids it withdrew are
+  // Retired through the one door (00384): only while still queued and claimed by no run, and the ids it withdrew are
   // the count, so zero can be told from one.
   assert.deepEqual(db.seen[retired].args, {
     p_tenant_id: w.T,
@@ -849,7 +849,7 @@ test("the race: the tick sent the old draft while the model was thinking, so the
   assert.deepEqual(
     tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
     [draft.id],
-    "the rewrite's send is withdrawn with it (00379); the old job, already claimed, is nobody's to cancel",
+    "the rewrite's send is withdrawn with it (00384); the old job, already claimed, is nobody's to cancel",
   );
   assert.equal(tables.jobs.find((j) => j.id === w.J).state, "done");
 });
@@ -886,7 +886,7 @@ test("the race, mid-send: the tick claimed the old draft while the model was thi
   assert.deepEqual(
     tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
     [draft.id],
-    "with its send (00379); the old job, already claimed, is its run's",
+    "with its send (00384); the old job, already claimed, is its run's",
   );
   assert.equal(tables.jobs.find((j) => j.id === w.J).state, "fired");
 });
