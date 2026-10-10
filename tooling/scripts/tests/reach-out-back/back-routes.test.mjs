@@ -237,7 +237,10 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
       throw Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" });
     },
   });
-  await assert.rejects(report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, down.rpcs)));
+  await assert.rejects(
+    report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, down.rpcs)),
+    /canceling statement/,
+  );
 });
 
 test("GET reach-outs/leads answers a search's lines, or one lead's story, and asks for exactly one", async () => {

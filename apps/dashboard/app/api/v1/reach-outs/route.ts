@@ -9,7 +9,7 @@ import { reachOutChains } from "@/server/readers/playbooks";
  *
  * GET  /api/v1/reach-outs — every chain with its steps and what decides its next run, without its report (R23: the
  *      report is read when a row is opened). Any member. The body is its reader's (readers/playbooks.ts
- *      reachOutChains), so a tool of Ask's that reads the chains reads these.
+ *      reachOutChains), so a tool of Ask's that will read the chains (none does yet) reads these.
  * POST /api/v1/reach-outs — a new chain over a search, saved whole by the service role after this route's role check
  *      and every word validated (R15), then its first run asked for now through the run-now door (R13); the answer
  *      says what that run did, with its reason (R14). Owner or operator.

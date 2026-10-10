@@ -52,6 +52,7 @@ import {
   nextRunLabel,
   toReportVM,
   toReviewsReportVM,
+  toReachOutReportVM,
   toBookingReportVM,
   toDealReportVM,
   compareTemplates,
@@ -1195,6 +1196,97 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
     ["7 days", (await run(profile)).tiles.length, "the campaign numbers could not be read just now"],
     "the report's own numbers stand beside it",
   );
+});
+
+test("report says the Reach-outs section as the page does (a moment holds many campaigns, lane 2, task 6): its counts and its sentences from the page's own fold where the workspace has a reach-out, null where it has none, and an error where its read failed", async () => {
+  const today = iso(NOW.getTime()).slice(0, 10);
+  const counts = (over = {}) => ({
+    written: 0,
+    delivered: 0,
+    bounced: 0,
+    wrote_back: 0,
+    interested: 0,
+    booked: 0,
+    said_no: 0,
+    handed: 0,
+    ...over,
+  });
+  /** What reach_out_report answers (00241) over the days asked: one chain's period, or none at all with `over`. */
+  const reachOuts = (days, over = {}) => ({
+    timezone: TZ,
+    days,
+    today,
+    since: today,
+    has_reach_out: true,
+    totals: counts({
+      written: 40,
+      delivered: 38,
+      bounced: 1,
+      wrote_back: 6,
+      interested: 3,
+      booked: 1,
+      said_no: 2,
+      handed: 4,
+    }),
+    series: [{ day: today, written: 40 }],
+    chains: [],
+    angles: [],
+    other_angles: { written: 0, wrote_back: 0 },
+    no_angle: 0,
+    domains: [],
+    ...over,
+  });
+  const rpcs = {
+    ...RPCS,
+    report_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today,
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    }),
+    reach_out_report: (a) => reachOuts(a.p_days),
+    // Each chain's own totals beside it (00363), which the section does not say: none here.
+    reach_out_chain_totals: () => ({}),
+  };
+  const run = async (r) => {
+    const tc = newToolContext(ctxFor(tables(), r), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+
+  // A workspace with a reach-out: the page's own fold (toReachOutReportVM) over the page's own payload, its totals, the
+  // funnel's sentence and the line on what was handed.
+  const said = (await run(rpcs)).reach_outs;
+  const page = toReachOutReportVM(reachOuts(7), NOW.getTime());
+  assert.deepEqual(said, { empty: false, totals: page.totals, funnel: page.lines.funnel, written: page.lines.written });
+  assert.deepEqual(
+    [said.totals.written, said.totals.wrote_back, said.written],
+    [40, 6, "4 businesses handed to you as a call or a note, too."],
+    "the numbers the page draws, and its words",
+  );
+
+  // No reach-out at all: the page draws no section, and the tool says null, never a section of zeros.
+  const none = await run({
+    ...rpcs,
+    reach_out_report: (a) => reachOuts(a.p_days, { has_reach_out: false, totals: counts(), series: [] }),
+  });
+  assert.equal(none.reach_outs, null);
+
+  // Its read failed: said so, never as nothing written, and the report stands.
+  const failed = await run({
+    ...rpcs,
+    reach_out_report: () => {
+      throw new Error("canceling statement due to statement timeout");
+    },
+  });
+  assert.deepEqual(failed.reach_outs, { error: "the reach-out numbers could not be read just now" });
+  assert.deepEqual([failed.range, failed.tiles.length], ["7 days", (await run(rpcs)).tiles.length]);
 });
 
 test("a question that names another page's rows reads them before the model is asked, and the read rides in as data, never in system", async () => {
