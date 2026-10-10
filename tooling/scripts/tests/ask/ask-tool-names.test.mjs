@@ -759,6 +759,24 @@ function withCampaignWord(frozen) {
 }
 
 /**
+ * 9 Oct 2026 (the moment spec, A6, D35): campaigns.playbooks says each playbook's last 30 days (last_30_days, from
+ * campaign_series' sources; null where that read fails, as in this world, which models no campaign_series) in the place
+ * of its all-time runs, sent and replied, and its route is Campaigns' own word. Nothing else moved.
+ */
+function withLastThirtyDays(frozen) {
+  const said = JSON.parse(frozen);
+  if (!Array.isArray(said.playbooks)) return frozen;
+  const playbooks = said.playbooks.map((p) =>
+    Object.fromEntries(
+      Object.entries(p).flatMap(([k, v]) =>
+        k === "runs" ? [["last_30_days", null]] : k === "sent" || k === "replied" ? [] : [[k, v]],
+      ),
+    ),
+  );
+  return JSON.stringify({ ...said, route: said.route === "outbound" ? "campaigns" : said.route, playbooks });
+}
+
+/**
  * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
  * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
  * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
@@ -939,7 +957,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const reads = NAMES[old] === "report" ? withReviewReads(withTwins) : withTwins;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
-        ? againstOffered(got.result, result)
+        ? againstOffered(got.result, withLastThirtyDays(result))
         : [got.result, NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result];
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
     // zone and settings the turn reads once: the same reads as before, those two earlier.

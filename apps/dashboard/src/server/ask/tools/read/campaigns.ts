@@ -41,6 +41,7 @@ import {
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { broadcast as broadcastReader, broadcasts as broadcastsReader } from "../../../readers/broadcasts";
+import { lastDaysBySource, lastDaysOf } from "../../../readers/campaign-report";
 import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
@@ -241,20 +242,23 @@ const MODE_WORDS: Record<string, string> = {
 };
 
 /**
- * The playbooks as the page shows them — the same rows, the same totals,
- * the same next-run words — and the triggers with the counts the page's
+ * The playbooks as the page shows them — the same rows, the same last 30
+ * days, the same next-run words — and the triggers with the counts the page's
  * chips carry: the Playbooks page's own read (readers/playbooks.ts), once a
  * turn, projected (ledger #10). Every count is the page's: over everyone, with
  * no one looking, the week's touches applied and, where deals are on, whoever
  * already had their proposal's follow-up left out, as a run counts them.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [read, policies] = await Promise.all([
+  const [read, policies, sources] = await Promise.all([
     load(t.rc, playbooks, undefined),
     load(t.rc, readers.policies, undefined).then(
       (r) => r.data,
       () => [],
     ),
+    // The last 30 days by playbook (campaign_series' sources, Reports' Campaigns lens): what the ledger's row says. Null
+    // where it could not be read, never all-time totals in its place (D35).
+    lastDaysBySource(t.rc),
   ]);
   const pb = read.data;
   // The workspace's word (GET playbooks' businessShape): Ask says each appointment moment as the page does.
@@ -300,7 +304,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
     return listUnknownWords(need, pb.calendar);
   };
   return {
-    route: "outbound",
+    route: "campaigns",
     timezone: pb.timezone,
     modes: {
       reengage: modeOf("reengage"),
@@ -331,9 +335,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         const token = listToken(ref);
         return { list: token, ...(pb.pools[token] ? counted(token) : { cannot_count: uncounted(ref) }) };
       })(),
-      runs: p.totals.runs,
-      sent: p.totals.sent,
-      replied: p.totals.replied,
+      last_30_days: lastDaysOf(sources, p.id),
       waiting: p.totals.waiting
         ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
         : null,
@@ -463,7 +465,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the playbooks",
       words:
-        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read), and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
       run: listPlaybooksTool,
     }),
     broadcasts: readAction({

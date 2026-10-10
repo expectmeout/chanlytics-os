@@ -683,7 +683,35 @@ test("campaigns with action playbooks says the channels each playbook goes by no
       ],
     }),
     {},
-    { people_list: () => PEOPLE },
+    {
+      people_list: () => PEOPLE,
+      // Campaigns' 30 days (00329 campaign_series, as GET reports/campaigns?period=30d reads it): one source for the
+      // visit reminder, none for the other. Any other window is not the ledger's, and answers nothing.
+      campaign_series: (a) =>
+        a.p_days === 30 && !a.p_end
+          ? {
+              timezone: TZ,
+              days: 30,
+              span_days: 60,
+              today: "2026-09-14",
+              series: [],
+              sources: [
+                {
+                  id: VISIT_PB,
+                  kind: "playbook",
+                  name: "Visit reminder",
+                  template_name: "visit_reminder",
+                  runs: 4,
+                  sent: 40,
+                  delivered: 38,
+                  read: 0,
+                  replied: 6,
+                  last_at: null,
+                },
+              ],
+            }
+          : null,
+    },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   const out = await runTool(t, { name: "campaigns", input: { action: "playbooks" } });
@@ -694,6 +722,17 @@ test("campaigns with action playbooks says the channels each playbook goes by no
     "Visit reminder": ["whatsapp"],
     "Reminder by all three": ["whatsapp", "sms", "email"],
   });
+  // What each says it earned is its last 30 days, as its row on Campaigns says them (the moment spec, A6; D35), never
+  // all-time totals; and the read names Campaigns, never outbound.
+  const read = JSON.parse(out.result);
+  assert.equal(read.route, "campaigns", "Campaigns' own word, never outbound");
+  const days = Object.fromEntries(read.playbooks.map((p) => [p.name, p.last_30_days]));
+  assert.deepEqual(days, {
+    "Visit reminder": { sent: 40, replied: 6 },
+    "Reminder by all three": { sent: 0, replied: 0 },
+  });
+  for (const p of read.playbooks)
+    for (const k of ["runs", "sent", "replied"]) assert.equal(k in p, false, `no all-time ${k}`);
 });
 
 test("a proposal follow-up by WhatsApp and email: it answers their own request, so email carries it; a channel not ready yet stays on it, and the card says its runs hold those people", async () => {

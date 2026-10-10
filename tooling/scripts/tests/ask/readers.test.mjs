@@ -1927,6 +1927,17 @@ test("the campaigns' report, for Ask and for the page: GET reports/campaigns ans
     assert.deepEqual(r.rows, []);
     assert.deepEqual(ctx.supabase.seen, [{ rpc: "campaign_series", args: { p_tenant_id: A, p_days: days } }]);
   }
+  // Kept a minute across turns that keep (every Ask turn on Campaigns reads it for the page's rows; the moment spec, A6);
+  // a route, which keeps nothing, reads it on each request.
+  const calls = (rc) => rc.ctx.supabase.seen.filter((q) => q.rpc === "campaign_series").length;
+  const keeps = () => kernel.readerContext(worldCtx(w), { tenantId: A, role: "viewer" }, undefined, { keep: true });
+  const [first, next, route] = [keeps(), keeps(), turnIn(worldCtx(w))];
+  for (const rc of [first, next, route]) await kernel.load(rc, campaignReport, { days: 30, end: null });
+  assert.deepEqual(
+    [first, next, route].map(calls),
+    [1, 0, 1],
+    "the next turn's came from the kept read; the route read it",
+  );
   await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30, end: null }), noReport);
   await assert.rejects(campaignsRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)), noReport);
 });

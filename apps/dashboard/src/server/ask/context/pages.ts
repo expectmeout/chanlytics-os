@@ -16,6 +16,7 @@ import type { ReportWindow } from "@chanlytics/db";
 import { report as reportReader, reportWindowFor } from "../../readers/report";
 import { playbooks as playbooksReader } from "../../readers/playbooks";
 import { broadcasts as broadcastsReader } from "../../readers/broadcasts";
+import { lastDaysBySource, lastDaysOf } from "../../readers/campaign-report";
 import { templates as templatesReader } from "../../readers/templates";
 import { channels as channelsReader } from "../../readers/channels";
 import { connections as connectionsReader } from "../../readers/connections";
@@ -69,12 +70,22 @@ export const reports: Provider = async (rc, ctx) => {
   };
 };
 
-/** The playbooks the page drew, each as campaigns.playbooks says one: its moment, state, next run, what runs earned. */
+/**
+ * The playbooks the page drew, each as campaigns.playbooks says one: its moment, state, next run, and its last 30 days
+ * as its row on Campaigns says them (D35); unread, said so, never all-time totals. A citation opens its drawer.
+ */
 async function playbookContextRows(rc: ReaderContext, ids: string[]) {
-  const read = await load(rc, playbooksReader, undefined);
+  const [read, sources] = await Promise.all([load(rc, playbooksReader, undefined), lastDaysBySource(rc)]);
   const pb = read.data;
   const byId = new Map(pb.playbooks.map((p) => [p.id, p]));
   const refs = refsOf(read.rows);
+  const lastDays = (id: string) => {
+    const days = lastDaysOf(sources, id);
+    if (!days) return "last 30 days not read";
+    return days.sent === 0 && days.replied === 0
+      ? "nothing sent in the last 30 days"
+      : `last 30 days ${days.sent} sent, ${days.replied} replied`;
+  };
   const rows: ContextRow[] = [];
   for (const id of ids) {
     const p = byId.get(id);
@@ -88,9 +99,9 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
           triggerOf(p.trigger)?.label ?? p.trigger,
           p.state,
           `next run ${nextRunLabel(p, pb.timezone, rc.now, pb.ready?.paused === true)}`,
-          `${p.totals.runs} runs, ${p.totals.sent} sent, ${p.totals.replied} replied`,
+          lastDays(id),
         ],
-        `outbound/${id}`,
+        `campaigns/moment:${id}`,
       ),
       ref: refs.get(id) ?? null,
     });

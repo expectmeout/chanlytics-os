@@ -71,7 +71,7 @@ async function proposePlaybookChannels(
   if (!p || triggerOf(p.trigger)?.kind === "reach_out")
     return refuse(`no such playbook in this workspace; ${PLAYBOOK_FROM} names them`);
   // The playbook is a row the answer may cite, opened where its drawer is.
-  noteRows(t.read, [{ kind: "playbook" as const, id: p.id, route: `outbound/${p.id}`, label: p.name }]);
+  noteRows(t.read, [{ kind: "playbook" as const, id: p.id, route: `campaigns/moment:${p.id}`, label: p.name }]);
   const was = campaignChannelsOf(p.channels);
   let next: ConsentChannel[];
   try {

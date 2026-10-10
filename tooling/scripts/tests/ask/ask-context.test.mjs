@@ -782,7 +782,12 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
       [`playbook://${PB1}`, "Win-back"],
     ],
   );
-  assert.ok(textOf(pb.blocks[1]).endsWith(`route: outbound/${PB1}`));
+  // Its last 30 days, as its row on Campaigns says them (this world models no campaign_series, so said unread), and
+  // where its drawer opens (the moment spec, A6).
+  assert.ok(
+    textOf(pb.blocks[1]).endsWith(` · last 30 days not read · route: campaigns/moment:${PB1}`),
+    textOf(pb.blocks[1]),
+  );
   assert.match(textOf(pb.blocks[0]), /^Campaigns, playbooks: 1 on screen · playbooks: 1, 1 running/);
 
   const bc = await buildContext(

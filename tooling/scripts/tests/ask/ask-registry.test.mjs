@@ -117,6 +117,11 @@ const PLAYBOOK_CHANNELS_WORDS = [
   "its message (template), its clock and next run,",
   "its message (template), the channels it goes by now (channels), its clock and next run,",
 ];
+/** 9 Oct 2026 (the moment spec, A6, D35): each playbook says its last 30 days, where it said what its runs earned. */
+const PLAYBOOK_RESULTS_WORDS = [
+  "its list when it runs on one, what its runs earned,",
+  "its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read),",
+];
 /**
  * 7 Oct 2026 (lane 1, T11): campaigns says a message where it said an approved WhatsApp template, and says what its
  * audiences listing gives of each: the `channels` a version of it can be sent on now. The four sentences that moved, each
@@ -415,7 +420,9 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
           .description.replace(...RUN_CHANNEL_WORDS)
           .replace(...RUN_WAITING_WORDS),
         // Said over the message words above ("its message (template)"), so after them.
-      ).replace(...PLAYBOOK_CHANNELS_WORDS),
+      )
+        .replace(...PLAYBOOK_CHANNELS_WORDS)
+        .replace(...PLAYBOOK_RESULTS_WORDS),
       role,
     );
     assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);
