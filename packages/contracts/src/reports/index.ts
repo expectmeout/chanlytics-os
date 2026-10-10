@@ -23,7 +23,6 @@ export {
   channelsOf,
   runningTotal,
   speedOf,
-  callMoodTone,
   toReportVM,
   headlineOf,
   REPORT_CHANNELS,
@@ -64,9 +63,25 @@ export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./review-report";
 export type { ReviewsReportDto, ReviewWaitingVM, ReviewsReportVM } from "./review-report";
 export { reviewsWindowOf, reviewsAreOnRecord, isReviewsLedgerDto } from "./review-record";
 export type { ReviewsLedgerDto } from "./review-record";
-export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf } from "./report-tiles";
+export {
+  fmtSeconds,
+  deltaOf,
+  pointsDelta,
+  compareWords,
+  bookedTileOf,
+  BOOKED_ENDED_META,
+  REPORT_MIN_N,
+} from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export { metricWordsOf } from "./report-metrics";
+export { toReceptionistReportVM } from "./receptionist/receptionist-report";
+export type { ReceptionistReportVM } from "./receptionist/receptionist-report";
+export {
+  MISSED_CALL_TOUCH_WORDS,
+  isReceptionistSeriesDto,
+  receptionistDtoOf,
+} from "./receptionist/receptionist-record";
+export type { ReceptionistDto, ReceptionistSeriesDto } from "./receptionist/receptionist-record";
 export {
   CAMPAIGNS_RESULTS_PERIOD,
   REPORT_PERIOD_DEFAULT,

@@ -15,7 +15,17 @@
  */
 import { shiftKey } from "../calendar/day-keys";
 import { reasonShort } from "../conversations/escalations";
-import { absoluteBuckets, heroSpeed, holdBuckets, holdLine, holdOf, type ReportHoldVM } from "./report-speed";
+import {
+  absoluteBuckets,
+  heroSpeed,
+  holdBuckets,
+  holdLine,
+  holdOf,
+  receptionistSpeed,
+  replyDotsOf,
+  type ReplyDotVM,
+  type ReportHoldVM,
+} from "./report-speed";
 import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
 import { REPORT_TILES, beforeWords, fmtSeconds, type ReportTileVM } from "./report-tiles";
 import type { ReportHeadlineDto } from "./report-headline";
@@ -115,8 +125,6 @@ export interface ReportBarVM {
   value: number;
   /** 0..1 of the largest bar in its group. */
   share: number;
-  /** The status a bar stands for, when it has one (a caller's mood): the page gives it that status's colour, beside its word. */
-  tone?: "" | "ok" | "danger";
 }
 
 export interface ReportSpeedPointVM {
@@ -169,6 +177,9 @@ export interface ReportLinesVM {
   hero: string;
   /** The share the period before, said beside the tick it draws on the ring; null with nothing answered then. */
   heroBefore: string | null;
+  /** The Receptionist lens's head: how many of how many messages it answered without you, and, where most replies waited a hold, how many went out against it; null with nothing to answer. */
+  receptionist: string | null;
+  /** The busiest date: the answered card's own line. */
   answered: string | null;
   reply: string | null;
   calls: string | null;
@@ -210,6 +221,8 @@ export interface ReportVM {
     p90Label: string;
     buckets: ReportBarVM[];
     hold: ReportHoldVM | null;
+    /** Each reply's seconds past its own hold, the latest 500 in the order asked: the dot plot's dots. */
+    dots: ReplyDotVM[];
   };
   calls: {
     points: ReportPointVM[];
@@ -403,12 +416,7 @@ export function speedOf(
   return { unit: "week", points: weeks.map(point) };
 }
 
-/** A caller's mood as the voice provider reads it ("Positive", "Neutral", "Negative", "Unknown"), as a status tone. */
-export function callMoodTone(sentiment: string): "" | "ok" | "danger" {
-  return sentiment === "Positive" ? "ok" : sentiment === "Negative" ? "danger" : "";
-}
-
-/** A mood is a scale, so it reads in its own order (good, then neither, then bad), never by count. */
+/** A caller's mood as the voice provider reads it ("Positive", "Neutral", "Negative", "Unknown") is a scale, so it reads in its own order (good, then neither, then bad), never by count. */
 const moodRank = (s: string): number => (s === "Positive" ? 0 : s === "Negative" ? 2 : 1);
 
 /** "Monday", "Monday or Tuesday", "Monday, Tuesday or Sunday". */
@@ -571,13 +579,13 @@ const reasonBarsOf = (reasons: ReportDto["reasons"]): ReportBarVM[] =>
       .map(([r, n]) => [r, capitalize(reasonShort(r)) || r, n] as [string, string, number]),
   );
 
-/** The callers' moods in their own order (good, then neither, then bad), each with its status. */
+/** The callers' moods in their own order (good, then neither, then bad). A mood is an order, not a verdict: no status colour. */
 const moodBarsOf = (sentiments: ReportDto["sentiments"]): ReportBarVM[] =>
   bars(
     Object.entries(sentiments ?? {})
       .sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1])
       .map(([s, n]) => [s, s, n] as [string, string, number]),
-  ).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
+  );
 
 /** Messages and calls per weekday, now and the period before, and the one busiest and quietest. */
 function weekShapeOf({ current, previous }: PeriodFacts): ReportWeekVM {
@@ -618,6 +626,7 @@ function replyTimeOf({ dto, sortedReply, median, p90, hold }: PeriodFacts): Repo
     p90Label: fmtSeconds(p90),
     buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
     hold,
+    dots: replyDotsOf(dto.replies),
   };
 }
 
@@ -668,6 +677,9 @@ function linesOf(f: PeriodFacts, week: ReportWeekVM, channels: ReportChannelVM[]
       ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}`
       : "No customer wrote in this period.",
     heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
+    receptionist: answeredTotal
+      ? `${tot.ai} of ${answeredTotal} messages answered without you${receptionistSpeed(f.hold)}.`
+      : null,
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
     reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,

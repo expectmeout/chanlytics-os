@@ -15,6 +15,8 @@ import {
   fmtSeconds,
   fmtDay,
   REPORT_RANGES,
+  REPORT_MIN_N,
+  BOOKED_ENDED_META,
   bookedTileOf,
   toBookingReportVM,
 } from "@chanlytics/contracts";
@@ -201,6 +203,34 @@ test("each tile names the figure it says where it is built, once: the report's s
   );
 });
 
+test("a ratio's tile carries what it is of and the fewest that say anything; a count's tile that opens a work page names it; the rest say neither", () => {
+  const by = Object.fromEntries(toReportVM(dto(), { profile: null }).tiles.map((t) => [t.id, t]));
+  assert.equal(REPORT_MIN_N, 5, "one minimum, for every ratio the lenses draw (the lenses spec, D9)");
+  assert.equal(by.answered.n, 17, "the share is of the 17 customer messages that had an answer or none");
+  assert.equal(by.answered.minN, REPORT_MIN_N);
+  assert.equal(by.reply.n, 8, "the median is of the 8 replies it was counted over");
+  assert.equal(by.reply.minN, REPORT_MIN_N);
+  assert.equal(by.messages.door, "conversations");
+  assert.equal(by.needed.door, "inbox");
+  for (const id of ["messages", "needed"]) {
+    assert.ok(!("n" in by[id]) && !("minN" in by[id]), `${id} is a count, not a ratio`);
+  }
+  for (const id of ["answered", "reply"]) assert.ok(!("door" in by[id]), `${id} opens nothing`);
+  for (const id of ["calls", "people"]) {
+    assert.ok(!("door" in by[id]) && !("n" in by[id]) && !("minN" in by[id]), `${id} is what it was`);
+  }
+  // A quiet period has no replies and nothing to answer: the counts are zero, which is nothing to count, never absent
+  // (the kit's figure then greys nothing: of none there is no ratio).
+  const quietDto = dto({
+    series: dto().series.map((d) => day(d.day)),
+    reply_seconds: [],
+    sentiments: {},
+    voicemail: 0,
+  });
+  const quietBy = Object.fromEntries(toReportVM(quietDto, { profile: null }).tiles.map((t) => [t.id, t]));
+  assert.deepEqual([quietBy.answered.n, quietBy.reply.n], [0, 0]);
+});
+
 test("Booked is a tile of contracts', with its figure: a count where the calendar was read, and why there is none where not", () => {
   assert.deepEqual(bookedTileOf(toBookingReportVM({ calendar: "ok", days: 7, asked: 8, booked: 3 })), {
     id: "booked",
@@ -223,6 +253,21 @@ test("Booked is a tile of contracts', with its figure: a count where the calenda
     "no calendar link",
   ]);
   assert.deepEqual(why(null), ["—", "no calendar link"]);
+  // Days that ended before today: the line is not counted at all, and says that instead of "no calendar link", which
+  // would send a member with a calendar to connect one.
+  assert.deepEqual(bookedTileOf(toBookingReportVM({ calendar: "ended", days: 7, asked: 0, booked: 0 })), {
+    id: "booked",
+    metric: "booked",
+    label: "Booked",
+    value: "—",
+    meta: BOOKED_ENDED_META,
+    compare: null,
+  });
+  assert.equal(
+    BOOKED_ENDED_META,
+    "not counted for days that have ended: it follows people as they stand today",
+    "booking-report's reason (BOOKED_NEEDS_TODAY), in the workspace's words: never \"visit\" written in",
+  );
 });
 
 test("a one-day period says one day: Month on the first of the month is read over one", () => {

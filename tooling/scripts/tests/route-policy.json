@@ -1327,6 +1327,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET reports/receptionist": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET reports/reviews": {
       "kind": "read",
       "scope": "workspace",

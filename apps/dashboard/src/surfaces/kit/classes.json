@@ -70,6 +70,7 @@
     "figure-door",
     "figure-label",
     "figure-meta",
+    "figure-n",
     "figure-term",
     "figure-value",
     "input",
@@ -254,5 +255,18 @@
     "token-face",
     "ui-tip"
   ],
-  "modifiers": ["active", "align-left", "align-right", "danger", "dot", "escape", "icon", "kbd", "placed", "show", "up"]
+  "modifiers": [
+    "active",
+    "align-left",
+    "align-right",
+    "danger",
+    "dot",
+    "escape",
+    "icon",
+    "is-thin",
+    "kbd",
+    "placed",
+    "show",
+    "up"
+  ]
 }

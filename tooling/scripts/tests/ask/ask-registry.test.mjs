@@ -98,6 +98,13 @@ const REPORT_REVIEWS_WORDS =
  */
 const REPORT_REACH_OUTS_WORDS =
   "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: how many emails the reach-outs wrote, how many were delivered and bounced, and how many businesses wrote back, were interested, booked, said no or were handed to the owner, with the funnel's sentence and the line on what was handed (empty says nothing was written); reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for";
+/**
+ * 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): report says the Receptionist lens after the Reach-outs section: the
+ * one sentence, and nothing else it says moved. It opens with the end of the Reach-outs sentence it follows, which it
+ * replaces whole.
+ */
+const REPORT_RECEPTIONIST_WORDS =
+  "reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. The Receptionist lens is in receptionist, as the page says it: what became of the replies held before they went out (hold), what customers asked about (topics), the languages the receptionist wrote in where it wrote in more than one, how the calls someone spoke on ended, the booking link and how many of the people it went to have booked since (link), your first reply after a handover and the time to settle one (handover), the missed calls answered within an hour (missed), what came while the business was closed and how many of those the receptionist answered (closed), and what is stuck now (stuck: who waits on you, call-backs, the replies held back), with held_back giving the reasons the send door refused a reply; receptionist says available false where the database does not keep these numbers yet, and error where they could not be read.";
 const RUN_CHANNEL_WORDS = [
   "how many were sent, the share of those delivered and read, and how many replied,",
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
@@ -362,7 +369,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens and the Reviews lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -411,6 +418,10 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
         .replace(
           "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for",
           REPORT_REACH_OUTS_WORDS,
+        )
+        .replace(
+          "reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read.",
+          REPORT_RECEPTIONIST_WORDS,
         ),
       role,
     );

@@ -216,6 +216,7 @@ export {
   reportSeries,
   campaignSeries,
   reviewsLedger,
+  receptionistSeries,
   reachOutReport,
   ReportWindowNotReadable,
   playbookTotals,

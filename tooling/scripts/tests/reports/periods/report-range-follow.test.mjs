@@ -73,6 +73,8 @@ const json = (status, body) =>
 const DAYS_OF = { "7d": 7, "30d": 30, "90d": 90, month: 4 };
 /** Each range read, by its one name, in the order it was asked for; and what a range is answered with (default: its report). */
 const asked = [];
+/** The ranges the Receptionist lens's own read was asked for, by their one name (it follows what Reports shows, when its lens is on screen). */
+const lensAsked = [];
 const answers = new Map();
 /** The route's own refusal of days it will not read, and a read that could not be made at all. */
 const REFUSED = () =>
@@ -101,11 +103,12 @@ const report = (key) => {
 };
 globalThis.window.fetch = async (url) => {
   const u = new URL(String(url), "https://app.test");
-  if (/\/reports\/(campaigns|reach-outs|headline|reviews)$/.test(u.pathname)) return DOWN();
-  if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
   const key = u.searchParams.has("from")
     ? `${u.searchParams.get("from")}~${u.searchParams.get("to")}`
     : u.searchParams.get("period");
+  if (u.pathname.endsWith("/reports/receptionist")) lensAsked.push(key);
+  if (/\/reports\/(campaigns|reach-outs|headline|reviews|receptionist)$/.test(u.pathname)) return DOWN();
+  if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
   asked.push(key);
   return (answers.get(key) ?? (() => report(key)))();
 };
@@ -234,12 +237,18 @@ test("an address whose days the report refuses opens on the period kept: the pag
 
 test("a pick of days the report refuses is taken back: the period is read in their place, the page keeps it, and the address goes back", async () => {
   asked.length = 0;
+  lensAsked.length = 0;
   moves.length = 0;
   at("reports/receptionist");
   const ok = await setReportRange({ from: "2030-01-01", to: "2030-01-05" });
   await landed();
   assert.equal(ok, false, "the pick failed");
   assert.deepEqual(asked, [TO_COME, "7d"]);
+  assert.deepEqual(
+    lensAsked,
+    [TO_COME, "7d"],
+    "the Receptionist lens, on screen, follows the pick and is read again for the range kept; its own failed reads fail alone and move nothing",
+  );
   assert.deepEqual(
     moves,
     [

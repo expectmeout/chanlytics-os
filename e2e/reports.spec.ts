@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 import { routeOf } from "./address";
@@ -13,6 +13,14 @@ import { routeOf } from "./address";
  * page's own element: a capsule that says what the page is on and opens the four periods, three windows reached in one
  * press, and a month to pick any days on. Days a member picked are the address's (`reports/<lens>:<from>~<to>`), so a
  * link opens on them and Back walks them; they need 00360 on the database the app reads.
+ *
+ * The Receptionist lens draws its strip and its first cards from the frame's read and the rest from a read of its own
+ * (`GET reports/receptionist`, 00380): the hold, the topics, how calls ended, the time between steps and what is stuck now.
+ * The nightly's workspace holds the rows those draw (tooling/scripts/ops/e2e-workspace.mjs, convergeReceptionist), so every
+ * card has something to say; what they say is the unit tests', and here it is that each is drawn, from the right read. It
+ * keeps no opening hours (its config has no profile), so "answered while you were closed" asks for them. A database without
+ * 00380 answers that route `series: null` and the lens draws its kept cards and none of its own parts: the spec reads which
+ * of the two it is on and asserts the cards that database can draw.
  */
 const INVENTED = [
   "Revenue",
@@ -30,6 +38,86 @@ const INVENTED = [
  * workspace is seeded with (tooling/scripts/ops/e2e-workspace.mjs). What they say is google.spec.ts's.
  */
 const reviewsLens = (page: Page) => page.getByTestId("google-tiles");
+
+/** The days of a report the way `GET reports` carries them, and the four counts of them that must agree. */
+type ReportDay = Record<"messages_in" | "answered_ai" | "answered_you" | "unanswered", number>;
+
+/**
+ * Whether this database has the lens's own read (`receptionist_series`, 00380), as the route says it: a database without it
+ * answers `series: null`, and the lens then draws the cards of the frame's read (its kept cards) and none of its own parts.
+ */
+async function hasReceptionistSeries(page: Page): Promise<boolean> {
+  const res = await apiGet(page, "/api/v1/reports/receptionist?period=30d");
+  expect(res.status()).toBe(200);
+  const { series } = (await res.json()).data as { series: unknown };
+  return series !== null;
+}
+
+/**
+ * What the Receptionist lens draws once its own read has landed, on the nightly's workspace (e2e-workspace.mjs,
+ * convergeReceptionist: a week of Sam Example's conversation, two handovers resolved, a call nobody took and a send held at
+ * the door). The strip is the frame's four figures; the hold, the topics, how calls ended, the time between steps and what
+ * is stuck are the lens's own read, so they are waited for. A reason it stopped is no door (the Inbox takes no reason), and
+ * "Waiting on you" is the Inbox's. The workspace has set no opening hours, so the closed figure is not a number: it says
+ * "—", asks for the hours, and its door is the page where they are set.
+ *
+ * And the automated email in Sam's conversation is a customer message by its row and nobody's words by its claim, so it is
+ * in no count: the strip's customer messages are the period's, as the report carries them, and the report's own parts agree
+ * (a message asked is answered by the receptionist, by you or by nobody). The number is read, never written here: the
+ * nightly's other specs add and remove messages, and the sum is what the seed and the specs together made.
+ */
+async function theReceptionistLens(page: Page, report: Locator) {
+  const own = await hasReceptionistSeries(page);
+  const kept = ["receptionist-strip", "chart-answered", "chart-reasons", "chart-calls", "chart-reply"];
+  for (const id of kept) await expect(report.getByTestId(id), id).toBeVisible({ timeout: 20_000 });
+  if (!own) {
+    for (const id of ["chart-hold", "chart-topics", "receptionist-stuck"])
+      await expect(report.getByTestId(id), `${id}: no receptionist_series on this database`).toHaveCount(0);
+  } else {
+    for (const id of ["chart-hold", "chart-topics", "chart-call-endings", "receptionist-time", "receptionist-stuck"])
+      await expect(report.getByTestId(id), id).toBeVisible({ timeout: 20_000 });
+  }
+
+  const figures = report.getByTestId("receptionist-strip").locator(".figure");
+  await expect(figures).toHaveCount(4);
+  const labels = (await figures.locator(".figure-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
+  expect(labels).toEqual(["customer messages", "receptionist answered", "median reply time", "needed you"]);
+
+  await expect(report.getByTestId("chart-reasons").locator("button.ck-barlist-row"), "no reason is a door").toHaveCount(
+    0,
+  );
+  if (own) {
+    await expect(report.getByTestId("chart-hold")).toContainText(/went out as the hold ended/i);
+
+    const stuck = report.getByTestId("receptionist-stuck");
+    const waiting = stuck
+      .locator(".figure")
+      .filter({ has: page.locator(".figure-label", { hasText: /^waiting on you$/i }) });
+    await expect(waiting.locator(".figure-value"), "a count, and 0 where nobody waits").toHaveText(/^\d+\+?$/);
+    await expect(waiting.locator('a[href$="/inbox"]'), "and the Inbox is its door").toHaveCount(1);
+
+    // The steps after a reply are one strip; each figure is found by the metric it says (data-figure on the figure's root).
+    const closed = report.getByTestId("receptionist-figures").locator('.figure[data-figure="answered_while_closed"]');
+    await expect(closed, "no hours are set: the figure is there to ask for them").toBeVisible();
+    await expect(closed.locator(".figure-value")).toHaveText("—");
+    await expect(closed.locator(".figure-meta")).toContainText("set your opening hours to see this");
+    await expect(closed.locator('a[href$="/admin/workspace"]'), "and its door is where they are set").toHaveCount(1);
+  }
+
+  const res = await apiGet(page, "/api/v1/reports?period=30d");
+  expect(res.status()).toBe(200);
+  const { report: dto } = (await res.json()).data as { report: { days: number; series: ReportDay[] } };
+  const days = dto.series.slice(-dto.days);
+  const sum = (key: keyof ReportDay) => days.reduce((n, d) => n + d[key], 0);
+  const persons = sum("messages_in");
+  expect(persons, "the seed's people wrote to the workspace").toBeGreaterThan(0);
+  expect(
+    sum("answered_ai") + sum("answered_you") + sum("unanswered"),
+    "every message asked is answered by someone or by nobody",
+  ).toBe(persons);
+  const shown = /^\d+/.exec((await figures.first().locator(".figure-value").innerText()).trim());
+  expect(Number(shown?.[0]), "the strip counts the same persons' words").toBe(persons);
+}
 
 test.describe("Reports on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -105,6 +193,8 @@ test.describe("Reports on a real workspace", () => {
     for (const id of ["chart-reply", "chart-reasons", "chart-calls", "chart-booking"]) {
       await expect(report.getByTestId(id), id).toBeVisible();
     }
+    // The rest of the lens is a read of its own: the hold, the topics, how calls ended, the time between steps, what is stuck.
+    await theReceptionistLens(page, report);
     await page.getByTestId("lens-people").click();
     for (const id of ["chart-channels", "chart-rhythm", "chart-people"]) {
       await expect(report.getByTestId(id), id).toBeVisible();
@@ -191,6 +281,36 @@ test.describe("Reports on a real workspace", () => {
     await page.getByTestId("reports-period-open").click();
     await page.getByTestId("period-7d").click();
     await reviewsRead;
+    await page.getByTestId("reports-period-open").click();
+    await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    expect(documents, "a pick of another period is never a page request").toEqual([]);
+    // The Receptionist lens is an address too: it loads on its own, reads its own surface as it loads (a card from that read
+    // is drawn, not waiting on the other lenses'), and a pick of another period reads that route for the period. The Reviews
+    // block above picked 7 days, which the page keeps (REPORT_PERIOD_STORAGE) and opens on: the stored period is cleared first,
+    // or this lens would open on 7 days, its read would be over before it is waited for, and a pick of 7 days would read nothing.
+    await page.evaluate(() => localStorage.removeItem("chanlytics.report.period"));
+    await page.goto(`/w/${slug}/reports/receptionist`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("reports-real")).toBeVisible();
+    await expect(page.getByTestId("lens-receptionist")).toHaveAttribute("aria-current", "page");
+    // On a database without 00380 no card is of that read: the frame's own card stands in as the lens's proof it is drawn.
+    await expect(
+      page.getByTestId((await hasReceptionistSeries(page)) ? "receptionist-stuck" : "chart-reply"),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("reports-period-open"), "the lens opened on the default period").toHaveText(
+      "30 days",
+    );
+    documents.length = 0;
+    const receptionistRead = page.waitForRequest(
+      (r) =>
+        new URL(r.url()).pathname.endsWith("/api/v1/reports/receptionist") &&
+        r.url().includes("period=7d") &&
+        r.method() === "GET",
+    );
+    await page.getByTestId("reports-period-open").click();
+    await page.getByTestId("period-7d").click();
+    await receptionistRead;
     await page.getByTestId("reports-period-open").click();
     await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("Escape");

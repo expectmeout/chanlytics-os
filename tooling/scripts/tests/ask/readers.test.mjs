@@ -19,6 +19,7 @@ import {
   reportFacts,
   toCallVM,
   toPersonVM,
+  toReceptionistReportVM,
   toReportVM,
   toReviewsReportVM,
 } from "@chanlytics/contracts";
@@ -54,13 +55,18 @@ const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/cal
 const { person: onePerson } = await import(at("apps/dashboard/src/server/readers/person.ts"));
 const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
-const { report: reportReader, reviewsReport } = await import(at("apps/dashboard/src/server/readers/report.ts"));
+const {
+  report: reportReader,
+  reviewsReport,
+  receptionistReport,
+} = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const { campaignReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
 const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
 const reviewsRoute = await import(at("apps/dashboard/app/api/v1/reports/reviews/route.ts"));
+const receptionistRoute = await import(at("apps/dashboard/app/api/v1/reports/receptionist/route.ts"));
 const googleRoute = await import(at("apps/dashboard/app/api/v1/google/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
@@ -1610,7 +1616,7 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
     [dealsWorld(null), 7],
     [dealsWorld(undefined), 30],
   ]) {
-    const page = await reportsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
+    const page = await reportsRoute.GET.run(req(`?period=${days}d&workspace=${A}`), worldCtx(w));
     const r = await kernel.load(turnIn(worldCtx(w)), reportReader, { days, end: null });
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
@@ -1919,7 +1925,7 @@ test("a report the function will not answer is GET reports' 404, in its sentence
 test("the campaigns' report, for Ask and for the page: GET reports/campaigns answers its reader's payload over ask-routes' fixture, for each preset -- the function's series alone, and no row a citation names; a report it will not answer is the route's 404", async () => {
   const w = presetsWorld();
   for (const days of [7, 30, 90]) {
-    const page = await campaignsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
+    const page = await campaignsRoute.GET.run(req(`?period=${days}d&workspace=${A}`), worldCtx(w));
     const ctx = worldCtx(w);
     const r = await kernel.load(turnIn(ctx), campaignReport, { days, end: null });
     assert.deepEqual(r.data, page, "the route's payload");
@@ -2606,6 +2612,348 @@ test("a route's turn takes the workspace's name and zone from its membership: GE
     assert.equal((await kernel.load(bare, facts, undefined)).data.timezone, "UTC");
     assert.equal(bare.ctx.supabase.seen.length, 1);
   });
+});
+
+/* ------------------------------------------------------------ the Receptionist lens (Reports, C2) */
+
+const LINKS_URL = "https://cal.example/links.ics";
+/** Bo, Cy and Dee beside Ana (above): People as people_list answers it, each with the number a visit of theirs would carry. */
+const BO = { id: "k-bo", display_name: "Bo Example", wa_profile_name: null, phone_e164: "+19175550101", email: null };
+const CY = { id: "k-cy", display_name: "Cy Example", wa_profile_name: null, phone_e164: "+19175550102", email: null };
+const DEE = {
+  id: "k-dee",
+  display_name: "Dee Example",
+  wa_profile_name: null,
+  phone_e164: "+19175550103",
+  email: null,
+};
+const visit = (uid, name, phone, from, to) => [
+  "BEGIN:VEVENT",
+  `UID:${uid}`,
+  `SUMMARY:${name} · Cut`,
+  `DESCRIPTION:${name} ${phone}`,
+  `DTSTART;TZID=America/New_York:${from}`,
+  `DTEND;TZID=America/New_York:${to}`,
+  "END:VEVENT",
+];
+/**
+ * The calendar on CAL_NOW (Tuesday noon in New York): Ana's visit this afternoon, Bo's ten days before anyone sent him
+ * a link, and Dee's tomorrow, who was sent none. Cy has none.
+ */
+const LINKED_ICS = [
+  "BEGIN:VCALENDAR",
+  ...visit("r1", "Ana Ruiz", "+1 (917) 555-0100", "20260908T140000", "20260908T153000"),
+  ...visit("r2", "Bo Example", "+1 (917) 555-0101", "20260828T100000", "20260828T110000"),
+  ...visit("r3", "Dee Example", "+1 (917) 555-0103", "20260909T100000", "20260909T110000"),
+  "END:VCALENDAR",
+].join("\r\n");
+/** The people sent the booking link, as receptionist_series lists them: the moment each was first sent it. */
+const LINKS = {
+  total: 3,
+  people: [
+    { c: ANA.id, at: "2026-09-07T15:00:00.000Z" },
+    { c: BO.id, at: "2026-09-07T16:00:00.000Z" },
+    { c: CY.id, at: "2026-09-08T10:00:00.000Z" },
+  ],
+};
+const NO_HOLD = {
+  total: 0,
+  sent: 0,
+  canceled: 0,
+  steered: 0,
+  overtaken: 0,
+  person_first: 0,
+  waiting: 0,
+  other: 0,
+  low_confidence: 0,
+};
+const NO_HANDOVERS = { n: 0, replied: { n: 0, median_s: null }, settled: { n: 0, median_s: null } };
+const NO_MISSED = { n: 0, touched: 0, pending: 0, unknown: 0 };
+/** What receptionist_series answers (00380) for a quiet window, as the database hands it over: the days asked, ending where it was asked to; `over` is what the test puts in it. */
+const quietSeries = (a, over = {}) => ({
+  timezone: "America/New_York",
+  today: "2026-09-08",
+  end: a.p_end ?? "2026-09-08",
+  days: a.p_days,
+  hold: { now: NO_HOLD, before: { total: 0, sent: 0 } },
+  topics: { of: 0, stamped: 0, by_intent: {} },
+  languages: { of: 0, stamped: 0, by_language: {} },
+  blocked: { total: 0, by_reason: {} },
+  call_endings: { total: 0, by_reason: {} },
+  handover: { now: NO_HANDOVERS, before: NO_HANDOVERS },
+  missed: { now: NO_MISSED, before: NO_MISSED },
+  after_hours: [],
+  links: { total: 0, people: [] },
+  stuck: { open: [] },
+  ...over,
+});
+/** calendar-feed's Harbor (New York, its hours) with the calendar `url` names (none when null), receptionist_series answering `over` and People holding Ana, Bo, Cy and Dee. */
+const receptionistWorld = (url, over = {}, rpcs = {}) => ({
+  tables: calTables(url),
+  rpcs: {
+    receptionist_series: (a) => quietSeries(a, over),
+    people_list: () => [ANA, BO, CY, DEE],
+    ...rpcs,
+  },
+});
+const LENS = { days: 30, end: null };
+
+test("the Receptionist lens, for Ask and for the page: GET reports/receptionist answers its reader's payload, key for key and byte for byte, for each preset -- the database's series with the booking link counted against the calendar, and the hours beside it, no row of its own", async (t) => {
+  // The route reads the real clock: the file's calendar tests name theirs.
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  await withFeed({ body: LINKED_ICS }, async () => {
+    const w = receptionistWorld(LINKS_URL, { links: LINKS });
+    for (const [period, days] of [
+      ["7d", 7],
+      ["30d", 30],
+      ["90d", 90],
+    ]) {
+      const page = await receptionistRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
+      const r = await kernel.load(calIn(worldCtx(w)), receptionistReport, { days, end: null });
+      assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${period}: the route's payload, byte for byte`);
+      assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "profile"]);
+      assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-08", days]);
+      assert.deepEqual(page.series.links, { sent: 3, booked: 1, calendar: "ok" });
+      assert.deepEqual(r.rows, [], "drawn on the Reports page, whose row the report names");
+    }
+    await assert.rejects(
+      receptionistRoute.GET.run(req(`?period=14d&workspace=${A}`), worldCtx(w)),
+      (e) => e.status === 400,
+      "a period that is none of the four is refused at the door",
+    );
+  });
+});
+
+test("the Receptionist lens counts the people sent the booking link against the calendar by asked-then-booked's own rule: of three, one has a visit after the link -- People once, the calendar once, and the zone and the settings once, whoever asks", async () => {
+  await withFeed({ body: LINKED_ICS }, async (fetched) => {
+    const ctx = worldCtx(receptionistWorld(LINKS_URL, { links: LINKS }));
+    const r = await kernel.load(calIn(ctx), receptionistReport, LENS);
+    assert.deepEqual(r.data.series.links, { sent: 3, booked: 1, calendar: "ok" });
+    assert.equal("people" in r.data.series.links, false, "the people are counted, not carried");
+    assert.equal(fetched.length, 1, "the calendar asked once");
+    const seen = asked(ctx);
+    for (const q of ["rpc:receptionist_series", "rpc:people_list", "tenants.select", "tenant_config.select"])
+      assert.equal(seen.filter((x) => x === q).length, 1, `${q}: once`);
+  });
+});
+
+test("the Receptionist lens on a database that does not have its function yet (00380 not applied) answers 200 with `series: null` and the window it was asked, said once in the log with the workspace; any other refusal is still the route's failure", async () => {
+  const gone = Object.assign(
+    new Error("Could not find the function public.receptionist_series(p_days, p_tenant_id) in the schema cache"),
+    { code: "PGRST202" },
+  );
+  const absent = receptionistWorld(
+    null,
+    {},
+    {
+      receptionist_series: () => {
+        throw gone;
+      },
+    },
+  );
+  const { result: page, lines } = await logged("receptionist_series_missing", () =>
+    receptionistRoute.GET.run(req(`?workspace=${A}`), worldCtx(absent)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "series", "profile"]);
+  assert.equal(page.series, null);
+  assert.deepEqual([page.timezone, page.days], ["America/New_York", 30]);
+  assert.match(page.today, /^\d{4}-\d{2}-\d{2}$/, "the workspace's day, from the turn's clock and zone");
+  assert.deepEqual(
+    page.profile,
+    { hours: calProfile.hours, closures: calProfile.closures },
+    "the hours are still said",
+  );
+  assert.deepEqual(lines, [{ tenant_id: A }], "said once for the read, naming the workspace");
+
+  const ctx = worldCtx(absent);
+  const { result: r } = await logged("receptionist_series_missing", () =>
+    kernel.load(turnIn(ctx), receptionistReport, LENS),
+  );
+  assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
+  assert.equal(asked(ctx).filter((q) => q === "rpc:people_list").length, 0, "nobody is read for a link nobody listed");
+
+  // Days that ended before today name their last day in the answer, as the window was asked.
+  const { result: ended } = await logged("receptionist_series_missing", () =>
+    kernel.load(calIn(worldCtx(absent)), receptionistReport, { days: 20, end: "2026-08-31" }),
+  );
+  assert.deepEqual(
+    [ended.data.timezone, ended.data.today, ended.data.end, ended.data.days, ended.data.series],
+    ["America/New_York", "2026-09-08", "2026-08-31", 20, null],
+  );
+
+  // A different code is not this window: the route fails as it does for any read that cannot be made.
+  const denied = receptionistWorld(
+    null,
+    {},
+    {
+      receptionist_series: () => {
+        throw Object.assign(new Error("permission denied for function receptionist_series"), { code: "42501" });
+      },
+    },
+  );
+  const unsaid = await logged("receptionist_series_missing", async () => {
+    await assert.rejects(receptionistRoute.GET.run(req(`?workspace=${A}`), worldCtx(denied)), /permission denied/);
+  });
+  assert.deepEqual(unsaid.lines, [], "and the log does not call it the missing function");
+});
+
+test("the Receptionist lens: a function with no workspace is the route's 404 in its words, and a read that fails is its failure -- not found and could not read are two answers", async () => {
+  const unknown = receptionistWorld(null, {}, { receptionist_series: () => ({ error: "unknown_tenant" }) });
+  await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), receptionistReport, LENS), noReport);
+  await assert.rejects(receptionistRoute.GET.run(req(`?workspace=${A}`), worldCtx(unknown)), noReport);
+  const down = receptionistWorld(
+    null,
+    {},
+    {
+      receptionist_series: () => {
+        throw new Error("connection refused");
+      },
+    },
+  );
+  const failed = /receptionist_series: connection refused/;
+  await assert.rejects(kernel.load(turnIn(worldCtx(down)), receptionistReport, LENS), failed);
+  await assert.rejects(receptionistRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)), failed);
+});
+
+test("the Receptionist lens reads nobody it has no one to find: days that ended before today are 'ended', and a window in which no link was sent is none booked of none -- neither reads People or the calendar", async () => {
+  await withFeed({ body: LINKED_ICS }, async (fetched) => {
+    const ended = worldCtx(receptionistWorld(LINKS_URL, { today: "2026-10-06", links: LINKS }));
+    const clock = new Date("2026-10-06T16:00:00Z");
+    const r = await kernel.load(
+      kernel.readerContext(ended, { tenantId: A, role: "viewer" }, clock),
+      receptionistReport,
+      {
+        days: 20,
+        end: "2026-09-20",
+      },
+    );
+    assert.deepEqual(
+      r.data.series.links,
+      { sent: 3, booked: null, calendar: "ended" },
+      "three were sent it; the page says why no more",
+    );
+    assert.equal(r.data.end, "2026-09-20");
+    assert.deepEqual(
+      ended.supabase.seen.filter((q) => q.rpc),
+      [{ rpc: "receptionist_series", args: { p_tenant_id: A, p_days: 20, p_end: "2026-09-20" } }],
+      "the series, and not People: the fake people_list is never called",
+    );
+
+    const quiet = worldCtx(receptionistWorld(LINKS_URL));
+    const q = await kernel.load(calIn(quiet), receptionistReport, LENS);
+    assert.deepEqual(q.data.series.links, { sent: 0, booked: 0, calendar: "ok" });
+    assert.equal(asked(quiet).filter((x) => x === "rpc:people_list").length, 0, "no link sent: nobody to find");
+    assert.equal(fetched.length, 0, "and the calendar was asked of neither");
+  });
+});
+
+test("the Receptionist lens does not count who booked of a list the database cut short: with more people sent the link than it lists, `booked` is null with the calendar ok -- People and the calendar are not read, and the line says how many were sent and no more", async () => {
+  await withFeed({ body: LINKED_ICS }, async (fetched) => {
+    // receptionist_series lists at most 500 people and counts them all: a count of the listed would understate.
+    const listed = Array.from({ length: 500 }, (_, i) => ({ c: `k-${i}`, at: "2026-09-07T15:00:00.000Z" }));
+    const cut = worldCtx(receptionistWorld(LINKS_URL, { links: { total: 501, people: listed } }));
+    const r = await kernel.load(calIn(cut), receptionistReport, LENS);
+    assert.deepEqual(r.data.series.links, { sent: 501, booked: null, calendar: "ok" });
+    assert.equal(asked(cut).filter((x) => x === "rpc:people_list").length, 0, "nobody is read for a count that is cut");
+    assert.equal(fetched.length, 0, "nor the calendar");
+    assert.equal(
+      toReceptionistReportVM(r.data, { nowMs: CAL_NOW.getTime() }).link.line,
+      "501 people were sent the booking link.",
+      "the fold says how many were sent, and nothing of a calendar that could not be asked",
+    );
+
+    // The whole list listed is counted as ever: 500 sent, 500 listed.
+    const whole = worldCtx(receptionistWorld(LINKS_URL, { links: { total: 500, people: listed } }));
+    const w = await kernel.load(calIn(whole), receptionistReport, LENS);
+    assert.deepEqual(w.data.series.links, { sent: 500, booked: 0, calendar: "ok" });
+    assert.equal(asked(whole).filter((x) => x === "rpc:people_list").length, 1);
+  });
+});
+
+test("the Receptionist lens never fails for the booking link: a workspace with no calendar, a calendar that cannot be read and People that cannot be read are each said as what they are, with `booked` null and never 0", async () => {
+  const none = await kernel.load(calIn(worldCtx(receptionistWorld(null, { links: LINKS }))), receptionistReport, LENS);
+  assert.deepEqual(none.data.series.links, { sent: 3, booked: null, calendar: "none" });
+
+  const { result: down } = await logged("ask_feed_fetch_failed", () =>
+    withFeed({ body: "nope", status: 503 }, () =>
+      kernel.load(calIn(worldCtx(receptionistWorld(LINKS_URL, { links: LINKS }))), receptionistReport, LENS),
+    ),
+  );
+  assert.deepEqual(down.data.series.links, { sent: 3, booked: null, calendar: "unavailable" });
+
+  const unreadable = receptionistWorld(
+    LINKS_URL,
+    { links: LINKS },
+    {
+      people_list: () => {
+        throw new Error("people down");
+      },
+    },
+  );
+  const { result: broken, lines } = await logged("booking_report_failed", () =>
+    kernel.load(calIn(worldCtx(unreadable)), receptionistReport, LENS),
+  );
+  assert.deepEqual(broken.data.series.links, { sent: 3, booked: null, calendar: "unavailable" });
+  assert.equal(lines.length, 1, "logged once, never fatal");
+  assert.equal(lines[0].tenant_id, A);
+  assert.match(lines[0].error, /people down/);
+  assert.notEqual(broken.data.series.hold, undefined, "and the rest of the lens is answered");
+});
+
+test("the Receptionist lens counts who waits on you by the one rule: a flagged thread nobody has, a call-back among them -- not one a teammate has, not one put aside", async () => {
+  const escalation = (reason, created_at, state, over = {}) => ({
+    reason,
+    created_at,
+    state,
+    paused_until: null,
+    assignee_user_id: null,
+    ...over,
+  });
+  const open = [
+    escalation("human_token", "2026-09-21T08:00:00Z", "needs_human"),
+    escalation("callback", "2026-09-21T09:00:00Z", "open"),
+    escalation("manual", "2026-09-21T07:00:00Z", "open", { assignee_user_id: "u2" }), // a teammate has it
+    escalation("human_token", "2026-09-20T09:00:00Z", "snoozed"), // put aside
+  ];
+  const ctx = worldCtx(receptionistWorld(null, { today: "2026-09-21", stuck: { open } }));
+  const clock = new Date("2026-09-21T12:00:00Z");
+  const r = await kernel.load(
+    kernel.readerContext(ctx, { tenantId: A, role: "viewer" }, clock),
+    receptionistReport,
+    LENS,
+  );
+  assert.deepEqual(r.data.series.stuck, {
+    waiting: 2,
+    oldest_at: "2026-09-21T08:00:00Z",
+    callbacks: 1,
+    capped: false,
+  });
+});
+
+test("the Receptionist lens carries the hours and closures the report carries -- one read of the same config in the turn -- and none where the config cannot be read", async () => {
+  const w = receptionistWorld(null, {}, { report_series: series });
+  const ctx = worldCtx(w);
+  const rc = calIn(ctx);
+  const [page, lens] = await Promise.all([
+    kernel.load(rc, reportReader, LENS),
+    kernel.load(rc, receptionistReport, LENS),
+  ]);
+  assert.deepEqual(lens.data.profile, page.data.profile, "one derivation of the profile");
+  assert.deepEqual(lens.data.profile, { hours: calProfile.hours, closures: calProfile.closures });
+  assert.equal(asked(ctx).filter((q) => q === "tenant_config.select").length, 1, "the config is read once for both");
+
+  // No row, and a config the parser refuses (a brain without its name, prompt and fallbacks): no profile, and the series is answered.
+  const noRow = receptionistWorld(null);
+  noRow.tables.tenant_config = [];
+  const refused = receptionistWorld(null);
+  refused.tables.tenant_config = [
+    { tenant_id: A, config: { brain: { profile: { hours: calProfile.hours } } }, version: 1 },
+  ];
+  for (const world of [noRow, refused]) {
+    const r = await kernel.load(calIn(worldCtx(world)), receptionistReport, LENS);
+    assert.equal(r.data.profile, null);
+    assert.notEqual(r.data.series, null);
+  }
 });
 
 /* ----------------------------------------------------------------------- the openings (PR 1.5) */

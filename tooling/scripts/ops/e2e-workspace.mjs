@@ -4,10 +4,10 @@
  * The signed-in end-to-end specs used to run as the owner's own account inside
  * a live customer's workspace: every run wrote to it, and the Ask specs spent
  * model tokens there. This makes a workspace that is the suite's alone -- a test
- * owner with exactly one membership, a teammate, three fictional people, one
- * conversation, one call and a WhatsApp channel -- and puts it back in the same
+ * owner with exactly one membership, a teammate, three fictional people, two
+ * conversations, two calls and a WhatsApp channel -- and puts it back in the same
  * state every night, because the specs change some of it and time moves the rest
- * (Reports only counts the last thirty days, so the conversation is re-dated).
+ * (Reports only counts the last thirty days, so the conversations are re-dated).
  *
  * Every row is chosen to be one production's background work leaves alone:
  *   - the WhatsApp channel has no credentials, no WhatsApp business account and
@@ -44,14 +44,19 @@
  *   - Google holds one listing at a fixture place id, the Business Profile connected to it with no credentials, four of
  *     its reviews and two days of its count: what e2e/google.spec.ts reads of the Reviews lens, with a reply the
  *     receptionist wrote and one held back (convergeGoogle says how the sweeps leave them);
+ *   - Reports' Receptionist lens reads a week of Sam Example's own conversation, a call nobody took, a send the door held
+ *     back and two handovers (convergeReceptionist says how each is left alone): every row terminal and dated from the
+ *     run, and none of it for a sweep, a job or the bell to find. The config keeps no profile, so no opening hours, and
+ *     the lens's "answered while you were closed" asks for them, as it does of any workspace that has not set them;
  *   - under `--seed-win-back` alone (Ruben's run by hand, never the nightly's),
  *     one playbook, a Win-back on silence, paused so no sweep runs it, on a
  *     made-up message of its own: what Ask's change cases resume, rename and
  *     retime (the moment spec, A8; decision D3); without it, an existing
  *     Win-back is only put back paused, and nothing is added;
- *   - and there is no job, escalation, line or broadcast.
+ *   - and there is no job, open escalation, line or broadcast: the two handovers are resolved, since the deadman pages
+ *     the platform for one left open two hours.
  *
- * Merging seeds nothing: the nightly (.github/workflows/nightly-e2e.yml, every
+ * Merging seeds no Win-back: the nightly (.github/workflows/nightly-e2e.yml, every
  * day at 09:00 UTC) passes --apply alone. The Win-back's first run,
  * `--apply --seed-win-back`, is Ruben's call, run by hand and away from 09:00
  * UTC, after the merge; the nightly then keeps it paused and adds nothing.
@@ -71,6 +76,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   DAY_MS,
   HOUR_MS,
+  MIN_MS,
   TenantConfigWriteSchema,
   leadMonth,
   leadQuestionRoute,
@@ -79,6 +85,7 @@ import {
   newReceptionistDefaults,
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db";
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -453,6 +460,86 @@ export const GOOGLE_DAYS = [
   { daysAgo: 31, rating: 5, review_count: 1 },
   { daysAgo: 0, rating: 4, review_count: 4 },
 ];
+
+/**
+ * What Reports' Receptionist lens reads (convergeReceptionist): a week of Sam Example's own conversation on WhatsApp, two
+ * handovers and a call nobody took. Every row's `external_id` (and the call's id) starts with this, so a run finds and
+ * deletes last night's by it, and nothing else.
+ */
+export const RECEPTIONIST_PREFIX = "e2e-seed-r-";
+/** The call nobody took: Casey Example's, that never connected, with nobody ringing back or writing in the hour after. */
+export const MISSED_CALL_ID = `${RECEPTIONIST_PREFIX}missed`;
+/** The hold the owner set, as a held draft carries it (apps/edge/lib/receptionist/draft-queue.ts: `meta.delay_ms`). */
+const HOLD_MS = MIN_MS;
+/**
+ * Sam's five asks, on the workspace's own calendar (days before the run, and the wall-clock time), every one at least two
+ * calendar days back: the unfinished-message sweep looks back a day for a text nobody finished with and the bell keeps a
+ * missed call a day, so nothing here is theirs, and Robin's thread, two hours old, stays the newest conversation. Three
+ * are about booking and two about prices, as the receptionist read them (`meta.intent`), and each was answered by the
+ * receptionist in the language it was asked in. A held reply went out a minute and two seconds after the ask (the hold,
+ * and the seconds it took to go); one ask had a draft the owner cancelled first (`cancelled`: an owner's cancel leaves
+ * no reason), and one a draft the owner steered (`steered`: the old draft is retired for its replacement, and says so).
+ * The times of day are fixed, so the quarter hour each falls in does not depend on when the run is.
+ */
+const SAM_ASKS = [
+  {
+    daysAgo: 6,
+    at: "10:10",
+    intent: "booking",
+    body: "Hi, do you have any time on Thursday?",
+    answer: { held: true, language: "en", body: `Yes! Pick a time here: ${BOOKING_LINK}` },
+  },
+  {
+    daysAgo: 5,
+    at: "14:30",
+    intent: "pricing",
+    body: "How much is a first visit?",
+    cancelled: "Hello! How can I help you today?",
+    answer: {
+      held: true,
+      language: "en",
+      body: "Prices depend on the visit; the team will tell you the exact figure.",
+    },
+  },
+  {
+    daysAgo: 4,
+    at: "21:15",
+    intent: "booking",
+    body: "Hola, ¿tienen un hueco el sábado?",
+    answer: { held: true, language: "es", body: `¡Claro! Reserva aquí: ${BOOKING_LINK}` },
+  },
+  {
+    daysAgo: 3,
+    at: "08:20",
+    intent: "pricing",
+    body: "And what do you charge for a follow-up?",
+    steered: "A follow-up costs the same as a first visit.",
+    answer: { held: false, language: "en", body: "A follow-up is quoted by the team, who will message you today." },
+  },
+  {
+    daysAgo: 2,
+    at: "11:05",
+    intent: "booking",
+    body: "Can I move my booking to next week?",
+    answer: { held: false, language: "en", body: `Of course. Pick a new time here: ${BOOKING_LINK}` },
+  },
+];
+/** Mail a program wrote from an address Sam owns: a customer message by its row, and nobody's words (public.message_is_a_persons_words). */
+const SAM_AUTOMATED_MAIL = {
+  daysAgo: 3,
+  at: "03:12",
+  body: "Your order has shipped. This is an automated message; please do not reply.",
+};
+/**
+ * Two handovers, resolved when they were written (the stamp trigger runs on UPDATE only, so the times are the seed's): a
+ * person's own reply ten minutes after each, and the thread settled 50 and 70 minutes after it was handed over.
+ */
+const SAM_HANDOVERS = [
+  { daysAgo: 5, at: "15:00", settledAfter: 50 * MIN_MS, reply: "Hello, this is the team. Happy to help with that." },
+  { daysAgo: 3, at: "12:00", settledAfter: 70 * MIN_MS, reply: "Hi, the team here. We can look at that together." },
+];
+/** The call nobody took: an hour or more with no answer, on a day that is not news to the bell for a day after. */
+const MISSED_CALL = { daysAgo: 2, at: "15:20" };
 
 /**
  * Every person's two answers, in force after each run: a yes to messages, taken
@@ -1018,6 +1105,7 @@ export async function converge(
   await convergeGoogle(db, T, ownerId, now);
   const winBack = await convergeWinBack(db, T, ownerId, seedWinBack);
   if (winBack) did.push(winBack);
+  await convergeReceptionist(db, T, ownerId, now);
 
   const problems = await verify(db, T, ownerId);
   if (problems.length) throw new Error(`the workspace is not in its known state: ${problems.join("; ")}`);
@@ -1477,6 +1565,272 @@ async function convergeGoogle(db, T, ownerId, now) {
   );
 }
 
+const SECOND_MS = 1_000;
+
+/**
+ * The instant a wall-clock time falls on a day of the workspace's calendar, in its zone: the date and "HH:MM" read as if
+ * they were UTC, then moved back by the zone's offset at that moment (asked twice, so a day the clocks change on lands
+ * right). The times of day are the seed's own, so the quarter hour a message falls in does not depend on when the run is.
+ */
+function atLocal(day, clock, zone = TIMEZONE) {
+  const [hour, minute] = clock.split(":").map(Number);
+  const wall = Date.parse(`${day}T00:00:00Z`) + hour * HOUR_MS + minute * MIN_MS;
+  const clockOf = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  });
+  const offsetAt = (at) => {
+    const p = Object.fromEntries(clockOf.formatToParts(new Date(at)).map((x) => [x.type, Number(x.value)]));
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(at / 1000) * 1000;
+  };
+  return wall - offsetAt(wall - offsetAt(wall));
+}
+
+/**
+ * The Receptionist lens's rows (Reports, receptionist_series): Sam Example's own conversation, a call nobody took, a send
+ * the door held back and two handovers, deleted and written again every run and dated from it. The workspace keeps no
+ * opening hours (its config has no profile, which other nightly specs and the local harness's record rely on), so the
+ * lens's closed figure says it needs them. Sam's conversation is his, not Robin's, whose two messages the Inbox, thread and exports specs read: every
+ * message in it is two or more calendar days old, so Robin's, two hours old, is the newest conversation (verify says so
+ * of its first). What the lens draws of them is in SAM_ASKS: topics, languages, the hold and its outcomes, the handovers.
+ *
+ * All of it terminal, so that nothing production runs in the background finds it:
+ *   - no message is queued and no job exists, so no send sweep or send job has a row;
+ *   - nothing is less than a day old, so the unfinished-message sweep (a text with no reply or stamp, within a day) cannot
+ *     reach a message, and each ask is stamped handled and processed besides; the bell keeps a missed call a day
+ *     (missedCallIsNews), and this one is older;
+ *   - the conversation and the call are stamped as read by the note sweep (note_checked_at, 00159: it reads a thread
+ *     again only for a customer message newer than the stamp, and a call that has none), so no model is asked about them;
+ *   - the two handovers are inserted resolved, with both times set (the stamp trigger acts on UPDATE only), and none is
+ *     open: the deadman pages the platform for one left open two hours;
+ *   - the held replies went out (`delivered`) and the others were cancelled, so the booking-link note (a trigger on a
+ *     `sent` row) does not run and no hold is waiting; the call is a dial that never connected, with no recording, no
+ *     thread and its post-call mail already sent, which the calls sweep and the note sweep both leave alone;
+ *   - the blocked send is an event on the ledger, of the kind and the data packages/core/src/deliver.ts files
+ *     (message.send_blocked, through emitEvent), about Sam's thread since the message it would be about is not one of the
+ *     seed's; nothing reads it but the lens. A run deletes the workspace's blocked sends before it files its own: the
+ *     messages they were about are the ones the specs and this seed clear.
+ *
+ * The automated email is in Sam's conversation as a customer message by its row and nobody's words by its claim, so the
+ * lens counts it nowhere (public.message_is_a_persons_words).
+ */
+export async function convergeReceptionist(db, T, ownerId, now) {
+  const stamp = new Date(now).toISOString();
+  const today = new Date(now).toLocaleDateString("en-CA", { timeZone: TIMEZONE });
+  const dayOf = (daysAgo) => new Date(Date.parse(`${today}T00:00:00Z`) - daysAgo * DAY_MS).toISOString().slice(0, 10);
+  const at = (daysAgo, clock, afterMs = 0) => new Date(atLocal(dayOf(daysAgo), clock) + afterMs).toISOString();
+
+  const people = must("reading the people", await db.from("contacts").select("id, phone_e164").eq("tenant_id", T));
+  const casey = people.find((p) => p.phone_e164 === PEOPLE[1].phone);
+  const sam = people.find((p) => p.phone_e164 === PEOPLE[2].phone);
+  if (!casey || !sam)
+    throw new Error("the Receptionist lens's rows are Casey Example's and Sam Example's: one is missing");
+
+  // Last night's, whatever the specs did to them, gone first: Sam's conversation with everything in it (the handovers
+  // first, for they name it), the call by its id, and the workspace's blocked sends, which are about messages that are gone.
+  const mine = must(
+    "reading Sam's conversation",
+    await db.from("conversations").select("id").eq("tenant_id", T).eq("contact_id", sam.id),
+  );
+  const mineIds = mine.map((c) => c.id);
+  await deleteWhere(db, "escalations", "conversation_id", mineIds, "clearing Sam's handovers");
+  const strays = must("reading the messages", await db.from("messages").select("id, external_id").eq("tenant_id", T));
+  await deleteWhere(
+    db,
+    "messages",
+    "id",
+    strays.filter((m) => String(m.external_id ?? "").startsWith(RECEPTIONIST_PREFIX)).map((m) => m.id),
+    "clearing the Receptionist messages",
+  );
+  await deleteWhere(db, "messages", "conversation_id", mineIds, "clearing what else is in Sam's conversation");
+  await deleteWhere(db, "conversations", "id", mineIds, "clearing Sam's conversation");
+  const missedBefore = must(
+    "reading the missed call",
+    await db.from("calls").select("id").eq("tenant_id", T).eq("retell_call_id", MISSED_CALL_ID),
+  );
+  await deleteWhere(
+    db,
+    "calls",
+    "id",
+    missedBefore.map((c) => c.id),
+    "clearing the missed call",
+  );
+  must(
+    "clearing the blocked sends",
+    await db.from("events").delete().eq("tenant_id", T).eq("kind", "message.send_blocked"),
+  );
+
+  // Sam's messages, in the order they happened. Every row carries the same keys and its own id: a bulk insert sends a key
+  // some rows lack as NULL, and an id of NULL is no id.
+  const rows = [];
+  const add = (row) =>
+    rows.push({ id: randomUUID(), type: "text", channel: "whatsapp", channel_ts: row.created_at, ...row });
+  for (const [i, ask] of SAM_ASKS.entries()) {
+    const n = i + 1;
+    const asked = at(ask.daysAgo, ask.at);
+    const after = (ms) => new Date(Date.parse(asked) + ms).toISOString();
+    const held = { source: "veto_window", delay_ms: HOLD_MS, language: ask.answer.language };
+    const replacementId = randomUUID();
+    add({
+      direction: "inbound",
+      sender: "customer",
+      body: ask.body,
+      external_id: `${RECEPTIONIST_PREFIX}in-${n}`,
+      created_at: asked,
+      status: "received",
+      meta: { intent: ask.intent, handled: "ai", processed_at: after(3 * SECOND_MS) },
+    });
+    if (ask.cancelled)
+      add({
+        direction: "outbound",
+        sender: "ai",
+        body: ask.cancelled,
+        external_id: `${RECEPTIONIST_PREFIX}draft-cancelled`,
+        created_at: after(5 * SECOND_MS),
+        status: "canceled",
+        status_updated_at: after(15 * SECOND_MS),
+        error: null,
+        meta: held,
+      });
+    if (ask.steered)
+      add({
+        direction: "outbound",
+        sender: "ai",
+        body: ask.steered,
+        external_id: `${RECEPTIONIST_PREFIX}draft-steered`,
+        created_at: after(5 * SECOND_MS),
+        status: "canceled",
+        status_updated_at: after(40 * SECOND_MS),
+        error: { reason: "steered", replaced_by: replacementId },
+        meta: held,
+      });
+    const wentAt = after(ask.answer.held ? HOLD_MS + 2 * SECOND_MS : ask.steered ? 45 * SECOND_MS : 20 * SECOND_MS);
+    add({
+      ...(ask.steered ? { id: replacementId } : {}),
+      direction: "outbound",
+      sender: "ai",
+      body: ask.answer.body,
+      external_id: `${RECEPTIONIST_PREFIX}out-${n}`,
+      created_at: wentAt,
+      status: "delivered",
+      status_updated_at: wentAt,
+      meta: ask.answer.held ? held : { ...(ask.steered ? { source: "steered" } : {}), language: ask.answer.language },
+    });
+  }
+  add({
+    channel: "email",
+    direction: "inbound",
+    sender: "customer",
+    body: SAM_AUTOMATED_MAIL.body,
+    external_id: `${RECEPTIONIST_PREFIX}mail`,
+    created_at: at(SAM_AUTOMATED_MAIL.daysAgo, SAM_AUTOMATED_MAIL.at),
+    status: "received",
+    meta: { email: { claim: "automated" } },
+  });
+  for (const [i, h] of SAM_HANDOVERS.entries()) {
+    const repliedAt = at(h.daysAgo, h.at, 10 * MIN_MS);
+    add({
+      direction: "outbound",
+      sender: "human",
+      sent_by: ownerId,
+      body: h.reply,
+      external_id: `${RECEPTIONIST_PREFIX}human-${i + 1}`,
+      created_at: repliedAt,
+      status: "delivered",
+      status_updated_at: repliedAt,
+      meta: {},
+    });
+  }
+
+  const latest = (keep) => new Date(Math.max(...rows.filter(keep).map((r) => Date.parse(r.created_at)))).toISOString();
+  const cv = must(
+    "starting Sam's conversation",
+    await db
+      .from("conversations")
+      .insert({
+        tenant_id: T,
+        contact_id: sam.id,
+        state: "open",
+        paused_until: null,
+        snooze_until: null,
+        assignee_user_id: null,
+        created_at: new Date(Math.min(...rows.map((r) => Date.parse(r.created_at)))).toISOString(),
+        last_message_at: latest(() => true),
+        last_inbound_at: latest((r) => r.direction === "inbound"),
+        last_wa_inbound_at: latest((r) => r.direction === "inbound" && r.channel === "whatsapp"),
+        // Read by the note sweep as of this run, which is later than anything the customer wrote.
+        note_checked_at: stamp,
+      })
+      .select("id")
+      .single(),
+  );
+  must(
+    "Sam's messages",
+    await db
+      .from("messages")
+      .insert(rows.map((r) => ({ tenant_id: T, conversation_id: cv.id, contact_id: sam.id, ...r }))),
+  );
+
+  // Two handovers, inserted resolved with both times set.
+  must(
+    "the handovers",
+    await db.from("escalations").insert(
+      SAM_HANDOVERS.map((h) => ({
+        tenant_id: T,
+        conversation_id: cv.id,
+        reason: "human_token",
+        details: "Asked to speak to a person.",
+        state: "resolved",
+        resolved_by_user_id: ownerId,
+        created_at: at(h.daysAgo, h.at),
+        updated_at: at(h.daysAgo, h.at, h.settledAfter),
+        resolved_at: at(h.daysAgo, h.at, h.settledAfter),
+      })),
+    ),
+  );
+
+  // A call that never connected: no note, no recording, no thread, already notified, and read by the note sweep.
+  const rang = at(MISSED_CALL.daysAgo, MISSED_CALL.at);
+  must(
+    "the call nobody took",
+    await db.from("calls").insert({
+      tenant_id: T,
+      retell_call_id: MISSED_CALL_ID,
+      agent_id: null,
+      channel_id: null,
+      contact_id: casey.id,
+      conversation_id: null,
+      message_id: null,
+      direction: "inbound",
+      call_type: "phone_call",
+      from_e164: casey.phone_e164,
+      to_e164: BUSINESS_PHONE,
+      status: "not_connected",
+      started_at: rang,
+      ended_at: rang,
+      duration_ms: 0,
+      disconnection_reason: null,
+      in_voicemail: false,
+      recording: null,
+      raw: {},
+      created_at: rang,
+      notified_at: rang,
+      note_checked_at: stamp,
+    }),
+  );
+
+  await emitEvent(db, T, "message.send_blocked", "conversation", cv.id, {
+    reason: "human_has_it",
+    purpose: "conversational",
+  });
+}
+
 /**
  * The eval's Win-back (the moment spec, A8; decision D3): one playbook on silence, PAUSED, so the hourly sweep never runs
  * it (playbooks_due takes only a running one), on a made-up message of its own: approved, no slot, a WhatsApp row the
@@ -1734,6 +2088,42 @@ export async function verify(db, T, ownerId) {
   ]).sort();
   if (JSON.stringify(repliesFiled) !== JSON.stringify(repliesWanted))
     problems.push(`the workspace's reply events are not the fixtures' (${repliesFiled.join(", ")})`);
+  // The state the Receptionist lens reads (e2e/reports.spec.ts) and the sweeps must leave alone: a week of Sam's
+  // conversation, none of it queued; two handovers, both resolved with the time they were and none open, since the
+  // deadman pages the platform for one left open two hours; a call that never connected; and the send the door held back,
+  // which is filed best-effort and so is read back.
+  const escalations = await read(
+    "the escalations",
+    db.from("escalations").select("state, resolved_at").eq("tenant_id", T),
+  );
+  const open = escalations.filter((e) => e.state !== "resolved");
+  if (open.length)
+    problems.push(
+      `${open.length} open escalation(s) in the workspace: the deadman pages the platform for one left open`,
+    );
+  if (escalations.length !== SAM_HANDOVERS.length || escalations.some((e) => !e.resolved_at))
+    problems.push(
+      `the workspace should hold exactly ${SAM_HANDOVERS.length} escalations, each resolved at a time of its own`,
+    );
+  const queued = await read(
+    "the queued messages",
+    db.from("messages").select("id").eq("tenant_id", T).eq("status", "queued"),
+  );
+  if (queued.length) problems.push(`${queued.length} message(s) queued in the workspace, for a send job to pick up`);
+  const missed = await read(
+    "the missed call",
+    db.from("calls").select("status, direction").eq("tenant_id", T).eq("retell_call_id", MISSED_CALL_ID).maybeSingle(),
+  );
+  if (missed?.status !== "not_connected" || missed?.direction !== "inbound")
+    problems.push("the workspace should hold the call nobody took: an inbound call that never connected");
+  const blocked = await read(
+    "the blocked sends",
+    db.from("events").select("data").eq("tenant_id", T).eq("kind", "message.send_blocked"),
+  );
+  if (blocked.length !== 1 || blocked[0].data?.reason !== "human_has_it")
+    problems.push(
+      "the blocked send the door held back is not on the ledger exactly once, as the Receptionist lens counts it",
+    );
   // The eval's Win-back, where --seed-win-back has seeded it: paused, so no sweep runs it. None is no problem: the
   // nightly seeds none.
   const winBacks = await read(

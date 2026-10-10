@@ -50,6 +50,7 @@ import {
   toPersonVM,
   toPersonRowVM,
   nextRunLabel,
+  toReceptionistReportVM,
   toReportVM,
   toReviewsReportVM,
   toReachOutReportVM,
@@ -1219,6 +1220,329 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
     ["7 days", (await run(profile)).tiles.length, "the campaign numbers could not be read just now"],
     "the report's own numbers stand beside it",
   );
+});
+
+test("report says the Receptionist lens as the page does (Reports C2, the Receptionist lens): the hold, the topics and languages, how calls ended, the booking link and who booked, the two handover times, the calls nobody took, what came while closed and what is stuck, each sentence from the one fold; available false on a database without the function, an error where its read failed, words for an empty period", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const DAY = 86_400_000;
+  const HOUR = 3_600_000;
+  const today = iso(NOW.getTime()).slice(0, 10);
+  const ics = (ms) =>
+    new Date(ms)
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
+  // Rosa was sent the booking link yesterday and has a visit the day after tomorrow; six more were sent it and People holds
+  // none of them (merged or erased: a person it no longer holds is not counted, the link having gone to seven).
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:r1",
+    `DTSTART:${ics(NOW.getTime() + 2 * DAY)}`,
+    `DTEND:${ics(NOW.getTime() + 2 * DAY + HOUR)}`,
+    "SUMMARY:Rosa · Estimate",
+    "DESCRIPTION:+15555550100",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
+  const rosa = {
+    id: CLIENT,
+    display_name: "Rosa",
+    wa_profile_name: null,
+    phone_e164: "+15555550100",
+    email: null,
+    came_from: "lead",
+    last_inbound_at: iso(NOW.getTime() - DAY),
+  };
+  const sentTheLink = [CLIENT, ...[2, 3, 4, 5, 6, 7].map((n) => `cccccccc-cccc-4ccc-8ccc-cccccccccc0${n}`)].map(
+    (c) => ({ c, at: iso(NOW.getTime() - DAY) }),
+  );
+  const NO_HOLD = {
+    total: 0,
+    sent: 0,
+    canceled: 0,
+    steered: 0,
+    overtaken: 0,
+    person_first: 0,
+    waiting: 0,
+    other: 0,
+    low_confidence: 0,
+  };
+  const NO_HANDOVERS = { n: 0, replied: { n: 0, median_s: null }, settled: { n: 0, median_s: null } };
+  const NO_MISSED = { n: 0, touched: 0, pending: 0, unknown: 0 };
+  /** What receptionist_series answers (00380) for a period with nothing in it; `over` is what a world puts in it. */
+  const quietSeries = (a, over = {}) => ({
+    timezone: TZ,
+    today,
+    days: a.p_days,
+    hold: { now: NO_HOLD, before: { total: 0, sent: 0 } },
+    topics: { of: 0, stamped: 0, by_intent: {} },
+    languages: { of: 0, stamped: 0, by_language: {} },
+    blocked: { total: 0, by_reason: {} },
+    call_endings: { total: 0, by_reason: {} },
+    handover: { now: NO_HANDOVERS, before: NO_HANDOVERS },
+    missed: { now: NO_MISSED, before: NO_MISSED },
+    after_hours: [],
+    links: { total: 0, people: [] },
+    stuck: { open: [] },
+    ...over,
+  });
+  // A week's worth of counts. The workspace's hours are Monday 9 to 5 alone, so the Sunday and Saturday messages came while
+  // it was closed (three and two, the receptionist answered first to one and to both) and Monday 10:00 did not count.
+  const escalation = (reason, agoMs, state, over = {}) => ({
+    reason,
+    created_at: iso(NOW.getTime() - agoMs),
+    state,
+    paused_until: null,
+    assignee_user_id: null,
+    ...over,
+  });
+  const busy = {
+    hold: {
+      now: {
+        total: 14,
+        sent: 9,
+        canceled: 1,
+        steered: 1,
+        overtaken: 1,
+        person_first: 1,
+        waiting: 0,
+        other: 1,
+        low_confidence: 3,
+      },
+      before: { total: 10, sent: 8 },
+    },
+    topics: { of: 41, stamped: 33, by_intent: { booking: 12, pricing: 9, hours: 6, services: 4, other: 2 } },
+    languages: { of: 38, stamped: 38, by_language: { en: 30, es: 8 } },
+    blocked: { total: 4, by_reason: { human_has_it: 3, opted_out: 1 } },
+    call_endings: { total: 18, by_reason: { user_hangup: 11, agent_hangup: 5, unknown: 2 } },
+    handover: {
+      now: { n: 12, replied: { n: 11, median_s: 540 }, settled: { n: 9, median_s: 3900 } },
+      before: { n: 10, replied: { n: 9, median_s: 780 }, settled: { n: 7, median_s: 5400 } },
+    },
+    missed: { now: { n: 6, touched: 4, pending: 1, unknown: 1 }, before: { n: 4, touched: 3, pending: 0, unknown: 0 } },
+    after_hours: [
+      { d: "2026-09-13", q: 44, n: 3, a: 1 },
+      { d: "2026-09-12", q: 84, n: 2, a: 2 },
+      { d: "2026-09-14", q: 40, n: 4, a: 4 },
+    ],
+    links: { total: 7, people: sentTheLink },
+    // Four are open: one flagged and nobody's, a call-back, one a teammate has, and one put aside: two wait on the member.
+    stuck: {
+      open: [
+        escalation("human_token", 6 * HOUR, "needs_human"),
+        escalation("callback", 5 * HOUR, "open"),
+        escalation("manual", 7 * HOUR, "open", { assignee_user_id: "u2" }),
+        escalation("human_token", DAY, "snoozed"),
+      ],
+    },
+  };
+  const rpcs = {
+    ...RPCS,
+    report_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today,
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    }),
+    people_list: () => [rosa],
+  };
+  const base = tables();
+  const world = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+  });
+  const run = async (over) => {
+    const ctx = ctxFor(world, { ...rpcs, ...over });
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return { said: JSON.parse(out.result), ctx };
+  };
+  const peopleRead = ({ ctx }) => ctx.supabase.seen.filter((q) => q.rpc === "people_list").length;
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    // A busy week: every part, in the page's own words.
+    const week = await run({ receptionist_series: (a) => quietSeries(a, busy) });
+    assert.deepEqual(week.said.receptionist, {
+      hold: {
+        rows: [
+          "Went out as the hold ended: 9",
+          "You cancelled: 1",
+          "You changed: 1",
+          "A newer message came first: 1",
+          "A person answered first: 1",
+          "Did not go out: 1",
+        ],
+        line: "9 of 14 went out as the hold ended. 3 were held back as not sure enough to send alone.",
+      },
+      topics: {
+        rows: ["Booking: 12", "Pricing question: 9", "Hours: 6", "Services: 4", "Other: 2"],
+        line: "33 of 41 text and WhatsApp messages had a topic.",
+      },
+      languages: ["English: 30", "Spanish: 8"],
+      call_endings: ["Customer hung up: 11", "Receptionist ended the call: 5", "Not recorded: 2"],
+      link: "7 people were sent the booking link; 1 has booked since.",
+      handover: [
+        {
+          label: "Your first reply after a handover",
+          value: "9m",
+          meta: "11 of 12 handovers that wanted a message had a reply from you",
+          change: "was 13m the 7 days before",
+        },
+        {
+          label: "Time to settle a handover",
+          value: "1h 5m",
+          meta: "9 of 12 settled",
+          change: "was 1h 30m the 7 days before",
+        },
+      ],
+      missed: {
+        label: "Missed calls answered within an hour",
+        value: "4 of 6",
+        meta: "1 under an hour old, not counted yet · 1 with no caller on record not counted",
+        change: "was 3 of 4 the 7 days before",
+      },
+      closed: { value: "3 of 5", meta: "5 messages came while you were closed; the receptionist answered 3." },
+      stuck: [
+        { label: "Waiting on you", value: "2", meta: "the oldest has waited 6h" },
+        { label: "Call-backs", value: "1", meta: "people to ring, counted in waiting on you" },
+        { label: "Replies held back", value: "4", meta: "a person had the thread 3 · asked to stop 1" },
+      ],
+      held_back: ["A person had the thread: 3", "Asked to stop: 1"],
+    });
+    assert.equal(week.said.receptionist.held_back[0], "A person had the thread: 3");
+    assert.equal(week.said.receptionist.stuck[0].value, "2");
+    assert.equal(
+      peopleRead(week),
+      1,
+      "the booking line's read of People and the link's are the turn's one read (readers/everyone.ts): the link's people are filtered from it, not read again",
+    );
+    assert.deepEqual(
+      [week.said.range, week.said.campaigns.error, week.said.reviews.linked],
+      ["7 days", "the campaign numbers could not be read just now", false],
+      "the report's own parts stand beside it",
+    );
+
+    // The same fold the page draws: the same view model's words, whoever asks.
+    const folded = toReceptionistReportVM(
+      {
+        timezone: TZ,
+        today,
+        days: 7,
+        series: {
+          ...quietSeries({ p_days: 7 }, busy),
+          links: { sent: 7, booked: 1, calendar: "ok" },
+          stuck: { waiting: 2, oldest_at: iso(NOW.getTime() - 6 * HOUR), callbacks: 1, capped: false },
+        },
+        profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
+      },
+      { nowMs: NOW.getTime() },
+    );
+    assert.equal(week.said.receptionist.link, folded.link.line);
+    assert.equal(week.said.receptionist.hold.line, folded.hold.line);
+    assert.deepEqual(
+      week.said.receptionist.stuck.map((s) => s.meta),
+      folded.stuck.map((s) => s.meta),
+    );
+
+    // A database that does not have the function yet (00380 not applied): said so, and once in the log.
+    const gone = Object.assign(
+      new Error("Could not find the function public.receptionist_series in the schema cache"),
+      {
+        code: "PGRST202",
+      },
+    );
+    const absent = await logged("receptionist_series_missing", () =>
+      run({
+        receptionist_series: () => {
+          throw gone;
+        },
+      }),
+    );
+    assert.deepEqual(absent.result.said.receptionist, { available: false });
+    assert.deepEqual(absent.lines, [JSON.stringify({ tenant_id: A })], "said once for the read, naming the workspace");
+
+    // A read that fails, here a function nobody scripted: said as an error, never as nothing happening, and in the log;
+    // the report's own numbers stand.
+    const failed = await logged("ask_tool_read_failed", () => run({}));
+    assert.deepEqual(failed.result.said.receptionist, {
+      error: "the receptionist numbers could not be read just now",
+    });
+    assert.deepEqual(
+      failed.lines.map((l) => JSON.parse(l).read).filter((read) => read === "receptionist"),
+      ["receptionist"],
+      "and said once in the log",
+    );
+    assert.equal(failed.result.said.range, "7 days");
+    const down = await run({
+      receptionist_series: () => {
+        throw new Error("connection refused");
+      },
+    });
+    assert.deepEqual(down.said.receptionist, { error: "the receptionist numbers could not be read just now" });
+
+    // A period with nothing in it: the page's words for each part, and no zero said for what has no source.
+    const quiet = await run({ receptionist_series: (a) => quietSeries(a) });
+    assert.deepEqual(quiet.said.receptionist, {
+      hold: { empty: "No reply waited in a hold in this period." },
+      topics: { empty: "Topics are read from texts and WhatsApp messages. None came in this period." },
+      languages: null,
+      call_endings: { empty: "Nobody phoned in this period." },
+      link: "Nobody was sent the booking link in this period.",
+      handover: [
+        {
+          label: "Your first reply after a handover",
+          value: "—",
+          meta: "nothing was handed over in this period",
+          change: null,
+        },
+        {
+          label: "Time to settle a handover",
+          value: "—",
+          meta: "nothing was handed over in this period",
+          change: null,
+        },
+      ],
+      missed: {
+        label: "Missed calls answered within an hour",
+        value: "—",
+        meta: "no call went unanswered at the phone",
+        change: null,
+      },
+      closed: { value: "0", meta: "no message came while you were closed" },
+      stuck: [
+        { label: "Waiting on you", value: "0", meta: "nobody is waiting for you" },
+        { label: "Call-backs", value: "0", meta: "no call-back is waiting" },
+        { label: "Replies held back", value: "0", meta: "none were held at the door in this period" },
+      ],
+      held_back: [],
+    });
+    // Calls that did not connect are not "nobody phoned": the page's own empty words for the endings, said as the page does.
+    const rang = await run({
+      receptionist_series: (a) =>
+        quietSeries(a, { missed: { now: { n: 2, touched: 1, pending: 0, unknown: 0 }, before: NO_MISSED } }),
+    });
+    assert.deepEqual(rang.said.receptionist.call_endings, { empty: "No call connected in this period." });
+    assert.equal(JSON.stringify(quiet.said.receptionist).includes("NaN"), false);
+    assert.equal(peopleRead(quiet), 1, "no link was sent: nobody is read for it, only the booking line's own read");
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
 });
 
 test("report says the Reach-outs section as the page does (a moment holds many campaigns, lane 2, task 6): its counts and its sentences from the page's own fold where the workspace has a reach-out, null where it has none, and an error where its read failed", async () => {

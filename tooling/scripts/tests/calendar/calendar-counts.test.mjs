@@ -22,7 +22,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
-const { bookingReport } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
+const { bookingReport, linksBooked } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
 const { triggerPools } = await import(at("apps/dashboard/src/server/campaigns/playbook-pools.ts"));
 const { playbookPoolKey, channelsReady } = await import("@chanlytics/contracts");
 // everyone() lives beside listPeople now: every read that means the whole
@@ -835,6 +835,61 @@ test("the booking report: asked, then booked, over the rows given and the feed's
   ];
   const report = await bookingReport(ctxFor(tables(url)), T, rows, 30, NOW);
   assert.deepEqual(report, { calendar: "ok", days: 30, asked: 2, booked: 1 });
+});
+
+test("the people sent the booking link, counted by asked-then-booked's own rule: a visit still to come, or one that began no more than a day before the link, is a booking; an earlier one, none and a person the list no longer holds are not", async () => {
+  const url = "https://cal.example/links.ics";
+  const visit = (uid, n, from, to) => [
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `SUMMARY:Person ${n} · Cut`,
+    `DESCRIPTION:+1 917 555 000${n}`,
+    `DTSTART;TZID=America/New_York:${from}`,
+    `DTEND;TZID=America/New_York:${to}`,
+    "END:VEVENT",
+  ];
+  answers.set(url, {
+    body: [
+      "BEGIN:VCALENDAR",
+      ...visit("l1", 1, "20260910T100000", "20260910T110000"), // Thursday: still to come
+      ...visit("l2", 2, "20260829T100000", "20260829T110000"), // ten days before the link
+      ...visit("l3", 3, "20260907T100000", "20260907T110000"), // Monday morning, the day the link went
+      ...visit("l4", 4, "20260905T100000", "20260905T110000"), // Saturday morning: more than a day before the link
+      "END:VCALENDAR",
+    ].join("\r\n"),
+  });
+  const rows = [person(1), person(2), person(3), person(4), person(5)];
+  const links = [
+    { c: "p1", at: "2026-09-07T12:00:00.000Z" },
+    { c: "p2", at: "2026-09-07T12:00:00.000Z" },
+    { c: "p3", at: "2026-09-07T12:00:00.000Z" },
+    { c: "p4", at: "2026-09-07T12:00:00.000Z" },
+    { c: "p5", at: "2026-09-07T12:00:00.000Z" }, // sent the link, no visit at all
+    { c: "gone", at: "2026-09-07T12:00:00.000Z" }, // erased or merged since: not in the list
+  ];
+  assert.deepEqual(await linksBooked(ctxFor(tables(url)), T, rows, links, NOW), { calendar: "ok", booked: 2 });
+  assert.deepEqual(await linksBooked(ctxFor(tables(url)), T, rows, [], NOW), { calendar: "ok", booked: 0 });
+  // It is the booking report's rule, not a second one: the same people, asked at the same moment, are booked or not alike.
+  const asked = rows.map((r, i) => ({ ...r, last_inbound_at: links[i].at }));
+  assert.equal((await bookingReport(ctxFor(tables(url)), T, asked.slice(0, 5), 30, NOW)).booked, 2);
+
+  // The zone and the settings a caller holds are not read again.
+  const ctx = ctxFor(tables(url));
+  const known = { timezone: TZ, config: config(url) };
+  assert.deepEqual(await linksBooked(ctx, T, rows, links, NOW, known), { calendar: "ok", booked: 2 });
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.table === "tenants" || q.table === "tenant_config"),
+    [],
+  );
+
+  // No calendar is none; a calendar that cannot be read is unavailable; neither is a count of zero people booked.
+  assert.deepEqual(await linksBooked(ctxFor(tables(null)), T, rows, links, NOW), { calendar: "none", booked: 0 });
+  const down = "https://cal.example/down.ics";
+  answers.set(down, { body: "nope", status: 503 });
+  assert.deepEqual(await linksBooked(ctxFor(tables(down)), T, rows, links, NOW), {
+    calendar: "unavailable",
+    booked: 0,
+  });
 });
 
 test("each list a playbook may run on is counted as a run on it would count it, under list:<id>, and named for the composer", async () => {
