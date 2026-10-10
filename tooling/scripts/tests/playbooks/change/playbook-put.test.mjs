@@ -75,7 +75,7 @@ const world = (over = {}) => ({
 });
 
 /**
- * The change_playbook door in memory, as 00376 writes it: the row as it stands then, of the columns named only those that
+ * The change_playbook door in memory, as 00377 writes it: the row as it stands then, of the columns named only those that
  * differ written, the decision as theirs, its verb following the state that moved, and what each held answered; where
  * nothing differs (a second press that lands after the first), nothing written and no line: `was` empty, `decision_id`
  * null.

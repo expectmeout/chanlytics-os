@@ -18,7 +18,7 @@
  * double that answers at most a thousand rows, as PostgREST does, and the
  * surface over a fake wire.
  *
- * Since 00373 the database counts a run (run_counts) and the route reads its answer; the fold below is what a database
+ * Since 00374 the database counts a run (run_counts) and the route reads its answer; the fold below is what a database
  * before it is read by, for one release, so its paging is proved against a double that has no run_counts.
  */
 import { test } from "node:test";
@@ -72,7 +72,7 @@ test("REGRESSION (D12): past fifty broadcasts the list says more exist -- the pa
 
 /** PostgREST's `api.max_rows` (supabase/config.toml), which the double keeps by default: a select answers at most a thousand rows, and says nothing. */
 const capped = (tables) => fakeDb(tables);
-/** A database before 00373: no run_counts (PostgREST's PGRST202), so the route folds the runs itself, as these tests prove. */
+/** A database before 00374: no run_counts (PostgREST's PGRST202), so the route folds the runs itself, as these tests prove. */
 const before00362 = (tables) =>
   fakeDb(
     tables,

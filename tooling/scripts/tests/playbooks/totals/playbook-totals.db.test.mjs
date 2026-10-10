@@ -1,5 +1,5 @@
 /**
- * A playbook's totals, a run's counts and a message's sends, counted where they are (00373), proved against seeded
+ * A playbook's totals, a run's counts and a message's sends, counted where they are (00374), proved against seeded
  * truth on a real Postgres -- never against the fold they replace, which is wrong past its caps and for a thread two
  * people on one run share (apps/dashboard/src/server/campaigns/broadcasts.ts countRecipients):
  *
@@ -21,7 +21,7 @@
  *      half those 8 seconds. Before run_counts' fence its replied step weighed every thread against every inbound
  *      message, and this case hit the member's 8 seconds.
  *   6. The dashboard's own reads on the stack: GET playbooks and Sent say the same bytes counted by the database as by the
- *      fold a database before 00373 leaves them, where the fold counts right (the salon), and the fold's wrong answers
+ *      fold a database before 00374 leaves them, where the fold counts right (the salon), and the fold's wrong answers
  *      where it does not (the shop, the studio); the fake database's twins say what the SQL says.
  *
  * Local stack only: it makes workspaces, people, runs and users.
@@ -58,7 +58,7 @@ const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
 const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
 
 /**
- * The session client as a database before 00373 answers it: the named functions are not there (PostgREST's PGRST202),
+ * The session client as a database before 00374 answers it: the named functions are not there (PostgREST's PGRST202),
  * so the dashboard reads the old way, as it will for one release. Everything else is the client's own.
  */
 const before00362 = (client, names) =>
@@ -369,7 +369,7 @@ async function salon() {
   wrote(slots[0].first, slots[0].at + HOUR); // a reply: counted
   wrote(slots[1].first, slots[1].at + 73 * HOUR); // past the 72 hours: not
   wrote(slots[2].first, slots[2].at + 2 * HOUR, { channel: "email", meta: { email: { claim: "auto_reply" } } }); // an out-of-office: not
-  wrote(slots[3].first, slots[3].at + 2 * HOUR, { channel: "email", meta: { email: { claim: "booking_notice" } } }); // a booking tool's notice: not (00372)
+  wrote(slots[3].first, slots[3].at + 2 * HOUR, { channel: "email", meta: { email: { claim: "booking_notice" } } }); // a booking tool's notice: not (00373)
   wrote(slots[4].first, slots[4].at + REPLY_WINDOW_MS); // at the window's edge: counted
   wrote(slots[5].first, slots[5].at + REPLY_WINDOW_MS + 1000); // a second past it: not
   wrote(slots[6].first, slots[6].at + HOUR); // twice on one thread: counted once

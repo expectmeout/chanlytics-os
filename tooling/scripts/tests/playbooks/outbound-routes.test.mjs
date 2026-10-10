@@ -106,7 +106,7 @@ const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
  * `tables.decisions`; the row's id, what each written column held and the decision's id. No such row is P0002, and
  * nothing is written, as its one transaction leaves it. Of the columns named only those that differ are written, the
  * verb following the state that moved; where none differs nothing is written and no line: `was` empty, `decision_id`
- * null (00376's no-op).
+ * null (00377's no-op).
  */
 const withChangeDoor = (tables, rpcs = {}) => ({
   ...rpcs,
@@ -226,7 +226,7 @@ test("the seventeen declare their policy: the lists open to every member, every 
   const rw = (rate) => ({ kind: "write", scope: "row", role: "operator", rate, spend: false });
   assert.deepEqual(broadcasts.GET.policy, open);
   assert.deepEqual(templates.GET.policy, open);
-  // Its numbers are SQL aggregates (00373), so a script that hammers it hammers them: the report routes' bucket.
+  // Its numbers are SQL aggregates (00374), so a script that hammers it hammers them: the report routes' bucket.
   assert.deepEqual(playbooks.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(broadcasts.POST.policy, ws("broadcast"));
   assert.deepEqual(approve.POST.policy, rw("broadcast"));

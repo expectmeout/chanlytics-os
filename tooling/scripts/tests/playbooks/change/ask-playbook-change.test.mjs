@@ -67,7 +67,7 @@ const tables = (over = {}) => ({
   ...over,
 });
 /**
- * The change_playbook door in memory, as 00376 writes it and the route calls it: of the columns named only those that
+ * The change_playbook door in memory, as 00377 writes it and the route calls it: of the columns named only those that
  * differ written, the line's verb following the state that moved, what each held answered; nothing that differs is no
  * write and no line (`was` empty, `decision_id` null).
  */

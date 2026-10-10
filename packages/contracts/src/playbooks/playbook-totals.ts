@@ -1,5 +1,5 @@
 /**
- * What a moment playbook's runs earned, as the database counts it (playbook_totals, 00373): one entry per moment
+ * What a moment playbook's runs earned, as the database counts it (playbook_totals, 00374): one entry per moment
  * playbook that has run, by its id, in storage's casing. The dashboard reads it into a card's totals (server
  * campaigns/playbooks.ts toPlaybookTotals) behind isPlaybookTotalsDto, never a cast, and GET playbooks answers the same
  * bytes it answered when it summed every run itself. A playbook that never ran is absent.

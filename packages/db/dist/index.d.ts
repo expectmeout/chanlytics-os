@@ -38165,8 +38165,8 @@ declare function markHeldNotice(db: Db$n, p: {
 
 /**
  * The report functions Reports reads (00251, 00304, 00241, 00350): the receptionist's series, the campaigns', the reviews'
- * and the reach-outs', each over a period of days and the period before it; and the counts Campaigns reads (00373,
- * 00374): a playbook's totals, a run's counts, a message's sends and every chain's numbers. The one place they are
+ * and the reach-outs', each over a period of days and the period before it; and the counts Campaigns reads (00374,
+ * 00375): a playbook's totals, a run's counts, a message's sends and every chain's numbers. The one place they are
  * called by name; the dashboard asks on the session client, so RLS decides what a member reads (`report_series`,
  * `campaign_series` and `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member
  * again). A read that fails throws: "we could not read" is never "none".
@@ -38215,16 +38215,16 @@ declare function reachOutReport(db: Db$m, tenantId: string, window: ReportWindow
     message: string;
 }>;
 /**
- * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00373): one jsonb by
+ * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00374): one jsonb by
  * playbook id, which PostgREST's row cap never cuts; contracts' isPlaybookTotalsDto reads it.
  */
 declare function playbookTotals(db: Db$m, tenantId: string, history: number): Promise<JsonObject | "missing">;
-/** Each run's people, receipts and replies, by run id (`run_counts`, 00373): what Sent, a run's sheet and a card say. */
+/** Each run's people, receipts and replies, by run id (`run_counts`, 00374): what Sent, a run's sheet and a card say. */
 declare function runCounts(db: Db$m, tenantId: string, runIds: readonly string[]): Promise<JsonObject | "missing">;
-/** How many of each message went out, and when the latest did, by name (`template_sends`, 00373). */
+/** How many of each message went out, and when the latest did, by name (`template_sends`, 00374). */
 declare function templateSends(db: Db$m, tenantId: string): Promise<JsonObject | "missing">;
 /**
- * Every chain's numbers over the window, by its first step's id (`reach_out_chain_totals`, 00374): what it wrote, how
+ * Every chain's numbers over the window, by its first step's id (`reach_out_chain_totals`, 00375): what it wrote, how
  * many wrote back, when it last wrote. The window is read as `reachOutReport` reads it, its last day named only where it
  * is not today, so Reports' chains and its report count the same days; the function takes a last day from its first
  * migration, so a database without it answers "missing", never ReportWindowNotReadable. A definer behind

@@ -218,7 +218,7 @@ const world = () => ({
     report_series: (a) => ({ ...busyReport(), days: a.p_days }),
     campaign_series: (a) => ({ ...busyCampaigns(), days: a.p_days }),
     reach_out_report: () => NO_REACH_OUTS,
-    // 00374: each chain's own totals, which the reach-outs' route reads beside its report (readers/campaign-report.ts).
+    // 00375: each chain's own totals, which the reach-outs' route reads beside its report (readers/campaign-report.ts).
     reach_out_chain_totals: () => ({}),
     people_list: () => [],
   },

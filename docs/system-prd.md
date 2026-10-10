@@ -810,7 +810,7 @@ already on the wire.
 
 **A moment holds many campaigns** (9 October 2026, `docs/superpowers/specs/2026-10-09-a-moment-holds-many-campaigns-design.md`):
 Campaigns' home draws every campaign in one ledger under the rail, grouped by moment in the journey's order (contracts
-`journeyOf`, decision 0040), then Lists & offers, Reach-outs and, from seven campaigns, Sent once (under seven, one line
+`journeyOf`, decision 0041), then Lists & offers, Reach-outs and, from seven campaigns, Sent once (under seven, one line
 to Sent). A moment's card summarises its group ("3 campaigns · 2 on · 1 paused", with a bar, where it holds two or more);
 its body narrows the ledger to it and writes `campaigns/in:<group>` (the stage's id, free of the word: `before`; replaced,
 never pushed, kept while a sheet stands over the page), and its lead's name opens the drawer. From seven campaigns a
@@ -830,7 +830,7 @@ land on what they name: a campaign's drawer, a run, the bell's reach-out day on 
 campaign on its drawer, Today's card (after the first run, with the calendar in) on the appointment reminder's composer.
 What a person reads, Ask's words aside, says "campaign", never "playbook" (the spec's decision 19), and the page says the workspace's
 word for an appointment; what customers read says "appointment" ("cita") on the consent and unsubscribe pages and in the
-email's foot, whatever the trade (decision 0040).
+email's foot, whatever the trade (decision 0041).
 
 **A run is approved where it waits** (8 October 2026): a playbook's run waiting on a person is a line in Coming up that
 carries its own acts. It says what Today's row says of it ("7 people. Nothing sends until you say so.", contracts

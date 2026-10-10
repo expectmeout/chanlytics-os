@@ -138,7 +138,7 @@ async function runCall(input, { role = "operator", now = NOW } = {}) {
 }
 
 /**
- * A run as the run's sheet reads it (getBroadcast): the run, then its counts (run_counts, 00373) asked as its people are,
+ * A run as the run's sheet reads it (getBroadcast): the run, then its counts (run_counts, 00374) asked as its people are,
  * not after them, then every person on it.
  */
 const RUN_READ = ["broadcasts.select", "rpc.run_counts", "broadcast_recipients.select"];

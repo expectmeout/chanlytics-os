@@ -46,7 +46,7 @@ export const shape: Reader<undefined, WorkspaceShape> = {
       emailLineFor(rc.ctx.supabase, rc.tenantId),
       connectionFor(rc.ctx.supabase, rc.tenantId),
       load(rc, lists, undefined).then((r) => r.data.lists),
-      // The rows alone (00373's split): the shape names each by its name, trigger and state, and runs nothing's count.
+      // The rows alone (00374's split): the shape names each by its name, trigger and state, and runs nothing's count.
       playbookRows(rc.ctx, rc.tenantId),
     ]);
     const config = parseTenantConfig(cfg?.config ?? null);

@@ -1,4 +1,4 @@
--- 00376 · A playbook changed in place and its line in the ledger are one write.
+-- 00377 · A playbook changed in place and its line in the ledger are one write.
 --
 -- PUT playbooks/:id wrote a pause as two statements on the member's session, the state and then the route's own insert
 -- into `decisions`, neither counted: a decision that failed left a playbook paused with nobody on record as having paused

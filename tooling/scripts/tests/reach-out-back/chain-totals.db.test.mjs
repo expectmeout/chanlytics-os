@@ -1,5 +1,5 @@
 /**
- * Every chain's numbers (00374 reach_out_chain_totals), behind one question of who may read a workspace
+ * Every chain's numbers (00375 reach_out_chain_totals), behind one question of who may read a workspace
  * (may_read_workspace), on a real Postgres. Reports' reach_out_report lists twenty chains, the ones that wrote in the
  * period, so the twenty-first and a chain that sent nothing were both absent; this answers every chain, by its id, and
  * says of each chain the report lists what the report says, over the report's own window (its last day, 00360).

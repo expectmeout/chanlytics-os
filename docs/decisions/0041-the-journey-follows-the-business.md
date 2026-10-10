@@ -1,4 +1,4 @@
-# 0040 · The journey follows the business
+# 0041 · The journey follows the business
 
 **Status:** Decided on 9 October 2026 by Ruben, with "A moment holds many campaigns"
 (`docs/superpowers/specs/2026-10-09-a-moment-holds-many-campaigns-design.md`, §4.8, decisions 40 to 49). Steps J1 to J3
@@ -51,7 +51,7 @@ note and the code disagree, the code wins.
 ## Steps
 
 1. J1 to J3, in one pull request of four commit groups (the floors, the backend, the ledger, Ask). The journey and the
-   word need no migration; the pull request's migrations (00372 to 00375) are the backend's counts and notices. Either
+   word need no migration; the pull request's migrations (00373 to 00377) are the backend's counts and notices. Either
    deploy order works: the dashboard derives the word and the journey from what the database already holds.
 2. J4: one migration adding `tenants.journey` and `tenants.appointment_word`, their Settings row, the opt-in rename; the
    dashboard reads the stored word where it is set and derives it where not, so either deploy order works there too.

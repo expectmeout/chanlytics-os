@@ -187,7 +187,7 @@ function world() {
       delete from public.person_notes where tenant_id = b;
       ${told("note_removed")}
 
-      -- A playbook made, paused and removed by a teammate (00375): Campaigns' rows and acts repaint. Its message is no
+      -- A playbook made, paused and removed by a teammate (00376): Campaigns' rows and acts repaint. Its message is no
       -- watched row.
       insert into public.templates (tenant_id, channel, name, language, meta_status)
         values (a, 'whatsapp', 'told_offer', 'en_US', 'approved') returning id into tpl;
@@ -441,7 +441,7 @@ test("a delete is told to the workspace it happened in", { skip }, () => {
 });
 
 test(
-  "a playbook made, paused or removed is told to its workspace alone: the table and the event, never the row (00375)",
+  "a playbook made, paused or removed is told to its workspace alone: the table and the event, never the row (00376)",
   { skip },
   () => {
     const { steps } = world();

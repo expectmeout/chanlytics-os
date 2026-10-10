@@ -1,4 +1,4 @@
--- 00375 · A playbook changed is told to its workspace.
+-- 00376 · A playbook changed is told to its workspace.
 --
 -- A playbook paused, resumed, renamed or retimed in one tab or by a teammate, or stamped by the sweep's run, reached no
 -- other open page: `playbooks` was not among the tables the database tells a workspace about (00265), so Campaigns kept

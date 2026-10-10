@@ -221,11 +221,11 @@ export interface BroadcastCounts {
   sent_by?: Record<ConsentChannel, number>;
 }
 
-/** What run_counts says of each run (00373), in the order Sent writes a run's counts. */
+/** What run_counts says of each run (00374), in the order Sent writes a run's counts. */
 const RUN_COUNTED = ["queued", "sent", "skipped", "failed", "delivered", "read", "replied"] as const;
 
 /**
- * run_counts' answer (00373), by run id, read into Sent's counts in the order the page has always written them (a run
+ * run_counts' answer (00374), by run id, read into Sent's counts in the order the page has always written them (a run
  * nobody is on is absent, and the caller says it as zeros), each count a whole number (isCount). Null when the answer is
  * not that shape: a read that failed, never a run with nothing in it.
  */

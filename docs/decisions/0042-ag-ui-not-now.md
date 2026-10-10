@@ -1,4 +1,4 @@
-# 0041 · AG-UI not now; Ask kept AG-UI-shaped
+# 0042 · AG-UI not now; Ask kept AG-UI-shaped
 
 **Status:** Decided, 9 October 2026, with the moment spec
 (`docs/superpowers/specs/2026-10-09-a-moment-holds-many-campaigns-design.md`, decisions D4 and D34, approved by Ruben

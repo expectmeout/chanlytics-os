@@ -5448,7 +5448,7 @@ interface TemplateSendSource {
 /** One entry per template name that has gone out. A name absent from the map never has. */
 declare function templateSends(src: TemplateSendSource): Record<string, TemplateSends>;
 /**
- * template_sends' answer (00373), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
+ * template_sends' answer (00374), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
  * number (isCount). Null when it is not that shape, which the reader says as a read that failed, never as a message
  * nothing sent.
  */
@@ -11546,7 +11546,7 @@ interface BroadcastCounts {
     sent_by?: Record<ConsentChannel, number>;
 }
 /**
- * run_counts' answer (00373), by run id, read into Sent's counts in the order the page has always written them (a run
+ * run_counts' answer (00374), by run id, read into Sent's counts in the order the page has always written them (a run
  * nobody is on is absent, and the caller says it as zeros), each count a whole number (isCount). Null when the answer is
  * not that shape: a read that failed, never a run with nothing in it.
  */
@@ -18666,7 +18666,7 @@ declare function isAutomatedSend(meta: unknown): boolean;
  * What the email intake reads a received email as (channels email/intake.ts classifyReceived, from headers anyone can
  * write), each marked whether its words are a person's own. THE one statement of the set: channels' and core's
  * EmailClaim are its names, isPersonsWords reads its marks, and broadcasts/campaign-channels.db.test.mjs runs every claim
- * through public.message_is_a_persons_words (00372), its twin in SQL, so a claim added here and not there fails.
+ * through public.message_is_a_persons_words (00373), its twin in SQL, so a claim added here and not there fails.
  *
  *   report                   a bounce or a delivery status notification
  *   booking_notice           a booking tool writing about one of the business's appointments (bookingNoticeOf)
@@ -18701,7 +18701,7 @@ type EmailClaim = (typeof EMAIL_CLAIMS)[number]["claim"];
  * (`meta.email.claim`), and a message of any other kind has no claim and is somebody's words: an out-of-office, a
  * list's mail or a form's notification is a program writing from their address, which is not the person answering.
  * THE statement of it in TypeScript, read where a run counts who replied (the dashboard's broadcasts reader) and where
- * a reply is addressed (replyChannelOf); public.message_is_a_persons_words (00372) is its twin in SQL, read by
+ * a reply is addressed (replyChannelOf); public.message_is_a_persons_words (00373) is its twin in SQL, read by
  * has_relationship, the people list and the campaign counts: the two change together through EMAIL_CLAIMS.
  */
 declare function isPersonsWords(meta: unknown): boolean;
