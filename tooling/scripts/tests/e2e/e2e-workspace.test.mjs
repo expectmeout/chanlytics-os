@@ -14,9 +14,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { TenantConfigWriteSchema, reviewIsNew } from "@chanlytics/contracts";
+import { TenantConfigWriteSchema, reviewIsNew, starterByName } from "@chanlytics/contracts";
 import {
   converge,
+  runOptions,
   verify,
   SLUG,
   CALL_ID,
@@ -36,6 +37,7 @@ import {
   GOOGLE_LISTING,
   GOOGLE_REVIEWS,
   GOOGLE_DAYS,
+  WIN_BACK,
 } from "../../ops/e2e-workspace.mjs";
 
 // The Google sweep as production runs it: the Places key and the OAuth client set, and a wire where Google would be that
@@ -862,4 +864,85 @@ test("verify() names a Google seed that a spec or a person changed: another list
     );
   await run(w, { now: NOW + 86_400_000 });
   assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
+});
+
+test("the eval's Win-back (the moment spec, A8): written only under --seed-win-back, which the nightly does not pass; then one campaign on silence, paused so no sweep runs it, on a message of its own, written once however often the workspace converges", async () => {
+  // The script's arguments: the nightly's own (.github/workflows/nightly-e2e.yml, 09:00 UTC) are --apply alone.
+  assert.deepEqual(runOptions(["node", "e2e-workspace.mjs", "--apply"]), { apply: true, seedWinBack: false });
+  assert.deepEqual(runOptions(["node", "e2e-workspace.mjs", "--apply", "--seed-win-back"]), {
+    apply: true,
+    seedWinBack: true,
+  });
+  assert.deepEqual(
+    runOptions(["node", "e2e-workspace.mjs", "--seed-win-back"]),
+    { apply: false, seedWinBack: true },
+    "the flag alone is a dry run all the same",
+  );
+
+  const w = world();
+  // The nightly's converge (--apply alone): no Win-back, no message for it.
+  const { tenantId: T } = await run(w);
+  const ownerId = w.t.memberships.find((m) => m.role === "owner").user_id;
+  assert.deepEqual(of(w.t, "playbooks", T), [], "merging seeds nothing");
+  assert.deepEqual(of(w.t, "templates", T), [], "nor a message for it");
+  // A dry run under the flag says what it would add, and adds nothing.
+  const before = JSON.stringify(w.t);
+  const dry = await run(w, { apply: false, seedWinBack: true });
+  assert.equal(JSON.stringify(w.t), before, "a dry run writes nothing");
+  assert.ok(
+    dry.did.some((line) => line.includes("would add the eval's Win-back")),
+    dry.did.join(" | "),
+  );
+
+  // Ruben's run by hand (--apply --seed-win-back), twice: one campaign, one message.
+  const seeded = await run(w, { seedWinBack: true });
+  assert.ok(seeded.did.includes("added the eval's Win-back, paused"), seeded.did.join(" | "));
+  await run(w, { seedWinBack: true, now: NOW + 86_400_000 });
+  const playbooks = of(w.t, "playbooks", T);
+  assert.deepEqual(
+    playbooks.map((p) => [p.name, p.trigger, p.state, p.policy_class]),
+    [[WIN_BACK.name, "quiet_30", "paused", "reengage"]],
+  );
+  const [winBack] = playbooks;
+  const messages = of(w.t, "templates", T);
+  assert.equal(messages.length, 1, "one message, written once");
+  const [message] = messages;
+  assert.equal(winBack.template_id, message.id);
+  assert.deepEqual(
+    [message.name, message.channel, message.meta_status, message.source],
+    [WIN_BACK.template, "whatsapp", "approved", "chanlytics"],
+  );
+  // A message of its own, no starter's: Ask's setup never takes it for a starter on file (contracts startersForTrigger).
+  assert.equal(starterByName(WIN_BACK.template), null);
+  assert.deepEqual(await verify(w.db, T, ownerId), [], "the seeded state passes its own check");
+
+  // Paused, the hourly sweep never takes it: at its hour it is not due, where the same campaign running would be.
+  const due = async () =>
+    (
+      await w.db.rpc("playbooks_due", {
+        p_kind: "moment",
+        p_at: new Date(NOW + 6 * 3_600_000).toISOString(),
+        p_last_hour: 20,
+        p_limit: 50,
+        p_tenant_id: T,
+      })
+    ).data;
+  assert.deepEqual(await due(), [], "11:00 in the workspace's zone, past its 10:00: paused, never due");
+
+  // A spec that resumed, renamed or retimed it is named by verify(), and put back by the nightly's own converge, which
+  // still adds nothing.
+  Object.assign(winBack, { state: "running", name: "Past clients", run_hour: 9 });
+  assert.equal((await due()).length, 1, "running, the sweep would take it");
+  assert.ok(
+    (await verify(w.db, T, ownerId)).some((p) => p.includes("Win-back")),
+    "verify names a Win-back left running",
+  );
+  const putBack = await run(w, { now: NOW + 2 * 86_400_000 });
+  assert.ok(putBack.did.includes("put the eval's Win-back back, paused"), putBack.did.join(" | "));
+  assert.deepEqual(
+    of(w.t, "playbooks", T).map((p) => [p.name, p.state, p.run_hour]),
+    [[WIN_BACK.name, "paused", 10]],
+  );
+  assert.equal(of(w.t, "templates", T).length, 1, "and no second message");
+  assert.deepEqual(await due(), []);
 });

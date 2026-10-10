@@ -13,12 +13,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  MOMENT_TRIGGERS,
+  PLAYBOOK_LIMITS,
+  PLAYBOOK_PATCH_KEYS,
   PageContextSchema,
   TenantConfigWriteSchema,
   applySettingsChange,
   parseTenantConfig,
 } from "@chanlytics/contracts";
-import { workspaceConfig } from "../../ops/e2e-workspace.mjs";
+import { WIN_BACK, workspaceConfig } from "../../ops/e2e-workspace.mjs";
 import {
   ROW_KINDS,
   announcement,
@@ -1100,7 +1103,8 @@ test("the case set: unique ids, every page built over the GETs' answers and plac
 });
 
 test("the case set's second turns (PR 5.2): ten new cases, each kind on two surfaces, and the eighty before them one turn", () => {
-  const twos = CASES.filter((c) => c.then);
+  // Since 10 Oct 2026 a setup asked twice in one thread carries one too (the moment spec, A8: the next test's).
+  const twos = CASES.filter((c) => c.then && c.id !== "setup_again_same_thread");
   assert.equal(twos.length, 10);
   assert.ok(
     CASES.slice(0, 80).every((c) => !c.then),
@@ -1148,6 +1152,93 @@ test("the case set's second turns (PR 5.2): ten new cases, each kind on two surf
   );
   for (const c of twos.filter((x) => x.then.between))
     assert.ok(c.expect.proposals_any.includes("settings") && c.then.expect.includes_any.length, c.id);
+});
+
+/** The setup and change cases (the moment spec, A8; the Ask note's §4), in the case set's order. */
+const SETUP_AND_CHANGE = [
+  "setup_campaigns_first_day",
+  "setup_campaigns_es",
+  "setup_from_today",
+  "setup_meeting_reminder",
+  "setup_leads_refused",
+  "setup_new_list_then_playbook",
+  "setup_again_same_thread",
+  "change_resume_by_name",
+  "change_pause_already_paused",
+  "change_rename_and_hour",
+  "change_hour_out_of_bounds",
+  "change_reach_out_refused",
+];
+
+test("the setup and change cases (the moment spec, A8): twelve, run only after the Win-back's seed and never here; a setup's two reads ride into round 1 exactly where the turn hears a setup, and only there is the tools' order noted; nothing of theirs is approved, so nothing is filed", async () => {
+  const { crossPagePlan } = await import("../../../../apps/dashboard/src/server/ask/cross-page.ts");
+  const cases = CASES.filter((c) => /^(setup|change)_/.test(c.id));
+  assert.deepEqual(
+    cases.map((c) => c.id),
+    SETUP_AND_CHANGE,
+  );
+  // Every turn of each says no write, and the two refusals hold on every repetition.
+  for (const c of cases) assert.ok(c.expect.no_write && (!c.then || c.then.expect.no_write), c.id);
+  assert.deepEqual(
+    cases.filter((c) => c.must_never).map((c) => c.id),
+    ["setup_leads_refused", "change_reach_out_refused"],
+  );
+  // The turns whose setup reads ride in before round 1 (server/ask/cross-page.ts SETUP, as the loop plans them): a
+  // request to set campaigns up in either language, on Campaigns or Today, asked again in the thread too. A reminder
+  // asked for, a list with a nudge after its "and", and a change are not one, and read what they always read.
+  const setupReads = (text, surface) =>
+    crossPagePlan(text, surface)
+      .slice(0, 2)
+      .map((r) => `${r.name}.${r.input.action}`)
+      .join(" ") === "campaigns.playbooks campaigns.audiences";
+  const turns = cases.flatMap((c) => [
+    c,
+    ...(c.then
+      ? [{ id: `${c.id} (then)`, text: c.then.text, surface: secondTurn(c).surface, expect: c.then.expect }]
+      : []),
+  ]);
+  assert.deepEqual(
+    turns.filter((t) => setupReads(t.text, t.surface)).map((t) => t.id),
+    [
+      "setup_campaigns_first_day",
+      "setup_campaigns_es",
+      "setup_from_today",
+      "setup_leads_refused",
+      "setup_again_same_thread",
+      "setup_again_same_thread (then)",
+    ],
+  );
+  // The tools' order is noted only on a turn whose reads ride in first, and a read a case asks for off Campaigns' rows
+  // is one of those reads.
+  for (const t of turns.filter((x) => x.expect.tools_order)) assert.ok(setupReads(t.text, t.surface), t.id);
+  for (const t of turns.filter((x) => x.expect.tools_any?.includes("campaigns.playbooks")))
+    assert.ok(setupReads(t.text, t.surface), t.id);
+  // A setup's card is never a reminder of an appointment (the setup rule: its Turn on) nor a moment no new campaign is
+  // offered on; the trigger ruled out is one a campaign can have.
+  const triggers = new Set(MOMENT_TRIGGERS.map((t) => t.id));
+  for (const c of cases.filter((x) => x.expect.card_fields_not)) {
+    const ruled = c.expect.card_fields_not.playbook.trigger;
+    assert.ok(
+      ["visit_tomorrow", "visited"].every((t) => ruled.includes(t)) && ruled.every((t) => triggers.has(t)),
+      c.id,
+    );
+  }
+  // A campaign on a list made in the same answer waits for a next question (A2), said in the word a person reads.
+  const list = cases.find((c) => c.id === "setup_new_list_then_playbook");
+  assert.deepEqual([list.expect.proposals_any, list.expect.next_any.includes("campaign")], [["list"], true]);
+  // Nothing of theirs is approved between the turns (approveBetween approves a settings note alone), so a starter card
+  // a run makes files nothing at Meta or anywhere.
+  assert.ok(cases.every((c) => c.then?.between === undefined));
+  // The change cases name the seed's own campaign (e2e-workspace.mjs WIN_BACK), a change card's fields are a change's
+  // own keys, and the hour refused is under the bound the refusal says.
+  for (const c of cases.filter((x) => x.id.startsWith("change_") && x.id !== "change_reach_out_refused"))
+    assert.match(c.text, new RegExp(WIN_BACK.name, "i"), c.id);
+  for (const c of cases.filter((x) => x.expect.card_fields?.playbook_change))
+    for (const k of Object.keys(c.expect.card_fields.playbook_change)) assert.ok(PLAYBOOK_PATCH_KEYS.includes(k), k);
+  const early = cases.find((c) => c.id === "change_hour_out_of_bounds");
+  assert.ok(
+    7 < PLAYBOOK_LIMITS.run_hour.min && early.expect.includes_any.includes(String(PLAYBOOK_LIMITS.run_hour.min)),
+  );
 });
 
 test("the case set: every surface has an on-page case, an off-page read and a decline; the focus, the scope and the foreign row", () => {

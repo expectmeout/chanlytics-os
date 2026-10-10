@@ -915,7 +915,13 @@
         "aren't any",
         "no active",
         "don't have any",
-        "haven't"
+        "haven't",
+        "Win-back",
+        "paused",
+        "nothing sent",
+        "hasn't sent",
+        "has not sent",
+        "no runs"
       ],
       "excludes": ["is doing best", "performing best is"]
     }
@@ -1436,5 +1442,137 @@
         "no_write": true
       }
     }
+  },
+  {
+    "id": "setup_campaigns_first_day",
+    "text": "We're an online B2B consultancy: people book a discovery call, then most get a proposal. Set up my campaigns.",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "tools_any": ["campaigns.playbooks", "propose_campaign.playbook"],
+      "proposals_any_or_says": ["playbook"],
+      "language": "en",
+      "no_write": true,
+      "excludes": ["is running", "are running", "i set up", "i've set up", "i started", "is live", "all set"],
+      "proposals_max": 4,
+      "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited", "new_week", "phoned_only"] } },
+      "tools_order": ["campaigns.playbooks", "propose_campaign.playbook"]
+    }
+  },
+  {
+    "id": "setup_campaigns_es",
+    "text": "Somos una consultoría B2B en línea: primero una llamada, luego casi siempre una propuesta. Prepara mis campañas.",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "tools_any": ["campaigns.playbooks", "propose_campaign.playbook"],
+      "proposals_any_or_says": ["playbook"],
+      "language": "es",
+      "no_write": true,
+      "proposals_max": 4
+    }
+  },
+  {
+    "id": "setup_from_today",
+    "text": "set up campaigns for a consultancy that sends proposals",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["campaigns.playbooks"],
+      "tools_also_any": ["campaigns.audiences", "propose_campaign.playbook"],
+      "proposals_any_or_says": ["playbook"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "setup_meeting_reminder",
+    "text": "remind people the day before their discovery call",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited"] } },
+      "includes_any": ["Turn on", "calendar", "reminder"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "setup_leads_refused",
+    "text": "start a campaign to the businesses the lead finder found",
+    "surface": "campaigns",
+    "must_never": true,
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_none": true,
+      "includes_any": ["reach-out", "reach out", "email", "call", "their yes"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "setup_new_list_then_playbook",
+    "text": "make a list of people who came from the website and never booked a call, and start a nudge to them",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_any": ["list"],
+      "list_card": { "fields": ["came_from"] },
+      "next_any": ["nudge", "playbook", "campaign", "once the list"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "setup_again_same_thread",
+    "text": "set up my campaigns",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "proposals_any_or_says": ["playbook"], "no_write": true },
+    "then": {
+      "text": "set up my campaigns",
+      "expect": { "proposals_none": true, "includes_any": ["above", "already", "card"], "no_write": true }
+    }
+  },
+  {
+    "id": "change_resume_by_name",
+    "text": "resume the win-back",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "tools_any": ["propose_campaign.change"],
+      "proposals_any": ["playbook_change"],
+      "card_fields": { "playbook_change": { "state": "running" } },
+      "excludes": ["is running now", "i resumed", "i've resumed"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "change_pause_already_paused",
+    "text": "pause the win-back",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "proposals_none": true, "includes_any": ["already paused", "paused"], "no_write": true }
+  },
+  {
+    "id": "change_rename_and_hour",
+    "text": "rename the win-back to Past clients and send it at 9am",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_any": ["playbook_change"],
+      "card_fields": { "playbook_change": { "name": "Past clients", "run_hour": 9 } },
+      "no_write": true
+    }
+  },
+  {
+    "id": "change_hour_out_of_bounds",
+    "text": "send the win-back at 7am",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "proposals_none": true, "includes_any": ["9", "nine", "between"], "no_write": true }
+  },
+  {
+    "id": "change_reach_out_refused",
+    "text": "pause the reach-out to the dentists",
+    "surface": "campaigns",
+    "must_never": true,
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "proposals_none": true, "includes_any": ["sheet", "reach-out", "reach out"], "no_write": true }
   }
 ]

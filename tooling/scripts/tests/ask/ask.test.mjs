@@ -1381,6 +1381,9 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       person_details_email: { person_details: { email: "jordan.reyes@example.com" } },
       run_approve: { run: { verb: "approve" } },
       run_skip: { run: { verb: "skip" } },
+      // A campaign changed in place (the moment spec, A8): the fields its change card carries.
+      change_resume_by_name: { playbook_change: { state: "running" } },
+      change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
     },
   );
   assert.deepEqual(
@@ -1388,6 +1391,7 @@ test("the eval checks that an Open asked for is followed, and what the words dec
     {
       list_lapsed: { fields: ["last_visit"] },
       list_left_out: { fields: ["last_heard"], cannot: true },
+      setup_new_list_then_playbook: { fields: ["came_from"] },
     },
   );
 });
