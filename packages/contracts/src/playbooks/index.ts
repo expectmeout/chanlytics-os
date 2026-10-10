@@ -19,6 +19,7 @@ export {
   PLAYBOOK_STATES,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
+  PLAYBOOK_LIMITS,
   SENDING_HOURS_WORDS,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_VETO_DELAY_MS,
@@ -79,6 +80,8 @@ export {
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
+export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbook-patch";
+export type { PlaybookPatch, PlaybookPatchKey } from "./playbook-patch";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
 export {
   LEDGER_SORTS,

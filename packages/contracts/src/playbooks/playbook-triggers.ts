@@ -136,6 +136,17 @@ export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cade
 
 export const PLAYBOOK_HOURS = { min: 9, max: 20 } as const;
 
+/**
+ * The whole numbers a playbook keeps, each with its range and the words a refusal names it by: what a new playbook's
+ * check (core checkPlaybook), a change's (core checkPlaybookPatch) and Ask's starter card read, so a bound is written once.
+ */
+export const PLAYBOOK_LIMITS = {
+  run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
+  cap_per_run: { min: 1, max: 500, what: "The cap" },
+  gap_days: { min: 7, max: 365, what: "The gap" },
+  cadence_days: { min: 1, max: 90, what: "The cadence" },
+} as const;
+
 /** The hours a send may go out in, as the pages say them: "9:00–20:59", "between 9:00 and 20:59", and the hour a moved send waits for. */
 export const SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,

@@ -203,11 +203,12 @@ export { poolWords, reachLines, runDayPassed, runApprovalRefusal, waitingRunOffe
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";
 export { followUpNames, breathEndsAt, breathHolds, followUpIsFor, followUpKey, playbookRunStop, playbookStopBy, followUpRunAt, followUpStandOf, followUpWords, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, PLAYBOOK_TOUCH_WINDOW_MS } from "./playbooks/playbook-follow-ups";
+export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbooks/playbook-patch";
 export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose, messageAboutOfTrigger, passesHandoverPause } from "./playbooks/playbook-purpose";
 export { eligibleForPlaybook, playbookRunReach, touchesAfterRun, theirVisitTest, visitMomentDay, visitOnDay, playbookReach, playbookReachDoor, playbookNoNumberWords, playbookPoolKey, PLAYBOOK_REACH_WORDS, PLAYBOOK_CLASS_LABEL } from "./playbooks/playbook-reach";
 export { planRun, localDate, localHour, nextOpenMoment, runDueNow, inLastSendingHour, scheduleLine, runsWords, nextRunLabel } from "./playbooks/playbook-schedule";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
-export { triggerOf, triggerOffered, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, isWinBack, triggerWords, winBackWords, policyClassOffered, PLAYBOOK_TRIGGERS, MOMENT_TRIGGERS, PLAYBOOK_STATES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, SENDING_HOURS_WORDS, PLAYBOOK_BREATH_MS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, delayWords, vetoRunNotice, PLAYBOOK_NAME_MAX, REACH_OUT_IS_NOT_A_MOMENT } from "./playbooks/playbook-triggers";
+export { triggerOf, triggerOffered, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, isWinBack, triggerWords, winBackWords, policyClassOffered, PLAYBOOK_TRIGGERS, MOMENT_TRIGGERS, PLAYBOOK_STATES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, SENDING_HOURS_WORDS, PLAYBOOK_BREATH_MS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, delayWords, vetoRunNotice, PLAYBOOK_NAME_MAX, REACH_OUT_IS_NOT_A_MOMENT } from "./playbooks/playbook-triggers";
 export { playbookListRef, proposalFactsFor, visitFactsFor, visitDayWord, LIST_PLAYBOOK_CLASSES } from "./playbooks/playbooks";
 export { weekHoursOf, DEFAULT_WEEK } from "./reach-out/lead-hours";
 export { whyFrom, isCampaignEmail, CAMPAIGN_EMAIL_TAG, unsubscribePageWords, WHY_FROM_MAPS, UNSUBSCRIBE_PAGE_HEADER } from "./reach-out/reach-out";

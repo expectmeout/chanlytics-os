@@ -457,6 +457,12 @@ var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
 var PLAYBOOK_STATES = ["running", "paused"];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var PLAYBOOK_LIMITS = {
+  run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
+  cap_per_run: { min: 1, max: 500, what: "The cap" },
+  gap_days: { min: 7, max: 365, what: "The gap" },
+  cadence_days: { min: 1, max: 90, what: "The cadence" }
+};
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
   max: PLAYBOOK_HOURS.max,
@@ -27378,6 +27384,29 @@ function playbookChannelsRead(p, ticks, message, workspace) {
   return { purpose, about, ready, choices, ticked, kept, on, stands };
 }
 
+// src/playbooks/playbook-patch.ts
+var PLAYBOOK_PATCH_KEYS = ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days"];
+var PLAYBOOK_PATCH_WORDS = {
+  title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
+  name: (to) => `Renamed \u201C${to}\u201D`,
+  run_hour: (to, was) => `Runs at ${clockHour(to)} by your clock, where it ran at ${clockHour(was)}`,
+  cap_per_run: (to, was) => `Up to ${to} people a run, where it was ${was}`,
+  gap_days: (to, was) => `Reaches a person again after ${to} days, where it was ${was}`,
+  cadence_days: (to, was) => `Every ${to} days, where it was every ${was}`,
+  paused: "Nothing more runs until it is resumed",
+  /** D8: a pause leaves the run that waits; skipping it is a second card. */
+  pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
+  /** D7: a resume says its class's mode, in full. */
+  resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
+  same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
+  nothing: "Name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days.",
+  state: "A campaign is running or paused.",
+  nameMissing: "A name needs words.",
+  nameLong: (max) => `A name is at most ${max} characters.`,
+  /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
+  cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`
+};
+
 // src/templates/library-count.ts
 var LIBRARY_SAMPLES = /* @__PURE__ */ new Set(["hello_world"]);
 var isLibrarySample = (name) => LIBRARY_SAMPLES.has(name);
@@ -39091,7 +39120,10 @@ export {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_DELETE_WORDS,
   PLAYBOOK_HOURS,
+  PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
+  PLAYBOOK_PATCH_KEYS,
+  PLAYBOOK_PATCH_WORDS,
   PLAYBOOK_REACH_WORDS,
   PLAYBOOK_STATES,
   PLAYBOOK_TOUCH_WINDOW_MS,
