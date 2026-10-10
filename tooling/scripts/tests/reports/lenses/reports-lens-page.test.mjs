@@ -19,6 +19,7 @@ import {
   reviewsHeld,
   surface,
 } from "../_report-world.mjs";
+import { ownHeld } from "../receptionist/_receptionist-world.mjs";
 
 const reads = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
@@ -67,12 +68,15 @@ const REVIEWS_UNAVAILABLE = held(
 );
 /** A listing linked and the Business Profile synced: Harbor Studio's reviews over seven days, the period the page shows. */
 const REVIEWS_LINKED = held(reviewsDto({ days: 7 }));
+/** The Receptionist lens's own read of the week, which that lens follows as Reviews' does: current when it is of the period shown. */
+const RECEPTIONIST_HELD = ownHeld();
 /** The lens drawn over a surface: the page for its address. */
 const draw = (lens, opts = {}) => {
-  // The period the strip shows, which the Reviews read follows: what it holds is current when it is of this one.
+  // The period the strip shows, which the Reviews and Receptionist reads follow: what each holds is current when it is of this one.
   keepReportPeriod("7d");
   setSurfaceValue("reports", opts.R ?? surface({ deals: DEALS }));
   setSurfaceValue("reports_reviews", "reviews" in opts ? opts.reviews : REVIEWS_NONE);
+  setSurfaceValue("reports_receptionist", "receptionist" in opts ? opts.receptionist : RECEPTIONIST_HELD);
   fresh();
   return ReportsPage({ pathname: at(lens) });
 };
@@ -80,7 +84,21 @@ const has = (tree, ids) => ids.map((id) => !!byTestId(tree, id));
 
 const BODIES = {
   overview: ["reports-hero", "reports-facts", "reports-tiles"],
-  receptionist: ["chart-answered", "chart-reply", "chart-reasons", "chart-calls", "chart-booking"],
+  receptionist: [
+    "receptionist-strip",
+    "chart-answered",
+    "chart-reasons",
+    "chart-hold",
+    "chart-topics",
+    "chart-languages",
+    "chart-calls",
+    "chart-call-endings",
+    "chart-booking",
+    "chart-reply",
+    "receptionist-time",
+    "receptionist-figures",
+    "receptionist-stuck",
+  ],
   people: ["chart-channels", "chart-rhythm", "chart-people"],
   pipeline: ["rpt-deals"],
   campaigns: ["chart-funnel", "chart-campaigns", "chart-sources"],
@@ -173,6 +191,36 @@ test("the page dims once while the Reviews read is of another period than the st
   // Another lens is of the report the page holds: the Reviews read, behind or not, dims nothing there.
   const other = draw("overview", { reviews: held(reviewsDto({ days: 30 }), "30d") });
   assert.deepEqual(dimmed(other), [], "the Reviews read's period is the Reviews lens's own to say");
+});
+
+test("the page dims once while the Receptionist read is of another period than the strip shows or still out, on that lens alone, and not when they agree", () => {
+  workspace("proposal");
+  const same = draw("receptionist");
+  assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
+  assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");
+  assert.equal(dims(same)[0].props["aria-busy"], "false");
+  for (const [said, receptionist] of [
+    ["held for another period", ownHeld(undefined, "30d")],
+    ["not yet read", undefined],
+  ]) {
+    const behind = draw("receptionist", { receptionist });
+    assert.deepEqual(
+      dimmed(behind),
+      [byTestId(behind, "reports-real")],
+      `${said}: the page says a period is on its way`,
+    );
+    assert.equal(dims(behind).length, 1, "and one body dims, not the page's and the lens's both (they would compound)");
+    assert.ok(byTestId(dims(behind)[0], "chart-answered"), "the lens's cards are in the body that dims");
+    assert.equal(dims(behind)[0].props["aria-busy"], "true");
+    assert.equal(byTestId(behind, "receptionist-failed"), null, `${said}: a read on its way is not a failed one`);
+    // Another lens is of the report the page holds: the Receptionist read, behind or not, dims nothing there.
+    assert.deepEqual(
+      dimmed(draw("overview", { receptionist })),
+      [],
+      `${said}: it is the Receptionist lens's own to say`,
+    );
+    assert.deepEqual(dimmed(draw("reviews", { receptionist })), []);
+  }
 });
 
 test("a lens the workspace has no use for says so at its address, in the registry's words, and draws none of its cards", () => {

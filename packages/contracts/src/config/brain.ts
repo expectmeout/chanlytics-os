@@ -15,6 +15,7 @@
  */
 import { POLICY_COVERS } from "./workspace-config/policy-classes";
 import type { BrainOutput } from "./brain-schema";
+import { INTENT_LABELS } from "./intent-labels";
 
 export const BRAIN_INTENTS = [
   "booking",
@@ -30,18 +31,6 @@ export const BRAIN_INTENTS = [
   "other",
 ] as const;
 export type BrainIntent = (typeof BRAIN_INTENTS)[number];
-
-export const INTENT_LABELS: Record<BrainIntent, string> = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  money: "Money question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other",
-};
 
 export const BRAIN_LANGUAGES = ["en", "es", "other"] as const;
 

@@ -268,3 +268,20 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
     "one call of two ended in a statement: Today repaints",
   );
 });
+
+test("the transcript turn is one predicate, isLiveCallTurn, and Today's rule is its negation", async () => {
+  const { isLiveCallTurn } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
+  );
+  const turn = { table: "calls", event: "UPDATE", row: { status: "ongoing" } };
+  assert.equal(isLiveCallTurn(turn), true, "a call that stays ongoing");
+  for (const not of [
+    { table: "calls", event: "INSERT", row: { status: "ongoing" } },
+    { table: "calls", event: "UPDATE", row: { status: "ended" } },
+    { table: "calls", event: "UPDATE", row: {} },
+    { table: "messages", event: "UPDATE", row: { status: "ongoing" } },
+  ])
+    assert.equal(isLiveCallTurn(not), false, JSON.stringify(not));
+  for (const change of [turn, { ...turn, event: "INSERT" }, { ...turn, row: { status: "ended" } }])
+    assert.equal(todayOverride.refreshWhen(change), !isLiveCallTurn(change), JSON.stringify(change));
+});

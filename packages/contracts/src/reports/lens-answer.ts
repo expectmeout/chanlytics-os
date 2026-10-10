@@ -24,7 +24,7 @@ export function lensAnswerOf(
     case "overview":
       return vm.empty ? undefined : vm.lines.hero;
     case "receptionist":
-      return vm.empty ? undefined : (vm.lines.answered ?? undefined);
+      return vm.empty ? undefined : (vm.lines.receptionist ?? undefined);
     case "people":
       return vm.empty ? undefined : (vm.lines.channels ?? undefined);
     case "pipeline":

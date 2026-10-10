@@ -1117,6 +1117,38 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   );
 });
 
+test("the receipt under customer messages holds only what the figure counts: an automatic reply in the Inbox is not one of them (00379)", () => {
+  // The SQL counts a customer message when its words are a person's; the page also holds an out-of-office from a
+  // customer's address. Counted by the receipt it read 'Of the 2 in the Inbox: 1 by email and 1 by WhatsApp' under 1.
+  const person = thread("cv-w", "Wes Park", [at("2026-08-27T12:30:00Z")]);
+  const outOfOffice = thread("cv-o", "Ola Ng", [
+    at("2026-08-27T12:40:00Z", { channel: "email", meta: { email: { claim: "automated" } } }),
+  ]);
+  const messages = (threads, messagesIn) =>
+    toTodayVM(
+      // A call keeps the day's figures on the card (not the quiet day) when no customer message was counted.
+      metrics({ period: { messages_in: messagesIn, conversations_active: messagesIn, calls: 1, call_seconds: 60 } }),
+      threads,
+      [],
+      [callRow("k1")],
+      NOW,
+    ).figures.find((f) => f.id === "messages");
+  const both = messages([person, outOfOffice], 1);
+  assert.equal(both.receipt.text, "All by WhatsApp.", "the page's one person's message accounts for the figure's one");
+  assert.doesNotMatch(both.receipt.text, /Of the 2|email/, "the mailbox's own mail is not in it");
+  // Only the automated mail in the Inbox: nothing the figure counts is held, so the receipt says nothing.
+  assert.equal(messages([outOfOffice], 0).receipt, null, "a day of automatic replies: a figure of 0 and no receipt");
+  // A claim of 'person' is a person's, and the receipt names its wire as before.
+  const signed = thread("cv-s", "Sol Ito", [
+    at("2026-08-27T12:50:00Z", { channel: "email", meta: { email: { claim: "person" } } }),
+  ]);
+  assert.equal(
+    messages([person, signed], 2).receipt.text,
+    "1 by email and 1 by WhatsApp.",
+    "a person's email is a customer message",
+  );
+});
+
 test("a figure with nothing to add has no receipt; a day with nothing at all has no figures, and the proof is still said", () => {
   // The SQL counted one message nobody has answered; the conversations read holds no thread for it, so there is nothing to split.
   const thin = toTodayVM(metrics({ period: { messages_in: 1, conversations_active: 1 } }), [], [], [], NOW);

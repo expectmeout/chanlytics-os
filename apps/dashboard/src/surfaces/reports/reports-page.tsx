@@ -2,15 +2,16 @@
  * Chanlytics, Reports: the page on its App Router route (`reports/[[...lens]]`, decision 0015, and the lenses spec). One page of
  * lenses, each at its own address (`/w/<slug>/reports/<lens>`, the Overview at `/w/<slug>/reports`). The page follows its own
  * address, as People's does (the path the App Router page hands it), so a move between two lenses is a pushed or replaced entry and
- * never a request for a page, and every lens but Reviews draws from the one read the surface holds, so a move asks for nothing and
- * never blanks the body. Reviews draws from a read of its own (reviews-surface.ts, made as it comes on screen) that follows the period
- * shown: the page asks how it stands against it once (`useFollower`) and hands that to the lens, the head and its own dimming. The
- * frame draws the strip of lenses (chrome.ts, its `views`) and the head (head.ts); the date range is the page's act at the strip's
- * right, a capsule that opens it (period-picker.tsx), with what its word leaves out beside it on a desk; the page draws the lens's
- * body (lenses/), which is a view of its own: replaced as the lens changes (keyed by it), and moved by the deck every change of view
- * moves by (kit/motion/view-deck.ts), from the side its lens stands on, while the page and what it holds of a range stay. A real
- * workspace draws the bridge's own numbers (`useSurface("reports")`); a demo session draws the same page from the contracts sample
- * (sample.ts); without either, the page says what Reports reads.
+ * never a request for a page, and every lens but Reviews draws from the one read the surface holds (the Receptionist's own cards
+ * apart, below), so a move asks for nothing and never blanks the body. Reviews draws from a read of its own (reviews-surface.ts, made
+ * as it comes on screen) that follows the period shown: the page asks how it stands against it once (`useFollower`) and hands that to
+ * the lens, the head and its own dimming. The Receptionist lens draws the cards the report holds from the one read and the rest from
+ * a read of its own (receptionist-surface.ts, the route's answer, which the lens folds), followed the same way. The frame draws the strip of lenses (chrome.ts, its `views`) and
+ * the head (head.ts); the date range is the page's act at the strip's right, a capsule that opens it (period-picker.tsx), with what
+ * its word leaves out beside it on a desk; the page draws the lens's body (lenses/), which is a view of its own: replaced as the lens
+ * changes (keyed by it), and moved by the deck every change of view moves by (kit/motion/view-deck.ts), from the side its lens stands
+ * on, while the page and what it holds of a range stay. A real workspace draws the bridge's own numbers (`useSurface("reports")`); a
+ * demo session draws the same page from the contracts sample (sample.ts); without either, the page says what Reports reads.
  *
  * What it shows is a range: a period by name, kept in this browser, or the days a member picked, which the address says
  * after the lens (`reports/receptionist:2026-09-01~2026-09-20`, contracts lensRoute). The page follows that too: a pick
@@ -45,8 +46,9 @@ import { ReviewsLens } from "./lenses/reviews";
 import { LensEmpty, type LensProps } from "./lenses/shared";
 import { backToShown, setReportRange } from "./period";
 import { PeriodPicker } from "./period-picker";
+import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
-import { reportsSample, reviewsSample } from "./sample";
+import { receptionistSample, reportsSample, reviewsSample } from "./sample";
 import { shownReportPeriod, type ReportsSurface } from "./surface";
 
 /** The lenses in the order the strip stands them: which side a lens arrives from. */
@@ -85,15 +87,40 @@ function failedRow(failed: ReportRange | null, R: ReportsSurface) {
   );
 }
 
+/** The reads a lens draws beside the report's own: each follows the period shown, and says where it stands against it. */
+interface OwnReads {
+  reviews: Follower<ReviewsSurface>;
+  receptionist: Follower<ReceptionistSurface>;
+}
+
+/**
+ * Each of those reads is its own: a pick lands it after the report or before it, and what it says of that is its state. A demo has no
+ * read to follow: the samples answer at once.
+ */
+function useOwnReads(live: ReportsSurface | undefined, R: ReportsSurface | null): OwnReads {
+  const reviews = useFollower("reports_reviews");
+  const receptionist = useFollower("reports_receptionist");
+  if (live || !R) return { reviews, receptionist };
+  return {
+    reviews: { value: reviewsSample(R.range), state: "current" },
+    receptionist: { value: receptionistSample(R.range), state: "current" },
+  };
+}
+
+/** Whether the lens waits on a read of its own for the period shown (one that failed is the lens's own card, not a dimming). */
+const waitsOnItsRead = (lens: LensId, own: OwnReads): boolean =>
+  (lens === "reviews" && own.reviews.state === "coming") ||
+  (lens === "receptionist" && own.receptionist.state === "coming");
+
 /** The lens's body: nothing where it is not yet known to be shown, what it says where it is not shown, else its cards. */
-function lensBody(lens: LensId, props: LensProps, shown: boolean | null, reviews: Follower<ReviewsSurface>) {
+function lensBody(lens: LensId, props: LensProps, shown: boolean | null, own: OwnReads) {
   if (shown === null) return null;
   if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
   switch (lens) {
     case "overview":
       return <OverviewLens {...props} />;
     case "receptionist":
-      return <ReceptionistLens {...props} />;
+      return <ReceptionistLens {...props} own={own.receptionist} />;
     case "people":
       return <PeopleLens {...props} />;
     case "pipeline":
@@ -103,7 +130,7 @@ function lensBody(lens: LensId, props: LensProps, shown: boolean | null, reviews
     case "reviews":
       return (
         <ReviewsLens
-          reviews={reviews}
+          reviews={own.reviews}
           range={{ since: props.R.vm.since, until: props.R.vm.until }}
           phone={props.phone}
         />
@@ -120,7 +147,6 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const live = useSurface("reports");
   // Whether a read of the report has come back in this document: nothing is asked of the address while the first is out.
   const settled = useSurfaceSettled("reports");
-  const following = useFollower("reports_reviews");
   // A demo's own range: the sample answers at once, so a pick switches it here.
   const [sampleRange, setSampleRange] = useState<ReportRange>(REPORT_PERIOD_DEFAULT);
   // The range picked and not yet shown: what the control says, and what dims the body until its answer lands.
@@ -133,9 +159,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
     setPending(null);
   }, [fetchedAt]);
   const R = live || (demoSession() ? reportsSample(sampleRange) : null);
-  // The Reviews read is its own: a pick lands it after the report or before it, and what it says of that is its state. A demo draws the sample.
-  const reviews: Follower<ReviewsSurface> =
-    !live && R ? { value: reviewsSample(R.range), state: "current" } : following;
+  const own = useOwnReads(live, R);
   const desk = useRptDesk();
   const slide = useSlide(LENS_ORDER, lens);
   const pendingKey = pending ? reportRangeKey(pending) : null;
@@ -196,12 +220,13 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
     <PeriodPicker chosen={coming ?? R.range} today={R.vm.today} timezone={R.vm.timezone} pick={pick} desk={desk} />
   ) : null;
   // Its sentence names its period: nothing is said of one the lens cannot show.
-  useReportsStanding(lens, R, reviews.state === "failed" ? null : (reviews.value?.vm ?? null), act);
+  useReportsStanding(lens, R, own.reviews.state === "failed" ? null : (own.reviews.value?.vm ?? null), act);
   if (!R) return readsAWorkspace();
   // Dimmed while the page shows another period than the one picked. A pick painted at once from a held view (a pick back to
   // the period on screen, made while another loads) waits on nothing, though the read behind it is still out. On the Reviews lens
-  // the same, while its own read is of another period than the one shown (one that failed is the lens's own card, not a dimming).
-  const busy = (comingKey !== null && comingKey !== R.key) || (lens === "reviews" && reviews.state === "coming");
+  // the same, while its own read is of another period than the one shown (one that failed is the lens's own card, not a dimming);
+  // and so on the Receptionist lens, whose cards of its own wait on its read.
+  const busy = (comingKey !== null && comingKey !== R.key) || waitsOnItsRead(lens, own);
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
     <div
@@ -222,7 +247,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
           data-dims
           aria-busy={busy ? "true" : "false"}
         >
-          {lensBody(lens, { R, pick, phone }, lensShownHere(lens), reviews)}
+          {lensBody(lens, { R, pick, phone }, lensShownHere(lens), own)}
         </div>
       </div>
     </div>

@@ -346,7 +346,7 @@ test("through Node's own runner, a failed test is named again after the run's to
   assert.match(run.stdout, /^not ok 2 - fails here$/m, "the TAP says it where it happened, as before");
   assert.deepEqual(lines.slice(-2), [
     "# failing tests: 1",
-    `# not ok - fails here (${path.relative(ROOT, file)}:3): the reason`,
+    `# not ok - fails here (${path.relative(ROOT, file).split(path.sep).join("/")}:3): the reason`,
   ]);
   assert.ok(lines.indexOf("# fail 1") < lines.length - 2, "after the totals");
 });

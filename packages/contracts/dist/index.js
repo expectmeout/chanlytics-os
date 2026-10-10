@@ -1136,6 +1136,19 @@ function splitQuotedReply(body) {
   return { text, quoted };
 }
 
+// src/config/intent-labels.ts
+var INTENT_LABELS = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  money: "Money question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other"
+};
+
 // src/config/brain.ts
 var BRAIN_INTENTS = [
   "booking",
@@ -1150,17 +1163,6 @@ var BRAIN_INTENTS = [
   "smalltalk",
   "other"
 ];
-var INTENT_LABELS = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  money: "Money question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other"
-};
 var BRAIN_LANGUAGES = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA = {
   type: "object",
@@ -6505,9 +6507,11 @@ var LATER_BUCKETS = [
 ];
 var HOLD_SLACK_S = 10;
 var holdWords2 = (s) => s < 60 ? `${s}-second` : s % 60 === 0 && s < 3600 ? `${s / 60}-minute` : durationWords(s);
+var heldSeconds = (r2) => r2.hold !== void 0 && r2.hold > 0 ? r2.hold : 0;
 function classOf(r2) {
-  if (r2.hold === void 0 || !(r2.hold > 0)) return { kind: "unheld" };
-  const past = r2.s - r2.hold;
+  const hold = heldSeconds(r2);
+  if (!hold) return { kind: "unheld" };
+  const past = r2.s - hold;
   return past > HOLD_SLACK_S ? { kind: "later", past } : { kind: "atEnd" };
 }
 function classified(replies) {
@@ -6559,10 +6563,23 @@ var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
 var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
 var endedWithHold = (hold) => hold.atEnd >= hold.later;
 var againstHold = (hold) => endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
+var heldCount = (hold) => endedWithHold(hold) ? hold.atEnd : hold.later;
 function heroSpeed(replies, medianLabel, hold) {
   if (!replies) return "";
   if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
-  return ` ${endedWithHold(hold) ? hold.atEnd : hold.later} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+  return ` ${heldCount(hold)} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+}
+function receptionistSpeed(hold) {
+  return hold && waitedHold(hold) ? `, ${heldCount(hold)} ${againstHold(hold)}` : "";
+}
+var REPLY_DOTS_MOST = 500;
+function replyDotsOf(replies, most = REPLY_DOTS_MOST) {
+  const dots = (replies ?? []).filter((r2) => Number.isFinite(r2.s)).map((r2) => ({
+    day: r2.day,
+    past: Math.round(Math.max(0, r2.s - heldSeconds(r2))),
+    held: heldSeconds(r2) > 0
+  }));
+  return dots.slice(Math.max(0, dots.length - most));
 }
 function replySpeedOf(median, hold) {
   if (median === null) return null;
@@ -6597,6 +6614,7 @@ function hoursUnsetOf(arrivals, profile) {
 }
 
 // src/reports/report-tiles.ts
+var REPORT_MIN_N = 5;
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
   return durationWords(s);
@@ -6629,7 +6647,8 @@ var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorH
   meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}` : "none in this period",
   delta: deltaOf(tot.in, prev.in, true, noun),
   spark: points.map((p) => p.in),
-  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
+  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
+  door: "conversations"
 });
 var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
   id: "answered",
@@ -6641,7 +6660,10 @@ var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) =>
   // 100% to 60% while the delta read +20% in green.
   delta: pointsDelta(aiShare, prevShare, noun),
   spark: points.map((p) => p.ai),
-  compare: null
+  compare: null,
+  // A share of the messages that wanted an answer: of few, it says nothing (the page greys it).
+  n: answeredTotal,
+  minN: REPORT_MIN_N
 });
 var replyTile = ({ sortedReply, median, p90, hold }) => ({
   id: "reply",
@@ -6652,7 +6674,10 @@ var replyTile = ({ sortedReply, median, p90, hold }) => ({
   meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
   delta: null,
   spark: [],
-  compare: null
+  compare: null,
+  // A median of the replies counted: of few, it says nothing (the page greys it).
+  n: sortedReply.length,
+  minN: REPORT_MIN_N
 });
 var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
   id: "needed",
@@ -6662,7 +6687,8 @@ var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
   meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
   delta: deltaOf(tot.escalations, prev.escalations, false, noun),
   spark: points.map((p) => p.escalations),
-  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
+  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
+  door: "inbox"
 });
 var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
   id: "calls",
@@ -6692,8 +6718,10 @@ var REPORT_TILES = [
   callsTile,
   peopleTile
 ];
+var BOOKED_ENDED_META = "not counted for days that have ended: it follows people as they stand today";
 function bookedTileOf(booking) {
   const tile = { id: "booked", metric: "booked", label: "Booked", compare: null };
+  if (booking?.calendar === "ended") return { ...tile, value: "\u2014", meta: BOOKED_ENDED_META };
   if (booking && booking.present)
     return {
       ...tile,
@@ -6830,9 +6858,6 @@ function speedOf(replies, days) {
   if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
   return { unit: "week", points: weeks.map(point) };
 }
-function callMoodTone(sentiment) {
-  return sentiment === "Positive" ? "ok" : sentiment === "Negative" ? "danger" : "";
-}
 var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
 var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
 var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
@@ -6946,7 +6971,7 @@ var reasonBarsOf = (reasons) => bars(
 );
 var moodBarsOf = (sentiments) => bars(
   Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
-).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
+);
 function weekShapeOf({ current, previous }) {
   const weekNow = weekOf(current);
   const weekBefore = weekOf(previous);
@@ -6979,7 +7004,8 @@ function replyTimeOf({ dto, sortedReply, median, p90, hold }) {
     medianLabel: fmtSeconds(median),
     p90Label: fmtSeconds(p90),
     buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
-    hold
+    hold,
+    dots: replyDotsOf(dto.replies)
   };
 }
 function callsOf({ dto, current, previous, points, tot }, sentiments) {
@@ -7018,6 +7044,7 @@ function linesOf(f, week, channels) {
   return {
     hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}` : "No customer wrote in this period.",
     heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
+    receptionist: answeredTotal ? `${tot.ai} of ${answeredTotal} messages answered without you${receptionistSpeed(f.hold)}.` : null,
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
     reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
@@ -7107,8 +7134,6 @@ var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
 var periodSince = (today, days) => shiftKey(today, -(days - 1));
 function reportPeriodOf(asked) {
   if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
-  if (asked.days !== void 0)
-    return REPORT_RANGES.find((r2) => r2.days !== null && r2.days === Number(asked.days))?.id ?? null;
   return REPORT_PERIOD_DEFAULT;
 }
 function reportDaysAsked(view) {
@@ -7139,7 +7164,7 @@ function reportDaysRefusal(days, today) {
 }
 function reportRangeAsked(asked) {
   if (asked.from === void 0 && asked.to === void 0) return reportPeriodOf(asked);
-  if (asked.period !== void 0 || asked.days !== void 0) return null;
+  if (asked.period !== void 0) return null;
   return isRealDay(asked.from) && isRealDay(asked.to) ? { from: asked.from, to: asked.to } : null;
 }
 
@@ -29605,7 +29630,7 @@ function lensAnswerOf(lens, parts2) {
     case "overview":
       return vm.empty ? void 0 : vm.lines.hero;
     case "receptionist":
-      return vm.empty ? void 0 : vm.lines.answered ?? void 0;
+      return vm.empty ? void 0 : vm.lines.receptionist ?? void 0;
     case "people":
       return vm.empty ? void 0 : vm.lines.channels ?? void 0;
     case "pipeline":
@@ -29906,13 +29931,55 @@ function toReviewsReportVM(dto, opts) {
   return dto.ledger && reviewsAreOnRecord(dto.google) ? reviewsFromLedger(build, dto.ledger) : reviewsFromPlaces(build);
 }
 
+// src/reports/receptionist/receptionist-record.ts
+var MISSED_CALL_TOUCH_WORDS = "an hour";
+var OPEN_ESCALATIONS_LISTED = 500;
+var isObjectAnswer = (v) => typeof v === "object" && v !== null;
+function isReceptionistSeriesDto(answer) {
+  return isObjectAnswer(answer) && typeof answer.timezone === "string" && typeof answer.today === "string" && typeof answer.days === "number" && isObjectAnswer(answer.hold) && isObjectAnswer(answer.handover) && isObjectAnswer(answer.stuck) && Array.isArray(answer.stuck.open);
+}
+function windowEcho(h) {
+  return { timezone: h.timezone, today: h.today, ...h.end === void 0 ? {} : { end: h.end }, days: h.days };
+}
+function stuckOf(open, nowMs) {
+  const needsYou = (o) => standingOfThread(
+    { state: o.state, paused_until: o.paused_until, assignee_user_id: o.assignee_user_id },
+    true,
+    nowMs
+  ).standing === "needs_you";
+  const waiting = open.filter(needsYou);
+  const oldest = waiting.reduce(
+    (first, o) => first === null || Date.parse(o.created_at) < Date.parse(first) ? o.created_at : first,
+    null
+  );
+  return {
+    waiting: waiting.length,
+    oldest_at: oldest,
+    callbacks: waiting.filter((o) => o.reason === "callback").length,
+    capped: open.length >= OPEN_ESCALATIONS_LISTED
+  };
+}
+function receptionistDtoOf(series, parts2) {
+  if (series === null) return { ...windowEcho(parts2.head), series: null, profile: parts2.profile };
+  const { links, stuck, ...rest } = series;
+  return {
+    ...windowEcho(series),
+    series: {
+      ...rest,
+      links: { sent: links.total, booked: parts2.booked?.booked ?? null, calendar: parts2.booked?.calendar ?? "none" },
+      stuck: stuckOf(stuck.open, parts2.nowMs)
+    },
+    profile: parts2.profile
+  };
+}
+
 // src/reports/report-metrics.ts
 var METRIC_WORDS = {
   customer_messages: "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
   answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a campaign message is nobody's answer.",
   reply_median: "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
-  calls: "Calls to the receptionist that someone spoke on. A call that rang out or dropped before anyone spoke is not counted.",
+  calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message, in either direction, or first connected call fell in this period. People brought in with their history, people who asked to be forgotten, and people with no message or call yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
   messages_sent: "Messages your broadcasts and campaign runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
@@ -29926,9 +29993,262 @@ var METRIC_WORDS = {
   newest_review: "The newest of the five reviews Google shows for your listing, and when it was written. Google shows five at most.",
   reviews_written: "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removes stays on record and is still counted.",
   reviews_answered: "Of the reviews written in this period, how many have a reply on Google, from you or the receptionist. A review with no reply yet is not answered. A reply counts as the receptionist's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
-  review_reply_time: "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said."
+  review_reply_time: "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said.",
+  handover_first_reply: "The middle time from the receptionist handing a conversation to you, over the handovers that wanted a message, to the first message a person sent in it that went out. A handover for an opt-out or a call-back (which wants none), one nobody has replied to yet, and a message the system sent are not counted.",
+  handover_settled: "The middle time from the receptionist handing a conversation to you to its being settled, over this period's handovers that have been. A handover for an opt-out or a call-back, one still open, and one settled before settling was recorded are not counted.",
+  missed_calls_answered: `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or the receptionist reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call the receptionist placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
+  answered_while_closed: "Of the customer messages that came in while your opening hours and closures say you were closed, how many the receptionist answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
+  waiting_on_you: "Conversations the receptionist flagged for a person that nobody has taken, as of now, whatever period is picked. One you or a teammate has taken over, and one put aside until later, are not counted.",
+  call_backs: "Of the conversations waiting on you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
+  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted."
 };
 var metricWordsOf = (metric) => METRIC_WORDS[metric];
+
+// src/reports/receptionist/receptionist-words.ts
+var ownWord = (words3, key) => Object.hasOwn(words3, key) ? words3[key] : void 0;
+function rankedEntries(counts, labelOf2) {
+  return Object.entries(counts).filter(([, n]) => n > 0).map(([key, n]) => [key, labelOf2(key), n]).sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : 1));
+}
+var HOLD_OUTCOMES = [
+  ["sent", "Went out as the hold ended"],
+  ["canceled", "You cancelled"],
+  ["steered", "You changed"],
+  ["overtaken", "A newer message came first"],
+  ["person_first", "A person answered first"],
+  ["waiting", "Still waiting"],
+  ["other", "Did not go out"]
+];
+var HOLD_EMPTY = "No reply waited in a hold in this period.";
+var holdEntries = (now) => HOLD_OUTCOMES.map(([key, label]) => [key, label, now[key]]).filter(([, , n]) => n > 0);
+function holdLine2(now) {
+  const out = `${now.sent} of ${now.total} went out as the hold ended.`;
+  const n = now.low_confidence;
+  return n > 0 ? `${out} ${n} ${n === 1 ? "was" : "were"} held back as not sure enough to send alone.` : out;
+}
+function topicsEmpty(of, stamped) {
+  if (of === 0) return "Topics are read from texts and WhatsApp messages. None came in this period.";
+  if (stamped === 0) return `No topic is recorded for the ${plural(of, "message")} that came by text or WhatsApp.`;
+  return null;
+}
+var topicEntries = (byIntent) => rankedEntries(byIntent, (key) => ownWord(INTENT_LABELS, key) ?? key);
+var topicsLine = (stamped, of) => `${stamped} of ${of} text and WhatsApp messages had a topic.`;
+var LANGUAGE_LABELS = { en: "English", es: "Spanish", other: "Another language" };
+var languageEntries = (byLanguage) => rankedEntries(byLanguage, (key) => ownWord(LANGUAGE_LABELS, key) ?? key);
+var languagesLine = (stamped, of) => `${stamped} of ${of} replies say the language they were written in.`;
+var CALLS_EMPTY = "Nobody phoned in this period.";
+var CALLS_NONE_CONNECTED = "No call connected in this period.";
+var callEndingWords = (key) => key === "unknown" ? "Not recorded" : ownWord(DISCONNECTION_LABELS, key) ?? key.replace(/_/g, " ");
+var callEndingEntries = (byReason) => rankedEntries(byReason, callEndingWords);
+var callEndingsLine = (total) => `${plural(total, "call")} that connected.`;
+function bookedReason(calendar) {
+  if (calendar === "ended") return BOOKED_NEEDS_TODAY;
+  if (calendar === "none") return BOOKED_NEEDS_A_LINK;
+  if (calendar === "unavailable") return "Your calendar could not be read.";
+  return null;
+}
+function linkLine(sent2, booked, calendar) {
+  if (sent2 === 0) return "Nobody was sent the booking link in this period.";
+  const was = `${sent2} ${sent2 === 1 ? "person was" : "people were"} sent the booking link`;
+  if (booked !== null) return `${was}; ${booked} ${booked === 1 ? "has" : "have"} booked since.`;
+  const reason = bookedReason(calendar);
+  return reason === null ? `${was}.` : `${was}. ${reason}`;
+}
+var HANDOVER_NONE = "nothing was handed over in this period";
+var handoverReplyMeta = (replied, n) => n === 0 ? HANDOVER_NONE : `${replied} of ${plural(n, "handover")} that wanted a message had a reply from you`;
+var handoverSettledMeta = (settled, n) => n === 0 ? HANDOVER_NONE : `${settled} of ${n} settled`;
+var MISSED_LABEL = `Missed calls answered within ${MISSED_CALL_TOUCH_WORDS}`;
+function missedMeta(m) {
+  const left = [
+    m.pending > 0 ? `${m.pending} under ${MISSED_CALL_TOUCH_WORDS} old, not counted yet` : null,
+    m.unknown > 0 ? `${m.unknown} with no caller on record not counted` : null
+  ].filter((part) => part !== null);
+  if (left.length > 0) return left.join(" \xB7 ");
+  return m.n === 0 ? "no call went unanswered at the phone" : `${plural(m.n, "person", "people")} rang and found nobody`;
+}
+var CLOSED_UNSET = "set your opening hours to see this";
+var CLOSED_NONE = "no message came while you were closed";
+var closedMeta = (came, answered) => `${plural(came, "message")} came while you were closed; the receptionist answered ${answered}.`;
+function waitedWords(oldestAt, nowMs) {
+  const seconds2 = oldestAt === null ? NaN : (nowMs - Date.parse(oldestAt)) / 1e3;
+  return Number.isFinite(seconds2) ? durationWords(seconds2) : null;
+}
+function waitingMeta(waiting, oldestAt, nowMs) {
+  if (waiting === 0) return "nobody is waiting for you";
+  const waited = waitedWords(oldestAt, nowMs);
+  return waited === null ? "waiting for you now" : `the oldest has waited ${waited}`;
+}
+var callbacksMeta = (callbacks) => callbacks === 0 ? "no call-back is waiting" : "people to ring, counted in waiting on you";
+var refusalWords = (key) => ownWord(HELD_REASONS, key) ?? key.replace(/_/g, " ");
+function heldBackMeta(byReason) {
+  const top = rankedEntries(byReason, refusalWords).slice(0, 2);
+  return top.length > 0 ? top.map(([, words3, n]) => `${words3} ${n}`).join(" \xB7 ") : "none were held at the door in this period";
+}
+var heldBackEntries = (byReason) => rankedEntries(byReason, (key) => capitalize(refusalWords(key)));
+
+// src/reports/receptionist/receptionist-report.ts
+function barsOf2(entries) {
+  const max = Math.max(1, ...entries.map(([, , value]) => value));
+  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
+}
+var mixOf = (entries, line) => ({ rows: barsOf2(entries), line, empty: null });
+var noMix = (empty) => ({ rows: [], line: null, empty });
+function holdPart({ hold }) {
+  return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), holdLine2(hold.now));
+}
+function topicsPart({ topics }) {
+  const empty = topicsEmpty(topics.of, topics.stamped);
+  return empty === null ? mixOf(topicEntries(topics.by_intent), topicsLine(topics.stamped, topics.of)) : noMix(empty);
+}
+function languagesPart({ languages }) {
+  const entries = languageEntries(languages.by_language);
+  return entries.length < 2 ? null : mixOf(entries, languagesLine(languages.stamped, languages.of));
+}
+function callEndingsPart({ call_endings, missed }) {
+  if (call_endings.total > 0)
+    return mixOf(callEndingEntries(call_endings.by_reason), callEndingsLine(call_endings.total));
+  const rang = missed.now.n + missed.now.pending + missed.now.unknown > 0;
+  return noMix(rang ? CALLS_NONE_CONNECTED : CALLS_EMPTY);
+}
+function wasWords(now, before, days) {
+  return now === null || before === null ? null : `was ${fmtSeconds(before)} ${beforeWords(rangeLabelOf(days))}`;
+}
+function handoverFigures({ handover }, days) {
+  const { now, before } = handover;
+  return [
+    {
+      id: "handover-reply",
+      metric: "handover_first_reply",
+      label: "Your first reply after a handover",
+      value: fmtSeconds(now.replied.median_s),
+      meta: handoverReplyMeta(now.replied.n, now.n),
+      compare: wasWords(now.replied.median_s, before.replied.median_s, days),
+      n: now.replied.n,
+      minN: REPORT_MIN_N
+    },
+    {
+      id: "handover-settled",
+      metric: "handover_settled",
+      label: "Time to settle a handover",
+      value: fmtSeconds(now.settled.median_s),
+      meta: handoverSettledMeta(now.settled.n, now.n),
+      compare: wasWords(now.settled.median_s, before.settled.median_s, days),
+      n: now.settled.n,
+      minN: REPORT_MIN_N
+    }
+  ];
+}
+function missedFigure({ missed }, days) {
+  const { now, before } = missed;
+  return {
+    id: "missed-calls",
+    metric: "missed_calls_answered",
+    label: MISSED_LABEL,
+    value: now.n === 0 ? "\u2014" : `${now.touched} of ${now.n}`,
+    meta: missedMeta(now),
+    // Set against the period before only beside a figure: nothing is set against a dash.
+    compare: now.n > 0 && before.n > 0 ? `was ${before.touched} of ${before.n} ${beforeWords(rangeLabelOf(days))}` : null,
+    n: now.n,
+    minN: REPORT_MIN_N
+  };
+}
+function closedFigure({ after_hours }, profile) {
+  const tile = {
+    id: "closed",
+    metric: "answered_while_closed",
+    label: "Answered while you were closed",
+    compare: null
+  };
+  if (hoursUnsetOf(after_hours, profile)) {
+    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/workspace", unset: true };
+  }
+  if (profile === null) return null;
+  const came = closedOf(after_hours, profile) ?? 0;
+  if (came === 0) return { ...tile, value: "0", meta: CLOSED_NONE, unset: false };
+  const answered = closedOf(
+    after_hours.map(({ d, q, a }) => ({ d, q, n: a })),
+    profile
+  ) ?? 0;
+  return {
+    ...tile,
+    value: `${answered} of ${came}`,
+    meta: closedMeta(came, answered),
+    n: came,
+    minN: REPORT_MIN_N,
+    unset: false
+  };
+}
+function stuckFigures({ stuck, blocked }, nowMs) {
+  return [
+    {
+      id: "waiting",
+      metric: "waiting_on_you",
+      label: "Waiting on you",
+      // A list cut at the database's limit is a floor: the Inbox is where the rest is.
+      value: stuck.capped ? `${stuck.waiting}+` : String(stuck.waiting),
+      meta: waitingMeta(stuck.waiting, stuck.oldest_at, nowMs),
+      compare: null,
+      door: "inbox"
+    },
+    {
+      id: "call-backs",
+      metric: "call_backs",
+      label: "Call-backs",
+      value: String(stuck.callbacks),
+      meta: callbacksMeta(stuck.callbacks),
+      compare: null,
+      door: "today"
+    },
+    {
+      id: "held-back",
+      metric: "replies_held_back",
+      label: "Replies held back",
+      value: String(blocked.total),
+      meta: heldBackMeta(blocked.by_reason),
+      compare: null,
+      door: "inbox"
+    }
+  ];
+}
+function unavailableVM() {
+  return {
+    available: false,
+    hold: noMix(null),
+    topics: noMix(null),
+    languages: null,
+    callEndings: noMix(null),
+    link: { sent: 0, booked: null, line: "" },
+    handover: [],
+    missed: {
+      id: "missed-calls",
+      metric: "missed_calls_answered",
+      label: MISSED_LABEL,
+      value: "\u2014",
+      meta: "",
+      compare: null
+    },
+    closed: null,
+    stuck: [],
+    heldBack: []
+  };
+}
+function toReceptionistReportVM(dto, opts) {
+  const { series } = dto;
+  if (series === null) return unavailableVM();
+  const { links } = series;
+  return {
+    available: true,
+    hold: holdPart(series),
+    topics: topicsPart(series),
+    languages: languagesPart(series),
+    callEndings: callEndingsPart(series),
+    link: { sent: links.sent, booked: links.booked, line: linkLine(links.sent, links.booked, links.calendar) },
+    handover: handoverFigures(series, dto.days),
+    missed: missedFigure(series, dto.days),
+    closed: closedFigure(series, dto.profile),
+    stuck: stuckFigures(series, opts.nowMs),
+    heldBack: barsOf2(heldBackEntries(series.blocked.by_reason))
+  };
+}
 
 // src/reports/report-window.ts
 function reportShortcuts(today) {
@@ -33743,6 +34063,7 @@ var ROUTE_KEYS = [
   "GET reports/campaigns",
   "GET reports/headline",
   "GET reports/reach-outs",
+  "GET reports/receptionist",
   "GET reports/reviews",
   "GET segments",
   "GET settings",
@@ -34925,6 +35246,7 @@ function todayProof(live, tz, now) {
   const gap = replyGapSeconds(live);
   return `The last message arrived ${lastIn}${gap !== null ? `, and the receptionist answered ${secondsPhrase(gap)} later` : ""}.`;
 }
+var isCustomerMessage = (x) => x.direction === "inbound" && x.sender === "customer" && isPersonsWords(x.meta);
 function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const p = m.period;
   const live = m.now;
@@ -34935,7 +35257,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const lastAt = tzClock(live.last_inbound_at, tz, now);
   const wires = tally(
     conversations.flatMap(
-      (c) => c.messages.filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x)).map((x) => threadChannelWords([x]))
+      (c) => c.messages.filter((x) => isCustomerMessage(x) && fresh(x)).map((x) => threadChannelWords([x]))
     )
   );
   const held = wires.reduce((s, [, n]) => s + n, 0);
@@ -39004,6 +39326,7 @@ export {
   BILLING_STATUSES,
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
+  BOOKED_ENDED_META,
   BOOKED_NEEDS_A_LINK,
   BOOKED_NEEDS_TODAY,
   BOOKED_SEEN_CAP,
@@ -39416,6 +39739,7 @@ export {
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
   MIN_MS,
+  MISSED_CALL_TOUCH_WORDS,
   MOCK_TEXTING_SENTENCE,
   MODELS,
   MODEL_CALL_OUTCOMES,
@@ -39670,6 +39994,7 @@ export {
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
   REPORT_LENSES,
+  REPORT_MIN_N,
   REPORT_MOST_DAYS,
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
@@ -39965,7 +40290,6 @@ export {
   callAttemptWords,
   callJumpSub,
   callLength,
-  callMoodTone,
   callNoteLines,
   callNotesOf,
   callOfKey,
@@ -40362,6 +40686,7 @@ export {
   isReachOutRow,
   isReachOutRun,
   isRealDate,
+  isReceptionistSeriesDto,
   isReplyIntent,
   isReplyTo,
   isReplyUndoRefusal,
@@ -40881,6 +41206,7 @@ export {
   receiptWords,
   recencyCells,
   receptionistCardOf,
+  receptionistDtoOf,
   receptionistOf2 as receptionistOf,
   receptionistOn,
   receptionistPrimary,
@@ -41169,6 +41495,7 @@ export {
   toPersonRowVM,
   toPersonVM,
   toReachOutReportVM,
+  toReceptionistReportVM,
   toReportVM,
   toReviewsReportVM,
   toRunReportVM,

@@ -30,6 +30,15 @@ export interface RealtimeChange {
   row: Record<string, unknown>;
 }
 
+/**
+ * A transcript turn of a call in progress: an UPDATE of a call that stays ongoing, told every few seconds. It changes nothing a
+ * figure counts, so the surfaces that count calls (Today, the Receptionist lens) leave it out of their rule; a call starting (an
+ * INSERT) or ending (an UPDATE that leaves another status) is not a turn. Live, which draws the transcript, hears each.
+ */
+export function isLiveCallTurn(change: RealtimeChange): boolean {
+  return change.table === "calls" && change.event === "UPDATE" && change.row.status === "ongoing";
+}
+
 export interface RefreshPreference {
   /** The historical flag: repaint on the default tables. */
   refreshOnMessageInserts?: boolean;

@@ -211,6 +211,29 @@ test("the hero speaks of the hold only where most replies waited one, and says w
   );
 });
 
+test("the Receptionist's head says the hold by the hero's own rules: only where most replies waited one, and the same tie-break", () => {
+  const headOf = (replies) =>
+    toReportVM(dto(replies)).lines.receptionist.replace("16 of 25 messages answered without you", "");
+  const unheld = (n) => times(n, () => reply(5, 0));
+  const atEnd = (n) => times(n, () => reply(61, 60));
+  const late = (n) => times(n, () => reply(200, 60));
+  assert.equal(headOf([...unheld(5), ...atEnd(3)]), ".", "most had no hold: the head says nothing of one");
+  assert.equal(headOf([...unheld(4), ...atEnd(4)]), ".", "exactly half held is not most");
+  assert.equal(headOf([...unheld(2), ...atEnd(5), ...late(1)]), ", 5 as your 1-minute hold ended.");
+  assert.equal(headOf([...unheld(1), ...atEnd(1), ...late(5)]), ", 5 later than your 1-minute hold.");
+  assert.equal(headOf(late(4)), ", 4 later than your 1-minute hold.", "every reply held and late");
+  assert.equal(
+    headOf([...unheld(1), ...atEnd(3), ...late(3)]),
+    ", 3 as your 1-minute hold ended.",
+    "as many late as at the end: as it ended, as the hero says",
+  );
+  assert.equal(
+    toReportVM({ ...dto([]), replies: undefined }).lines.receptionist,
+    "16 of 25 messages answered without you.",
+    "a report from before the hold was kept: how many, and no hold",
+  );
+});
+
 test("replies that took longer than the hold say how many, in the plural, and the most any took past it", () => {
   const vm = toReportVM(dto([reply(60, 60), reply(160, 60), reply(200, 60)]));
   assert.equal(vm.lines.reply, "2 replies took longer than the hold, at most 2m 20s more.");

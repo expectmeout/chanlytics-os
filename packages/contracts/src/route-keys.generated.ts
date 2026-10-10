@@ -78,6 +78,7 @@ export const ROUTE_KEYS = [
   "GET reports/campaigns",
   "GET reports/headline",
   "GET reports/reach-outs",
+  "GET reports/receptionist",
   "GET reports/reviews",
   "GET segments",
   "GET settings",

@@ -198,6 +198,9 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 .rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
 .rpt-figures.listing { --cells: 4; }
 .rpt-figures.answers { --cells: 2; }
+/* The Receptionist lens's: the four against the period before and the four steps after a reply, the three that wait on you. */
+.rpt-figures.quad { --cells: 4; }
+.rpt-figures.trio { --cells: 3; }
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -244,6 +247,10 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-figures.listing .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
   .rpt-figures.listing .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
   .rpt-figures.listing .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .rpt-figures.quad { --cells: 2; }
+  .rpt-figures.quad .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-figures.quad .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-figures.quad .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
 }
 /* On a phone the panes stand at the boards' 12px from the screen's edges, under the frame's row of views, which stands
    there on every page (components.css): they stood at the head's 16, so the row and the page's width changed between the
@@ -275,6 +282,9 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
   .rpt-figures.listing .rpt-cell:last-child, .rpt-figures.answers .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
+  /* Four stay two rows of two; three are two and one that takes the row, as any odd strip is. */
+  .rpt-figures.quad .rpt-cell:last-child { grid-column: auto; }
+  .rpt-figures.trio { --cells: 2; }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
   .rpt .ck-pie { flex-direction: column; align-items: stretch; }
   .rpt .ck-pie-figure { align-self: center; }

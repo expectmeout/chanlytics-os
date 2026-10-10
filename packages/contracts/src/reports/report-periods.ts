@@ -1,9 +1,8 @@
 /**
  * The periods Reports offers and how a request names one (the table is REPORT_RANGES, reports.ts: said once). Three are a
  * count of days; Month is the days since the 1st in the workspace's own zone, today included, so on the 5th it is 5 days,
- * against the 5 before. A request names `period`; `days`, which every page sent before there was a Month, is read for a
- * release longer so a tab opened before the deploy still reads (either deploy order works), and the day it ends is held by
- * tests/reports/periods/report-periods.test.mjs.
+ * against the 5 before. A request names `period`; `days`, which every page sent before there was a Month, is no longer
+ * read (a request that still sends it is read as one that did not: thirty days).
  *
  * And the days a member picks (9 Oct 2026). A report was "a count of days ending today" in every layer, so Reports could
  * offer the four periods and no other. What a report is read over is a RANGE now: a period by name, or a window of days
@@ -60,16 +59,11 @@ export const monthDaysAt = (dayKey: string): number => Number(dayKey.slice(8, 10
 export const periodSince = (today: string, days: number): string => shiftKey(today, -(days - 1));
 
 /**
- * The period a request names: `period`, else (until its day) the `days` a page sent before there was a Month, else the
- * default. Null when what it names is none of ours.
+ * The period a request names: `period`, else the default. Null when what it names is none of ours. A request that still
+ * sends `days`, which every page sent before there was a Month, is read as one that does not: the default.
  */
-export function reportPeriodOf(asked: {
-  period?: string | undefined;
-  days?: string | undefined;
-}): ReportPeriodId | null {
+export function reportPeriodOf(asked: { period?: string | undefined }): ReportPeriodId | null {
   if (asked.period !== undefined) return isReportPeriod(asked.period) ? asked.period : null;
-  if (asked.days !== undefined)
-    return REPORT_RANGES.find((r) => r.days !== null && r.days === Number(asked.days))?.id ?? null;
   return REPORT_PERIOD_DEFAULT;
 }
 
@@ -143,18 +137,17 @@ export function reportDaysRefusal(days: ReportDays, today: string): string | nul
 }
 
 /**
- * The range a request names: a first and a last day together (`from`, `to`), else `period`, else (until its day) `days`,
- * else the default. Null when what it names is none of ours: half a window, a window beside a period, a day that is no
- * day, or a period we do not offer. Whether the days may be read (not to come, not too many) is asked of the
- * workspace's today, which a request does not know: `reportDaysRefusal`.
+ * The range a request names: a first and a last day together (`from`, `to`), else `period`, else the default. Null when
+ * what it names is none of ours: half a window, a window beside a period, a day that is no day, or a period we do not
+ * offer. Whether the days may be read (not to come, not too many) is asked of the workspace's today, which a request does
+ * not know: `reportDaysRefusal`.
  */
 export function reportRangeAsked(asked: {
   period?: string | undefined;
-  days?: string | undefined;
   from?: string | undefined;
   to?: string | undefined;
 }): ReportRange | null {
   if (asked.from === undefined && asked.to === undefined) return reportPeriodOf(asked);
-  if (asked.period !== undefined || asked.days !== undefined) return null;
+  if (asked.period !== undefined) return null;
   return isRealDay(asked.from) && isRealDay(asked.to) ? { from: asked.from, to: asked.to } : null;
 }

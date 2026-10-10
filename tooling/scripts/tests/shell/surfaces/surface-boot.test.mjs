@@ -565,6 +565,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "reports",
     "reports_headline",
     "reports_reviews",
+    "reports_receptionist",
     "live",
     "broadcasts",
     "playbooks",
@@ -598,6 +599,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/reports/surface",
         "../surfaces/reports/headline",
         "../surfaces/reports/reviews-surface",
+        "../surfaces/reports/receptionist-surface",
         "surfaces/notifications",
         "../surfaces/live/surface",
         "../surfaces/setup/surface",
@@ -617,7 +619,12 @@ test("what the page on screen draws from other surfaces follows its own surface,
   } finally {
     console.error = keepError;
   }
-  for (const k of [...draws, ...ROUTE_DRAWS["reports/reviews"], ...ROUTE_DRAWS["admin/integrations"]])
+  for (const k of [
+    ...draws,
+    ...ROUTE_DRAWS["reports/reviews"],
+    ...ROUTE_DRAWS["reports/receptionist"],
+    ...ROUTE_DRAWS["admin/integrations"],
+  ])
     assert.ok(known.has(k), `${k} is a surface an override feeds (known: ${[...known].join(", ")})`);
   const { order, overrides } = crowd(keys, { hash: "#/today" });
   const stop = startSurfaces(overrides);
@@ -658,6 +665,40 @@ test("the Reviews lens reads its own surface right after Reports' own, ahead of 
   assert.deepEqual(
     order.slice(0, 2),
     ["reports", "reports_reviews"],
+    "its own surface, then the lens's read, before Settings or anyone's list",
+  );
+  assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
+});
+
+test("the Receptionist lens reads its own surface right after Reports' own, ahead of every stranger", async () => {
+  // Reviews and the Receptionist each draw a read of their own beside the one of the page (surfaces/reports/receptionist-surface.ts).
+  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.deepEqual(reg.ROUTE_DRAWS["reports/receptionist"], ["reports_receptionist"]);
+  assert.deepEqual(
+    reg.routeDrawsFor("reports", "receptionist"),
+    ["reports_receptionist"],
+    "asked as the shell asks: page and lens",
+  );
+  const keys = [
+    "conversations",
+    "inbox",
+    "today",
+    "settings",
+    "people",
+    "leads",
+    "reports",
+    "reports_reviews",
+    "reports_receptionist",
+    "calendar",
+  ];
+  // The Reviews lens's read is in the crowd as a stranger: it comes after the lens's own, with Settings and the rest.
+  const { order, overrides } = crowd(keys, { hash: "#/reports/receptionist" });
+  const stop = startSurfaces(overrides);
+  await settle(80);
+  stop();
+  assert.deepEqual(
+    order.slice(0, 2),
+    ["reports", "reports_receptionist"],
     "its own surface, then the lens's read, before Settings or anyone's list",
   );
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
