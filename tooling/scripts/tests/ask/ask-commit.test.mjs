@@ -776,6 +776,31 @@ test("an undo names the decision it reverses: the inverse call carries the commi
   );
 });
 
+test("a campaign's change (the moment spec, A5): the commit keeps the ledger row the change wrote, and its Undo names it as x-undo-of, so undo_of says which change it reversed", async () => {
+  const change = card("playbook_change", {
+    playbook_id: PB1,
+    playbook_name: "Win-back",
+    state: "paused",
+    was: { state: "running" },
+  });
+  const t = tab((key) =>
+    key === `PUT /api/v1/playbooks/${PB1}`
+      ? envelope({ id: PB1, name: "Win-back", state: "paused", was: { state: "running" }, decision_id: D(6) })
+      : envelope({}),
+  );
+  const done = await commitProposal(t.win, change, t.client);
+  assert.equal(done.ok, true, done.message);
+  assert.deepEqual(done.undo, { playbook_id: PB1, was: { state: "running" }, decision_id: D(6) });
+  await undoProposal(t.win, change, { state: "done", receipt: "", atMs: 1, undo: done.undo }, t.client);
+  assert.deepEqual(
+    t.sent.map((s) => [s.key, s.body, s.undoOf]),
+    [
+      [`PUT /api/v1/playbooks/${PB1}`, { state: "paused" }, undefined],
+      [`PUT /api/v1/playbooks/${PB1}`, { state: "running" }, D(6)],
+    ],
+  );
+});
+
 test("every kind, committed and undone: each call marked as a card's, each re-reading the surfaces of the route it reached, and the lead search's receipts and undo; a list made and deleted, a run approved and cancelled, and a run skipped with nothing to undo", async () => {
   const { ROUTES } = await import(at("apps/dashboard/src/client/routes.generated.ts"));
   // A request's route key, from its method and path, as the refresh map is keyed.

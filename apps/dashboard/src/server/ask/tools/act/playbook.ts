@@ -6,6 +6,7 @@ import {
   DEFAULT_CAMPAIGN_CHANNELS,
   FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_ONE,
+  LIBRARY_STARTER_WORDS,
   LIST_PLAYBOOK_CLASSES,
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
@@ -42,7 +43,6 @@ import {
   type ListRef,
   type MessageAbout,
   type ParamSpec,
-  type PlaybookMessage,
   type StarterTemplate,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
@@ -159,12 +159,18 @@ async function heldStarter(
     .sort((a, b) => (a.language < b.language ? -1 : a.language > b.language ? 1 : 0));
   const starter = written.map((x) => offered.find((m) => m.name === x.name)).find(Boolean);
   if (starter) return { id: starter.anchor.id };
+  const title = written[0]?.title ?? trig.label;
+  // One the workspace hid has a version, and no card adds it back (nor would the starter set): said as hidden, the way
+  // out being to show it again or to go by another message.
+  if (messages.some((m) => m.hidden && written.some((x) => x.name === m.name)))
+    return {
+      refusal: `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${AUDIENCES_CALL} names the messages that may send.`,
+      starter: null,
+    };
   return {
-    refusal: `the “${written[0]?.title ?? trig.label}” starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${AUDIENCES_CALL}`,
-    // The one a card may add at its Approve (A0): the moment's starter still offered, never one the workspace hid.
-    starter: messages.some((m) => m.hidden && written.some((x) => x.name === m.name))
-      ? null
-      : (written.find((s) => !s.retired) ?? null),
+    refusal: `the “${title}” starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${AUDIENCES_CALL}`,
+    // The one a card may add at its Approve (A0): the moment's starter still offered.
+    starter: written.find((s) => !s.retired) ?? null,
   };
 }
 
@@ -413,7 +419,8 @@ async function twinRefusal(t: ToolContext, checked: PlaybookInput, named: string
  * Who a new playbook's run reaches now, and who its moment names said the yes it needs, as a run counts them (audience.ts
  * poolList over the pool, the week's touches, a proposal's pace less whoever had their follow-up), with the workspace's
  * autonomy rows; or why not, in the model's words. `message` is the yes its words need; `how` the channels it goes by,
- * the workspace ready on them or not: a run holds the people it cannot reach there.
+ * the workspace ready on them or not: a run holds the people it cannot reach there. `cap` is the campaign's own
+ * cap_per_run: `oneRun` is who one run of it reaches on each channel, what the month's allowance is held against.
  */
 async function reachNow(
   t: ToolContext,
@@ -421,6 +428,7 @@ async function reachNow(
   listRef: ListRef | null,
   message: { category: string | null },
   how: CampaignHow,
+  cap: number,
 ) {
   const deal = trig.kind === "deal";
   const [pool, policies, paceRead, followUps] = await Promise.all([
@@ -439,15 +447,19 @@ async function reachNow(
   const listed = listRef ? await listedPeople(t, pool, listRef) : { ids: null, label: null };
   if ("refusal" in listed) return listed;
   // The yes its message needs, with its moment's: the check held the two to agree, so the stricter is either.
-  const drawn = playbookRunReach(
-    pool.rows,
-    { trigger: trig.id, cap_per_run: 100_000, gap_days: 0, cadence_days: 0, message, ...how },
-    untouched,
-    t.now.getTime(),
-    dealPaceOf(paceRead),
-    listed.ids,
-  );
-  return { drawn, policies, listLabel: listed.label };
+  const draw = (capPerRun: number) =>
+    playbookRunReach(
+      pool.rows,
+      { trigger: trig.id, cap_per_run: capPerRun, gap_days: 0, cadence_days: 0, message, ...how },
+      untouched,
+      t.now.getTime(),
+      dealPaceOf(paceRead),
+      listed.ids,
+    );
+  // Everyone the moment names now, uncapped (the page's count), and one run of it at its own cap, as the run takes them.
+  const drawn = draw(100_000);
+  const oneRun = draw(cap).reach.by_channel;
+  return { drawn, oneRun, policies, listLabel: listed.label };
 }
 
 /**
@@ -472,31 +484,6 @@ function underMode(cls: PlaybookInput["policy_class"], policies: readonly { clas
   const mode = policies.find((r) => r.class === cls)?.mode ?? "ask";
   return { mode, said: `under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}.` };
 }
-
-/**
- * The starter's message as its Approve leaves it, as the drawer will read it (contracts playbookChannelsRead): a version
- * on each channel it holds at once, and, where it goes by WhatsApp and does not hold it yet, a WhatsApp version in review,
- * whose people wait until WhatsApp approves it. No version has an id before it is filed, and the reading reads none.
- */
-function starterMessage(
-  starter: StarterTemplate,
-  j: { channels: readonly ConsentChannel[]; atOnce: readonly ConsentChannel[] },
-): PlaybookMessage {
-  const own = (c: "email" | "sms") => (j.atOnce.includes(c) ? { id: "" } : null);
-  const whatsapp = j.atOnce.includes("whatsapp") ? "approved" : j.channels.includes("whatsapp") ? "pending" : null;
-  return {
-    category: starter.category,
-    versions: {
-      whatsapp: whatsapp && { id: "", status: whatsapp, hidden: false, blocked: null, reason: null },
-      email: own("email"),
-      sms: own("sms"),
-    },
-  };
-}
-
-/** What a starter card says it does first (A0): files the starter, and where it goes by WhatsApp, sends its version for review. */
-const starterFirst = (title: string, toMeta: boolean): string =>
-  `adds the “${title}” starter first${toMeta ? ": its WhatsApp version goes to Meta for review, which cannot be taken back" : ""}`;
 
 /**
  * A playbook on a moment whose starter this workspace does not hold yet (the moment spec's A0, D23): the card names the
@@ -537,26 +524,10 @@ async function proposeOnStarter(
     return refuse(e instanceof Error ? e.message : String(e));
   }
   const { params, cls, channels } = judged;
-  // What the workspace can send on, as the turn already holds it (readers/facts.ts); unread, it is WhatsApp alone.
+  // What the workspace can send on, as the turn already holds it (readers/facts.ts); unread, it is WhatsApp alone. Read
+  // against the starter's message as its filing leaves it (checkStarterPlaybook's own reading of that).
   const workspace = readyOrWhatsApp((await load(t.rc, channelsReady, undefined)).data);
-  const read = playbookChannelsRead(
-    { trigger: trig.id, policy_class: cls },
-    channels,
-    starterMessage(starter, judged),
-    workspace,
-  );
-  const reach = await reachNow(
-    t,
-    trig,
-    listRef,
-    { category: starter.category },
-    { channels, ready: read.ready, about: read.about },
-  );
-  if ("refusal" in reach) return refuse(reach.refusal);
-  const { drawn, policies, listLabel } = reach;
-  const held = await allowanceHeld(t, channels, drawn.reach.by_channel, trig.id, purposeOfPlaybook(cls));
-  const under = underMode(cls, policies);
-  const name = str(input.name, PLAYBOOK_NAME_MAX);
+  const read = playbookChannelsRead({ trigger: trig.id, policy_class: cls }, channels, judged.message, workspace);
   const clock = {
     trigger: trig.id,
     run_hour: input.run_hour ?? PLAYBOOK_DEFAULTS.runHour,
@@ -564,13 +535,29 @@ async function proposeOnStarter(
     gap_days: PLAYBOOK_DEFAULTS.gapDays,
     cadence_days: PLAYBOOK_DEFAULTS.cadenceDays,
   };
-  const toMeta = channels.includes("whatsapp") && !judged.atOnce.includes("whatsapp");
+  const reach = await reachNow(
+    t,
+    trig,
+    listRef,
+    { category: starter.category },
+    { channels, ready: read.ready, about: read.about },
+    clock.cap_per_run,
+  );
+  if ("refusal" in reach) return refuse(reach.refusal);
+  const { drawn, oneRun, policies, listLabel } = reach;
+  const held = await allowanceHeld(t, channels, oneRun, trig.id, purposeOfPlaybook(cls));
+  const under = underMode(cls, policies);
+  const name = str(input.name, PLAYBOOK_NAME_MAX);
+  // Its WhatsApp version goes for review at Approve only where none is on file; one on file is said as it stands, by the
+  // drawer's reading (in review, refused), and the filing leaves it so.
+  const forReview = judged.whatsappOnFile === null && judged.message.versions.whatsapp !== null;
+  const waits = channelsWaitWords(read, forReview ? { whatsapp: LIBRARY_STARTER_WORDS.whatsappForReview } : {});
   // The moment and its schedule in the workspace's word, as the message card says them.
   const { word, moment } = await wordedMoment(t, trig);
   return propose({
     kind: "playbook",
     title: `Campaign: ${name || moment.label}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)} · ${starterFirst(starter.title, toMeta)} · ${proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel))}${channelsWaitWords(read)} · ${held}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · ${under.said}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)} · ${LIBRARY_STARTER_WORDS.addsFirst(starter.title)} · ${proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel))}${waits} · ${held}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · ${under.said}`,
     payload: {
       ...clock,
       trigger_label: moment.label,
@@ -625,11 +612,11 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   // By the channels it goes by: said and committed whenever they are more than WhatsApp alone by default.
   const by = { channels: checked.channels, named: picked.channels !== undefined };
   const how = await playbookHow(t, message, by, about);
-  const reach = await reachNow(t, trig, listRef, { category: message.category }, how);
+  const reach = await reachNow(t, trig, listRef, { category: message.category }, how, checked.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { drawn, policies, listLabel } = reach;
+  const { drawn, oneRun, policies, listLabel } = reach;
   const cls = checked.policy_class;
-  const held = await allowanceHeld(t, by.channels, drawn.reach.by_channel, trig.id, purposeOfPlaybook(cls));
+  const held = await allowanceHeld(t, by.channels, oneRun, trig.id, purposeOfPlaybook(cls));
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
@@ -692,7 +679,7 @@ export const playbookAction = actAction({
   ],
   label: "Preparing a playbook",
   words:
-    "Action playbook takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected: the check refuses the one the workspace cannot read), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is a message from action audiences (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to Meta for review, which the card says), but for a starter that takes words of its own such as the month's offer; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by " +
+    "Action playbook takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected: the check refuses the one the workspace cannot read), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is a message from action audiences (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to WhatsApp for review where none is on file, which the card says), but for a starter that takes words of its own such as the month's offer; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by " +
     UNNAMED_GOES_BY +
     " the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can.",
   build: proposePlaybook,

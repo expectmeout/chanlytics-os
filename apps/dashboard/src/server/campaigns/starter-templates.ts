@@ -53,6 +53,7 @@ import {
   type ConsentChannel,
   type OwnVersionChannel,
   type ParamSpec,
+  type PlaybookMessage,
   type PlaybookPolicyClass,
   type StarterTemplate,
   type triggerOf,
@@ -275,9 +276,14 @@ interface StarterJudged {
   cls: PlaybookPolicyClass;
   /** The channels the campaign goes by: those named, or, named none, those held at once and WhatsApp where there is a number. */
   channels: ConsentChannel[];
-  /** The channels its message holds the moment it is filed: on any other of `channels`, its runs hold people until it does. */
-  atOnce: ConsentChannel[];
+  /** The starter's WhatsApp version on file now (in review, refused, approved), which the filing leaves as it is; or none. */
+  whatsappOnFile: WhatsAppVersion | null;
+  /** Its message as the filing leaves it (asFiled): what a card reads its channels against, as the drawer will read them. */
+  message: PlaybookMessage;
 }
+
+/** A message's WhatsApp version, as contracts reads one. */
+type WhatsAppVersion = NonNullable<PlaybookMessage["versions"]["whatsapp"]>;
 
 /** The four whole numbers a campaign names, each held to its bounds before anything is filed. */
 const NUMBERS = ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const;
@@ -311,7 +317,33 @@ async function heldAtOnce(ctx: RouteContext, tenantId: string, starter: StarterT
   const atOnce = CONSENT_CHANNELS.filter((c) => channelNeverCarries(c, purpose) === null && (held?.[c] || writes(c)));
   const wa = onFile?.versions.whatsapp ?? null;
   const whatsappMaySend = !wa || (wa.blocked === null && (wa.status === "approved" || wa.status === "pending"));
-  return { atOnce, number: line !== null, whatsappMaySend };
+  return { atOnce, number: line !== null, whatsappMaySend, whatsapp: wa };
+}
+
+/**
+ * The starter's message as its filing leaves it (fileStarters, for the campaign's `channels`), as the drawer will read
+ * it (contracts playbookChannelsRead): an email and a text version where it holds them at once (on file, or written by
+ * the filing); its WhatsApp version as it is on file, which the filing leaves as it is (in review, refused, approved);
+ * else, where the campaign goes by WhatsApp and there is a number to make one for, the version the filing sends for
+ * review, in review. The one reading of what a filing leaves, here where the filing is. No version the filing makes has
+ * an id yet, and the reading reads none.
+ */
+function asFiled(
+  starter: StarterTemplate,
+  held: Awaited<ReturnType<typeof heldAtOnce>>,
+  channels: readonly ConsentChannel[],
+): PlaybookMessage {
+  const own = (c: "email" | "sms") => (held.atOnce.includes(c) ? { id: "" } : null);
+  const sent = channels.includes("whatsapp") && held.number;
+  return {
+    category: starter.category,
+    versions: {
+      whatsapp:
+        held.whatsapp ?? (sent ? { id: "", status: "pending", hidden: false, blocked: null, reason: null } : null),
+      email: own("email"),
+      sms: own("sms"),
+    },
+  };
 }
 
 /**
@@ -379,7 +411,15 @@ export async function checkStarterPlaybook(
   const never = (named ?? []).map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
   if (never) throw new AppError("validation", never);
   const held = await heldAtOnce(ctx, tenantId, starter, purpose);
-  return { starter, params, cls, channels: starterChannels(starter.title, named, held), atOnce: held.atOnce };
+  const channels = starterChannels(starter.title, named, held);
+  return {
+    starter,
+    params,
+    cls,
+    channels,
+    whatsappOnFile: held.whatsapp,
+    message: asFiled(starter, held, channels),
+  };
 }
 
 /**

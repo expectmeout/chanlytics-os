@@ -24924,6 +24924,11 @@ declare const PLAYBOOK_PATCH_WORDS: {
     readonly nameLong: (max: number) => string;
     /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
     readonly cadenceOffer: (name: string) => string;
+    /**
+     * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
+     * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
+     */
+    readonly putBody: "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.";
 };
 
 /** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
@@ -30047,6 +30052,19 @@ declare const LIBRARY_STARTER_WORDS: {
     readonly notThisMoment: (moment: string) => string;
     /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
     readonly takesOwnWords: (title: string) => string;
+    /**
+     * A starter the workspace hid in its Library: it has a version, and no card adds it back, so the way out is to show it
+     * again or to go by another message, never the starter set, which leaves a hidden one hidden.
+     */
+    readonly hiddenInLibrary: (title: string) => string;
+    /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
+    readonly addsFirst: (title: string) => string;
+    /**
+     * The card's WhatsApp clause where no WhatsApp version of the starter is on file: the filing sends one for review at
+     * Approve, which cannot be taken back, and the campaign's people there wait for WhatsApp's answer. No time is promised:
+     * nothing on record says how long a review takes. A version already on file is said as it stands (messageWhyNot).
+     */
+    readonly whatsappForReview: "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.";
     /**
      * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
      * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.

@@ -34,12 +34,18 @@ const PLAYBOOK_FROM = "campaigns with action playbooks";
 /**
  * What a playbook card says of each channel it keeps and cannot go by yet, by the drawer's own reading (contracts
  * playbookChannelsRead): " · Email waits: <why> Its runs hold those people until it can.", one after another, and
- * nothing where every channel it keeps can go. The channels card's sentence, and the starter card's (act/playbook.ts).
+ * nothing where every channel it keeps can go. The channels card's sentence, and the starter card's (act/playbook.ts),
+ * which says its own for a channel that waits on what its Approve does (`own`: a WhatsApp version it sends for review).
  */
-export function channelsWaitWords(read: PlaybookChannelsRead): string {
+export function channelsWaitWords(
+  read: PlaybookChannelsRead,
+  own: Partial<Record<ConsentChannel, string>> = {},
+): string {
   return read.kept
     .filter((c) => read.stands[c] === "waits")
     .map((c) => {
+      const said = own[c];
+      if (said) return ` · ${said}`;
       const why = read.choices.find((x) => x.channel === c)?.why;
       return ` · ${VERSION_CHANNEL_WORDS[c]} waits${why ? `: ${why}` : "."} Its runs hold those people until it can.`;
     })

@@ -215,5 +215,10 @@ test("a card approved after somebody else made the same change writes nothing, a
     rows.decisions.map((d) => d.verb),
     ["pause_playbook"],
   );
-  assert.deepEqual(spec.undo.record(p, paused, { settings: null }), { playbook_id: PB, was: { state: "running" } });
+  // Its undo names that line (undo_of), as every card's undo names the row it reverses.
+  assert.deepEqual(spec.undo.record(p, paused, { settings: null }), {
+    playbook_id: PB,
+    was: { state: "running" },
+    decision_id: rows.decisions[0].id,
+  });
 });

@@ -118,6 +118,21 @@ export const LIBRARY_STARTER_WORDS = {
   takesOwnWords: (title: string): string =>
     `The “${title}” starter takes words of its own: write them in the composer and start it there.`,
   /**
+   * A starter the workspace hid in its Library: it has a version, and no card adds it back, so the way out is to show it
+   * again or to go by another message, never the starter set, which leaves a hidden one hidden.
+   */
+  hiddenInLibrary: (title: string): string =>
+    `The “${title}” starter is hidden in this workspace's ${library}: show it again under ${CAMPAIGN_ROOMS.home} › ${library}, or name another message.`,
+  /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
+  addsFirst: (title: string): string => `adds the “${title}” starter first`,
+  /**
+   * The card's WhatsApp clause where no WhatsApp version of the starter is on file: the filing sends one for review at
+   * Approve, which cannot be taken back, and the campaign's people there wait for WhatsApp's answer. No time is promised:
+   * nothing on record says how long a review takes. A version already on file is said as it stands (messageWhyNot).
+   */
+  whatsappForReview:
+    "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.",
+  /**
    * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
    * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
    * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).

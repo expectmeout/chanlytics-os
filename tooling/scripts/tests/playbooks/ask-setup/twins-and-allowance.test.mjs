@@ -273,6 +273,16 @@ test("a card by email says what the month's allowance holds back, and says nothi
   );
   assert.equal(whatsapp.isError, false, whatsapp.result);
   assert.doesNotMatch(whatsapp.proposal.summary, /held back/);
+  // A run reaches at most its cap, so the allowance is held against one run of it, never everyone the moment names: two
+  // people can be reached by email here, and a run of one holds back one.
+  const usedUp = { email: CAMPAIGN_MONTH_ALLOWANCE.email, sms: 0 };
+  const byEmailAlone = { ...WIN_BACK, channels: ["email"] };
+  const uncapped = await propose(byEmailAlone, {}, usedUp, OFFERS_BY_EMAIL);
+  assert.equal(uncapped.isError, false, uncapped.result);
+  assert.match(uncapped.proposal.summary, /used up: 2 people will be held back/);
+  const one = await propose({ ...byEmailAlone, cap_per_run: 1 }, {}, usedUp, OFFERS_BY_EMAIL);
+  assert.equal(one.isError, false, one.result);
+  assert.match(one.proposal.summary, /used up: 1 person will be held back/);
 });
 
 test("a broadcast card by email says what the month's allowance holds back, as the send screen does; by WhatsApp alone it reads no count", async () => {

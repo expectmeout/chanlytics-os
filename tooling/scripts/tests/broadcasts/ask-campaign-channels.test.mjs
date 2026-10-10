@@ -1056,7 +1056,12 @@ test("a moment's starter is found among the messages the composers offer: one wh
       templates: [{ ...world.templates[0], hidden_at: ago(DAY) }],
     },
   );
-  assert.match(said(hidden), /starter has no version this workspace can send yet/);
+  // Said as hidden, not as having no version: it has one, and adding the starter set would leave it hidden.
+  assert.match(
+    said(hidden),
+    /starter is hidden in this workspace's Library: show it again under Campaigns › Library, or name another message\./,
+  );
+  assert.doesNotMatch(said(hidden), /no version|starter set/);
 });
 
 test("a hidden message is refused a playbook, and a message whose WhatsApp row is pending is refused for WhatsApp, in WhatsApp's own standing", async () => {

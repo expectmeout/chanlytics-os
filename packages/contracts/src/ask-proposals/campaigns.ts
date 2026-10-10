@@ -112,7 +112,9 @@ export const playbookSpec: ProposalSpec = {
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
   receipt: ({ payload: pl }, data) =>
     `Campaign “${rec(data).name ?? asText(pl.name)}” is running — its next run is under Coming up in Campaigns${
-      rec(rec(data).starter).status === "submitted" ? " · its starter's WhatsApp version is with Meta for review" : ""
+      rec(rec(data).starter).status === "submitted"
+        ? " · its starter's WhatsApp version is with WhatsApp for review"
+        : ""
     }`,
   undo: {
     label: () => "Delete it — nothing will run",
@@ -216,12 +218,17 @@ export const playbookChangeSpec: ProposalSpec = {
     label: ({ payload }) =>
       payload.state === "paused" ? "Resume it" : payload.state === "running" ? "Pause it again" : "Put it back",
     window: "ten_minutes",
-    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none. A
-    // route that wrote nothing (somebody made the same change first) answers it empty: no undo, which would undo theirs.
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
+    // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody
+    // made the same change first) answers it empty: no undo, which would undo theirs.
     record: (p, data) => {
       const was = rec(data).was;
       if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
-      return { playbook_id: p.payload.playbook_id, was: was && typeof was === "object" ? was : p.payload.was };
+      return {
+        playbook_id: p.payload.playbook_id,
+        was: was && typeof was === "object" ? was : p.payload.was,
+        decision_id: decisionOf(data),
+      };
     },
     call: (u) => {
       const was = patchIn(rec(u.was));

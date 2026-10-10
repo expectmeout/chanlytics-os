@@ -753,8 +753,13 @@ test("a playbook's change from a card (A5): its own PUT with what it changes and
     ["Put it back", "Resume it", "Pause it again", "ten_minutes"],
   );
   // The undo puts back what the route found when it wrote (its `was`), the card's copy only where a route answers none.
-  const kept = spec.undo.record(p, { was: { name: "Spring win-back", run_hour: 11 } }, TAB);
-  assert.deepEqual(kept, { playbook_id: "pb1", was: { name: "Spring win-back", run_hour: 11 } });
+  // And the ledger row the change wrote, which its undo names (undo_of).
+  const kept = spec.undo.record(p, { was: { name: "Spring win-back", run_hour: 11 }, decision_id: "d-change" }, TAB);
+  assert.deepEqual(kept, {
+    playbook_id: "pb1",
+    was: { name: "Spring win-back", run_hour: 11 },
+    decision_id: "d-change",
+  });
   assert.deepEqual(spec.undo.call(kept, TAB_AFTER), {
     route: "PUT playbooks/[id]",
     params: { id: "pb1" },
@@ -785,9 +790,11 @@ test("a playbook card (A0, the landing rule): a starter it names is committed in
   assert.equal(spec.open(onStarter, null), "campaigns/new:moment:quiet_30");
   assert.equal(spec.open(onStarter, done({ playbook_id: "pb9", decision_id: "d1" })), "campaigns/moment:pb9");
   assert.equal(spec.open(card("playbook", {}), null), "outbound");
-  // The receipt says the starter's WhatsApp version went to Meta, where the route says it did; and "Campaign", the word
-  // a person reads.
-  assert.match(spec.receipt(onStarter, { name: "Win-back", starter: { status: "submitted" } }), /Meta/);
-  assert.doesNotMatch(spec.receipt(onStarter, { name: "Win-back" }), /Meta/);
+  // The receipt says the starter's WhatsApp version went for review, where the route says it did, naming the reviewer as
+  // every sentence a person reads does (WhatsApp, never Meta); and "Campaign", the word a person reads.
+  const submitted = spec.receipt(onStarter, { name: "Win-back", starter: { status: "submitted" } });
+  assert.ok(submitted.endsWith(" · its starter's WhatsApp version is with WhatsApp for review"), submitted);
+  assert.doesNotMatch(submitted, /Meta/);
+  assert.doesNotMatch(spec.receipt(onStarter, { name: "Win-back" }), /review/);
   assert.match(spec.receipt(onStarter, { name: "Win-back" }), /^Campaign “Win-back” is running/);
 });

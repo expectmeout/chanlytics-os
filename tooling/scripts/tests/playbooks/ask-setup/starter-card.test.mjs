@@ -1,11 +1,13 @@
 /**
  * A playbook proposed on a moment whose starter this workspace does not hold yet (the moment spec's A0, D23): the card
- * carries the starter's key in place of a message, says the starter is added at Approve and that its WhatsApp version
- * goes to Meta for review, which cannot be taken back, and counts who the moment names that said the yes the starter
- * needs. It is judged whole first, by the route's own function (checkStarterPlaybook), in the route's words, and says
- * every channel it goes by and which of them hold their people until they can send (the drawer's own reading): WhatsApp
- * until WhatsApp approves the version, email until offers by email are open. Nothing is filed at the card. A starter that
- * takes words of its own (the month's offer) is not proposed this way. The world is
+ * carries the starter's key in place of a message, says the starter is added at Approve and, where no WhatsApp version of
+ * it is on file, that its WhatsApp version goes to WhatsApp for review then, which cannot be taken back; one on file is
+ * said as it stands (in review, refused), and the filing leaves it so. It counts who the moment names that said the yes
+ * the starter needs. It is judged whole first, by the route's own function (checkStarterPlaybook), in the route's words,
+ * and says every channel it goes by and which of them hold their people until they can send (the drawer's own reading,
+ * over the message as the filing leaves it): WhatsApp until WhatsApp approves the version, email until offers by email
+ * are open. Nothing is filed at the card. A starter that takes words of its own (the month's offer) is not proposed this
+ * way, and one the workspace hid is never added back. The world is
  * tooling/scripts/tests/broadcasts/ask-campaign-channels.test.mjs's, copied whole.
  */
 import { test, beforeEach, after } from "node:test";
@@ -222,7 +224,7 @@ const STARTER = startersForTrigger("quiet_30").find((s) => !s.retired);
 /** What the drawer says of a kept channel that waits, after its name (the channels card's sentence). */
 const WAITS_WORDS = "Its runs hold those people until it can.";
 
-test("a moment whose starter is not on file: a card that names the starter, says it is added at Approve with its WhatsApp version sent to Meta for review, and commits the key in place of a message", async () => {
+test("a moment whose starter is not on file: a card that names the starter, says it is added at Approve with its WhatsApp version sent to WhatsApp for review then, and commits the key in place of a message", async () => {
   const { made, rows } = propose({ trigger: "quiet_30" });
   const r = await made;
   assert.equal(r.isError, false, r.result);
@@ -233,19 +235,21 @@ test("a moment whose starter is not on file: a card that names the starter, says
   assert.equal("template_id" in p.payload, false);
   // Its slots, filled with the starter's own sources: what the route fills them with at Approve.
   assert.deepEqual(p.payload.params, defaultParamSpecs({ name: STARTER.name, variables: [] }));
-  assert.match(p.summary, new RegExp(`adds the “${STARTER.title}” starter first`));
-  assert.match(p.summary, /Meta for review, which cannot be taken back/);
+  assert.ok(p.summary.includes(` · ${LIBRARY_STARTER_WORDS.addsFirst(STARTER.title)} · `), p.summary);
+  assert.equal(LIBRARY_STARTER_WORDS.addsFirst(STARTER.title), `adds the “${STARTER.title}” starter first`);
   assert.match(p.summary, /said yes to offers/);
   // Every channel it goes by (its email version at once, WhatsApp where there is a number), and the one that holds its
-  // people until it can send: WhatsApp, until WhatsApp approves the version.
+  // people until it can send: WhatsApp, whose version nothing has sent yet. It goes for review at Approve, which cannot
+  // be taken back, and its people wait until WhatsApp approves it: no review is said to be under way, and no time is
+  // promised for one.
   assert.deepEqual(p.payload.channels, ["whatsapp", "email"]);
   assert.match(p.summary, / · on WhatsApp and by email/);
-  assert.ok(
-    p.summary.includes(
-      ` · WhatsApp waits: WhatsApp is still reviewing this message's WhatsApp version. ${WAITS_WORDS}`,
-    ),
-    p.summary,
+  assert.equal(
+    LIBRARY_STARTER_WORDS.whatsappForReview,
+    "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.",
   );
+  assert.ok(p.summary.includes(` · ${LIBRARY_STARTER_WORDS.whatsappForReview}`), p.summary);
+  assert.ok(!/still reviewing|Meta|minutes/.test(p.summary), p.summary);
   assert.ok(!p.summary.includes("Email waits"), p.summary);
   const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
   assert.deepEqual([body.starter_key, body.template_id, body.trigger], [STARTER.key, undefined, "quiet_30"]);
@@ -271,7 +275,7 @@ test("a starter card is refused for what its Approve would be refused for, in th
   for (const { rows } of [one, two, three]) assert.deepEqual([rows.templates, rows.playbooks], [[], []]);
 });
 
-test("a starter card says every channel it goes by and which hold their people until they can send: with no number email alone and nothing for Meta; with offers by email closed, email waits too", async () => {
+test("a starter card says every channel it goes by and which hold their people until they can send: with no number email alone and nothing for WhatsApp; with offers by email closed, email waits too", async () => {
   const noNumber = await propose({ trigger: "quiet_30" }, { tenant_channels: [] }).made;
   assert.equal(noNumber.isError, false, noNumber.result);
   assert.deepEqual(noNumber.proposal.payload.channels, ["email"]);
@@ -280,8 +284,65 @@ test("a starter card says every channel it goes by and which hold their people u
   await edgeSays(CLOSED_EDGE);
   const closed = await propose({ trigger: "quiet_30" }).made;
   assert.equal(closed.isError, false, closed.result);
-  assert.match(closed.proposal.summary, / · WhatsApp waits: .+ Its runs hold those people until it can\./);
-  assert.match(closed.proposal.summary, / · Email waits: .+ Its runs hold those people until it can\./);
+  assert.ok(closed.proposal.summary.includes(` · ${LIBRARY_STARTER_WORDS.whatsappForReview}`), closed.proposal.summary);
+  assert.match(closed.proposal.summary, / · Email waits: [^·]+ Its runs hold those people until it can\./);
+});
+
+/** The starter's WhatsApp version on file, as the filing finds it (in English, as a new campaign's starter is filed). */
+const onFile = (status, over = {}) =>
+  template("dddddddd-dddd-4ddd-8ddd-ddddddddddd7", STARTER.name, {
+    language: "en_US",
+    meta_status: status,
+    category: STARTER.category,
+    ...over,
+  });
+
+test("a starter whose WhatsApp version is on file says what it is, never that it goes for review: in review, WhatsApp is still reviewing it; refused, WhatsApp refused it; the filing leaves it as it is", async () => {
+  // In review (not yet a version that can send, so the workspace holds no starter, and the card adds its email version).
+  const { made: inReview, rows } = propose({ trigger: "quiet_30" }, { templates: [onFile("pending")] });
+  const pending = await inReview;
+  assert.equal(pending.isError, false, pending.result);
+  assert.deepEqual(pending.proposal.payload.channels, ["whatsapp", "email"]);
+  assert.ok(
+    pending.proposal.summary.includes(
+      ` · WhatsApp waits: WhatsApp is still reviewing this message's WhatsApp version. ${WAITS_WORDS}`,
+    ),
+    pending.proposal.summary,
+  );
+  assert.ok(pending.proposal.summary.includes(` · ${LIBRARY_STARTER_WORDS.addsFirst(STARTER.title)} · `));
+  assert.ok(!/for review|taken back/.test(pending.proposal.summary), pending.proposal.summary);
+  assert.equal(rows.templates.length, 1, "nothing is filed at the card");
+  // Refused, with WhatsApp named: it waits on a version WhatsApp refused, said so, and nothing goes for review.
+  const named = await propose(
+    { trigger: "quiet_30", channels: ["whatsapp", "email"] },
+    { templates: [onFile("rejected")] },
+  ).made;
+  assert.equal(named.isError, false, named.result);
+  assert.deepEqual(named.proposal.payload.channels, ["whatsapp", "email"]);
+  assert.ok(
+    named.proposal.summary.includes(
+      ` · WhatsApp waits: WhatsApp refused this message's WhatsApp version. ${WAITS_WORDS}`,
+    ),
+    named.proposal.summary,
+  );
+  assert.ok(!/for review|taken back|still reviewing/.test(named.proposal.summary), named.proposal.summary);
+  // Refused, with none named: it goes by its email alone, and says nothing of WhatsApp.
+  const unnamed = await propose({ trigger: "quiet_30" }, { templates: [onFile("rejected")] }).made;
+  assert.equal(unnamed.isError, false, unnamed.result);
+  assert.deepEqual(unnamed.proposal.payload.channels, ["email"]);
+  assert.ok(!/WhatsApp/.test(unnamed.proposal.summary), unnamed.proposal.summary);
+});
+
+test("a starter the workspace hid is never added back, and the card says it is hidden in the Library, not that it has no version", async () => {
+  const hidden = await propose({ trigger: "quiet_30" }, { templates: [onFile("approved", { hidden_at: ago(DAY) })] })
+    .made;
+  assert.equal(hidden.isError, true);
+  assert.ok(said(hidden).startsWith(LIBRARY_STARTER_WORDS.hiddenInLibrary(STARTER.title)), said(hidden));
+  assert.equal(
+    LIBRARY_STARTER_WORDS.hiddenInLibrary(STARTER.title),
+    `The “${STARTER.title}” starter is hidden in this workspace's Library: show it again under Campaigns › Library, or name another message.`,
+  );
+  assert.ok(!/no version|starter set/.test(said(hidden)), said(hidden));
 });
 
 test("a starter that takes words of its own (the month's offer) is not proposed on a key: the model is told to ask for the words and name a message", async () => {

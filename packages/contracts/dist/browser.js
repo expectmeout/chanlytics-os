@@ -10145,6 +10145,19 @@ var LIBRARY_STARTER_WORDS = {
   /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
   takesOwnWords: (title) => `The \u201C${title}\u201D starter takes words of its own: write them in the composer and start it there.`,
   /**
+   * A starter the workspace hid in its Library: it has a version, and no card adds it back, so the way out is to show it
+   * again or to go by another message, never the starter set, which leaves a hidden one hidden.
+   */
+  hiddenInLibrary: (title) => `The \u201C${title}\u201D starter is hidden in this workspace's ${library}: show it again under ${CAMPAIGN_ROOMS.home} \u203A ${library}, or name another message.`,
+  /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
+  addsFirst: (title) => `adds the \u201C${title}\u201D starter first`,
+  /**
+   * The card's WhatsApp clause where no WhatsApp version of the starter is on file: the filing sends one for review at
+   * Approve, which cannot be taken back, and the campaign's people there wait for WhatsApp's answer. No time is promised:
+   * nothing on record says how long a review takes. A version already on file is said as it stands (messageWhyNot).
+   */
+  whatsappForReview: "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.",
+  /**
    * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
    * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
    * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).
@@ -10491,7 +10504,12 @@ var PLAYBOOK_PATCH_WORDS = {
   nameMissing: "A name needs words.",
   nameLong: (max) => `A name is at most ${max} characters.`,
   /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
-  cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`
+  cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`,
+  /**
+   * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
+   * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
+   */
+  putBody: "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id."
 };
 
 // src/ask-proposals/spec.ts
@@ -10580,7 +10598,7 @@ var playbookSpec = {
     }
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
-  receipt: ({ payload: pl }, data) => `Campaign \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns${rec(rec(data).starter).status === "submitted" ? " \xB7 its starter's WhatsApp version is with Meta for review" : ""}`,
+  receipt: ({ payload: pl }, data) => `Campaign \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns${rec(rec(data).starter).status === "submitted" ? " \xB7 its starter's WhatsApp version is with WhatsApp for review" : ""}`,
   undo: {
     label: () => "Delete it \u2014 nothing will run",
     window: "ten_minutes",
@@ -10649,12 +10667,17 @@ var playbookChangeSpec = {
   undo: {
     label: ({ payload }) => payload.state === "paused" ? "Resume it" : payload.state === "running" ? "Pause it again" : "Put it back",
     window: "ten_minutes",
-    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none. A
-    // route that wrote nothing (somebody made the same change first) answers it empty: no undo, which would undo theirs.
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
+    // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody
+    // made the same change first) answers it empty: no undo, which would undo theirs.
     record: (p, data) => {
       const was = rec(data).was;
       if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
-      return { playbook_id: p.payload.playbook_id, was: was && typeof was === "object" ? was : p.payload.was };
+      return {
+        playbook_id: p.payload.playbook_id,
+        was: was && typeof was === "object" ? was : p.payload.was,
+        decision_id: decisionOf(data)
+      };
     },
     call: (u) => {
       const was = patchIn(rec(u.was));

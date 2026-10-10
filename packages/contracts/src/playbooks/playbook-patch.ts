@@ -45,4 +45,10 @@ export const PLAYBOOK_PATCH_WORDS = {
   /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
   cadenceOffer: (name: string): string =>
     `Only the month's offer runs on a cadence; “${name}” runs as people reach its moment.`,
+  /**
+   * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
+   * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
+   */
+  putBody:
+    "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.",
 } as const;

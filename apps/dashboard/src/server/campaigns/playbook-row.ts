@@ -13,6 +13,7 @@ import { z } from "zod";
 import {
   AppError,
   CAMPAIGN_NOT_FOUND,
+  PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
   isPlaybookState,
@@ -46,11 +47,11 @@ import type { RouteContext } from "@/server/with-route";
 type PlaybookRow = Awaited<ReturnType<typeof playbookScope.load>>;
 
 /**
- * What a body that is none of the three is refused in: one sentence that names them, where zod said the first key of the
- * nearest one it did not take (`Unrecognized key: "channels"` of channels that were no list).
+ * What a body that is none of the three is refused in (contracts PLAYBOOK_PATCH_WORDS.putBody): one sentence that names
+ * them, where zod said the first key of the nearest one it did not take (`Unrecognized key: "channels"` of channels that
+ * were no list).
  */
-const PUT_BODY_WORDS =
-  "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.";
+const PUT_BODY_WORDS = PLAYBOOK_PATCH_WORDS.putBody;
 /** Each body's own refusal of a key it does not take: the union's sentence, since the key may be another body's. */
 const ONE_OF_THREE = {
   error: (issue: { code: string }) => (issue.code === "unrecognized_keys" ? PUT_BODY_WORDS : undefined),
