@@ -6071,6 +6071,16 @@ type Database = {
             };
         };
         Functions: {
+            add_person: {
+                Args: {
+                    p_display_name: string;
+                    p_email: string;
+                    p_phone_e164: string;
+                    p_source: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             ai_failures_hour: {
                 Args: {
                     p_min?: number;

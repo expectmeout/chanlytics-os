@@ -92,8 +92,8 @@ test("every sentence is one an owner could act on", () => {
 
 test("the door asks, rather than deciding for itself", () => {
   const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(route.includes("whyNotAPhone(raw)"), "the words come from contracts, where the product's words live");
-  assert.ok(route.includes("const phone = normalizePhone(raw);"), "and the rule is still normalizePhone's");
+  assert.ok(route.includes("whyNotAPhone(rawPhone)"), "the words come from contracts, where the product's words live");
+  assert.ok(route.includes("const phone = normalizePhone(rawPhone);"), "and the rule is still normalizePhone's");
 });
 
 test("the shared normalizer is NOT tightened, because two of its callers fail open", () => {
