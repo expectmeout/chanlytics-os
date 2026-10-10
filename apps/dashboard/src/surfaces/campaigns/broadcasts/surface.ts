@@ -28,6 +28,7 @@ import {
   optInLink,
   reachCountsOf,
   toBroadcastVM,
+  whatsappLineOf,
   type AudienceKind,
   type AudiencePreview,
   type BroadcastVM,
@@ -255,10 +256,8 @@ export const broadcastsOverride: SurfaceOverride = {
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
     ]);
-    const wa =
-      ch instanceof Error
-        ? null
-        : ((ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null);
+    // The number they go out on: the workspace's WhatsApp line (contracts whatsappLineOf), as the playbooks surface reads it.
+    const wa = ch instanceof Error ? null : whatsappLineOf(ch.channels);
     const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
     if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();

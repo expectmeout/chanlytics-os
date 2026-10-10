@@ -198,6 +198,7 @@ export { personStanding, attentionOf, holderOf, personStateFor, PERSON_STATE_LAB
 export { consentChangeWords } from "./people/person-timeline";
 export { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./people/person-words";
 export { campaignsHomeOf, lifecycleKicker } from "./playbooks/lifecycle/lifecycle";
+export { lifecyclePlaybooksOf, whatsappLineOf } from "./playbooks/lifecycle/lifecycle-inputs";
 export { LEDGER_SORTS, LEDGER_STATUSES, chainResultsOf, isLedgerCampaign, ledgerOrder, ledgerPeopleWords, ledgerPhoneLine, ledgerRowIn, lifecycleChainsOf, sentResultsOfSource } from "./playbooks/lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./playbooks/lifecycle/lifecycle-tiles";
 export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, momentHoldsWords } from "./playbooks/lifecycle/lifecycle-words";

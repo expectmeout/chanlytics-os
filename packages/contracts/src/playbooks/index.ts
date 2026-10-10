@@ -89,6 +89,8 @@ export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./play
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbook-patch";
 export type { PlaybookPatch, PlaybookPatchKey } from "./playbook-patch";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
+export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/lifecycle-inputs";
+export type { LifecycleAnswer, LifecycleAnswerRead } from "./lifecycle/lifecycle-inputs";
 export {
   LEDGER_SORTS,
   LEDGER_STATUSES,

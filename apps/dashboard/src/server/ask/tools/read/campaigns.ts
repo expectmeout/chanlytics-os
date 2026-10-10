@@ -2,7 +2,6 @@ import "server-only";
 import { z } from "zod";
 import {
   EVERYONE_LABEL,
-  FOLLOW_UP_NEEDS_DEALS,
   NO_NUMBER_REACH,
   OFFERS_OPT_IN_PHRASES,
   PLAYBOOK_TRIGGERS,
@@ -15,6 +14,7 @@ import {
   compareTemplates,
   isLedgerCampaign,
   journeyGuide,
+  lifecyclePlaybooksOf,
   listToken,
   listUnknownWords,
   listsFor,
@@ -25,6 +25,7 @@ import {
   noteRows,
   numberHealth,
   numberHealthWithStanding,
+  optInLink,
   type ChannelDto,
   playbookListRef,
   policyClassOffered,
@@ -36,18 +37,17 @@ import {
   sentByWords,
   toRunReportVM,
   triggerOf,
-  triggerOffered,
   triggerWords,
   unmetNeed,
+  whatsappLineOf,
   type AudienceKind,
   type BroadcastDto,
   type ListRef,
   type CampaignMessage,
+  type LifecycleAnswerRead,
   type LifecycleBroadcasts,
   type LifecycleGroup,
-  type LifecyclePlaybook,
   type LifecyclePlaybooks,
-  type LifecycleShape,
   type LifecycleStage,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
@@ -57,7 +57,7 @@ import { lastDaysBySource, lastDaysOf } from "../../../readers/campaign-report";
 import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
-import { playbooks, reachOutChains } from "../../../readers/playbooks";
+import { playbooks } from "../../../readers/playbooks";
 import { messageReadsOf, templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
 import {
   UUID,
@@ -121,7 +121,7 @@ function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRe
  * them, WhatsApp able). `number` is what the listing says of it, null where the channels could not be read.
  */
 function numberFactsOf(chans: ChannelDto[] | null) {
-  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+  const wa = whatsappLineOf(chans);
   const health = {
     ...numberHealthWithStanding(
       numberHealth({
@@ -480,53 +480,28 @@ type PlaybooksRead = Awaited<ReturnType<(typeof playbooks)["read"]>>["data"];
 type BroadcastsRead = Awaited<ReturnType<(typeof broadcastsReader)["read"]>>["data"];
 
 /**
- * How the business works, as Campaigns' home reads it from GET playbooks' answer (the playbooks surface's `shape`): its
- * appointment moments counted from a calendar's feed where one is connected, readable now or not, else from a booking
- * tool's emails, else from neither.
+ * The playbooks surface as the home reads it, through the one reading of GET playbooks' answer the surface makes
+ * (contracts lifecyclePlaybooksOf, cmp/playbooks/surface.ts): each card beside what the answer says of it, each moment's
+ * pool, the moments that may run here with which a new campaign may start from, whether every moment was counted, and
+ * whether each channel can send now. A card's own reach (its candidates, held and named) is counted by the surface for the
+ * channels it ticks; the journey says none of it, so here it is not counted (null, as the home reads a count not made).
  */
-function homeShapeOf(pb: PlaybooksRead): LifecycleShape {
-  const calendar = pb.calendar !== "none" ? "feed" : pb.bookings_by_email ? "email" : "none";
-  return { calendar, dealsOn: pb.deals_on, word: pb.appointment_word };
-}
-
-/**
- * A playbook's card as the home reads it (the playbooks surface's row): its next run by the business's clock, why a
- * follow-up runs nothing where deals are off, and whether its list is archived. What a run of it reaches, and the name of
- * a list one runs on, are the card's to say: the journey says neither, so neither is made here.
- */
-function homeCardOf(p: PlaybooksRead["playbooks"][number], pb: PlaybooksRead, now: Date): LifecyclePlaybook {
-  const x = triggerOf(p.trigger);
+function homePlaybooksOf(
+  read: LifecycleAnswerRead<PlaybooksRead["playbooks"][number]>,
+  pb: PlaybooksRead,
+): LifecyclePlaybooks {
   return {
-    ...p,
-    triggerLabel: x ? triggerWords(x, pb.appointment_word).label : p.trigger,
-    next: nextRunLabel(p, pb.timezone, now, pb.ready?.paused === true),
-    candidates: null,
-    held: null,
-    named: null,
-    off: x && !triggerOffered(x, pb.deals_on) ? FOLLOW_UP_NEEDS_DEALS : null,
-    listArchived: p.trigger === "saved_list" && !!pb.lists?.find((l) => l.id === p.list_id)?.archived,
-  };
-}
-
-/**
- * The playbooks surface as the home reads it (cmp/playbooks/surface.ts): the cards, each moment's pool, the moments that
- * may run here with whether a new campaign may start from each (contracts momentOffered), whether every moment was
- * counted, and whether each channel can send now.
- */
-function homePlaybooksOf(pb: PlaybooksRead, now: Date): LifecyclePlaybooks {
-  const moments = PLAYBOOK_TRIGGERS.filter((x) => triggerOffered(x, pb.deals_on));
-  const here = { dealsOn: pb.deals_on, calendarOn: pb.calendar !== "none" };
-  return {
-    rows: pb.playbooks.map((p) => homeCardOf(p, pb, now)),
-    pools: pb.pools,
-    triggers: moments.map((x) => ({
-      id: x.id,
-      offered: momentOffered(x, here),
-      candidates: pb.pools[x.id]?.candidates ?? null,
+    rows: read.cards.map(({ playbook, read: card }) => ({
+      ...playbook,
+      ...card,
+      candidates: null,
+      held: null,
       named: null,
     })),
-    timezone: pb.timezone,
-    countsRead: moments.every((x) => x.kind === "saved" || !!pb.pools[x.id]),
+    pools: pb.pools,
+    triggers: read.moments.map(({ trigger, offered }) => ({ id: trigger.id, offered })),
+    timezone: read.timezone,
+    countsRead: read.countsRead,
     ready: pb.ready,
     modes: pb.modes,
   };
@@ -534,9 +509,9 @@ function homePlaybooksOf(pb: PlaybooksRead, now: Date): LifecyclePlaybooks {
 
 /**
  * The broadcasts surface as the home reads it (cmp/broadcasts/surface.ts): the runs by the business's clock, whether each
- * channel can send now, and whether there is a WhatsApp number, from the channels read as that surface takes it (one
- * that could not be read is none). Null where the broadcasts could not be read, which the home takes as a line to answer
- * on. Who can hear the workspace is not counted: the journey says none of it.
+ * channel can send now, the workspace's WhatsApp line (contracts whatsappLineOf, none where the channels could not be
+ * read, as that surface takes it) and the yes to offers asked on it. Null where the broadcasts could not be read, which
+ * the home takes as a line to answer on. Who can hear the workspace is not counted: the journey says none of it.
  */
 function homeBroadcastsOf(
   bc: BroadcastsRead | null,
@@ -544,11 +519,12 @@ function homeBroadcastsOf(
   at: { tz: string; now: Date },
 ): LifecycleBroadcasts | null {
   if (!bc) return null;
+  const wa = whatsappLineOf(chans);
   return {
     rows: bc.broadcasts.map((b) => toBroadcastVM(b, at.tz, at.now)),
-    number: { present: !!chans?.some((c) => c.kind === "whatsapp" && c.status === "active") },
+    number: { present: !!wa },
     ready: bc.ready,
-    optIn: { phrase: OFFERS_OPT_IN_PHRASES.en, link: null },
+    optIn: { phrase: OFFERS_OPT_IN_PHRASES.en, link: optInLink(wa?.number_e164) },
     reach: null,
   };
 }
@@ -572,30 +548,33 @@ function journeyStageLine(stage: LifecycleStage, group: LifecycleGroup | undefin
 }
 
 /**
- * The journey as Campaigns' home draws it (contracts campaignsHomeOf), its head and its rail as data: the playbooks, the
- * broadcasts and the reach-outs, read as the page's surfaces answer from them (cmp/home/use-home.ts), so the number Ask
- * says is the page's; and the guide (contracts journeyGuide), what a business of any trade sends at each touch point,
- * for the workspace's shape. The campaigns it names are rows a citation names, opened on their drawer. A read the home
- * can do without that fails is the page's failed read: the home stands, and the log says it.
+ * The journey as Campaigns' home draws it (contracts campaignsHomeOf), its rail as data: the playbooks and the broadcasts
+ * read as the page's surfaces answer from them, through the surface's own reading of GET playbooks' answer (contracts
+ * lifecyclePlaybooksOf, cmp/home/use-home.ts), and the channels for the WhatsApp line First contact is answered on, so
+ * the number Ask says is the page's (the rail's own `covered` of `of`); and the guide (contracts journeyGuide), what a
+ * business of any trade sends at each touch point, for the workspace's shape. Only what the rail reads is read: the
+ * reach-outs, the library and the campaigns' last 30 days are the ledger's, the head's and the tiles', and the home takes
+ * each as not read yet. The campaigns it names are rows a citation names, opened on their drawer. A read the rail can do
+ * without that fails is the page's failed read: the rail stands, and the log says it.
  */
 async function readJourney(t: ToolContext): Promise<unknown> {
   const failed = (read: string) => unread(t, "campaigns.journey", read);
-  const [read, bc, chains, chans] = await Promise.all([
+  const [read, bc, chans] = await Promise.all([
     load(t.rc, playbooks, undefined),
     load(t.rc, broadcastsReader, undefined).then((r) => r.data, failed("broadcasts")),
-    load(t.rc, reachOutChains, undefined).then((r) => r.data.chains, failed("reach_outs")),
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, failed("channels")),
   ]);
   const pb = read.data;
-  const shape = homeShapeOf(pb);
+  const answer = lifecyclePlaybooksOf(pb, t.now);
+  const { shape } = answer;
   const home = campaignsHomeOf({
     nowMs: t.now.getTime(),
-    tz: pb.timezone,
-    playbooks: homePlaybooksOf(pb, t.now),
-    broadcasts: homeBroadcastsOf(bc, chans, { tz: pb.timezone, now: t.now }),
+    tz: answer.timezone,
+    playbooks: homePlaybooksOf(answer, pb),
+    broadcasts: homeBroadcastsOf(bc, chans, { tz: answer.timezone, now: t.now }),
     library: undefined,
     messages: undefined,
-    reachOuts: chains,
+    reachOuts: undefined,
     report: undefined,
     shape,
     chains: undefined,
@@ -613,8 +592,8 @@ async function readJourney(t: ToolContext): Promise<unknown> {
   );
   return {
     route: "campaigns",
-    covered: stages.filter((s) => s.covered).length,
-    of: stages.length,
+    covered: home.rail.covered,
+    of: home.rail.of,
     stages,
     guide: journeyGuide({ calendarOn: shape.calendar === "feed", dealsOn: shape.dealsOn }),
   };

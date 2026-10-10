@@ -28980,12 +28980,12 @@ function lifecycleStages(at3) {
 function emailRowsOf(reachOuts) {
   return reachOuts ? emailTemplateRowsOf(reachOuts).length : 0;
 }
-function lifecycleHeadOf(input, stages) {
-  const covered = stages.filter((s) => s.covered).length;
+function lifecycleHeadOf(input, count2) {
+  const { covered, of } = count2;
   const reach = input.broadcasts?.reach ?? null;
   const parts2 = [];
-  if (stages.length > 0) {
-    parts2.push({ b: `${covered} of ${stages.length}` }, " moments are covered");
+  if (of > 0) {
+    parts2.push({ b: `${covered} of ${of}` }, " moments are covered");
     if (reach) parts2.push(", and ", { b: `${reach.canHear} of your ${reach.people}` }, " people can hear from you");
     parts2.push(".");
   }
@@ -29022,13 +29022,14 @@ function campaignsHomeOf(input) {
   const at3 = input.playbooks && input.shape ? { ...input, playbooks: calendarRead(input.playbooks, input.shape) } : input;
   const made = at3.playbooks && at3.shape ? lifecycleStages({ playbooks: at3.playbooks, shape: at3.shape, line: hasLine(at3.broadcasts), ready: readyOf(at3) }) : { defs: [], stages: [] };
   const { defs, stages } = made;
-  const covered = stages.filter((s) => s.covered).length;
+  const count2 = { covered: stages.filter((s) => s.covered).length, of: stages.length };
   return {
-    head: lifecycleHeadOf(at3, stages),
+    head: lifecycleHeadOf(at3, count2),
     rail: {
       title: LIFECYCLE_WORDS.rail,
-      coveredWords: stages.length > 0 ? `${covered} of ${stages.length} moments covered` : null,
-      phoneWords: stages.length > 0 ? `${covered} of ${stages.length} on` : null,
+      ...count2,
+      coveredWords: count2.of > 0 ? `${count2.covered} of ${count2.of} moments covered` : null,
+      phoneWords: count2.of > 0 ? `${count2.covered} of ${count2.of} on` : null,
       stages
     },
     ledger: lifecycleLedger({ input: at3, defs, stages }),
@@ -29037,6 +29038,56 @@ function campaignsHomeOf(input) {
     results: lifecycleResults(at3),
     failed: failedOf(at3)
   };
+}
+
+// src/playbooks/lifecycle/lifecycle-inputs.ts
+var ZONE_UNSAID = "America/New_York";
+function businessShapeOf(pb) {
+  const calendarOn = (pb.calendar ?? "none") !== "none";
+  return {
+    calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
+    dealsOn: !!pb.deals_on,
+    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null })
+  };
+}
+function listNameOf(p, pb) {
+  if (p.list_key)
+    return (pb.people_lists ?? []).find((l) => l.key === p.list_key)?.label ?? PEOPLE_LISTS.find((l) => l.id === p.list_key)?.label ?? null;
+  return (pb.lists ?? []).find((l) => l.id === p.list_id)?.name ?? null;
+}
+function triggerLabelOf(p, pb, word) {
+  if (p.trigger === "saved_list")
+    return listNameOf(p, pb) ?? (pb.lists === null ? "A list that could not be read" : "A list that was deleted");
+  const t = triggerOf(p.trigger);
+  return t ? triggerWords(t, word).label : p.trigger;
+}
+function cardReadOf(p, pb, at3) {
+  const t = triggerOf(p.trigger);
+  return {
+    // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
+    listArchived: p.trigger === "saved_list" && !!(pb.lists ?? []).find((l) => l.id === p.list_id)?.archived,
+    triggerLabel: triggerLabelOf(p, pb, at3.shape.word),
+    // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
+    next: nextRunLabel(p, at3.tz, at3.now, pb.ready?.paused === true),
+    // A follow-up made while deals were on runs nothing once they are off: the card says why (0006).
+    off: t && !triggerOffered(t, at3.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null
+  };
+}
+function lifecyclePlaybooksOf(pb, now) {
+  const shape = businessShapeOf(pb);
+  const timezone = pb.timezone || ZONE_UNSAID;
+  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, shape.dealsOn));
+  const here = { dealsOn: shape.dealsOn, calendarOn: shape.calendar === "feed" };
+  return {
+    shape,
+    timezone,
+    cards: pb.playbooks.map((p) => ({ playbook: p, read: cardReadOf(p, pb, { tz: timezone, now, shape }) })),
+    moments: moments.map((t) => ({ trigger: t, offered: momentOffered(t, here) })),
+    countsRead: moments.every((t) => t.kind === "saved" || !!pb.pools?.[t.id])
+  };
+}
+function whatsappLineOf(channels) {
+  return channels?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
 }
 
 // src/playbooks/playbook-failed.ts
@@ -38986,6 +39037,7 @@ export {
   libraryCount,
   lifecycleChainsOf,
   lifecycleKicker,
+  lifecyclePlaybooksOf,
   lineCredentialFailure,
   lineOrNull,
   lineReleaseAfterDays,
@@ -39737,6 +39789,7 @@ export {
   websiteHostOf,
   weekHoursOf,
   weekOf,
+  whatsappLineOf,
   whatsappOffersOpen,
   whatsappStoppedRunWords,
   whenLabel,

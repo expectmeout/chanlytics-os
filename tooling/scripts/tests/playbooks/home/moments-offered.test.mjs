@@ -194,6 +194,7 @@ async function surfaceFor({
   dealsOn = false,
   shape = {},
   templates = { templates: [] },
+  channels = [],
 }) {
   const kept = globalThis.fetch;
   globalThis.fetch = async (url) => {
@@ -210,7 +211,7 @@ async function surfaceFor({
         ...shape,
       });
     if (path === "/api/v1/templates") return answer(templates);
-    if (path === "/api/v1/channels") return answer({ channels: [] });
+    if (path === "/api/v1/channels") return answer({ channels });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
   try {
@@ -589,4 +590,97 @@ test("an After-the-visit playbook that still sends the marketing thank-you it wa
   assert.deepEqual(unfiled.ids, ["a"], "a message no channel ever filed is read as an offer, as the send reads it");
   const check = await run(playbook, ctx, "utility");
   assert.deepEqual(check.ids, ["a", "b"], "a message about the visit reaches everyone who said yes to texts");
+});
+
+/**
+ * 10 Oct 2026 (Ask, the marketing manager, task 4): what the surface makes of GET playbooks' answer for the home (the
+ * business's shape, each card's next run, why it runs nothing here, its list archived and its trigger's words, which
+ * moments a new campaign may start from, whether every moment was counted, and the WhatsApp line) is contracts' one
+ * reading (lifecycle-inputs.ts), which Ask's campaigns.journey reads too. Pinned as the surface made it before that
+ * reading moved, over two answers on one clock: a calendar that cannot be read just now, its own lists (one archived),
+ * one of People's, one deleted, a follow-up where deals are off and a paused win-back; and a server whose lists could not
+ * be read, with no calendar, its bookings by a tool's emails, and a moment it could not count.
+ */
+test("the home's input from GET playbooks is the one reading it was: the shape, each card's next run, off, archived list and trigger words, the moments a new campaign may start from, whether every moment was counted, and the WhatsApp line", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW });
+  const composed = (s) => ({
+    shape: s.shape,
+    timezone: s.timezone,
+    calendar: s.calendar,
+    countsRead: s.countsRead,
+    rows: s.rows.map((r) => [r.id, r.listArchived, r.triggerLabel, r.next, r.off]),
+    offered: s.triggers.filter((x) => x.offered).map((x) => x.id),
+    number: s.number.present,
+  });
+  const lists = [
+    { id: "L1", name: "Regulars", smart: false, archived: true },
+    { id: "L2", name: "Walk-ins", smart: true, archived: false },
+  ];
+  const first = await surfaceFor({
+    calendar: "unavailable",
+    playbooks: [
+      row("pb-remind", "visit_tomorrow", { run_hour: 15 }),
+      row("pb-own", "saved_list", { list_id: "L1" }),
+      row("pb-people", "saved_list", { list_key: "lapsed" }),
+      row("pb-gone", "saved_list", { list_id: "L9" }),
+      row("pb-follow", "proposal_waiting"),
+      row("pb-back", "lapsed", { state: "paused" }),
+    ],
+    shape: {
+      timezone: "America/Los_Angeles",
+      lists,
+      people_lists: [{ key: "lapsed", label: "Lapsed customers", group: "journey" }],
+      appointment_word: "session",
+      bookings_by_email: true,
+    },
+    channels: [{ kind: "whatsapp", status: "active", number_e164: "+13055550100" }],
+  });
+  const second = await surfaceFor({
+    calendar: "none",
+    playbooks: [
+      row("pb-own", "saved_list", { list_id: "L1" }),
+      row("pb-quiet", "quiet_30", { run_hour: 9, last_run_for: "2026-09-06" }),
+    ],
+    pools: { quiet_30: null },
+    shape: { lists: null, bookings_by_email: true, timezone: "" },
+    channels: [{ kind: "whatsapp", status: "disconnected" }],
+  });
+  const FOLLOW =
+    "Proposal follow-ups need deals: in Settings › Business, answer “How customers buy” with “Some get a proposal first”.";
+  assert.deepEqual(composed(first), {
+    shape: { calendar: "feed", dealsOn: false, word: "session" },
+    timezone: "America/Los_Angeles",
+    calendar: "unavailable",
+    countsRead: true,
+    rows: [
+      ["pb-remind", false, "Session reminder", "today 3:00 PM", null],
+      ["pb-own", true, "Regulars", "today 10:00 AM", null],
+      ["pb-people", false, "Lapsed customers", "today 10:00 AM", null],
+      ["pb-gone", false, "A list that was deleted", "today 10:00 AM", null],
+      ["pb-follow", false, "Proposal follow-up", "today 10:00 AM", FOLLOW],
+      ["pb-back", false, "Win-back", "paused", null],
+    ],
+    offered: ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"],
+    number: true,
+  });
+  assert.deepEqual(composed(second), {
+    shape: { calendar: "email", dealsOn: false, word: "appointment" },
+    timezone: "America/New_York",
+    calendar: "none",
+    countsRead: false,
+    rows: [
+      ["pb-own", false, "A list that could not be read", "today, within the hour", null],
+      ["pb-quiet", false, "Win-back", "tomorrow 9:00 AM", null],
+    ],
+    offered: ["quiet_30", "everyone_monthly", "saved_list"],
+    number: false,
+  });
+  // The rail counts its covered moments once, as numbers, and its words and the head's sentence say that count: the
+  // receptionist and the running reminder, of first contact, the day before and after, the follow-up held where deals
+  // are off, and quiet.
+  const home = homeOf(first);
+  assert.deepEqual(
+    [home.rail.covered, home.rail.of, home.rail.coveredWords, home.head.sentence[0]],
+    [2, 5, "2 of 5 moments covered", { b: "2 of 5" }],
+  );
 });
