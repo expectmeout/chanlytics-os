@@ -54,11 +54,11 @@ const answerMoves = (a) => [
 // 2026-09-27-ask-chat-on-a-phone, D16); these are its parts, and AskCard below holds its state and its verbs.
 
 // Each card's kind as the mark in its tile: a list's card and a run's card are marked as their rows are.
-const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user", list: askKindGlyph("list"), run: askKindGlyph("run") };
+const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", playbook_change: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user", list: askKindGlyph("list"), run: askKindGlyph("run") };
 
 // The card's head: the kind's mark in its tile, the title, and the kind's word under it.
 const AskCardHead = ({ p, t }) => {
-  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails, list: t.kList, run: t.kRun };
+  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, playbook_change: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails, list: t.kList, run: t.kRun };
   return (
     <div className="ask-card-head">
       <span className="ask-card-mark"><Icon name={AT_CARD_ICONS[p.kind] || "inbox"} size={15} /></span>

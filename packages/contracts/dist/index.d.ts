@@ -13826,7 +13826,7 @@ type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 interface AskProposal {
     id: string;
-    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "deal" | "note" | "person_details" | "list" | "run" | "playbook_channels";
+    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "deal" | "note" | "person_details" | "list" | "run" | "playbook_channels" | "playbook_change";
     /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
     needs: ProposalNeeds;
     title: string;
@@ -14642,6 +14642,7 @@ declare const PROPOSAL_SPECS: {
     list: ProposalSpec;
     run: ProposalSpec;
     playbook_channels: ProposalSpec;
+    playbook_change: ProposalSpec;
 };
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
 type ProposalKindAboveOperator = {
@@ -14660,7 +14661,7 @@ declare function proposalBelowNeeds(kind: ProposalKindAboveOperator): string;
  * pure, as the repo's other derived tables are: a bare call at the top level is kept by every bundle that inlines
  * contracts (db, core, channels, jobs), and would carry every spec and its words in with it.
  */
-declare const PROPOSAL_GATE: Record<"reply" | "note" | "broadcast" | "playbook" | "deal" | "list" | "invite" | "whisper" | "run" | "settings" | "steer" | "thread_verb" | "person_mode" | "policy" | "lead_search" | "person_details" | "playbook_channels", ProposalGate>;
+declare const PROPOSAL_GATE: Record<"reply" | "note" | "broadcast" | "playbook" | "deal" | "list" | "invite" | "whisper" | "run" | "settings" | "steer" | "thread_verb" | "person_mode" | "policy" | "lead_search" | "person_details" | "playbook_channels" | "playbook_change", ProposalGate>;
 /**
  * Whether a committed card's undo is still true to offer: its spec's window, and ten minutes for a kind with none.
  *
@@ -14681,8 +14682,8 @@ declare const ASK_THREAD_ROUTES: {
 };
 
 /**
- * Campaigns' cards: a broadcast, a playbook that sends on its own, the channels a playbook goes by, and a playbook's run
- * that waits for a person.
+ * Campaigns' cards: a broadcast, a playbook that sends on its own, the channels a playbook goes by, a playbook that
+ * exists changed in place (paused, resumed, renamed or retimed), and a playbook's run that waits for a person.
  */
 
 /** What a member does with a playbook's run that waits for them (the Phase 4 plan, D11): send it, or end it unsent. */

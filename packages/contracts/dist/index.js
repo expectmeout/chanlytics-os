@@ -8402,6 +8402,29 @@ function tallyWords(n, t) {
   ].filter(Boolean).join(" \xB7 ");
 }
 
+// src/playbooks/playbook-patch.ts
+var PLAYBOOK_PATCH_KEYS = ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days"];
+var PLAYBOOK_PATCH_WORDS = {
+  title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
+  name: (to) => `Renamed \u201C${to}\u201D`,
+  run_hour: (to, was) => `Runs at ${clockHour(to)} by your clock, where it ran at ${clockHour(was)}`,
+  cap_per_run: (to, was) => `Up to ${to} people a run, where it was ${was}`,
+  gap_days: (to, was) => `Reaches a person again after ${to} days, where it was ${was}`,
+  cadence_days: (to, was) => `Every ${to} days, where it was every ${was}`,
+  paused: "Nothing more runs until it is resumed",
+  /** D8: a pause leaves the run that waits; skipping it is a second card. */
+  pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
+  /** D7: a resume says its class's mode, in full. */
+  resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
+  same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
+  nothing: "Name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days.",
+  state: "A campaign is running or paused.",
+  nameMissing: "A name needs words.",
+  nameLong: (max) => `A name is at most ${max} characters.`,
+  /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
+  cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`
+};
+
 // src/ask-proposals/spec.ts
 var PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
@@ -8477,7 +8500,8 @@ var playbookSpec = {
       // On a list (decision 0009): the list it names, and whether it sends an offer or a win-back.
       ...pl.list_key ? { list_key: pl.list_key } : pl.list_id ? { list_id: pl.list_id } : {},
       ...pl.list_key || pl.list_id ? { policy_class: pl.policy_class } : {},
-      template_id: pl.template_id,
+      // A starter named and no message (A0): the route files the starter, then starts the playbook on it.
+      ...pl.starter_key && !pl.template_id ? { starter_key: pl.starter_key } : { template_id: pl.template_id },
       params: Array.isArray(pl.params) ? pl.params : [],
       run_hour: pl.run_hour,
       cap_per_run: pl.cap_per_run,
@@ -8486,7 +8510,8 @@ var playbookSpec = {
       ...channelsNamed(pl)
     }
   }),
-  receipt: ({ payload: pl }, data) => `Playbook \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns`,
+  // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
+  receipt: ({ payload: pl }, data) => `Campaign \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns${rec(rec(data).starter).status === "submitted" ? " \xB7 its starter's WhatsApp version is with Meta for review" : ""}`,
   undo: {
     label: () => "Delete it \u2014 nothing will run",
     window: "ten_minutes",
@@ -8495,10 +8520,13 @@ var playbookSpec = {
     receipt: () => "Deleted \u2014 nothing will run"
   },
   // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
-  // commit kept for the undo, as the list card opens the list it made; before then the home, where the old address lands.
-  open: (_card, outcome) => {
+  // commit kept for the undo, as the list card opens the list it made; before then the composer on its moment, where the
+  // whole of it can be set by hand ("Open in the composer"), and the home where the card names no moment.
+  open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    if (id) return `campaigns/moment:${id}`;
+    const trigger = idIn(payload, "trigger");
+    return trigger ? `campaigns/new:moment:${trigger}` : "outbound";
   }
 };
 var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
@@ -8527,6 +8555,43 @@ var playbookChannelsSpec = {
     receipt: () => "Its channels are as they were"
   },
   // Its drawer on Campaigns' home, where the Goes by row shows what it goes by now.
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
+var patchIn = (pl) => Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && pl[k] !== null).map((k) => [k, pl[k]]));
+var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
+var playbookChangeSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    const body = patchIn(pl);
+    if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return { route: "PUT playbooks/[id]", params: { id }, body };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(rec(data).name ?? pl.name ?? pl.playbook_name) || LIFECYCLE_TOAST.nameless;
+    if (pl.state === "paused") return toastWords(LIFECYCLE_TOAST.paused(name));
+    if (pl.state === "running") return toastWords(LIFECYCLE_TOAST.resumed(name));
+    return toastWords(LIFECYCLE_TOAST.changed(name));
+  },
+  undo: {
+    label: ({ payload }) => payload.state === "paused" ? "Resume it" : payload.state === "running" ? "Pause it again" : "Put it back",
+    window: "ten_minutes",
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none.
+    record: (p, data) => {
+      const was = rec(data).was;
+      return { playbook_id: p.payload.playbook_id, was: was && typeof was === "object" ? was : p.payload.was };
+    },
+    call: (u) => {
+      const was = patchIn(rec(u.was));
+      return !asText(u.playbook_id) || Object.keys(was).length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };
+    },
+    receipt: () => "It is as it was"
+  },
+  // Its drawer on Campaigns, where its state, clock and name are.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
     return id ? `campaigns/moment:${id}` : "outbound";
@@ -11592,7 +11657,8 @@ var PROPOSAL_SPECS = {
   person_details: personDetailsSpec,
   list: listSpec,
   run: runSpec,
-  playbook_channels: playbookChannelsSpec
+  playbook_channels: playbookChannelsSpec,
+  playbook_change: playbookChangeSpec
 };
 function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
@@ -27403,29 +27469,6 @@ function playbookChannelsRead(p, ticks, message, workspace) {
   );
   return { purpose, about, ready, choices, ticked, kept, on, stands };
 }
-
-// src/playbooks/playbook-patch.ts
-var PLAYBOOK_PATCH_KEYS = ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days"];
-var PLAYBOOK_PATCH_WORDS = {
-  title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
-  name: (to) => `Renamed \u201C${to}\u201D`,
-  run_hour: (to, was) => `Runs at ${clockHour(to)} by your clock, where it ran at ${clockHour(was)}`,
-  cap_per_run: (to, was) => `Up to ${to} people a run, where it was ${was}`,
-  gap_days: (to, was) => `Reaches a person again after ${to} days, where it was ${was}`,
-  cadence_days: (to, was) => `Every ${to} days, where it was every ${was}`,
-  paused: "Nothing more runs until it is resumed",
-  /** D8: a pause leaves the run that waits; skipping it is a second card. */
-  pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
-  /** D7: a resume says its class's mode, in full. */
-  resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
-  same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
-  nothing: "Name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days.",
-  state: "A campaign is running or paused.",
-  nameMissing: "A name needs words.",
-  nameLong: (max) => `A name is at most ${max} characters.`,
-  /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
-  cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`
-};
 
 // src/templates/library-count.ts
 var LIBRARY_SAMPLES = /* @__PURE__ */ new Set(["hello_world"]);

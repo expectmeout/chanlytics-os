@@ -1183,6 +1183,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     list: "approve",
     run: "approve",
     playbook_channels: "approve",
+    playbook_change: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
