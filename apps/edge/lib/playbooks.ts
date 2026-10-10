@@ -344,8 +344,10 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
           .eq("id", playbookId)
           .eq("tenant_id", tenantId);
       },
-      // The run, its people and its job, whole (00282 assemble_broadcast): a sweep that dies halfway leaves nothing.
-      assemble: (row, recipients, sendAt) =>
+      // The run, its people, its job and its decision, whole (00282 assemble_broadcast, with its decision since 00373):
+      // a sweep that dies halfway leaves nothing. A run the sweep sends is the system's decision under the mode the
+      // owner chose; a run a person asked for is theirs.
+      assemble: (row, recipients, sendAt, decision) =>
         assembleBroadcast(db, {
           tenantId,
           run: {
@@ -365,25 +367,20 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
           },
           recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts, channel: r.channel })),
           sendAt,
+          decision: decision
+            ? {
+                actor: decision.by.kind === "user" ? decision.by.userId : null,
+                payload: decision.payload,
+                via: null,
+                undoOf: null,
+              }
+            : null,
         }),
       // The month's allowance, counted before anyone is enrolled, and those past it held the moment the run exists (core
       // campaigns/allowance.ts): the send's own check at the wire stays as the backstop.
       monthSent: (channel, at) => campaignMonthSent(db, tenantId, channel, at),
       holdRecipients: (broadcastId, contactIds, reason) =>
         holdRecipients(db, { tenantId, broadcastId, contactIds, reason }),
-      // The ledger: a run the sweep sends is the system's decision under the
-      // mode the owner chose; a run a person asked for is theirs.
-      decide: async ({ broadcastId, by, payload }) => {
-        await db.from("decisions").insert({
-          tenant_id: tenantId,
-          subject_type: "broadcast",
-          subject_id: broadcastId,
-          verb: "send_broadcast",
-          actor_type: by.kind === "user" ? "user" : "system",
-          actor_user_id: by.kind === "user" ? by.userId : null,
-          payload: payload as unknown as Json,
-        });
-      },
       // The row opens the run it is about, as a reach-out's does (run-context.ts notifyWaiting): it opened Campaigns' home.
       notify: async (subject, body, runId) => {
         const target = await loadTenantNotifications(db, tenantId);

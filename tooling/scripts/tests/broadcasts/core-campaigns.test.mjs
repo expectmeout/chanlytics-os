@@ -175,7 +175,8 @@ function fakes(over = {}) {
     timezone: "America/New_York",
     // Whether the workspace is paused (tenants.status): not, unless a test says so.
     paused: false,
-    assemble: "b1",
+    // The run, its people, its job and its decision, whole (00373): the run's id, and the decision's when one was asked for.
+    assemble: (_row, _recipients, _sendAt, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
     // The month's allowance, counted before anyone is enrolled: the emails and texts this workspace's campaigns have sent
     // this month. None here; a test gives the count, or a refusal to read it.
     monthSent: 0,
@@ -737,7 +738,7 @@ test("a broadcast is refused while the workspace is paused, in the words the com
   // Not paused, the same broadcast is made.
   const fine = fakes({ channels: workspace({ paused: false }) });
   await make(fine, { template_id: T1, audience: everyone });
-  assert.deepEqual(fine.ops(), ["assemble", "record"]);
+  assert.deepEqual(fine.ops(), ["assemble"]);
 });
 
 test("a broadcast of the business's news by email is refused at create while the workspace's offers are closed, with the reason an offer's tick gives (decision D2): the campaigns domain, the address, a pause", async () => {
@@ -774,7 +775,7 @@ test("a broadcast that ticks nothing goes by WhatsApp alone, as every one went b
   const f = fakes({ channels: workspace({ textLine: ACTIVE_LINE, mailbox: true, domain: true }) });
   await make(f, { template_id: T1, audience: everyone });
   assert.deepEqual(f.of("assemble")[0][1].channels, ["whatsapp"]);
-  assert.deepEqual(f.of("record")[0][4].channels, ["whatsapp"]);
+  assert.deepEqual(f.of("assemble")[0][4].payload.channels, ["whatsapp"]);
   // An unknown channel, an empty list and a bare word are no ticks (a channel named twice is one tick).
   for (const channels of [["carrier pigeon"], ["whatsapp", "carrier pigeon"], [], "email"])
     await refused(
@@ -996,7 +997,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
   const r = await make(f, { template_id: T1, params: ["@first_name", "  20% off  "], audience: everyone });
   const specs = [{ kind: "first_name" }, { kind: "text", value: "20% off" }];
   const name = broadcastName("month_offer", ZONE, NOW, "Monthly offer");
-  assert.deepEqual(f.ops(), ["assemble", "record"], "the run, its people and its job whole; then the ledger");
+  assert.deepEqual(f.ops(), ["assemble"], "the run, its people, its job and the ledger's line, whole");
   assert.deepEqual(f.of("assemble")[0][1], {
     name,
     template_id: T1,
@@ -1016,12 +1017,10 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     { contact_id: "b", facts: null, channel: "whatsapp" },
   ]);
   assert.deepEqual(f.of("assemble")[0][3], NOW);
-  assert.deepEqual(f.of("record")[0], [
-    "record",
-    "broadcast",
-    "b1",
-    "send_broadcast",
-    {
+  // The ledger's line rides with the run (00373): whose decision the send is, and what is kept of it.
+  assert.deepEqual(f.of("assemble")[0][4], {
+    by: { kind: "user", userId: "u1" },
+    payload: {
       name,
       template: "month_offer/en_US",
       category: "marketing",
@@ -1031,7 +1030,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
       recipients: 2,
       scheduled_for: NOW.toISOString(),
     },
-  ]);
+  });
   assert.deepEqual(r, {
     id: "b1",
     name,
@@ -1247,7 +1246,7 @@ test("never at 3 AM: a send asked for outside nine to twenty by the business's c
   assert.equal(r.moved_from, night.toISOString(), "and it says what was asked for");
   assert.deepEqual(f.of("assemble")[0][3], nine);
   assert.equal(f.of("assemble")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
-  assert.equal(f.of("record")[0][4].moved_from, night.toISOString(), "the ledger keeps the move");
+  assert.equal(f.of("assemble")[0][4].payload.moved_from, night.toISOString(), "the ledger keeps the move");
   // Asked for 05:30 New York (09:30 UTC): the same morning's nine.
   const early = new Date("2026-09-07T09:30:00Z");
   const r2 = await createBroadcast(fakes().ports, {
@@ -1266,14 +1265,15 @@ test("never at 3 AM: a send asked for outside nine to twenty by the business's c
   });
   assert.equal(r3.scheduled_for, new Date("2026-09-08T13:00:00Z").toISOString());
   // Inside the window nothing moves, and the receipt says so too.
-  const r4 = await createBroadcast(fakes().ports, {
+  const f4 = fakes();
+  const r4 = await createBroadcast(f4.ports, {
     userId: "u1",
     body: { template_id: T1, audience: everyone },
     now: NOW,
   });
   assert.equal(r4.scheduled_for, NOW.toISOString());
   assert.equal(r4.moved_from, null);
-  assert.ok(!("moved_from" in fakes().of("record")), "nothing recorded about a move that did not happen");
+  assert.ok(!("moved_from" in f4.of("assemble")[0][4].payload), "nothing recorded about a move that did not happen");
   // An approval at night goes at nine as well.
   const a = fakes();
   const ap = await approveRun(a.ports, {
@@ -1768,12 +1768,12 @@ test("the month is counted before anyone is enrolled, and whoever is past its ro
   });
   const r = await make(f, ALL_THREE);
   assert.deepEqual(asked, ["email", "sms"], "each metered channel somebody goes by, once, before the run is written");
-  assert.deepEqual(f.ops(), ["assemble", "holdRecipients", "record"], "the run whole, then its held, then the ledger");
+  assert.deepEqual(f.ops(), ["assemble", "holdRecipients"], "the run whole with its line, then its held");
   assert.equal(f.of("assemble")[0][1].recipient_count, 7, "everyone is enrolled, the held among them");
   // Room for two emails and one text: the last two on email and the last two on text are past it, in their order.
   assert.deepEqual(f.of("holdRecipients")[0], ["holdRecipients", "b1", ["e3", "e4", "t2", "t3"], "month_allowance"]);
   assert.equal(r.held_for_allowance, 4);
-  assert.equal(f.of("record")[0][4].held_for_allowance, 4, "the ledger says how many were held");
+  assert.equal(f.of("assemble")[0][4].payload.held_for_allowance, 4, "the ledger says how many were held");
 });
 
 test("the month is counted at the moment the run opens, not the day it is made: made on the 28th for the 1st it counts against the new month, and a send moved to nine tomorrow counts where it really goes", async () => {
@@ -1802,7 +1802,7 @@ test("the month is counted at the moment the run opens, not the day it is made: 
     "each metered channel, asked at the run's opening moment",
   );
   assert.equal(made.held_for_allowance, 0, "nobody is held past the old month's room, as a final skip");
-  assert.deepEqual(f.ops(), ["assemble", "record"]);
+  assert.deepEqual(f.ops(), ["assemble"]);
   // The same send for a day in the month it is made in is held at September's room, as it always was.
   const same = fakes({ ...MONTH, people: byEmailAndText(), monthSent: used([]) });
   const held = await run(same, new Date("2026-09-28T14:00:00Z"), "2026-09-29T10:00:00-04:00");
@@ -1822,17 +1822,17 @@ test("the month is counted at the moment the run opens, not the day it is made: 
 test("a run with room for everyone holds nobody, and a WhatsApp run never counts the month", async () => {
   const roomy = fakes({ ...MONTH, people: byEmailAndText(), monthSent: 0 });
   const r = await make(roomy, ALL_THREE);
-  assert.deepEqual(roomy.ops(), ["assemble", "record"], "nothing to hold: no write");
+  assert.deepEqual(roomy.ops(), ["assemble"], "nothing to hold: no write");
   assert.equal(r.held_for_allowance, 0);
   assert.equal(
-    "held_for_allowance" in roomy.of("record")[0][4],
+    "held_for_allowance" in roomy.of("assemble")[0][4].payload,
     false,
     "the ledger names it only when it held somebody",
   );
   // WhatsApp is Meta's tier, not this: nobody on it asks for the count, so a count that cannot be read costs it nothing.
   const wa = fakes({ monthSent: new Error("the database is down") });
   await make(wa, { template_id: T1, audience: everyone });
-  assert.deepEqual(wa.ops(), ["assemble", "record"]);
+  assert.deepEqual(wa.ops(), ["assemble"]);
 });
 
 test("a month that could not be counted is not room: the broadcast is refused in words, and nothing is written", async () => {
@@ -1862,17 +1862,14 @@ test("a hold that could not be written leaves the people queued, and the run is 
   } finally {
     console.error = error;
   }
-  assert.deepEqual(f.ops(), ["assemble", "holdRecipients", "record"], "the run stands, and so does the ledger");
+  assert.deepEqual(f.ops(), ["assemble", "holdRecipients"], "the run stands, and the ledger's line with it");
   assert.equal(r.id, "b1");
   assert.equal(r.held_for_allowance, 0, "none was held at enrolment: the receipt says what was actually held");
-  // The ledger records it as a playbook's run does: how many the month holds, and how many of those the write left queued.
-  const decision = f.of("record")[0][4];
+  // The ledger's line is written with the run, before the hold (00373): it says how many the month holds, as a
+  // playbook's run does; what the hold's own write then left queued is the receipt's and the log's to say.
+  const decision = f.of("assemble")[0][4].payload;
   assert.equal(decision.held_for_allowance, 4, "the month holds four");
-  assert.equal(
-    decision.hold_unwritten,
-    4,
-    "and the write that holds them failed, so they are held at the wire instead",
-  );
+  assert.equal("hold_unwritten" in decision, false, "written before the hold, so it cannot say what the hold left");
   // And it is said, by name, with the error: never an empty catch.
   assert.deepEqual(
     said.map((l) => [l.event, l.broadcast_id, l.unheld, l.error]),
@@ -1882,7 +1879,7 @@ test("a hold that could not be written leaves the people queued, and the run is 
   const ok = fakes({ ...MONTH, people: byEmailAndText(), monthSent: 2000 });
   const kept = await make(ok, { template_id: T1, audience: everyone, channels: ["email"] });
   assert.equal(kept.held_for_allowance, 4);
-  assert.ok(!("hold_unwritten" in ok.of("record")[0][4]), "nothing unwritten, nothing said of it");
+  assert.ok(!("hold_unwritten" in ok.of("assemble")[0][4].payload), "nothing unwritten, nothing said of it");
 });
 
 /* ---- A message needs no WhatsApp row (lane 1): the create path reads the message, whichever version is picked ---- */
@@ -1916,8 +1913,8 @@ test("a broadcast by email on a message with no WhatsApp row, on a workspace wit
   assert.deepEqual([row.template_name, row.template_language, row.channels], ["month_offer", "en_US", ["email"]]);
   assert.deepEqual(recipients, [{ contact_id: "a", facts: null, channel: "email" }]);
   assert.equal(r.recipient_count, 1);
-  assert.deepEqual(f.ops(), ["assemble", "record"], "no number is asked for: an email send never needs one");
-  assert.equal(f.of("record")[0][4].category, "utility", "the category the message's own version carries");
+  assert.deepEqual(f.ops(), ["assemble"], "no number is asked for: an email send never needs one");
+  assert.equal(f.of("assemble")[0][4].payload.category, "utility", "the category the message's own version carries");
   // WhatsApp is the tick when none is named, and there is no WhatsApp number: the workspace's reason wins.
   await refused(
     make(fakes({ message: EMAIL_VISIT(), channels: EMAIL_ONLY }), { template_id: EMAIL_V, audience: everyone }),

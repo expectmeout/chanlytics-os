@@ -42,9 +42,10 @@ test("the list the audience was counted by reaches the door with the run; an aud
     { broadcasts: [], broadcast_recipients: [], jobs: [] },
     {},
     {
+      // The door with its decision (00373) answers the run's id, and the decision's when one was asked for.
       assemble_broadcast: (args) => {
         doors.push(args);
-        return "b-1";
+        return { id: "b-1" };
       },
     },
   );
@@ -52,8 +53,8 @@ test("the list the audience was counted by reaches the door with the run; an aud
   const ports = createBroadcastPorts({ supabase: db, userId: "u-1" }, T, { fresh: false });
 
   const list = { token: "list:quiet", rule: { last_heard: { days: 30 } }, counted_at: "2026-10-06T12:00:00.000Z" };
-  const id = await ports.assemble(run({ kind: "list", id: "quiet", label: "Quiet 30 days", list }), [], null);
-  assert.equal(id, "b-1");
+  const made = await ports.assemble(run({ kind: "list", id: "quiet", label: "Quiet 30 days", list }), [], null, null);
+  assert.deepEqual(made, { id: "b-1", decisionId: null });
   assert.deepEqual(
     doors[0].p_run.audience,
     { kind: "list", id: "quiet", label: "Quiet 30 days", list },
@@ -62,7 +63,7 @@ test("the list the audience was counted by reaches the door with the run; an aud
   assert.equal(doors[0].p_run.created_by, "u-1");
   assert.equal(doors[0].p_tenant, T);
 
-  await ports.assemble(run({ kind: "everyone", id: null, label: "Everyone who said yes" }), [], null);
+  await ports.assemble(run({ kind: "everyone", id: null, label: "Everyone who said yes" }), [], null, null);
   assert.deepEqual(
     doors[1].p_run.audience,
     { kind: "everyone", id: null, label: "Everyone who said yes" },

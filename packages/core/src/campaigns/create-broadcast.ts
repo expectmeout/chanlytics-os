@@ -54,8 +54,8 @@ export interface BroadcastReceipt {
   moved_from: string | null;
   /**
    * How many of the people enrolled the month's allowance already holds, as written on the run (allowance.ts): held and
-   * said so. A hold that could not be written is not counted: that person is queued and held at the wire, and the ledger's
-   * decision says so (`hold_unwritten`).
+   * said so. A hold that could not be written is not counted: that person is queued and held at the wire, and the log
+   * says so (`campaign_hold_unwritten`); the ledger's line says how many the month holds.
    */
   held_for_allowance: number;
   decision_id: string;
@@ -209,7 +209,7 @@ async function audienceOf(
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. The ledger records the decision to send. The body is judged here, in
+ * wire. The ledger records the decision to send, in the run's own write. The body is judged here, in
  * sentences for the person composing: the values are judged against the message
  * the workspace holds, which no schema knows.
  */
@@ -291,7 +291,26 @@ export async function createBroadcast(
     ...(kept ? { list: kept } : {}),
   };
 
-  // 5. The rows and the job, whole (00282); then the ledger.
+  // 5. The rows, the job and the ledger's line, whole (00282, with its decision since 00373): a decision that could not
+  // be written is a run that was not made, never a 500 for one that was, which a person answers by pressing again.
+  const decision = {
+    by: { kind: "user" as const, userId: cmd.userId },
+    payload: {
+      name,
+      template: `${message.name}/${message.language}`,
+      category: message.category,
+      // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+      audience: { kind: audience.kind, id: audience.id, label: audience.label, ...(kept ? { list: kept.token } : {}) },
+      channels: [...how.channels],
+      values: specs.map(paramLabel),
+      recipients: enrolled.length,
+      scheduled_for: when.toISOString(),
+      ...(movedFrom ? { moved_from: movedFrom } : {}),
+      // As a playbook's run records it: how many the month holds. The hold is its own write after the run, and one that
+      // could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
+      ...allowanceRecord(past.length, 0),
+    },
+  };
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -310,6 +329,7 @@ export async function createBroadcast(
     recipients: enrolled.map((e) => ({ contact_id: e.row.id, facts: null, channel: e.channel })),
     sendAt: when,
     held: past.map((p) => p.id),
+    decision,
   });
   if (!made.ok) {
     // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong". What the
@@ -317,20 +337,9 @@ export async function createBroadcast(
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
     throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
   }
-  const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
-    name,
-    template: `${message.name}/${message.language}`,
-    category: message.category,
-    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
-    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...(kept ? { list: kept.token } : {}) },
-    channels: [...how.channels],
-    values: specs.map(paramLabel),
-    recipients: enrolled.length,
-    scheduled_for: when.toISOString(),
-    ...(movedFrom ? { moved_from: movedFrom } : {}),
-    // As a playbook's run records it: how many the month holds, and how many of those the write left queued (held at the wire).
-    ...allowanceRecord(past.length, made.unheld),
-  });
+  // The door answers the decision's id with the run's; one was asked for, so an answer without it is refused where
+  // the door is called (db assembleBroadcast), never read as a run made with none.
+  if (made.decisionId === null) throw new Error("createBroadcast: the run's door answered without its decision");
   return {
     id: made.id,
     name,
@@ -341,6 +350,6 @@ export async function createBroadcast(
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
     held_for_allowance: past.length - made.unheld,
-    decision_id,
+    decision_id: made.decisionId,
   };
 }

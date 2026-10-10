@@ -2,7 +2,7 @@
  * Rows of the jobs ledger, read for the back office's requeue door (packages/jobs requeueFailedJob). The ledger's own
  * writes (claim, complete, fail, defer, schedule) are packages/jobs' and name the table there; these are the two reads a
  * requeue makes, each in the workspace it is asked for, so a job of another workspace is not found. And the one door
- * that writes a broadcast, its people and its send job together (assembleBroadcast), the one that approves a run that
+ * that writes a broadcast, its people, its send job and its decision together (assembleBroadcast), the one that approves a run that
  * waited (approveBroadcast), and what a send job writes on the queued message it names: its claim before the wire
  * (claimQueuedSend, releaseQueuedSend) and the failure a run that did not finish leaves on it (failQueuedSend).
  */
@@ -66,26 +66,46 @@ export async function hasNewerCopy(db: Db, tenantId: string, job: JobToRequeue):
   return (data?.length ?? 0) > 0;
 }
 
+/** Whose decision a run's send is, and what the ledger keeps of it: a member's (`actor`) or the system's (null, the sweep's). */
+export interface AssembleDecision {
+  actor: string | null;
+  payload: Json;
+  via: string | null;
+  undoOf: string | null;
+}
+
 /**
- * A broadcast, its people and its send job, written whole (00282 assemble_broadcast): the run's id back, or a throw and
- * then nothing was written. The function puts the job on the ledger, which no session may, so it is the service role's
- * alone; each caller has checked who may ask (the dashboard's route after its role check, the playbooks sweep), and the
- * function asks for itself that every person, the template and the playbook are the workspace's. `run` is the run's own
- * columns (core's NewBroadcast), `recipients` its people with the words their row keeps, and `sendAt` when the job is
- * due: none, and no job is written (a run that waits for an approval).
+ * A broadcast, its people, its send job and the send_broadcast decision on it, written whole (00373 assemble_broadcast,
+ * over 00282's door): the run's id back with the decision's, or a throw and then nothing was written. The function puts
+ * the job on the ledger, which no session may, so it is the service role's alone; each caller has checked who may ask
+ * (the dashboard's route after its role check, the playbooks sweep), and the function asks for itself that every
+ * person, the template and the playbook are the workspace's. `run` is the run's own columns (core's NewBroadcast),
+ * `recipients` its people with the words their row keeps, `sendAt` when the job is due (none, and no job is written),
+ * and `decision` whose decision the send is and what the ledger keeps of it: none for a run that waits for a person,
+ * whose approval is its decision (approveBroadcast), and then `decisionId` is null. `undoDropped` says the undo link
+ * named a decision this database does not hold, and the run stands without it.
  */
 export async function assembleBroadcast(
   db: Db,
-  args: { tenantId: string; run: Json; recipients: Json; sendAt: Date | null },
-): Promise<string> {
+  args: { tenantId: string; run: Json; recipients: Json; sendAt: Date | null; decision: AssembleDecision | null },
+): Promise<{ id: string; decisionId: string | null; undoDropped: boolean }> {
+  const { decision } = args;
   const { data, error } = await db.rpc("assemble_broadcast", {
     p_tenant: args.tenantId,
     p_run: args.run,
     p_recipients: args.recipients,
+    p_decision: decision?.payload ?? null,
     ...(args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {}),
+    ...(decision?.actor ? { p_actor: decision.actor } : {}),
+    ...(decision?.via ? { p_via: decision.via } : {}),
+    ...(decision?.undoOf ? { p_undo_of: decision.undoOf } : {}),
   });
-  if (error || !data) throw new Error(error?.message ?? "broadcast not created");
-  return data;
+  if (error) throw new Error(error.message);
+  if (data === null || typeof data !== "object" || Array.isArray(data) || typeof data.id !== "string")
+    throw new Error("broadcast not created");
+  const decisionId = typeof data.decision_id === "string" ? data.decision_id : null;
+  if (decision && decisionId === null) throw new Error("assemble_broadcast: the door answered without its decision");
+  return { id: data.id, decisionId, undoDropped: data.undo_dropped === true };
 }
 
 /** PostgREST's answers for a column the database does not hold yet: none of that name in its schema, or in the table. */

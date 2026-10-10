@@ -130,13 +130,13 @@ union all
 select 'session_calls_service_door', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname in ('assemble_broadcast', 'create_message_version')
+   where n.nspname = 'public' and p.proname in ('assemble_broadcast', 'billing_apply', 'create_message_version', 'reach_out_save', 'team_decision')
      and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('public', p.oid, 'EXECUTE'))
 ) s
 union all
 select 'service_door_missing', coalesce(array_agg(x order by x), '{}') from (
   select d.proname::text as x
-    from (values ('assemble_broadcast'), ('create_message_version')) as d(proname)
+    from (values ('assemble_broadcast'), ('billing_apply'), ('create_message_version'), ('reach_out_save'), ('team_decision')) as d(proname)
    where not exists (
      select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = d.proname and has_function_privilege('service_role', p.oid, 'EXECUTE'))
