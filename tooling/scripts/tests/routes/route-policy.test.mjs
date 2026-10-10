@@ -94,6 +94,9 @@ const FRESH = [
   "PATCH team/[id]",
   "DELETE team/[id]",
   "POST team/invite",
+  // An invitation emailed again, and a member leaving (00371): a team change each, as the three above.
+  "POST team/invite/[id]/resend",
+  "POST team/leave",
   "GET export",
   "GET contacts/export",
   "GET leads/export",

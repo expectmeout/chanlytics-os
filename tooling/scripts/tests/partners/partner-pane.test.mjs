@@ -20,6 +20,30 @@ const { PanePartner } = await import("../../../../apps/dashboard/src/surfaces/se
 const { PaneTeam } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/team-card.tsx");
 /** The account as the seam holds it: undefined before the read, null when it failed. */
 const setAccount = (v) => setSurfaceValue("partner", v);
+/**
+ * The Team card the partner's row stands in (team/partner.tsx, its last row since 9 Oct 2026) draws once the settings
+ * read is in, as the route waits for it: an owner's, with a roster of one.
+ */
+const teamRead = () =>
+  setSurfaceValue("settings", {
+    settings: { config: null, version: 1, role: "owner" },
+    facts: null,
+    channels: null,
+    templatesAll: null,
+    templateUse: null,
+    templateSent: null,
+    team: [
+      {
+        membershipId: "m-me",
+        userId: "u-me",
+        email: "owner@example.com",
+        displayName: "",
+        role: "owner",
+        joinedAt: null,
+      },
+    ],
+    invites: [],
+  });
 /** The real verbs, as the module made them: the tests below answer for some, and the last runs them all again. */
 const REAL = { ...partnerVerbs, team: { ...partnerVerbs.team }, secondFactor: { ...partnerVerbs.secondFactor } };
 
@@ -515,11 +539,17 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
       return { ok: true, message: "" };
     },
   };
+  teamRead();
   const drawTeam = () => again(() => globalThis.React.createElement(PaneTeam, { flash }));
   fresh();
   drawTeam();
   await settle();
   let tree = drawTeam();
+  // With nobody asked, the Team card's partner row offers to ask; its press opens the code's field and says what a
+  // partner is (the row was a card of its own, its form always open, until 9 Oct 2026).
+  assert.equal(byTestId(tree, "team-partner-form"), null, "the field waits for the row's press");
+  press(byTestId(tree, "team-partner-open"));
+  tree = drawTeam();
   assert.equal(textOf(byTestId(tree, "team-partner")).includes(W.intro), true);
   assert.equal(byTestId(tree, "team-partner-ask").props.disabled, true, "nothing to send before a code");
   teamCodeBox(tree).props.onChange({ target: { value: "nobody" } });
@@ -533,6 +563,8 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   assert.equal(byTestId(tree, "team-partner-form"), null, "nobody else asked while one waits");
   press(byTestId(tree, "team-partner-withdraw"));
   tree = await reread(drawTeam);
+  press(byTestId(tree, "team-partner-open"));
+  tree = drawTeam();
   assert.ok(byTestId(tree, "team-partner-form"));
   assert.deepEqual(asked, ["nobody", "https://app.chanlytics.com/p/ada-co", "withdraw"]);
 
@@ -569,6 +601,7 @@ test("Team: an owner's View as another role sees no card, as that role would; th
       return { ok: true, message: "" };
     },
   };
+  teamRead();
   const drawTeam = () => again(() => globalThis.React.createElement(PaneTeam, { flash }));
   const store = { viewAsRole: "viewer", can: () => false, myRole: () => "viewer" };
   globalThis.window.ST_STORE = store;
@@ -582,6 +615,8 @@ test("Team: an owner's View as another role sees no card, as that role would; th
     globalThis.window.dispatchEvent(new Event("team:changed"));
     let tree = drawTeam();
     assert.ok(byTestId(tree, "team-partner"));
+    press(byTestId(tree, "team-partner-open"));
+    tree = drawTeam();
     assert.equal(byTestId(tree, "team-partner-ask").props["data-gated"], undefined, "the owner's ask is not gated");
     // A role without the team's permission is gated at the button, in the shell's own way.
     store.can = () => false;
@@ -595,6 +630,8 @@ test("Team: an owner's View as another role sees no card, as that role would; th
     assert.match(W.notSent, /take it back and ask again/, "and how to send it again");
     press(byTestId(tree, "team-partner-withdraw"));
     tree = await reread(drawTeam);
+    press(byTestId(tree, "team-partner-open"));
+    tree = drawTeam();
 
     const before = reads;
     teamCodeBox(tree).props.onChange({ target: { value: "late" } });

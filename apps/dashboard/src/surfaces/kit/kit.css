@@ -534,6 +534,18 @@ a.chip:focus-visible {
   font-size: 10.5px;
   color: var(--ink-dim);
 }
+/* A second line UNDER the words (MoreMenu `metaBelow`): what a choice gives, read before it is pressed (Team's roles,
+   each with what it may do). At the end of the line, a sentence crowded the words it described until they overlapped. */
+.more-item-two {
+  flex-wrap: wrap;
+  row-gap: 1px;
+}
+.more-item-two > .more-item-meta {
+  flex-basis: 100%;
+}
+.more-item-two > .icon ~ .more-item-meta {
+  padding-left: 27px;
+}
 .more-item.danger {
   color: var(--danger);
 }

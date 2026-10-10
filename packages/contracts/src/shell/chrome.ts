@@ -5,6 +5,7 @@
  * same thing.
  */
 import { PAUSED_WORDS } from "../workspace/billing";
+import { roleSays } from "../config/workspace-config/role-perms";
 
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
@@ -242,16 +243,18 @@ export interface ShellStatus {
   offline?: boolean;
   /** The live feed dropped and did not come back within its grace: the page is current only as of its last read. */
   disconnected?: boolean;
+  /** The role an owner is previewing the app as (Settings › Team, Preview as); null or absent when they are themself. */
+  previewing?: string | null;
 }
 
 export interface ShellStatusLine {
-  kind: "offline" | "paused" | "stale" | "degraded" | "disconnected";
+  kind: "offline" | "paused" | "preview" | "stale" | "degraded" | "disconnected";
   /** How loud: danger when customers are affected, warn when this screen is, info when nothing is lost. */
   tone: "danger" | "warn" | "info";
   text: string;
   /** What it means for the person, when the line alone would leave them guessing. */
   detail: string | null;
-  action: "reload" | "billing" | "retry" | null;
+  action: "reload" | "billing" | "retry" | "exit-preview" | null;
   /** The press's words, and its words while it works. */
   cta: string | null;
   busy: string | null;
@@ -266,9 +269,11 @@ function namesAnd(names: readonly string[]): string {
  * The one line the shell shows over the page, or nothing: one thing at a time,
  * in the order that matters. Offline first: while nothing reaches the
  * workspace, nothing else the line could offer would work. Then a pause, which
- * reaches the customers. Then a newer build, which a reload fixes along with
- * anything stale. Then surfaces that stopped refreshing, and last the live
- * feed, which only delays what the next read shows.
+ * reaches the customers. Then an owner's preview of a narrower role: controls
+ * are missing on every page while it is on, and without the line nothing
+ * outside Settings › Team said why. Then a newer build, which a reload fixes
+ * along with anything stale. Then surfaces that stopped refreshing, and last
+ * the live feed, which only delays what the next read shows.
  */
 export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusLine | null {
   if (!s) return null;
@@ -292,6 +297,18 @@ export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusL
       cta: "Billing",
       busy: null,
     };
+  if (s.previewing) {
+    const one = roleSays(s.previewing).one;
+    return {
+      kind: "preview",
+      tone: "info",
+      text: `Previewing as ${one}`,
+      detail: `Controls ${one} wouldn't have are hidden. Your own access hasn't changed.`,
+      action: "exit-preview",
+      cta: "Exit preview",
+      busy: null,
+    };
+  }
   if (s.stale)
     return {
       kind: "stale",

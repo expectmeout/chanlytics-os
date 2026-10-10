@@ -8,7 +8,8 @@
  * is window.gate(...)'s props, spread after its click, so a refused item stays in
  * the menu, says why when pressed, and leaves the menu open.
  * `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
- * An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true.
+ * An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true. `metaBelow` draws its
+ * `meta` as a line under the words (.more-item-two), where a sentence beside them would crowd them.
  * `solid` is for a menu that opens over rows of coloured words (a log): the pop's near-opaque ground under the same
  * sheen and edge, where the menu's own glass let the amber and the red of the lines behind it through.
  */
@@ -24,8 +25,10 @@ interface MoreMenuItem {
   icon?: string;
   onClick?: () => void;
   danger?: boolean;
-  /** A second line under the words. */
+  /** A second line beside the words, at the line's end; under them with `metaBelow`. */
   meta?: ReactNode;
+  /** The second line under the words, for a sentence too long to stand beside them (what a choice gives). */
+  metaBelow?: boolean;
   /** A word at the item's end. */
   hint?: ReactNode;
   /** What pressing does, on hover. */
@@ -215,7 +218,7 @@ export function MoreMenu({
               return (
                 <button
                   key={i}
-                  className={`more-item ${it.danger ? "danger" : ""}`}
+                  className={`more-item${it.danger ? " danger" : ""}${it.meta && it.metaBelow ? " more-item-two" : ""}`}
                   role={radio ? "menuitemradio" : "menuitem"}
                   aria-checked={radio ? it.checked : undefined}
                   title={it.title || undefined}

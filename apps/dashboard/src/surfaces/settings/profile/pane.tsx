@@ -10,7 +10,7 @@
  * properties of this BROWSER rather than of you, and moving them here would make one of the two wrong.
  */
 import { useRef, useState } from "react";
-import { identityWords } from "@chanlytics/contracts";
+import { identityWords, ROLE_SAYS, roleSays } from "@chanlytics/contracts";
 import { meVerbs } from "@/legacy-bridge/identity";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
@@ -18,7 +18,6 @@ import { useRecordFold } from "../../kit/record/hooks";
 import { RecordInline } from "../../kit/record/inline";
 import { RecordRow } from "../../kit/record/row";
 import { demoSession, meNow, shellSignOut, type LegacyFlash } from "../../legacy-verbs";
-import { ROLE_WORDS } from "../shared";
 
 type Flash = (f: LegacyFlash) => void;
 
@@ -180,7 +179,7 @@ function DeleteAccountRow({ flash }: { flash: Flash }) {
 export const PaneProfile = ({ flash }: { flash: Flash }) => {
   const me = meNow();
   const words = identityWords(me ? { ...me, email: me.email ?? null } : null);
-  const role = (me && me.role && ROLE_WORDS[me.role]) || null;
+  const role = me && me.role && Object.hasOwn(ROLE_SAYS, me.role) ? roleSays(me.role) : null;
   const signOut = () => {
     if (demoSession() || !shellSignOut()) flash({ msg: <>Nothing to sign out of in the demo.</> });
   };

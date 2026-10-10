@@ -88,3 +88,87 @@ export const ROLE_PERMS: Record<
     find: false,
   },
 };
+
+/* ---------------------------------------------------------------- what a role is called */
+
+/** A role in words: its name, what it may do in a sentence, and the short line a picker says under the name. */
+export interface RoleSays {
+  label: string;
+  /** The name with its article, as a sentence takes it: "an Owner", "a Viewer". */
+  one: string;
+  can: string;
+  short: string;
+}
+
+/**
+ * Each role in the words every place that names one says: Team's roster, its pickers and its invitation, Profile's
+ * role row, Ask's invitation card. Settings kept these, and Ask said an Operator "replies and handles threads; no
+ * settings or team" beside Settings' "approves decisions and tunes autonomy": one role, two descriptions.
+ */
+export const ROLE_SAYS: Record<Role, RoleSays> = {
+  owner: {
+    label: "Owner",
+    one: "an Owner",
+    can: "Everything, billing and the team included.",
+    short: "Everything, billing and the team included",
+  },
+  operator: {
+    label: "Operator",
+    one: "an Operator",
+    can: "Answers and approves conversations, tunes autonomy. No billing, team or channels.",
+    short: "Answers and approves, tunes autonomy",
+  },
+  partner: {
+    label: "Partner",
+    one: "a Partner",
+    can: "Sets up and runs the receptionist with you. No billing, team or customer export.",
+    short: "Sets up and runs the receptionist with you",
+  },
+  viewer: {
+    label: "Viewer",
+    one: "a Viewer",
+    can: "Sees everything, changes nothing.",
+    short: "Sees everything, changes nothing",
+  },
+};
+
+/** A role's words, for a role the server may name: one this list does not know is said as it is stored. */
+export function roleSays(role: string): RoleSays {
+  return (ROLE_SAYS as Partial<Record<string, RoleSays>>)[role] ?? { label: role, one: role, can: "", short: "" };
+}
+
+/** A line of the roles compared: what it lets a member do, and the permission that decides it (none: every role). */
+export interface RoleTableRow {
+  says: string;
+  /** A word after it, quieter: what doing it costs. */
+  note: string | null;
+  can: Record<Role, boolean>;
+}
+
+/** The permissions in the order the table says them, each in the product's words. */
+const ROLE_TABLE_LINES: readonly { perm: keyof (typeof ROLE_PERMS)[Role] | null; says: string; note?: string }[] = [
+  { perm: null, says: "See conversations, people and reports" },
+  { perm: "approve", says: "Approve and send replies" },
+  { perm: "autonomy", says: "Tune autonomy" },
+  { perm: "settings", says: "Business details and who gets alerts" },
+  { perm: "disconnect", says: "Connect and disconnect channels" },
+  { perm: "find", says: "Find leads", note: "uses the month's allowance" },
+  { perm: "export", says: "Export the customer list" },
+  { perm: "billing", says: "Billing" },
+  { perm: "team", says: "The team and its roles" },
+];
+
+/**
+ * The roles compared, a line a permission: Team's "Compare", drawn from ROLE_PERMS itself, so the table cannot say a
+ * role may do what the gates refuse it. Seeing is every role's (a viewer "sees everything").
+ */
+export function roleTable(): RoleTableRow[] {
+  return ROLE_TABLE_LINES.map((line) => ({
+    says: line.says,
+    note: line.note ?? null,
+    can: Object.fromEntries(ROLES.map((r) => [r, line.perm === null ? true : ROLE_PERMS[r][line.perm]])) as Record<
+      Role,
+      boolean
+    >,
+  }));
+}
