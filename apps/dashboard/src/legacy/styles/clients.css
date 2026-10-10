@@ -2284,18 +2284,8 @@
 .pp-bar-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
 .pp-bar-icon:hover { background: var(--bg-hover); color: var(--ink); }
 .pp-bar .more-wrap { flex: none; }
-.pp-lookup { display: flex; align-items: center; gap: 6px; padding: 0 8px 6px 16px; flex: none; }
-.pp-lookup-rest, .pp-lookup-box { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
-.pp-lookup-rest { font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
-.pp-lookup-rest > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pp-lookup-box:focus-within { border-color: var(--ink-faint); }
-.pp-lookup .icon { flex: none; }
-.pp-lookup-box input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--field-text-touch); outline: none; }
-.pp-lookup-box input::placeholder { color: var(--ink-faint); }
-.pp-lookup-box input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-.pp-lookup-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
-html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-height: 0; }
-.pp-lookup-cancel { flex: none; height: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-medium); cursor: pointer; }
+/* The search is the kit's (kit.css, "Search"); the bar places it, at the rows' 12px, 10px over the first. */
+.pp-lookup { flex: none; padding: 0 12px 10px; }
 
 @media (max-width: 900px) {
   /* A list's own step, alone in its section on a phone: one card, on the gutter. */
@@ -3131,34 +3121,6 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
     box-shadow: none;
     color: var(--ink-muted);
   }
-  .pp-lookup {
-    gap: 8px;
-    padding: 0 12px 10px;
-  }
-  /* The resting capsule is a button, so the touch floor (legacy.css, html.legacy-on button) is named over: two classes
-     outweigh it. */
-  .pp-lookup > :is(.pp-lookup-rest, .pp-lookup-box) {
-    height: 38px;
-    min-height: 0;
-    padding: 0 12px;
-    border: 0;
-    border-radius: var(--radius-full);
-    background: var(--surface-inset-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    font-size: var(--text-base);
-    color: var(--ink-dim);
-  }
-  .pp-lookup > .pp-lookup-box:focus-within {
-    box-shadow:
-      var(--focus-field-edged),
-      var(--surface-inset-depth);
-  }
-  .pp-lookup-cancel {
-    padding: 0 4px;
-    font-size: var(--text-base);
-  }
   /* A row is one person on the page itself, as the Inbox's is: a lozenge inset from the sides, no line between two, and
      the pressed one the selected fill. */
   .clients .pl-table-wrap {
@@ -3221,21 +3183,8 @@ html.legacy-on .pp-lookup-box input, html.legacy-on .pp-lookup-clear { min-heigh
   .pl-table-wrap.selecting tbody tr.selected {
     background: var(--bubble-us-bg);
   }
-  /* The sheets People raises from the foot (the lists, and the small jobs) are the pop layer's ground with the pane's
-     corners, as the kit's own sheet is on a phone: reached by their test ids, since their classes are a primitive's
-     word. */
-  :is(
-      [data-testid="people-lists-sheet"],
-      [data-testid="add-person-sheet"],
-      [data-testid="list-act-sheet"],
-      [data-testid="bulk-sheet"],
-      [data-testid="pipeline-new-sheet"]
-    ) {
-    border: 0;
-    border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0;
-    background: var(--surface-pop-solid);
-    box-shadow: var(--surface-pop-depth);
-  }
+  /* The sheets People raises from the foot (the lists, and the small jobs) are the kit's Sheet, on its own ground: the
+     solid every sheet wears, its edge and its corners (kit.css). They re-spelled it here, without the edge. */
   /* The boxes a sheet asks into, and the bar's search once it is opened, are the insets the Inbox's search is: a capsule
      of the inset's fill with its ring, the focus ring over it. */
   :is(

@@ -78,6 +78,7 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
     notifications: z.ZodOptional<z.ZodObject<{
         escalation_emails: z.ZodArray<z.ZodString>;
         from: z.ZodOptional<z.ZodString>;
+        email_off: z.ZodCatch<z.ZodOptional<z.ZodArray<z.ZodString>>>;
     }, z.core.$strip>>;
     calendar: z.ZodOptional<z.ZodObject<{
         ical_url: z.ZodString;

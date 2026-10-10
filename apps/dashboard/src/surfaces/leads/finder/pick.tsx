@@ -50,7 +50,12 @@ export const LeadPick = ({
       {label}
     </button>
     {open ? (
-      <span className="lf-pop" role="listbox" aria-label={title || label} data-testid={`plan-${id}-options`}>
+      <span
+        className="lf-pop panel panel-pop"
+        role="listbox"
+        aria-label={title || label}
+        data-testid={`plan-${id}-options`}
+      >
         {options.map((o) => (
           <button
             key={o.id}

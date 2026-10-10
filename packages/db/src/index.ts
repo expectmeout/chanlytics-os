@@ -222,7 +222,16 @@ export {
 } from "./repositories/reports/report-series";
 export type { ReportWindow } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
-export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
+export {
+  forgetNotification,
+  noticeKept,
+  activityTokensOf,
+  forgetActivityTokens,
+  memberAlertsOf,
+  setMemberPushOff,
+  membersPushedFor,
+} from "./repositories/notifications";
+export type { MemberAlertsRow } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
 export {
   resolveChannelDetailed,
@@ -332,6 +341,7 @@ export {
   personReplyMode,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
+  workspaceNamed,
   membershipCountOf,
   workspaceIdsOf,
   createWorkspaceFn,

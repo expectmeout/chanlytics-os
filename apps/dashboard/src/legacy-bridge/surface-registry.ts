@@ -211,6 +211,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
   // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
   "admin/integrations": ["google"],
+  // Settings' Notifications pane draws what reaches the member's own phones beside the settings read (decision 0040).
+  "admin/notifications": ["alerts"],
 };
 
 /**

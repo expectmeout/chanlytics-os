@@ -6,8 +6,9 @@
  * account menu's popover, your role as a chip beside other people's. A person who wants to check which account they are
  * signed in as should not have to open a menu over a page about a salon.
  *
- * Deliberately short. Theme, keyboard shortcuts and per-device alerts stay in the account menu, because they are
- * properties of this BROWSER rather than of you, and moving them here would make one of the two wrong.
+ * Deliberately short. Theme and keyboard shortcuts stay in the account menu, because they are properties of this
+ * BROWSER rather than of you, and moving them here would make one of the two wrong. This browser's alerts are Settings ›
+ * Notifications' (the account menu says where they stand and opens it).
  */
 import { useRef, useState } from "react";
 import { identityWords, ROLE_SAYS, roleSays } from "@chanlytics/contracts";

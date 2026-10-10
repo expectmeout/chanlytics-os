@@ -40,13 +40,12 @@
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
-    "00372": "held by unmerged lanes: the Ledger lane (00372-00376), notifications (00372), the doors lane (00373-00378); the lane that lands first takes its number and the entry goes: migration-ledger.mjs --record drops a gap that gets a file",
-    "00373": "held by unmerged lanes: the Ledger lane (00372-00376), notifications (00372), the doors lane (00373-00378); the lane that lands first takes its number and the entry goes: migration-ledger.mjs --record drops a gap that gets a file",
-    "00374": "held by unmerged lanes: the Ledger lane (00372-00376), notifications (00372), the doors lane (00373-00378); the lane that lands first takes its number and the entry goes: migration-ledger.mjs --record drops a gap that gets a file",
-    "00375": "held by unmerged lanes: the Ledger lane (00372-00376), notifications (00372), the doors lane (00373-00378); the lane that lands first takes its number and the entry goes: migration-ledger.mjs --record drops a gap that gets a file",
-    "00376": "held by unmerged lanes: the Ledger lane (00372-00376), notifications (00372), the doors lane (00373-00378); the lane that lands first takes its number and the entry goes: migration-ledger.mjs --record drops a gap that gets a file",
-    "00377": "held by unmerged lanes: the Ledger lane (00372-00376), notifications (00372), the doors lane (00373-00378); the lane that lands first takes its number and the entry goes: migration-ledger.mjs --record drops a gap that gets a file",
-    "00378": "held by unmerged lanes: the Ledger lane (00372-00376), notifications (00372), the doors lane (00373-00378); the lane that lands first takes its number and the entry goes: migration-ledger.mjs --record drops a gap that gets a file"
+    "00373": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
+    "00374": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
+    "00375": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
+    "00376": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
+    "00377": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
+    "00378": "held by the doors lane (PR #1537, doors/the-records-take-their-doors: 00378, not yet on main or production); its file lands with that PR and migration-ledger.mjs --record drops this gap"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -381,6 +380,7 @@
     "00369_a_broadcast_s_email_is_claimed_as_it_is_written.sql": "3b4fcf4cfe6f3a3b1f53b6db8742a19bbd605577f634a337c82434f8a2ad1e84",
     "00370_a_partner_s_share_is_read_by_the_owner_alone.sql": "0f5725104586d6fd55c0c9da19e7fe82fd571a2687f15aab947c14732ec1401d",
     "00371_a_member_may_leave_and_an_invitation_is_sent_again.sql": "45451bad4e81406329cd13830e21ec060c17c3fe6d43afcd212f9cc3ed4502e9",
+    "00372_a_member_chooses_what_reaches_their_phone.sql": "24e3e33afc479f0073df51c4fec29f9f540aec1f36b62d8bde593162251712b5",
     "00379_automated_mail_is_no_customer_message.sql": "98095e49c8846b6a3c8e49f7242a619c2fff618279ad86976de404bad55e1e9f",
     "00380_the_receptionist_is_read_beyond_the_days_counts.sql": "f0feeee18a57006cb937f4427167981c6e12495ee0821131bce3ce433ac033a9"
   }

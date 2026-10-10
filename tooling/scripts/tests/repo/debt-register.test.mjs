@@ -78,11 +78,12 @@ function blockFrom(by, scanCounts) {
   const over200 = Object.values(complexity).filter((v) => v.lines > 200).length;
   const publishers = by["window-publishers.json"] ?? {};
   const copies = by["copies.json"] ?? {};
-  // knip's, ESLint's and the bundle's baselines are written by their own scripts, never by the suite, so the file is the truth in both modes.
+  // knip's and ESLint's baselines are written by their own scripts, never by the suite, and the bundle's ceilings by a
+  // decision (check:bundle -- --ceiling), so the file is the truth in both modes.
   const lint = readBaseline("lint-warnings.json") ?? {};
   const unchecked = by["unchecked-index.json"] ?? {};
   const casts = by["casts.json"] ?? {};
-  const budget = readBaseline("bundle-budget.json") ?? {};
+  const ceiling = readBaseline("bundle-ceiling.json") ?? {};
   const effects = Object.values(lint).reduce((a, rules) => a + (rules["react-hooks/exhaustive-deps"] ?? 0), 0);
   const wire = wireCounts(by["wire-casing.json"]);
   const rows = [
@@ -132,13 +133,10 @@ function blockFrom(by, scanCounts) {
       Object.values(lint).reduce((a, rules) => a + total(rules), 0),
       `in ${keys(lint)} files, ${effects} of them exhaustive-deps`,
     ],
-    ["workspace route JS, KB gzipped", Math.round(budget.js / 1024), "the shell included"],
-    ["workspace route CSS, KB gzipped", Math.round(budget.css / 1024), ""],
-    [
-      "workspace pages' own JS, KB",
-      Math.round(total(budget.page) / 1024),
-      `gzipped, beyond the route, summed over ${keys(budget.page)} pages`,
-    ],
+    // Not a debt: what a workspace may load, which only a decision moves; what it does load is CI's summary.
+    ["route JS ceiling, KB gzipped", Math.round(ceiling.js / 1024), "the shell included"],
+    ["route CSS ceiling, KB gzipped", Math.round(ceiling.css / 1024), ""],
+    ["each page's own JS ceiling, KB", Math.round(ceiling.page / 1024), "gzipped, beyond the route"],
     // Not a debt: the trees the complexity ratchet has emptied, which the lint's limits hold (eslint.config.mjs), so
     // the register's prose never types how many.
     ["trees the lint's limits hold", LIMITED_TREES.length, `${WIDE_PARAMS.length} of them with max-params waiting`],

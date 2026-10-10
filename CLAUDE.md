@@ -42,7 +42,7 @@ TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock tw
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
-corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against its budget and ceiling (CI holds each change to what it adds against main's own build); -- --update banks a fall, -- --raise js=<bytes> <page>=<bytes> a rise by the growth argued, both with CI's numbers and no build
+corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against the ceilings; CI holds each change to what it adds against main's own build, and growth past its line (route 1 KB, a page 2 KB) passes when the PR's description has a line `Bundle: <why>`; nothing in the repository changes for it
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 node tooling/scripts/checks/smoke.mjs --edge <edge-host> --dashboard <dashboard-host> --sha <merge-sha>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer with the sha (docs/runbook.md, Deploy); one host alone exits 1, since the dashboard's /api/health is behind sign-in
@@ -123,7 +123,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   not one of `tokens.css`'s breakpoints; lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
-  build. `UPDATE_BASELINES=1` banks only what fell (knip, the lint and the bundle budget: their
+  build. `UPDATE_BASELINES=1` banks only what fell (knip's and the lint's: their
   `--update`); a number that must rise is raised with `UPDATE_BASELINES=raise` (theirs: `--raise`) in
   the same diff as its row under "Rises" in `docs/debt.md`, with the reason in the pull request. Where
   a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in

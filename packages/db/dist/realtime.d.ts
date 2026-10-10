@@ -3904,6 +3904,7 @@ type Database = {
                 Row: {
                     created_at: string;
                     id: string;
+                    push_off: string[] | null;
                     role: string;
                     tenant_id: string;
                     user_id: string;
@@ -3912,6 +3913,7 @@ type Database = {
                 Insert: {
                     created_at?: string;
                     id?: string;
+                    push_off?: string[] | null;
                     role?: string;
                     tenant_id: string;
                     user_id: string;
@@ -3920,6 +3922,7 @@ type Database = {
                 Update: {
                     created_at?: string;
                     id?: string;
+                    push_off?: string[] | null;
                     role?: string;
                     tenant_id?: string;
                     user_id?: string;
@@ -7328,6 +7331,13 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: boolean;
+            };
+            member_push_off_set: {
+                Args: {
+                    p_kinds: string[];
+                    p_tenant_id: string;
+                };
+                Returns: string[];
             };
             member_view_set: {
                 Args: {

@@ -27,7 +27,7 @@ export const LeadCard = ({
   testid?: string;
 }) => (
   <div
-    className="ld-card"
+    className="ld-card panel panel-pop"
     role="group"
     id={id}
     aria-label={label}
