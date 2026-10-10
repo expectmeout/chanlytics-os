@@ -19,7 +19,10 @@ import { RecordField } from "../../kit/record/field";
 import { gate, type LegacyFlash } from "../../legacy-verbs";
 import { partnerVerbs } from "../partner/surface";
 
-/** Where things stand, in a few words: the row's name. The sentence under it is contracts' (workspacePartnerVM). */
+/**
+ * Where things stand, in a few words: the row's name. The sentence under it is contracts' (workspacePartnerVM). A partner
+ * removed or gone is still the workspace's one partner (the state `partner`, not seated): "Former partner", never "Your".
+ */
 const PARTNER_STATE_WORDS: Record<WorkspacePartnerState, string> = {
   none: "No partner yet",
   waiting: "Invitation waiting",
@@ -27,6 +30,8 @@ const PARTNER_STATE_WORDS: Record<WorkspacePartnerState, string> = {
   expired: "Invitation expired",
   partner: "Your partner",
 };
+const partnerWords = (vm: WorkspacePartnerVM): string =>
+  vm.state === "partner" && !vm.seated ? "Former partner" : PARTNER_STATE_WORDS[vm.state];
 /** What a partner is, under "No partner yet": the field's own intro says the rest once it is opened. */
 const PARTNER_NONE_LINE = "Someone who sets up and runs your receptionist with you.";
 
@@ -160,27 +165,35 @@ export function PartnerRow({ flash, previewing }: { flash: (f: LegacyFlash) => v
         if (!busy) void withdraw();
       }}
       aria-busy={busy || undefined}
+      aria-describedby="team-partner-note"
       data-testid="team-partner-withdraw"
       {...gate("team", "take back the invitation")}
     >
       {busy ? W.withdrawing : W.withdraw}
     </Button>
   ) : vm.canInvite && !asking ? (
-    <Button size="sm" variant="quiet" onClick={() => setAsking(true)} data-testid="team-partner-open">
+    <Button
+      size="sm"
+      variant="quiet"
+      onClick={() => setAsking(true)}
+      aria-describedby="team-partner-note"
+      data-testid="team-partner-open"
+    >
       {vm.state === "none" ? "Ask a partner" : "Ask again"}
     </Button>
   ) : null;
-  // A partner seated is somebody here, as a member is; anything else is somebody not yet, drawn as an invitation is.
-  const here = vm.state === "partner";
+  // A partner on the team is somebody here, as a member is; anything else is somebody not, drawn as an invitation is.
+  const here = vm.state === "partner" && vm.seated;
   return (
     <div className="set-team-partner" data-testid="team-partner">
       <h3 className="set-team-group">Partner</h3>
-      {/* Not a `set-team-row` first: the card counts its people by that class, and a partner's state is not one. */}
+      {/* Drawn by the team row's rules, and never a member: it has no data-me, and the tests that count the card's
+          people read a class that starts with set-team-row. */}
       <div className={`set-team-partner-row set-team-row${here ? "" : " pending"}`} data-testid="team-partner-row">
         <Face className="set-team-face" glyph={<Icon name={here ? "check" : "users"} size={13} />} />
         <span className="set-team-body">
-          <span className="set-team-name">{PARTNER_STATE_WORDS[vm.state]}</span>
-          <span className="set-team-note" data-testid={`team-partner-${vm.state}`}>
+          <span className="set-team-name">{partnerWords(vm)}</span>
+          <span className="set-team-note" id="team-partner-note" data-testid={`team-partner-${vm.state}`}>
             {vm.sentence ?? PARTNER_NONE_LINE}
           </span>
         </span>

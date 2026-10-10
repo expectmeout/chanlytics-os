@@ -36069,29 +36069,33 @@ function workspacePartnerVM(dto, nowMs = Date.now()) {
       state: "partner",
       sentence: p.seated ? `${p.code} is your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}. Remove them in the team above at any time.` : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}, and are no longer on your team. A workspace has one partner.`,
       canInvite: false,
-      canWithdraw: false
+      canWithdraw: false,
+      seated: p.seated
     };
   const i = dto.invitation;
-  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false, seated: false };
   if (i.declinedAt)
     return {
       state: "declined",
       sentence: `${i.code} declined on ${dayWords2(i.declinedAt)}.`,
       canInvite: true,
-      canWithdraw: false
+      canWithdraw: false,
+      seated: false
     };
   if (Date.parse(i.expiresAt) <= nowMs)
     return {
       state: "expired",
       sentence: `Your invitation to ${i.code} expired on ${dayWords2(i.expiresAt)}.`,
       canInvite: true,
-      canWithdraw: false
+      canWithdraw: false,
+      seated: false
     };
   return {
     state: "waiting",
     sentence: `Waiting for ${i.code} to accept: asked on ${dayWords2(i.sentAt)}, open until ${dayWords2(i.expiresAt)}.`,
     canInvite: false,
-    canWithdraw: true
+    canWithdraw: true,
+    seated: false
   };
 }
 var partnerInvitationWords = (i) => `${i.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${dayWords2(i.expiresAt)}.`;

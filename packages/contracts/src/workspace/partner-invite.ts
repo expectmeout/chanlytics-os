@@ -80,6 +80,8 @@ export interface WorkspacePartnerVM {
   canInvite: boolean;
   /** "Take it back": while an invitation waits for its answer. */
   canWithdraw: boolean;
+  /** The partner is on the team now; false for one removed or gone, and wherever there is no partner. */
+  seated: boolean;
 }
 
 export function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs: number = Date.now()): WorkspacePartnerVM {
@@ -92,15 +94,17 @@ export function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs: number = Dat
         : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords(p.since)}, and are no longer on your team. A workspace has one partner.`,
       canInvite: false,
       canWithdraw: false,
+      seated: p.seated,
     };
   const i = dto.invitation;
-  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false, seated: false };
   if (i.declinedAt)
     return {
       state: "declined",
       sentence: `${i.code} declined on ${dayWords(i.declinedAt)}.`,
       canInvite: true,
       canWithdraw: false,
+      seated: false,
     };
   if (Date.parse(i.expiresAt) <= nowMs)
     return {
@@ -108,12 +112,14 @@ export function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs: number = Dat
       sentence: `Your invitation to ${i.code} expired on ${dayWords(i.expiresAt)}.`,
       canInvite: true,
       canWithdraw: false,
+      seated: false,
     };
   return {
     state: "waiting",
     sentence: `Waiting for ${i.code} to accept: asked on ${dayWords(i.sentAt)}, open until ${dayWords(i.expiresAt)}.`,
     canInvite: false,
     canWithdraw: true,
+    seated: false,
   };
 }
 

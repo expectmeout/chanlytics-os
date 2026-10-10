@@ -334,6 +334,11 @@ test("an operator reads the roster and the gate's sentence with whom to ask; the
   const tree = draw();
   assert.equal(menuOf(tree, "team-role-m-ruben"), null, "no picker for an operator");
   assert.equal(menuOf(tree, "team-more-m-ruben"), null, "no ⋯ on someone else's row");
+  const foot = byTestId(tree, "team-roles");
+  assert.ok(
+    byTestId(foot, "team-gated") && byTestId(foot, "team-roles-compare-toggle"),
+    "whom to ask, on the foot's line",
+  );
   assert.match(textOf(byTestId(tree, "team-gated")), /^Only an owner can change the team\. Ask ruben@rjcapital\.io\.$/);
   const mine = menuOf(tree, "team-more-m-alex");
   assert.deepEqual(
@@ -352,9 +357,13 @@ test("the card's foot opens the table ROLE_PERMS draws; the card has no Activity
   let tree = draw();
   assert.equal(byTestId(tree, "team-roles-compare"), null, "the table waits to be asked for");
   assert.match(textOf(byTestId(tree, "team-roles")), /^What each role can do/);
+  assert.equal(byTestId(tree, "team-roles-compare-toggle").props["aria-expanded"], false);
   press(byTestId(tree, "team-roles-compare-toggle"));
   tree = draw();
   const table = byTestId(tree, "team-roles-compare");
+  const toggle = byTestId(tree, "team-roles-compare-toggle");
+  assert.equal(toggle.props["aria-expanded"], true);
+  assert.equal(toggle.props["aria-controls"], table.props.id, "the press names the table it opens");
   assert.equal(all(table, (n) => n.type === "tr").length, roleTable().length + 1, "a line a permission, and the head");
   assert.equal(byTestId(tree, "team-activity"), null, "Settings › Activity keeps the team's changes");
   assert.ok(

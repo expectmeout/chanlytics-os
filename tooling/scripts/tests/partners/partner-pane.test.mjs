@@ -548,6 +548,7 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   // With nobody asked, the Team card's partner row offers to ask; its press opens the code's field and says what a
   // partner is (the row was a card of its own, its form always open, until 9 Oct 2026).
   assert.equal(byTestId(tree, "team-partner-form"), null, "the field waits for the row's press");
+  assert.match(textOf(byTestId(tree, "team-partner-row")), /^No partner yet/);
   press(byTestId(tree, "team-partner-open"));
   tree = drawTeam();
   assert.equal(textOf(byTestId(tree, "team-partner")).includes(W.intro), true);
@@ -560,6 +561,7 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
   tree = await reread(drawTeam);
   assert.equal(textOf(byTestId(tree, "team-partner-waiting")), "Waiting for ada-co to accept.");
+  assert.match(textOf(byTestId(tree, "team-partner-row")), /^Invitation waiting/);
   assert.equal(byTestId(tree, "team-partner-form"), null, "nobody else asked while one waits");
   press(byTestId(tree, "team-partner-withdraw"));
   tree = await reread(drawTeam);
@@ -567,6 +569,20 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   tree = drawTeam();
   assert.ok(byTestId(tree, "team-partner-form"));
   assert.deepEqual(asked, ["nobody", "https://app.chanlytics.com/p/ada-co", "withdraw"]);
+
+  // A partner on the team is "Your partner"; one removed is still the workspace's one partner, and says so.
+  const was = { state: "partner", canInvite: false, canWithdraw: false };
+  for (const [vm, words] of [
+    [{ ...was, seated: true, sentence: "ada-co is your partner." }, /^Your partner/],
+    [{ ...was, seated: false, sentence: "ada-co was your partner." }, /^Former partner/],
+  ]) {
+    card = vm;
+    fresh();
+    drawTeam();
+    await settle();
+    tree = drawTeam();
+    assert.match(textOf(byTestId(tree, "team-partner-row")), words);
+  }
 
   partnerVerbs.team = {
     ...partnerVerbs.team,

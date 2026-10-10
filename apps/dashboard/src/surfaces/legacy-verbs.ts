@@ -60,11 +60,6 @@ export function viewAsRole(): string | null {
   return (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
 }
 
-/** Preview a lower role, or `null` to stop: the role store's own, which every gate then reads (`team:changed`). */
-export function setViewAs(role: string | null): void {
-  window.ST_STORE?.setViewAs?.(role);
-}
-
 /** Hear the role store change (View-as, the mockup's roster): what a page that draws by the acting role redraws on. */
 export function onRolesChanged(fn: () => void): () => void {
   window.addEventListener("team:changed", fn);
