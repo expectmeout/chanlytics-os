@@ -2,16 +2,30 @@
  * A chain is started with its decision (00373 reach_out_save, over 00228's door), on a real Postgres: the chain's rows
  * and the start_playbook decision on its root in one transaction. The decision was the route's own write after the
  * door, and one that failed left a chain with no line saying who started it, and a 500 the person answers by saving
- * again. Here the decision is made to fail AFTER the chain is written (an undo link onto another workspace's decision,
- * which the ledger's same-workspace key refuses: the one value the database refuses after the save, since the actor is
- * a member the door verified), and nothing of the chain remains. A chain is started once: an edit records no start.
+ * again. Here the decision is made to fail AFTER the chain is written (a ledger that refuses the row, in a transaction
+ * that never commits), and nothing of the chain remains; an undo link onto another workspace's line is dropped and said,
+ * never a failure (team_decision, 00373). A chain is started once: an edit records no start.
  *
  * Runs against the database `supabase start` builds on this machine, never production; makes its own workspaces and
  * removes them.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+// The database the CLI is pointed at: the one the environment names when it is on this machine, else the stack
+// `supabase start` runs here. psql, with no CLI, takes the same database.
+const DB_URL = process.env.SUPABASE_DB_URL;
+const LOCAL_DB = DB_URL && /^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL) ? DB_URL : null;
+const CLI_TARGET = LOCAL_DB
+  ? ["--db-url", `${LOCAL_DB}${LOCAL_DB.includes("?") ? "&" : "?"}sslmode=disable`]
+  : ["--local"];
+const PSQL_TARGET = LOCAL_DB ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -142,11 +156,67 @@ test("a new chain and the start_playbook decision on its root are one write, as 
   assert.equal(after_.decisions.length, 1, "and no second start");
 });
 
+/**
+ * A transaction on this machine's database that never commits (as the take-over's suite runs one): `body` runs in a DO
+ * block that ends by raising what it `seen`, so everything it did, the trigger it made included, goes with it.
+ */
+function rolledBack(body) {
+  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
+  const opts = { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 };
+  let r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], opts);
+  if (r.error?.code === "ENOENT") r = spawnSync("psql", [PSQL_TARGET, "-v", "ON_ERROR_STOP=0", "-c", sql], opts);
+  if (r.error)
+    throw new Error(`could not run ${CLI} or psql (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  const said = [r.stdout, r.stderr]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+  if (/not_this_database/.test(said))
+    throw new Error(
+      "the block reached a database that does not hold this suite's rows: point SUPABASE_DB_URL at the stack",
+    );
+  const seen = /seen (7b[0-9a-f]*)/.exec(said);
+  if (!seen) throw new Error(`the block did not get to say what it saw: ${said.slice(-800)}`);
+  return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
+}
+
+/** A value as a SQL jsonb literal, for the block. */
+const jsonb = (v) => `'${JSON.stringify(v).replace(/'/g, "''")}'::jsonb`;
+
 test("a decision that cannot be written takes the chain with it: no steps, no words, nothing on the ledger", async (t) => {
   if (skip) return t.skip(skip);
-  const s = await newSearch("Movers crossed");
-  // An undo link onto another workspace's decision: the link is real, so the ledger keeps it, and its same-workspace
-  // key refuses it, after the chain was written.
+  const s = await newSearch("Movers refused");
+  // A ledger that refuses every decision of A, made and called inside one transaction that never commits: the chain is
+  // written by the three-argument door first, then the decision fails, and the chain and its words go with it.
+  const chain = chainOf(s);
+  const seen = rolledBack(`
+    if not exists (select 1 from public.tenants where id = '${A}') then
+      raise exception 'not_this_database';
+    end if;
+    seen := seen || jsonb_build_object('words_before',
+      (select count(*) from public.templates where tenant_id = '${A}' and name like 'reach_out_%'));
+    create function public.__chain_decision_refused() returns trigger language plpgsql as $f$
+    begin raise exception 'the ledger is unavailable'; end $f$;
+    create trigger __chain_decision_refused before insert on public.decisions
+      for each row when (new.tenant_id = '${A}') execute function public.__chain_decision_refused();
+    begin
+      perform public.reach_out_save(
+        p_tenant_id => '${A}', p_user_id => '${operator}', p_chain => ${jsonb(chain)},
+        p_decision => ${jsonb({ name: chain.name })});
+      seen := seen || jsonb_build_object('raised', false);
+    exception when others then
+      seen := seen || jsonb_build_object('raised', true, 'message', sqlerrm);
+    end;
+    seen := seen || jsonb_build_object(
+      'steps', (select count(*) from public.playbooks p where p.tenant_id = '${A}' and p.lead_search_id = '${s}'),
+      'words_after', (select count(*) from public.templates where tenant_id = '${A}' and name like 'reach_out_%'));
+  `);
+  assert.equal(seen.raised, true, `a ledger that refuses the row must refuse the chain (${JSON.stringify(seen)})`);
+  assert.match(seen.message, /ledger is unavailable/, "it was the decision that failed, after the chain was written");
+  assert.equal(seen.steps, 0, "the chain went back with the decision");
+  assert.equal(seen.words_after, seen.words_before, "the steps' words went with them");
+
+  // An undo link onto another workspace's line: dropped and said, and the chain stands with its start.
   const theirs = await db
     .from("decisions")
     .insert({
@@ -160,14 +230,12 @@ test("a decision that cannot be written takes the chain with it: no steps, no wo
     .select("id")
     .single();
   assert.equal(theirs.error, null, theirs.error?.message);
-  // The steps' words are templates rows of their own (a dropped step's stay on file, hidden): counted around the save.
-  const words = async () =>
-    (await db.from("templates").select("id").eq("tenant_id", A).like("name", "reach_out_%")).data.length;
-  const wordsBefore = await words();
-  const r = await save(chainOf(s), { p_undo_of: theirs.data.id });
-  assert.equal(r.error?.code, "23503", r.error?.message);
-  assert.deepEqual(await heldFor(s), { steps: [], decisions: [] });
-  assert.equal(await words(), wordsBefore, "the steps' words went with them");
+  const crossedSearch = await newSearch("Movers crossed");
+  const crossed = await save(chainOf(crossedSearch), { p_undo_of: theirs.data.id });
+  assert.equal(crossed.error, null, crossed.error?.message);
+  assert.equal(crossed.data.undo_dropped, true, "a line of another workspace is not this one's to undo");
+  const held = await heldFor(crossedSearch);
+  assert.deepEqual([held.decisions.length, held.decisions[0].undo_of], [1, null]);
 
   // A chain the inner door refuses (a pace the sheet does not offer) writes no decision either.
   const paced = await save(chainOf(s, { gap_minutes: 7 }));

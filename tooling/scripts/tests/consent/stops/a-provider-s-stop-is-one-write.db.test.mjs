@@ -12,6 +12,9 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import {
   CARRIER_CONSENT_SOURCE,
@@ -23,6 +26,16 @@ import {
   recordWhatsAppOffersStop,
 } from "../../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+// The database the CLI is pointed at: the one the environment names when it is on this machine, else the stack
+// `supabase start` runs here. psql, with no CLI, takes the same database.
+const DB_URL = process.env.SUPABASE_DB_URL;
+const LOCAL_DB = DB_URL && /^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL) ? DB_URL : null;
+const CLI_TARGET = LOCAL_DB
+  ? ["--db-url", `${LOCAL_DB}${LOCAL_DB.includes("?") ? "&" : "?"}sslmode=disable`]
+  : ["--local"];
+const PSQL_TARGET = LOCAL_DB ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON = process.env.SUPABASE_ANON_KEY;
@@ -305,3 +318,88 @@ test("the door refuses a stop it does not know, and nobody but the service role 
     assert.equal(refused.error?.code, "42501", `a stranger: ${refused.error?.message}`);
   }
 });
+
+test("a stop that names another workspace's person changes nobody, there or here", { skip }, async () => {
+  const who = await started("sms");
+  const other = ok(
+    await db
+      .from("tenants")
+      .insert({ slug: `provider-stop-other-${RUN}`, name: "Another" })
+      .select("id")
+      .single(),
+    "workspace",
+  ).id;
+  try {
+    const crossed = await db.rpc("record_provider_stop", {
+      p_tenant_id: other,
+      p_contact_id: who.contactId,
+      p_purpose: "conversational",
+      p_channel: "sms",
+      p_source: CARRIER_CONSENT_SOURCE,
+    });
+    assert.equal(crossed.error, null, crossed.error?.message);
+    assert.equal(crossed.data, false, "no person of that workspace answered");
+    assert.equal((await answers(who.contactId)).consent, "opted_in", "the person is as they were");
+    assert.deepEqual(
+      (await changes(who.contactId)).filter((e) => e.data.source === CARRIER_CONSENT_SOURCE),
+      [],
+      "and no event was written for them",
+    );
+  } finally {
+    await db.from("tenants").delete().eq("id", other);
+  }
+});
+
+/**
+ * A transaction on this machine's database that never commits (as the take-over's suite runs one): `body` runs in a DO
+ * block that ends by raising what it `seen`, so everything it did, the trigger it made included, goes with it.
+ */
+function rolledBack(body) {
+  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
+  const opts = { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 };
+  let r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], opts);
+  if (r.error?.code === "ENOENT") r = spawnSync("psql", [PSQL_TARGET, "-v", "ON_ERROR_STOP=0", "-c", sql], opts);
+  if (r.error)
+    throw new Error(`could not run ${CLI} or psql (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  const said = [r.stdout, r.stderr]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+  if (/not_this_database/.test(said))
+    throw new Error(
+      "the block reached a database that does not hold this suite's rows: point SUPABASE_DB_URL at the stack",
+    );
+  const seen = /seen (7b[0-9a-f]*)/.exec(said);
+  if (!seen) throw new Error(`the block did not get to say what it saw: ${said.slice(-800)}`);
+  return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
+}
+
+test(
+  "an event the ledger cannot write takes the person's stop back with it: never stopped with the history silent",
+  { skip },
+  async () => {
+    const who = await started("sms");
+    const seen = rolledBack(`
+    if not exists (select 1 from public.tenants where id = '${tenantId}') then
+      raise exception 'not_this_database';
+    end if;
+    create function public.__stop_event_refused() returns trigger language plpgsql as $f$
+    begin raise exception 'the ledger is unavailable'; end $f$;
+    create trigger __stop_event_refused before insert on public.events
+      for each row when (new.tenant_id = '${tenantId}' and new.kind = 'contact.consent_changed')
+      execute function public.__stop_event_refused();
+    begin
+      perform public.record_provider_stop('${tenantId}', '${who.contactId}', 'conversational', 'sms', '${CARRIER_CONSENT_SOURCE}');
+      seen := seen || jsonb_build_object('raised', false);
+    exception when others then
+      seen := seen || jsonb_build_object('raised', true, 'message', sqlerrm);
+    end;
+    seen := seen || jsonb_build_object(
+      'consent', (select c.consent from public.contacts c where c.id = '${who.contactId}'),
+      'dnc', (select c.dnc from public.contacts c where c.id = '${who.contactId}'));
+  `);
+    assert.equal(seen.raised, true, `a ledger that refuses the event must refuse the stop (${JSON.stringify(seen)})`);
+    assert.match(seen.message, /ledger is unavailable/, "it was the event that failed, after the row was written");
+    assert.deepEqual([seen.consent, seen.dnc], ["opted_in", false], "the row went back with the event");
+  },
+);

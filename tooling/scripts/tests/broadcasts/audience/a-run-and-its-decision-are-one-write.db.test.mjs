@@ -2,15 +2,30 @@
  * A run is assembled with its decision (00373 assemble_broadcast, over 00282's door), on a real Postgres: the run, its
  * people, its send job and the send_broadcast decision on it in one transaction. The decision was the route's own
  * write after the door, and one that failed answered 500 for a run that had landed, which a person presses again.
- * Here the decision is made to fail AFTER the run is written (an actor no auth user holds, an undo link of another
- * workspace: values the database refuses, not the door), and nothing of the run remains.
+ * Here the decision is made to fail AFTER the run is written (a ledger that refuses the row, in a transaction that never
+ * commits), and nothing of the run remains. The door asks first that the member it writes for is one of the
+ * workspace's, and drops an undo link to another workspace's line rather than failing on it.
  *
  * Runs against the database `supabase start` builds on this machine, never production; makes its own workspaces and
  * removes them.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+// The database the CLI is pointed at: the one the environment names when it is on this machine, else the stack
+// `supabase start` runs here. psql, with no CLI, takes the same database.
+const DB_URL = process.env.SUPABASE_DB_URL;
+const LOCAL_DB = DB_URL && /^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL) ? DB_URL : null;
+const CLI_TARGET = LOCAL_DB
+  ? ["--db-url", `${LOCAL_DB}${LOCAL_DB.includes("?") ? "&" : "?"}sslmode=disable`]
+  : ["--local"];
+const PSQL_TARGET = LOCAL_DB ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -75,6 +90,9 @@ before(async () => {
   assert.equal(made.error, null, made.error?.message);
   users.push(made.data.user.id);
   member = made.data.user.id;
+  // A member of A: the door writes a decision only for one of the workspace's own.
+  const m = await db.from("memberships").insert({ tenant_id: A, user_id: member, role: "operator" });
+  assert.equal(m.error, null, m.error?.message);
 });
 
 after(async () => {
@@ -191,32 +209,79 @@ test("a run that waits for a person is made with no decision: its approval is on
   assert.deepEqual([held.rows.length, held.recips.length, held.jobs.length, held.decisions.length], [1, 2, 0, 0]);
 });
 
+/**
+ * A transaction on this machine's database that never commits (as the take-over's suite runs one): `body` runs in a DO
+ * block that ends by raising what it `seen`, so everything it did, the trigger it made included, goes with it.
+ */
+function rolledBack(body) {
+  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
+  const opts = { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 };
+  let r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], opts);
+  if (r.error?.code === "ENOENT") r = spawnSync("psql", [PSQL_TARGET, "-v", "ON_ERROR_STOP=0", "-c", sql], opts);
+  if (r.error)
+    throw new Error(`could not run ${CLI} or psql (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  const said = [r.stdout, r.stderr]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+  if (/not_this_database/.test(said))
+    throw new Error(
+      "the block reached a database that does not hold this suite's rows: point SUPABASE_DB_URL at the stack",
+    );
+  const seen = /seen (7b[0-9a-f]*)/.exec(said);
+  if (!seen) throw new Error(`the block did not get to say what it saw: ${said.slice(-800)}`);
+  return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
+}
+
+/** A value as a SQL jsonb literal, for the block. */
+const jsonb = (v) => `'${JSON.stringify(v).replace(/'/g, "''")}'::jsonb`;
+
 test("a decision that cannot be written takes the run with it: no row, no people, no job, nothing on the ledger", async (t) => {
   if (skip) return t.skip(skip);
-  // An actor no auth user holds: the ledger's foreign key refuses the decision, after the run was written.
-  const nobody = "00000000-0000-4000-8000-00000000dead";
-  const r = await assemble(db, "Nobody's decision", { p_actor: nobody });
-  assert.equal(r.error?.code, "23503", r.error?.message);
-  assert.deepEqual(await heldFor("Nobody's decision"), { rows: [], recips: [], jobs: [], decisions: [] });
+  // A ledger that refuses every decision of A, made and called inside one transaction that never commits: the run is
+  // written by the four-argument door first, then the decision fails, and the run must go with it.
+  const seen = rolledBack(`
+    if not exists (select 1 from public.tenants where id = '${A}') then
+      raise exception 'not_this_database';
+    end if;
+    create function public.__run_decision_refused() returns trigger language plpgsql as $f$
+    begin raise exception 'the ledger is unavailable'; end $f$;
+    create trigger __run_decision_refused before insert on public.decisions
+      for each row when (new.tenant_id = '${A}') execute function public.__run_decision_refused();
+    begin
+      perform public.assemble_broadcast(
+        p_tenant => '${A}', p_run => ${jsonb(run("Unledgered"))}, p_recipients => ${jsonb(two())},
+        p_decision => ${jsonb(DECISION)}, p_send_at => '${far()}'::timestamptz, p_actor => '${member}');
+      seen := seen || jsonb_build_object('raised', false);
+    exception when others then
+      seen := seen || jsonb_build_object('raised', true, 'message', sqlerrm);
+    end;
+    seen := seen || jsonb_build_object(
+      'runs', (select count(*) from public.broadcasts b where b.tenant_id = '${A}' and b.name = 'Unledgered'),
+      'orphan_jobs', (select count(*) from public.jobs j where j.tenant_id = '${A}' and j.kind = 'broadcast_send'
+                        and not exists (select 1 from public.broadcasts b where b.id::text = j.payload ->> 'broadcast_id')));
+  `);
+  assert.equal(seen.raised, true, `a ledger that refuses the row must refuse the run (${JSON.stringify(seen)})`);
+  assert.match(seen.message, /ledger is unavailable/, "it was the decision that failed, after the run was written");
+  assert.deepEqual([seen.runs, seen.orphan_jobs], [0, 0], "the run, and its job, went back with the decision");
 
-  // An undo link onto another workspace's decision: the link is real, so it is kept, and the ledger's same-workspace
-  // key refuses it, after the run was written.
-  const theirs = await db
-    .from("decisions")
-    .insert({
-      tenant_id: B,
-      subject_type: "workspace",
-      subject_id: B,
-      verb: "export",
-      actor_type: "system",
-      payload: {},
-    })
-    .select("id")
-    .single();
-  assert.equal(theirs.error, null, theirs.error?.message);
-  const crossed = await assemble(db, "Crossed undo", { p_undo_of: theirs.data.id });
-  assert.equal(crossed.error?.code, "23503", crossed.error?.message);
-  assert.deepEqual(await heldFor("Crossed undo"), { rows: [], recips: [], jobs: [], decisions: [] });
+  // A member the door is not asked to write for: a person of no workspace here, and an id no person holds. Refused
+  // before anything is written, as the session's insert policy refused the line the route wrote before.
+  const outsider = await db.auth.admin.createUser({
+    email: `decided-outsider-${RUN}@example.com`,
+    password: `pw-${RUN}-out-Aa1!`,
+    email_confirm: true,
+  });
+  assert.equal(outsider.error, null, outsider.error?.message);
+  users.push(outsider.data.user.id);
+  for (const [name, actor] of [
+    ["Outsider's decision", outsider.data.user.id],
+    ["Nobody's decision", "00000000-0000-4000-8000-00000000dead"],
+  ]) {
+    const r = await assemble(db, name, { p_actor: actor });
+    assert.equal(r.error?.code, "P0002", r.error?.message);
+    assert.deepEqual(await heldFor(name), { rows: [], recips: [], jobs: [], decisions: [] });
+  }
 
   // And a detail that is no object is refused before anything is written.
   const words = await assemble(db, "Words", { p_decision: "sure" });
@@ -239,6 +304,27 @@ test("a run the four-argument door refuses writes no decision either; an undo li
   assert.equal(error, null, error?.message);
   assert.equal(data.undo_dropped, true, "the link named a decision nobody holds");
   assert.equal((await heldFor("Dropped undo")).decisions[0].undo_of, null);
+
+  // A link onto another workspace's line is dropped too (team_decision, 00373): the same-workspace key used to refuse
+  // it after the run was written, failing the whole run for a link the ledger could not keep.
+  const theirs = await db
+    .from("decisions")
+    .insert({
+      tenant_id: B,
+      subject_type: "workspace",
+      subject_id: B,
+      verb: "export",
+      actor_type: "system",
+      payload: {},
+    })
+    .select("id")
+    .single();
+  assert.equal(theirs.error, null, theirs.error?.message);
+  const crossed = await assemble(db, "Crossed undo", { p_undo_of: theirs.data.id });
+  assert.equal(crossed.error, null, crossed.error?.message);
+  assert.equal(crossed.data.undo_dropped, true, "a line of another workspace is not this one's to undo");
+  const held = await heldFor("Crossed undo");
+  assert.deepEqual([held.rows.length, held.decisions.length, held.decisions[0].undo_of], [1, 1, null]);
 });
 
 test("00282's door still answers the id alone, for an app deployed before 00373", async (t) => {

@@ -301,6 +301,39 @@ test(
   },
 );
 
+test(
+  "a draft a send run has already claimed is left to that run: the take-over withdraws only the receptionist's drafts nobody has claimed",
+  { skip },
+  async () => {
+    // A claimed row (sending_at set, 00352) may be at the provider: the run that claimed it says what became of it. The
+    // door reads past the row policy (00362) as a definer, so it keeps the rule itself, as the edge's pause does.
+    const { t, seats } = await workspace("claimed", ["owner"]);
+    const [owner] = seats;
+    const conv = await thread(t);
+    const sending = await queued(t, conv, "ai");
+    ok(
+      await db
+        .from("messages")
+        .update({ sending_at: new Date().toISOString() })
+        .eq("id", sending.messageId)
+        .select("id")
+        .single(),
+      "claim",
+    );
+    const held = await queued(t, conv, "ai");
+    const took = await core.takeOver(ports.threadPorts(ctxFor(await session(owner), owner)), { conv });
+    assert.equal(took.withdrawn_drafts, 1, "the held draft alone");
+    assert.deepEqual(await messageOf(held.messageId), { status: "canceled", error: { reason: "superseded_by_human" } });
+    assert.deepEqual(await jobOf(held.jobId), { state: "canceled" });
+    assert.deepEqual(
+      await messageOf(sending.messageId),
+      { status: "queued", error: null },
+      "REGRESSION: a draft already at the provider was marked canceled while the customer got it",
+    );
+    assert.deepEqual(await jobOf(sending.jobId), { state: "scheduled" }, "and its run is left to settle it");
+  },
+);
+
 /* ----------------------------------------------------------------------------------------- and back */
 
 test(

@@ -10,7 +10,31 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+// The database the CLI is pointed at: the one the environment names when it is on this machine, else the stack
+// `supabase start` runs here.
+const DB_URL = process.env.SUPABASE_DB_URL;
+const LOCAL_DB = DB_URL && /^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL) ? DB_URL : null;
+const CLI_TARGET = LOCAL_DB
+  ? ["--db-url", `${LOCAL_DB}${LOCAL_DB.includes("?") ? "&" : "?"}sslmode=disable`]
+  : ["--local"];
+
+/** One statement (a DO block for several) run as one transaction on a connection of its own, answered when it ends. */
+const transaction = (sql) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(CLI, ["db", "query", ...CLI_TARGET, sql], { cwd: ROOT });
+    let said = "";
+    child.stdout.on("data", (d) => (said += d));
+    child.stderr.on("data", (d) => (said += d));
+    child.on("error", reject);
+    child.on("close", (code) => (code === 0 ? resolve(said) : reject(new Error(`exit ${code}: ${said.slice(-600)}`))));
+  });
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -135,6 +159,70 @@ test("the door takes the columns a reading writes and no other; a write nothing 
   const none = await apply(db, { p_tenant_id: "00000000-0000-4000-8000-000000000000", p_row: { status: "active" } });
   assert.equal(none.error, null, none.error?.message);
   assert.equal(none.data, false, "no row, no write");
+});
+
+test("a customer Stripe deleted is forgotten only while the row still names it, and the forgetting writes its nulls", async (t) => {
+  if (skip) return t.skip(skip);
+  // #1527's guard, now the door's: a customer routed here by its metadata may be one the workspace has left.
+  const FORGET = {
+    stripe_customer_id: null,
+    stripe_subscription_id: null,
+    status: "none",
+    card_brand: null,
+    card_last4: null,
+  };
+  const before_ = await rowNow();
+  assert.equal(before_.stripe_customer_id, "cus_fixture");
+  const other = await apply(db, { p_row: FORGET, p_expect: { stripe_customer_id: "cus_left_behind" } });
+  assert.equal(other.error, null, other.error?.message);
+  assert.equal(other.data, false, "another customer forgets nothing");
+  assert.deepEqual(await rowNow(), before_, "and nothing moved");
+
+  const mixed = await apply(db, {
+    p_row: FORGET,
+    p_expect: { stripe_customer_id: "cus_fixture", status: before_.status, updated_at: before_.updated_at },
+  });
+  assert.equal(mixed.error?.code, "22023", "an expectation is a reading's or a customer's, never both");
+
+  const own = await apply(db, { p_row: FORGET, p_expect: { stripe_customer_id: "cus_fixture" } });
+  assert.equal(own.error, null, own.error?.message);
+  assert.equal(own.data, true, "the row's own customer is forgotten");
+  const now = await rowNow();
+  assert.deepEqual(
+    [now.stripe_customer_id, now.stripe_subscription_id, now.status, now.card_last4],
+    [null, null, "none", null],
+    "the nulls are written as nulls",
+  );
+  // The fixture's customer back, for any case after this one.
+  ok(await apply(db, { p_row: { stripe_customer_id: "cus_fixture", status: before_.status } }));
+});
+
+test("a stamp that waits behind a reading writes over the reading, never the row before it", async (t) => {
+  if (skip) return t.skip(skip);
+  // invoice.paid and customer.subscription.updated arrive milliseconds apart. The reading takes the row and holds it
+  // for two seconds; the stamp, started meanwhile, waits on the row's lock. The door reads the row as the lock finds it,
+  // so the stamp keeps the reading's status: an UPDATE whose values came from a second scan of the table wrote the
+  // status from before the reading back over it.
+  const at = await rowNow();
+  ok(await apply(db, { p_row: { status: "trialing" }, p_expect: { status: at.status, updated_at: at.updated_at } }));
+  const planned = await rowNow();
+  const reading = transaction(
+    `do $$ begin perform public.billing_apply('${A}', '{"status":"active","card_last4":"1881"}'::jsonb, ` +
+      `'${JSON.stringify({ status: planned.status, updated_at: planned.updated_at })}'::jsonb, 'active'); ` +
+      `perform pg_sleep(2); end $$`,
+  );
+  await new Promise((r) => setTimeout(r, 700));
+  const stamp = transaction(
+    `select public.billing_apply('${A}', '{"last_paid_at":"2026-10-10T09:00:00Z"}'::jsonb, null, null);`,
+  );
+  await Promise.all([reading, stamp]);
+  const now = await rowNow();
+  assert.equal(now.status, "active", "REGRESSION: the stamp wrote the row from before the reading back over it");
+  assert.equal(now.card_last4, "1881", "the reading's card stands");
+  assert.equal(Date.parse(now.last_paid_at), Date.parse("2026-10-10T09:00:00Z"), "and the stamp is on it too");
+  assert.equal(await switchNow(), "active");
+  // The row and the switch as the cases before this one left them, for the one after.
+  ok(await apply(db, { p_row: { status: "paused" }, p_tenant_status: "paused" }));
 });
 
 test("the door is the service role's alone: a member's session cannot call it", async (t) => {
