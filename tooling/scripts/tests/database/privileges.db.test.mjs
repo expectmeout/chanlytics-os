@@ -254,6 +254,21 @@ test(
   },
 );
 
+test("a hold that ran out is found by index, not by a scan of every thread (00377)", { skip }, () => {
+  // expire_stale_pauses clears control_until < now() every ten seconds under pg_cron (00132) and read the whole table
+  // for it; conversations_pause_due served the pause the same sweep clears, and the hold had nothing.
+  const [row] = query("select indexdef from pg_indexes where indexname = 'conversations_control_due'");
+  assert.ok(
+    (row?.indexdef ?? "").includes("(control_until)"),
+    "create index conversations_control_due on conversations (control_until) where control_until is not null",
+  );
+  assert.match(
+    row?.indexdef ?? "",
+    /WHERE \(control_until IS NOT NULL\)/,
+    "partial: a thread nobody holds is not in it",
+  );
+});
+
 test("anon executes no function in public, directly or through PUBLIC", { skip }, () => {
   assert.deepEqual(rules.anon_executes, [], "revoke execute from public, anon");
 });

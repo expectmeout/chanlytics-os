@@ -999,7 +999,7 @@ test("the unsubscribe page's stop for everything ends it", { skip }, async () =>
 test("the carrier's report of a STOP we never heard ends it", { skip }, async () => {
   const { id } = await subscriber();
   assert.equal(
-    await recordCarrierOptOut(db, { tenantId, contactId: id, channel: "sms", previous: "opted_in" }),
+    await recordCarrierOptOut(db, { tenantId, contactId: id, channel: "sms" }),
     true,
     "the report is recorded",
   );

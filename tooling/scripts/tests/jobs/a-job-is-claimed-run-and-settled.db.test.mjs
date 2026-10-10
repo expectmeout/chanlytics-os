@@ -178,6 +178,7 @@ function tick(log = tickLog()) {
     alert: async (job, news) => {
       alerts.push({ job: job.id, ...news });
     },
+    page: async () => {},
     log,
     now: Date.now,
   };

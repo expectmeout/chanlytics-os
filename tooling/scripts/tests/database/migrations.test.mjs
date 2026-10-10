@@ -70,7 +70,7 @@ test("every migration is in the ledger with the text it was recorded with, in th
  * The tables that take a write for every message, call, send or job: an index built the plain way holds those writes
  * for as long as the build takes, and on `messages` that is the receptionist's only memory.
  */
-const BUSY_TABLES = ["messages", "events", "calls", "contacts", "broadcast_recipients", "jobs"];
+const BUSY_TABLES = ["messages", "events", "calls", "contacts", "broadcast_recipients", "jobs", "conversations"];
 /** The first migration held to it. The ones before were applied while the tables were small, and are history. */
 const ONLINE_FROM = 355;
 

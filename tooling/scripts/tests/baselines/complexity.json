@@ -379,11 +379,6 @@
     "branches": 34,
     "depth": 2
   },
-  "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 154,
-    "branches": 29,
-    "depth": 2
-  },
   "packages/core/src/leads/runner/collect.ts::collectHeld#1": {
     "lines": 175,
     "branches": 48,

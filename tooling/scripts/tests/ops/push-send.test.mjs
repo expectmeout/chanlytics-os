@@ -2,7 +2,8 @@
  * push_send, run over the fake database and a recording push port: the readers of a kept row (the one it is
  * addressed to, else every member), their phones, one message each with the reader's bell number, the tickets kept for
  * one push_receipts job, a phone the service says is gone forgotten (in the ticket, or in the receipt a quarter of an
- * hour on), and a transport that fails thrown so the ledger tries again.
+ * hour on), a receipts job the ledger refused said on the log and never thrown, and a transport that fails thrown so
+ * the ledger tries again.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,6 +11,20 @@ import { fakeDb } from "../_fake-db.mjs";
 import { dispatchJob } from "../../../../packages/jobs/src/handlers.ts";
 import { RETRY_WAITS_MS } from "../../../../packages/jobs/src/ledger.ts";
 import { PUSH_RECEIPTS_AFTER_MS } from "../../../../packages/contracts/src/today/push.ts";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+
+/** The logger's lines (one JSON object per console call) written while `fn` ran, and what it answered. */
+async function logged(fn) {
+  const lines = [];
+  const real = { log: console.log, warn: console.warn, error: console.error };
+  for (const k of Object.keys(real)) console[k] = (...args) => lines.push(args);
+  try {
+    const answer = await fn();
+    return { answer, lines: lines.map(logLineOf).filter(Boolean) };
+  } finally {
+    Object.assign(console, real);
+  }
+}
 
 const T = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
@@ -154,14 +169,20 @@ test("a note left for one member is counted on that member's badge alone", async
   assert.equal(badgeOf("tok-u2"), 2, "u2: the workspace's row and their own note");
 });
 
-test("a receipts job the ledger refuses does not make the alert leave twice", async () => {
+test("a receipts job the ledger refuses does not make the alert leave twice, and is said rather than swallowed", async () => {
   const { db } = world();
   const p = port();
   const refusing = async () => {
     throw new Error("jobs_kind_check");
   };
-  assert.equal(await dispatchJob(ctx(db, { push: p.push, schedule: refusing }), job), "done");
+  const { answer, lines } = await logged(() => dispatchJob(ctx(db, { push: p.push, schedule: refusing }), job));
+  assert.equal(answer, "done");
   assert.equal(p.sent.length, 3, "sent once, and the job is done, not retried");
+  assert.deepEqual(
+    lines.filter((l) => l.event === "push_receipts_schedule_failed").map((l) => [l.level, fieldsOf(l)]),
+    [["error", { tenant_id: T, job: "j1", tickets: 3, error: "jobs_kind_check" }]],
+    "one line, under the name alerting greps for: the phones whose receipts will not be read, and why",
+  );
 });
 
 test("push_receipts forgets the phones their receipts say are gone and leaves every other answer alone", async () => {
