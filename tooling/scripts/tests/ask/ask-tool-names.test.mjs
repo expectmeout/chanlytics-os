@@ -40,6 +40,7 @@ const {
   PROPOSAL_SPECS,
   momentOffered,
   roleAtLeast,
+  toReceptionistReportVM,
   toReviewsReportVM,
 } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
@@ -308,6 +309,41 @@ const quiet = {
   escalations: 1,
   new_contacts: 0,
 };
+/**
+ * What receptionist_series answers (00380) for a quiet period: nothing held, said, handed over or missed, no message while
+ * closed and no booking link sent. `over` is what a case puts in it.
+ */
+function quietReceptionist({ p_days: days }, over = {}) {
+  const hold = {
+    total: 0,
+    sent: 0,
+    canceled: 0,
+    steered: 0,
+    overtaken: 0,
+    person_first: 0,
+    waiting: 0,
+    other: 0,
+    low_confidence: 0,
+  };
+  const handover = { n: 0, replied: { n: 0, median_s: null }, settled: { n: 0, median_s: null } };
+  const missed = { n: 0, touched: 0, pending: 0, unknown: 0 };
+  return {
+    timezone: TZ,
+    today: dayKey(NOW.getTime()),
+    days,
+    hold: { now: hold, before: { total: 0, sent: 0 } },
+    topics: { of: 0, stamped: 0, by_intent: {} },
+    languages: { of: 0, stamped: 0, by_language: {} },
+    blocked: { total: 0, by_reason: {} },
+    call_endings: { total: 0, by_reason: {} },
+    handover: { now: handover, before: handover },
+    missed: { now: missed, before: missed },
+    after_hours: [],
+    links: { total: 0, people: [] },
+    stuck: { open: [] },
+    ...over,
+  };
+}
 const RPCS = {
   people_list: (a) => (a?.p_contact_id && a.p_contact_id !== P1 ? [] : [rosaRow]),
   metrics_summary: () => ({
@@ -371,6 +407,8 @@ const RPCS = {
     waiting_total: 0,
     waiting: [],
   }),
+  // The Receptionist lens's read, which the report reads beside the series (readers/report.ts receptionistReport): a quiet period.
+  receptionist_series: (a) => quietReceptionist(a),
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
   lead_niche_prior: () => null,
 };
@@ -470,12 +508,12 @@ const CASES = [
   ["propose_lead_search", PLAN, "operator"],
 ];
 
-/** A card's id is minted per call; everything else is the card. */
-const withoutId = (s) => s.replace(/"id":"p-[0-9a-z]+-[0-9a-z]+",?/g, "");
+/** A card's id is minted per call, and so is the moment it was made (made_at); everything else is the card. */
+const withoutId = (s) => s.replace(/"id":"p-[0-9a-f-]{36}",?/g, "").replace(/,?"made_at":"[^"]+"/g, "");
 
 /** One call over a fresh copy of the workspace: what the model read, the trace line or the card, and the reads made. */
-async function answer(name, input, role = "owner") {
-  const supabase = fakeDb(tables(), {}, RPCS);
+async function answer(name, input, role = "owner", rpcs = RPCS) {
+  const supabase = fakeDb(tables(), {}, rpcs);
   const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
   const t = newToolContext(ctx, A, role, TZ, NOW);
   let out;
@@ -556,6 +594,19 @@ function withReviews(result) {
   const said = JSON.parse(result);
   return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false, words: NOTHING_LINKED } });
 }
+
+/**
+ * 9 Oct 2026 (spec 2026-10-09 §4.5): the report says the Reach-outs section after the Reviews lens, from its own reader
+ * (readers/campaign-report.ts reachOutReport). This world's database models neither reach_out_report nor
+ * reach_out_chain_totals (a function it does not have is no read it counts), so it says the read failed. The one change
+ * to the bytes of a report it answers; its reads are unchanged.
+ */
+function withReachOuts(result) {
+  const said = JSON.parse(result);
+  return said.error
+    ? result
+    : JSON.stringify({ ...said, reach_outs: { error: "the reach-out numbers could not be read just now" } });
+}
 /** What the Reviews fold says of a workspace with nothing linked, where nothing can be looked up (this world's deployment). */
 const NOTHING_LINKED = toReviewsReportVM(
   {
@@ -577,6 +628,64 @@ const withReviewReads = (reads) => [
   "google_listing_days.select",
   "policies.select",
 ];
+
+/**
+ * 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): the report says the Receptionist lens after the Reviews lens, from
+ * the lens's own read (readers/report.ts receptionistReport): the database's receptionist_series, and the hours the report's
+ * booking line already read. This world's period is quiet, so it says the page's words for each part with nothing in it
+ * (its hours, Monday and Saturday, count the messages that came while it was closed: none came), and the read is one rpc
+ * more: no booking link was sent, so nobody is read for it (the people the link went to are read only where there were any).
+ */
+const QUIET_FOLD = toReceptionistReportVM(
+  {
+    timezone: TZ,
+    today: dayKey(NOW.getTime()),
+    days: 7,
+    series: {
+      ...quietReceptionist({ p_days: 7 }),
+      links: { sent: 0, booked: null, calendar: "none" },
+      stuck: { waiting: 0, oldest_at: null, callbacks: 0, capped: false },
+    },
+    // This world keeps hours on Monday and Saturday: a message that came while it was closed is counted, and none did.
+    profile: { hours: { mon: { open: "09:00", close: "17:00" }, sat: { open: "09:00", close: "17:00" } } },
+  },
+  { nowMs: NOW.getTime() },
+);
+const QUIET_RECEPTIONIST_SAID = {
+  hold: { empty: QUIET_FOLD.hold.empty },
+  topics: { empty: QUIET_FOLD.topics.empty },
+  languages: null,
+  // A mix with nothing in it says the page's own empty words, as hold and topics do.
+  call_endings: { empty: QUIET_FOLD.callEndings.empty },
+  link: QUIET_FOLD.link.line,
+  handover: [
+    {
+      label: "Your first reply after a handover",
+      value: "—",
+      meta: "nothing was handed over in this period",
+      change: null,
+    },
+    { label: "Time to settle a handover", value: "—", meta: "nothing was handed over in this period", change: null },
+  ],
+  missed: {
+    label: "Missed calls answered within an hour",
+    value: "—",
+    meta: "no call went unanswered at the phone",
+    change: null,
+  },
+  closed: { value: QUIET_FOLD.closed.value, meta: QUIET_FOLD.closed.meta },
+  stuck: [
+    { label: "Waiting on you", value: "0", meta: "nobody is waiting for you" },
+    { label: "Call-backs", value: "0", meta: "no call-back is waiting" },
+    { label: "Replies held back", value: "0", meta: "none were held at the door in this period" },
+  ],
+  held_back: [],
+};
+function withReceptionist(result) {
+  const said = JSON.parse(result);
+  return said.error ? result : JSON.stringify({ ...said, receptionist: QUIET_RECEPTIONIST_SAID });
+}
+const withReceptionistReads = (reads) => [...reads, "rpc:receptionist_series"];
 
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
@@ -736,6 +845,43 @@ function withTheClocksHour(frozen) {
 }
 
 /**
+ * 9 Oct 2026 (the moment spec, decision 19): a playbook card's title says what a person calls it, "Campaign: …", where
+ * these bytes say "Playbook: …". The kind, the action and the payload keep their names. The fixture stays as it was made.
+ */
+function withCampaignWord(frozen) {
+  return frozen
+    .replace('"card":"Playbook: ', '"card":"Campaign: ')
+    .replace('"title":"Playbook: ', '"title":"Campaign: ');
+}
+
+/**
+ * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
+ * says "Reading the campaigns" where these bytes say "Reading the playbooks". The action keeps its name; the fixture
+ * stays as it was made.
+ */
+function withCampaignsLabel(want) {
+  return want.label === "Reading the playbooks" ? { ...want, label: "Reading the campaigns" } : want;
+}
+
+/**
+ * 9 Oct 2026 (the moment spec, A6, D35): campaigns.playbooks says each playbook's last 30 days (last_30_days, from
+ * campaign_series' sources; null where that read fails, as in this world, which models no campaign_series) in the place
+ * of its all-time runs, sent and replied, and its route is Campaigns' own word. Nothing else moved.
+ */
+function withLastThirtyDays(frozen) {
+  const said = JSON.parse(frozen);
+  if (!Array.isArray(said.playbooks)) return frozen;
+  const playbooks = said.playbooks.map((p) =>
+    Object.fromEntries(
+      Object.entries(p).flatMap(([k, v]) =>
+        k === "runs" ? [["last_30_days", null]] : k === "sent" || k === "replied" ? [] : [[k, v]],
+      ),
+    ),
+  );
+  return JSON.stringify({ ...said, route: said.route === "outbound" ? "campaigns" : said.route, playbooks });
+}
+
+/**
  * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
  * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
  * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
@@ -789,7 +935,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withReviews(withCampaigns(withHold(result)));
+    if (NAMES[old] === "report") result = withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result)))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
@@ -799,8 +945,17 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // in their result and in the card they propose.
     const campaignsOwn = NAMES[old].startsWith("campaigns.") || NAMES[old].startsWith("propose_campaign.");
     if (campaignsOwn) result = withTheClocksHour(result);
+    // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
+    const playbookCard = NAMES[old] === "propose_campaign.playbook";
+    if (playbookCard) result = withCampaignWord(result);
     const card =
-      campaignsOwn && typeof want.proposal === "string" ? { proposal: withTheClocksHour(want.proposal) } : {};
+      campaignsOwn && typeof want.proposal === "string"
+        ? {
+            proposal: playbookCard
+              ? withCampaignWord(withTheClocksHour(want.proposal))
+              : withTheClocksHour(want.proposal),
+          }
+        : {};
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -892,10 +1047,29 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // the reader does not count as the person's own, so the draft that reaches the read makes it. Its bytes are unchanged.
     const readsOurWire = NAMES[old] === "propose_reply.draft" && withSeen.includes("messages.select");
     const withOurWire = readsOurWire ? [...withSeen, "messages.select"] : withSeen;
-    const reads = NAMES[old] === "report" ? withReviewReads(withOurWire) : withOurWire;
+    // 9 Oct 2026 (a moment holds many campaigns, lane 1, task 14): the playbooks reader asks the database what each
+    // playbook's runs earned (00374 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
+    // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
+    // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
+    const countsInTheDatabase = NAMES[old] === "campaigns.playbooks" && withOurWire.includes("broadcasts.select");
+    const withTotals = countsInTheDatabase
+      ? [...withOurWire.toSpliced(withOurWire.indexOf("broadcasts.select"), 1), "rpc:playbook_totals"]
+      : withOurWire;
+    // 9 Oct 2026 (the moment spec, D9): a playbook proposed is held to the running ones on its moment, list and message
+    // (packages/db runningTwins): one `playbooks` read more for a call that reaches its card.
+    const readsTwins = NAMES[old] === "propose_campaign.playbook" && !want.isError;
+    const withTwins = readsTwins ? [...withTotals, "playbooks.select"] : withTotals;
+    // 10 Oct 2026 (a moment holds many campaigns: the month's allowance, one rule): a playbook proposed is counted against
+    // the week's touches as the page's pools are (server/campaigns/playbooks.ts recentTouches, db touchesSince: the week's
+    // runs, and the workspace's zone a waiting run is judged by), where it was counted with nobody touched: two reads more
+    // for a call that reaches its card, and no read of the runs' people where the week holds no run. Its bytes are
+    // unchanged: nobody here heard from a campaign this week.
+    const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
+    // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
+    const reads = NAMES[old] === "report" ? withReceptionistReads(withReviewReads(withWeek)) : withWeek;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
-        ? againstOffered(got.result, result)
+        ? againstOffered(got.result, withLastThirtyDays(result))
         : [got.result, NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result];
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
     // zone and settings the turn reads once: the same reads as before, those two earlier.
@@ -904,8 +1078,26 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const inOrder = (r) => [...r].sort();
     assert.deepEqual(
       { ...got, result: gotResult, reads: inOrder(got.reads) },
-      { ...want, ...card, result: wantResult, reads: inOrder(reads) },
+      { ...withCampaignsLabel(want), ...card, result: wantResult, reads: inOrder(reads) },
       `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`,
     );
   }
+});
+
+test("the report finds the people its booking link went to only where the link went to someone, and reads People once either way: the turn's one read (readers/everyone.ts), filtered", async () => {
+  const peopleReads = (reads) => reads.filter((r) => r === "rpc:people_list").length;
+  const none = await answer("report", { days: 7 });
+  assert.equal(none.isError, false, none.result);
+  assert.equal(peopleReads(none.reads), 1, "no link sent: nobody to find");
+  assert.equal(none.reads.filter((r) => r === "rpc:receptionist_series").length, 1, "the lens's read, once");
+
+  const link = (a) => quietReceptionist(a, { links: { total: 1, people: [{ c: P1, at: ago(DAY) }] } });
+  const sent = await answer("report", { days: 7 }, "owner", { ...RPCS, receptionist_series: link });
+  assert.equal(sent.isError, false, sent.result);
+  assert.equal(peopleReads(sent.reads), 1, "a link sent to Rosa: People is read whole once, then filtered to her");
+  // This workspace keeps no calendar link: the calendar cannot say who booked, and the line says why, never a count.
+  assert.equal(
+    JSON.parse(sent.result).receptionist.link,
+    "1 person was sent the booking link. Add a calendar link under Settings › Business to see who booked.",
+  );
 });

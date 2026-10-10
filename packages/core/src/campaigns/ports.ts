@@ -48,12 +48,36 @@ export interface NewRecipient {
   channel: string;
 }
 
+/** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
+export type RunBy = { kind: "system" } | { kind: "user"; userId: string };
+
+/**
+ * Whose decision a run's send is, and what the ledger keeps of it: a member's (a broadcast's composer, a Run now) or the
+ * system's (the sweep's, under the mode the owner chose). Written with the run, in its transaction.
+ */
+export interface AssembleDecision {
+  by: RunBy;
+  payload: Json;
+}
+/** The run made: its id, and its decision's when one was asked for (null for a run that waits for a person). */
+export interface AssembledRun {
+  id: string;
+  decisionId: string | null;
+}
+
 export interface AssemblePorts {
   /**
-   * The run, its people and its send job when `sendAt` is set, written whole in one transaction (00282
-   * assemble_broadcast): the run's id back, or a throw, and then nothing was written.
+   * The run, its people, its send job when `sendAt` is set and the send_broadcast decision on it when `decision` is
+   * given, written whole in one transaction (00381 assemble_broadcast): the run's id back with the decision's, or a
+   * throw, and then nothing was written. A run that waits for a person is made with no decision: its approval is its
+   * decision (ApproveRunPorts).
    */
-  assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null): Promise<string>;
+  assemble(
+    row: NewBroadcast,
+    recipients: NewRecipient[],
+    sendAt: Date | null,
+    decision: AssembleDecision | null,
+  ): Promise<AssembledRun>;
   /**
    * How many campaign emails or texts the workspace sent on this channel in the calendar month `at` falls in, in its zone,
    * that left, may have left or wait to go (packages/db campaignMonthSent): what that month's allowance has spent (contracts
@@ -79,12 +103,16 @@ export interface AssembleCommand {
    * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
    */
   held: readonly string[];
+  /** Whose decision the send is, kept with the run; none for a run that waits for a person. */
+  decision: AssembleDecision | null;
 }
 /**
- * The run made (its id), or why not. `unheld` is how many of the people to hold at enrolment could not be written as held:
- * they are queued, and the send holds them at the wire, so nothing is lost; the run's record says so.
+ * The run made (its id, and its decision's when one was asked for), or why not. `unheld` is how many of the people to
+ * hold at enrolment could not be written as held: they are queued, and the send holds them at the wire, so nothing is
+ * lost; the run's record says so.
  */
-export type Assembled = { ok: true; id: string; unheld: number } | { ok: false; error: string };
+export type Assembled =
+  { ok: true; id: string; decisionId: string | null; unheld: number } | { ok: false; error: string };
 
 /* ---- The playbook's run ---- */
 
@@ -149,9 +177,6 @@ export interface RunContext {
   pace: DealPaceVM | null;
 }
 
-/** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
-export type RunBy = { kind: "system" } | { kind: "user"; userId: string };
-
 export type RunOutcome =
   /** Sent: when it really goes, and the moment asked for when the hours moved it to nine (else null). */
   | {
@@ -194,8 +219,6 @@ export interface RunPlaybookPorts extends AssemblePorts {
   alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
   /** The run recorded: the event, and the playbook's last run. Never throws. */
   record(playbookId: string, runFor: string, at: Date, data: Record<string, unknown>): Promise<void>;
-  /** The ledger: whose decision the send was. */
-  decide(d: { broadcastId: string; by: RunBy; payload: Record<string, unknown> }): Promise<void>;
   /**
    * The owner told that a run waits for them, or goes by itself unless they stop it, with the run it is about: the bell's
    * row and the phone open THAT run, where its Approve, Skip and Stop are. It named none, and opened Campaigns' home.
@@ -258,7 +281,6 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
    * it (null when none is connected): one read of the rows each is judged by.
    */
   channels(): Promise<{ ready: ChannelsReady; health: NumberHealth | null }>;
-  record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }
 export interface CreateBroadcastCommand {
   userId: string;
@@ -271,16 +293,13 @@ export interface ApproveRunPorts {
   timezone(): Promise<string>;
   /** Whether the workspace is paused (`tenants.status = 'paused'`): nothing is approved while it is. Throws when it cannot be read. */
   paused(): Promise<boolean>;
-  /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
-  release(broadcastId: string, at: Date): Promise<boolean>;
   /**
-   * scheduled → pending_approval, when the job could not be made: only while it is still scheduled. True iff a row
-   * changed; false, or a throw, is a run that says "scheduled" with nothing to send it (approveRun says so, and the
-   * edge's watchdog marks it not sent once its time has passed: ops/stranded-runs.ts).
+   * The run released for `at` (pending_approval → scheduled, the row carrying the time its job carries: 00119), its
+   * send job written when `job` says so, and the approval recorded as the approver's with `decision` as its payload,
+   * in one transaction (00353 approve_broadcast): the decision's id. Null when the run was no longer waiting, and then
+   * nothing was written. Throws when it failed, and then nothing was written either: the run waits, as it was.
    */
-  hold(broadcastId: string): Promise<boolean>;
-  schedule(broadcastId: string, at: Date): Promise<void>;
-  record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
+  approve(broadcastId: string, at: Date, o: { job: boolean; decision: Json }): Promise<string | null>;
 }
 
 export interface CancelBroadcastPorts {

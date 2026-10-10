@@ -44,6 +44,11 @@ test("six lenses in the strip's order, each with its words, and none for a lens 
     "Nobody wrote or called between Aug 29 and Sep 4.",
     "the words the page said, unchanged",
   );
+  assert.equal(
+    lensEmpty("campaigns", { since: "Aug 29", until: "Sep 4" }).body,
+    "No broadcast or campaign run reached anyone between Aug 29 and Sep 4, and nobody said yes or asked to stop.",
+    "a campaign to its reader, never a playbook (decision 19)",
+  );
 });
 
 test("a lens is an address: the Overview is /reports, every other /reports/<lens>, and nothing else is one", () => {
@@ -171,11 +176,21 @@ test("the head says the lens's own sentence, from the view models that hold it",
       sources: [],
       reasons: [],
     },
-    "1 day",
+    "in the last 1 day",
   );
   const parts = { vm, campaigns, deals, reviews: null };
   assert.equal(lensAnswerOf("overview", parts), vm.lines.hero);
-  assert.equal(lensAnswerOf("receptionist", parts), vm.lines.answered ?? undefined);
+  assert.equal(lensAnswerOf("receptionist", parts), vm.lines.receptionist ?? undefined);
+  assert.equal(
+    lensAnswerOf("receptionist", parts),
+    "2 of 2 messages answered without you.",
+    "the Receptionist's head is how many of how many, not the busiest day",
+  );
+  assert.equal(
+    lensAnswerOf("receptionist", { ...parts, vm: quiet }),
+    undefined,
+    "a period nobody wrote in says nothing",
+  );
   assert.equal(lensAnswerOf("people", parts), vm.lines.channels ?? undefined);
   assert.equal(lensAnswerOf("pipeline", parts), deals.headline);
   assert.equal(lensAnswerOf("campaigns", parts), campaigns.lines.funnel);
@@ -197,5 +212,5 @@ test("the head says the lens's own sentence, from the view models that hold it",
     undefined,
     "a campaign read that failed says nothing",
   );
-  assert.equal(lensAnswerOf("pipeline", { ...parts, deals: toDealReportVM(null, "1 day") }), undefined);
+  assert.equal(lensAnswerOf("pipeline", { ...parts, deals: toDealReportVM(null, "in the last 1 day") }), undefined);
 });

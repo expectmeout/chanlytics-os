@@ -33,6 +33,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const searches = await import(at("apps/dashboard/app/api/v1/lead-searches/route.ts"));
 const search = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/route.ts"));
 const answerRoute = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/answer/route.ts"));
@@ -264,6 +265,32 @@ test("a search: the route computes the estimate from the card's prices and hands
   await refused(searches.POST.run(send({ ...PLAN, count: 5000 }), ctxFor("owner", rpcs)), "validation", 400);
 });
 
+test("a plan that lapsed between the route's billing check and the door's own (00364) is a 402 in the door's words", async () => {
+  // Another owner, so the hour's count of searches is theirs alone.
+  const OTHER = "u-lapsed";
+  const ctx = {
+    ...ctxFor(
+      "owner",
+      {
+        lead_search_create: () => ({
+          error: "payment_required",
+          sentence: "Your last payment did not go through. Update the card in Billing, then try again.",
+        }),
+      },
+      {},
+      { memberships: [{ ...member("owner")[0], user_id: OTHER }] },
+    ),
+    userId: OTHER,
+  };
+  await assert.rejects(searches.POST.run(send(PLAN), ctx), (e) => {
+    assert.deepEqual(
+      [e.code, e.status, e.message],
+      ["payment_required", 402, "Your last payment did not go through. Update the card in Billing, then try again."],
+    );
+    return true;
+  });
+});
+
 test("a search from an Ask card names the thread it was planned in to the door, and the plan the door stores never carries it; a thread that is not an id is dropped, never a refusal", async () => {
   const THREAD = "77777777-7777-4777-8777-777777777771";
   const seen = [];
@@ -433,6 +460,10 @@ test("the leads page is keyset-paged by the door under the caller's RLS: the sea
 
 test("keep, exclude, put back and undo reach their doors with the ids and the version; a hidden place and a changed record are refused in sentences", async () => {
   const seen = [];
+  // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
+  const ledger = { events: [] };
+  setServiceClient(fakeDb(ledger));
+
   const rpcs = {
     lead_member_keep: (a) => {
       seen.push(["keep", a]);
@@ -472,6 +503,15 @@ test("keep, exclude, put back and undo reach their doors with the ids and the ve
     ["undo", { p_op_id: O1, p_version: 3 }],
   ]);
   await refused(keep.POST.run(send({ search_id: S1 }), ctxFor("owner", rpcs, { id: "nope" })), "not_found", 404);
+  setServiceClient(null);
+  assert.deepEqual(
+    ledger.events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]),
+    [
+      ["lead.kept", "lead", L1, { by: USER, search_id: S1 }],
+      ["lead.excluded", "lead", L1, { by: USER, search_id: S1 }],
+    ],
+    "REGRESSION: a place kept (it counts against the month) or left out was on no ledger; a refused put-back says nothing",
+  );
 });
 
 /* ------------------------------------------------- release B's ten routes */
@@ -1588,6 +1628,10 @@ test("the question the runner asks reaches the page with its exclusion's key: th
 
 test("a kept search is renamed, removed with the worked leads kept, or has its finished round's leads given back", async () => {
   const rpcs = doors();
+  // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
+  const ledger = { events: [] };
+  setServiceClient(fakeDb(ledger));
+
   assert.deepEqual(
     await search.PATCH.run(
       req("PATCH", { name: "Austin trainers" }),
@@ -1607,6 +1651,23 @@ test("a kept search is renamed, removed with the worked leads kept, or has its f
     [gone.archived, gone.kept, gone.toast],
     [40, 2, "Removed. The 2 you contacted or are talking to are kept."],
   );
+  setServiceClient(null);
+  assert.deepEqual(
+    ledger.events.map((e) => [
+      e.kind,
+      e.subject_type,
+      e.subject_id,
+      e.data.by,
+      e.data.kept ?? null,
+      e.data.archived ?? null,
+    ]),
+    [
+      ["lead.search_renamed", "lead_search", SEARCH, USER, null, null],
+      ["lead.search_removed", "lead_search", SEARCH, USER, 2, 40],
+    ],
+    "REGRESSION: a search renamed or removed was on no ledger; the removal says what was kept",
+  );
+  assert.equal(ledger.events[0].data.name, "Austin trainers");
   const back = await searchUndo.POST.run(req("POST", undefined), ctxOf(world({ role: "owner" }), { id: SEARCH }, rpcs));
   assert.deepEqual([back.removed, back.credited, back.op_id], [3, 2, OP]);
   assert.equal(back.toast, "Took back 3 leads. 2 went back to this month's leads.");

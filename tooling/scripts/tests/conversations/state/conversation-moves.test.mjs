@@ -1,7 +1,9 @@
 /**
  * A thread's state moves by one table (contracts conversation-moves.ts), and every TypeScript writer of
  * `conversations.state` writes its move's patch: the dashboard's thread ports and a reply's claim, db's hand-off and
- * the owner's echo, each run over the database in memory and read back from the statement it sent.
+ * the owner's echo, each run over the database in memory and read back from the statement it sent. A take-over and
+ * a hand-back are SQL's own now (00386), held to the same table on a real database in
+ * ./take-over-and-hand-back-are-one-write.db.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -129,9 +131,8 @@ test("a move is allowed from its states and no other", () => {
 });
 
 test("the dashboard's thread ports write their moves' patches, whatever state the thread was in", async () => {
+  // The two the member's doors write (take_over, hand_back) are proved where they run, on a real database.
   const cases = [
-    ["take_over", (p) => p.claim("c1", UNTIL, "u1"), { until: UNTIL, user: "u1" }],
-    ["hand_back", (p) => p.release("c1")],
     ["snooze", (p) => p.snooze("c1", UNTIL), { until: UNTIL }],
     ["archive", (p) => p.archive("c1")],
   ];
@@ -208,5 +209,13 @@ test("the owner's echo writes owner_echo's patch, the thread touched at the mome
     const at = Date.parse(values.last_message_at);
     assert.ok(at >= before && at <= Date.now(), `touched now: ${values.last_message_at}`);
     assert.deepEqual(values, conversationPatch("owner_echo", { until: UNTIL, now: values.last_message_at }), from);
+    assert.deepEqual(
+      // Finding the person writes its own row (person.resolved, a kept record): this is the thread's.
+      (t.events ?? [])
+        .filter((e) => e.kind === "conversation.owner_replied")
+        .map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+      [["t1", "conversation.owner_replied", "conversation", "c1", { until: UNTIL }]],
+      `REGRESSION (${from}): the receptionist went quiet because the owner spoke, and nothing on any page said why`,
+    );
   }
 });

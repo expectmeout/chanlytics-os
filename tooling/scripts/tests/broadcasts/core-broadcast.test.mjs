@@ -9,7 +9,7 @@ import { importSrc } from "../_source.mjs";
 const { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } = await importSrc(
   "packages/core/src/messages/broadcast.ts",
 );
-const { BROADCAST_CHUNK, BROADCAST_THROTTLE_WAITS_MS, HELD_REASONS, OUTCOME_UNKNOWN } =
+const { BROADCAST_CHUNK, BROADCAST_THROTTLE_WAITS_MS, HELD_REASONS, OUTCOME_UNKNOWN, mayMessageFor } =
   await import("@chanlytics/contracts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 // An email is written before it is sent, and withdrawn when the provider did not take it (step 3): both are writes.
@@ -602,6 +602,59 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
   );
 });
 
+test("a playbook's run asks the door for the stricter of its moment's class and its message's category, as its enrolment did: a no to offers said after a Win-back enrolled someone holds them at the wire", async () => {
+  // The run enrolled by the stricter of the two (contracts enrolPurpose), but the door was handed the message's own
+  // category alone: a re-engage or offer moment carrying a utility message went to someone who had since said "no more
+  // offers", because a yes to hear from the business was all the door asked for.
+  const utility = rowsOf({ whatsapp: { ...approved, category: "utility" } });
+  const marketing = rowsOf({ whatsapp: { ...approved, category: "marketing" } });
+  const run = (trigger) =>
+    broadcast({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", label: "Win-back", trigger } });
+  // Ada said yes to hearing from them, and then no to offers; the door's answer is the one predicate's.
+  const ada = { ...contacts.k1, consent: "opted_in", dnc: false, marketing_consent: "opted_out" };
+  const send = async (b, message) => {
+    const f = fakes({
+      broadcast: b,
+      message,
+      batch: [{ contact_id: "k1", facts: null }],
+      contacts: () => new Map([["k1", ada]]),
+      deliver: (d) => {
+        const may = mayMessageFor(ada, d.purpose, { proactive: d.proactive, channel: d.channel, about: d.about });
+        return may.ok
+          ? { outcome: "sent", messageId: "m-k1", externalId: "wamid" }
+          : { outcome: "refused", reason: may.reason, messageId: null };
+      },
+    });
+    await sendBroadcastBatch(f.ports, cmd());
+    return [f.log.filter((l) => l[0] === "deliver").map((l) => l[1].purpose), f.marks().at(-1)];
+  };
+  assert.deepEqual(
+    await send(run("quiet_30"), utility),
+    [["marketing"], ["k1", "skipped", "no_marketing_consent"]],
+    "REGRESSION: a Win-back's utility message asked only the yes to hear from them, and went",
+  );
+  assert.deepEqual(
+    await send(run("visit_tomorrow"), utility),
+    [["conversational"], ["k1", "sent", null]],
+    "a reminder of their own visit asks the yes to hear from them, as it always did",
+  );
+  assert.deepEqual(
+    await send(run("visit_tomorrow"), marketing),
+    [["marketing"], ["k1", "skipped", "no_marketing_consent"]],
+    "an offer is an offer, whatever the moment",
+  );
+  assert.deepEqual(
+    await send(broadcast(), utility),
+    [["conversational"], ["k1", "sent", null]],
+    "a broadcast names no moment: its message decides, as before",
+  );
+  assert.deepEqual(
+    await send(run("a_moment_nobody_knows"), utility),
+    [["marketing"], ["k1", "skipped", "no_marketing_consent"]],
+    "a moment nobody knows fails closed",
+  );
+});
+
 test("a reach-out's run is the reach-out clock's: a broadcast job that reaches one touches nothing, and never ends it as sent", async () => {
   for (const state of ["scheduled", "sending"]) {
     const f = fakes({
@@ -829,7 +882,7 @@ test("a playbook's run that stops is never told to send it again: every stop say
   assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "tomorrow"), NEXT);
   assert.match(
     playbookRunNext({ playbook_id: "p1", trigger: "visit_tomorrow" }, "tomorrow"),
-    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
+    /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/,
   );
   // The run's own page, for every failure a run can stop with: how many got it, what there is to do, what becomes of it.
   const { BROADCAST_FAILURES } = await import("@chanlytics/contracts");
@@ -1020,7 +1073,7 @@ test("a wait is drawn a little longer at random, so the runs one outage held do 
  * playbook's, which nobody sends again. Each said "send it again" after its cause.
  */
 const VISIT_RUN_NEXT =
-  "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+  "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
 
 /** A message about their visit: Meta's row, and the text and email versions beside it, each filling the same slots. */
 const VISIT_WORDS = "Hi {{1}}, your visit is {{2}}.";
@@ -1186,7 +1239,7 @@ test("an email is written queued first, frozen from the version's subject and bo
     body: "Hi Ada, your visit is tomorrow at 2:00 PM.",
     // The foot now says how to stop these emails (they carry no unsubscribe link).
     footer:
-      "You're getting this because of your visit with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
+      "You're getting this because of your appointment with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
   });
   const queued = f.of("queueEmail")[0][1];
   assert.deepEqual(queued, {
@@ -1261,7 +1314,7 @@ test("an email's foot says why they hear from the business and from whom: the vi
     "You're getting this because you've been in touch with Marisa's.\nReply STOP to stop these emails.",
   ]);
   assert.deepEqual(await footers(VISIT), [
-    "You're getting this because of your visit with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
+    "You're getting this because of your appointment with Marisa's.\nReply STOP to stop these emails.\nMarisa's · 12 Main St, Springfield",
   ]);
 });
 
@@ -2242,7 +2295,7 @@ test("a billing pause the door meets stops the run, once, and gives the person b
   // A visit's message belongs to the day of the visit: tomorrow's run is for tomorrow's visits, so these are not reached later.
   assert.match(
     await stopped(forMoment("visit_tomorrow")),
-    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
+    /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/,
   );
   assert.doesNotMatch(await stopped(forMoment("visited")), /send it again|tomorrow's run reaches/i);
   // The same pause met at the head, before anyone is claimed: the same words, once.

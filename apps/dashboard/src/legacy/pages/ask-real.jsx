@@ -312,12 +312,12 @@ const useArMemory = ({ open, A, query, setQuery, active, asked, openThread }) =>
   }, [active && active.id]);
 };
 
-/** Where focus goes: the field on a desktop, the dialog on a phone, the field again after "Type instead"; the dialog holds it (trapFocus). */
-const useArFocus = ({ H, open, doomed, live, active, view, quick, inputRef, dialogRef, talk, typing }) => {
-  // The field takes focus on a desktop; a phone's takeover opens with focus on the dialog, so no keyboard rises until a
-  // tap on the field asks for it (S10).
-  H.useAskFocus(inputRef, open && !doomed && !arPhone(), [open, live, active, doomed, view, quick]);
-  H.useAskFocus(dialogRef, open && arPhone(), [open]);
+/** Where focus goes: the field on a desktop, the dialog on a phone or any touch screen, the field again after "Type instead"; the dialog holds it (trapFocus). */
+const useArFocus = ({ A, H, open, doomed, live, active, view, quick, inputRef, dialogRef, talk, typing }) => {
+  // The field with a mouse and keys; else the dialog, so no keyboard rises until a tap asks (S10; focusAsDrawn).
+  const field = !arPhone() && (!A || !A.focusAsDrawn || A.focusAsDrawn());
+  H.useAskFocus(inputRef, open && !doomed && field, [open, live, active, doomed, view, quick]);
+  H.useAskFocus(dialogRef, open && !field, [open]);
   useArEffect(() => (open && window.trapFocus ? window.trapFocus(dialogRef.current) : undefined), [open, dialogRef]);
   // Listening ended after "Type instead": the words heard are in the field, and the field takes focus to finish them.
   useArEffect(() => {
@@ -878,7 +878,7 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
         <input
           ref={inputRef}
           className="ask-line-input"
-          placeholder={talk.listening ? t.listening : active ? t.follow : surface === "leads" ? t.describeLeads : t.placeholder}
+          placeholder={talk.listening ? t.listening : active ? t.follow : surface === "leads" ? t.describeLeads : surface === "campaigns" ? t.describeCampaigns : t.placeholder}
           value={query}
           onChange={(e) => { setQuery(e.target.value); if (composing && M) M.mood.hear(0.5); }}
           onKeyDown={onKey}

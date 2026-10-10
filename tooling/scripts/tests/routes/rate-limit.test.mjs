@@ -238,6 +238,10 @@ test("REGRESSION: the limiter's refusal and the client's retry hint say a wait i
       const hint = refusalOf({ code: "rate_limited", status: 429, details: { retry_after_s: n }, write: true });
       assert.equal(hint.message, `Too many at once — try again in ${waitWords(n)}.`, `${n} s, as the client says it`);
     }
+    // A campaign to the person pressing too fast, never a playbook (decision 19); the bucket keeps its key.
+    setRateStore({ take: async () => ({ allowed: false, retryAfterS: 30 }) });
+    const changes = await takeRate("u1", "playbook", 1_000).catch((e) => e);
+    assert.equal(changes.message, `Too many campaign changes in a short time — try again in ${waitWords(30)}.`);
     assert.equal(waitWords(1), "1 second");
     assert.equal(waitWords(59), "59 seconds");
     assert.equal(waitWords(60), "1 minute");

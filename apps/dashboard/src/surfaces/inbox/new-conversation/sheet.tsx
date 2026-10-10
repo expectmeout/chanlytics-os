@@ -24,6 +24,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Sheet } from "../../kit/sheet/sheet";
+import { focusAsDrawn } from "../../legacy-verbs";
 import { gate } from "../shell";
 import { NewCall } from "./call";
 import { NewMessage } from "./message";
@@ -65,7 +66,7 @@ function aboutPart(s: SheetState) {
         onValueChange={(about) => s.patch({ about })}
         maxLength={DRAFT_ABOUT_MAX}
         // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the plan is the next thing to write once a person is picked
-        autoFocus
+        autoFocus={focusAsDrawn()}
         data-testid="ix-new-about"
       />
       {askable ? (
@@ -191,7 +192,7 @@ function foot(s: SheetState) {
         </span>
       ) : null}
       {/* The two acts stand together: a sentence with no room beside them takes the row over them, never between. */}
-      <div className="ix-new-foot-acts">
+      <div className="ix-new-foot-acts" data-foot-pair="">
         <Button disabled={s.busy} onClick={s.work.leave} data-testid="ix-new-cancel">
           {W.cancel}
         </Button>

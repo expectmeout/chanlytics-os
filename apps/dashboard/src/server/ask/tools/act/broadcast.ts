@@ -4,6 +4,7 @@ import {
   AUDIENCE_KINDS,
   AppError,
   BUILTIN_LISTS,
+  allowanceBeforeSend,
   CONSENT_CHANNELS,
   EVERYONE_LABEL,
   broadcastName,
@@ -11,9 +12,11 @@ import {
   clockWhen,
   eligibleFor,
   emptyAudienceRefusal,
+  nextOpenMoment,
   parseParamSpec,
   proposalChannelsWords,
   reachSplit,
+  sendsWaitWords,
   type AskedPurpose,
   type CampaignHow,
   type CampaignMessage,
@@ -22,6 +25,7 @@ import {
   type PersonRowVM,
 } from "@chanlytics/contracts";
 import { campaignHowOf } from "@chanlytics/core";
+import { monthSentOrNull } from "../../../campaigns/month-sent";
 import { archivedListWords, poolList } from "../../../people/audience";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
@@ -113,22 +117,55 @@ async function broadcastMessage(
 
 /**
  * Who a broadcast proposal reaches and what its card says of the channels: the count, the words after it ("on WhatsApp and
- * by email (52 on WhatsApp, 32 by email)", none for a proposal that named no channel) and the channels the card keeps
- * for its commit. Each person is reached once, on the first channel that reaches them (contracts reachSplit).
+ * by email (52 on WhatsApp, 32 by email)", none for a proposal that named no channel), the channels the card keeps
+ * for its commit, and how many each channel reaches. Each person is reached once, on the first channel that reaches them
+ * (contracts reachSplit).
  */
 function broadcastReach(
   rows: PersonRowVM[],
   purpose: AskedPurpose,
   by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
-): { count: number; says: string; kept: { channels?: ConsentChannel[] } } {
-  if (!by.named)
-    return { count: eligibleFor(rows, "everyone", null, null, purpose, by.how).length, says: "", kept: {} };
+): { count: number; says: string; kept: { channels?: ConsentChannel[] }; byChannel: Record<ConsentChannel, number> } {
+  if (!by.named) {
+    const count = eligibleFor(rows, "everyone", null, null, purpose, by.how).length;
+    return { count, says: "", kept: {}, byChannel: { whatsapp: count, sms: 0, email: 0 } };
+  }
   const split = reachSplit(rows, purpose, by.how);
   return {
     count: split.reached,
     says: ` · ${proposalChannelsWords(by.channels, split.byChannel)}`,
     kept: namedChannels(by),
+    byChannel: split.byChannel,
   };
+}
+
+/**
+ * What the month's email and text allowance will hold back of a broadcast that goes by them (A7), with its separator:
+ * the send screen's own sentence (contracts allowanceBeforeSend), counted against the month the send really goes in, as
+ * that screen and the door count it: `goesAt`, the next open moment of the time it is set for (now where it goes at
+ * once), so one set for 10 PM on the month's last day goes, and is counted, the next morning (core createBroadcast).
+ * Nothing while there is room, where it goes by WhatsApp alone (no count is read), or where the month could not be
+ * counted.
+ */
+async function broadcastHeld(
+  t: ToolContext,
+  channels: readonly ConsentChannel[],
+  byChannel: Record<ConsentChannel, number>,
+  purpose: AskedPurpose,
+  goesAt: Date,
+): Promise<string> {
+  if (!channels.some((c) => c !== "whatsapp")) return "";
+  const words = allowanceBeforeSend(byChannel, await monthSentOrNull(t.tenantId, goesAt), null, purpose);
+  return words ? ` · ${words}` : "";
+}
+
+/**
+ * When a broadcast card says it goes: now; the time it is set for; or, where that falls outside the sending hours, the
+ * moment it really goes and why (contracts sendsWaitWords), as the send screen's note says it (broadcasts/when.tsx).
+ */
+function goesWords(t: ToolContext, when: string | null, open: { at: Date; moved: boolean }): string {
+  if (open.moved) return `${clockWhen(open.at.getTime(), t.timezone, t.now.getTime())} — ${sendsWaitWords()}`;
+  return when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
 }
 
 /** What a broadcast proposal takes (broadcastAction's input): the message and the audience, its values, when, and the channels it goes by. */
@@ -196,7 +233,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const { purpose } = message;
   const by = await broadcastBy(t, message, input.channels);
   if ("refusal" in by) return refuse(by.refusal);
-  const { count, says, kept } = broadcastReach(rows, purpose, by);
+  const { count, says, kept, byChannel } = broadcastReach(rows, purpose, by);
   // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
   if (count === 0)
     return refuse(
@@ -211,11 +248,14 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   if ("refusal" in said) return refuse(said.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it.
   const name = str(input.name, 80) || broadcastName(message.name, t.timezone, t.now);
-  const whenWords = when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
+  // The moment it really goes, once: the month the allowance is counted in, and the time the card says.
+  const open = nextOpenMoment(t.timezone, when ? new Date(Date.parse(when)) : t.now);
+  const whenWords = goesWords(t, when, open);
+  const held = await broadcastHeld(t, by.channels, byChannel, purpose, open.at);
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,
-    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says} · “${message.name}” · ${whenWords}: ${said.says}`,
+    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says}${held} · “${message.name}” · ${whenWords}: ${said.says}`,
     payload: {
       template_id: message.anchor.id,
       template_name: message.name,

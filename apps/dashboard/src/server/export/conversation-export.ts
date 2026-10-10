@@ -15,7 +15,6 @@ import type { Member, Params } from "@/server/route";
 import type { RouteContext } from "@/server/with-route";
 
 const THREAD_EXPORT_PAGE = 500;
-const MAX_PAGES = 20;
 
 export async function exportConversation(ctx: RouteContext & { params: Params }, member: Member) {
   const { supabase, userId, params } = ctx;
@@ -32,9 +31,12 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
   // `.lt(created_at)` cursor: two messages written in the same transaction
   // share a timestamp to the microsecond, and a cursor that steps strictly
   // past the last one on a page drops every message tied with it -- silently,
-  // from the file whose whole promise is "every message".
+  // from the file whose whole promise is "every message". Read until a short
+  // page, with no count of pages: twenty of them stopped a longer thread at
+  // its 10,000th message, and the file and its ledger row read as the whole.
+  // The workspace export reads every thread this way, so one thread is less.
   const messages: MessageDto[] = [];
-  for (let page = 0; page < MAX_PAGES; page++) {
+  for (let page = 0; ; page++) {
     const { data, error: merr } = await supabase
       .from("messages")
       .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts")

@@ -1,5 +1,6 @@
 import {
   AppError,
+  CAMPAIGN_NOT_FOUND,
   FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
   CAMPAIGNS_PAUSED_WORDS,
@@ -23,8 +24,8 @@ import { refuseOnArchivedList } from "@/server/campaigns/playbooks";
  */
 const SAID: Record<string, string> = {
   preview: "Running only works on the production dashboard.",
-  not_found: "Playbook not found.",
-  never: "This playbook's class is set to Never in Settings › Autonomy, so nothing runs.",
+  not_found: CAMPAIGN_NOT_FOUND,
+  never: "This campaign's class is set to Never in Settings › Autonomy, so nothing runs.",
   // The run's stop when WhatsApp is all it goes by and its message has no WhatsApp version to send (the stored name is a
   // closed set, and stays).
   template_not_approved: RUN_NOW_WITHOUT_VERSION_WORDS,

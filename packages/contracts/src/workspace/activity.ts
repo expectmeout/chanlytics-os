@@ -1,4 +1,6 @@
-import { DECISION_VERBS, EVENT_KINDS, type DecisionVerb } from "../shared/enums";
+import { DECISION_VERBS, EVENT_KINDS, WABA_FIELDS, type DecisionVerb } from "../shared/enums";
+import { reasonShort } from "../conversations/escalations";
+import { bookingToolName } from "../calendar/booking-notice";
 import { LEAD_ENDING_WORDS } from "../leads/search/endings";
 import type { LeadRoundEnding } from "../leads/search/sets";
 import {
@@ -13,7 +15,6 @@ import { standingChangeWords } from "../lines/number-standing";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { plural } from "../shared/words";
-import type { Tone } from "../shell/tone";
 import type { ActivationMilestone } from "./activation";
 import { partnerEventBits } from "./partner";
 import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
@@ -50,10 +51,34 @@ export interface ActivityRowDto {
   category: string | null;
 }
 
+/** A member the log may be narrowed to: their user id, and the name the rows say. */
+export interface ActivityMemberDto {
+  id: string;
+  name: string;
+}
+
 export interface ActivityPageDto {
+  /**
+   * The page's rows, newest first. A page is a hundred rows, and more where those fold to a handful of lines
+   * (contracts activityLines): a burst of one kind is one line, and a page of one line is no page.
+   */
   rows: ActivityRowDto[];
   /** Member id → the name to show (their name, else the address they signed in with). */
   actors: Record<string, string>;
+  /**
+   * What a row is about, by name: `<subject_type>:<subject_id>` → the person's name (their own, their thread's or
+   * their call's), a list's, a broadcast's or a playbook's. A subject with no name read is absent, and its row says
+   * its sentence alone.
+   */
+  subjects: Record<string, string>;
+  /**
+   * Where a row opens, for the subjects whose page had to be looked up: `<subject_type>:<subject_id>` → a route without
+   * its slash (a message's or an escalation's thread, a deal's person). Every other subject's door is contracts
+   * activityDoor's, from the row alone.
+   */
+  doors: Record<string, string>;
+  /** The workspace's members, for the picker of who did it; empty where the roster could not be read. */
+  members: ActivityMemberDto[];
   /**
    * Where this page ended, not how far down it started: `next_cursor` is
    * `"<created_at>|<row id>"` and is what asks for the page behind it. An
@@ -119,8 +144,9 @@ const WORDS: Record<string, string> = {
   consent_change: "Recorded a consent answer",
   send_broadcast: "Sent a broadcast",
   cancel_broadcast: "Canceled a broadcast",
-  start_playbook: "Started a playbook",
-  pause_playbook: "Paused a playbook",
+  start_playbook: "Started a campaign",
+  pause_playbook: "Paused a campaign",
+  change_playbook: "Changed a campaign",
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",
@@ -170,13 +196,45 @@ const WORDS: Record<string, string> = {
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
   "escalation.changed": "A handover's reason changed",
+  "escalation.opened": "A thread was handed to the team",
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "broadcast.stopped": "A broadcast stopped",
-  "playbook.run": "A playbook ran",
+  "playbook.run": "A campaign ran",
+  "playbook.changed": "A campaign was edited",
+  "template.submitted": "A message was sent to WhatsApp for approval",
+  "template.removed": "A message was deleted from the Library",
+  "member.joined": "Joined the workspace",
+  "member.left": "Left the workspace",
+  "reach_out.lead_stopped": "A reach-out stopped writing to a lead",
+  "reach_out.send_decided": "A held reach-out email was decided",
+  "lead.kept": "A lead was kept from Needs review",
+  "lead.excluded": "A lead was left out of Needs review",
+  "lead.put_back": "A lead was put back in Needs review",
+  "lead.search_renamed": "A search was renamed",
+  "lead.search_removed": "A search was removed",
+  "contact.kept_apart": "Two records were kept as two people",
+  "line.forwarding_set": "Call forwarding was set up",
+  "appointment.booked": "A booking arrived by email",
+  "appointment.moved": "A booking was changed by email",
+  "appointment.cancelled": "A booking was cancelled by email",
+  "conversation.owner_replied": "The owner replied from the WhatsApp Business app, and the receptionist stepped back",
+  "billing.payment_failed": "A payment did not go through",
+  "billing.paid": "A payment went through",
+  "billing.trial_ending": "The trial ends in three days",
+  "capability.activated": "Answering was switched on",
+  "capability.deactivated": "Answering was switched off",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
+  // Meta's own news of the account (contracts WABA_FIELDS), one kind per field: said as what Meta did, never as its field.
+  "channel.phone_number_quality_update": "Meta changed a WhatsApp number's quality",
+  "channel.account_update": "Meta updated the WhatsApp account",
+  "channel.message_template_status_update": "Meta reviewed a message",
+  "channel.account_review_update": "Meta reviewed the WhatsApp account",
+  "channel.message_template_quality_update": "Meta changed a message's quality",
+  "channel.template_category_update": "Meta changed a message's category",
+  "channel.phone_number_name_update": "Meta reviewed a WhatsApp number's name",
   "channel.standing": "A WhatsApp number's standing with Meta changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
@@ -257,6 +315,9 @@ function humanize(kind: string): string {
   const tail = (rest ?? "").replace(/_/g, " ");
   return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` · ${tail}` : ""}`;
 }
+
+/** A kind's own words with nothing of a row's payload: what the picker calls it, and a folded line's fallback. */
+export const activityKindWords = (kind: string): string => WORDS[kind] ?? humanize(kind);
 
 const textAt = (o: Record<string, unknown>, k: string): string | null =>
   typeof o[k] === "string" && o[k] ? o[k] : null;
@@ -343,8 +404,9 @@ function leadNotAFitWords(p: Record<string, unknown>, base: string): string {
  * A lead emailed has two writers: the owner saying they sent it (what is recorded is their word, never that it left), and a
  * reach-out's own email, which names itself as the author.
  */
+export const REACH_OUT_EMAILED_WORDS = "A reach-out email went to a lead";
 function leadEmailedWords(p: Record<string, unknown>, base: string): string {
-  return textAt(p, "by") === "reach_out" ? "A reach-out email went to a lead" : base;
+  return textAt(p, "by") === "reach_out" ? REACH_OUT_EMAILED_WORDS : base;
 }
 
 /** What each activation milestone says of the workspace (contracts ACTIVATION_MILESTONES): a record, so a new one cannot lack its words. */
@@ -405,6 +467,42 @@ function runEndWords(kind: "broadcast.sent" | "broadcast.stopped", p: Record<str
 const replyWords = (p: Record<string, unknown>, base: string): string =>
   p.starts === true ? "Began a conversation from the dashboard" : base;
 
+/** A call that never connected (Retell's not_connected, contracts neverConnected), by who dialled: a customer's is missed. */
+export const CALL_MISSED_WORDS = "A call was missed";
+export const CALL_UNANSWERED_WORDS = "A call we placed did not connect";
+
+/** A call's first sighting: recorded, unless the dial never connected, which is all there was of it. */
+function callRecordedWords(p: Record<string, unknown>, base: string): string {
+  if (textAt(p, "status") !== "not_connected") return base;
+  return textAt(p, "direction") === "outbound" ? CALL_UNANSWERED_WORDS : CALL_MISSED_WORDS;
+}
+
+/** What was decided of a held reach-out email (contracts REACH_OUT_DECISIONS), as the sentence's last words. */
+const SEND_DECIDED_WORDS: Record<string, string> = {
+  include: "A held reach-out email was sent as written",
+  rewrite: "A held reach-out email was sent back to be written again",
+  skip: "A held reach-out email was skipped",
+  not_a_fit: "A held reach-out email was dropped: the lead is not a fit",
+};
+
+/** Which calls a kept number forwards (contracts FORWARDING_MODES), in an owner's words. */
+const FORWARDING_WORDS: Record<string, string> = { unanswered: "the calls not answered", always: "every call" };
+
+/** A search removed: how many of its leads were kept, where the door said. */
+function searchRemovedWords(p: Record<string, unknown>, base: string): string {
+  const kept = numberAt(p, "kept");
+  return joinBits(base, [textAt(p, "name"), kept !== null ? `${kept} kept` : null]);
+}
+
+/** What the workspace answers, as an owner says it: the capability's stored word, in theirs. */
+const CAPABILITY_WORDS: Record<string, string> = { voice: "calls", whatsapp: "WhatsApp", sms: "texts" };
+
+/** A list of a row's own short words (the parts of a playbook that moved): each as written, four at most. */
+const wordsAt = (o: Record<string, unknown>, k: string): string | null => {
+  const list = Array.isArray(o[k]) ? (o[k] as unknown[]).filter((f): f is string => typeof f === "string") : [];
+  return list.length ? list.slice(0, 4).join(", ") : null;
+};
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
@@ -423,6 +521,29 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
   ["google.reply_held", (p, base) => joinBits(base, [reviewHeldWords(textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],
+  ["escalation.opened", (p, base) => joinBits(base, [textAt(p, "reason") ? reasonShort(textAt(p, "reason")) : null])],
+  ["member.joined", (p, base) => joinBits(base, [textAt(p, "role") ? `as ${textAt(p, "role")}` : null])],
+  [
+    "member.left",
+    (p, base) => joinBits(base, [textAt(p, "how") === "account_deleted" ? "deleted their account" : null]),
+  ],
+  // Team's Resend renews an invitation and emails it again (00371 team_invite_renew); a member's own Leave is a removal
+  // by their own hand (team_leave). Each is said as what happened, not as a second invitation or a removal by somebody.
+  ["invite", (p, base) => (p.resent === true ? "Sent an invitation again" : base)],
+  ["remove_member", (p, base) => (p.left === true ? "Left the team" : base)],
+  ["call.recorded", callRecordedWords],
+  ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
+  ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["lead.search_removed", searchRemovedWords],
+  ["line.forwarding_set", (p, base) => joinBits(base, [wordOf(FORWARDING_WORDS, textAt(p, "mode"))])],
+  ["appointment.booked", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["appointment.moved", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["appointment.cancelled", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["playbook.changed", (p, base) => joinBits(base, [textAt(p, "name"), wordsAt(p, "fields")])],
+  ["template.submitted", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["template.removed", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["capability.activated", (p, base) => joinBits(base, [wordOf(CAPABILITY_WORDS, textAt(p, "capability"))])],
+  ["capability.deactivated", (p, base) => joinBits(base, [wordOf(CAPABILITY_WORDS, textAt(p, "capability"))])],
   ["message.send_failed", sendFailedWords],
   // A partner's standing is between the platform and the partner: the owner reads that it was judged, never the
   // verdict or who gave it (the raw label said no more before these words).
@@ -586,81 +707,12 @@ export function activityWords(kind: string, payload: unknown): string {
   return bits.length ? `${base} · ${bits.join(" · ")}` : base;
 }
 
-/**
- * What a row MEANS, in the product's one tone vocabulary (tone.ts).
- *
- * A log where every line is the same grey is a log you read rather than scan,
- * and the thing an owner opens it to find is the line that went wrong. So the
- * kinds whose reading is not in doubt get their tone and the rest stay plain:
- * this says a tone only where the product knows one, rather than guessing from
- * a kind's spelling -- "line.texting_on" contains no failure, and a rule that
- * read words out of names would find one in "message.send_raced_cancel".
- */
-const TONES: Record<string, Tone> = {
-  // danger -- it failed, it was refused, or something is gone
-  "message.send_failed": "danger",
-  "message.send_blocked": "danger",
-  "line.failed": "danger",
-  "broadcast.stopped": "danger",
-  "line.texting_rejected": "danger",
-  "contact.erased": "danger",
-  "contact.blob_erased": "danger",
-  "ingest.unroutable": "danger",
-  "ingest.unreachable_sender": "danger",
-  erase: "danger",
-  decline: "danger",
-  remove_member: "danger",
-  // ok -- it completed, it connected, it is answering
-  "line.answering": "ok",
-  "line.texting_approved": "ok",
-  "line.forwarding_verified": "ok",
-  "voice.provisioned": "ok",
-  "google.linked": "ok",
-  "google.connected": "ok",
-  "broadcast.sent": "ok",
-  "billing.resumed": "ok",
-  "mailbox.created": "ok",
-  "mailbox.offers_resumed": "ok",
-  "sending_domain.verified": "ok",
-  "sending_domain.released": "ok",
-  "sending_domain.resumed": "ok",
-  "workspace.created": "ok",
-  approve: "ok",
-  resolve: "ok",
-  connect_channel: "ok",
-  "deal.won": "ok",
-  // warn -- somebody stopped something, or a rule was stepped around
-  "billing.paused": "warn",
-  "policy.veto_window_skipped": "warn",
-  "line.released": "warn",
-  "google.unlinked": "warn",
-  "google.disconnected": "warn",
-  "sending_domain.held": "warn",
-  "mailbox.offers_paused": "warn",
-  "message.send_raced_cancel": "warn",
-  "ingest.allowlist_skip": "warn",
-  pause_agent: "warn",
-  pause_playbook: "warn",
-  cancel_send: "warn",
-  cancel_broadcast: "warn",
-  revoke_invite: "warn",
-  snooze: "warn",
-  // info -- it is on its way, or a person took it on
-  "message.received": "info",
-  "conversation.reopened": "info",
-  "line.texting_on": "info",
-  take_over: "info",
-  hand_back: "info",
-  reply: "info",
-};
-
-/** The tone for a row, or "plain" where the product does not claim to know. */
-export function activityTone(kind: string): Tone {
-  return TONES[kind] ?? "plain";
-}
-
-/** Every kind either ledger may hold, for the picker: the verbs, then the event kinds. */
-export const ACTIVITY_KINDS: readonly string[] = [...DECISION_VERBS, ...EVENT_KINDS];
+/** Every kind either ledger may hold, for the picker: the verbs, the event kinds, and Meta's own news of the account. */
+export const ACTIVITY_KINDS: readonly string[] = [
+  ...DECISION_VERBS,
+  ...EVENT_KINDS,
+  ...WABA_FIELDS.map((field) => `channel.${field}`),
+];
 
 /** true for a kind an owner is not shown unless they ask for it by name. */
 export function isActivityNoise(kind: string): boolean {

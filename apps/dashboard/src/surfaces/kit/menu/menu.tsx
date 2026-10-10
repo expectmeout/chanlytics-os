@@ -12,7 +12,9 @@
  * `align` names, and turns over it where the window has no room below, placed by Base UI against the window in a
  * portal on the document's body, where no pane can cut it off or hold it under a blur. The kit writes none of it.
  * Under 900px it is the phone's action sheet: the same menu, from the bottom edge over the page (kit.css), on a layer
- * that a press outside closes it through.
+ * that a press outside closes it through, and a pull down from its top lets it go, following the finger, as the Sheet's
+ * does (data-bits touchSwipe; Ruben, 8 October 2026: it drew the sheet's handle and did not answer a pull). The touch
+ * stays the menu's own (legacy-verbs keepTouch): opened from inside a sheet or an open thread, its pull moved that too.
  *
  * It draws what the gallery's Menu family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout, and comes last; the
@@ -20,7 +22,8 @@
  */
 import { Menu as BaseMenu } from "@base-ui/react/menu";
 import type { ReactElement, ReactNode, Ref } from "react";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
+import { keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
 import { cx, variants } from "../variants";
 
 /** The room between the control and the menu, as the house's menu leaves it (kit.css, .more-menu's top). */
@@ -195,13 +198,25 @@ function Group({ group }: { group: MenuGroup }) {
   );
 }
 
-/** What a menu draws on the body: its wash, its place by its control, and its groups. */
-function MenuPopup({ groups, align = "end", label, className, ref }: Omit<MenuProps, "trigger">) {
+/** What a menu draws on the body: its wash, its place by its control, and its groups. `onPull` closes it, for a phone's pull. */
+function MenuPopup({
+  groups,
+  align = "end",
+  label,
+  className,
+  ref,
+  onPull,
+}: Omit<MenuProps, "trigger"> & { onPull: () => void }) {
   return (
     <BaseMenu.Portal>
       <BaseMenu.Backdrop className="more-backdrop" />
       <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align}>
-        <BaseMenu.Popup ref={ref} className={cx(menuClasses({ align }), className)} aria-label={label}>
+        <BaseMenu.Popup
+          ref={ref}
+          className={cx(menuClasses({ align }), className)}
+          aria-label={label}
+          {...keepTouch(touchSwipe({ onDown: onPull, when: onAPhone }))}
+        >
           {groups.map((group, at) => (
             <Fragment key={at}>
               {at > 0 ? <BaseMenu.Separator className="more-divider" /> : null}
@@ -216,10 +231,12 @@ function MenuPopup({ groups, align = "end", label, className, ref }: Omit<MenuPr
 
 /** A menu, opened by the page's control and drawn on the document's body. */
 export function Menu({ trigger, ...popup }: MenuProps) {
+  // Open is Base UI's to decide; it is held here only so a phone's pull can close the menu.
+  const [open, setOpen] = useState(false);
   return (
-    <BaseMenu.Root>
+    <BaseMenu.Root open={open} onOpenChange={(next) => setOpen(next)}>
       <BaseMenu.Trigger render={trigger} />
-      <MenuPopup {...popup} />
+      <MenuPopup {...popup} onPull={() => setOpen(false)} />
     </BaseMenu.Root>
   );
 }
@@ -258,7 +275,9 @@ export function SharedMenu<P>({ handle, groups, label, ...popup }: SharedMenuPro
   return (
     <BaseMenu.Root handle={handle}>
       {({ payload }: { payload: P | undefined }) =>
-        payload === undefined ? null : <MenuPopup {...popup} groups={groups(payload)} label={label?.(payload)} />
+        payload === undefined ? null : (
+          <MenuPopup {...popup} groups={groups(payload)} label={label?.(payload)} onPull={() => handle.close()} />
+        )
       }
     </BaseMenu.Root>
   );

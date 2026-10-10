@@ -14,16 +14,23 @@ import {
   type ConsentChannel,
   type MonthSent,
   type NumberHealth,
+  type RunSplit,
   FOLLOW_UP_NEEDS_DEALS,
   PLAYBOOK_TRIGGERS,
+  appointmentWordOf,
   momentOffered,
   nextRunLabel,
   playbookPoolKey,
   scheduleLine,
   triggerOf,
   triggerOffered,
+  triggerWords,
+  type CampaignMessage,
+  type LifecycleShape,
+  type LifecycleTemplate,
   type PlaybookDto,
 } from "@chanlytics/contracts";
+import type { Output } from "@/client/api";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
@@ -116,10 +123,15 @@ export interface PlaybookNamed {
   noChannel?: number;
   /** Who a run reaches on each channel, adding up to who it reaches now. Absent from a count made before channels. */
   byChannel?: Record<ConsentChannel, number>;
+  /**
+   * One run's split by channel at each cap, where it differs from `byChannel` (contracts runReadingOf): what the month's
+   * allowance is held against (heldBackOfOneRun). Absent where `byChannel` is every run's, and from an older server.
+   */
+  runSplit?: RunSplit;
 }
 
 /**
- * One moment's count as the route makes it (server/campaigns/playbooks.ts TriggerPool): the figures for WhatsApp alone,
+ * One moment's count as the route makes it (server/campaigns/playbook-pools.ts TriggerPool): the figures for WhatsApp alone,
  * as every playbook went before, and, beside them, the same figures for each other set of channels a playbook on it may
  * tick, so the composer reads the count for the set in front of it as the owner ticks and unticks.
  */
@@ -135,6 +147,7 @@ export interface PoolRead {
   address_stopped?: number;
   no_channel?: number;
   by_channel?: Record<ConsentChannel, number>;
+  run_split?: RunSplit;
   by?: Array<Omit<PoolRead, "by"> & { channels: readonly string[] }>;
 }
 
@@ -151,6 +164,7 @@ export function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNam
         ...(x.address_stopped === undefined ? {} : { addressStopped: x.address_stopped }),
         ...(x.no_channel === undefined ? {} : { noChannel: x.no_channel }),
         ...(x.by_channel ? { byChannel: x.by_channel } : {}),
+        ...(x.run_split ? { runSplit: x.run_split } : {}),
       }
     : null;
 }
@@ -234,6 +248,11 @@ export interface PlaybooksSurface {
   countsRead: boolean;
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
+  /**
+   * How the business works, as Campaigns' home reads it (contracts LifecycleShape, from GET playbooks' businessShape): the
+   * calendar its appointment moments are counted from, whether deals are on, and what it calls an appointment.
+   */
+  shape: LifecycleShape;
   triggers: PlaybookTriggerOption[];
   /**
    * Every list a playbook may run on (decision 0009), each by its token (`seg:<id>` for People's, `list:<id>` for the
@@ -253,6 +272,16 @@ export interface PlaybooksSurface {
   /** The messages a playbook may send, with their variables and the channels each holds. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: PlaybookTemplate[] | null;
+  /**
+   * The call's text as its templates read names it (`booking`: found over every WhatsApp row, a hidden one too, as the
+   * edge texts it after a call), one row or none: Campaigns' home says whether there is one. Null where that read failed;
+   * undefined where the answer does not say (a server from before `booking`), and the home then says nothing of it.
+   */
+  library: LifecycleTemplate[] | null | undefined;
+  /** Every message of the workspace, on every channel (its templates read's `messages`): the Library's count. Null where unread. */
+  messages: CampaignMessage[] | null;
+  /** Each autonomy class's mode (GET playbooks' `modes`): Resume says a class under `auto` in full. Null where unread. */
+  modes: Readonly<Record<string, string>> | null;
   number: { present: boolean; health: NumberHealth };
   businessName: string;
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
@@ -266,6 +295,44 @@ export interface PlaybooksSurface {
 /** Count the whole pool, not one run's cap. */
 
 /**
+ * How the business works, from GET playbooks' answer (its businessShape): what the workspace calls an appointment, and
+ * whether its appointment moments are counted from a calendar's feed, from a booking tool's emails, or from neither. A
+ * server from before the word answers none, and the one derivation reads how its customers buy here instead, so either
+ * deploy order works.
+ */
+function businessShapeOf(
+  pb: Pick<Output<"GET playbooks">, "deals_on" | "appointment_word" | "bookings_by_email">,
+  calendarOn: boolean,
+): LifecycleShape {
+  return {
+    calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
+    dealsOn: !!pb.deals_on,
+    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null }),
+  };
+}
+
+/**
+ * What the templates read gives the page, each null where it failed: the messages a playbook may send, the call's text
+ * as the read names it, and every message of the workspace, which the Library counts.
+ */
+function templatesReadOf(
+  tpl: Output<"GET templates"> | Error,
+): Pick<PlaybooksSurface, "templates" | "library" | "messages"> {
+  if (tpl instanceof Error) return { templates: null, library: null, messages: null };
+  // An answer from before `booking` (a tab open across a rollback) does not say: never "No message for it yet" for a
+  // call's text that may exist. Null is the reader's "none found".
+  const booking: LifecycleTemplate | null | undefined = tpl.booking;
+  return {
+    // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
+    templates: cmOfferedMessages(tpl),
+    // The call's text is looked up as today and as the edge sends it (voice/call-booking-link.ts): among EVERY WhatsApp
+    // row, a hidden one too. The composers' rows leave hidden ones out, so the read names the one it found (`booking`).
+    library: booking === undefined ? undefined : booking ? [booking] : [],
+    messages: tpl.messages,
+  };
+}
+
+/**
  * Playbooks: the rows with what their runs earned, the triggers with the
  * count of people a run would pick now and how many wait for the week's
  * breath -- counted on the server over everyone, by the runner's own
@@ -276,10 +343,10 @@ export const playbooksOverride: SurfaceOverride = {
   key: "playbooks",
   value: "playbooks",
   events: ["surface:playbooks"],
-  // A run the sweep made, or one approved or stopped elsewhere (00321), moves a playbook's row and its "next run":
-  // heard wherever the tab is. A message moves a playbook's replies: read again only while its page is on screen, and
-  // once when it comes back (surface-registry.ts).
-  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts"],
+  // A run the sweep made, or one approved or stopped elsewhere (00321), and a playbook paused, renamed or retimed by a
+  // teammate (00376), move a playbook's row and its "next run": heard wherever the tab is. A message moves a playbook's
+  // replies: read again only while its page is on screen, and once when it comes back (surface-registry.ts).
+  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts", "playbooks"],
   refreshWhen: onlyOnItsPage("playbooks", DEFAULT_REFRESH_TABLES),
   apply: async () => {
     const [pb, tpl, ch, cfg] = await Promise.all([
@@ -329,8 +396,12 @@ export const playbooksOverride: SurfaceOverride = {
     const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     // A connected calendar counts whether or not its feed can be read just now: the win-back by visits is offered on it.
     const calendarOn = (pb.calendar ?? "none") !== "none";
+    // How the business works, and the word every moment's words below say.
+    const shape = businessShapeOf(pb, calendarOn);
+    const { word } = shape;
     setSurfaceValue("playbooks", {
       pools,
+      shape,
       ready: pb.ready ?? null,
       month_sent: pb.month_sent ?? null,
       rows: pb.playbooks.map((p) => {
@@ -343,9 +414,10 @@ export const playbooksOverride: SurfaceOverride = {
           poolKey: keyOf(p),
           // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
           listArchived: onArchived,
-          triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
-          triggerHint: t?.hint ?? "",
-          schedule: scheduleLine(p),
+          triggerLabel:
+            p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : t ? triggerWords(t, word).label : p.trigger,
+          triggerHint: t ? triggerWords(t, word).hint : "",
+          schedule: scheduleLine(p, word),
           // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
           next: nextRunLabel(p, tz, now, pb.ready?.paused === true),
           candidates: reading ? reading.candidates : null,
@@ -367,8 +439,8 @@ export const playbooksOverride: SurfaceOverride = {
       calendar: pb.calendar ?? "none",
       triggers: moments.map((t) => ({
         id: t.id,
-        label: t.label,
-        hint: t.hint,
+        label: triggerWords(t, word).label,
+        hint: triggerWords(t, word).hint,
         cls: t.cls,
         list: t.list,
         kind: t.kind,
@@ -377,8 +449,9 @@ export const playbooksOverride: SurfaceOverride = {
         held: held(t.id),
         named: named(t.id),
       })),
-      // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
-      templates: tpl instanceof Error ? null : cmOfferedMessages(tpl),
+      ...templatesReadOf(tpl),
+      // A server from before `modes` answers none: Resume then says when and to how many alone.
+      modes: pb.modes ?? null,
       number: {
         present: !!wa,
         health: numberHealth({

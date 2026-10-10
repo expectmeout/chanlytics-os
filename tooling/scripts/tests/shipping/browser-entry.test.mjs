@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { generate, OUT } from "../../gen/contracts-browser-entry.mjs";
+import { generate, OUT, PAGE_ONLY } from "../../gen/contracts-browser-entry.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const DASH = path.join(ROOT, "apps/dashboard");
@@ -94,5 +94,69 @@ test("the built entry loads no classic zod", () => {
     specs.filter((s) => ["zod", "zod/v4", "zod/v4/classic"].includes(s)),
     [],
     "classic zod in the browser's entry",
+  );
+});
+
+test("a page-only module's names are in no page's entry, and in its own", () => {
+  assert.deepEqual(PAGE_ONLY, [
+    "reports/report-metrics.ts",
+    "reports/report-window.ts",
+    "reports/receptionist/receptionist-report.ts",
+    "reports/receptionist/receptionist-words.ts",
+  ]);
+  for (const name of [
+    "metricWordsOf",
+    "reportWindowOf",
+    "reportPickWords",
+    "reportShortcuts",
+    "toReceptionistReportVM",
+  ])
+    assert.ok(!current.names.includes(name), `${name} is the Reports page's, by its own entry`);
+  const lens = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
+  assert.match(lens, /metricWordsOf/);
+  assert.match(lens, /toReceptionistReportVM/);
+  // The Receptionist lens's record is the server's: the root barrel names it, so the browser's entry carries it, and a page
+  // imports only its types.
+  for (const name of ["receptionistDtoOf", "isReceptionistSeriesDto", "MISSED_CALL_TOUCH_WORDS"])
+    assert.ok(current.names.includes(name), `${name} stays in the root barrel for the server`);
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
+  assert.deepEqual(pkg.exports["./report-lens"], {
+    types: "./dist/report-lens.d.ts",
+    import: "./dist/report-lens.js",
+    default: "./dist/report-lens.js",
+  });
+});
+
+test("every page-only path names a file, since one that names none would filter nothing, silently", () => {
+  for (const p of PAGE_ONLY) assert.ok(fs.existsSync(path.join(ROOT, "packages/contracts/src", p)), p);
+  assert.throws(
+    () => generate(ROOT, [...PAGE_ONLY, "reports/receptionist/receptionist-gone.ts"]),
+    /PAGE_ONLY names "reports\/receptionist\/receptionist-gone\.ts", which is no file under packages\/contracts\/src/,
+  );
+  // A folder is no module, and a path in the wrong case matches no module's path (existsSync says yes to both on Windows).
+  for (const bad of [
+    "reports/receptionist",
+    "reports/Report-Metrics.ts",
+    "reports/receptionist/RECEPTIONIST-words.ts",
+    "Reports/report-window.ts",
+    "reports/report-metrics.ts/words",
+  ])
+    assert.throws(
+      () => generate(ROOT, [bad]),
+      (e) => e.message.includes(`PAGE_ONLY names "${bad}"`),
+      bad,
+    );
+  // The list the generator is given decides what the entry leaves out: with none, the page-only names come back.
+  const all = generate(ROOT, []);
+  for (const name of ["metricWordsOf", "toReceptionistReportVM", "reportWindowOf"])
+    assert.ok(all.names.includes(name), `${name} is in the entry when nothing is page-only`);
+});
+
+test("the page-only entry reaches no classic zod", () => {
+  const built = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
+  const specs = [...built.matchAll(/^import\b[^"']*["']([^"']+)["']/gm)].map((m) => m[1]);
+  assert.deepEqual(
+    specs.filter((s) => ["zod", "zod/v4", "zod/v4/classic"].includes(s)),
+    [],
   );
 });

@@ -18,7 +18,10 @@
  * pure decisions packages/core/src/inbound/steps.ts.
  *
  * Contract (frozen during Meta App Review): process-then-200 in-invocation
- * under maxDuration 60; Meta retries + dedupe make replays safe.
+ * under maxDuration 60; Meta retries + dedupe make replays safe. A workspace
+ * the edge names in WHATSAPP_ANSWERS_AS_JOBS takes the other road instead
+ * (record, schedule the answer, 200: lib/whatsapp/answer-later.ts); unset,
+ * which is the default, nothing here changes.
  *
  * THE MEMORY IS POSTGRES, and there is no other. History, the pause and the
  * rate cap are the same rows the dashboard reads and writes, and the dedupe
@@ -44,7 +47,7 @@ import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import type { WaChangeValue } from "../packages/channels.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { handleInbound } from "./inbound.js";
+import { answerHereOrLater } from "./answer-later.js";
 import { recordReceipts } from "./receipts.js";
 import { pgSafe, IngestFailed } from "./persist.js";
 import { alertUnroutable } from "./alerts.js";
@@ -85,6 +88,53 @@ async function keepMetaDelivery(request: Request, raw: string): Promise<void> {
   });
 }
 
+type Echo = NonNullable<WaChangeValue["message_echoes"]>[number];
+
+/**
+ * The owner (or staff) replied from the WhatsApp Business app: each echo is kept as a person's words and pauses the
+ * receptionist on its thread, for the workspace's own hours. How many the database did not keep, which must come again
+ * (0 when every one was kept): an echo that is not on the record is a thread the receptionist goes on answering over
+ * the owner, so the door does not acknowledge it, and Meta's redelivery is safe (recordEchoAndPause: one wamid is one
+ * row, and an echo already kept pauses nothing twice). A number no workspace holds, or no database, keeps nothing and
+ * owes nothing: no redelivery could change that.
+ */
+async function recordEchoes(db: ReturnType<typeof pg>, routed: RoutedChannel | null, echoes: Echo[]): Promise<number> {
+  if (!db || !routed) return 0;
+  const tenantId = routed.tenantId;
+  const owed = echoes.filter((e) => !!e.to);
+  let kept = 0;
+  try {
+    // The pause is the tenant's own setting, the one Settings shows as
+    // "stays paused for N hours". This path had no runtime loaded and
+    // paused for a hard-coded day whatever the owner had chosen. One
+    // read per echo batch, never per echo.
+    const echoRt = await loadTenantRuntime(db, routed);
+    const echoPauseMs = pauseMsOf(echoRt.policy["reply"]?.limits);
+    for (const echo of owed) {
+      const to = echo.to ?? "";
+      // The Postgres row IS the pause: the conversation the echo
+      // arrived on, in the tenant whose channel carried it, never a
+      // global phone-number bucket.
+      const landed = await pgSafe("echo", () =>
+        recordEchoAndPause(db, {
+          tenantId,
+          customerPhoneDigits: to,
+          body: echo.text?.body ?? null,
+          externalId: echo.id ?? null,
+          pausedUntilIso: new Date(Date.now() + echoPauseMs).toISOString(),
+        }),
+      );
+      // A write that threw has said so (pg_echo_failed), and one the database refused in its own words (record_echo_*).
+      if (landed !== true) continue;
+      kept += 1;
+      L.info("wa_paused_by_echo", { to_tail: phoneTail(to) });
+    }
+  } catch (e) {
+    L.error("echo_handling_error", { error: errField(e) });
+  }
+  return owed.length - kept;
+}
+
 export async function receiveWhatsappEvent(request: Request): Promise<Response> {
   const raw = await request.text();
   if (!signedByMeta(request, raw)) return refuse(401, "bad_signature");
@@ -99,8 +149,8 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
   } catch {
     /* ack anyway */
   }
-  // Messages (and failure receipts, whose thread could not be flagged) the database did not accept in this batch: the
-  // one thing this handler must not acknowledge.
+  // Messages, failure receipts whose thread could not be flagged, owners' echoes the database did not keep, and any of
+  // the three whose number could not be routed, in this batch: the one thing this handler must not acknowledge.
   let unrecorded = 0;
 
   try {
@@ -186,46 +236,24 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
             // never handled at all. The message itself is already persisted by
             // then, so it stays visible for reconciliation.
             try {
-              await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
+              await answerHereOrLater(m, v, tenantId, routedChannel, isEnvDefault);
             } catch (e) {
               if (e instanceof IngestFailed) unrecorded += 1;
               L.error("wa_inbound_failed", { id: m.id, error: errField(e) });
             }
           }
-        } else if (field === "messages" && v.statuses) {
-          unrecorded += await recordReceipts(db, tenantId, v.statuses);
-        } else if (field === "smb_message_echoes") {
-          // The owner (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
-          try {
-            // The pause is the tenant's own setting, the one Settings shows as
-            // "stays paused for N hours". This path had no runtime loaded and
-            // paused for a hard-coded day whatever the owner had chosen. One
-            // read per echo batch, never per echo.
-            const echoRt = db && routedChannel ? await loadTenantRuntime(db, routedChannel) : null;
-            const echoPauseMs = pauseMsOf(echoRt?.policy["reply"]?.limits);
-            for (const echo of v.message_echoes || []) {
-              const to = echo.to;
-              if (to) {
-                // The Postgres row IS the pause: the conversation the echo
-                // arrived on, in the tenant whose channel carried it, never a
-                // global phone-number bucket.
-                if (db && tenantId) {
-                  await pgSafe("echo", () =>
-                    recordEchoAndPause(db, {
-                      tenantId,
-                      customerPhoneDigits: to,
-                      body: echo.text?.body ?? null,
-                      externalId: echo.id ?? null,
-                      pausedUntilIso: new Date(Date.now() + echoPauseMs).toISOString(),
-                    }),
-                  );
-                }
-                L.info("wa_paused_by_echo", { to_tail: phoneTail(to) });
-              }
-            }
-          } catch (e) {
-            L.error("echo_handling_error", { error: errField(e) });
-          }
+        } else if ((field === "messages" && v.statuses) || field === "smb_message_echoes") {
+          // A receipt and an owner's echo are the database's to keep, as a message is, so one whose number could not
+          // be routed is not acknowledged either: the 503 below has Meta send it again, and each is safe to receive
+          // twice (receipts.ts; recordEchoAndPause). Acknowledged, a failed receipt went unflagged and an echo unkept,
+          // so the receptionist went on answering over the owner, and Meta never sent either again.
+          const echoes = field === "smb_message_echoes" ? (v.message_echoes ?? []) : null;
+          if (routingFailed) {
+            const n = echoes ? echoes.length : (v.statuses?.length ?? 0);
+            unrecorded += n;
+            L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId, [echoes ? "echoes" : "receipts"]: n });
+          } else if (echoes) unrecorded += await recordEchoes(db, routedChannel, echoes);
+          else unrecorded += await recordReceipts(db, tenantId, v.statuses ?? []);
         } else if (field === "history") {
           L.info("wa_history_sync_batch");
         } else {

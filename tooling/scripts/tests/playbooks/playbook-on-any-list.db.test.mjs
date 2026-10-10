@@ -137,3 +137,198 @@ test("an operator moves a playbook to another list: list_id and list_key are the
   assert.equal(onPeoples.error, null, onPeoples.error?.message);
   assert.deepEqual(onPeoples.data, [{ list_key: "quiet" }]);
 });
+
+/** A real session for a fresh user with this role in this workspace, and who they are. */
+async function signedIn(role, tenant) {
+  const email = `start-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
+  const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
+  const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.equal(made.error, null, made.error?.message);
+  users.push(made.data.user.id);
+  ok(await db.from("memberships").insert({ tenant_id: tenant, user_id: made.data.user.id, role }));
+  const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  ok(await client.auth.signInWithPassword({ email, password }));
+  return { client, id: made.data.user.id };
+}
+
+// 00357: the member's one call for a new playbook, on the member's own rights.
+test(
+  "start_playbook: a playbook and its line in the ledger are one write, judged by the table's own policy; what it refuses leaves neither",
+  { skip },
+  async () => {
+    const elsewhere = ok(
+      await db
+        .from("tenants")
+        .insert({ slug: `any-list-else-${Date.now()}`, name: "Elsewhere" })
+        .select("id")
+        .single(),
+    ).id;
+    try {
+      const theirTemplate = ok(
+        await db
+          .from("templates")
+          .insert({
+            tenant_id: elsewhere,
+            channel: "whatsapp",
+            name: "winback_offer",
+            language: "en_US",
+            meta_status: "approved",
+          })
+          .select("id")
+          .single(),
+      ).id;
+      const operator = await signedIn("operator", tenantId);
+      const viewer = await signedIn("viewer", tenantId);
+      const stranger = await signedIn("owner", elsewhere);
+      const named = (over) => ({
+        name: "Quiet a month",
+        trigger: "quiet_30",
+        template_id: templateId,
+        template_name: "winback_offer",
+        template_language: "en_US",
+        params: [{ kind: "name" }],
+        policy_class: "reengage",
+        run_hour: 11,
+        cap_per_run: 40,
+        gap_days: 60,
+        cadence_days: 30,
+        channels: ["whatsapp", "email"],
+        ...over,
+      });
+      const start = (who, playbook_, over = {}) =>
+        who.client.rpc("start_playbook", {
+          p_tenant_id: tenantId,
+          p_playbook: playbook_,
+          p_decision: { name: playbook_.name, trigger: playbook_.trigger },
+          ...over,
+        });
+      const count = async (table, verb) => {
+        const q = db.from(table).select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
+        const r = await (verb ? q.eq("verb", verb) : q);
+        assert.equal(r.error, null, r.error?.message);
+        return r.count;
+      };
+      const standing = async () => [await count("playbooks"), await count("decisions", "start_playbook")];
+      const before_ = await standing();
+
+      // An operator's: the row, running, theirs, a moment, with what they named; and its line, said from Ask. What a
+      // caller says of the workspace, who made it, its state and its kind is not theirs to say.
+      const made = ok(
+        await start(
+          operator,
+          named({ tenant_id: elsewhere, created_by: viewer.id, state: "paused", kind: "reach_out" }),
+          { p_via: "ask" },
+        ),
+      );
+      assert.deepEqual([typeof made.id, typeof made.decision_id, made.undo_dropped], ["string", "string", false]);
+      const row = ok(
+        await db
+          .from("playbooks")
+          .select(
+            "tenant_id, name, trigger, template_id, params, policy_class, state, kind, run_hour, cap_per_run, gap_days, cadence_days, channels, created_by, list_id, list_key",
+          )
+          .eq("id", made.id)
+          .single(),
+      );
+      assert.deepEqual(row, {
+        tenant_id: tenantId,
+        name: "Quiet a month",
+        trigger: "quiet_30",
+        template_id: templateId,
+        params: [{ kind: "name" }],
+        policy_class: "reengage",
+        state: "running",
+        kind: "moment",
+        run_hour: 11,
+        cap_per_run: 40,
+        gap_days: 60,
+        cadence_days: 30,
+        channels: ["whatsapp", "email"],
+        created_by: operator.id,
+        list_id: null,
+        list_key: null,
+      });
+      const line = ok(
+        await db
+          .from("decisions")
+          .select("tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload, undo_of")
+          .eq("id", made.decision_id)
+          .single(),
+      );
+      assert.deepEqual(line, {
+        tenant_id: tenantId,
+        subject_type: "playbook",
+        subject_id: made.id,
+        verb: "start_playbook",
+        actor_type: "user",
+        actor_user_id: operator.id,
+        payload: { name: "Quiet a month", trigger: "quiet_30", via: "ask" },
+        undo_of: null,
+      });
+      // On one of the workspace's own lists, with an undo link nobody holds: started, and the link dropped and said.
+      const listed = ok(
+        await start(
+          operator,
+          named({ name: "Regulars", trigger: "saved_list", policy_class: "campaign", list_id: listA }),
+          {
+            p_undo_of: "00000000-0000-4000-8000-000000000357",
+          },
+        ),
+      );
+      assert.equal(listed.undo_dropped, true);
+      assert.deepEqual(await standing(), [before_[0] + 2, before_[1] + 2]);
+
+      // Refused, each by the rule that refused the route's own insert, and neither a row nor a line is left.
+      const refusals = [
+        ["a viewer reads only", await start(viewer, named({})), "42501"],
+        ["another workspace's member", await start(stranger, named({})), "42501"],
+        ["another workspace's message", await start(operator, named({ template_id: theirTemplate })), "42501"],
+        ["a cap the table refuses", await start(operator, named({ cap_per_run: 0 })), "23514"],
+        [
+          "a reach-out's moment, which is never a member's to insert",
+          await start(operator, named({ trigger: "lead_first" })),
+          "23514",
+        ],
+        ["a playbook named in part", await start(operator, named({ policy_class: null })), "23502"],
+      ];
+      for (const [why, r, code] of refusals) assert.equal(r.error?.code, code, `${why}: ${r.error?.message}`);
+      const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+      const out = await anon.rpc("start_playbook", { p_tenant_id: tenantId, p_playbook: named({}) });
+      assert.ok(out.error, "a caller nobody signed in as is refused");
+      assert.deepEqual(await standing(), [before_[0] + 2, before_[1] + 2], "nothing refused left a row or a line");
+
+      // member_decision by itself: a line as the caller's own, in a workspace they act in, and nobody else's.
+      const own = ok(
+        await operator.client.rpc("member_decision", {
+          p_tenant_id: tenantId,
+          p_subject_type: "playbook",
+          p_subject_id: made.id,
+          p_verb: "pause_playbook",
+          p_payload: { name: "Quiet a month" },
+        }),
+      );
+      const ownLine = ok(
+        await db.from("decisions").select("actor_user_id, verb, payload").eq("id", own.decision_id).single(),
+      );
+      assert.deepEqual(ownLine, {
+        actor_user_id: operator.id,
+        verb: "pause_playbook",
+        payload: { name: "Quiet a month" },
+      });
+      for (const [why, who] of [
+        ["a viewer", viewer],
+        ["another workspace's member", stranger],
+      ]) {
+        const r = await who.client.rpc("member_decision", {
+          p_tenant_id: tenantId,
+          p_subject_type: "playbook",
+          p_subject_id: made.id,
+          p_verb: "pause_playbook",
+        });
+        assert.equal(r.error?.code, "P0002", `${why}: ${r.error?.message}`);
+      }
+    } finally {
+      await db.from("tenants").delete().eq("id", elsewhere);
+    }
+  },
+);

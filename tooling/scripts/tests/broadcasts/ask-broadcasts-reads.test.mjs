@@ -156,7 +156,8 @@ const rowOf = (b) => {
     broadcast_id: b.id,
     route: `broadcasts/run:${b.id}`,
     name: b.name,
-    by: b.playbook_id ? "a playbook" : "a person",
+    // A person reads "campaign", never "playbook" (decision 19), and the model repeats what the row says.
+    by: b.playbook_id ? "a campaign" : "a person",
     audience: b.audience.label,
     template: b.template_name,
     state: vm.stateLabel,
@@ -182,7 +183,7 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
   const waiting = out.broadcasts.find((b) => b.broadcast_id === BC2);
   assert.deepEqual(
     [waiting.state, waiting.waiting_on_you, waiting.by, waiting.audience],
-    ["Waiting on you", true, "a playbook", "Quiet 30 days"],
+    ["Waiting on you", true, "a campaign", "Quiet 30 days"],
   );
   assert.ok(out.broadcasts.find((b) => b.broadcast_id === BC3).why_it_failed, "a failed run says why");
   // A run that went by WhatsApp and text says each, and its read is a share of WhatsApp's one (0030).
@@ -192,7 +193,7 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
   // WhatsApp (0030), the one channel that keeps read receipts.
   const words = READ_DEFS.find((d) => d.name === "campaigns").actions.broadcasts.words;
   assert.equal(out.broadcasts.find((b) => b.broadcast_id === BC1).by, "a person");
-  assert.ok(words.includes("whether a playbook or a person sent it"), words);
+  assert.ok(words.includes("whether a campaign or a person sent it"), words);
   assert.ok(words.includes("the share of those delivered, the share of those sent by WhatsApp that were read"), words);
   assert.ok(!out.broadcasts.some((b) => b.broadcast_id === BCB), "not another workspace's");
   for (const b of page.rows) assert.deepEqual(tc.read.broadcast.get(b.id), b, `${b.label}: the reader's row`);

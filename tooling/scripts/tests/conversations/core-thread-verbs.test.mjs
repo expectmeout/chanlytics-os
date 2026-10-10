@@ -24,20 +24,16 @@ function fakes(over = {}) {
   const log = [];
   const answers = {
     pauseMs: 2 * HOUR,
-    claim: true,
-    release: true,
+    takeOver: { withdrawn_drafts: 1, decision_id: "d1" },
+    handBack: { decision_id: "d1" },
     snooze: true,
     wake: true,
     archive: true,
-    takeControl: undefined,
-    letControlGo: undefined,
-    withdrawDrafts: 1,
     resolveEscalation: undefined,
     record: "d1",
     resolve: true,
     link: undefined,
-    cancelQueued: true,
-    cancelJob: 1,
+    callBack: { decision_id: "d1" },
     ...over,
   };
   const ports = { now: () => NOW };
@@ -61,53 +57,52 @@ const refused = async (p, code, status, words) =>
       (words === undefined || words.test(e.message)),
   );
 
-test("take over: the claim IS the pause, then the hold, then the drafts, then the ledger", async () => {
+test("take over: the pause is decided here, and the claim, the hold, the drafts and the ledger are one call", async () => {
   const { ports, log, call, ops } = fakes();
-  const r = await core.takeOver(ports, { conv: conv(), userId: "u1" });
+  const r = await core.takeOver(ports, { conv: conv() });
   const until = new Date(NOW + 2 * HOUR).toISOString();
-  // The hold on who is speaking (00132) is taken between the claim and the
-  // withdrawal, and that position is the point of it: a draft written in the
-  // same second still reaches the wire, and the wire asks this.
-  assert.deepEqual(ops(), ["claim", "takeControl", "withdrawDrafts", "record"]);
-  assert.deepEqual(log[0], ["claim", "c1", until, "u1"]);
-  assert.deepEqual(call("record"), ["record", "t1", "conversation", "c1", "take_over", { paused_until: until }]);
+  // How long is the verb's (the workspace's pause, from now); the door takes
+  // the moment and writes the rest in one transaction (00386): the claim IS the
+  // pause, the hold on who is speaking (00132) is taken with it, the drafts
+  // written before it are withdrawn, and the ledger says who. Four writes on
+  // two clients used to make this, and each after the first could fail with the
+  // ones before it standing.
+  assert.deepEqual(ops(), ["takeOver"]);
+  assert.deepEqual(log[0], ["takeOver", "t1", "c1", until]);
+  assert.equal(call("record"), undefined, "the decision is the door's: no second write records it");
   assert.deepEqual(r, { state: "needs_human", paused_until: until, decision_id: "d1", withdrawn_drafts: 1 });
   // A person reached by email alone is taken over EXACTLY as one with a number.
   // It used to differ: the first step was a mirror keyed by the phone number,
   // so a thread with none skipped it, and "does this person have a number" was
   // a branch in a verb that has nothing to do with numbers.
   const bare = fakes();
-  const taken = await core.takeOver(bare.ports, { conv: conv({ phone_e164: null }), userId: "u1" });
-  assert.deepEqual(bare.ops(), ["claim", "takeControl", "withdrawDrafts", "record"]);
+  const taken = await core.takeOver(bare.ports, { conv: conv({ phone_e164: null }) });
+  assert.deepEqual(bare.ops(), ["takeOver"]);
   assert.equal(taken.paused_until, until);
 });
 
-test("take over: a claim that changed no row is a 409 that leaves nothing behind", async () => {
+test("take over: a door that changed no row is a 409 that leaves nothing behind", async () => {
   // There is nothing to undo now. The mirror this used to release was a second
   // store the receptionist read; the row is the only one, so a claim that
-  // matched nothing simply did not happen.
+  // matched nothing simply did not happen, and the door wrote nothing after it.
   for (const c of [conv(), conv({ phone_e164: null })]) {
-    const lost = fakes({ claim: false });
-    await refused(core.takeOver(lost.ports, { conv: c, userId: "u1" }), "conflict", 409, /reload/);
-    assert.deepEqual(lost.ops(), ["claim"]);
+    const lost = fakes({ takeOver: null });
+    await refused(core.takeOver(lost.ports, { conv: c }), "conflict", 409, /reload/);
+    assert.deepEqual(lost.ops(), ["takeOver"]);
   }
 });
 
-test("hand back: the thread opened, the hold let go, the decision recorded, and the open escalation resolved by it", async () => {
+test("hand back: the thread opened, the hold let go, the decision recorded and the open escalation resolved, as one call", async () => {
   const { ports, log, call, ops } = fakes();
-  assert.deepEqual(await core.handBack(ports, { conv: conv(), userId: "u1" }), { state: "open", decision_id: "d1" });
-  // The hold goes LAST, and only if it is ours: a release that ran first and
-  // then failed to open the row would leave the receptionist free on a thread
-  // still marked for a person, which is the one direction this must not fail in.
-  assert.deepEqual(ops(), ["release", "letControlGo", "record", "resolveEscalation"]);
-  assert.deepEqual(log[0], ["release", "c1"]);
-  assert.deepEqual(call("resolveEscalation"), ["resolveEscalation", "c1", "d1"]);
-  assert.deepEqual(
-    call("letControlGo"),
-    ["letControlGo", "t1", "c1", "u1"],
-    "only this person\u2019s hold: somebody else\u2019s is left where it is",
-  );
-  // With or without a number, held or not: the same four calls. Each of those
+  assert.deepEqual(await core.handBack(ports, { conv: conv() }), { state: "open", decision_id: "d1" });
+  // The release and the hold let go are one transaction (00386): a release that
+  // ran and a hold that then failed to go left the receptionist held off a
+  // thread the Inbox showed open, which is the one direction this must not fail
+  // in. Only this person's hold: somebody else's is the door's to leave alone.
+  assert.deepEqual(ops(), ["handBack"]);
+  assert.deepEqual(log[0], ["handBack", "t1", "c1"]);
+  assert.equal(call("resolveEscalation"), undefined, "the escalation is resolved by the door, by its own decision");
+  // With or without a number, held or not: the same one call. Each of those
   // used to change the shape, because a second store was keyed by the number.
   const bare = fakes();
   assert.deepEqual(
@@ -116,7 +111,7 @@ test("hand back: the thread opened, the hold let go, the decision recorded, and 
     }),
     { state: "open", decision_id: "d1" },
   );
-  assert.deepEqual(bare.ops(), ["release", "letControlGo", "record", "resolveEscalation"]);
+  assert.deepEqual(bare.ops(), ["handBack"]);
 });
 
 test("hand back, snooze and archive: a row that did not change leaves nothing behind", async () => {
@@ -125,14 +120,9 @@ test("hand back, snooze and archive: a row that did not change leaves nothing be
   // the store. What is left is the property it was reaching for, and it now
   // holds by construction: a verb that changed no row did nothing at all.
   const until = new Date(NOW + HOUR).toISOString();
-  const hb = fakes({ release: false });
-  await refused(
-    core.handBack(hb.ports, { conv: conv({ paused_until: until }), userId: "u1" }),
-    "conflict",
-    409,
-    /reload/,
-  );
-  assert.deepEqual(hb.ops(), ["release"], "no decision and no resolve for a change that never happened");
+  const hb = fakes({ handBack: null });
+  await refused(core.handBack(hb.ports, { conv: conv({ paused_until: until }) }), "conflict", 409, /reload/);
+  assert.deepEqual(hb.ops(), ["handBack"], "no decision and no resolve for a change that never happened");
   const sn = fakes({ snooze: false });
   await refused(
     core.snooze(sn.ports, { conv: conv({ paused_until: until }), until: new Date(NOW + 2 * HOUR).toISOString() }),
@@ -218,7 +208,10 @@ test("archive: the thread closed and the escalation resolved, held or not", asyn
  * The verbs above no longer release the receptionist themselves -- the UPDATE
  * does it, in the same statement that moves the state. That is only true if
  * the UPDATE says so, so it is read here rather than assumed: this is the half
- * that used to be covered by a compensation step nobody could see failing.
+ * that used to be covered by a compensation step nobody could see failing. The
+ * take-over's and the hand-back's UPDATEs are SQL's own now (00386), held to
+ * the same table on a real database in
+ * conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs.
  * -------------------------------------------------------------------------- */
 
 test("every state a verb writes clears what that state cannot coexist with", async () => {
@@ -233,16 +226,6 @@ test("every state a verb writes clears what that state cannot coexist with", asy
   });
 
   for (const [verb, call, expect] of [
-    [
-      "claim",
-      (p) => p.claim("c1", new Date(NOW + HOUR).toISOString(), "u1"),
-      { state: "needs_human", snooze_until: null, assignee_user_id: "u1" },
-    ],
-    [
-      "release",
-      (p) => p.release("c1"),
-      { state: "open", paused_until: null, snooze_until: null, assignee_user_id: null },
-    ],
     [
       "snooze",
       (p) => p.snooze("c1", new Date(NOW + 2 * HOUR).toISOString()),

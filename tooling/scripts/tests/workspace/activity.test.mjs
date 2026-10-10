@@ -12,8 +12,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   activityWords,
   activityTone,
+  activityLines,
+  activityRowsForLines,
+  activityFamily,
+  activityKindGroups,
+  activityDoor,
+  activityMemberWords,
   isActivityNoise,
   ACTIVITY_KINDS,
+  ACTIVITY_FOLD_KINDS,
+  ACTIVITY_FAMILIES,
+  ACTIVITY_PROBLEM_KINDS,
   DECISION_VERBS,
   DECISION_SUBJECTS,
   EVENT_KINDS,
@@ -126,8 +135,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   );
   assert.equal(
     activityWords("channel.message_template_status_update", { waba_id: "1" }),
-    "Channel · message template status update",
-    "a computed kind reads as words, not as a key",
+    "Meta reviewed a message",
+    "Meta's own news of the account is said as what Meta did, never as its field",
   );
   assert.equal(activityWords("something.new", null), "Something · new");
   assert.equal(activityWords("message.received", "not an object"), "A customer wrote");
@@ -189,7 +198,10 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 
 // 49: the two kinds of a gate pausing and the back office resuming a workspace's offers by email (00299) are toned.
 // 50: a run that stopped (broadcast.stopped) is danger, as a line that failed is.
-const TONED_KINDS = 50;
+// 54: a thread handed to the team is info; a member joining and answering switched on are ok; switched off is warn.
+// 61: a payment that failed is danger; a member leaving, a booking cancelled and a reach-out stopped are warn; a
+// booking that arrived and a payment that went through are ok; the owner answering from their own app is info.
+const TONED_KINDS = 61;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.
@@ -514,7 +526,8 @@ test("a page is cut after the merge, and the next one starts from the cursor rat
   t.events = Array.from({ length: 130 }, (_, i) => ({
     id: `x${i}`,
     tenant_id: A,
-    kind: "message.received",
+    // A kind that never folds (a failure is its own news), so a page is its hundred rows and no more.
+    kind: "message.send_failed",
     subject_type: "message",
     subject_id: `m${i}`,
     data: {},
@@ -545,7 +558,8 @@ test("rows written in the same instant survive the page edge: the cursor carries
   t.events = Array.from({ length: 130 }, (_, i) => ({
     id: `x${String(i).padStart(3, "0")}`,
     tenant_id: A,
-    kind: "message.received",
+    // A kind that never folds (a failure is its own news), so a page is its hundred rows and no more.
+    kind: "message.send_failed",
     subject_type: "message",
     subject_id: `m${i}`,
     data: {},
@@ -736,7 +750,7 @@ test("a WhatsApp connection, a milestone and a held review reply say what they a
   // Meta's decision on a display name (phone_number_name_update) is one of the computed channel.<field> family: words, not a key.
   assert.equal(
     activityWords("channel.phone_number_name_update", { waba_id: "1", decision: "APPROVED" }),
-    "Channel · phone number name update",
+    "Meta reviewed a WhatsApp number's name",
   );
   assert.equal(isActivityNoise("channel.phone_number_name_update"), false, "an owner reads a decision on a name");
   assert.equal(
@@ -869,4 +883,583 @@ test("a message held at the wire, or that failed, says why where its event carri
     "A message could not be sent · the channel has no credentials to send with",
   );
   assert.equal(activityWords("message.send_failed", { reason: "something_new" }), "A message could not be sent");
+});
+
+/* ------------------------- folds, names, and who did it ------------------------- */
+
+const U_ADA = "aaaaaaaa-0000-4000-8000-00000000ada0";
+/** A row of the log as the fold reads it. */
+const line = (id, kind, at, over = {}) => ({
+  id,
+  at,
+  kind,
+  actor_user_id: null,
+  actor_type: null,
+  subject_type: "call",
+  subject_id: `s-${id}`,
+  text: activityWords(kind, {}),
+  ...over,
+});
+const utcDay = (iso) => iso.slice(0, 10);
+
+test("rows of one kind by one hand on one day are one line, where the newest stood; a failure, a stop and a kind with no words never fold", () => {
+  const hers = { actor_user_id: U_ADA, actor_type: "user" };
+  const rows = [
+    line("d-5", "open_recording", "2026-10-08T16:13:05Z", hers),
+    line("e-9", "message.send_failed", "2026-10-08T16:13:04Z"),
+    line("d-4", "open_recording", "2026-10-08T16:13:03Z", hers),
+    line("e-8", "message.send_failed", "2026-10-08T16:13:02Z"),
+    line("d-3", "open_recording", "2026-10-08T16:13:01Z", { actor_user_id: "another", actor_type: "user" }),
+    line("d-2", "open_recording", "2026-10-07T10:00:00Z", hers),
+    line("d-1", "export", "2026-10-07T09:00:00Z", hers),
+    line("d-0", "export", "2026-10-07T08:00:00Z", hers),
+  ];
+  const lines = activityLines(rows, utcDay);
+  assert.deepEqual(
+    lines.map((l) => [l.row.id, l.count, l.title]),
+    [
+      ["d-5", 2, "Listened to 2 calls' recordings"],
+      ["e-9", 1, null],
+      ["e-8", 1, null],
+      ["d-3", 1, null],
+      ["d-2", 1, null],
+      ["d-1", 1, null],
+      ["d-0", 1, null],
+    ],
+    "her two of the 8th are one line where the newer stood; another member's, and hers of the day before, are their own; two failures and two exports stay two",
+  );
+  assert.deepEqual(
+    lines[0].members.map((m) => m.id),
+    ["d-5", "d-4"],
+    "what it opens to, newest first",
+  );
+  assert.equal(lines[0].since, "2026-10-08T16:13:03Z", "and since when");
+  assert.equal(activityLines(rows.slice(0, 3), utcDay)[0].key, lines[0].key, "a fold keeps its key as more is read");
+  assert.equal(activityLines(rows, utcDay, false).length, rows.length, "asked for by name, nothing folds");
+});
+
+test("a fold counts what its kind counts: the calls, not the rows about one call; one thing said twice is that thing, twice", () => {
+  const twice = [
+    line("d-2", "open_recording", "2026-10-08T16:00:00Z", { subject_id: "k1" }),
+    line("d-1", "open_recording", "2026-10-08T14:00:00Z", { subject_id: "k1" }),
+  ];
+  assert.equal(activityLines(twice, utcDay)[0].title, "Listened to a call's recording · 2 times");
+  const three = [...twice, line("d-0", "open_recording", "2026-10-08T12:00:00Z", { subject_id: "k2" })];
+  assert.equal(activityLines(three, utcDay)[0].title, "Listened to 2 calls' recordings", "three rows, two calls");
+  const wrote = [1, 2, 3].map((i) =>
+    line(`e-${i}`, "message.received", `2026-10-08T1${i}:00:00Z`, { subject_id: "m" }),
+  );
+  assert.equal(activityLines(wrote, utcDay)[0].title, "3 messages came in", "a kind whose noun is the row counts rows");
+  // A campaign's runs fold in the reader's word, never "playbook" (decision 19).
+  const ran = [1, 2, 3].map((i) =>
+    line(`r-${i}`, "playbook.run", `2026-10-08T1${i}:00:00Z`, { subject_id: `pb-${i}` }),
+  );
+  assert.equal(activityLines(ran, utcDay)[0].title, "Campaigns ran 3 times");
+  const emailed = [1, 2].map((i) =>
+    line(`e-r${i}`, "lead.emailed", `2026-10-08T1${i}:00:00Z`, {
+      text: activityWords("lead.emailed", { by: "reach_out" }),
+    }),
+  );
+  const byHand = [3, 4].map((i) => line(`e-h${i}`, "lead.emailed", `2026-10-08T0${i}:00:00Z`));
+  assert.deepEqual(
+    activityLines([...emailed, ...byHand], utcDay).map((l) => l.title),
+    ["2 reach-out emails went to leads", "2 leads were marked as emailed"],
+    "a reach-out's emails and an owner's own marks are two lines, each in its words",
+  );
+});
+
+test("every kind that folds is a kind a ledger holds, is shown without being asked for, and is neither a failure nor a stop", () => {
+  for (const k of ACTIVITY_FOLD_KINDS) {
+    assert.ok(ACTIVITY_KINDS.includes(k), `${k} is a kind a ledger can hold`);
+    assert.equal(isActivityNoise(k), false, `${k} is not a kept record`);
+    assert.ok(!["danger", "warn"].includes(activityTone(k)), `${k}: a failure or a stop is its own news`);
+  }
+});
+
+test("a reader that says so many lines reads the rows that make them, and no more", () => {
+  const rows = [
+    ...[5, 4, 3].map((i) => line(`e-m${i}`, "message.received", `2026-10-08T1${i}:00:00Z`)),
+    line("d-x", "export", "2026-10-08T09:00:00Z"),
+    line("e-m0", "message.received", "2026-10-08T08:00:00Z"),
+    line("d-y", "export", "2026-10-08T07:00:00Z"),
+  ];
+  assert.equal(activityRowsForLines(rows, utcDay, 2), 5, "two lines: the messages (the late one too) and one export");
+  assert.equal(activityRowsForLines(rows, utcDay, 1), 3, "one line ends where the second would begin");
+  assert.equal(activityRowsForLines(rows, utcDay, 9), rows.length);
+});
+
+test("every kind either ledger holds has a family, and the picker says each kind in its rows' words", () => {
+  for (const k of ACTIVITY_KINDS) assert.ok(ACTIVITY_FAMILIES.includes(activityFamily(k)), `${k} has a family`);
+  assert.equal(activityFamily("open_recording"), "calls");
+  assert.equal(activityFamily("policy.veto_window_skipped"), "conversations", "named for where it is read");
+  assert.equal(activityFamily("channel.phone_number_quality_update"), "connections", "Meta's own news of a number");
+  assert.equal(activityFamily("something.new"), null, "a kind of a newer build belongs to none");
+  const groups = activityKindGroups(ACTIVITY_KINDS);
+  const calls = groups.find((g) => g.family === "calls");
+  assert.ok(calls.kinds.some((k) => k.kind === "open_recording" && k.label === "Listened to a call's recording"));
+  assert.equal(groups.flatMap((g) => g.kinds).length, ACTIVITY_KINDS.length, "each kind once");
+  for (const g of groups)
+    for (const k of g.kinds) assert.ok(!/^[a-z_]+(\.[a-z_]+)?$/.test(k.label), `${k.kind} is said in words`);
+  assert.ok(ACTIVITY_PROBLEM_KINDS.includes("message.send_failed") && ACTIVITY_PROBLEM_KINDS.includes("snooze"));
+  assert.ok(!ACTIVITY_PROBLEM_KINDS.includes("ingest.unroutable"), "a kept record is asked for by name");
+});
+
+test("a row opens the page of what it is about, and a fold's row says only what the fold has not", () => {
+  assert.equal(activityDoor({ subject_type: "contact", subject_id: P1 }), `clients/${P1}`);
+  assert.equal(activityDoor({ subject_type: "call", subject_id: K1 }), `conversations/cv-${K1}`);
+  assert.equal(activityDoor({ subject_type: "lead", subject_id: "l1" }), "clients/leads:p-l1");
+  assert.equal(activityDoor({ subject_type: "broadcast", subject_id: "b1" }), "broadcasts/run:b1");
+  assert.equal(activityDoor({ subject_type: "membership", subject_id: "m1" }), "admin/team");
+  assert.equal(activityDoor({ subject_type: "workspace", subject_id: A }), null);
+  const heard = { kind: "open_recording", text: "Listened to a call's recording" };
+  assert.equal(activityMemberWords(heard, "Dana Ortiz"), "Dana Ortiz", "the fold said the rest");
+  assert.equal(activityMemberWords(heard, null), "Listened to a call's recording");
+  const logged = { kind: "lead.call", text: "A call to a lead was logged · No answer" };
+  assert.equal(activityMemberWords(logged, "Harbor Movers"), "A call to a lead was logged · No answer · Harbor Movers");
+});
+
+/** `n` events of one kind, a second apart; ids `<p>0` (the oldest) to `<p>n-1`. */
+const burst = (p, n, kind, startMs) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${p}${i}`,
+    tenant_id: A,
+    kind,
+    subject_type: "message",
+    subject_id: `${p}m${i}`,
+    data: {},
+    created_at: new Date(startMs + i * 1000).toISOString(),
+  }));
+
+test("a page whose rows fold to a handful of lines reads on, until it holds a page of lines or the log ends", async () => {
+  const t = tables();
+  t.decisions = [];
+  // Thirty failures, older; then two hundred and fifty messages in, all on one day: one line.
+  t.events = [
+    ...burst("f", 30, "message.send_failed", Date.UTC(2026, 8, 1, 14, 0)),
+    ...burst("m", 250, "message.received", Date.UTC(2026, 8, 1, 15, 0)),
+  ];
+  const r = await route.GET.run(get(), ctxFor(t, rpcs));
+  assert.equal(r.rows.length, 280, "the hundred was one line, and so was the next: it read to the lines behind them");
+  assert.equal(r.page.has_more, false);
+  assert.equal(r.rows[0].id, "e-m249");
+  assert.equal(r.page.next_cursor, `${r.rows[279].at}|e-f0`);
+  assert.equal(activityLines(r.rows, utcDay).length, 31);
+});
+
+test("a burst longer than five reads stops there, and the next page goes straight on from it", async () => {
+  const t = tables();
+  t.decisions = [];
+  t.events = burst("m", 620, "message.received", Date.UTC(2026, 8, 1, 12, 0));
+  const first = await route.GET.run(get(), ctxFor(t, rpcs));
+  assert.equal(first.rows.length, 500, "five reads of a hundred, and no more for one request");
+  assert.equal(first.page.has_more, true);
+  const second = await route.GET.run(get(`&cursor=${encodeURIComponent(first.page.next_cursor)}`), ctxFor(t, rpcs));
+  assert.equal(second.rows.length, 120);
+  assert.equal(new Set([...first.rows, ...second.rows].map((x) => x.id)).size, 620, "none lost, none twice");
+  const named = await route.GET.run(get("&kind=message.received"), ctxFor(t, rpcs));
+  assert.equal(named.rows.length, 100, "asked for by name its rows are what is read: a page is its hundred");
+});
+
+test("a row says who or what it is about by name, an event names the member its data does, and the members are listed for the picker", async () => {
+  const U_BO = "bbbbbbbb-0000-4000-8000-0000000000b0";
+  const t = tables();
+  t.contacts = [
+    {
+      id: P1,
+      tenant_id: A,
+      display_name: "Dana Ortiz",
+      wa_profile_name: null,
+      phone_e164: "+13055550101",
+      email: null,
+    },
+  ];
+  t.segments = [{ id: "seg1", tenant_id: A, name: "Regulars" }];
+  t.events = [
+    ...t.events,
+    {
+      id: "e9",
+      tenant_id: A,
+      kind: "settings.changed",
+      subject_type: "workspace",
+      subject_id: A,
+      data: { fields: ["hours"], by: U_BO },
+      created_at: "2026-09-12T14:00:00Z",
+    },
+    {
+      id: "e10",
+      tenant_id: A,
+      kind: "line.answering",
+      subject_type: "line",
+      subject_id: "ln1",
+      data: { by: "owner" },
+      created_at: "2026-09-12T14:01:00Z",
+    },
+  ];
+  t.decisions = [
+    ...t.decisions,
+    {
+      id: "d9",
+      tenant_id: A,
+      verb: "make_list",
+      subject_type: "list",
+      subject_id: "seg1",
+      actor_type: "user",
+      actor_user_id: "u-ada",
+      payload: {},
+      created_at: "2026-09-12T14:02:00Z",
+    },
+  ];
+  const team = {
+    team_roster: () => [
+      ...rpcs.team_roster(),
+      { membership_id: "m3", member_user_id: U_BO, email: "bo@example.com", display_name: "Bo", role: "operator" },
+    ],
+  };
+  const r = await route.GET.run(get(), ctxFor(t, team));
+  assert.deepEqual(
+    r.subjects,
+    {
+      [`contact:${P1}`]: "Dana Ortiz",
+      [`conversation:${C1}`]: "Dana Ortiz",
+      [`call:${K1}`]: "Dana Ortiz",
+      "list:seg1": "Regulars",
+    },
+    "a person by their name, their thread and their call by it too, a list by its own; a workspace, a message and a line by none",
+  );
+  const changed = r.rows.find((x) => x.id === "e-e9");
+  assert.equal(changed.actor_user_id, U_BO, "REGRESSION: an event's own `by` was read as nobody");
+  assert.equal(r.actors[U_BO], "Bo");
+  assert.equal(r.rows.find((x) => x.id === "e-e10").actor_user_id, null, "a role's word in `by` is not a member");
+  assert.deepEqual(
+    r.members.map((m) => m.name),
+    ["Ada", "bo@example.com", "Bo"],
+    "the roster, each by the name the rows say",
+  );
+  const hers = await route.GET.run(get(`&actor=${U_BO}`), ctxFor(t, team));
+  assert.deepEqual(ids(hers), ["e-e9"], "narrowed to a member: what the ledgers say they did, events included");
+});
+
+test("the log is narrowed to a family, to what went wrong, to the receptionist's own, and to a span of days", async () => {
+  const t = tables();
+  t.decisions = [
+    ...t.decisions,
+    {
+      id: "d7",
+      tenant_id: A,
+      verb: "reply",
+      subject_type: "conversation",
+      subject_id: C1,
+      actor_type: "ai",
+      actor_user_id: null,
+      payload: {},
+      created_at: "2026-09-10T12:00:00Z",
+    },
+    {
+      id: "d8",
+      tenant_id: A,
+      verb: "snooze",
+      subject_type: "conversation",
+      subject_id: C1,
+      actor_type: "user",
+      actor_user_id: "u-ada",
+      payload: {},
+      created_at: "2026-09-10T13:00:00Z",
+    },
+  ];
+  const run = async (q) => ids(await route.GET.run(get(q), ctxFor(t, rpcs)));
+  assert.deepEqual(await run("&family=conversations"), ["d-d2", "e-e1", "d-d8", "d-d7"], "its verbs and its events");
+  assert.deepEqual(await run("&family=calls"), ["e-e4"]);
+  assert.deepEqual(await run("&family=records"), ["e-e3", "e-e2"], "the kept records, under their own family alone");
+  assert.deepEqual(await run("&family=team"), [], "a family with nothing to say reads nothing");
+  assert.deepEqual(await run("&only=problems"), ["d-d8"], "a stop is one; a finished broadcast is not");
+  assert.deepEqual(await run("&actor=receptionist"), ["d-d7"], "the receptionist's decisions, and no event");
+  assert.deepEqual(await run("&actor=system"), []);
+  assert.deepEqual(
+    await run("&from=2026-09-10&to=2026-09-10"),
+    ["d-d8", "d-d7", "e-e4"],
+    "one day as a span, by the workspace's clock",
+  );
+  assert.deepEqual(await run("&from=2026-09-12"), ["e-e5"], "open at its far end");
+  await assert.rejects(route.GET.run(get("&family=everything"), ctxFor(t, rpcs)), (e) => e.code === "validation");
+  await assert.rejects(route.GET.run(get("&actor=nobody"), ctxFor(t, rpcs)), (e) => e.code === "validation");
+});
+
+test("what the ledgers never kept is said in an owner's words: a thread handed over, a member joining, a playbook or a message changed, answering switched on or off, and Meta's own news", () => {
+  assert.equal(
+    activityWords("escalation.opened", { reason: "callback" }).startsWith("A thread was handed to the team · "),
+    true,
+  );
+  assert.equal(activityWords("escalation.opened", {}), "A thread was handed to the team");
+  assert.equal(activityWords("member.joined", { by: "u1", role: "operator" }), "Joined the workspace · as operator");
+  assert.equal(
+    activityWords("playbook.changed", { name: "Win-back", by: "u1", fields: ["message", "channels"] }),
+    "A campaign was edited · Win-back · message, channels",
+  );
+  assert.equal(
+    activityWords("playbook.changed", { name: "Win-back", by: "u1", fields: [] }),
+    "A campaign was edited · Win-back",
+  );
+  // A campaign to whoever reads the log, never a playbook (decision 19): the ledger's kinds keep their names.
+  assert.equal(activityWords("playbook.run", {}), "A campaign ran");
+  assert.equal(activityWords("start_playbook", {}), "Started a campaign");
+  assert.equal(activityWords("pause_playbook", {}), "Paused a campaign");
+  assert.equal(
+    activityWords("template.submitted", { name: "spring_offer", language: "en", by: "u1" }),
+    "A message was sent to WhatsApp for approval · spring_offer",
+  );
+  assert.equal(
+    activityWords("template.removed", { name: "spring_offer", language: "en", by: "u1" }),
+    "A message was deleted from the Library · spring_offer",
+  );
+  assert.equal(
+    activityWords("capability.activated", { capability: "voice", by: "u1" }),
+    "Answering was switched on · calls",
+  );
+  assert.equal(
+    activityWords("capability.deactivated", { capability: "sms", by: "u1" }),
+    "Answering was switched off · texts",
+  );
+  assert.equal(
+    activityWords("capability.activated", { capability: "fax" }),
+    "Answering was switched on",
+    "never a guess",
+  );
+  for (const [kind, family] of [
+    ["escalation.opened", "conversations"],
+    ["member.joined", "team"],
+    ["playbook.changed", "campaigns"],
+    ["template.submitted", "campaigns"],
+    ["capability.deactivated", "connections"],
+  ])
+    assert.equal(activityFamily(kind), family, kind);
+  assert.equal(activityTone("capability.deactivated"), "warn");
+  assert.ok(!ACTIVITY_FOLD_KINDS.includes("escalation.opened"), "each thread handed over is its own news");
+  // Meta's seven, each in words: none reads as its field.
+  for (const k of ACTIVITY_KINDS.filter((x) => x.startsWith("channel.")))
+    assert.ok(!activityWords(k, {}).startsWith("Channel · "), `${k} has words of its own`);
+});
+
+test("a thread handed to the team is on the ledger: the one writer of an escalation says so as it opens one", async () => {
+  const { upsertEscalation } = await import(at("packages/jobs/src/escalate.ts"));
+  const world = { escalations: [], events: [] };
+  const db = fakeDb(world);
+  assert.equal(await upsertEscalation(db, A, C1, "callback", "They asked for a call back."), "opened");
+  assert.deepEqual(
+    world.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+    [[A, "escalation.opened", "conversation", C1, { reason: "callback" }]],
+    "REGRESSION: the activity log had no line for a thread the receptionist handed over",
+  );
+});
+
+test("a message and an escalation are their thread's person's, and a deal its person's: named by them, and each opens the page the server looked up", async () => {
+  const t = tables();
+  t.contacts = [
+    { id: P1, tenant_id: A, display_name: "Dana Ortiz", wa_profile_name: null, phone_e164: null, email: null },
+  ];
+  t.messages = [{ id: "msg1", tenant_id: A, contact_id: P1, conversation_id: C1 }];
+  // An escalation on a thread no other row of the page names: its thread is read for it.
+  const C2 = "22222222-2222-4222-8222-000000000002";
+  t.conversations = [...t.conversations, { id: C2, tenant_id: A, contact_id: P1 }];
+  t.escalations = [{ id: "esc1", tenant_id: A, conversation_id: C2 }];
+  t.deals = [{ id: "deal1", tenant_id: A, contact_id: P1 }];
+  const event = (id, kind, subject_type, subject_id, minute) => ({
+    id,
+    tenant_id: A,
+    kind,
+    subject_type,
+    subject_id,
+    data: {},
+    created_at: `2026-09-13T10:0${minute}:00Z`,
+  });
+  t.decisions = [];
+  t.events = [
+    event("f1", "message.send_failed", "message", "msg1", 3),
+    event("f2", "escalation.changed", "escalation", "esc1", 2),
+    event("f3", "deal.won", "deal", "deal1", 1),
+    event("f4", "message.send_failed", "message", "gone", 0),
+  ];
+  const r = await route.GET.run(get("&from=2026-09-13"), ctxFor(t, rpcs));
+  assert.deepEqual(ids(r), ["e-f1", "e-f3", "e-f4"], "the reason that changed stays a kept record");
+  assert.deepEqual(r.subjects, { "message:msg1": "Dana Ortiz", "deal:deal1": "Dana Ortiz" });
+  assert.deepEqual(
+    r.doors,
+    { "message:msg1": `inbox/th-${C1}`, "deal:deal1": `clients/${P1}` },
+    "REGRESSION: a message that could not be sent opened nothing; a subject nothing is read for has no door",
+  );
+  const named = await route.GET.run(get("&kind=escalation.changed"), ctxFor(t, rpcs));
+  assert.deepEqual(
+    [named.subjects["escalation:esc1"], named.doors["escalation:esc1"]],
+    ["Dana Ortiz", `inbox/th-${C2}`],
+    "an escalation is its thread's: named by its person, and it opens the thread",
+  );
+});
+
+test("the second batch of what the ledgers never kept reads in an owner's words: a missed call is said as one, a booking by the tool that sent it, a decision by what was decided, and never a number or an amount", () => {
+  // A call's first sighting says whether it ever connected (ingest_call's { direction, status }).
+  assert.equal(activityWords("call.recorded", { direction: "inbound", status: "ongoing" }), "A call was recorded");
+  assert.equal(activityWords("call.recorded", { direction: "inbound", status: "not_connected" }), "A call was missed");
+  assert.equal(
+    activityWords("call.recorded", { direction: "outbound", status: "not_connected" }),
+    "A call we placed did not connect",
+  );
+  assert.equal(activityWords("call.recorded", {}), "A call was recorded", "a row from before the status was filed");
+
+  assert.equal(
+    activityWords("appointment.booked", { source: "booking_email", tool: "booksy" }),
+    "A booking arrived by email · Booksy",
+  );
+  assert.equal(
+    activityWords("appointment.moved", { source: "booking_email", tool: "mindbody" }),
+    "A booking was changed by email · Mindbody",
+  );
+  assert.equal(activityWords("appointment.cancelled", {}), "A booking was cancelled by email");
+  assert.equal(isActivityNoise("appointment.booked"), false, "an email is one thing that happened: shown");
+  assert.equal(isActivityNoise("appointment.changed"), true, "the calendar's hourly read stays a kept record");
+
+  assert.equal(
+    activityWords("member.left", { by: "u1", how: "account_deleted" }),
+    "Left the workspace · deleted their account",
+  );
+  assert.equal(activityWords("reach_out.lead_stopped", { by: "u1" }), "A reach-out stopped writing to a lead");
+  assert.equal(
+    activityWords("reach_out.send_decided", { decision: "skip", by: "u1" }),
+    "A held reach-out email was skipped",
+  );
+  assert.equal(
+    activityWords("reach_out.send_decided", { decision: "include" }),
+    "A held reach-out email was sent as written",
+  );
+  assert.equal(activityWords("reach_out.send_decided", { decision: "banana" }), "A held reach-out email was decided");
+  assert.equal(activityWords("lead.kept", { by: "u1", search_id: "s1" }), "A lead was kept from Needs review");
+  assert.equal(
+    activityWords("lead.search_renamed", { name: "Movers in Tampa", by: "u1" }),
+    "A search was renamed · Movers in Tampa",
+  );
+  assert.equal(
+    activityWords("lead.search_removed", { name: "Movers in Tampa", kept: 3, archived: 40, by: "u1" }),
+    "A search was removed · Movers in Tampa · 3 kept",
+  );
+  assert.equal(
+    activityWords("contact.kept_apart", { by: "u1", doubt_id: "d1" }),
+    "Two records were kept as two people",
+  );
+  assert.equal(
+    activityWords("line.forwarding_set", { carrier: "verizon", mode: "unanswered", by: "u1", number: "+13055550100" }),
+    "Call forwarding was set up · the calls not answered",
+    "which calls, never the number",
+  );
+  assert.equal(
+    activityWords("conversation.owner_replied", { until: "2026-10-08T20:00:00Z" }),
+    "The owner replied from the WhatsApp Business app, and the receptionist stepped back",
+  );
+  assert.equal(
+    activityWords("billing.payment_failed", { amount: 9900 }),
+    "A payment did not go through",
+    "never an amount",
+  );
+  assert.equal(activityWords("billing.paid", {}), "A payment went through");
+  assert.equal(
+    activityWords("billing.trial_ending", { trial_end: "2026-10-11T00:00:00Z" }),
+    "The trial ends in three days",
+  );
+
+  for (const [kind, tone] of [
+    ["billing.payment_failed", "danger"],
+    ["member.left", "warn"],
+    ["appointment.cancelled", "warn"],
+    ["reach_out.lead_stopped", "warn"],
+    ["appointment.booked", "ok"],
+    ["billing.paid", "ok"],
+    ["conversation.owner_replied", "info"],
+  ])
+    assert.equal(activityTone(kind), tone, kind);
+  for (const [kind, family] of [
+    ["appointment.booked", "calendar"],
+    ["member.left", "team"],
+    ["reach_out.send_decided", "leads"],
+    ["lead.search_removed", "leads"],
+    ["billing.payment_failed", "billing"],
+    ["conversation.owner_replied", "conversations"],
+    ["line.forwarding_set", "connections"],
+  ])
+    assert.equal(activityFamily(kind), family, kind);
+  assert.equal(activityDoor({ subject_type: "appointment", subject_id: "ap1" }), "calendar/a-ap1");
+  assert.equal(activityDoor({ subject_type: "lead_search", subject_id: "s1" }), "clients/leads:s-s1");
+});
+
+test("missed calls fold with missed calls and recorded with recorded; a triage session and a run of decisions are one line each", () => {
+  const missed = (i) =>
+    line(`e-m${i}`, "call.recorded", `2026-10-08T1${i}:00:00Z`, {
+      text: activityWords("call.recorded", { direction: "inbound", status: "not_connected" }),
+    });
+  const heard = (i) => line(`e-h${i}`, "call.recorded", `2026-10-08T0${i}:00:00Z`);
+  assert.deepEqual(
+    activityLines([missed(3), missed(2), heard(9), heard(8), heard(7)], utcDay).map((l) => l.title),
+    ["2 calls were missed", "3 calls were recorded"],
+    "a call that never connected is not folded in with the ones that did",
+  );
+  const kept = [1, 2, 3].map((i) => line(`e-k${i}`, "lead.kept", `2026-10-08T1${i}:00:00Z`, { subject_type: "lead" }));
+  assert.equal(activityLines(kept, utcDay)[0].title, "3 leads were kept from Needs review");
+  const skipped = [1, 2].map((i) =>
+    line(`e-s${i}`, "reach_out.send_decided", `2026-10-08T1${i}:00:00Z`, {
+      text: activityWords("reach_out.send_decided", { decision: "skip" }),
+    }),
+  );
+  const sent = line("e-s9", "reach_out.send_decided", "2026-10-08T09:00:00Z", {
+    text: activityWords("reach_out.send_decided", { decision: "include" }),
+  });
+  assert.deepEqual(
+    activityLines([...skipped, sent], utcDay).map((l) => l.title),
+    ["A held reach-out email was skipped · 2 times", null],
+    "each decision folds with its own; one alone is a row",
+  );
+  const booked = [1, 2].map((i) => line(`e-b${i}`, "appointment.booked", `2026-10-08T1${i}:00:00Z`));
+  assert.equal(activityLines(booked, utcDay)[0].title, "2 bookings arrived by email");
+  for (const k of ["billing.payment_failed", "appointment.cancelled", "member.left", "reach_out.lead_stopped"])
+    assert.ok(!ACTIVITY_FOLD_KINDS.includes(k), `${k} is its own news`);
+});
+
+test("a visit and a search are named in the log: a visit by its person, else as its booking said it; a search by its name", async () => {
+  const t = tables();
+  t.contacts = [
+    { id: P1, tenant_id: A, display_name: "Dana Ortiz", wa_profile_name: null, phone_e164: null, email: null },
+  ];
+  t.appointments = [
+    { id: "ap1", tenant_id: A, contact_id: P1, client_name: "D. Ortiz" },
+    { id: "ap2", tenant_id: A, contact_id: null, client_name: "Lee Park" },
+  ];
+  t.lead_searches = [{ id: "s1", tenant_id: A, name: "Movers in Tampa" }];
+  const event = (id, kind, subject_type, subject_id, minute) => ({
+    id,
+    tenant_id: A,
+    kind,
+    subject_type,
+    subject_id,
+    data: { source: "booking_email", tool: "booksy" },
+    created_at: `2026-09-14T10:0${minute}:00Z`,
+  });
+  t.decisions = [];
+  t.events = [
+    event("g1", "appointment.booked", "appointment", "ap1", 3),
+    event("g2", "appointment.cancelled", "appointment", "ap2", 2),
+    event("g3", "lead.search_renamed", "lead_search", "s1", 1),
+  ];
+  const r = await route.GET.run(get("&from=2026-09-14"), ctxFor(t, rpcs));
+  assert.deepEqual(ids(r), ["e-g1", "e-g2", "e-g3"], "a booking by email is shown without being asked for");
+  assert.deepEqual(r.subjects, {
+    "appointment:ap1": "Dana Ortiz",
+    "appointment:ap2": "Lee Park",
+    "lead_search:s1": "Movers in Tampa",
+  });
+  assert.equal(r.rows[0].text, "A booking arrived by email · Booksy");
+  const calendar = await route.GET.run(get("&family=calendar"), ctxFor(t, rpcs));
+  assert.deepEqual(ids(calendar), ["e-g1", "e-g2"], "the Calendar family has something to say now");
+});
+
+test("a campaign changed in place wears the log's edit mark; its pause and its resume keep their own", async () => {
+  const { activityMark } = await import(at("apps/dashboard/src/surfaces/settings/activity/marks.ts"));
+  assert.deepEqual(
+    ["change_playbook", "pause_playbook", "start_playbook"].map((k) => activityMark(k)),
+    ["edit", "pause", "play"],
+  );
 });

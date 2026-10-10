@@ -1,10 +1,14 @@
 /**
- * The day's hold beside the metrics (server/metrics/metrics.ts; packages/db `firstReplies`): `first_replies`, the one rule for
- * who answered and how fast (00303), read in the same breath as `metrics_summary` for a one-day window from 26 hours back, kept to
- * the window's own midnight, run through `holdOf` on the server and handed on as `reply_hold`: the hold most replies waited and how
- * many went out as it ended, later than it, and with none; four numbers, however long the day. So the browser, GET today and Ask say
- * reply speed against the hold from one reading. A read that fails costs the clause, never the page; a longer window is none of
- * Today's and reads none; a day on which no reply waited a hold sends nothing.
+ * The day's hold beside the metrics (server/metrics/metrics.ts; packages/db `firstReplies`): the replies `first_replies` lists, the
+ * one rule for who answered and how fast (00303), kept to the window's own midnight, run through `holdOf` on the server and handed
+ * on as `reply_hold`: the hold most replies waited and how many went out as it ended, later than it, and with none; four numbers,
+ * however long the day. So the browser, GET today and Ask say reply speed against the hold from one reading.
+ *
+ * The replies are `metrics_summary`'s own where it answers them (`replies`, 00359: the rows it read to count who answered): every
+ * read of Today asked `first_replies` for them a second time, beside the function, the two heaviest statements the dashboard makes
+ * (9 Oct 2026). A database the migration has not reached answers none, and is asked `first_replies` from 26 hours back, as it was:
+ * either deploy order works. A read that fails costs the clause, never the page; a longer window is none of Today's and reads
+ * none; a day on which no reply waited a hold sends nothing.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -80,7 +84,72 @@ test("firstReplies: the receptionist's replies as report_series lists them, whol
   await assert.rejects(firstReplies(down.db, A, since), /first_replies.*boom/);
 });
 
-test("a one-day window carries the day's hold: from the replies the window's own midnight keeps, by the one rule, four numbers", async () => {
+/** The function's answer once it carries the day's replies (00359), each as it lists them: asked, seconds, hold, whole. */
+const carrying = (replies, over = {}) =>
+  fakeDb(
+    {
+      memberships: [
+        { user_id: "u1", tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
+      ],
+      mailboxes: [],
+    },
+    {},
+    {
+      metrics_summary: () => ({ ...SUMMARY, ...over, replies }),
+      first_replies: () => {
+        throw new Error("first_replies was asked beside a function that answers the replies");
+      },
+    },
+  );
+
+test("the day's replies are the function's own where it answers them: counted once, by the one rule, and first_replies is not asked again", async () => {
+  // The same day as the test below, as the function lists it: only the receptionist's, already whole, already the window's.
+  const db = carrying([
+    { asked_at: "2026-09-18T14:00:00.25+00:00", s: 61, hold: 60 },
+    { asked_at: "2026-09-18T15:00:00+00:00", s: 95, hold: 60 },
+    { asked_at: "2026-09-18T16:00:00+00:00", s: 7, hold: 0 },
+  ]);
+  const m = await metricsSummaryFor(db, A, 1);
+  assert.deepEqual(m.reply_hold, { label: "1-minute", at_end: 1, later: 1, unheld: 1 });
+  assert.equal(
+    db.seen.filter((q) => q.rpc === "first_replies").length,
+    0,
+    "REGRESSION: who answered first was worked out twice on every read of Today",
+  );
+  assert.equal(db.seen.filter((q) => q.rpc === "metrics_summary").length, 1);
+  assert.equal(m.replies, undefined, "the rows are this server's to count: no list goes over the wire");
+  assert.equal(m.period.median_reply_seconds_ai, 62, "the median is the function's, untouched");
+  // A day nobody was answered on, and a day no reply waited a hold: the function's answer, less the list, and no second read.
+  for (const replies of [[], [{ asked_at: "2026-09-18T16:00:00+00:00", s: 7, hold: 0 }]]) {
+    const quiet = carrying(replies);
+    assert.deepEqual(await metricsSummaryFor(quiet, A, 1), SUMMARY);
+    assert.equal(quiet.seen.filter((q) => q.rpc === "first_replies").length, 0);
+  }
+  // A row that is not a reply is left out, never counted as one nobody waited for.
+  const odd = carrying([
+    { asked_at: "2026-09-18T14:00:00+00:00", s: 61, hold: 60 },
+    { asked_at: null, s: 61, hold: 60 },
+    { asked_at: "2026-09-18T15:00:00+00:00", s: "soon", hold: 60 },
+    null,
+    { asked_at: "2026-09-18T16:00:00+00:00", s: 61 },
+  ]);
+  assert.deepEqual((await metricsSummaryFor(odd, A, 1)).reply_hold, {
+    label: "1-minute",
+    at_end: 1,
+    later: 0,
+    unheld: 1,
+  });
+});
+
+test("a longer window's answer carries no replies (null), and none are asked for: the period's are Reports'", async () => {
+  const db = carrying(null, { window: { ...SUMMARY.window, days: 7 } });
+  const m = await metricsSummaryFor(db, A, 7);
+  assert.equal(m.reply_hold, undefined);
+  assert.equal(m.replies, undefined);
+  assert.equal(db.seen.filter((q) => q.rpc === "first_replies").length, 0);
+});
+
+test("a database the migration has not reached: a one-day window carries the day's hold from first_replies, from the replies the window's own midnight keeps, by the one rule, four numbers", async () => {
   const db = world(() => [
     row({ asked_at: "2026-09-17T23:30:00.000+00:00", ai_seconds: 61.4 }),
     row({ asked_at: "2026-09-18T14:00:00.250+00:00", ai_seconds: 60.6 }),

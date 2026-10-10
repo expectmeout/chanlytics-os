@@ -5,7 +5,7 @@
  * same grammar, with Approve or Stop where the button goes. What already went out is a line of the day's card. The
  * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords).
  */
-import { CAMPAIGNS_PAUSED_WORDS, isReachOutRun, type BroadcastVM } from "@chanlytics/contracts";
+import { CAMPAIGNS_PAUSED_WORDS, LIFECYCLE_WORDS, isReachOutRun, type BroadcastVM } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { gatedProps } from "../../legacy-verbs";
@@ -125,7 +125,8 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
             isReachOutRun(r.audience) || late
               ? { label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }
               : {
-                  label: "Approve",
+                  // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", as every screen says it.
+                  label: LIFECYCLE_WORDS.ledger.approve(r.recipient_count),
                   kind: verbKind(),
                   onClick: () => approve(r),
                   gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),

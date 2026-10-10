@@ -730,12 +730,58 @@ async function askSystemOne(key, ask, deps = {}) {
 }
 
 // src/whatsapp.ts
-import {
-  CONVERSATION_OPT_IN_PATTERN,
-  MARKETING_OPT_IN_PATTERN,
-  OPT_OUT_PATTERN,
-  REFERRAL_ID_MAX
-} from "../../contracts/dist/index.js";
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, REFERRAL_ID_MAX } from "../../contracts/dist/index.js";
+
+// src/stop-request.ts
+import { OPT_OUT_PATTERN, SMS_OPT_OUT_PATTERN } from "../../contracts/dist/index.js";
+var LEADING = /^(?:please|pls|plz|por favor|porfa|porfavor|hey|hi|hello|hola|ok|okay|ya) /;
+var TRAILING = / (?:please|pls|plz|por favor|porfa|porfavor|thanks|thank you|thx|gracias|now|ya)$/;
+function plain(words) {
+  let s = words.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[‘’`´]/g, "'").replace(/[^a-z0-9' ]+/g, " ").replace(/ +/g, " ").trim();
+  for (let before = ""; before !== s; ) {
+    before = s;
+    s = s.replace(LEADING, "").replace(TRAILING, "");
+  }
+  return s;
+}
+var NOT = "(?:do not|don't|dont)";
+var AGAIN = "(?: (?:again|anymore|any more|ever again))?";
+var TEXTS = "(?:messages|texts|sms)";
+var ENGLISH = [
+  "stop (?:it|this|that)",
+  `stop (?:texting|messaging|contacting|calling|emailing|writing|writing to|bothering|spamming)(?: (?:me|us))?${AGAIN}`,
+  `stop sending(?: (?:me|us))?(?: (?:${TEXTS}|these|this|these ${TEXTS}|your ${TEXTS}|anything))?${AGAIN}`,
+  `${NOT} (?:text|message|contact|call|write|write to|email|bother|spam) (?:me|us)${AGAIN}`,
+  `${NOT} send (?:me|us) (?:${TEXTS}|anything|any ${TEXTS}|more ${TEXTS}|any more ${TEXTS})${AGAIN}`,
+  "(?:remove|delete) (?:me|my number|my phone number|my info|my information)(?: from (?:your|this|the) (?:list|lists|database|system|contacts|mailing list))?",
+  "take (?:me|my number) off(?: (?:of )?(?:your|this|the) (?:list|lists|database|system|contacts|mailing list))?",
+  "(?:i (?:want|wish|would like|'d like) to )?(?:opt out|opt me out|unsubscribe me|unsubscribe)",
+  `no more (?:${TEXTS}|contact)`,
+  "leave me alone",
+  `i ${NOT} want (?:any more |anymore |more |these |your |any )?${TEXTS}(?: (?:anymore|any more|from you))?`,
+  `i ${NOT} want to (?:receive|get) (?:any more |anymore |more |these |your |any )?${TEXTS}(?: (?:anymore|any more|from you))?`,
+  `i ${NOT} want to be (?:texted|contacted|messaged)${AGAIN}`
+];
+var MENSAJES = "(?:mensajes|textos)";
+var SPANISH = [
+  `(?:ya )?no (?:me|nos) (?:escribas|escriban|escriba|mandes|manden|mande|envies|envien|envie|llames|llamen|llame|contactes|contacten|contacte|molestes|molesten|moleste|textees|texteen)(?: mas)?(?: ${MENSAJES})?`,
+  `(?:deja|dejen|deje|para|paren|pare) de (?:escribirme|escribirnos|mandarme ${MENSAJES}|mandar ${MENSAJES}|enviarme ${MENSAJES}|enviar ${MENSAJES}|molestarme|molestar|contactarme|llamarme|textearme)`,
+  `no quiero (?:recibir )?(?:mas |sus |tus |estos )?${MENSAJES}(?: de ustedes)?`,
+  "no quiero que me (?:escriban|escribas|contacten|llamen|molesten)(?: mas)?",
+  "(?:dame|denme|deme|darme|quiero darme|me quiero dar|quiero que me den|favor de darme) de baja",
+  `no mas ${MENSAJES}`,
+  "(?:borra|borren|borre|elimina|eliminen|elimine|quita|quiten|quite|saca|saquen|saque) (?:mi numero|mi telefono|mis datos)(?: de (?:su|la|tu|esta) lista)?",
+  "(?:borrame|borrenme|eliminame|eliminenme|quitame|quitenme|sacame|saquenme)(?: de (?:su|la|tu|esta) lista)?",
+  "cancel(?:a|ar|en) (?:mi |la )?suscripcion"
+];
+var SENTENCE = new RegExp(`^(?:${[...ENGLISH, ...SPANISH].join("|")})$`);
+function asksToStop(words, wire) {
+  if (!words) return false;
+  if ((wire === "sms" ? SMS_OPT_OUT_PATTERN : OPT_OUT_PATTERN).test(words)) return true;
+  return SENTENCE.test(plain(words));
+}
+
+// src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
 var UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
 var REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
@@ -806,7 +852,7 @@ function normalizeInbound(m, value) {
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1e3).toISOString() : null,
     media: mediaRefOf(mediaSrc),
-    optOut: isText && matches(OPT_OUT_PATTERN),
+    optOut: isText && consentText.some((s) => asksToStop(s, "whatsapp")),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
     // appointment question; YES OFFERS answers the offers question and nothing
     // else. It used to answer both -- "texting OFFERS is also a way back in from
@@ -838,13 +884,13 @@ function waStoppedMarketing(errors) {
     (e) => e !== null && typeof e === "object" && Number(e.code) === WA_STOPPED_MARKETING
   );
 }
-var SEND_TIMEOUT_MS = 15e3;
+var WHATSAPP_SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
   const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-    timeoutMs: SEND_TIMEOUT_MS,
+    timeoutMs: WHATSAPP_SEND_TIMEOUT_MS,
     // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
     breaker: "count"
   });
@@ -1676,7 +1722,12 @@ async function speakText(cfg, input, deps) {
     {
       method: "POST",
       headers: { "xi-api-key": cfg.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
-      body: JSON.stringify({ text: input.text, model_id: input.modelId, apply_text_normalization: "on" }),
+      body: JSON.stringify({
+        text: input.text,
+        model_id: input.modelId,
+        apply_text_normalization: "on",
+        ...input.previousText ? { previous_text: input.previousText } : {}
+      }),
       timeoutMs: ELEVENLABS_SPEECH_TIMEOUT_MS,
       stream: true
     },
@@ -2532,12 +2583,7 @@ async function channelStep(run) {
 }
 
 // src/lines/sms.ts
-import {
-  LINE_CODES_MAX,
-  LINE_CODES_WITHIN_MS,
-  SMS_OPT_OUT_PATTERN,
-  utf8Bytes
-} from "../../contracts/dist/index.js";
+import { LINE_CODES_MAX, LINE_CODES_WITHIN_MS, utf8Bytes } from "../../contracts/dist/index.js";
 function smsInboundFrom(form2) {
   const messageSid = form2.MessageSid || form2.SmsSid || "";
   const from = form2.From || "";
@@ -2582,7 +2628,7 @@ function carrierConsent(s) {
   return null;
 }
 function smsKeywordConsent(body) {
-  if (!body || !SMS_OPT_OUT_PATTERN.test(body)) return null;
+  if (!asksToStop(body, "sms")) return null;
   return { optOut: true, optIn: false };
 }
 function mergeConsent(a, b) {
@@ -3131,7 +3177,7 @@ function emailPlainText(e) {
 
 // src/email/email-resend.ts
 var RESEND_API = "https://api.resend.com";
-var SEND_TIMEOUT_MS2 = 15e3;
+var SEND_TIMEOUT_MS = 15e3;
 var SEND_DEADLINE_MS = 32e3;
 var SEND_MIN_MS = 3e3;
 var RETRY_NEEDS_MS = 5e3;
@@ -3155,7 +3201,7 @@ async function resendRequest(cfg, method, path, opts = {}) {
       ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
     },
     ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
-    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2,
+    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS,
     breaker: opts.breaker ?? "hold"
   });
   return {
@@ -3220,10 +3266,10 @@ async function sendEmail(cfg, request, opts = {}) {
     if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
     return p.result;
   };
-  const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+  const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
-    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
@@ -3234,7 +3280,7 @@ async function sendEmail(cfg, request, opts = {}) {
   const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
   if (ms > LIMIT_WAIT_MAX_MS || ms >= left()) return first.result;
   await wait(ms);
-  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left())));
+  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left())));
 }
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var FETCH_TIMEOUT_MS = 15e3;
@@ -4963,7 +5009,7 @@ export {
   REVIEW_BELL_MAX,
   SEND_DEADLINE_MS,
   SEND_MIN_MS,
-  SEND_TIMEOUT_MS2 as SEND_TIMEOUT_MS,
+  SEND_TIMEOUT_MS,
   SMS_FOOTER,
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
@@ -4972,6 +5018,7 @@ export {
   STATE_TTL_MS,
   SYSTEM_ONE_URL,
   TRUSTHUB,
+  TWILIO_TIMEOUT_MS,
   TwilioError,
   UNSUBSCRIBE_PATH,
   VOICE_AGENT_DEFAULTS,
@@ -4982,6 +5029,7 @@ export {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   WEBHOOK_TOLERANCE_S,
+  WHATSAPP_SEND_TIMEOUT_MS,
   a2pProfileEndUserRequest,
   a2pProfileRequest,
   accountsRequest,

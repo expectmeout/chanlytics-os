@@ -39,6 +39,8 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "name",
       label: w.person,
       sortable: true,
+      sortFirst: "asc",
+      width: { base: 300, min: 240, max: 640, grow: 4 },
       pinned: true,
       cell: (r, x) => plNameCell(r.person, x, undefined, r.id),
     },
@@ -46,6 +48,7 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "service",
       label: w.service,
       sortable: false,
+      width: { base: 200, min: 140, max: 360, grow: 2 },
       cell: (r) => (
         <td key="service" className="pipe-service" data-testid="pipe-service">
           {r.service || ""}
@@ -56,8 +59,9 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "value",
       label: w.value,
       sortable: true,
+      width: { base: 112, min: 96 },
       cell: (r) => (
-        <td key="value" className="shrink tabular pipe-value" data-testid="pipe-value">
+        <td key="value" className="tabular pipe-value" data-testid="pipe-value">
           {r.value || ""}
         </td>
       ),
@@ -66,8 +70,10 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "stage",
       label: w.stage,
       sortable: true,
+      sortFirst: "asc",
+      width: { base: 180, min: 150, max: 280, grow: 1 },
       cell: (r) => (
-        <td key="stage" className="shrink dim tabular pipe-stage">
+        <td key="stage" className="dim tabular pipe-stage">
           <span className="pipe-stage-in">
             <PipelineTrack steps={r.track} />
             <span data-testid="pipe-in-stage">{r.inStage}</span>
@@ -79,6 +85,8 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "next",
       label: w.next,
       sortable: true,
+      sortFirst: "asc",
+      width: { base: 160, min: 130, max: 280, grow: 1 },
       cell: (r) => (
         <td
           key="next"
@@ -100,6 +108,7 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "came",
       label: w.came,
       sortable: false,
+      width: { base: 130, min: 100, max: 220, grow: 1 },
       on: false,
       cell: (r) => (
         <td key="came" className="dim pipe-came" data-testid="pipe-came">
@@ -111,16 +120,13 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "valid",
       label: w.valid,
       sortable: false,
+      width: { base: 112, min: 96 },
       on: false,
       cell: (r) => {
         // The row's own deal (0029): a client's row has no day to stand until, whatever their proposal's is.
         const v = r.deal && r.deal.validUntil;
         return (
-          <td
-            key="valid"
-            className={`shrink tabular pipe-valid${v && v.lapsed ? " is-lapsed" : ""}`}
-            data-testid="pipe-valid"
-          >
+          <td key="valid" className={`tabular pipe-valid${v && v.lapsed ? " is-lapsed" : ""}`} data-testid="pipe-valid">
             {v ? (v.lapsed ? v.words : v.date) : ""}
           </td>
         );
@@ -130,9 +136,10 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "chip",
       label: <span className="rec-sr">{w.chip}</span>,
       sortable: false,
+      width: { base: 120, min: 100 },
       fixed: true,
       cell: (r) => (
-        <td key="chip" className="shrink pipe-chip">
+        <td key="chip" className="pipe-chip">
           {r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}
         </td>
       ),
@@ -141,9 +148,10 @@ const pipeColumns = (): PipelineColumn[] => {
       key: "actions",
       label: <span className="rec-sr">{w.acts}</span>,
       sortable: false,
+      width: { base: 84 },
       fixed: true,
       cell: (r, x) => (
-        <td key="actions" className="shrink cl-actions-cell">
+        <td key="actions" className="cl-actions-cell">
           <PipelineRowMenu r={r} canRecord={x.canRecord} onPage={x.onPage} onThread={x.onThread} />
         </td>
       ),
@@ -169,6 +177,8 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
       key: "name",
       label: w.person,
       sortable: true,
+      sortFirst: "asc",
+      width: { base: 300, min: 240, max: 640, grow: 4 },
       pinned: true,
       cell: (r, x) => plNameCell(r.person, x, r.service, r.id),
     },
@@ -177,6 +187,8 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
       key: "stage",
       label: w.chip,
       sortable: true,
+      sortFirst: "asc",
+      width: { base: 180, min: 150, max: 280, grow: 1 },
       cell: (r) => (
         <td key="stage" className="pipe-stands" data-testid="pipe-stands">
           <span className="pipe-stands-in">

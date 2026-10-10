@@ -33,7 +33,7 @@
 
 import crypto from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { localHour, runDueNow } from "@chanlytics/contracts";
+import { isPersonsWords, isReplyTo, localHour, runDueNow } from "@chanlytics/contracts";
 import {
   schemaOf,
   unknownRelation,
@@ -467,12 +467,15 @@ const refusal = (code, message) => Object.assign(new Error(message), { code });
 const living = (c) => c.erased_at == null && c.merged_into_contact_id == null;
 const inWorkspace = (tables, tenantId) => (tables.contacts ?? []).filter((c) => c.tenant_id === tenantId);
 
-/** The door's reading of its arguments, refused with its own codes and words: the number as 00342 restates normalizePhone. */
+/** The door's reading of its arguments, refused with its own codes and words: the number as 00367 restates normalizePhone. */
 function resolveArgs(a) {
   const word = (v) => String(v ?? "").trim();
   const channel = word(a.p_channel) || null;
   const external = word(a.p_external) || null;
   const digits = String(a.p_phone ?? "").replace(/\D/g, "");
+  const plus = String(a.p_phone ?? "")
+    .trim()
+    .startsWith("+");
   const email = word(a.p_email).toLowerCase() || null;
   const name = word(a.p_name).replace(/\s+/g, " ").slice(0, 80) || null;
   const assurance = word(a.p_assurance) || "observed";
@@ -482,7 +485,7 @@ function resolveArgs(a) {
   const phone =
     digits === ""
       ? null
-      : digits.length === 10
+      : digits.length === 10 && !plus
         ? `+1${digits}`
         : digits.length >= 8 && digits.length <= 15
           ? `+${digits}`
@@ -660,10 +663,11 @@ function keepDoubt(tables, tenantId, id, other, seenAs, insertRow) {
  * so the sweeps, the booking link and the email intake run their real code over it: the erasure digests first on the
  * passive paths, then the identity, the number and the address; fills what is empty and never overwrites; never
  * merges, and writes a doubt instead for a pair the merge could join; contact.added for a new person a member, a feed
- * or the finder brought, person.resolved for every call. The SQL itself is proved on a stack in
+ * or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity
+ * added or raised, a doubt written; 00384). The SQL itself is proved on a stack in
  * people/doors/resolve-person.db.test.mjs; what this answers is held to the same cases there. Not modelled: the race
- * two doors run (one world, one caller at a time), and contact.email_set, which set_person_email writes beside the
- * address.
+ * two doors run (one world, one caller at a time), contact.email_set, which set_person_email writes beside the
+ * address, and the lead the door links (person_link_lead), which would be one more reason to write the row.
  */
 function resolvePersonIn(tables, args, insertRow) {
   const tenantId = args.p_tenant_id;
@@ -678,25 +682,29 @@ function resolvePersonIn(tables, args, insertRow) {
   const outcome = found ? (fill.filled.length ? "filled" : "matched") : "new";
   const identity = keepIdentity(tables, tenantId, r, id, insertRow);
   const doubt = keepDoubt(tables, tenantId, id, fill.other, fill.seenAs, insertRow);
-  insertRow("events", {
-    tenant_id: tenantId,
-    kind: "person.resolved",
-    category: "contact",
-    subject_type: "contact",
-    subject_id: id,
-    data: {
-      outcome,
-      matched_by: found?.by ?? null,
-      source: r.source,
-      channel: r.channel,
-      assurance: r.assurance,
-      by: null,
-      filled: fill.filled,
-      identity,
-      doubt: doubt.other,
-      doubt_seen: doubt.seenAs,
-    },
-  });
+  // The ledger's row, when the call changed something (00384); a call that found the person and learned nothing
+  // writes none.
+  if (outcome !== "matched" || identity === "added" || identity === "raised" || doubt.doubtId != null) {
+    insertRow("events", {
+      tenant_id: tenantId,
+      kind: "person.resolved",
+      category: "contact",
+      subject_type: "contact",
+      subject_id: id,
+      data: {
+        outcome,
+        matched_by: found?.by ?? null,
+        source: r.source,
+        channel: r.channel,
+        assurance: r.assurance,
+        by: null,
+        filled: fill.filled,
+        identity,
+        doubt: doubt.other,
+        doubt_seen: doubt.seenAs,
+      },
+    });
+  }
   return {
     contact_id: id,
     outcome,
@@ -712,8 +720,62 @@ function resolvePersonIn(tables, args, insertRow) {
 }
 
 /**
+ * A provider's stop and its event, one write (record_provider_stop, 00383), over the rows a world holds, so the send
+ * door (the carrier's 21610 at the wire), the status door (the same, told late) and the receipts door (WhatsApp's
+ * 131050) run their real code over it: the row's own answer is the event's `previous`; a person already stopped, or
+ * erased, is left as they are and the door answers false; the message the provider refused rides on the event when
+ * named. The SQL itself is proved on a stack in consent/stops/a-provider-s-stop-is-one-write.db.test.mjs. Not modelled:
+ * 00297's trigger, which empties the channels the answer covered from the event.
+ */
+function recordProviderStopIn(tables, args, insertRow) {
+  const tenantId = args.p_tenant_id;
+  const contactId = args.p_contact_id;
+  const purpose = args.p_purpose;
+  const channel = String(args.p_channel ?? "").trim();
+  const source = String(args.p_source ?? "").trim();
+  if (!tenantId || !contactId) throw refusal("P0002", "Workspace not found.");
+  if (purpose !== "conversational" && purpose !== "marketing")
+    throw refusal("22023", "A stop is about messages on their own visit (conversational) or about offers (marketing).");
+  if (!channel || !source) throw refusal("22004", "A provider's stop names its channel and its source.");
+  const row = inWorkspace(tables, tenantId).find((c) => c.id === contactId);
+  if (!row || row.erased_at != null) return false;
+  const at = stampOf(tables);
+  let data;
+  if (purpose === "conversational") {
+    if (row.consent === "opted_out") return false;
+    data = { consent: "opted_out", previous: row.consent ?? "unknown", source, channel };
+    Object.assign(row, { consent: "opted_out", dnc: true, consent_source: source, consent_updated_at: at });
+  } else {
+    if (row.marketing_consent === "opted_out") return false;
+    data = {
+      purpose: "marketing",
+      consent: "opted_out",
+      previous: row.marketing_consent ?? "unknown",
+      source,
+      channel,
+    };
+    Object.assign(row, {
+      marketing_consent: "opted_out",
+      marketing_consent_source: source,
+      marketing_consent_updated_at: at,
+    });
+  }
+  if (String(args.p_message_external_id ?? "").trim()) data.message_external_id = args.p_message_external_id;
+  insertRow("events", {
+    tenant_id: tenantId,
+    kind: "contact.consent_changed",
+    category: "contact",
+    subject_type: "contact",
+    subject_id: contactId,
+    data,
+  });
+  return true;
+}
+
+/**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
+ * @param opts.userId the session's person, where a member's door writes a line as theirs (message_call_back).
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
  *   `"<table>.update"` to make that call fail the way PostgREST fails.
  */
@@ -752,6 +814,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const derived = {
     // The one door a person is resolved by (00342, 00344): the sweeps, the booking link and the email intake call it.
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
+    // The one door a provider's stop is recorded by (00383): the send, status and receipts doors call it.
+    record_provider_stop: (args) => recordProviderStopIn(tables, args, insertRow),
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
       const of = (kind) => {
@@ -762,24 +826,56 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
-    // Ask's day (00240): input plus output of the workspace's usage.ask_tokens events of the last 24 hours, a value
-    // that is not a number counting nothing, as the SQL sums them.
+    // Ask's day (00240, 00368): input, cache writes and output of the workspace's usage.ask_tokens events of the last
+    // 24 hours, a value that is not a number counting nothing and a cache read never counted, as the SQL sums them.
     ask_tokens_day: ({ p_tenant }) => {
       const since = Date.now() - 24 * 60 * 60 * 1000;
       const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       return (tables.events ?? [])
         .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
-        .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
+        .reduce(
+          (sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.cache_creation_input_tokens) + n(e.data?.output_tokens),
+          0,
+        );
     },
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,
+    // A run's counts, a moment playbook's totals and a message's sends (00374 run_counts, playbook_totals,
+    // template_sends), counted out of the tables a fixture holds as the SQL counts them; held to it over a real database
+    // by playbooks/totals/playbook-totals.db.test.mjs. A suite that models a database before 00374 answers them itself
+    // (a handler that throws an error with code PGRST202), and the dashboard then reads the old way.
+    run_counts: ({ p_tenant_id, p_run_ids }) => runCountsIn(tables, p_tenant_id, p_run_ids ?? []),
+    playbook_totals: ({ p_tenant_id, p_history = 10 }) => playbookTotalsIn(tables, p_tenant_id, p_history),
+    template_sends: ({ p_tenant_id }) => templateSendsIn(tables, p_tenant_id),
+    // The configuration row's doors for a session (00365). A world has no row policy and no session, so the row reads as
+    // its owner reads it (nothing hidden), and the write is the versioned compare-and-swap, by nobody in particular. Who
+    // sees the feed's address and who may write are SQL's, proved on a stack in
+    // workspace/config/the-feed-address-is-the-owner-s.db.test.mjs; a suite that models a member who is not the owner
+    // gives its own.
+    tenant_config_read: ({ p_tenant_id }) => {
+      const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
+      if (!row) return null;
+      const { tenant_id, config, version, updated_at, updated_by } = row;
+      return { tenant_id, config, version, updated_at, updated_by: updated_by ?? null, feed_hidden: false };
+    },
+    tenant_config_write: ({ p_tenant_id, p_config, p_version }) => {
+      const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
+      if (!row) return { outcome: "missing", version: null, updated_at: null, updated_by: null };
+      if (row.version !== p_version) return { outcome: "stale", version: null, updated_at: null, updated_by: null };
+      Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: null });
+      return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: null };
+    },
     // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
     // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
     // in broadcasts/assemble-broadcast.db.test.mjs. It keeps the channels the run ticks (WhatsApp alone when none are
     // given, 00298) and each person's channel (none stays none, which is WhatsApp), as campaign-channels.db.test.mjs
-    // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too.
-    assemble_broadcast: ({ p_tenant, p_run, p_recipients, p_send_at }) => {
+    // holds the real one to; which channels a run may carry, and that a person's is among them, are SQL's too. Called
+    // with `p_decision` it is 00381's door: the send_broadcast decision on the run rides in the same write, the
+    // member's (p_actor) or the system's (none), and the answer is {id, decision_id, undo_dropped} ({id} alone for a
+    // run that waits); called without, it is 00282's and answers the id, as an app from before 00381 reads it.
+    assemble_broadcast: (args) => {
+      const { p_tenant, p_run, p_recipients, p_send_at, p_decision, p_actor, p_via } = args;
       const at = stampOf(tables);
       const id = crypto.randomUUID();
       const run = Object.fromEntries(Object.entries(p_run).filter(([, v]) => v !== null));
@@ -815,7 +911,201 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             payload: { broadcast_id: id },
           }),
         );
-      return id;
+      if (!("p_decision" in args)) return id;
+      if (p_decision == null) return { id };
+      const decision = insertRow("decisions", {
+        tenant_id: p_tenant,
+        subject_type: "broadcast",
+        subject_id: id,
+        verb: "send_broadcast",
+        actor_type: p_actor ? "user" : "system",
+        actor_user_id: p_actor ?? null,
+        payload: p_via ? { ...p_decision, via: p_via } : p_decision,
+      });
+      return { id, decision_id: decision.id, undo_dropped: false };
+    },
+    /**
+     * A billing reading and the workspace's switch as one write (00382 billing_apply): the row's columns laid over it,
+     * only while the row is still what the caller planned against (p_expect: a reading's status and updated_at, or the
+     * customer the row names), then tenants.status when the switch
+     * moves; true when written, false when another reading won or there is no row. Its two statements are logged as
+     * the statements they are (a suite reads the compare-and-set's filters and the switch's write), and a fault on
+     * either refuses the whole door as the database would, with nothing of it kept.
+     */
+    billing_apply: ({ p_tenant_id, p_row, p_expect, p_tenant_status }) => {
+      const allowed = new Set([
+        "stripe_customer_id",
+        "stripe_subscription_id",
+        "status",
+        "price_id",
+        "current_period_end",
+        "trial_end",
+        "cancel_at",
+        "cancel_at_period_end",
+        "card_brand",
+        "card_last4",
+        "last_payment_failed_at",
+        "last_paid_at",
+      ]);
+      const stray = Object.keys(p_row ?? {}).find((k) => !allowed.has(k));
+      if (stray)
+        throw Object.assign(new Error(`billing_apply: ${stray} is not a column a reading writes`), { code: "22023" });
+      const filters = [["eq", "tenant_id", p_tenant_id]];
+      const byCustomer = Boolean(p_expect && "stripe_customer_id" in p_expect);
+      if (byCustomer) filters.push(["eq", "stripe_customer_id", p_expect.stripe_customer_id]);
+      else if (p_expect) filters.push(["eq", "status", p_expect.status], ["eq", "updated_at", p_expect.updated_at]);
+      seen.push({ table: "billing_accounts", op: "update", values: p_row, filters });
+      for (const statement of ["billing_accounts.update", ...(p_tenant_status ? ["tenants.update"] : [])]) {
+        const fault = faults[statement];
+        if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      }
+      const row = (tables.billing_accounts ?? []).find(
+        (r) =>
+          r.tenant_id === p_tenant_id &&
+          (!p_expect ||
+            (byCustomer
+              ? r.stripe_customer_id === p_expect.stripe_customer_id
+              : r.status === p_expect.status && r.updated_at === p_expect.updated_at)),
+      );
+      if (!row) return false;
+      Object.assign(row, p_row, { updated_at: stampOf(tables) });
+      if (p_tenant_status) {
+        const tenant = tenantOf(p_tenant_id);
+        if (!["active", "paused", "test"].includes(p_tenant_status))
+          throw Object.assign(
+            new Error('new row for relation "tenants" violates check constraint "tenants_status_check"'),
+            {
+              code: "23514",
+            },
+          );
+        seen.push({
+          table: "tenants",
+          op: "update",
+          values: { status: p_tenant_status },
+          filters: [["eq", "id", p_tenant_id]],
+        });
+        if (tenant) tenant.status = p_tenant_status;
+      }
+      return true;
+    },
+    /**
+     * The one door a queued message is withdrawn by (00387 withdraw_queued), over the rows a world holds: each named
+     * row of the workspace still queued and claimed by no run (sending_at) canceled, with the reason on it (none keeps
+     * its error as it was), and the scheduled outbound_send job naming it canceled with it. A fault on
+     * `messages.update` refuses the whole door, with nothing of it kept. Answers the ids withdrawn.
+     */
+    withdraw_queued: ({ p_tenant_id, p_message_ids, p_reason }) => {
+      const fault = faults["messages.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const named = new Set(p_message_ids ?? []);
+      const rows = (tables.messages ?? []).filter(
+        (m) => m.tenant_id === p_tenant_id && named.has(m.id) && m.status === "queued" && !m.sending_at,
+      );
+      for (const m of rows) {
+        m.status = "canceled";
+        if (p_reason) m.error = p_reason;
+        for (const j of tables.jobs ?? [])
+          if (
+            j.tenant_id === p_tenant_id &&
+            j.kind === "outbound_send" &&
+            (j.state ?? "scheduled") === "scheduled" &&
+            j.payload?.message_id === m.id
+          )
+            j.state = "canceled";
+      }
+      return rows.map((m) => m.id).sort();
+    },
+    withdraw_ai_drafts: ({ p_tenant_id, p_conversation_id, p_reason, p_keep_message_id }) =>
+      derived.withdraw_queued({
+        p_tenant_id,
+        p_message_ids: (tables.messages ?? [])
+          .filter(
+            (m) =>
+              m.tenant_id === p_tenant_id &&
+              m.conversation_id === p_conversation_id &&
+              m.sender === "ai" &&
+              m.status === "queued" &&
+              !m.sending_at &&
+              m.id !== p_keep_message_id,
+          )
+          .map((m) => m.id),
+        p_reason,
+      }),
+    // The member's doors (00387): who may act is the route's check here, and the database's floor is its own suite's.
+    member_withdraw_drafts: ({ p_tenant_id, p_conversation_id }) =>
+      derived.withdraw_ai_drafts({ p_tenant_id, p_conversation_id, p_reason: { reason: "superseded_by_human" } })
+        .length,
+    member_withdraw_message: ({ p_tenant_id, p_message_id, p_reason }) =>
+      derived.withdraw_queued({ p_tenant_id, p_message_ids: [p_message_id], p_reason }).length > 0,
+    message_call_back: ({ p_tenant_id, p_message_id, p_via, p_undo_of }) => {
+      if (!derived.withdraw_queued({ p_tenant_id, p_message_ids: [p_message_id], p_reason: null }).length) return null;
+      const undo =
+        p_undo_of && (tables.decisions ?? []).some((d) => d.id === p_undo_of && d.tenant_id === p_tenant_id)
+          ? p_undo_of
+          : null;
+      const decision = insertRow("decisions", {
+        tenant_id: p_tenant_id,
+        subject_type: "message",
+        subject_id: p_message_id,
+        verb: "cancel_send",
+        actor_type: "user",
+        actor_user_id: opts.userId ?? null,
+        payload: p_via ? { via: p_via } : {},
+        undo_of: undo,
+      });
+      return { decision_id: decision.id, undo_dropped: Boolean(p_undo_of) && undo === null };
+    },
+    /**
+     * A thread handed to a person, by its one door (00388 escalation_open), over the rows a world holds: a new open
+     * escalation with its escalation.opened ("opened"), the open one taking another reason with escalation.changed
+     * ("changed"), or the same reason's words moved ("refreshed"). A fault on `escalations.insert` that is the one-open
+     * key's 23505 is a thread already held (as Postgres would answer it); any other refuses the door, with nothing kept.
+     */
+    escalation_open: ({ p_tenant_id, p_conversation_id, p_reason, p_details }) => {
+      const insertFault = faults["escalations.insert"];
+      if (insertFault && insertFault.code !== "23505")
+        throw Object.assign(new Error(insertFault.message), insertFault.code ? { code: insertFault.code } : {});
+      const open = (tables.escalations ?? []).find(
+        (e) => e.tenant_id === p_tenant_id && e.conversation_id === p_conversation_id && (e.state ?? "open") === "open",
+      );
+      if (!open) {
+        insertRow("escalations", {
+          tenant_id: p_tenant_id,
+          conversation_id: p_conversation_id,
+          reason: p_reason,
+          details: p_details,
+          state: "open",
+        });
+        insertRow("events", {
+          tenant_id: p_tenant_id,
+          kind: "escalation.opened",
+          category: "message",
+          version: 1,
+          subject_type: "conversation",
+          subject_id: p_conversation_id,
+          data: { reason: p_reason },
+        });
+        return "opened";
+      }
+      const updateFault = faults["escalations.update"];
+      if (updateFault)
+        throw Object.assign(new Error(updateFault.message), updateFault.code ? { code: updateFault.code } : {});
+      if (open.reason !== p_reason) {
+        const from = open.reason;
+        Object.assign(open, { reason: p_reason, details: p_details });
+        insertRow("events", {
+          tenant_id: p_tenant_id,
+          kind: "escalation.changed",
+          category: "conversation",
+          version: 1,
+          subject_type: "escalation",
+          subject_id: open.id,
+          data: { from, to: p_reason },
+        });
+        return "changed";
+      }
+      open.details = p_details;
+      return "refreshed";
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
@@ -1337,6 +1627,150 @@ const sent = (v) => (v === undefined ? "undefined" : v);
 /** The columns of a table's primary key, PostgREST's conflict target when an upsert names none. */
 function primaryKeyOf(table) {
   return uniqueKeysOf(SCHEMA, table).find((k) => k.primary)?.columns ?? ["id"];
+}
+
+/* ---- 00374's counts, as the SQL counts them (run_counts, playbook_totals, template_sends) ---- */
+
+/** A person's message on a run: the row's own `messages` where a fixture writes one, else the row its message_id names. */
+const messageOfRecipient = (tables, r) =>
+  r.messages ?? (r.message_id ? ((tables.messages ?? []).find((m) => m.id === r.message_id) ?? null) : null);
+
+/** The channel a person went by: a row naming none went by WhatsApp, as every run before channels did (00298). */
+const channelOfRecipient = (r) => (r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp");
+
+/**
+ * run_counts: each run's people by state, its receipts (a read is WhatsApp's own), what went by each channel, and the
+ * threads it reached that the customer answered in their own words within the window after the run first reached them
+ * there. A run nobody is on is absent.
+ */
+function runCountsIn(tables, tenantId, runIds) {
+  const wanted = new Set(runIds);
+  const out = {};
+  const reachedBy = new Map();
+  for (const r of tables.broadcast_recipients ?? []) {
+    if (r.tenant_id !== tenantId || !wanted.has(r.broadcast_id)) continue;
+    const c = (out[r.broadcast_id] ??= {
+      queued: 0,
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+      delivered: 0,
+      read: 0,
+      replied: 0,
+      sent_by: { whatsapp: 0, sms: 0, email: 0 },
+    });
+    const channel = channelOfRecipient(r);
+    if (r.state === "sent") {
+      c.sent += 1;
+      c.sent_by[channel] += 1;
+    } else if (r.state === "queued" || r.state === "skipped" || r.state === "failed") c[r.state] += 1;
+    const m = messageOfRecipient(tables, r);
+    if (m?.status === "delivered" || m?.status === "read") c.delivered += 1;
+    if (m?.status === "read" && channel === "whatsapp") c.read += 1;
+    if (m?.conversation_id && r.sent_at) {
+      const reached = reachedBy.get(r.broadcast_id) ?? new Map();
+      const first = reached.get(m.conversation_id);
+      if (first === undefined || Date.parse(r.sent_at) < Date.parse(first)) reached.set(m.conversation_id, r.sent_at);
+      reachedBy.set(r.broadcast_id, reached);
+    }
+  }
+  const words = new Map();
+  for (const m of tables.messages ?? []) {
+    if (m.tenant_id !== tenantId || m.direction !== "inbound" || m.sender !== "customer" || !isPersonsWords(m.meta))
+      continue;
+    words.set(m.conversation_id, [...(words.get(m.conversation_id) ?? []), m.created_at]);
+  }
+  for (const [run, reached] of reachedBy) {
+    let n = 0;
+    for (const [conversation, sentAt] of reached)
+      if ((words.get(conversation) ?? []).some((at) => isReplyTo(sentAt, at))) n += 1;
+    out[run].replied = n;
+  }
+  return out;
+}
+
+/**
+ * playbook_totals: each moment playbook's runs summed through run_counts, its newest run, the run that waits, its newest
+ * `history` runs. A column the table defaults (state, recipient_count) is read as the database would fill it.
+ */
+function playbookTotalsIn(tables, tenantId, history) {
+  const moments = new Set(
+    (tables.playbooks ?? [])
+      .filter((p) => p.tenant_id === tenantId && (p.kind ?? "moment") === "moment")
+      .map((p) => p.id),
+  );
+  const newest = (a, b) =>
+    Date.parse(b.created_at) - Date.parse(a.created_at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+  const runs = (tables.broadcasts ?? [])
+    .filter((b) => b.tenant_id === tenantId && moments.has(b.playbook_id))
+    .sort(newest);
+  const counted = runCountsIn(
+    tables,
+    tenantId,
+    runs.map((b) => b.id),
+  );
+  const out = {};
+  for (const b of runs) {
+    const c = counted[b.id] ?? { sent: 0, skipped: 0, failed: 0, delivered: 0, replied: 0 };
+    const held = c.skipped + c.failed;
+    const state = b.state ?? "scheduled";
+    const recipient_count = b.recipient_count ?? 0;
+    const run_for = b.run_for ?? null;
+    const t = (out[b.playbook_id] ??= {
+      runs: 0,
+      sent: 0,
+      delivered: 0,
+      replied: 0,
+      held: 0,
+      last_run: null,
+      waiting: null,
+      history: [],
+    });
+    t.runs += 1;
+    t.sent += c.sent;
+    t.delivered += c.delivered;
+    t.replied += c.replied;
+    t.held += held;
+    t.last_run ??= { id: b.id, state, run_for, recipient_count };
+    if (state === "pending_approval" && !t.waiting) {
+      const trigger = typeof b.audience?.trigger === "string" ? b.audience.trigger : null;
+      t.waiting = { id: b.id, recipient_count, name: b.name, run_for, trigger };
+    }
+    if (t.history.length < history)
+      t.history.push({
+        id: b.id,
+        run_for,
+        state,
+        scheduled_for: b.scheduled_for ?? null,
+        recipient_count,
+        sent: c.sent,
+        held,
+        delivered: c.delivered,
+        replied: c.replied,
+      });
+  }
+  return out;
+}
+
+/** template_sends: each message name a run sent a person on, or the Inbox sent that WhatsApp took, and its latest time. */
+function templateSendsIn(tables, tenantId) {
+  const nameOf = new Map(
+    (tables.broadcasts ?? []).filter((b) => b.tenant_id === tenantId).map((b) => [b.id, b.template_name]),
+  );
+  const out = {};
+  const went = (name, at) => {
+    const s = (out[name] ??= { count: 0, last_at: null });
+    s.count += 1;
+    if (at && (s.last_at === null || Date.parse(at) > Date.parse(s.last_at))) s.last_at = at;
+  };
+  for (const r of tables.broadcast_recipients ?? []) {
+    const name = r.tenant_id === tenantId && r.state === "sent" ? nameOf.get(r.broadcast_id) : null;
+    if (name) went(name, r.sent_at ?? null);
+  }
+  for (const m of tables.messages ?? [])
+    if (m.tenant_id === tenantId && m.direction === "outbound" && m.template_name && m.external_id)
+      went(m.template_name, m.created_at);
+  return out;
 }
 
 /** A Logger that keeps its lines instead of printing them. */

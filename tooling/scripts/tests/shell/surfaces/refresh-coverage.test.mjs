@@ -12,6 +12,8 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
 globalThis.window ??= globalThis;
+// The address a page is at, which what Reports shows is read from (the days a member picked are the address's own).
+globalThis.location ??= { pathname: "/w/studio", hash: "#/reports" };
 const { ROUTES } = await importSrc("apps/dashboard/src/client/routes.generated.ts");
 const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
 
@@ -166,6 +168,24 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
   }
 });
 
+test("a playbook paused, renamed or retimed in another tab is heard where Campaigns draws it: the playbooks and the reach-outs surfaces, which hear a run made or moved too (00376)", async () => {
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
+  const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
+  const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
+  assert.ok(watchedTables().includes("playbooks"), "the database tells a workspace about its playbooks");
+  const change = (table) => ({ table, event: "UPDATE", row: {} });
+  for (const o of [playbooksOverride, reachOutsOverride]) {
+    for (const table of ["playbooks", "broadcasts"]) {
+      assert.equal(wantsRefresh(o, table), true, `${o.key} hears ${table}`);
+      assert.equal(wantsRefresh(o, table, change(table)), true, `${o.key}: ${table} heard on any page`);
+    }
+  }
+  // A message is no chain's: the chains' read never hears one.
+  for (const table of ["messages", "conversations", "escalations"])
+    assert.equal(wantsRefresh(reachOutsOverride, table), false, `reach_outs: ${table} is not its`);
+});
+
 test("a write that moves the listing, its reviews or the day a review is counted on makes the Reviews lens's read forgotten, not read from the page it was made on; a reply posted, and a reply mode saved, name it", async () => {
   // The lens counts the reviews of a period by the day Google dates them in the workspace's zone, and who answered. Settings' Google verbs
   // and the zone are never made from the lens, so its read is dropped (as a template written is for the Inbox) and read as the lens comes
@@ -173,7 +193,7 @@ test("a write that moves the listing, its reviews or the day a review is counted
   // surface itself; the receptionist's mode for reviews is in the answer, and decides whether a composer asks for a draft.
   const { reviews } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
   const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-  const held = () => setSurfaceValue("reports_reviews", { vm: {}, period: "30d" });
+  const held = () => setSurfaceValue("reports_reviews", { vm: {}, key: "30d" });
   for (const route of [
     "POST google/link",
     "DELETE google/link",
@@ -193,7 +213,14 @@ test("a write that moves the listing, its reviews or the day a review is counted
     assert.equal(reviews.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
   }
   assert.deepEqual(keysOf("POST google/link"), ["google", "setup"], "beside Google's own and Setup's row");
-  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "reports", "reports_headline", "today"]);
+  assert.deepEqual(keysOf("PATCH workspaces"), [
+    "settings",
+    "people",
+    "reports",
+    "reports_headline",
+    "today",
+    "playbooks",
+  ]);
   held();
   assert.deepEqual(
     keysOf("POST google/reviews/[id]/reply"),
@@ -219,4 +246,123 @@ test("the Reviews lens's read repaints on the tables of the live feed that move 
   for (const table of ["messages", "conversations", "escalations", "google_listing_days", "events", "calls"])
     assert.equal(wantsRefresh(reviewsOverride, table), false, `${table}: not the lens's`);
   assert.equal(reviewsOverride.refreshOnMessageInserts, undefined, "a message moves no review");
+});
+
+test("a write that moves who waits on you, the zone's days or the hours and closures makes the Receptionist lens's read forgotten, not read from the page it was made on", async () => {
+  // The lens says how many conversations wait on you (a reply or a resolved escalation moves it), counts its days in the workspace's
+  // zone, and counts "while you were closed" by the hours and closures. None of those is written from the lens, so its read is
+  // dropped (as a template written is for the Inbox) and read as the lens comes on screen; the live feed tells it of the messages,
+  // escalations and calls that move it while the lens is open, and of none of these writes.
+  const { receptionist } = await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts");
+  const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  const held = () => setSurfaceValue("reports_receptionist", { dto: {}, key: "30d", readAt: 1 });
+  const WRITES = [
+    "POST conversations/[id]/reply",
+    "POST escalations/[id]/resolve",
+    "POST conversations/[id]/take-over",
+    "POST conversations/[id]/hand-back",
+    "POST conversations/[id]/snooze",
+    "POST conversations/[id]/wake",
+    "POST conversations/[id]/archive",
+    "PATCH workspaces",
+    "PUT settings",
+    "POST settings/receptionist",
+  ];
+  for (const route of WRITES) {
+    held();
+    const keys = keysOf(route);
+    assert.equal(
+      keys.includes("reports_receptionist"),
+      false,
+      `${route} does not read the Receptionist lens's read from where it was made: ${keys}`,
+    );
+    assert.equal(surfaceValue("reports_receptionist"), undefined, `${route} drops what the lens held`);
+    assert.equal(receptionist.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
+  }
+  // Each keeps what it re-read before.
+  assert.deepEqual(keysOf("POST conversations/[id]/reply"), ["inbox", "conversations", "today"]);
+  assert.deepEqual(keysOf("PATCH workspaces"), [
+    "settings",
+    "people",
+    "reports",
+    "reports_headline",
+    "today",
+    "playbooks",
+  ]);
+  for (const key of ["settings", "today", "calendar", "setup"])
+    assert.ok(keysOf("PUT settings").includes(key), `PUT settings re-reads ${key}`);
+  // The two writes that carry the hours are one list: the first receptionist writes its profile's hours, a save writes them too.
+  assert.deepEqual(keysOf("POST settings/receptionist"), keysOf("PUT settings"));
+  // A write that changes nothing the lens counts leaves what it holds alone.
+  for (const route of ["POST google/link", "PUT policies", "POST broadcasts", "PUT contacts/[id]/receptionist"]) {
+    held();
+    keysOf(route);
+    assert.notEqual(surfaceValue("reports_receptionist"), undefined, `${route} forgets nothing of the lens's`);
+  }
+  setSurfaceValue("reports_receptionist", undefined);
+});
+
+test("where the Receptionist lens is on screen, the same writes read it again at once: nothing else would, since the feed is told of none of them", async () => {
+  // A verb on a conversation changes the conversation, which the lens is not told of; the zone and the hours are no table of the feed's.
+  // Off the lens it is read as it comes on screen (the test above); on it, forgetting alone would leave it saying "coming" for good.
+  const { receptionist } = await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts");
+  const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  const was = globalThis.location.hash;
+  try {
+    for (const hash of ["#/reports/receptionist", "#/reports/receptionist:2026-09-01~2026-09-20"]) {
+      globalThis.location.hash = hash;
+      for (const route of [
+        "POST conversations/[id]/reply",
+        "POST escalations/[id]/resolve",
+        "POST conversations/[id]/take-over",
+        "POST conversations/[id]/hand-back",
+        "POST conversations/[id]/snooze",
+        "POST conversations/[id]/wake",
+        "POST conversations/[id]/archive",
+        "PATCH workspaces",
+        "PUT settings",
+        "POST settings/receptionist",
+      ]) {
+        setSurfaceValue("reports_receptionist", { dto: {}, key: "30d", readAt: 1 });
+        const keys = keysOf(route);
+        assert.equal(
+          keys.filter((k) => k === "reports_receptionist").length,
+          1,
+          `${route} on ${hash}: the lens is read again, once, by name`,
+        );
+        assert.equal(
+          surfaceValue("reports_receptionist"),
+          undefined,
+          `${route}: and what it held is dropped first, every period's`,
+        );
+        assert.equal(receptionist.isStale(), true);
+      }
+    }
+    // Another lens of Reports, or the Inbox: forgotten, not read.
+    for (const hash of ["#/reports", "#/reports/people", "#/reports/reviews", "#/inbox"]) {
+      globalThis.location.hash = hash;
+      setSurfaceValue("reports_receptionist", { dto: {}, key: "30d", readAt: 1 });
+      assert.equal(keysOf("POST conversations/[id]/reply").includes("reports_receptionist"), false, hash);
+      assert.equal(surfaceValue("reports_receptionist"), undefined, `${hash}: forgotten`);
+    }
+  } finally {
+    globalThis.location.hash = was;
+    setSurfaceValue("reports_receptionist", undefined);
+  }
+});
+
+test("the Receptionist lens's read repaints on the tables of the live feed that move it, 800 ms after the last change, and on no table the feed does not tell a workspace of", async () => {
+  const { receptionistOverride } = await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts");
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
+  assert.deepEqual(receptionistOverride.refreshOnTables, ["messages", "escalations", "calls"]);
+  assert.equal(receptionistOverride.debounceMs, 800);
+  for (const table of receptionistOverride.refreshOnTables)
+    assert.ok(watchedTables().includes(table), `${table}: the feed tells of it`);
+  // Which page hears them is the rule `refreshWhen` holds, run on the real routes in message-fan-out.test.mjs.
+  for (const table of receptionistOverride.refreshOnTables)
+    assert.equal(wantsRefresh(receptionistOverride, table), true, table);
+  for (const table of ["conversations", "google_reviews", "google_listings", "events", "contacts"])
+    assert.equal(wantsRefresh(receptionistOverride, table), false, `${table}: not the lens's`);
+  assert.equal(receptionistOverride.refreshOnMessageInserts, undefined, "it names its tables");
 });

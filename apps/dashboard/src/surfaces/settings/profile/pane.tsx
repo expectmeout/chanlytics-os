@@ -6,18 +6,19 @@
  * account menu's popover, your role as a chip beside other people's. A person who wants to check which account they are
  * signed in as should not have to open a menu over a page about a salon.
  *
- * Deliberately short. Theme, keyboard shortcuts and per-device alerts stay in the account menu, because they are
- * properties of this BROWSER rather than of you, and moving them here would make one of the two wrong.
+ * Deliberately short. Theme and keyboard shortcuts stay in the account menu, because they are properties of this
+ * BROWSER rather than of you, and moving them here would make one of the two wrong. This browser's alerts are Settings ›
+ * Notifications' (the account menu says where they stand and opens it).
  */
 import { useRef, useState } from "react";
-import { identityWords } from "@chanlytics/contracts";
+import { identityWords, ROLE_SAYS, roleSays } from "@chanlytics/contracts";
 import { meVerbs } from "@/legacy-bridge/identity";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { RecordInline } from "../../kit/record/inline";
 import { RecordRow } from "../../kit/record/row";
 import { demoSession, meNow, shellSignOut, type LegacyFlash } from "../../legacy-verbs";
-import { ROLE_WORDS } from "../shared";
 
 type Flash = (f: LegacyFlash) => void;
 
@@ -145,24 +146,24 @@ function DeleteAccountRow({ flash }: { flash: Flash }) {
       value={
         armed ? (
           <span className="set-delete-confirm" data-testid="set-profile-delete-confirm">
-            <button
-              type="button"
-              className="bt-link bt-danger"
+            <LinkButton
+              className="set-inline-act"
+              tone="danger"
               onClick={() => void go()}
               disabled={busy}
               data-testid="set-profile-delete-go"
             >
               {busy ? "Deleting…" : "Yes, delete my account"}
-            </button>
+            </LinkButton>
             {" · "}
-            <button type="button" className="bt-link" onClick={() => setArmed(false)} disabled={busy}>
+            <LinkButton className="set-inline-act" onClick={() => setArmed(false)} disabled={busy}>
               Keep it
-            </button>
+            </LinkButton>
           </span>
         ) : (
-          <button type="button" className="bt-link" onClick={() => setArmed(true)} data-testid="set-profile-delete">
+          <LinkButton className="set-inline-act" onClick={() => setArmed(true)} data-testid="set-profile-delete">
             Delete my account…
-          </button>
+          </LinkButton>
         )
       }
       hint={
@@ -179,7 +180,7 @@ function DeleteAccountRow({ flash }: { flash: Flash }) {
 export const PaneProfile = ({ flash }: { flash: Flash }) => {
   const me = meNow();
   const words = identityWords(me ? { ...me, email: me.email ?? null } : null);
-  const role = (me && me.role && ROLE_WORDS[me.role]) || null;
+  const role = me && me.role && Object.hasOwn(ROLE_SAYS, me.role) ? roleSays(me.role) : null;
   const signOut = () => {
     if (demoSession() || !shellSignOut()) flash({ msg: <>Nothing to sign out of in the demo.</> });
   };
@@ -220,9 +221,9 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
         id="profile-signout"
         label="Sign out"
         value={
-          <button type="button" className="bt-link" onClick={signOut} data-testid="set-profile-signout">
+          <LinkButton className="set-inline-act" onClick={signOut} data-testid="set-profile-signout">
             Sign out everywhere
-          </button>
+          </LinkButton>
         }
         hint="Ends your session on every device, this one included."
       />

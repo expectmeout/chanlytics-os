@@ -426,8 +426,14 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     "the plan decides, the edge writes and rings",
   );
   assert.ok(
-    lib.includes('.eq("updated_at", row.updated_at)') && lib.includes('L.info("billing_apply_raced"'),
-    "two events for one change: the loser writes nothing and rings nothing",
+    lib.includes("expect: { status: row.status, updated_at: row.updated_at }") &&
+      lib.includes("tenantStatus: plan.tenantStatus,") &&
+      lib.includes('L.info("billing_apply_raced"'),
+    "two events for one change: the loser writes nothing and rings nothing; the row and the switch are one write (00382)",
+  );
+  assert.ok(
+    !lib.includes('.from("billing_accounts").update(') && !lib.includes('.from("tenants").update('),
+    "the row and the switch are written through their one door (db applyBilling), never here",
   );
   // The door -- the knock and all six ops over the fake Stripe client, the
   // row after each -- runs in billing-door.test.mjs.

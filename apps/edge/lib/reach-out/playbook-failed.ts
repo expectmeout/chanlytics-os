@@ -60,12 +60,12 @@ async function pageThePlatform(f: Failure): Promise<void> {
   await pageOperator(
     { db: f.db },
     `playbook_failed:${f.tenantId}`,
-    `${many ? "Playbooks" : "A playbook"} could not run in workspace ${f.tenantId.slice(0, 8)}`,
+    `${many ? "Campaigns" : "A campaign"} could not run in workspace ${f.tenantId.slice(0, 8)}`,
     [
-      `${many ? `${f.playbooks.length} playbooks` : "A playbook"} could not run for ${f.runFor}.`,
+      `${many ? `${f.playbooks.length} campaigns` : "A campaign"} could not run for ${f.runFor}.`,
       "",
       `Workspace: ${f.tenantId}`,
-      `${many ? "Playbooks" : "Playbook"}: ${named}`,
+      `${many ? "Campaigns" : "Campaign"}: ${named}`,
       `Why: ${f.error}`,
       "",
       "The sweep tries again every hour through the workspace's last sending hour, when its owner is told once. This page comes at most once in six hours for the workspace.",
@@ -92,7 +92,7 @@ async function tellTheOwner(f: Failure, p: FailedPlaybook): Promise<void> {
       about,
       subject: words.title,
       body: words.body,
-      redactedBody: "A playbook could not run today in this workspace.",
+      redactedBody: "A campaign could not run today in this workspace.",
     },
     { db: f.db },
   );

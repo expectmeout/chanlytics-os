@@ -336,13 +336,20 @@ test("F2: a transfer number that would come straight back is refused at both doo
     "Change the transfer number",
   );
   assert.equal(doors.length, 0, "the forwarding never reached its door");
+  // The ledger is the service role's, over the same tables (ctxFor): held, to read what the save wrote there.
+  const forwarded = { ...tables("+19175550100"), events: [] };
   assert.deepEqual(
     await forwarding.POST.run(
       send("POST", { number: "+1 (718) 555-0142", carrier: "verizon", mode: "unanswered" }, inB),
-      ctxFor(tables("+19175550100"), {}, rpcs),
+      ctxFor(forwarded, {}, rpcs),
     ),
     { line_id: L1 },
     "any other number forwards",
+  );
+  assert.deepEqual(
+    forwarded.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+    [[B, "line.forwarding_set", "line", L1, { carrier: "verizon", mode: "unanswered", by: USER }]],
+    "REGRESSION: where a business's calls go changed on a member's word and no ledger said so; never the number",
   );
 });
 

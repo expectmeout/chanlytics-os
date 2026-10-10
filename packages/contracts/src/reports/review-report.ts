@@ -30,7 +30,7 @@ import { reviewHeldWords } from "../google/review-reply";
 import { lensEmpty } from "./lenses";
 import { periodSince } from "./report-periods";
 import { compareWords, fmtSeconds, type ReportMetric, type ReportTileVM } from "./report-tiles";
-import { rangeLabelOf, withinWords } from "./reports";
+import { endedOn, rangeLabelOf, withinWords } from "./reports";
 import {
   REVIEW_REPLY_TIME_MIN,
   historyWords,
@@ -51,6 +51,8 @@ export interface ReviewsReportDto {
   timezone: string;
   /** The workspace's day in that zone when the read was made: "2026-10-06". */
   today: string;
+  /** The report's last day: today for a period by name, an earlier day for days a member picked (absent: today). */
+  end?: string;
   /** The period the report is of. */
   days: number;
   google: GoogleReadDto;
@@ -234,7 +236,7 @@ function reviewsNoneHead(l: GoogleListingDto, onRecord: number, nowMs: number): 
 /** The profile's head after the standing: how many are new, and how many of those are answered. */
 function profileHeadTail(p: ReviewsPeriod): string {
   if (!p.exact) return historyWords(p.history) ?? "";
-  const within = withinWords(p.days);
+  const within = withinWords(p.days, p.until);
   if (!p.written) return `none new ${within}`;
   const answered =
     p.answered === p.written ? "all answered" : p.answered ? `${p.answered} answered` : "none answered yet";
@@ -245,7 +247,7 @@ function profileHeadTail(p: ReviewsPeriod): string {
 function reviewsMixLine(p: ReviewsPeriod): string | null {
   if (!p.exact) return null;
   if (!p.written) return NOTHING_WRITTEN;
-  const within = withinWords(p.days);
+  const within = withinWords(p.days, p.until);
   if (!p.rated) return `No star rating among the reviews written ${within}.`;
   const of = p.rated === p.written ? plural(p.rated, "review") : plural(p.rated, "rated review");
   return `${p.good} of the ${of} written ${within} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
@@ -260,7 +262,7 @@ function reviewsWeeklyLine(p: ReviewsPeriod, weeks: readonly ReviewsWeekVM[], si
   const total = sumOf(weeks.map((w) => w.written));
   if (total) {
     const first = weeks.at(0);
-    const over = first && first.day > since ? `since ${first.label}` : withinWords(p.days);
+    const over = first && first.day > since ? `since ${first.label}` : withinWords(p.days, p.until);
     return `${total} written ${over}`;
   }
   return p.exact && !p.written ? NOTHING_WRITTEN : null;
@@ -297,9 +299,11 @@ interface ReviewsBuild {
 
 /** The report from the profile's reviews on record: counts over the period, the mix, the speed, what waits. */
 function reviewsFromLedger({ dto, google, l, nowMs }: ReviewsBuild, ledger: ReviewsLedgerDto): ReviewsReportVM {
-  const { days, today, timezone } = dto;
+  const { days, timezone } = dto;
+  // The period's last day: today, or the earlier day a member picked.
+  const last = dto.end ?? dto.today;
   const history = reviewsHistoryOf(ledger, dto.google.connection, timezone);
-  const { period: p, weeks } = reviewsPeriodOf(ledger, history, today, days);
+  const { period: p, weeks } = reviewsPeriodOf(ledger, history, { last, days, until: endedOn(dto) });
   const weekly = sumOf(weeks.map((w) => w.written)) ? { points: weeks } : null;
   const waiting = reviewsWaitingOf(ledger, l.linked_at, timezone, nowMs);
   const waitingIds = new Set(waiting.rows.map((r) => r.id));
@@ -322,7 +326,7 @@ function reviewsFromLedger({ dto, google, l, nowMs }: ReviewsBuild, ledger: Revi
       ...noLines(),
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${profileHeadTail(p)}.`,
       mix: reviewsMixLine(p),
-      weekly: reviewsWeeklyLine(p, weeks, periodSince(today, days)),
+      weekly: reviewsWeeklyLine(p, weeks, periodSince(last, days)),
       history: startsAt,
       historyTitle: startsAt ? `${capitalize(startsAt)}.` : null,
       waiting: waiting.total > waiting.rows.length ? `Showing the oldest ${waiting.rows.length}.` : null,
@@ -361,7 +365,8 @@ function reviewsFromPlaces({ dto, google, l, nowMs }: ReviewsBuild): ReviewsRepo
 
 /** Nothing is linked: no figures, no head, and the words for why, with the door the registry gives where one can be opened. */
 function reviewsNotLinked(dto: ReviewsReportDto, google: GoogleVM): ReviewsReportVM {
-  const found = lensEmpty("reviews", { since: periodSince(dto.today, dto.days), until: dto.today }).title;
+  const last = dto.end ?? dto.today;
+  const found = lensEmpty("reviews", { since: periodSince(last, dto.days), until: last }).title;
   return {
     days: dto.days,
     state: dto.readable ? "unlinked" : "unavailable",
@@ -386,7 +391,7 @@ function reviewsNotLinked(dto: ReviewsReportDto, google: GoogleVM): ReviewsRepor
  */
 export function toReviewsReportVM(dto: ReviewsReportDto, opts: { nowMs: number }): ReviewsReportVM {
   const { nowMs } = opts;
-  const google = toGoogleVM(dto.google, dto.days, nowMs, dto.timezone);
+  const google = toGoogleVM(dto.google, { days: dto.days, until: endedOn(dto) }, nowMs, dto.timezone);
   const l = dto.google.listing;
   if (!l) return reviewsNotLinked(dto, google);
   const build: ReviewsBuild = { dto, google, l, nowMs };

@@ -123,7 +123,7 @@ test("the current period by source: a playbook's runs together, a broadcast alon
     vm.sources.map((s) => [s.name, s.kindLabel, s.runs, s.sent, s.deliveredPct, s.repliedPct, s.share, s.template]),
     [
       // The playbook sends the retired win-back (2 Oct 2026), called apart from the set's own by its title.
-      ["Win-back", "Playbook", 2, 14, 86, 21, 1, "Win-back (earlier)"],
+      ["Win-back", "Campaign", 2, 14, 86, 21, 1, "Win-back (earlier)"],
       ["A quick note · Sep 1", "Broadcast", 1, 6, 67, 17, 6 / 14, "A quick note"],
     ],
   );
@@ -198,23 +198,19 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
     params: {},
   });
   const week = await route.GET.run(
-    new Request(`http://localhost/api/v1/reports/campaigns?days=7&workspace=${W}`),
+    new Request(`http://localhost/api/v1/reports/campaigns?period=7d&workspace=${W}`),
     ctx(),
   );
   assert.deepEqual([week, asked], [{ report: { days: 7 } }, [{ p_tenant_id: W, p_days: 7 }]]);
   await assert.rejects(
-    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?days=45&workspace=${W}`), ctx()),
-    (e) => e.status === 400 && e.message === "period must be 7d, 30d, 90d or month.",
+    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=14d&workspace=${W}`), ctx()),
+    (e) => e.status === 400 && e.message === 'period: Invalid option: expected one of "7d"|"30d"|"90d"|"month"',
     "the same periods as the receptionist's report",
   );
   assert.deepEqual(
     await route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=90d&workspace=${W}`), ctx()),
     { report: { days: 90 } },
     "one period parameter: `period` names the window",
-  );
-  await assert.rejects(
-    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=14d&workspace=${W}`), ctx()),
-    (e) => e.status === 400,
   );
   // What the surface does with this read (its own request, null where it fails) and what the Campaigns lens draws from it are
   // executed, not read as text: reports/lenses/reports-lens-page.test.mjs and shell/empty-failed.test.mjs.
@@ -227,7 +223,7 @@ test("the one sentence under each campaign card: who said yes to messages or sto
     "3 people said yes to messages, 2 people asked to stop.",
     "never 'offers': a visit reminder is no offer (C25)",
   );
-  assert.equal(vm.lines.sent, "From 3 broadcast and playbook runs.", "the win-back's two runs and the broadcast");
+  assert.equal(vm.lines.sent, "From 3 broadcast and campaign runs.", "the win-back's two runs and the broadcast");
   const one = toCampaignReportVM(
     dto({
       series: dto().series.map((d) => day(d.day, d.day === "2026-09-01" ? { sent: 6, opt_ins: 1, opt_outs: 1 } : {})),
@@ -235,7 +231,7 @@ test("the one sentence under each campaign card: who said yes to messages or sto
     }),
   );
   assert.equal(one.lines.funnel, "1 person said yes to messages, 1 person asked to stop.");
-  assert.equal(one.lines.sent, "From one broadcast or playbook run.");
+  assert.equal(one.lines.sent, "From one broadcast or campaign run.");
   const nothing = toCampaignReportVM(dto({ series: dto().series.map((d) => day(d.day)), sources: [] }));
   assert.equal(nothing.lines.funnel, "Nobody said yes to messages or asked to stop.");
   assert.equal(nothing.lines.sent, null, "no run sent anything");

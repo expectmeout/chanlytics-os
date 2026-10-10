@@ -604,6 +604,107 @@ test("YES OFFERS is not the way back in from a STOP: an opted-out person gets no
   assert.equal(w.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
 });
 
+/**
+ * The person's consent as the database keeps it since 00361: a message's STOP or START is written by the take that
+ * keeps it, and a message taken in again (a text's answer job, a redelivery) reads the consent that stands. The door
+ * refuses whatever is sent to a person who said STOP, as deliver does.
+ */
+function consentOnRecord() {
+  const record = { consent: "unknown", dnc: false };
+  const kept = new Set();
+  return {
+    record,
+    ingest: async (_db, _tenant, n) => {
+      if (!kept.has(n.messageId)) {
+        kept.add(n.messageId);
+        if (n.optOut) Object.assign(record, { consent: "opted_out", dnc: true });
+        if (n.optIn) Object.assign(record, { consent: "opted_in", dnc: false });
+      }
+      return { ...ingested(n), ...record };
+    },
+    get delivered() {
+      return record.consent === "opted_out" ? { outcome: "refused", reason: "opted_out", messageId: null } : undefined;
+    },
+  };
+}
+
+test("a START whose answer is taken up after the person said STOP is held by the STOP: nothing confirmed, nobody told they said yes", async () => {
+  const kept = consentOnRecord();
+  const w = world(kept);
+  const start = text("START", "wamid.y1");
+  await w.record(start);
+  await w.run(text("STOP", "wamid.y2"));
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["opt_out"],
+  );
+  // The START's job, run late: its ingest is a redelivery, and the record holds the STOP that came after it.
+  await w.run(start, {}, true);
+  assert.deepEqual(w.seen.sent, [], "no confirmation of a yes the STOP since took back");
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["opt_out"],
+    "and nobody is told the customer said yes and was not confirmed",
+  );
+  assert.equal(w.seen.alerts.length, 1, "the STOP's own alert, and no other");
+  assert.equal(kept.record.consent, "opted_out", "the STOP stands");
+});
+
+test("a START answered by its job, taken in again with the yes its door wrote on record, is confirmed as a new START is", async () => {
+  const visit = optInConfirmation("Harbor Nails", "conversational");
+  const later = world(consentOnRecord());
+  const start = text("START", "wamid.y3");
+  await later.record(start);
+  await later.run(start, {}, true);
+  assert.deepEqual(
+    later.seen.sent.map((s) => [s.body, s.meta]),
+    [[visit, { ack: true, confirmation: "conversational" }]],
+  );
+  assert.equal(later.seen.escalations.length, 0);
+  // And a START taken in once, after a STOP, is the way back it always was.
+  const back = world(consentOnRecord());
+  await back.run(text("STOP", "wamid.y4"));
+  await back.run(text("START", "wamid.y5"));
+  assert.deepEqual(
+    back.seen.sent.map((s) => s.body),
+    [visit],
+  );
+});
+
+test("a YES OFFERS answered after the person took back their yes to offers is held by that no: nothing confirmed, nobody told they said yes", async () => {
+  // Its yes was written when the door kept it (00361); the person then said no more offers, and the answer's job, run
+  // late, takes the message in again. The door would refuse the confirmation (no_marketing_consent), and a person used
+  // to be told the customer said yes and was never confirmed, when the customer's last word was no.
+  const offers = (marketingConsent) => ({
+    leads: {
+      read: async () => ({ name: null }),
+      personReplyMode: async () => null,
+      offersAnswer: async () => ({ marketingConsent, marketingConsentSource: null }),
+    },
+  });
+  const yes = text("YES OFFERS", "wamid.o1");
+  const takenBack = world(consentOnRecord());
+  await takenBack.record(yes);
+  await takenBack.run(yes, offers("opted_out"), true);
+  assert.deepEqual(takenBack.seen.sent, [], "no confirmation of a yes the person since took back");
+  assert.equal(takenBack.seen.escalations.length, 0, "and nobody is asked to send it by hand");
+  // The same answer while the yes stands is confirmed in the program's words, as a new YES OFFERS is.
+  const stands = world(consentOnRecord());
+  await stands.record(yes);
+  await stands.run(yes, offers("opted_in"), true);
+  assert.deepEqual(
+    stands.seen.sent.map((m) => m.body),
+    [optInConfirmation("Harbor Nails", "marketing")],
+  );
+  // A YES OFFERS taken in once is confirmed whatever an earlier answer said: it is the person's newest word.
+  const fresh = world(consentOnRecord());
+  await fresh.run(text("YES OFFERS", "wamid.o2"), offers("opted_out"));
+  assert.deepEqual(
+    fresh.seen.sent.map((m) => m.body),
+    [optInConfirmation("Harbor Nails", "marketing")],
+  );
+});
+
 test("a START does not bring back a yes to offers a STOP ended: WhatsApp says how to get them again, a text says the filed words alone", async () => {
   // A STOP ends the yes to offers (00323), and a START is a yes to messages about their visit and nothing more. The
   // person is told once, after the filed words, on WhatsApp alone: the texting line's confirmation is the campaign's
@@ -994,6 +1095,44 @@ test("an unreadable attachment still reaches storage, and a redelivery of it doe
   await w.run(note);
   assert.equal(w.seen.escalations.length, 1);
   assert.equal(w.seen.alerts.length, 1);
+});
+
+test("an old voice note or sticker Meta sent again after an outage is a person's: no acknowledgement and no pause, handed over as too late, its attachment still kept", async () => {
+  // The gate for what the receptionist will not read ran before the message's age, so an attachment hours old got the
+  // canned acknowledgement and paused the thread: an automated reply out of nowhere, past the two-hour horizon.
+  const at = (hoursAgo) => String(Math.floor((Date.now() - hoursAgo * HOUR_MS) / 1000));
+  for (const [name, m] of [
+    ["a voice note", { type: "audio", audio: { id: "a-old", mime_type: "audio/ogg" } }],
+    ["a sticker", { type: "sticker", sticker: { id: "s-old", mime_type: "image/webp" } }],
+  ]) {
+    const w = world();
+    await w.run({ from: FROM, id: `wamid.old-${m.type}`, timestamp: at(3), ...m });
+    assert.deepEqual(w.seen.sent, [], `${name}: REGRESSION, the canned acknowledgement went out three hours late`);
+    assert.deepEqual([w.seen.pauses, w.thread().pausedUntil], [[], 0], `${name}: nothing was said, so nothing paused`);
+    assert.deepEqual(
+      w.seen.escalations.map((e) => e.reason),
+      ["stale"],
+      name,
+    );
+    assert.match(w.seen.escalations[0].details, /minutes late — too old to answer automatically/, name);
+    assert.deepEqual(
+      w.seen.alerts.map((a) => [a.userText, a.botText]),
+      [[`[${m.type}]`, "(no reply sent — arrived too late to answer automatically)"]],
+      `${name}: a person is told what it was`,
+    );
+    assert.equal(w.seen.media, 1, `${name}: kept for the person it is handed to`);
+    assert.equal(w.seen.processed, 1, name);
+  }
+
+  // Late but inside the horizon, the customer is still in the conversation: acknowledged and handed over, as always.
+  const w = world();
+  await w.run({ from: FROM, id: "wamid.late-vn", type: "audio", timestamp: at(0.5), audio: { id: "a-late" } });
+  assert.equal(w.seen.sent.length, 1, "the acknowledgement");
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["non_text"],
+  );
+  assert.equal(w.seen.pauses.length, 1);
 });
 
 test("the confirmation of a YES OFFERS names itself marketing at the door, and everything else is a reply", async () => {
@@ -1649,4 +1788,30 @@ test("the model is told who the person is with the conversation's channel: a tex
   });
   assert.match(byText, /This conversation is by text message, not WhatsApp\./);
   assert.doesNotMatch(byText, /Has not been asked/);
+});
+
+test("a message held before the model is held for that hold, not for the day's tokens: an 'ask' workspace and a paused one, both over their budget", async () => {
+  // The one order (core reply-posture.ts unattendedHold): a held message makes no model call, so its own hold is what
+  // the Inbox says. Before it, the budget was asked first and either one read "budget".
+  const limits = { max_llm_tokens_day: 1000 };
+  for (const [name, rt, reason] of [
+    ["ask", runtime({ policy: { reply: { mode: "ask", limits } } }), "policy_block"],
+    ["paused", runtime({ paused: true, policy: { reply: { mode: "auto", limits } } }), "paused"],
+  ]) {
+    const w = world({ rt, tokensUsed: 5000 });
+    await w.run(text("when do you open?"), {});
+    assert.deepEqual(
+      w.seen.escalations.map((e) => e.reason),
+      [reason],
+      `${name}: held for its own reason, never "budget"`,
+    );
+    assert.equal(w.seen.sent.length, 0, `${name}: nothing was said`);
+  }
+  // Over budget and free to answer is still the budget's.
+  const free = world({ rt: runtime({ policy: { reply: { mode: "auto", limits } } }), tokensUsed: 5000 });
+  await free.run(text("when do you open?"), {});
+  assert.deepEqual(
+    free.seen.escalations.map((e) => e.reason),
+    ["budget"],
+  );
 });

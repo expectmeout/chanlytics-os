@@ -1,5 +1,5 @@
 import "server-only";
-import { inviteUserByEmail, type Database } from "@chanlytics/db";
+import { emitEvent, inviteUserByEmail, workspaceIdsOf, type Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
@@ -27,6 +27,8 @@ interface TeamMember {
   /** The name they gave; "" when none. */
   displayName: string;
   role: string;
+  /** When they joined the workspace (team_roster's `joined_at`, 00068); null where the read did not say. */
+  joined_at: string | null;
   isMe?: boolean;
 }
 
@@ -112,6 +114,7 @@ export async function teamRoster(db: SupabaseClient<Database>, tenantId: string)
     email: m.email,
     displayName: m.display_name,
     role: m.role,
+    joined_at: m.joined_at ?? null,
   }));
   return { members: roster, invites: (invites.data ?? []) as OpenInvite[] };
 }
@@ -231,6 +234,74 @@ export async function removeMember(
   return removed.revoked_invite === true ? { revokedInvite: true as const } : { removed: true as const };
 }
 
+/** Supabase Auth's refusal of an invitation to an address whose account was confirmed meanwhile. */
+const EMAIL_HAS_ACCOUNT = "email_exists";
+
+/**
+ * An owner sends an open invitation again (00371 team_invite_renew): seven more days, a decision that says it went
+ * again, then the email. The card offered "revoke it and send a new one", which sent nothing at all: the first
+ * invitation had made an account, and the second found it. A mail that cannot go takes the renewal back, its expiry
+ * and its decision, as a first invitation's failed mail takes the invitation back.
+ */
+export async function resendInvite(
+  ctx: TeamCtx,
+  tenantId: string,
+  invitationId: string,
+  svc: SupabaseClient<Database> = serviceDb(),
+) {
+  let renewed: Record<string, unknown>;
+  try {
+    renewed = await teamCall(
+      svc.rpc("team_invite_renew", {
+        p_tenant_id: tenantId,
+        p_actor: ctx.userId,
+        p_invitation_id: invitationId,
+        ...(ctx.via ? { p_via: ctx.via } : {}),
+      }),
+      "invite",
+    );
+  } catch (e) {
+    if (e instanceof AppError && e.code === "not_found")
+      throw new AppError("not_found", "That invitation is no longer open.", 404);
+    throw e;
+  }
+  const email = String(renewed.email);
+  const { error: mailErr } = await inviteUserByEmail(svc, email);
+  if (!mailErr) return { resent: true as const, email };
+  await svc.rpc("team_invite_renew_withdraw", {
+    p_tenant_id: tenantId,
+    p_invitation_id: invitationId,
+    p_decision_id: String(renewed.decision_id),
+    p_was: String(renewed.was),
+  });
+  if (mailErr.code === EMAIL_HAS_ACCOUNT)
+    throw new AppError(
+      "conflict",
+      `${email} has an account now. Revoke this invitation and invite them again: they join at once.`,
+      409,
+    );
+  throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
+}
+
+/**
+ * A member leaves the workspace by their own hand (00371 team_leave), an owner too while another owner stays.
+ * team_remove refuses a removal of oneself and is an owner's alone, so an operator who had left the business had to
+ * ask to be taken off.
+ */
+export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseClient<Database> = serviceDb()) {
+  try {
+    await teamCall(
+      svc.rpc("team_leave", { p_tenant_id: tenantId, p_actor: ctx.userId, ...(ctx.via ? { p_via: ctx.via } : {}) }),
+      "leave",
+    );
+  } catch (e) {
+    if (e instanceof AppError && e.code === "conflict")
+      throw new AppError("conflict", "You're the only owner. Make someone else Owner first.", 409);
+    throw e;
+  }
+  return { left: true as const };
+}
+
 /** An invitation still open for an address: where it seats them, and as what. */
 interface InviteToAccept {
   id: string;
@@ -280,8 +351,31 @@ export async function acceptOpenInvites(
       .insert({ tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
     if (!mErr || mErr.code === "23505") {
       await db.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", inv.id);
+      // The seat is the news, and only the read that took it says so: a seat already held (23505) joined before. The
+      // ledger kept the invitation and its role and never that anybody arrived.
+      if (!mErr)
+        await emitEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, { by: userId, role: inv.role });
       n++;
     }
   }
   return n;
+}
+
+/**
+ * The workspaces a person is in, read before their account goes: its rows go with it, and each of those workspaces
+ * is told a member left (saidLeft). A read that fails is no list, and the deletion goes on without the record.
+ */
+export async function seatsOf(db: SupabaseClient<Database>, userId: string): Promise<string[]> {
+  return workspaceIdsOf(db, userId).catch(() => []);
+}
+
+/**
+ * A person deleted their account: said on the ledger of each workspace they sat in, so the team that reads the log
+ * sees a seat go rather than a name vanish from the roster with no trace. Who they were is not kept: the account is
+ * gone, and the id names no row. As the service role: their own session ended with the account.
+ */
+export async function saidLeft(tenantIds: readonly string[], userId: string): Promise<void> {
+  const db = serviceDb();
+  for (const tenantId of tenantIds)
+    await emitEvent(db, tenantId, "member.left", "workspace", tenantId, { by: userId, how: "account_deleted" });
 }

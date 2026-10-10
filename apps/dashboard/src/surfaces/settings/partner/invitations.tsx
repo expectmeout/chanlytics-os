@@ -4,6 +4,7 @@
  * workspaces are read again so it is there to open.
  */
 import { useEffect, useState } from "react";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import type { LegacyFlash } from "../../legacy-verbs";
 import type { PartnerApi } from "./surface";
@@ -88,26 +89,26 @@ export function PartnerInvitations({
             <span className="set-row-hint">{i.sentence}</span>
           </div>
           <div className="set-form-actions">
-            <button
-              type="button"
-              className="btn btn-sm"
+            <Button
+              size="sm"
+              variant="primary"
               onClick={() => void answer(i.workspaceId, true)}
               disabled={!!busy}
               aria-busy={pressing(i.workspaceId, true) || undefined}
               data-testid={`partner-invitation-join-${i.workspaceId}`}
             >
               {pressing(i.workspaceId, true) ? W.accepting : W.accept}
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
+            </Button>
+            <Button
+              size="sm"
+              variant="quiet"
               onClick={() => void answer(i.workspaceId, false)}
               disabled={!!busy}
               aria-busy={pressing(i.workspaceId, false) || undefined}
               data-testid={`partner-invitation-decline-${i.workspaceId}`}
             >
               {pressing(i.workspaceId, false) ? W.declining : W.decline}
-            </button>
+            </Button>
           </div>
         </div>
       ))}

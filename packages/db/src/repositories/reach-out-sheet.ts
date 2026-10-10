@@ -1,13 +1,15 @@
 /**
  * The reach-out sheet's reads and writes (Reach out, Part 4 PRs 4–5): a workspace's chains as their rows, a chain's
  * root and a send by their ids, the emails' words, a run's sends, a step stamped for its day, the one reset of a
- * send's check (00211 reach_out_recheck) and the outreach mode. The one place these tables are typed for them. The
+ * send's check (00211 reach_out_recheck), a chain saved whole with its start's line (00381 reach_out_save) and the
+ * outreach mode. The one place these tables are typed for them. The
  * dashboard asks on the session client (RLS decides what a member reads); the edge on the service role. A read that
  * fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { versionWords } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import type { JsonObject } from "../events";
 
 type Db = SupabaseClient<Database>;
 
@@ -156,6 +158,51 @@ export async function handRun(
   return { made: r.made ?? 0, already: r.already ?? 0 };
 }
 
+/** What the save answers: the chain's root, its steps in order, how many sends went back to the check, and the start's line. */
+export interface ReachOutSaved {
+  root_id: string;
+  step_ids: string[];
+  rechecked: number;
+  /** The start_playbook decision's id, for a new chain; absent for an edit, which records no start. */
+  decision_id?: string;
+  undo_dropped?: boolean;
+}
+
+/**
+ * A chain made or edited whole and, when it is new, the start_playbook decision on its root as the member's, in one
+ * transaction (00381 reach_out_save over 00211's door). The service role's alone (R15): the route has checked the
+ * member's role and validated every word, and names who they are (`userId`); the door checks the membership again.
+ * `decision` is what the ledger keeps of the start, for a new chain, and null for an edit (a chain is started once:
+ * the door refuses a decision given with a root_id). The door's own answer, or its refusal with the code it refused
+ * under, which the route says in the sheet's words.
+ */
+export async function saveReachOutChain(
+  db: Db,
+  p: {
+    tenantId: string;
+    userId: string;
+    chain: Record<string, unknown>;
+    decision: { payload: Json; via: string | null; undoOf: string | null } | null;
+  },
+): Promise<{ data: ReachOutSaved | null; error: { code?: string; message: string } | null }> {
+  const { data, error } = await db.rpc("reach_out_save", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_chain: p.chain as Json,
+    p_decision: p.decision?.payload ?? null,
+    ...(p.decision?.via ? { p_via: p.decision.via } : {}),
+    ...(p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}),
+  });
+  if (error) return { data: null, error: { code: error.code, message: error.message } };
+  // A door's jsonb answer, as the DTO its function builds (00211): the SQL is its shape, and its tests hold it.
+  const saved = data as ReachOutSaved | null;
+  if (!saved || typeof saved.root_id !== "string")
+    return { data: null, error: { message: "reach_out_save: no chain" } };
+  if (p.decision && typeof saved.decision_id !== "string")
+    return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
+  return { data: saved, error: null };
+}
+
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */
 export async function runsWaitingOf(db: Db, tenantId: string): Promise<{ id: string; audience: unknown }[]> {
   const { data, error } = await db
@@ -256,8 +303,6 @@ export interface HeldNoticeMark {
   claimed_at: string;
   sent_at?: string;
 }
-
-type JsonObject = { [key: string]: Json | undefined };
 
 /** A mark as the audience holds it; anything else is no mark. */
 const markOf = (v: Json | undefined): HeldNoticeMark | null =>

@@ -29,6 +29,7 @@ import {
   seasonHorizon,
   TenantConfigWriteSchema,
   toCalendarVM,
+  windowFor,
   zoneMidnight,
   isConsultationTitle,
 } from "@chanlytics/contracts";
@@ -743,6 +744,36 @@ test("the route: the answer carries the feed's state and never its address; a vi
   });
   await route.GET.run(new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7`), owner);
   assert.equal(made.length, 1, "an owner's read adds the person the feed names");
+});
+
+test("the route: asked for the weeks around today, it answers the board's own window by the business's clock", async (t) => {
+  // What the page opens on (9 Oct 2026). It asked by its window's first day, which it could not say until it knew the
+  // zone, so the read waited for who is looking and the document's head could not start it. The route knows the zone.
+  const ask = (q) =>
+    route.GET.run(
+      new Request(`http://localhost/api/v1/calendar?workspace=${T}&${q}`),
+      ctxFor(tables(null, "viewer"), { people_list: () => [] }),
+    );
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
+  const board = windowFor("2026-09-08");
+  const around = (await ask("around=today")).calendar;
+  assert.deepEqual([around.from, around.days.length], [board.from, 63], "nine weeks from the Monday before the month");
+  assert.equal(around.days[0].key, "2026-08-24");
+  // The business's today, not the server's: at two in the morning UTC on the first, New York is still in September.
+  t.mock.timers.setTime(Date.parse("2026-10-01T02:00:00.000Z"));
+  assert.equal((await ask("around=today")).calendar.from, board.from, "still September's weeks");
+  t.mock.timers.setTime(Date.parse("2026-10-01T05:00:00.000Z"));
+  assert.equal(
+    (await ask("around=today")).calendar.from,
+    windowFor("2026-10-01").from,
+    "and October's an hour past midnight there",
+  );
+  // A day named is where the read starts, whatever else is said; with neither, today's week, as it always was.
+  const named = (await ask("from=2026-11-30&days=7&around=today")).calendar;
+  assert.deepEqual([named.from, named.days.length], ["2026-11-30", 7]);
+  t.mock.timers.setTime(NOW.getTime());
+  const bare = (await ask("days=7")).calendar;
+  assert.deepEqual([bare.from, bare.days.length], ["2026-09-07", 7]);
 });
 
 test("the save refuses an address every fetch would refuse, in the same words", () => {

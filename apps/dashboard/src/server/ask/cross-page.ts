@@ -1,4 +1,4 @@
-import { parseLeadsRoute, type AskScope, type AskSurface } from "@chanlytics/contracts";
+import { fenced, parseLeadsRoute, type AskScope, type AskSurface } from "@chanlytics/contracts";
 import type { SearchResultBlock } from "./context";
 import { calledName, type ToolRun } from "./tools";
 
@@ -77,12 +77,55 @@ const WROTE =
 const PLAYBOOKS = /\bplaybooks?\b|\bwin-?back\b|\bsave our number\b|\bmonth'?s offer\b|\bstanding (rules?|offers?)\b/i;
 const AUDIENCES =
   /\baudiences?\b|\bsaid yes\b|\bopted[- ]in\b|\boffers?\b|\bbroadcasts?\b|\bcampaigns?\b|\btemplates?\b|\bquiet (clients|customers|people)\b|\bdijeron que s[ií]\b|\bofertas?\b|\bplantillas?\b/i;
+/**
+ * Who a send can reach, asked on Campaigns: an audience, who said yes, a send to someone, a message's template. There a
+ * campaign or an offer named is a row the page holds (ON_PAGE), and is no reason to read the lists.
+ */
+const REACH =
+  /\baudiences?\b|\baudiencias?\b|\bsaid yes\b|\bopted[- ]in\b|\bsend\b.*\bto\b|\btemplates?\b|\bdijeron que s[ií]\b|\ba qui[eé]n (puedo|podemos) (enviar|mandar)\b|\bplantillas?\b/i;
 const MISSED = /\bmissed calls?\b|\bllamadas? perdidas?\b/i;
 const CALLS = /\btranscripts?\b|\brecordings?\b|\bcalls?\b|\bcalled\b|\bllam(ó|o|aron|ada|adas|ar)\b|\bgrabaci[oó]n\b/i;
 /** Drafts held for approval (D12): the snapshot carried them on every page; now one read carries them off the Inbox. */
 const HELD = /\bheld\b|\bdrafts?\b|\bwaiting (for|on) (my |your )?approval\b|\bborradores?\b|\bretenid[oa]s?\b/i;
+/**
+ * A setup, asked for (the moment spec, A4): what runs and the moments offered with their starters (campaigns.playbooks),
+ * and the lists and messages a campaign may go by (campaigns.audiences), read before round 1 on any page, Campaigns
+ * included, so the first round can propose the cards. Only a request to set campaigns up: said at a sentence's start, or
+ * after an opener (a please, a "hey", a "yes", a "can you", a "help me", a "let's", an "I'd love to"), in either language
+ * or both at once. A question whether something is set up, or how ("is our mailbox set up?", "did you set up my
+ * campaigns?", "how do I set up…?"), and Start's own setup are not one, and read what they always read. Starting one is
+ * a setup only of something not yet named ("start a new campaign", "start my campaigns"): "start the follow-ups" runs
+ * what is there.
+ */
+const SETUP_OPENERS = [
+  "please|ok(?:ay)?|now|so|then|just|go ahead and|hey|hi|hello|yes|yeah|sure",
+  "(?:can|could|would) you|help (?:me|us)|let[’']?s|let us",
+  "i (?:want|need)(?: you)? to|i(?:[’']d| would) (?:like|love)(?: you)? to|i wanna",
+  "por favor|ahora|oye|hola|s[ií]|vale|puedes|podr[ií]as|ay[uú]da(?:me|nos) a|quiero|me gustar[ií]a",
+].join("|");
+/** What a setup is of, in either language: a campaign (with the tilde or without), a playbook, a nudge, a reminder. */
+const SETUP_NOUN = String.raw`(?:campaigns?|campa[ñn]as?|playbooks?|nudges?|follow[- ]?ups?|win-?backs?|reminders?|recordatorios?)\b`;
+/** One word that may stand before the noun ("a new campaign", "my first campaign"), never "the". */
+const SETUP_WORD = String.raw`(?:(?!(?:the|el|las?|los)\s)[\p{L}'’-]+ )?`;
+/** Set up, prepare, create: of anything, the ones there included. */
+const SETUP_MAKE = String.raw`(?:set[- ]?up|configurar?|preparar?|crear?) (?:(?:all|a few|todas) )?(?:(?:an?|my|our|the|some|mis?|las?|unas?|nuestras?) )?`;
+/** Start, begin, launch: of something not yet named, never "the" ones that run. */
+const SETUP_START = String.raw`(?:start|iniciar?|lanzar?) (?:(?:all|a few|todas) )?(?:(?:an?|my|our|some|mis?|unas?|nuestras?) )?`;
+/**
+ * The first day's other ideas on Campaigns (contracts buildAskSuggestions, A3), each a setup however it is typed: a
+ * win-back of customers gone quiet, and what should go out this month.
+ */
+const SETUP_IDEAS = String.raw`win[- ]?back\b|recuperar? a\b|what should (?:go|we send) out\b|qu[eé] deber[ií]a(?:mos)? (?:salir|enviar)\b`;
+const SETUP = new RegExp(
+  String.raw`(?:^|[.!?;:,¿¡]\s*)(?:(?:${SETUP_OPENERS})\s+)*(?:(?:${SETUP_MAKE}|${SETUP_START})${SETUP_WORD}${SETUP_NOUN}|${SETUP_IDEAS})`,
+  "iu",
+);
 
-/** The reads each page's own rows already answer, by tool and action: on that page, its context answers the question. */
+/**
+ * The reads each page's own rows already answer, by tool and action: on that page, its context answers the question.
+ * Campaigns' rows are its campaigns and offers, so AUDIENCES' words name them there; who a send can reach is no row of
+ * it, and is read when asked in REACH's words.
+ */
 const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
   calendar: new Set(["calendar.openings", "calendar.week"]),
   campaigns: new Set(["campaigns.playbooks", "campaigns.audiences"]),
@@ -95,16 +138,21 @@ const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
 
 /**
  * The reads a question names on another page, at most CROSS_PAGE_MAX, in the order below. On Reports a
- * report is read only for a period other than the one on screen (the context's view).
+ * report is read only for a period other than the one on screen (the context's view). A setup's reads (SETUP) come
+ * first, on every page.
  */
 export function crossPagePlan(text: string, surface: string | null, view: string | null = null): ToolRun[] {
   const q = text.replace(/\s+/g, " ").trim();
   const own = ON_PAGE[surface as AskSurface] ?? new Set<string>();
   const out: ToolRun[] = [];
-  const add = (name: string, input: Record<string, unknown>) => {
+  // `answered`: the reads the page's rows answer, skipped; none where the question asks what they do not hold.
+  const add = (name: string, input: Record<string, unknown>, answered: ReadonlySet<string> = own) => {
     const called = calledName(name, input);
-    if (!own.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
+    if (!answered.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
+  // A setup's two reads come first and are read whatever page asks (A4): the page's rows hold neither.
+  if (SETUP.test(q))
+    for (const action of ["playbooks", "audiences"]) out.push({ name: "campaigns", input: { action } });
   const overview = OVERVIEW.test(q);
   if (overview) add("today", {});
   if (overview || REPORT.test(q)) {
@@ -116,7 +164,8 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   else if (CALENDAR.test(q)) add("calendar", { action: "week", day: dayOf(q, "today") });
   if (PIPELINE.test(q)) add("people", { action: "pipeline" });
   if (PLAYBOOKS.test(q)) add("campaigns", { action: "playbooks" });
-  if (AUDIENCES.test(q)) add("campaigns", { action: "audiences" });
+  if (surface === "campaigns" && REACH.test(q)) add("campaigns", { action: "audiences" }, new Set());
+  else if (AUDIENCES.test(q)) add("campaigns", { action: "audiences" });
   if (MISSED.test(q)) add("calls", { action: "list", filter: "missed" });
   else if (CALLS.test(q)) add("calls", { action: "list", filter: "recent" });
   if (HELD.test(q)) add("inbox", { action: "list", filter: "held" });
@@ -127,10 +176,11 @@ export function crossPagePlan(text: string, surface: string | null, view: string
 /**
  * The row the scope names, read whole by the tool and action that read it, to ride in with the page (as the snapshot's
  * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.thread), a lead
- * (leads.lead), a search (leads.search), and a run -- the Broadcasts row its address calls one -- (campaigns.broadcast).
- * A lead is read as the search the page is on found it (its address's `s-<id>`), the membership its peek shows, never
- * its newest in another search. A page needs no read: none. Moved here from loop.ts (PR 4.3): the reads made before
- * the model is asked live here.
+ * (leads.lead), a search (leads.search), a run -- the Broadcasts row its address calls one -- (campaigns.broadcast),
+ * and a campaign (campaigns.playbooks, which names it among the rest). A lead is read as the search the page is on
+ * found it (its address's `s-<id>`), the membership its peek shows, never its newest in another search. A page needs
+ * no read: none, a reach-out's drawer among them (contracts scopeFromRoute: its row rides in with the page's). Moved
+ * here from loop.ts (PR 4.3): the reads made before the model is asked live here.
  */
 export function scopedRead(scope: AskScope | null, route?: string | null): ToolRun | null {
   if (scope?.kind === "call") return { name: "calls", input: { action: "get", call_id: scope.id } };
@@ -146,19 +196,21 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
   }
   if (scope?.kind === "search") return { name: "leads", input: { action: "search", search_id: scope.id } };
   if (scope?.kind === "run") return { name: "campaigns", input: { action: "broadcast", broadcast_id: scope.id } };
+  if (scope?.kind === "playbook") return { name: "campaigns", input: { action: "playbooks" } };
   return null;
 }
 
 /**
  * One read as the model reads it: data in a block of its own, never in `system` (customers' words are in it), its
- * source the tool and action that read it (`read://calendar.week`), its title the call as it was made.
+ * source the tool and action that read it (`read://calendar.week`), its title the call as it was made. Fenced, as a
+ * tool's result is (round.ts resultBlocks): the same rows, read ahead of the question.
  */
 export function readBlock(run: ToolRun, result: string): SearchResultBlock {
   return {
     type: "search_result",
     source: `read://${calledName(run.name, run.input)}`,
     title: `${run.name} ${JSON.stringify(run.input)}`,
-    content: [{ type: "text", text: result }],
+    content: [{ type: "text", text: fenced("record", result) }],
     citations: { enabled: false },
   };
 }

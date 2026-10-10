@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ASK_PAGES, ASK_PAGE_ROUTES, inviteState } from "@chanlytics/contracts";
+import { ASK_PAGES, ASK_PAGE_ROUTES, invitationWords, joinedWords } from "@chanlytics/contracts";
 import { logLineOf } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -20,7 +20,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { inviteMember, setMemberRole, removeMember } = await import(at("apps/dashboard/src/server/workspace/team.ts"));
+const TEAM = at("apps/dashboard/src/server/workspace/team.ts");
+const { inviteMember, setMemberRole, removeMember, resendInvite, leaveTeam } = await import(TEAM);
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -172,21 +173,97 @@ test("a removal: an open invitation revoked or a member removed, as the database
   );
 });
 
-test("an invitation's state on the Team card: pending with its expiry, expiring today, expired, and no date at all", () => {
+test("an invitation's state on the Team card: when it went, its days left, expiring today, expired, and no dates at all", () => {
   const now = Date.parse("2026-09-11T12:00:00Z");
-  assert.deepEqual(inviteState("2026-09-18T12:00:00Z", now), {
+  const tz = "America/New_York";
+  assert.deepEqual(invitationWords({ createdAt: "2026-09-04T12:00:00Z", expiresAt: "2026-09-18T12:00:00Z" }, tz, now), {
     expired: false,
-    words: "invite pending · expires in 7 days",
+    sent: "invited Sep 4",
+    left: "7 days left",
   });
-  assert.deepEqual(inviteState("2026-09-11T20:00:00Z", now), {
+  assert.deepEqual(invitationWords({ createdAt: null, expiresAt: "2026-09-11T20:00:00Z" }, tz, now), {
     expired: false,
-    words: "invite pending · expires today",
+    sent: null,
+    left: "expires today",
   });
-  assert.deepEqual(inviteState("2026-09-10T12:00:00Z", now), {
+  assert.deepEqual(invitationWords({ createdAt: "2025-12-30T12:00:00Z", expiresAt: "2026-09-10T12:00:00Z" }, tz, now), {
     expired: true,
-    words: "invite expired — revoke it and send a new one",
+    sent: "invited Dec 30, 2025",
+    left: null,
   });
-  assert.deepEqual(inviteState(null, now), { expired: false, words: "invite pending" });
+  assert.deepEqual(invitationWords({}, tz, now), { expired: false, sent: null, left: null });
+});
+
+test("a member's joined day, on the workspace's calendar, with the year only when it is not this one", () => {
+  const now = Date.parse("2026-09-11T12:00:00Z");
+  assert.equal(joinedWords("2026-09-01T02:00:00Z", "America/New_York", now), "Joined Aug 31", "the workspace's day");
+  assert.equal(joinedWords("2025-03-02T12:00:00Z", "America/New_York", now), "Joined Mar 2, 2025");
+  assert.equal(joinedWords(null, "America/New_York", now), null, "an older server's roster says nothing");
+});
+
+test("Resend renews the invitation, then mails it; a mail that cannot go takes the renewal back, its expiry and its row", async () => {
+  const renewed = {
+    invitation_id: "i1",
+    email: "bo@example.com",
+    role: "viewer",
+    was: "2026-09-01T00:00:00Z",
+    decision_id: "d9",
+  };
+  const w = platform({ team_invite_renew: renewed });
+  assert.deepEqual(await resendInvite(ctx({ via: "ask" }), A, "i1", w.svc), { resent: true, email: "bo@example.com" });
+  assert.deepEqual(w.calls, [
+    ["team_invite_renew", { p_tenant_id: A, p_actor: USER, p_invitation_id: "i1", p_via: "ask" }],
+  ]);
+  assert.deepEqual(w.mails, ["bo@example.com"]);
+
+  const down = platform(
+    { team_invite_renew: renewed, team_invite_renew_withdraw: null },
+    { mailError: { message: "smtp down" } },
+  );
+  await refused(
+    resendInvite(ctx(), A, "i1", down.svc),
+    "upstream_email",
+    502,
+    "We could not send the invitation email: smtp down",
+  );
+  assert.deepEqual(down.calls.at(-1), [
+    "team_invite_renew_withdraw",
+    { p_tenant_id: A, p_invitation_id: "i1", p_decision_id: "d9", p_was: "2026-09-01T00:00:00Z" },
+  ]);
+
+  // The address was confirmed meanwhile: Auth refuses an invitation to an account, and the owner is told what works.
+  const has = platform(
+    { team_invite_renew: renewed, team_invite_renew_withdraw: null },
+    { mailError: { code: "email_exists", message: "A user with this email address has already been registered" } },
+  );
+  await refused(resendInvite(ctx(), A, "i1", has.svc), "conflict", 409, "has an account now");
+  assert.equal(has.calls.at(-1)[0], "team_invite_renew_withdraw", "and nothing says it went");
+
+  await refused(
+    resendInvite(ctx(), A, "i1", platform({ team_invite_renew: raised("not_found") }).svc),
+    "not_found",
+    404,
+    "That invitation is no longer open.",
+  );
+  await refused(
+    resendInvite(ctx(), A, "i1", platform({ team_invite_renew: raised("forbidden") }).svc),
+    "forbidden",
+    403,
+    "Only an owner can do this.",
+  );
+});
+
+test("Leave hands the database the member themself, and the last owner is told what to do first", async () => {
+  const w = platform({ team_leave: { left: true, decision_id: "d1" } });
+  assert.deepEqual(await leaveTeam(ctx({ via: "ask" }), A, w.svc), { left: true });
+  assert.deepEqual(w.calls, [["team_leave", { p_tenant_id: A, p_actor: USER, p_via: "ask" }]]);
+  await refused(
+    leaveTeam(ctx(), A, platform({ team_leave: raised("last_owner") }).svc),
+    "conflict",
+    409,
+    "You're the only owner. Make someone else Owner first.",
+  );
+  await refused(leaveTeam(ctx(), A, platform({ team_leave: raised("not_found") }).svc), "not_found", 404);
 });
 
 test("the palette's page jumps land on pages that exist: Team on the Team pane, the receptionist's memory on Business details, and no jump to a pane that says not built", () => {

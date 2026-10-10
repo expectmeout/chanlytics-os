@@ -1,14 +1,8 @@
 import { z } from "zod";
-import {
-  AppError,
-  CONSENT_RESET_SOURCE,
-  CONSENT_SOURCES,
-  CONSENT_STATES,
-  ownMessageRefusal,
-} from "@chanlytics/contracts";
+import { CONSENT_STATES } from "@chanlytics/contracts";
 import { write } from "@/server/route";
-import { contactScope, recordDecision } from "@/server/verbs";
-import { dbRefusal } from "@/server/with-route";
+import { contactScope } from "@/server/verbs";
+import { recordVisitConsent } from "@/server/people/consent";
 
 const Body = z.object({
   consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], {
@@ -29,56 +23,24 @@ const Body = z.object({
  * "opted_in" and "opted_out" need a source that says how — in person, on the
  * phone, on a form, or in their own message; "unknown" is the reset to "not
  * asked" and carries no source. Owner or operator: the front desk is where the
- * answer is usually given. The door is one definer function that writes the
- * three consent columns together and keeps the event; the ledger row here says
- * who recorded it and how.
+ * answer is usually given.
  *
  * "In their own message" names the message (00137): `message_id`, one they
  * sent. The door judges it -- theirs, inbound, with words in it -- and copies
  * its words into the evidence, since only the database can see the message.
- * Asking here first hands the owner the same sentence without a round trip.
  *
  * The contact is the row (contactScope in verbs.ts): read under RLS, so one
  * the caller cannot see is a 404 rather than a leak, and the role is decided
  * against the contact's tenant, never one from the body.
+ *
+ * The handle is recordVisitConsent in src/server/people/consent.ts: the route is its declaration (who may, how
+ * often), the verb is what it does: the answer, its event and the history line that says who recorded it, in one write
+ * (00356 record_consent).
  */
 export const PUT = write({
   scope: contactScope,
   role: "operator",
   rate: "consent",
   input: Body,
-  handle: async ({ ctx, row: contact, input: body }) => {
-    const id = contact.id;
-    const consent = body.consent;
-    const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
-    if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
-      throw new AppError(
-        "validation",
-        "Say how they told you: in person, on the phone, on a form, or in their own message.",
-      );
-    }
-    const messageId = body.message_id ?? null;
-    const ownMessage = ownMessageRefusal(source, messageId);
-    if (ownMessage) throw new AppError("validation", ownMessage);
-    const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
-
-    const { data, error: doorErr } = await ctx.supabase.rpc("set_contact_consent", {
-      p_contact_id: id,
-      p_consent: consent,
-      p_source: source,
-      ...(note ? { p_note: note } : {}),
-      ...(messageId ? { p_message_id: messageId } : {}),
-    });
-    if (doorErr) throw dbRefusal(doorErr);
-    const r = (data ?? {}) as { previous?: string | null; updated_at?: string | null; dnc?: boolean };
-
-    const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
-      consent,
-      source,
-      note,
-      previous: r.previous ?? null,
-      ...(messageId ? { message_id: messageId } : {}),
-    });
-    return { contact_id: id, consent, dnc: !!r.dnc, source, updated_at: r.updated_at ?? null, decision_id: decisionId };
-  },
+  handle: ({ ctx, row, input }) => recordVisitConsent(ctx, row, input),
 });

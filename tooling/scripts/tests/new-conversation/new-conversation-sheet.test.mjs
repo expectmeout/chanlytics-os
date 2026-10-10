@@ -421,6 +421,30 @@ test("the pick: who is found, each a press; nobody; never 'no one' while nobody 
   assert.equal(seen.added, 1);
 });
 
+test("on a touch screen no field of the pick takes focus as it is drawn; a mouse and keys keep it ready", () => {
+  // Ruben, 8 October 2026: the sheet opened with its search in focus, so a phone raised its keyboard over a sheet
+  // nobody had read yet and moved the page to the field. A touch screen is the pointer (legacy-verbs.ts), never a width.
+  const adding = (open) => ({ open, name: "", phone: "", busy: false, error: null });
+  const stateOf = (open) => ({
+    pick: { q: "", setQ() {}, add: adding(open), setAdd() {}, rows: [], reading: false },
+    choose() {},
+    openAdd() {},
+    addSomeone: async () => undefined,
+  });
+  const ready = () => [
+    byTestId(draw(NewWho, { s: stateOf(false) }), "ix-new-who-search").props.autoFocus,
+    byTestId(draw(NewWho, { s: stateOf(true) }), "ix-new-who-name").props.autoFocus,
+  ];
+  assert.deepEqual(ready(), [true, true], "with keys: N, then type; and Add someone new opens on the name");
+  const media = globalThis.matchMedia;
+  globalThis.matchMedia = (q) => ({ matches: q === "(pointer: coarse)" });
+  try {
+    assert.deepEqual(ready(), [false, false], "REGRESSION: on a phone the keyboard rose as the sheet did");
+  } finally {
+    globalThis.matchMedia = media;
+  }
+});
+
 test("what was typed into the search starts someone new: a number where it reads as one, else a name", () => {
   assert.deepEqual(typedAs("+1 (212) 555-0147"), { phone: "+1 (212) 555-0147" });
   assert.deepEqual(typedAs(" 2125550147 "), { phone: "2125550147" });

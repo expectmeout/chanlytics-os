@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
+import { focusAsDrawn } from "../../legacy-verbs";
 import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../sheets/phone-sheet";
 import { PL_MODES, PL_SOURCE_GLYPH, plModeWord } from "../words";
 import { addToListMenu } from "./bar-menu";
@@ -173,7 +174,7 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
         <>
           <input
             className="pp-input"
-            autoFocus
+            autoFocus={focusAsDrawn()}
             value={slipsNote}
             placeholder="Which slips, e.g. Saturday's"
             maxLength={200}
@@ -227,7 +228,7 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
         <>
           <input
             className="pp-input"
-            autoFocus
+            autoFocus={focusAsDrawn()}
             value={note}
             placeholder="One line, under their notes"
             maxLength={200}
@@ -261,7 +262,7 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
         <>
           <input
             className="pp-input"
-            autoFocus
+            autoFocus={focusAsDrawn()}
             value={name}
             placeholder="Name the list"
             maxLength={60}

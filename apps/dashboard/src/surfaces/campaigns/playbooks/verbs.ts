@@ -45,7 +45,7 @@ type Accepted<
 > = { onAccepted?: (data: Output<K>) => void };
 
 export const playbooks = {
-  create: (body: PlaybookBody) => api()("POST playbooks", { body }),
+  create: (body: PlaybookBody) => api()("POST playbooks", { body, once: true }),
   update: (id: string, body: PlaybookBody) => api()("PUT playbooks/[id]", { params: { id }, body }),
   /**
    * The channels it goes by, changed alone (the drawer's Goes by row): the server judges them against the playbook as it
@@ -61,7 +61,7 @@ export const playbooks = {
     api()("DELETE playbooks/[id]", { params: { id }, onAccepted: opts.onAccepted }),
   /** A run now, at this person's request: sends now unless the class is set to never. */
   runNow: (id: string, opts: Accepted<"POST playbooks/[id]/run"> = {}) =>
-    api()("POST playbooks/[id]/run", { params: { id }, onAccepted: opts.onAccepted }),
+    api()("POST playbooks/[id]/run", { params: { id }, onAccepted: opts.onAccepted, once: true }),
   /** A run that waited for a person goes out now, or is skipped — both are the broadcast's own doors. */
   approveRun: (broadcastId: string, opts: Accepted<"POST broadcasts/[id]/approve"> = {}) =>
     api()("POST broadcasts/[id]/approve", { params: { id: broadcastId }, onAccepted: opts.onAccepted }),

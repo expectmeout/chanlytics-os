@@ -15,7 +15,6 @@ import {
   channelsOf,
   runningTotal,
   reportHourWords,
-  callMoodTone,
   REPORT_CHANNELS,
 } from "@chanlytics/contracts";
 
@@ -274,23 +273,23 @@ test("texts are said as texts, and a channel no message can arrive on is never l
   assert.equal(vm.lines.channels, "Mostly texts.");
 });
 
-test("a caller's mood reads in its own order, good then neither then bad, each with its status", () => {
-  assert.deepEqual(["Positive", "Neutral", "Negative", "Unknown"].map(callMoodTone), ["ok", "", "danger", ""]);
+test("a caller's mood reads in its own order, good then neither then bad, and carries no status of its own", () => {
   const vm = toReportVM(dto({ sentiments: { Negative: 5, Unknown: 1, Positive: 1, Neutral: 2 } }));
   assert.deepEqual(
-    vm.calls.sentiments.map((s) => [s.id, s.value, s.tone]),
+    vm.calls.sentiments.map((s) => [s.id, s.value]),
     [
-      ["Positive", 1, "ok"],
-      ["Neutral", 2, ""],
-      ["Unknown", 1, ""],
-      ["Negative", 5, "danger"],
+      ["Positive", 1],
+      ["Neutral", 2],
+      ["Unknown", 1],
+      ["Negative", 5],
     ],
     "never by count: the largest is not the first",
   );
-  assert.deepEqual(
-    toReportVM(dto()).calls.sentiments.map((s) => s.tone),
-    ["ok", ""],
-  );
+  for (const row of [...vm.calls.sentiments, ...toReportVM(dto()).calls.sentiments])
+    assert.ok(
+      !("tone" in row),
+      `${row.id}: a mood is an order, not a verdict, so no green or red is said for the page`,
+    );
 });
 
 test("reply speed: a day at a time up to two weeks, the median and slowest tenth from the replies themselves", () => {

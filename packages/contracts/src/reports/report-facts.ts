@@ -54,8 +54,9 @@ export function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): R
     });
   }
 
-  // The one busiest weekday: a tie names none. A week is said as days, a longer period as weekdays.
-  const b = vm.week.busiest;
+  // The one busiest weekday: a tie names none, and neither does a report of one day, whose only day is no busier than
+  // any other (Yesterday, Month on the 1st). A week is said as days, a longer period as weekdays.
+  const b = vm.days > 1 ? vm.week.busiest : null;
   const h = vm.hours;
   const peak = h && h.peak !== null ? `peak ${reportHourWords(h.peak)} to ${reportHourWords(h.peak + 2)}` : "";
   if (b !== null) {

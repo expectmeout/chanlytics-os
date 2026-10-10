@@ -30,6 +30,7 @@ const { CkXLabels, ChartLegend, ChartTooltip } = await import(`${K}/parts.tsx`);
 const { ChartCard, SegmentBar } = await import(`${K}/card.tsx`);
 const { BarChart, BarList } = await import(`${K}/bar.tsx`);
 const { LineChart } = await import(`${K}/line.tsx`);
+const { DotPlot } = await import(`${K}/dot.tsx`);
 const { PieChart } = await import(`${K}/pie.tsx`);
 const { RadarChart } = await import(`${K}/radar.tsx`);
 const { RadialChart } = await import(`${K}/radial.tsx`);
@@ -303,9 +304,9 @@ test("a card's CSV is spelled by contracts' csvCell: a spreadsheet reads it as U
       ["Win-back, again", null],
     ],
   };
-  const tree = ChartCard({ title: "By playbook and broadcast", table, testid: "c", children: "x" });
+  const tree = ChartCard({ title: "By campaign and broadcast", table, testid: "c", children: "x" });
   const { saved, clicked } = await saving(() => press(byTestId(tree, "card-csv")));
-  assert.deepEqual(clicked, [{ href: "blob:card", download: "by-playbook-and-broadcast.csv" }]);
+  assert.deepEqual(clicked, [{ href: "blob:card", download: "by-campaign-and-broadcast.csv" }]);
   const bytes = new Uint8Array(await saved[0].arrayBuffer());
   assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf]);
   assert.deepEqual(
@@ -324,7 +325,7 @@ test("a card's CSV is spelled by contracts' csvCell: a spreadsheet reads it as U
     const inApp = await saving(() => press(byTestId(tree, "card-csv")));
     assert.deepEqual(inApp.clicked, [], "REGRESSION: a blob download the phone's WebView drops without a word");
     assert.equal(handed.length, 1);
-    assert.equal(handed[0].name, "by-playbook-and-broadcast.csv");
+    assert.equal(handed[0].name, "by-campaign-and-broadcast.csv");
     assert.equal(handed[0].type, "text/csv");
     // The same words the browser saves, with its byte-order mark (Blob.text() drops it as it decodes).
     assert.equal(handed[0].text, String.fromCharCode(0xfeff) + (await saved[0].text()), "the same file, mark and all");
@@ -572,6 +573,175 @@ test("a line: a day with nothing is a gap, a lone day a ringed dot, and a refere
     (n) => n.type === "text",
   ).map(textOf);
   assert.deepEqual(ticks, ["0s", "30s"], "no tick says what the reference line says");
+});
+
+/* ------------------------------------------ dots ------------------------------------------ */
+
+// The card's days are the slots (one a calendar day, never a week); each reply is a dot on its day's slot.
+const DOT_DAYS = DAYS3.map(({ day, label, short }) => ({ day, label, short }));
+const DOT_CONFIG = { dot: { label: "Reply", color: "var(--chart-1)" } };
+const drawDots = (dots, extra = {}) =>
+  DotPlot({
+    days: DOT_DAYS,
+    dots,
+    config: DOT_CONFIG,
+    scale: "seconds",
+    reference: { value: 0, label: "your 1-minute hold ends" },
+    ariaLabel: "Each reply, past its hold",
+    describe: (d) => `${d.day}: ${d.value}s past its hold`,
+    ...extra,
+  });
+const dotsOf = (tree) => all(tree, (n) => classes(n).includes("ck-dotplot-dot"));
+const DOTS3 = [
+  { day: "2026-09-03", value: 0 },
+  { day: "2026-09-03", value: 40 },
+  { day: "2026-09-05", value: 300 },
+];
+
+test("a dot plot: one dot per event on its day's slot, 0 on the baseline, a reference labelled once, one tab stop the arrows walk", () => {
+  fresh();
+  const draw = (extra = {}) => drawDots(DOTS3, extra);
+  const tree = draw();
+  const circles = dotsOf(tree);
+  assert.equal(circles.length, 3, "a dot for each event, none for a day with none");
+  const base = Number(find(tree, (n) => classes(n).includes("ck-base"))?.props.y1 ?? NaN);
+  assert.equal(Number(circles[0].props.cy), base, "a reply sent as the hold ended sits on the baseline");
+  assert.ok(Number(circles[2].props.cy) < Number(circles[1].props.cy), "later is higher");
+  assert.ok(Number(circles[1].props.cx) > Number(circles[0].props.cx), "two on one day are spread inside its slot");
+  assert.deepEqual(
+    circles.map((c) => [c.type, c.props.r, c.props.fill]),
+    Array(3).fill(["circle", 3, "var(--color-dot)"]),
+    "r 3, painted with the card's own --color-dot",
+  );
+  assert.equal(all(tree, (n) => classes(n).includes("ck-ref")).length, 1, "the reference line is drawn once");
+  // Its label is a caption above the svg, not text on the line: replies sent as the hold ended land on the baseline, where
+  // the line is, and the words under them were overprinted by the dots (seen on the real page at 390 and 1440 px).
+  const captions = all(tree, (n) => classes(n).includes("ck-dotplot-ref"));
+  assert.equal(captions.length, 1, "the label is drawn once");
+  assert.equal(captions[0].type, "div", "as HTML, in the plot's wrapper");
+  assert.equal(textOf(captions[0]), "your 1-minute hold ends");
+  const svg = find(tree, (n) => n.type === "svg");
+  assert.ok(svg, "the plot's svg");
+  assert.equal(
+    find(svg, (n) => n === captions[0]),
+    null,
+    "outside the svg",
+  );
+  assert.equal(textOf(svg).includes("your 1-minute hold ends"), false, "and no svg text carries it");
+  assert.equal(
+    all(svg, (n) => classes(n).includes("ck-ref")).length,
+    1,
+    "the line stays in the svg: one group, with no text in it",
+  );
+  assert.equal(textOf(find(svg, (n) => classes(n).includes("ck-ref"))), "");
+  const kids = tree.props.children.flat();
+  assert.ok(kids.indexOf(captions[0]) >= 0 && kids.indexOf(captions[0]) < kids.indexOf(svg), "before the svg");
+  const plot = plotOf(tree);
+  assert.equal(plot.props.role, "group");
+  assert.equal(plot.props["aria-roledescription"], "chart");
+  assert.equal(plot.props.tabIndex, 0, "one tab stop for the whole plot");
+  assert.equal(all(tree, (n) => n.props && "tabIndex" in n.props).length, 1, "and no stop per dot");
+  assert.equal(plot.props.style, undefined, "no style prop: the plot is as tall as its svg (inline-styles.json)");
+  plot.props.onFocus();
+  let next = again(draw);
+  assert.equal(liveOf(next), "2026-09-05: 300s past its hold", "focus reads the newest dot");
+  assert.equal(all(next, (n) => classes(n).includes("hot")).length, 1, "the held dot stays");
+  assert.equal(all(next, (n) => classes(n).includes("dim")).length, 2, "and the others step back");
+  plotOf(next).props.onKeyDown({ key: "ArrowLeft", preventDefault() {} });
+  next = again(draw);
+  assert.equal(liveOf(next), "2026-09-03: 40s past its hold", "the arrows walk the dots");
+  assert.equal(
+    textOf(find(next, (n) => classes(n).includes("ck-tip"))),
+    "Sep 340Reply",
+    "the tooltip says the day, then the value under the series' name, when the page gives no tip",
+  );
+  assert.equal(dotsOf(again(() => draw({ dots: [] }))).length, 0, "no events, no dots, no crash");
+});
+
+test("a dot plot: the pointer finds the nearest dot inside its day's slot, and a day with no dots finds none", () => {
+  fresh();
+  const draw = () => drawDots(DOTS3);
+  let tree = draw();
+  const [first, second, third] = dotsOf(tree).map((c) => Number(c.props.cx));
+  const point = (x) =>
+    plotOf(tree).props.onPointerMove({
+      clientX: x,
+      pointerType: "mouse",
+      currentTarget: { getBoundingClientRect: () => ({ left: 0 }) },
+    });
+  point(second + 2);
+  tree = again(draw);
+  assert.equal(liveOf(tree), "2026-09-03: 40s past its hold");
+  point(first - 2);
+  tree = again(draw);
+  assert.equal(liveOf(tree), "2026-09-03: 0s past its hold", "the nearer of the two on that day");
+  point((second + third) / 2);
+  tree = again(draw);
+  assert.equal(liveOf(tree), "", "the middle day had no reply: nothing to read");
+  point(third);
+  tree = again(draw);
+  assert.equal(liveOf(tree), "2026-09-05: 300s past its hold");
+  point(0);
+  tree = again(draw);
+  assert.equal(liveOf(tree), "", "left of the plot reads as none");
+});
+
+test("a dot plot: a dot whose day is no slot is skipped, never drawn at NaN, read, or let stretch the axis", () => {
+  const known = { day: "2026-09-04", value: 12 };
+  const stray = { day: "2026-09-30", value: 9000 };
+  // Each plot is its own tree: two drawn on one set of hook cells would share a plot's held dot.
+  const drawn = (dots) => {
+    fresh();
+    return drawDots(dots);
+  };
+  const ticksOf = (tree) =>
+    all(
+      find(tree, (n) => classes(n).includes("ck-y")),
+      (n) => n.type === "text",
+    ).map(textOf);
+  const tree = drawn([known, stray]);
+  const circles = dotsOf(tree);
+  assert.equal(circles.length, 1, "the stray draws nothing");
+  assert.ok(
+    circles.every((c) => Number.isFinite(Number(c.props.cx)) && Number.isFinite(Number(c.props.cy))),
+    "and nothing is placed at NaN",
+  );
+  assert.deepEqual(ticksOf(tree), ticksOf(drawn([known])), "a dot that is not drawn does not stretch the axis");
+  assert.equal(dotsOf(drawn([stray])).length, 0, "a plot of strays draws no dots and does not crash");
+  assert.equal(dotsOf(drawn([stray, known])).length, 1, "wherever in the order the stray stands");
+  const draw = () => drawDots([known, stray]);
+  fresh();
+  plotOf(draw()).props.onFocus();
+  assert.equal(liveOf(again(draw)), "2026-09-04: 12s past its hold", "focus skips it too");
+  fresh();
+  const strays = () => drawDots([stray]);
+  plotOf(strays()).props.onFocus();
+  assert.equal(liveOf(again(strays)), "", "and with only strays, focus has nothing to read");
+});
+
+test("a dot plot: every reply on the line and no reference still draws, on a real axis, every dot on the baseline", () => {
+  // A period in which every reply went out as its hold ended, for a workspace that set none (the page passes no reference):
+  // the axis has no value above 0 to reach for, and the plot is still a plot.
+  fresh();
+  const tree = drawDots(
+    DOTS3.map((d) => ({ ...d, value: 0 })),
+    { reference: null },
+  );
+  const ticks = all(
+    find(tree, (n) => classes(n).includes("ck-y")),
+    (n) => n.type === "text",
+  ).map(textOf);
+  assert.ok(ticks.length > 0, "an axis with ticks, not an empty one");
+  assert.equal(all(tree, (n) => classes(n).includes("ck-ref")).length, 0, "no reference to draw");
+  assert.equal(all(tree, (n) => classes(n).includes("ck-dotplot-ref")).length, 0, "and no caption for it");
+  const base = Number(find(tree, (n) => classes(n).includes("ck-base"))?.props.y1 ?? NaN);
+  assert.ok(Number.isFinite(base), "a baseline");
+  const circles = dotsOf(tree);
+  assert.equal(circles.length, 3, "a dot for each reply");
+  for (const c of circles) {
+    assert.ok(Number.isFinite(Number(c.props.cy)) && Number.isFinite(Number(c.props.cx)), "placed, never at NaN");
+    assert.equal(Number(c.props.cy), base, "on the baseline");
+  }
 });
 
 /* ------------------------------------------ donut, radar, radial, heat, segments ------------------------------------------ */

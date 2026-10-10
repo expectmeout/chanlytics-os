@@ -45,8 +45,7 @@ async function assertMeasuredOnly(page: Page, where: string) {
     expect(text, `${where} shows an invented person: "${who}"`).not.toContain(who);
   }
   // A customer's own words may name a price ("can you do it for $150?"); the facts and cells may not.
-  // A column the member turned off (pl-col-off) is drawn and hidden, and innerText reads a hidden cell's text: only what shows counts.
-  for (const cell of await page.locator(".stat-cell, td:not(.pl-col-off), .cl-attn-status").allInnerTexts())
+  for (const cell of await page.locator(".stat-cell, td, .cl-attn-status").allInnerTexts())
     expect(cell, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
 }
 
@@ -81,30 +80,25 @@ test.describe("People on a real workspace", () => {
 
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.
-    // The headings a desktop shows: a column the member turned off is drawn with pl-col-off and hidden, and innerText would read it.
-    const headers = (await page.locator(".cl-table thead th:not(.pl-col-off)").allInnerTexts())
-      .map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase())
-      .filter(Boolean);
+    // The headings a desktop shows: a column the member turned off is not built. A sortable heading ends in its caret (↕),
+    // or its arrow once it is the sort (▲ ▼).
+    const headers = (await page.locator(".cl-table thead th").allInnerTexts())
+      .map((h) => h.replace(/[▲▼↕]/g, "").trim().toLowerCase())
+      // The row's acts have a name for a screen reader alone, and the checkbox none.
+      .filter((h) => h && h !== "actions");
     const cal = ((await (await apiGet(page, "/api/v1/contacts")).json()).data as { calendar?: { state: string } })
       .calendar;
     // With a calendar connected Visits is a column; the checkbox and the actions columns have no words.
-    // How to reach them is Reach, the column after State (it was a line of five facts under every name); First contact is
-    // a column a member may choose, off by default.
-    // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Came from is the Columns
-    // menu's to show (canvas P1 keeps it there: with it the table was wider than the pane at 1440).
-    // The next step after State (8 Oct 2026); the receptionist's column waits in the Columns menu, off by default.
+    // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Four are on until a member
+    // turns them off, Person, State, the next step (8 Oct 2026) and the last contact (9 Oct 2026: Reach, Offers, the
+    // receptionist, Came from and the rest wait in the Columns menu, so the table fits a laptop's pane).
     expect(headers).toEqual([
       "person",
       "state",
       "next step",
-      "reach",
       "last contact",
       ...(cal?.state === "ok" ? ["visits"] : []),
-      "offers",
     ]);
-    // Every Offers cell is one of the three answers.
-    for (const t of await page.getByTestId("row-offers").allInnerTexts())
-      expect(["Yes", "No", "Not asked"]).toContain(t.trim());
     // One state switcher: the rail, and the count in the line above. The tab row
     // and the five-tab strip are both gone.
     await expect(page.locator(".cl-section-head .cl-tabs")).toHaveCount(0);
@@ -596,8 +590,8 @@ test.describe("People on a real workspace", () => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const headers = async () =>
-      (await page.locator(".cl-table thead th:not(.pl-col-off)").allInnerTexts())
-        .map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase())
+      (await page.locator(".cl-table thead th").allInnerTexts())
+        .map((h) => h.replace(/[▲▼↕]/g, "").trim().toLowerCase())
         .filter(Boolean);
     expect(await headers()).not.toContain("came from");
     await page.getByTestId("people-columns").click();
@@ -617,6 +611,11 @@ test.describe("People on a real workspace", () => {
     const last = saved[saved.length - 1];
     expect(typeof last.view?.sortBy, "the sort rides with the columns").toBe("string");
     expect(["asc", "desc"]).toContain(last.view?.sortDir);
+    // Offers waits in the menu too: switched on, every cell is one of the three answers.
+    await menu.getByRole("menuitemcheckbox", { name: "Offers" }).click();
+    await expect.poll(headers).toContain("offers");
+    for (const t of await page.getByTestId("row-offers").allInnerTexts())
+      expect(["Yes", "No", "Not asked"]).toContain(t.trim());
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
     await expect(
@@ -624,6 +623,87 @@ test.describe("People on a real workspace", () => {
       "Esc puts focus back on the button that opened the menu",
     ).toBeFocused();
     expect(stopped, "every write to a view went to the one address answered here").toEqual([]);
+  });
+
+  test("the table gives every column the width it declares, fits a laptop's pane with its default columns, and a width dragged to is kept in the view", async ({
+    page,
+  }) => {
+    // The view's save is answered here and noted, never sent: no choice of this test reaches the member's real view.
+    const saved: Array<{ view?: { widths?: Record<string, number> } }> = [];
+    await page.route(/\/api\/v1\/views\/people(?:[?#]|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() !== "PUT") {
+        await route.fallback();
+        return;
+      }
+      saved.push(req.postDataJSON());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, data: { views: {} } }),
+      });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    test.skip(
+      (await page.locator(".cl-table tbody tr:not(:has(.empty))").count()) === 0,
+      "this workspace has nobody to show",
+    );
+    const scroller = page.getByTestId("people-table-scroll");
+    const table = page.locator(".cl-table");
+    await expect(table, "a desktop's table is a fixed layout").toHaveAttribute("data-fixed", "true");
+    // The columns' widths add up to the table's box: nothing is left for the browser to hand to the wrong column, and the
+    // table does not scroll sideways with its default columns beside the sidebar and the rail.
+    const sums = await page.evaluate(() => {
+      const box = document.querySelector<HTMLElement>("[data-testid='people-table-scroll']")!;
+      const cols = [...document.querySelectorAll("table.cl-table colgroup col")].map((c) =>
+        Number(c.getAttribute("width")),
+      );
+      return { box: box.clientWidth, over: box.scrollWidth - box.clientWidth, sum: cols.reduce((a, b) => a + b, 0) };
+    });
+    expect(sums.sum, "the columns add up to the table's box").toBe(sums.box);
+    expect(sums.over, "no sideways scroll at 1440").toBeLessThanOrEqual(1);
+    // A long word in a cell moves no column: widths are the columns' own.
+    const widthsOf = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll("table.cl-table thead th")].map((th) =>
+          Math.round(th.getBoundingClientRect().width),
+        ),
+      );
+    const before = await widthsOf();
+    await page.evaluate(() => {
+      const words = document.querySelector(".cl-row-words");
+      if (words) words.textContent = "a very long line of what they said ".repeat(8);
+    });
+    expect(await widthsOf(), "a long line in a cell moves no column").toEqual(before);
+    // A width dragged to: the edge of State's heading, by its keyboard (the arrows step it), is kept in the view saved.
+    const edge = page.locator("thead th[data-key='state'] [role='slider']");
+    await edge.focus();
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => saved.some((s) => typeof s.view?.widths?.state === "number")).toBe(true);
+    const grown = (await page.locator("thead th[data-key='state']").boundingBox())!.width;
+    expect(Math.round(grown), "State is wider by the two steps").toBeGreaterThanOrEqual(before[2]! + 30);
+    await expect(scroller).toBeVisible();
+    // Delete gives it back the width it was declared with, and the view drops the key.
+    await page.keyboard.press("Delete");
+    await expect.poll(() => saved.length && !saved[saved.length - 1]!.view?.widths).toBeTruthy();
+    // The pointer: a press on the edge with no movement is no choice and saves nothing; a drag that goes somewhere is kept.
+    const savedBefore = saved.length;
+    const at = (await edge.boundingBox())!;
+    await page.mouse.move(at.x + 5, at.y + at.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    expect(saved.length, "a press with no movement saves nothing").toBe(savedBefore);
+    await page.mouse.move(at.x + 5, at.y + at.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 45, at.y + at.height / 2, { steps: 4 });
+    await page.mouse.up();
+    await expect
+      .poll(() => saved.some((v, i) => i >= savedBefore && typeof v.view?.widths?.state === "number"))
+      .toBe(true);
   });
 
   test("on a desktop the table scrolls sideways under a pinned Person column, with a hairline once it has", async ({

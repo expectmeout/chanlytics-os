@@ -7,19 +7,16 @@ import {
   nextOpenMoment,
   runApprovalRefusal,
 } from "@chanlytics/contracts";
+import type { Json } from "@chanlytics/db";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
 
 /** An approval's own lines, by name: what a job ledger said when it refused the send is the log's, never the answer's. */
 const approveLog = logger();
 
-/**
- * What an approval says when its job could not be written AND the run could not be put back to wait: the run reads
- * "scheduled" with nothing to send it, as far as this can tell (a put-back that threw may have landed, and a run that moved
- * on was moved by something else). The edge's watchdog marks a run that still has no job not sent once its time has
- * passed, and tells its owner (ops/stranded-runs.ts): the words promise only that.
- */
-const STRANDED_WORDS =
-  "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
+/** What an approval says when it could not be written: nothing moved (the door is one transaction), so the words are true. */
+const NOT_APPROVED_WORDS = "The send could not be scheduled. The run is still waiting; try again.";
+/** A run that was approved, skipped or canceled while the person looked. */
+const MOVED_WORDS = "This run just changed state; look again.";
 
 export interface ApproveReceipt {
   id: string;
@@ -34,10 +31,11 @@ export interface ApproveReceipt {
  * A run that was waiting for a person goes out now.
  *
  * Under the ask mode a playbook's run is made as pending_approval: the
- * recipients are enrolled, nothing is scheduled. Approving schedules the
- * send now and records the decision as the approver's; skipping is the
- * cancel. A job the ledger refused leaves the run waiting, as it was. A
- * paused workspace sends nothing, so nothing is approved in it.
+ * recipients are enrolled, nothing is scheduled. Approving releases the run,
+ * schedules its send and records the decision as the approver's, in one
+ * transaction (00353): any of the three that cannot be written leaves the run
+ * waiting, as it was. Skipping is the cancel. A paused workspace sends
+ * nothing, so nothing is approved in it.
  */
 export async function approveRun(
   ports: ApproveRunPorts,
@@ -63,31 +61,18 @@ export async function approveRun(
   const late = runApprovalRefusal(b, { today: localDate(tz, cmd.now), sendsOn: localDate(tz, open.at) });
   if (late) throw new AppError("conflict", late, 409);
   const at = open.at;
-  if (!(await ports.release(b.id, at))) throw new AppError("conflict", "This run just changed state; look again.", 409);
-  try {
-    await ports.schedule(b.id, at);
-  } catch (e) {
-    approveLog.error("campaign_step_failed", { step: "schedule", broadcast_id: b.id, error: errField(e) });
-    // Put back to wait, and SAID only when it was: a put-back that failed leaves a run that reads "scheduled" with nothing
-    // to send it, and "still waiting; try again" over it was a button that answers 409 for ever.
-    const held = await ports.hold(b.id).catch((h: unknown) => {
-      approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: errField(h) });
-      return null;
-    });
-    if (held)
-      throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
-    if (held === false) approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: "no row" });
-    throw new AppError("upstream_meta", STRANDED_WORDS, 502);
-  }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
-  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
-    name: b.name,
-    playbook_id: b.playbook_id,
-    recipients: b.recipient_count,
-    approved: true,
-    scheduled_for: scheduledFor,
-    ...(movedFrom ? { moved_from: movedFrom } : {}),
+  const decision_id = await approvedWhole(ports, b, at, {
+    job: true,
+    decision: {
+      name: b.name,
+      playbook_id: b.playbook_id,
+      recipients: b.recipient_count,
+      approved: true,
+      scheduled_for: scheduledFor,
+      ...(movedFrom ? { moved_from: movedFrom } : {}),
+    },
   });
   return {
     id: b.id,
@@ -100,6 +85,28 @@ export async function approveRun(
 }
 
 /**
+ * The run released, its job written when it has one, and the approval recorded, together or not at all: the decision's
+ * id. A run that moved while the person looked is a conflict; a door that failed is said as what it left, a run still
+ * waiting, with the database's own words in the log and never in the answer.
+ */
+async function approvedWhole(
+  ports: ApproveRunPorts,
+  b: BroadcastRef,
+  at: Date,
+  o: { job: boolean; decision: Json },
+): Promise<string> {
+  let id: string | null;
+  try {
+    id = await ports.approve(b.id, at, o);
+  } catch (e) {
+    approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: b.id, error: errField(e) });
+    throw new AppError("upstream_meta", NOT_APPROVED_WORDS, 502);
+  }
+  if (!id) throw new AppError("conflict", MOVED_WORDS, 409);
+  return id;
+}
+
+/**
  * A reach-out's run, approved: released with no broadcast job. Its sends keep their own times, and the reach-out clock
  * claims each when it is due (planning again one that went stale while the run waited), so the run says when its first
  * email goes, or now when that time has passed.
@@ -107,15 +114,18 @@ export async function approveRun(
 async function approveReachOut(ports: ApproveRunPorts, b: BroadcastRef, now: Date): Promise<ApproveReceipt> {
   const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
   const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
-  if (!(await ports.release(b.id, at))) throw new AppError("conflict", "This run just changed state; look again.", 409);
   const scheduledFor = at.toISOString();
-  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
-    name: b.name,
-    playbook_id: b.playbook_id,
-    recipients: b.recipient_count,
-    approved: true,
-    reach_out: true,
-    scheduled_for: scheduledFor,
+  // No job: its sends keep their own times, and the reach-out clock claims each.
+  const decision_id = await approvedWhole(ports, b, at, {
+    job: false,
+    decision: {
+      name: b.name,
+      playbook_id: b.playbook_id,
+      recipients: b.recipient_count,
+      approved: true,
+      reach_out: true,
+      scheduled_for: scheduledFor,
+    },
   });
   return {
     id: b.id,

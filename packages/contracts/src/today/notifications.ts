@@ -344,9 +344,10 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
-  // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
-  // did not get there, and the activity log is where the fact is.
-  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
+  // A fact's delivery to a subscriber (00334). Not sent (packages/jobs TOLD_ELSEWHERE): a subscriber that fails is the
+  // platform's fault, nothing an owner can act on, and the operator is paged instead (PAGES_THE_PLATFORM); these are
+  // the words should it ever be, and its door opens Activity, where the fact is.
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/activity" },
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
   inbound_answer: { stopped: "A text could not be answered", to: "inbox" },
@@ -411,6 +412,12 @@ function jobRowWords(n: NotificationDto): { title: string; message: string; rout
 }
 
 /**
+ * Where the day's reach-out numbers open (spec 2026-10-09 §4.6): Campaigns narrowed to its Reach-outs, the chains the
+ * numbers are about. The edge writes it on the row; a row kept before then says `outbound`, and opens here too.
+ */
+export const REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
+
+/**
  * How a kept kind reads. `own` keeps the kind's verb over the route's: a question asks for an answer, and "Open
  * Leads" would say where it is without saying what it wants.
  */
@@ -457,8 +464,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
     note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
     /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
     reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
-    /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Playbooks. */
-    reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: "outbound" },
+    /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Campaigns, at its Reach-outs. */
+    reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: REACH_OUT_DAY_ROUTE },
     alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
   };
 
@@ -470,6 +477,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
+  [/^admin\/activity/, "Open Activity"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
@@ -562,7 +570,8 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
       const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
       const at = Date.parse(n.created_at);
       const job = jobRowWords(n);
-      const route = job ? job.route : n.route;
+      // The day's reach-out numbers open the Reach-outs, whatever route their row was kept with.
+      const route = job ? job.route : n.kind === "reach_out_day" ? REACH_OUT_DAY_ROUTE : n.route;
       return {
         key: `${SERVER_KEY_PREFIX}${n.id}`,
         kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(n.kind)

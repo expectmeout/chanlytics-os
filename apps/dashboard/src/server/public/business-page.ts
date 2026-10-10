@@ -46,7 +46,13 @@ export const businessPageFor = cache(async function businessPageFor(slug: string
   const [record, cfg, channels] = await Promise.all([
     db.from("business_records").select("*").eq("tenant_id", tenant.id).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenant.id).maybeSingle(),
-    db.from("tenant_channels").select("kind, number_e164").eq("tenant_id", tenant.id).eq("status", "active"),
+    // Oldest first, so a workspace with two numbers of a kind names the one Connections shows, every time.
+    db
+      .from("tenant_channels")
+      .select("kind, number_e164")
+      .eq("tenant_id", tenant.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: true }),
   ]);
   if (record.error) throw new Error(`reading the business on record: ${record.error.message}`);
   // No record on file is no page: this exists to identify a business, and a

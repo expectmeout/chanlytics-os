@@ -42,36 +42,11 @@
 }
 .ix-search-row .ix-checkall,
 .cv-list-head > .ix-checkall { flex: none; align-self: center; justify-content: center; width: 14px; }
-.ix-search-wrap {
+/* The search is the kit's (kit.css, "Search"), People's capsule; the row gives it what is left beside the boxes. */
+.ix-lookup {
   flex: 1;
-  display: flex;
-  align-items: center;
-  transition: border-color 120ms, background 120ms;
-}
-.ix-search-wrap:focus-within {
-  border-color: var(--ink-faint);
-}
-.ix-search-wrap .icon { color: var(--ink-faint); flex-shrink: 0; }
-.ix-search-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--ink);
   min-width: 0;
 }
-.ix-search-input::placeholder { color: var(--ink-faint); }
-.ix-search-clear {
-  background: transparent;
-  border: none;
-  color: var(--ink-faint);
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-.ix-search-clear:hover { color: var(--ink); }
 .ix-views-toggle {
   display: flex;
   align-items: center;
@@ -1788,7 +1763,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 /* Sending-soon strip */
 .ix-sending-strip b{color:var(--ink);font-variant-numeric:tabular-nums}
 
-.ix-sending-strip{position:fixed;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--bg-raised);border:1px solid color-mix(in oklab,var(--warn) 45%,var(--line));border-radius:var(--radius-full);padding:7px 9px 7px 14px;box-shadow:0 8px 24px rgba(0,0,0,.14);font-size:var(--text-sm);color:var(--ink-muted);top:calc(64px + env(safe-area-inset-top, 0px));bottom:auto}
+.ix-sending-strip{position:fixed;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--surface-pop-fill);border:1px solid color-mix(in oklab,var(--warn) 45%,var(--line));border-radius:var(--radius-full);padding:7px 9px 7px 14px;box-shadow:var(--surface-pop-depth);font-size:var(--text-sm);color:var(--ink-muted);top:calc(64px + env(safe-area-inset-top, 0px));bottom:auto}
 
 .ix-veto-trust{font-size:var(--text-xs);color:var(--ink-dim);white-space:nowrap}
 
@@ -1877,7 +1852,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   .ix-state-acts > :last-child:not(:first-child) { margin-inline-start: auto; }
 }
 /* A text field shows where the keys go: the composer and the search set outline:none and moved only a border (I3). */
-.ix-composer-text:focus-visible { box-shadow: var(--focus-ring); }
+.ix-composer-text:focus-visible { box-shadow: var(--focus-field-edged); }
 /* Heard, not seen: the countdown's hold and send, for a screen reader (I3). */
 .ix-veto-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
@@ -2143,34 +2118,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   gap: 0;
   padding: 14px 18px 10px;
   border-bottom: 0;
-}
-/* The search is a 36px capsule on an inset's fill, its glyph and placeholder in the dim ink. */
-.ix-search-wrap {
-  gap: 9px;
-  height: 36px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  box-shadow:
-    var(--surface-inset-ring),
-    var(--surface-inset-depth);
-  color: var(--ink-dim);
-}
-.ix-search-wrap:focus-within {
-  background: var(--surface-inset-fill);
-  box-shadow:
-    var(--focus-ring),
-    var(--surface-inset-depth);
-}
-/* The search row is the list's second child (the buckets are its first, drawn after it by order): its glyph and its field. */
-.ix-list > :nth-child(2) > div > .icon {
-  width: 15px;
-  height: 15px;
-  color: var(--ink-dim);
-}
-.ix-list > :nth-child(2) > div > input {
-  font-size: var(--text-base);
 }
 .ix-list > .ix-buckets {
   order: 2;
@@ -2755,13 +2702,9 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   .inbox .ix-list > .ix-buckets {
     margin: 0 16px;
   }
-  /* The search under the tabs, 38px tall, at the strip's sides. */
+  /* The search under the tabs, at the strip's sides (the capsule is the kit's, 38px). */
   .inbox .ix-list > :nth-child(2) {
     padding: 6px 12px 8px;
-  }
-  .inbox .ix-list > :nth-child(2) > div {
-    height: 38px;
-    padding: 0 12px;
   }
   /* The rows straight on the page, no fill at rest: the open one takes the screen, so none is marked here. */
   .inbox .ix-thread-rows {

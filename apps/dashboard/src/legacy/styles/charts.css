@@ -82,8 +82,8 @@
 .ck-tip {
   position: absolute; z-index: 6; top: 0; pointer-events: none;
   width: max-content; min-width: 164px; max-width: 260px; padding: 9px 11px;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md); font-size: 12px; line-height: 1.45;
+  /* A period's figures, read as a card: the kit's pop panel (parts.tsx), the glass every menu and list wears. */
+  border-radius: var(--radius-md); font-size: 12px; line-height: 1.45;
   transform: translate(14px, calc(-100% - 6px));
   animation: ck-fade var(--duration-fast) var(--ease-out);
 }
@@ -146,6 +146,15 @@
 .ck-barlist-value { flex: none; font-weight: 600; color: var(--ink); white-space: pre; font-variant-numeric: tabular-nums; }
 .ck-barlist-track { display: block; height: 6px; }
 .ck-barlist-bar { display: block; height: 6px; border-radius: 0 3px 3px 0; transform-origin: left center; }
+
+/* ---------- dot plot: a dot per event, painted with the card's --color-dot; the held dot stays, the others step back ---------- */
+.ck-dotplot-dot { fill-opacity: 0.7; }
+.ck-dotplot-dot.hot { fill-opacity: 1; }
+.ck-dotplot-dot.dim { fill-opacity: 0.35; }
+/* The reference's label, a caption above the plot's svg with a swatch of the line it names (the dots meet the line, so the
+   words are not drawn on it). */
+.ck-dotplot-ref { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-dim); }
+.ck-dotplot-ref-line { flex: none; width: 12px; height: 1px; background: var(--ink-faint); }
 
 /* ---------- segment bar: one bar in its parts, a legend under it ---------- */
 .ck-segbar { display: flex; flex-direction: column; gap: 9px; }

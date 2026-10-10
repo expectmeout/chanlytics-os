@@ -1,0 +1,111 @@
+/**
+ * A row's mark on the log's spine: what kind of thing happened, as a glyph. A family has one (contracts
+ * activityFamily), and the kinds a reader scans for have their own. The page's two tables named a third of the kinds
+ * and drew a plain dot for the rest: a recording opened, a list, a lead, a deal, a partner. A kind no family holds (a
+ * row a newer build wrote) still gets the dot, which is the honest answer and lines the rows up.
+ */
+import { activityFamily, type ActivityFamily } from "@chanlytics/contracts";
+
+const FAMILY_MARK: Record<ActivityFamily, string> = {
+  conversations: "chat",
+  calls: "phone",
+  people: "user",
+  lists: "list",
+  leads: "search",
+  deals: "deal",
+  campaigns: "bolt",
+  calendar: "calendar",
+  google: "star",
+  connections: "external",
+  team: "users",
+  settings: "settings",
+  billing: "money",
+  partner: "gift",
+  records: "trending-up",
+};
+
+/** The kinds that say more than their family: an answer given, a stop, a wait, a thing taken out or brought in. */
+const KIND_MARK: Partial<Record<string, string>> = {
+  approve: "check",
+  resolve: "check",
+  edit: "edit",
+  decline: "x",
+  cancel_send: "x",
+  snooze: "clock",
+  wake: "clock",
+  archive: "content",
+  pause_agent: "pause",
+  resume_agent: "play",
+  pause_playbook: "pause",
+  start_playbook: "play",
+  change_playbook: "edit",
+  export: "download",
+  import: "arrow-up",
+  open_recording: "headphones",
+  "call.recorded": "mic",
+  erase: "ban",
+  "contact.erased": "ban",
+  "contact.noted": "pencil",
+  "contact.note_changed": "pencil",
+  "contact.note_removed": "pencil",
+  "contact.note_suggested": "pencil",
+  "contact.note_kept": "pencil",
+  "contact.note_dismissed": "pencil",
+  "contact.note_done": "check",
+  "contact.note_undone": "undo",
+  "message.send_failed": "alert",
+  "message.send_blocked": "alert",
+  "line.failed": "alert",
+  "line.answering": "phone",
+  "line.released": "phone",
+  "line.forwarding_verified": "phone",
+  "line.texting_on": "chat",
+  "line.texting_approved": "chat",
+  "line.texting_rejected": "alert",
+  "voice.provisioned": "phone",
+  "broadcast.stopped": "alert",
+  "ingest.allowlist_skip": "alert",
+  "ingest.unreachable_sender": "alert",
+  "ingest.unroutable": "alert",
+  "webhook.auth": "bolt",
+  "webhook.delivery": "bolt",
+  "policy.changed": "shield",
+  "policy.veto_window_skipped": "shield",
+  "platform.acted": "shield",
+  "business.recorded": "home",
+  "workspace.created": "home",
+  "workspace.activated": "flag",
+  "setup.requested": "flag",
+  "mailbox.created": "mail",
+  "mailbox.renamed": "mail",
+  "mailbox.offers_paused": "mail",
+  "mailbox.offers_resumed": "mail",
+  "sending_domain.added": "mail",
+  "sending_domain.verified": "mail",
+  "sending_domain.held": "mail",
+  "sending_domain.released": "mail",
+  "sending_domain.resumed": "mail",
+  "sending_domain.removed": "mail",
+  "reach_out.replied": "mail",
+  "reach_out.reply_undone": "undo",
+  "lead.emailed": "mail",
+  "lead.call": "phone",
+  "deal.won": "check",
+  "lead.kept": "check",
+  "lead.excluded": "x",
+  "lead.put_back": "undo",
+  "lead.search_renamed": "pencil",
+  "reach_out.lead_stopped": "ban",
+  "reach_out.send_decided": "mail",
+  "line.forwarding_set": "phone",
+  "billing.payment_failed": "alert",
+  "appointment.cancelled": "x",
+  "escalation.opened": "flag",
+};
+
+/** The glyph for a row's kind: its own, else its family's, else a dot. */
+export function activityMark(kind: string | null | undefined): string {
+  const k = kind ?? "";
+  const family = activityFamily(k);
+  return KIND_MARK[k] ?? (family ? FAMILY_MARK[family] : "dot");
+}

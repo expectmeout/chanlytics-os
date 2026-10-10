@@ -22,7 +22,7 @@ import { LinkButton } from "../kit/link-button/link-button";
 import { Menu, type MenuGroup } from "../kit/menu/menu";
 import { Segmented } from "../kit/segmented/segmented";
 import { Select } from "../kit/select/select";
-import { holdStill, navigate } from "../legacy-verbs";
+import { holdStill, navigate, openBookingTool } from "../legacy-verbs";
 import { routeTo, statePill } from "./shell-verbs";
 import { CR_FEED_WORDS, CR_VIEWS } from "./words";
 
@@ -99,7 +99,7 @@ function optionsGroups(p: BarProps): MenuGroup[] {
         label: BOOKING_TOOL_WORDS.label,
         hint: "Settings › Business",
         glyph: crGlyph("settings"),
-        onSelect: () => navigate(CALENDAR_SETTING_ROUTE),
+        onSelect: () => openBookingTool(CALENDAR_SETTING_ROUTE),
       },
     ],
   });
@@ -253,7 +253,7 @@ export function consultNote(p: Pick<CardProps, "vm" | "service">) {
 
 /**
  * The feed card's one door: the next press the one answer names (contracts calendarSourceOf), which opens the Booking
- * tool row in Settings › Business. Where the answer's own door is this page (bookings that arrive by email and need
+ * tool's sheet here, over the Calendar (legacy-verbs.ts openBookingTool). Where the answer's own door is this page (bookings that arrive by email and need
  * nothing), the row is offered quietly instead, by its name. Loud only where something is the owner's to do.
  */
 function feedDoorOf(s: CalendarVM["source"]): { words: string; to: string; quiet: boolean } {
@@ -321,7 +321,7 @@ export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">)
             variant={door.quiet ? "quiet" : "primary"}
             size="sm"
             className="cal-feed-door"
-            onClick={() => navigate(door.to)}
+            onClick={() => (door.to === CALENDAR_SETTING_ROUTE ? openBookingTool(door.to) : navigate(door.to))}
             data-testid="cal-feed-door"
           >
             {door.words}
@@ -356,7 +356,12 @@ export function staleCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">
         >
           {refreshing ? "Retrying…" : "Retry"}
         </Button>
-        <Button variant="quiet" size="sm" className="cal-feed-door" onClick={() => navigate(CALENDAR_SETTING_ROUTE)}>
+        <Button
+          variant="quiet"
+          size="sm"
+          className="cal-feed-door"
+          onClick={() => openBookingTool(CALENDAR_SETTING_ROUTE)}
+        >
           Check the link
         </Button>
       </div>

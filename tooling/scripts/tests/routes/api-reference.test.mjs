@@ -74,6 +74,31 @@ test("a schema that is no object is said in one row, and no schema in none", () 
   assert.deepEqual(fieldRows(undefined), []);
 });
 
+test("a body that is one of several objects is said body by body, each its own fields, never 'object or object'", () => {
+  const rows = fieldRows(
+    z.union([z.strictObject({ state: z.string().optional() }), z.strictObject({ channels: z.array(z.string()) })]),
+  );
+  assert.deepEqual(rows, [
+    "One of 2 bodies.",
+    "",
+    "Body 1:",
+    "",
+    "| Body field | Type | Required | Limits |",
+    "| --- | --- | --- | --- |",
+    "| `state` | string | no |  |",
+    "",
+    "Body 2:",
+    "",
+    "| Body field | Type | Required | Limits |",
+    "| --- | --- | --- | --- |",
+    "| `channels` | array of string | yes |  |",
+  ]);
+  // The page prints them where a body's one table goes, and no table head of its own above them.
+  const put = current.split("### `PUT /api/v1/playbooks/[id]`")[1]?.split("\n### ")[0] ?? "";
+  assert.match(put, /\n\nOne of 3 bodies\.\n\nBody 1:\n\n\| Body field \| Type \| Required \| Limits \|\n/);
+  assert.doesNotMatch(put, /object or object/);
+});
+
 test("a route that declares no schema does not claim it takes nothing", () => {
   // 26 write routes read their own body: the reference must not say "takes no body" of them.
   const ask = current.split("### `POST /api/v1/ask`")[1]?.split("\n### ")[0] ?? "";

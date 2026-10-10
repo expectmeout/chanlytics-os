@@ -2,7 +2,7 @@
  * The dashboard's chrome: its words and hotkeys, the tone vocabulary, a refusal in the owner's words, who is signed
  * in, and how fast its pages are.
  */
-export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING } from "./refusal";
+export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING, SESSION_ENDED, sessionEnded } from "./refusal";
 export type { RefusalInput, Refusal, RolePerm } from "./refusal";
 export {
   personInitials,
@@ -10,7 +10,9 @@ export {
   memberWords,
   cleanDisplayName,
   providerNameOf,
-  inviteState,
+  invitationWords,
+  joinedWords,
+  TEAM_INVITE_DAYS,
   ROLE_WORDS,
   DISPLAY_NAME_MAX,
 } from "./identity";
@@ -23,7 +25,6 @@ export {
   themeBootScript,
   inAppFrom,
   inAppBootScript,
-  routePrefetchScript,
   isTypingTarget,
   pageTitle,
   notFoundPageMetadata,
@@ -46,8 +47,6 @@ export {
   IN_APP_UA_RE,
   IN_APP_CLASS,
   APP_KEYS_RESIZE_CLASS,
-  PREFETCH_SLOT,
-  PREFETCH_READS,
   isSidebarPref,
   SHORTCUTS,
   TOAST_TONES,
@@ -71,6 +70,7 @@ export type {
   ToastTone,
   ToastShape,
 } from "./chrome";
+export { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "./route-prefetch";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, doorOf, ROUTE_WORDS } from "./address";
 export type { AddressParts } from "./address";
 export {

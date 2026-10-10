@@ -8,11 +8,17 @@
  * is window.gate(...)'s props, spread after its click, so a refused item stays in
  * the menu, says why when pressed, and leaves the menu open.
  * `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
- * An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true.
+ * An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true. `metaBelow` draws its
+ * `meta` as a line under the words (.more-item-two), where a sentence beside them would crowd them.
+ * Every menu stands on the one ground everything that pops wears (kit.css, "What pops over the page"), so one that
+ * opens over a log's coloured lines needs nothing of its own (its `solid` ground went on 10 Oct 2026).
+ * On a phone (the kit's 900px) it is the kit Menu's bottom action sheet (kit.css), drawn on the document's body
+ * (`data-sheet`), since a card that isolates its layers (.rec-card) held it under the tab bar.
  */
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
-import { gatedProps } from "../../legacy-verbs";
+import { createPortal } from "react-dom";
+import { gatedProps, onAPhone } from "../../legacy-verbs";
 import { Icon } from "../icon/icon";
 
 /** One item of the menu: a row that acts, a line between two groups, or a heading over the group under it. */
@@ -22,8 +28,10 @@ interface MoreMenuItem {
   icon?: string;
   onClick?: () => void;
   danger?: boolean;
-  /** A second line under the words. */
+  /** A second line beside the words, at the line's end; under them with `metaBelow`. */
   meta?: ReactNode;
+  /** The second line under the words, for a sentence too long to stand beside them (what a choice gives). */
+  metaBelow?: boolean;
   /** A word at the item's end. */
   hint?: ReactNode;
   /** What pressing does, on hover. */
@@ -123,6 +131,8 @@ export function MoreMenu({
 }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // A phone's menu is a sheet from the foot, on the body: read as it opens, the width it opened at.
+  const sheet = open && onAPhone() && typeof document !== "undefined";
 
   useEffect(() => {
     if (!open) return undefined;
@@ -130,7 +140,8 @@ export function MoreMenu({
       if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    if (!escape) return () => window.removeEventListener("keydown", onKey);
+    // A sheet stands at the foot over its wash: nothing behind it scrolls it away, and nothing places it.
+    if (!escape || sheet) return () => window.removeEventListener("keydown", onKey);
     // Placed against the window, an escaped menu would stay put while the page under it moved, so a scroll anywhere
     // but inside the menu itself, or a resize, closes it rather than leave it beside the wrong row. Only a node can be
     // inside it: a resize's target is the window, which contains() refuses with a throw.
@@ -149,7 +160,7 @@ export function MoreMenu({
       window.removeEventListener("scroll", onMove, true);
       window.removeEventListener("resize", onMove);
     };
-  }, [open, escape]);
+  }, [open, escape, sheet]);
 
   const run = (it: MoreMenuItem) => {
     // Synchronous: fire the action, then close. Deferring the action behind a
@@ -157,6 +168,57 @@ export function MoreMenu({
     if (it.onClick) it.onClick();
     setOpen(false);
   };
+
+  // What opens: the wash a press outside closes it through, and the menu.
+  const pop = open ? (
+    <>
+      <div
+        className="more-backdrop"
+        role="presentation"
+        data-sheet={sheet ? "" : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(false);
+        }}
+      />
+      {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/interactive-supports-focus -- kept as the JSX drew it: the click is only kept from reaching what is under the menu; its items are the buttons */}
+      <div
+        className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`}
+        role="menu"
+        data-sheet={sheet ? "" : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {items.map((it, i) => {
+          if (it.divider) return <div key={i} className="more-divider" />;
+          if (it.header)
+            return (
+              <div key={i} className="more-header">
+                {it.header}
+              </div>
+            );
+          // One of a set (a sort, say): a radio item with the tick drawn on every one, hidden where it is not the
+          // one chosen (components.css), so the words stand in one column either way.
+          const radio = typeof it.checked === "boolean";
+          return (
+            <button
+              key={i}
+              className={`more-item${it.danger ? " danger" : ""}${it.meta && it.metaBelow ? " more-item-two" : ""}`}
+              role={radio ? "menuitemradio" : "menuitem"}
+              aria-checked={radio ? it.checked : undefined}
+              title={it.title || undefined}
+              onClick={() => run(it)}
+              {...(it.gate || {})}
+            >
+              {radio ? <Icon name="check" size={13} /> : it.icon && <Icon name={it.icon} size={13} />}
+              <span className="more-item-label">{it.label}</span>
+              {it.meta && <span className="more-item-meta">{it.meta}</span>}
+              {it.hint && <span className="more-item-hint">{it.hint}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  ) : null;
 
   return (
     <div className="more-wrap" ref={wrapRef}>
@@ -180,53 +242,7 @@ export function MoreMenu({
           <Icon name={icon} size={size} />
         )}
       </button>
-      {open && (
-        <>
-          <div
-            className="more-backdrop"
-            role="presentation"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-            }}
-          />
-          {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/interactive-supports-focus -- kept as the JSX drew it: the click is only kept from reaching what is under the menu; its items are the buttons */}
-          <div
-            className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`}
-            role="menu"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {items.map((it, i) => {
-              if (it.divider) return <div key={i} className="more-divider" />;
-              if (it.header)
-                return (
-                  <div key={i} className="more-header">
-                    {it.header}
-                  </div>
-                );
-              // One of a set (a sort, say): a radio item with the tick drawn on every one, hidden where it is not the
-              // one chosen (components.css), so the words stand in one column either way.
-              const radio = typeof it.checked === "boolean";
-              return (
-                <button
-                  key={i}
-                  className={`more-item ${it.danger ? "danger" : ""}`}
-                  role={radio ? "menuitemradio" : "menuitem"}
-                  aria-checked={radio ? it.checked : undefined}
-                  title={it.title || undefined}
-                  onClick={() => run(it)}
-                  {...(it.gate || {})}
-                >
-                  {radio ? <Icon name="check" size={13} /> : it.icon && <Icon name={it.icon} size={13} />}
-                  <span className="more-item-label">{it.label}</span>
-                  {it.meta && <span className="more-item-meta">{it.meta}</span>}
-                  {it.hint && <span className="more-item-hint">{it.hint}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
+      {sheet ? createPortal(pop, document.body) : pop}
     </div>
   );
 }

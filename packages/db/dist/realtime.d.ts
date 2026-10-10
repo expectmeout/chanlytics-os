@@ -2750,6 +2750,7 @@ type Database = {
                     last_error: string | null;
                     lease_until: string | null;
                     payload: Json;
+                    spoke_at: string | null;
                     state: string;
                     tenant_id: string;
                     updated_at: string;
@@ -2766,6 +2767,7 @@ type Database = {
                     last_error?: string | null;
                     lease_until?: string | null;
                     payload?: Json;
+                    spoke_at?: string | null;
                     state?: string;
                     tenant_id: string;
                     updated_at?: string;
@@ -2782,6 +2784,7 @@ type Database = {
                     last_error?: string | null;
                     lease_until?: string | null;
                     payload?: Json;
+                    spoke_at?: string | null;
                     state?: string;
                     tenant_id?: string;
                     updated_at?: string;
@@ -3901,6 +3904,7 @@ type Database = {
                 Row: {
                     created_at: string;
                     id: string;
+                    push_off: string[] | null;
                     role: string;
                     tenant_id: string;
                     user_id: string;
@@ -3909,6 +3913,7 @@ type Database = {
                 Insert: {
                     created_at?: string;
                     id?: string;
+                    push_off?: string[] | null;
                     role?: string;
                     tenant_id: string;
                     user_id: string;
@@ -3917,6 +3922,7 @@ type Database = {
                 Update: {
                     created_at?: string;
                     id?: string;
+                    push_off?: string[] | null;
                     role?: string;
                     tenant_id?: string;
                     user_id?: string;
@@ -3948,6 +3954,7 @@ type Database = {
                     media: Json | null;
                     meta: Json;
                     sender: string;
+                    sending_at: string | null;
                     sent_by: string | null;
                     status: string;
                     status_updated_at: string | null;
@@ -3971,6 +3978,7 @@ type Database = {
                     media?: Json | null;
                     meta?: Json;
                     sender: string;
+                    sending_at?: string | null;
                     sent_by?: string | null;
                     status?: string;
                     status_updated_at?: string | null;
@@ -3994,6 +4002,7 @@ type Database = {
                     media?: Json | null;
                     meta?: Json;
                     sender?: string;
+                    sending_at?: string | null;
                     sent_by?: string | null;
                     status?: string;
                     status_updated_at?: string | null;
@@ -6131,6 +6140,18 @@ type Database = {
                 };
                 Returns: number;
             };
+            approve_broadcast: {
+                Args: {
+                    p_broadcast_id: string;
+                    p_decision: Json;
+                    p_job: Json;
+                    p_send_at: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             ask_for_tick: {
                 Args: never;
                 Returns: boolean;
@@ -6143,6 +6164,18 @@ type Database = {
             };
             assemble_broadcast: {
                 Args: {
+                    p_actor?: string;
+                    p_decision: Json;
+                    p_recipients: Json;
+                    p_run: Json;
+                    p_send_at?: string;
+                    p_tenant: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            } | {
+                Args: {
                     p_recipients: Json;
                     p_run: Json;
                     p_send_at?: string;
@@ -6153,6 +6186,15 @@ type Database = {
             automated_send: {
                 Args: {
                     p_meta: Json;
+                };
+                Returns: boolean;
+            };
+            billing_apply: {
+                Args: {
+                    p_expect?: Json;
+                    p_row: Json;
+                    p_tenant_id: string;
+                    p_tenant_status?: string;
                 };
                 Returns: boolean;
             };
@@ -6168,6 +6210,12 @@ type Database = {
                     p_amount_cents: number;
                     p_currency: string;
                     p_id: string;
+                };
+                Returns: boolean;
+            };
+            billing_may_spend: {
+                Args: {
+                    p_tenant_id: string;
                 };
                 Returns: boolean;
             };
@@ -6224,10 +6272,26 @@ type Database = {
                 };
                 Returns: number;
             };
+            campaign_reply_window: {
+                Args: never;
+                Returns: string;
+            };
             campaign_series: {
                 Args: {
                     p_days?: number;
+                    p_end?: string;
                     p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            change_playbook: {
+                Args: {
+                    p_decision?: Json;
+                    p_playbook_id: string;
+                    p_set: Json;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
                 };
                 Returns: Json;
             };
@@ -6275,6 +6339,7 @@ type Database = {
                     last_error: string | null;
                     lease_until: string | null;
                     payload: Json;
+                    spoke_at: string | null;
                     state: string;
                     tenant_id: string;
                     updated_at: string;
@@ -6345,12 +6410,31 @@ type Database = {
                 };
                 Returns: Json;
             };
+            conversation_hand_back: {
+                Args: {
+                    p_conversation_id: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             conversation_open: {
                 Args: {
                     p_contact_id: string;
                     p_tenant_id: string;
                 };
                 Returns: string;
+            };
+            conversation_take_over: {
+                Args: {
+                    p_conversation_id: string;
+                    p_paused_until: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
             };
             create_mailbox: {
                 Args: {
@@ -6566,6 +6650,15 @@ type Database = {
                     p_list: Json;
                 };
                 Returns: Json;
+            };
+            escalation_open: {
+                Args: {
+                    p_conversation_id: string;
+                    p_details: string;
+                    p_reason: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
             };
             event_deliveries_redrive: {
                 Args: {
@@ -6849,6 +6942,14 @@ type Database = {
                     p_lead_id: string;
                 };
                 Returns: Json;
+            };
+            lead_estimate_ceiling: {
+                Args: {
+                    p_count: number;
+                    p_kind: string;
+                    p_terms?: number;
+                };
+                Returns: number;
             };
             lead_export_mark: {
                 Args: {
@@ -7151,6 +7252,12 @@ type Database = {
                 };
                 Returns: string;
             };
+            lead_spend_refusal: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             lead_suppression_hash: {
                 Args: {
                     p_tenant_id: string;
@@ -7270,12 +7377,37 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            may_read_workspace: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: boolean;
+            };
+            member_decision: {
+                Args: {
+                    p_payload?: Json;
+                    p_subject_id: string;
+                    p_subject_type: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_verb: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             member_has_address: {
                 Args: {
                     p_address: string;
                     p_tenant_id: string;
                 };
                 Returns: boolean;
+            };
+            member_push_off_set: {
+                Args: {
+                    p_kinds: string[];
+                    p_tenant_id: string;
+                };
+                Returns: string[];
             };
             member_view_set: {
                 Args: {
@@ -7285,10 +7417,34 @@ type Database = {
                 };
                 Returns: Json;
             };
+            member_withdraw_drafts: {
+                Args: {
+                    p_conversation_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
+            member_withdraw_message: {
+                Args: {
+                    p_message_id: string;
+                    p_reason?: Json;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             merge_people: {
                 Args: {
                     p_keep: string;
                     p_merge: string;
+                };
+                Returns: Json;
+            };
+            message_call_back: {
+                Args: {
+                    p_message_id: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
                 };
                 Returns: Json;
             };
@@ -8104,6 +8260,13 @@ type Database = {
                     tenant_id: string;
                 }[];
             };
+            playbook_totals: {
+                Args: {
+                    p_history?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             playbooks_due: {
                 Args: {
                     p_at: string;
@@ -8210,6 +8373,7 @@ type Database = {
             };
             put_google_credentials: {
                 Args: {
+                    p_if_refresh_token?: string;
                     p_secret: Json;
                     p_tenant_id: string;
                 };
@@ -8260,9 +8424,24 @@ type Database = {
                 };
                 Returns: number;
             };
+            reach_out_booked_from: {
+                Args: {
+                    p_appointment_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             reach_out_chain_report: {
                 Args: {
                     p_root_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            reach_out_chain_totals: {
+                Args: {
+                    p_days: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -8609,6 +8788,7 @@ type Database = {
             reach_out_report: {
                 Args: {
                     p_days: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -8624,6 +8804,16 @@ type Database = {
                     p_chain: Json;
                     p_tenant_id: string;
                     p_user_id: string;
+                };
+                Returns: Json;
+            } | {
+                Args: {
+                    p_chain: Json;
+                    p_decision: Json;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_user_id: string;
+                    p_via?: string;
                 };
                 Returns: Json;
             };
@@ -8716,6 +8906,49 @@ type Database = {
                     why_it_fits: string;
                 }[];
             };
+            receptionist_series: {
+                Args: {
+                    p_days?: number;
+                    p_end?: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            record_consent: {
+                Args: {
+                    p_batch?: number;
+                    p_consent: string;
+                    p_contact_id: string;
+                    p_message_id?: string;
+                    p_note?: string;
+                    p_purpose: string;
+                    p_source: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            record_deal: {
+                Args: {
+                    p_contact_id: string;
+                    p_move?: Json;
+                    p_stage: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            record_provider_stop: {
+                Args: {
+                    p_channel: string;
+                    p_contact_id: string;
+                    p_message_external_id?: string;
+                    p_purpose: string;
+                    p_source: string;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             recording_opened: {
                 Args: {
                     p_call_id: string;
@@ -8754,6 +8987,7 @@ type Database = {
             report_series: {
                 Args: {
                     p_days?: number;
+                    p_end?: string;
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -8794,6 +9028,14 @@ type Database = {
             reviews_ledger: {
                 Args: {
                     p_days?: number;
+                    p_end?: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            run_counts: {
+                Args: {
+                    p_run_ids: string[];
                     p_tenant_id: string;
                 };
                 Returns: Json;
@@ -9008,6 +9250,16 @@ type Database = {
                     status: string;
                 }[];
             };
+            start_playbook: {
+                Args: {
+                    p_decision?: Json;
+                    p_playbook: Json;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             stop_all_messages: {
                 Args: {
                     p_contact_id: string;
@@ -9105,6 +9357,24 @@ type Database = {
                 };
                 Returns: Json;
             };
+            team_invite_renew: {
+                Args: {
+                    p_actor: string;
+                    p_invitation_id: string;
+                    p_tenant_id: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            team_invite_renew_withdraw: {
+                Args: {
+                    p_decision_id: string;
+                    p_invitation_id: string;
+                    p_tenant_id: string;
+                    p_was: string;
+                };
+                Returns: undefined;
+            };
             team_invite_withdraw: {
                 Args: {
                     p_invitation_id: string;
@@ -9119,6 +9389,14 @@ type Database = {
                     p_role: string;
                     p_tenant_id: string;
                     p_user_id: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            team_leave: {
+                Args: {
+                    p_actor: string;
+                    p_tenant_id: string;
                     p_via?: string;
                 };
                 Returns: Json;
@@ -9159,6 +9437,38 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            template_sends: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            tenant_config_read: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    config: Json;
+                    feed_hidden: boolean;
+                    tenant_id: string;
+                    updated_at: string;
+                    updated_by: string;
+                    version: number;
+                }[];
+            };
+            tenant_config_write: {
+                Args: {
+                    p_config: Json;
+                    p_tenant_id: string;
+                    p_version: number;
+                };
+                Returns: {
+                    outcome: string;
+                    updated_at: string;
+                    updated_by: string;
+                    version: number;
+                }[];
             };
             trigger_calendar_sweep: {
                 Args: never;
@@ -9227,6 +9537,23 @@ type Database = {
             wake_stale_snoozes: {
                 Args: never;
                 Returns: number;
+            };
+            withdraw_ai_drafts: {
+                Args: {
+                    p_conversation_id: string;
+                    p_keep_message_id?: string;
+                    p_reason: Json;
+                    p_tenant_id: string;
+                };
+                Returns: string[];
+            };
+            withdraw_queued: {
+                Args: {
+                    p_message_ids: string[];
+                    p_reason?: Json;
+                    p_tenant_id: string;
+                };
+                Returns: string[];
             };
             workspace_days: {
                 Args: {

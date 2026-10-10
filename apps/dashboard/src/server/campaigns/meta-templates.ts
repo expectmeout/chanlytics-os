@@ -1,6 +1,8 @@
 import "server-only";
 import { deployment } from "../env";
 import { MIN_MS } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db";
+import { serviceDb } from "../service-db";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 
 /** A sync pages through every template the account holds, a Graph call a page: a minute, as the lines doors get. */
@@ -72,7 +74,16 @@ export async function createTemplate(
     meta_status?: string;
     detail?: string;
   };
-  if (edgeAnswered(r) && j.ok && j.id) return { ok: true, id: j.id, metaStatus: j.meta_status ?? "pending" };
+  if (edgeAnswered(r) && j.ok && j.id) {
+    // What a business will say to its customers went to Meta under this member's hand: the ledger says who and
+    // which, as it says every other consequential act. Best effort: the message is with Meta either way.
+    await emitEvent(serviceDb(), tenantId, "template.submitted", "workspace", tenantId, {
+      name: t.name,
+      language: t.language,
+      by: userId,
+    });
+    return { ok: true, id: j.id, metaStatus: j.meta_status ?? "pending" };
+  }
   return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
 }
 

@@ -216,12 +216,25 @@ const sbMenuRoot = (menu) => {
   const root = from && from.closest ? from.closest(".app-root") : null;
   return root && typeof ReactDOM !== "undefined" && ReactDOM.createPortal ? root : null;
 };
+// At the foot (a phone's action sheet) a pull down from its top lets the menu go, following the finger, as every sheet's
+// does (data-bits touchSwipe; Ruben, 8 Oct 2026: it drew the handle and did not answer a pull). The touch stays the
+// menu's own: it is drawn at the app's root and is still the drawer's child to React, and the drawer reads a swipe across
+// as its own close.
+const sbMenuPull = (menu) => {
+  if (!window.touchSwipe) return {};
+  const pull = window.touchSwipe({ onDown: menu.close, when: () => !sbBeside() });
+  const own = (handle) => (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (handle) handle(e);
+  };
+  return { onTouchStart: own(pull.onTouchStart), onTouchMove: own(pull.onTouchMove), onTouchEnd: own(pull.onTouchEnd), onTouchCancel: own(pull.onTouchCancel) };
+};
 const SbMenu = ({ menu, side = "down", label, testid, children }) => {
   if (!menu.open) return null;
   const drawn = (
     <>
-      <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
-      <div className="more-menu sb-menu" role="menu" aria-label={label} data-sb-place={sbBeside() ? "beside" : "foot"} style={sbMenuStyle(menu.rect, { side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
+      <div className="more-backdrop" role="presentation" data-sb-wash={sbBeside() ? "beside" : "foot"} onClick={(e) => { e.stopPropagation(); menu.close(); }} />
+      <div className="more-menu sb-menu" role="menu" aria-label={label} {...sbMenuPull(menu)} data-sb-place={sbBeside() ? "beside" : "foot"} style={sbMenuStyle(menu.rect, { side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
         {children}
       </div>
     </>

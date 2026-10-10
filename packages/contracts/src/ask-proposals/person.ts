@@ -11,6 +11,7 @@ import {
   PROPOSAL_WORDS,
   asText,
   decisionOf,
+  wasIn,
   idIn,
   rec,
   refuseWith,
@@ -78,11 +79,16 @@ export const personModeSpec: ProposalSpecAboveOperator = {
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",
-    record: (p, data) => ({
-      contact_id: p.payload.contact_id,
-      mode: p.payload.previous ?? "inherit",
-      decision_id: decisionOf(data),
-    }),
+    // The mode the route found when it wrote (its answer's `was`; none is inherit), the card's own reading where an
+    // older route answers none.
+    record: (p, data) => {
+      const was = wasIn(data, "mode");
+      return {
+        contact_id: p.payload.contact_id,
+        mode: was === undefined ? (p.payload.previous ?? "inherit") : (was ?? "inherit"),
+        decision_id: decisionOf(data),
+      };
+    },
     call: (u) => ({
       route: "PUT contacts/[id]/receptionist",
       params: { id: asText(u.contact_id) },
@@ -190,11 +196,13 @@ export const personDetailsSpec: ProposalSpec = {
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",
-    // Each changed field as it was before the card: the route clears a field with an empty string, so one that held
-    // nothing is set back to nothing. One whose previous value the card does not carry is never cleared on a guess.
-    record: ({ payload: pl }) => {
-      const prev = rec(pl.previous);
+    // Each changed field as the route found it when it wrote (its answer's `was`), the card's own reading where an
+    // older route answers none: the route clears a field with an empty string, so one that held nothing is set back to
+    // nothing. One whose previous value neither carries is never cleared on a guess.
+    record: ({ payload: pl }, data) => {
       const changed = DETAIL_FIELDS.filter((k) => typeof pl[k] === "string");
+      const found = rec(rec(data).was);
+      const prev = changed.length > 0 && changed.every((k) => k in found) ? found : rec(pl.previous);
       if (!changed.length || changed.some((k) => !(k in prev))) return null;
       return { contact_id: pl.contact_id, ...Object.fromEntries(changed.map((k) => [k, asText(prev[k])])) };
     },

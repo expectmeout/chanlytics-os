@@ -3,6 +3,7 @@
  * run may send in. Moved whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
 import { DAY_MS } from "./playbook-time";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import type { SchemaSet } from "../shared/schema-sets";
 import { MIN_MS } from "../shared/time";
 import { plural } from "../shared/words";
@@ -44,24 +45,23 @@ export const PLAYBOOK_TRIGGERS = [
   },
   {
     id: "visit_tomorrow",
-    label: "Visit reminder",
+    label: "Appointment reminder",
     list: null,
     cls: "booking",
     kind: "visit",
     hint: "The day before an appointment on the calendar",
   },
-  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
-  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer. Its label
-  // is also the NAME a playbook made on it was given and keeps (the composer names a new playbook after its moment, and
-  // the name is stored): a new label here would say one thing on the moment and another on every playbook already
-  // made, so a rename is a product decision with a migration of the stored names, never a constant's change alone.
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the appointment went and offers
+  // nothing, so it reaches a yes to texts. The labels here are the default word's (contracts appointmentWords, D42); a
+  // page and a new campaign's name say the workspace's own (triggerWords), and a name already stored keeps its words
+  // until its owner renames it (D43). The id never changes.
   {
     id: "visited",
-    label: "After the visit",
+    label: "After the appointment",
     list: null,
     cls: "booking",
     kind: "visit",
-    hint: "The day after a visit, when nothing is booked next",
+    hint: "The day after an appointment, when nothing is booked next",
   },
   // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
   // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
@@ -72,7 +72,7 @@ export const PLAYBOOK_TRIGGERS = [
     list: "lapsed",
     cls: "reengage",
     kind: "list",
-    hint: "No visit in 45 days, and nothing booked",
+    hint: "No appointment in 45 days, and nothing booked",
   },
   // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
   // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
@@ -132,9 +132,31 @@ export const PLAYBOOK_STATES = ["running", "paused"] as const;
 
 export type PlaybookState = (typeof PLAYBOOK_STATES)[number];
 
+/** Whether a value is one of a playbook's states: a row's, read as the database types it, or a change's, as asked. */
+export function isPlaybookState(v: unknown): v is PlaybookState {
+  return PLAYBOOK_STATES.some((s) => s === v);
+}
+
 export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 } as const;
 
 export const PLAYBOOK_HOURS = { min: 9, max: 20 } as const;
+
+/**
+ * The whole numbers a playbook keeps, each with its range and the words a refusal names it by: what a new playbook's
+ * check (core checkPlaybook), a change's (core checkPlaybookPatch) and Ask's starter card read, so a bound is written once.
+ */
+export const PLAYBOOK_LIMITS = {
+  run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
+  cap_per_run: { min: 1, max: 500, what: "The cap" },
+  gap_days: { min: 7, max: 365, what: "The gap" },
+  cadence_days: { min: 1, max: 90, what: "The cadence" },
+} as const;
+
+/**
+ * The caps the composer offers, a few sensible ones chosen in place (a campaign made before them keeps its own among
+ * them): what GET playbooks counts one run's split at (playbook-run-split.ts), beside each campaign's own cap.
+ */
+export const PLAYBOOK_CAP_CHOICES: readonly number[] = [5, 10, 25, 50, 100, 250, 500];
 
 /** The hours a send may go out in, as the pages say them: "9:00–20:59", "between 9:00 and 20:59", and the hour a moved send waits for. */
 export const SENDING_HOURS_WORDS = {
@@ -144,6 +166,14 @@ export const SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00–${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
 } as const;
+
+/**
+ * Why a send moved past the night, in the clause every place that says the moment it moved to says beside it: the send
+ * screen's notes (surfaces/campaigns/broadcasts/when.tsx) and Ask's broadcast card. Read from the hours it is handed (the
+ * page's clock hands these), when it is said.
+ */
+export const sendsWaitWords = (hours: Pick<typeof SENDING_HOURS_WORDS, "range"> = SENDING_HOURS_WORDS): string =>
+  `sends wait for ${hours.range}`;
 
 /** One playbook message per person per week, across playbooks. */
 export const PLAYBOOK_BREATH_MS = 7 * DAY_MS;
@@ -172,12 +202,15 @@ export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 export function vetoRunNotice(name: string, people: number, when: string): { subject: string; body: string } {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
   return {
-    subject: `Playbook “${name}” sends ${when}: ${who}`,
+    subject: `Campaign “${name}” sends ${when}: ${who}`,
     body: `${who} will be sent “${name}” ${when}. Stop the run on Today or in Campaigns before then if it should not go.`,
   };
 }
 
 export const PLAYBOOK_NAME_MAX = 80;
+
+/** A campaign the caller cannot see, or one that is gone: every door's 404 for one, in the word a person reads (D19). */
+export const CAMPAIGN_NOT_FOUND = "Campaign not found.";
 
 /** What a moment's doors say when handed a reach-out's step: the one refusal, in one place. */
 export const REACH_OUT_IS_NOT_A_MOMENT =
@@ -219,28 +252,56 @@ export function isWinBack(id: string): boolean {
   return WIN_BACKS.includes(id);
 }
 
-const hintOf = (id: PlaybookTrigger) => (triggerOf(id)?.hint ?? "").toLowerCase();
+/**
+ * A trigger's label and hint in the workspace's word (J1): an appointment moment's say it ("Session reminder", "After
+ * the session", "No session in 45 days…"); every other trigger's are its own. What the composer, the drawer, Ask's card
+ * and a new campaign's name read, so a page says one word.
+ */
+export function triggerWords(
+  t: { id: string; label: string; hint: string },
+  word: AppointmentWord,
+): { label: string; hint: string } {
+  const W = appointmentWords(word);
+  if (t.id === "visit_tomorrow") return { label: W.before.name, hint: W.before.hint };
+  if (t.id === "visited") return { label: W.after.caps, hint: W.after.hint };
+  if (t.id === "lapsed") return { label: t.label, hint: W.lapsedHint };
+  return { label: t.label, hint: t.hint };
+}
 
-/** What the check says of the win-back this workspace cannot read, when a new playbook asks for it. */
-export const WIN_BACK_WORDS = {
-  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf("lapsed")}. Start that one.`,
-  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf("quiet_30")}.`,
-} as const;
+/** What the check says of the win-back this workspace cannot read, when a new campaign asks for it, in its word. */
+export function winBackWords(word: AppointmentWord): { quiet_30: string; lapsed: string } {
+  const W = appointmentWords(word);
+  const silence = (triggerOf("quiet_30")?.hint ?? "").toLowerCase();
+  return {
+    quiet_30: `A calendar is connected here, so the win-back goes ${W.byMany}: ${W.lapsedHint.toLowerCase()}. Start that one.`,
+    lapsed: `The win-back ${W.byMany} needs your calendar, and none is connected. Start the one that goes by silence: ${silence}.`,
+  };
+}
 
 /**
- * Whether a moment is offered for a NEW playbook (2 Oct 2026, the lifecycle set): offered here at all
- * (triggerOffered), not retired (MOMENTS_RETIRED), and of the two win-backs the one this workspace can read: by visits
- * where a calendar is connected, by silence where none is. The Playbooks page's moments, its composer, Ask's proposals
- * and the check that makes a playbook ask this; the run never does, so a playbook made before keeps running.
- * `calendarOn` is a calendar connected here, whether or not its feed can be read just now: the page's calendar state
- * is not "none".
+ * Whether a new campaign on a moment is offered by whether a calendar is connected here: the two win-backs (by visits
+ * only with one, by silence only without) and the appointment moments (only with one). The calendar set, declared once:
+ * momentOffered reads it, and so does the check that makes a campaign, which asks for the calendar only here and says
+ * why a moment of it is refused.
+ */
+export function momentReadsCalendar(t: { id: string; kind: string }): boolean {
+  return isWinBack(t.id) || t.kind === "visit";
+}
+
+/**
+ * Whether a moment is offered for a NEW campaign (2 Oct 2026, the lifecycle set): offered here at all
+ * (triggerOffered), not retired (MOMENTS_RETIRED), of the two win-backs the one this workspace can read (by visits where
+ * a calendar is connected, by silence where none is), and an appointment moment only where a calendar is connected
+ * (decision 44 of 9 Oct 2026): without one its run reads nothing and skips every day. Campaigns' moments, its composer,
+ * Ask's proposals and the check that makes a campaign ask this; the run never does, so one made before keeps running.
+ * `calendarOn` is a calendar connected here, whether or not its feed can be read just now: the page's calendar state is
+ * not "none".
  */
 export function momentOffered(t: { id: string; kind: string }, o: { dealsOn: boolean; calendarOn: boolean }): boolean {
   if (!triggerOffered(t, o.dealsOn)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
-  if (t.id === "quiet_30") return !o.calendarOn;
-  if (t.id === "lapsed") return o.calendarOn;
-  return true;
+  if (!momentReadsCalendar(t)) return true;
+  return t.id === "quiet_30" ? !o.calendarOn : o.calendarOn;
 }
 
 /**

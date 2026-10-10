@@ -5,7 +5,7 @@
  * same thing.
  */
 import { PAUSED_WORDS } from "../workspace/billing";
-import { ROUTE_WORDS } from "./address";
+import { roleSays } from "../config/workspace-config/role-perms";
 
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
@@ -190,96 +190,6 @@ export function inAppBootScript(): string {
   ].join("");
 }
 
-/** A person's id in the address, as the route reads it (surface-registry personRouteId): a uuid, nothing else. */
-const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
-/** Where the head parks what it started, for the client to take (client/api.ts `prefetched`). */
-export const PREFETCH_SLOT = "__prefetched";
-/**
- * What each page opens on, by the shell's route: its own surface's first reads, in the order it asks for them, and on
- * Today the band its first draw waits for (surface-registry ROUTE_WAITS: Setup's). Each is spelled as the client spells
- * it (client/api.ts urlFor: the path, the read's own query in its order, then the workspace), so the client's read
- * takes what the head started. A page whose first read depends on something only the tab knows is absent, and opens on
- * who is looking alone: the Calendar's weeks are the business's (its zone, from the workspace's own read), Reports'
- * period is the one the tab last picked, Leads' list is the view it remembers. Held to the surfaces' own reads by
- * route-prefetch.test.mjs, which runs each one.
- */
-export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
-  today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
-  inbox: ["conversations", "escalations?state=open", "templates"],
-  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
-  conversations: ["conversations", "calls", "escalations?state=open"],
-  // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
-  clients: ["contacts", "segments", "views"],
-  segments: ["contacts", "segments", "views"],
-  live: ["calls", "channels"],
-  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
-  broadcasts: [
-    "broadcasts",
-    "contacts",
-    "segments",
-    "templates",
-    "channels",
-    "settings",
-    "reports/campaigns?period=30d",
-  ],
-  outbound: ["playbooks", "templates", "channels", "settings"],
-  // Templates and every pane of Settings are drawn from the settings surface.
-  messages: ["settings", "team", "policies", "channels", "templates?all=1"],
-  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
-  start: ["setup", "views"],
-};
-/** The shell's route for the word an address opens with: the product's word (ROUTE_WORDS) or the route's own. */
-const PREFETCH_ROUTE_OF_WORD: Readonly<Record<string, string>> = Object.fromEntries(
-  Object.entries(ROUTE_WORDS).map(([route, word]) => [word, route]),
-);
-/**
- * How long a read the head started may wait for its headers, as long as the client's own read would (client/api.ts
- * READ_TIMEOUT_MS): a hung one used to hold the page for ever, since the client waits on it in place of its own; timed
- * out, the client asks again itself. The bound ends when the headers arrive, so a body the client reads later is never
- * cut off by it.
- */
-const PREFETCH_TIMEOUT_MS = 15_000;
-
-/**
- * The route's own reads, started from the document head.
- *
- * Nothing was fetched until the shell had mounted: the HTML, the framework's chunks, hydration, the legacy chunk,
- * the mount, and only then the first request -- 2,033 ms into a cold load of a person's page, on a document whose
- * first byte came at 26 ms (measured on production, 25 Sep 2026). This script runs as the head arrives and starts
- * the read every workspace page opens on -- who is looking (GET workspaces) -- and the page's own: on a person's page
- * the person, on any other page what it opens on (PREFETCH_READS), which waited for the mount: on a production build
- * at a phone's pace (2 Oct 2026), Today's metrics left at 602 ms and came back at 1,504, behind fourteen other reads,
- * and People's rows left at 538 on a document whose first byte came at 16. They are spelled exactly as the client
- * spells them, and the promises are parked on the window for the client to take once, in place of its own fetch. The
- * route is the path's, else the hash's: an address the frame has not moved yet (address.ts) opens the same page, and
- * an address naming no route is Today's. Off a workspace page nothing is read. A refusal here is the client's to hear,
- * as it would have been, and a read whose headers do not come in PREFETCH_TIMEOUT_MS gives way to the client's own.
- */
-export function routePrefetchScript(): string {
-  return [
-    "try{",
-    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
-    "if(p){",
-    "var w=encodeURIComponent(decodeURIComponent(p[1]));",
-    'var u=["/api/v1/workspaces?workspace="+w];',
-    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
-    'var h=r.split("/"),l=h[1]||"";',
-    `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)};`,
-    `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
-    // Leads is People's scope with a surface of its own, and opens on the view it remembers.
-    'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
-    'for(var j=0;j<t[s].length;j++)u.push("/api/v1/"+t[s][j]+(t[s][j].indexOf("?")<0?"?":"&")+"workspace="+w);',
-    `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
-    "var M=window.AbortController;",
-    "var g=function(x){",
-    `var a=M?new M():null,k=a?setTimeout(function(){a.abort()},${PREFETCH_TIMEOUT_MS}):0;`,
-    'var q=fetch(x,{credentials:"same-origin",signal:a?a.signal:undefined});',
-    "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
-    "for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
-    "}}catch(e){}",
-  ].join("");
-}
-
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
 
@@ -333,16 +243,18 @@ export interface ShellStatus {
   offline?: boolean;
   /** The live feed dropped and did not come back within its grace: the page is current only as of its last read. */
   disconnected?: boolean;
+  /** The role an owner is previewing the app as (Settings › Team, Preview as); null or absent when they are themself. */
+  previewing?: string | null;
 }
 
 export interface ShellStatusLine {
-  kind: "offline" | "paused" | "stale" | "degraded" | "disconnected";
+  kind: "offline" | "paused" | "preview" | "stale" | "degraded" | "disconnected";
   /** How loud: danger when customers are affected, warn when this screen is, info when nothing is lost. */
   tone: "danger" | "warn" | "info";
   text: string;
   /** What it means for the person, when the line alone would leave them guessing. */
   detail: string | null;
-  action: "reload" | "billing" | "retry" | null;
+  action: "reload" | "billing" | "retry" | "exit-preview" | null;
   /** The press's words, and its words while it works. */
   cta: string | null;
   busy: string | null;
@@ -357,9 +269,11 @@ function namesAnd(names: readonly string[]): string {
  * The one line the shell shows over the page, or nothing: one thing at a time,
  * in the order that matters. Offline first: while nothing reaches the
  * workspace, nothing else the line could offer would work. Then a pause, which
- * reaches the customers. Then a newer build, which a reload fixes along with
- * anything stale. Then surfaces that stopped refreshing, and last the live
- * feed, which only delays what the next read shows.
+ * reaches the customers. Then an owner's preview of a narrower role: controls
+ * are missing on every page while it is on, and without the line nothing
+ * outside Settings › Team said why. Then a newer build, which a reload fixes
+ * along with anything stale. Then surfaces that stopped refreshing, and last
+ * the live feed, which only delays what the next read shows.
  */
 export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusLine | null {
   if (!s) return null;
@@ -383,6 +297,18 @@ export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusL
       cta: "Billing",
       busy: null,
     };
+  if (s.previewing) {
+    const one = roleSays(s.previewing).one;
+    return {
+      kind: "preview",
+      tone: "info",
+      text: `Previewing as ${one}`,
+      detail: `Controls ${one} wouldn't have are hidden. Your own access hasn't changed.`,
+      action: "exit-preview",
+      cta: "Exit preview",
+      busy: null,
+    };
+  }
   if (s.stale)
     return {
       kind: "stale",

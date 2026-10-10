@@ -123,6 +123,8 @@ const OTHERS = [
   (await importSrc(`${S}/legacy-bridge/google.ts`)).googleOverride,
   // The Reviews lens's own read: on demand, drawn on that lens alone, so neither page's boot reads it.
   (await importSrc(`${S}/surfaces/reports/reviews-surface.ts`)).reviewsOverride,
+  // The Receptionist lens's, the same: on demand, drawn on that lens alone.
+  (await importSrc(`${S}/surfaces/reports/receptionist-surface.ts`)).receptionistOverride,
   (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
 ];
 const settle = async (n = 40) => {
@@ -170,6 +172,11 @@ test("on Today, one small route is read for Reports' sake where three large ones
   assert.deepEqual(before.routes, REPORT_ROUTES);
   assert.deepEqual(after.routes, ["reports/headline"]);
   assert.equal(after.asked.includes("reports_reviews"), false, "and the Reviews lens's read is not one of Today's");
+  assert.equal(
+    after.asked.includes("reports_receptionist"),
+    false,
+    "nor the Receptionist lens's, which only its lens draws",
+  );
   assert.ok(
     after.bytes * 20 < before.bytes,
     `a few hundred bytes for tens of thousands: ${after.bytes} against ${before.bytes}`,
@@ -194,6 +201,11 @@ test("on any other page the report is no longer read at all: it was a stranger i
   );
   assert.equal(after.asked.includes("inbox"), true, "and still reads what it draws, and the strangers not marked");
   assert.equal(after.asked.includes("reports_reviews"), false, "nor the Reviews lens's, which only its lens draws");
+  assert.equal(
+    after.asked.includes("reports_receptionist"),
+    false,
+    "nor the Receptionist lens's, which only its lens draws",
+  );
 });
 
 /* ---- the server: which doors each route reaches for ---- */
@@ -218,6 +230,8 @@ const world = () => ({
     report_series: (a) => ({ ...busyReport(), days: a.p_days }),
     campaign_series: (a) => ({ ...busyCampaigns(), days: a.p_days }),
     reach_out_report: () => NO_REACH_OUTS,
+    // 00375: each chain's own totals, which the reach-outs' route reads beside its report (readers/campaign-report.ts).
+    reach_out_chain_totals: () => ({}),
     people_list: () => [],
   },
 });
@@ -237,7 +251,7 @@ test("the database is asked less: the headline reaches for the report's series, 
   t.diagnostic(`doors, after (one route): ${[...after].sort().join(", ")}`);
   for (const door of after) assert.ok(before.has(door), `the headline reaches for nothing new: ${door}`);
   for (const door of ["rpc:report_series", "rpc:people_list"]) assert.ok(after.has(door), `still read: ${door}`);
-  for (const door of ["rpc:campaign_series", "rpc:reach_out_report"]) {
+  for (const door of ["rpc:campaign_series", "rpc:reach_out_report", "rpc:reach_out_chain_totals"]) {
     assert.ok(before.has(door), `read before: ${door}`);
     assert.ok(!after.has(door), `no longer read: ${door}`);
   }

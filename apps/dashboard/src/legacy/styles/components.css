@@ -634,6 +634,12 @@
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* Its leaving, the way it came (a still copy plays it: data-bits leaveOverlay). A copy that kept route-in as its own
+   animation came in again from nothing as the popover went, so the bell's closed twice (Ruben, 9 Oct 2026). */
+@keyframes route-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(4px); }
+}
 @media (prefers-reduced-motion: reduce) {
   .route-view { animation: none; }
 }
@@ -657,6 +663,14 @@
    width to there too, and a finger walks its strip (the view says its strip, data-strip; the rest is the tokens'). */
 @media (max-width: 900px) {
   .route-view[data-strip="people"] { --view-travel: 100%; }
+  /* A touch under a strip keeps the axis it began on. The reader (data-bits touchSwipe) picks one at 8px: mostly down,
+     a scroll and the page stands; else the page walks. The browser was told nothing of that choice, so its own scroll
+     ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
+     2026). touch-action is read on what scrolls, so each strip page's phone scroller says it: Reports' body, the
+     Inbox's threads, Conversations' rows, People's main, Settings' pane (one each, found on the app at 375px;
+     tooling/scripts/tests/styles/swipe-axis.test.mjs holds the list). A touch that began across never scrolls it, as a
+     phone's own pagers hold their axis; one that began down scrolls as before, and the reader moves nothing. */
+  .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane { touch-action: pan-y; }
 }
 
 /* ---------- Unified stat strip (dashboard anchors · clients head · profile money) ---------- */
@@ -980,14 +994,17 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  /* Its ground is the kit's pop panel (topbar.jsx: panel panel-pop panel-flush), the glass every menu and list wears. */
   z-index: 250;
   overflow: hidden;
   animation: route-in 180ms var(--ease-out);
+  /* What it plays as it goes (below): the entrance's mirror, and on a phone the sheet going down as it came up. */
+  --tbn-out: route-out;
+  --tbn-out-ms: var(--duration-fast);
 }
+/* At every width it leaves by one rule, its own mirror: a copy that kept its entrance as its animation came in again
+   from nothing as the popover went. Its wash is clear off a phone and plays nothing; a phone's is the veil, below. */
+.tbn-pop[data-leaving="true"] { animation: var(--tbn-out) var(--tbn-out-ms) var(--ease-in) forwards; }
 .tbn-head {
   display: flex;
   align-items: center;
@@ -1006,10 +1023,11 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 /* A note is one press: its mark, two lines and a time, at the list row's own numbers (tokens.css, "one row for every
    list"). The press does what the note says; the words say where. Each used to carry a 44px row of boxed buttons
    saying it again, which was half of every note's height (48 notes, 6,677px on a phone, 25 Sep). */
-/* Opaque, so a note slid aside by a thumb shows the ground under it and not through it (the sheet, below). */
-.tbn-item { position: relative; border-bottom: 1px solid var(--line); background: var(--bg-raised); }
+/* On the popover's glass a note has no ground of its own; on a phone's sheet it is opaque, so a note slid aside by a
+   thumb shows the ground under it and not through it (the sheet, below). */
+.tbn-item { position: relative; border-bottom: 1px solid var(--line); }
 .tbn-slot:last-child > .tbn-slot-in > .tbn-item, .tbn-group:last-child > .tbn-item:last-child { border-bottom: none; }
-.tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--bg-raised)); }
+.tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, transparent); }
 /* A dismissed note folds shut so the notes under it glide up, then it goes: the slot is given its own height and then
    none (topbar.jsx NotifPopover fold, measured there, since a grid track animated from 1fr to 0fr holds at its
    content's height until the last frame). The note and the grounds a thumb slides it over sit inside. */
@@ -1083,21 +1101,28 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
      every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
      2 Oct: no fade, no lightening). A tap on it closes the sheet. */
   .tbn-backdrop { background: var(--surface-veil); }
+  /* A sheet's solid, as every sheet a phone raises is (the glass is the desk's popover): its notes slide over grounds. */
+  .tbn-item { background: var(--surface-pop-fill); }
+  .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--surface-pop-fill)); }
   .tbn-pop {
     top: auto; right: 0; bottom: 0; left: 0; max-width: none; max-height: 82vh; max-height: 82dvh;
+    background-color: var(--surface-pop-fill);
     border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px); overscroll-behavior-y: none;
     animation: sheet-in 260ms var(--ease-out);
+    --tbn-out: sheet-out;
+    --tbn-out-ms: 180ms;
   }
   .tbn-handle { display: block; flex: none; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: var(--radius-full); background: var(--line-strong); }
   .tbn-head { padding: 6px 16px 10px; }
   .tbn-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
   /* The sheet moves under a pull at the top, not its list, and the list has no rubber band at either end (#1063). */
   .tbn-list { overscroll-behavior: none; }
-  .tbn-pop[data-leaving="true"] { animation: sheet-out 180ms var(--ease-in) forwards; }
   .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
-.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: var(--bg-raised); border-bottom: 1px solid var(--line); }
+/* A day's head stands over the notes scrolling under it as the glass does: it blurs them. */
+.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: transparent; backdrop-filter: var(--surface-control-blur); border-bottom: 1px solid var(--line); }
+@media (max-width: 720px) { .tbn-sec { background: var(--surface-pop-fill); backdrop-filter: none; } }
 .tbn-title { flex: 1; }
 .tb-bell.ping .icon { animation: bell-swing 0.9s var(--ease-out); transform-origin: 50% 2px; }
 @keyframes bell-swing { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(13deg); } 45% { transform: rotate(-10deg); } 70% { transform: rotate(6deg); } 85% { transform: rotate(-3deg); } }
@@ -1388,7 +1413,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* ---------- The text whisper: rewrite a held draft ---------- */
 .ix-steer { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-dim); }
 .ix-steer-input { flex: 1; min-width: 0; font: inherit; font-size: var(--text-sm); padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
-.ix-steer-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.ix-steer-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-field); }
 
 /* ---------- The bell's foot: device alerts ---------- */
 .tbn-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
@@ -1439,6 +1464,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    its row, the account's covered the drawer's places, the workspace's hung off a row a thumb had just left, and one
    placed from a row still sliding in stood off the screen (Ruben, 7 Oct 2026). */
 @media (max-width: 900px) {
+  /* Behind it the phone's one veil, as behind every menu and sheet a phone raises (the kit's Menu, the drawer). */
+  [data-sb-wash="foot"] {
+    background: var(--surface-veil);
+  }
   [data-sb-place="foot"] {
     inset: auto 0 0 0;
     width: auto;
@@ -1497,13 +1526,15 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sb-theme-opt:hover { color: var(--ink); background: var(--bg-hover); }
 .sb-theme-opt.active { color: var(--ink); border-color: var(--ink-muted); background: var(--bg-hover); }
 
-.sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: oklch(from var(--ink) l c h / 0.35); }
+/* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash). */
+.sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: var(--surface-wash); }
 .sb-sheet {
   /* Centred in what the phone shows over its keyboard (--kb, data-bits watchKeyboard). */
   position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);
   width: min(520px, calc(100vw - 32px)); max-height: calc(80vh - var(--kb, 0px)); max-height: calc(80dvh - var(--kb, 0px)); overflow: auto;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg); padding: 14px 18px 18px;
+  /* The solid every sheet and dialog wears (tokens.css, --surface-pop-fill), its edge, corners and depth. */
+  background: var(--surface-pop-fill); border: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pop-radius);
+  box-shadow: var(--surface-pop-depth); padding: 14px 18px 18px;
 }
 .sb-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .sb-sheet-title { font-size: 14px; font-weight: 600; color: var(--ink); }
@@ -2008,7 +2039,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   width: 40px;
   color: var(--ink-muted);
 }
-.topbar :is(.tb-bell, .tb-theme):hover {
+/* The bell held open wears what a pointer on it does: the wash over the page keeps the pointer off it, so it read idle. */
+.topbar :is(.tb-bell, .tb-theme):is(:hover, [aria-expanded="true"]) {
   background-color: var(--surface-control-fill);
   color: var(--ink);
 }
@@ -2237,6 +2269,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 #pg-act {
   display: contents;
 }
+/* Reports' head is the container its period measures itself against (reports.css): the capsule says its word where the
+   head has the room and is the glyph's circle where it has not, by the head's own width, as the Calendar's bar does it
+   (calendar.css `cal-bar`). `--rpt-when-w` is the capsule's one width, which the place for it keeps before it is drawn. */
+.pg-slot[data-strip="reports"] {
+  container: rpt-head / inline-size;
+  --rpt-when-w: 6.5rem;
+}
 /* An act's words (kit/head/act-words.tsx): the mark and the first word kept together, 6px apart as a button's mark and
    words are, and the rest after them, its own space kept (it leads the rest, and a flex item drops a leading space). On a
    phone's row of views the rest gives way where the row is short (below). */
@@ -2429,8 +2468,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     align-self: center;
     justify-content: flex-end;
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child,
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:not(:has(> .pg-act-fit)),
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child:not(:has(> .pg-act-fit)) {
     width: 44px;
     height: 44px;
     min-height: 44px;
@@ -2442,7 +2481,31 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     box-shadow: var(--primary-depth);
     color: var(--primary-ink);
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :first-child > span {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :first-child:not(:has(> .pg-act-fit)) > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* An act that says its words through the kit's part for them (kit/head/act-words.tsx: the Inbox's New conversation)
+     is no bare circle: it keeps its mark and its first word, "+ New", in the capsule People's scopes draw theirs in on a
+     phone, 36px and 44 to a finger by a margin no one sees (Ruben, 8 Oct 2026: a plus alone said nothing). The rest of
+     its name is kept for a screen reader, as the circle keeps the whole of one. */
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit) {
+    position: relative;
+    height: var(--control-h-lg);
+    min-height: var(--control-h-lg);
+    padding: 0 14px 0 12px;
+    font-size: var(--text-base);
+  }
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit)::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child > .pg-act-fit > .pg-act-rest {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -2453,6 +2516,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* Beside the act the strip has 44px less: its tabs give up 4px of padding each side, and the three still fit a phone. */
   .pg-slot:has(> nav) > nav > a {
     padding-inline: 10px;
+  }
+  /* Beside a capsule that says a word the strip has 76px less, not 44: its tabs give up 2px more each side, so the
+     Inbox's three still stand on one line on a phone 360 wide ("Needs you" wrapped onto two). */
+  .pg-slot:has(> nav):not([data-strip="people"]):has(> .pg-act-slot .pg-act-fit) > nav > a {
+    padding-inline: 8px;
   }
   /* And a phone's strip says the views' names alone: the counts beside them pushed "Templates 7" past the strip's end,
      and the list under it says them again. */
@@ -2476,10 +2544,17 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      place empty the column was 0 wide, the strip spanned the screen, and shrank 52px as the period came (Ruben, 7 Oct
      2026). The place keeps the period's width and nothing is drawn in it. It held a circle of the period's glass, a
      pseudo-element taken away by `:has(> #pg-act:empty)`, which an iPhone's Safari did not ask again as the period was
-     drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). */
+     drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). The period is a capsule
+     with its word now (reports.css), one width whichever word it says, which is what the place keeps; on a row too short
+     for the word it is the circle's 44 and the place keeps that. */
   .pg-slot[data-strip="reports"] > .pg-act-slot {
-    min-width: 44px;
+    min-width: var(--rpt-when-w);
     min-height: 44px;
+  }
+  @container rpt-head (max-width: 319px) {
+    .pg-slot[data-strip="reports"] > .pg-act-slot {
+      min-width: 44px;
+    }
   }
   /* People's scopes (People, Leads, the Pipeline) keep their act on a phone with its words, on the strip's row at its
      right, as a desk draws it (Ruben, 7 Oct 2026). It was hidden, each scope's act left to its own bar or menu, and a

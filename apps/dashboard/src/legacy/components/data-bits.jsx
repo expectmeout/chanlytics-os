@@ -247,7 +247,10 @@ const keyPress = (fn) => (e) => {
 // One reader of a touch, for what a thumb walks or lets go of: a lead's peek walks its pile across; a sheet on a phone,
 // the peek and an open thread are let go of. touchSwipe({ onLeft, onRight, onDown, onBack, onAway, min, when, onGrab }) gives the
 // handlers for the element the gesture is on. Nothing is kept between draws: a touch's state is held against the
-// element the browser hands back.
+// element the browser hands back. A move is read from the element itself first (swipeHold, below), where the browser's
+// own scroll can still be refused: React hears touchmove passively, and an iPhone kept scrolling the page it had also
+// handed to the finger, so a thumb could carry Reports in circles (Ruben's recording, 9 Oct 2026). While the touch
+// carries something across (a page, a thread back, the drawer away) the list under it never scrolls.
 //
 // A let-go FOLLOWS the finger. `onDown` is a pull down from the top: once the touch has gone 8px, mostly down, from a
 // scroller at its top (the first ancestor under the finger that scrolls, so a scroll back up through a list is never a
@@ -339,11 +342,7 @@ const swipeSettle = (g) => {
     wash.style.transition = now ? "none" : `opacity ${SETTLE_MS}ms var(--ease-out)`;
     wash.style.opacity = "";
   }
-  setTimeout(() => {
-    el.style.transition = "";
-    el.style.transform = "";
-    if (wash && wash.style) wash.style.transition = "";
-  }, now ? 0 : SETTLE_MS + 20);
+  setTimeout(() => { el.style.transition = ""; el.style.transform = ""; if (wash && wash.style) wash.style.transition = ""; }, now ? 0 : SETTLE_MS + 20);
 };
 // A page that stays turns in place: in from the side it is going to, on the settle's curve.
 const swipeArrive = (g) => {
@@ -357,10 +356,14 @@ const swipeArrive = (g) => {
   void el.offsetWidth;
   el.style.transition = `transform ${SETTLE_MS}ms var(--ease-out)`;
   el.style.transform = "translate3d(0, 0, 0)";
-  setTimeout(() => {
-    el.style.transition = "";
-    el.style.transform = "";
-  }, SETTLE_MS + 20);
+  setTimeout(() => { el.style.transition = ""; el.style.transform = ""; }, SETTLE_MS + 20);
+};
+// Let go of for good: its inline styles go, and its own rules have it again.
+const swipeClear = (g) => {
+  if (g.onGrab) g.onGrab(g.el, false);
+  if (!g.el.style) return;
+  g.el.style.transition = ""; g.el.style.transform = "";
+  if (g.wash && g.wash.style) { g.wash.style.transition = ""; g.wash.style.opacity = ""; }
 };
 // Away the way it was pulled, then the close; still on screen after it, it settles back. A page that stays is asked for
 // the next once it has left, and comes back in when that has landed.
@@ -369,26 +372,13 @@ const swipeLeave = (g, close) => {
   const done = () => {
     if (way === "page") { Promise.resolve(close()).then(() => swipeArrive(g)); return; }
     close();
-    if (way === "away") {
-      setTimeout(() => {
-        if (g.onGrab) g.onGrab(el, false);
-        if (!el.style) return;
-        el.style.transition = "";
-        el.style.transform = "";
-        if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
-      }, KEPT_AFTER_MS);
-      return;
-    }
+    if (way === "away") { setTimeout(() => swipeClear(g), KEPT_AFTER_MS); return; }
     setTimeout(() => {
       // One still on the page while it plays its leaving (the kit's Sheet: Base UI lets it go after) stays where it went.
       if (el.dataset && el.dataset.leaving === "true") return;
       const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
-      if (shown) { swipeSettle(g); return; }
-      if (g.onGrab) g.onGrab(el, false);
-      if (!el.style) return;
-      el.style.transition = "";
-      el.style.transform = "";
-      if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
+      if (shown) swipeSettle(g);
+      else swipeClear(g);
     }, KEPT_AFTER_MS);
   };
   if (!el.style || motionReduced()) { done(); return; }
@@ -414,18 +404,24 @@ const swipeStays = (g, page) => ({
   settle: () => swipeSettle(g),
   go: (step) => { g.step = step; swipeLeave(g, () => page.go(step)); },
 });
-const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, onAway = null, pages = null, min = 80, when = null, onGrab = null }) => ({
-  onTouchStart: (e) => {
+// A move read from the element itself, non-passive, and its default refused while the touch carries something across.
+const swipeHold = (e) => {
+  const g = touches.get(e.currentTarget);
+  if (!g) return;
+  g.h.onTouchMove(e);
+  if ((g.way === "page" || g.way === "back" || g.way === "away") && e.cancelable !== false) e.preventDefault();
+};
+const swipeDrop = (el) => { touches.delete(el); if (el.removeEventListener) el.removeEventListener("touchmove", swipeHold); };
+const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, onAway = null, pages = null, min = 80, when = null, onGrab = null }) => {
+  const onTouchStart = (e) => {
     const t = e && e.touches && e.touches[0];
     const el = e && e.currentTarget;
     if (!t || !el) return;
-    if (swipeOwnDrag(e.target, el)) {
-      touches.delete(el);
-      return;
-    }
-    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, step: 0, mx: t.clientX, mt: Date.now(), vx: 0 });
-  },
-  onTouchMove: (e) => {
+    if (swipeOwnDrag(e.target, el)) { swipeDrop(el); return; }
+    if (el.addEventListener) el.addEventListener("touchmove", swipeHold, { passive: false });
+    touches.set(el, { el, h, held: !!el.addEventListener, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null, from: e.target, pages: null, step: 0, mx: t.clientX, mt: Date.now(), vx: 0 });
+  };
+  const onTouchMove = (e) => {
     const t = e && e.touches && e.touches[0];
     const el = e && e.currentTarget;
     const g = el && touches.get(el);
@@ -467,13 +463,13 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       const open = pageOpen(g.pages, step);
       g.pages.drag(open ? dx : Math.sign(dx) * Math.min(RESIST_MAX, Math.abs(dx) * RESIST), step, open);
     }
-  },
-  onTouchEnd: (e) => {
+  };
+  const onTouchEnd = (e) => {
     const t = e && e.changedTouches && e.changedTouches[0];
     const el = e && e.currentTarget;
     const g = el && touches.get(el);
     if (!t || !g) return;
-    touches.delete(el);
+    swipeDrop(el);
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
     if (g.way === "down" || g.way === "back" || g.way === "away") {
@@ -512,16 +508,19 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     if (dy < min || !g.top || !onDown) return;
     if (when && !when()) return;
     onDown();
-  },
-  onTouchCancel: (e) => {
+  };
+  const onTouchCancel = (e) => {
     const el = e && e.currentTarget;
     const g = el && touches.get(el);
     if (!g) return;
-    touches.delete(el);
+    swipeDrop(el);
     if (g.way === "page") g.pages.settle();
     else if (g.way === "down" || g.way === "back" || g.way === "away") swipeSettle(g);
-  },
-});
+  };
+  const h = { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel };
+  // React's move handler reads only a touch the element's own listener did not (a test's stub element, which adds none).
+  return Object.assign({}, h, { onTouchMove: (e) => { const g = e && e.currentTarget && touches.get(e.currentTarget); if (g && !g.held) h.onTouchMove(e); } });
+};
 
 // ---- Leaving: an overlay goes the way it came ------------------------------------------------------------
 // A dialog, a sheet or a palette is React's to take away, and it went at once: a hard cut, where it had come in. As

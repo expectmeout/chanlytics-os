@@ -262,6 +262,8 @@ test("a late word about a subscription the workspace has already left does not o
   // paying customer, and Refresh followed the dead id and did it again.
   const db = fakeDb(tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_1" })] }));
   setPg(db);
+  // Stripe keeps a cancelled subscription, and says so when it is read: the guard judges the reading read now.
+  subs.set("sub_0", sub({ id: "sub_0", status: "canceled" }));
   const stale = await deliver("customer.subscription.deleted", sub({ id: "sub_0", status: "canceled" }));
   assert.equal(stale.status, 200);
   assert.deepEqual(await stale.json(), { ok: true, superseded: true });
@@ -279,6 +281,53 @@ test("a late word about a subscription the workspace has already left does not o
   assert.equal(fresh.status, 200);
   const up = writes(db2, "billing_accounts").find((q) => q.op === "update");
   assert.equal(first(up).stripe_subscription_id, "sub_2", "the row follows the live subscription");
+});
+
+test("a late word whose own copy still says active is judged by what Stripe says now: about a subscription the workspace has left and Stripe has ended, it is superseded and nothing is written", async () => {
+  // The guard used to read the event's copy, which is the subscription as it
+  // stood when the event was made. A late or retried `updated` about the old
+  // subscription, made while it was live, passed it; the fresh read the row
+  // is written from said canceled; and the row took the dead id, the
+  // receptionist went quiet on a paying customer, a bell said the
+  // subscription had ended, and Refresh followed the dead id.
+  const state = tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_2" })] });
+  const db = fakeDb(state, {}, {}, { unique: ["billing_events"] });
+  setPg(db);
+  subs.set("sub_1", sub({ status: "canceled" }));
+  subs.set("sub_2", sub({ id: "sub_2", status: "active" }));
+  const late = await deliver("customer.subscription.updated", sub({ status: "active" }));
+  assert.equal(late.status, 200);
+  assert.deepEqual(await late.json(), { ok: true, superseded: true });
+  assert.equal(writes(db, "billing_accounts").length, 0, "the row keeps the subscription the workspace is on");
+  assert.deepEqual(
+    [state.billing_accounts[0].stripe_subscription_id, state.billing_accounts[0].status],
+    ["sub_2", "active"],
+  );
+  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(writes(db, "notifications").length, 0, "and nobody is told a subscription ended");
+  assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once, so it is not reconsidered");
+  assert.deepEqual(
+    reads.map((r) => r.id),
+    ["sub_1", "sub_2"],
+    "the event's subscription read as it is now, then the row's, to see that it stands",
+  );
+});
+
+test("a late word about a subscription Stripe no longer holds, while the workspace is on another, is superseded rather than a 500 Stripe retries for days", async () => {
+  // Judging the fresh read means reading the event's own subscription first, and Stripe answers 404 for one it does
+  // not hold. That is a dead reading about a subscription the row has left, so the row's live plan stands and the
+  // delivery is answered, not failed until Stripe gives up on it.
+  const state = tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_2" })] });
+  const db = fakeDb(state, {}, {}, { unique: ["billing_events"] });
+  setPg(db);
+  subs.delete("sub_9");
+  subs.set("sub_2", sub({ id: "sub_2", status: "active" }));
+  const late = await deliver("customer.subscription.updated", sub({ id: "sub_9", status: "active" }));
+  assert.equal(late.status, 200);
+  assert.deepEqual(await late.json(), { ok: true, superseded: true });
+  assert.equal(writes(db, "billing_accounts").length, 0, "the row keeps the subscription the workspace is on");
+  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once, so it is not reconsidered");
 });
 
 test("a paused subscription pauses the workspace and rings once; resuming turns it back on and rings again", async () => {
@@ -327,6 +376,11 @@ test("a failed payment marks the row and rings, and the receptionist keeps answe
   assert.equal(writes(db, "notifications").length, 1);
   assert.equal(first(writes(db, "notifications")[0]).title, "A payment did not go through");
   assert.equal(writes(db, "tenants").length, 0, "a failed card never silences the receptionist");
+  assert.deepEqual(
+    writes(db, "events").map((s) => [first(s).kind, first(s).category, first(s).data]),
+    [["billing.payment_failed", "billing", {}]],
+    "REGRESSION: the bell said it and the ledger did not; filed under billing, so Ask leaves it out, and never an amount",
+  );
 });
 
 /* ------------------------------------------------ what an invoice moved (K8) */
@@ -499,7 +553,10 @@ test("a database that refuses the amount costs the amount alone: the claim compl
 test("a database that does not answer the call at all costs the amount alone", async () => {
   const door = amountDoor();
   const { state, db } = withDoor(door);
-  db.rpc = () => Promise.reject(new TypeError("fetch failed"));
+  // The amount's door is dark; the row's own door answers (00382 billing_apply: the stamp is a door's call too).
+  const rpc = db.rpc;
+  db.rpc = (name, args) =>
+    name === "billing_event_keep_amount" ? Promise.reject(new TypeError("fetch failed")) : rpc.call(db, name, args);
   const { result, lines } = await logged(() =>
     deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_dark"),
   );
@@ -553,6 +610,33 @@ test("a deleted customer is forgotten: the ids point at nothing, the row says no
   assert.deepEqual(first(writes(db, "events")[0]).data, { source: "customer.deleted", status: "none" });
 });
 
+test("a deleted customer that is not the one the row names changes nothing: routed by its metadata, a customer the workspace had left used to wipe the one it is billed through", async () => {
+  const state = tables({
+    billing_accounts: [row({ status: "active", stripe_customer_id: "cus_2", stripe_subscription_id: "sub_2" })],
+  });
+  const db = fakeDb(state, {}, {}, { unique: ["billing_events"] });
+  setPg(db);
+  const { result: res, lines } = await logged(() =>
+    deliver("customer.deleted", { id: "cus_1", object: "customer", metadata: { tenant_id: T } }),
+  );
+  assert.equal(res.status, 200, "answered, so Stripe does not deliver it again");
+  assert.deepEqual(await res.json(), { ok: true, forgotten: false });
+  const [kept] = state.billing_accounts;
+  assert.deepEqual(
+    [kept.stripe_customer_id, kept.stripe_subscription_id, kept.status, kept.card_last4],
+    ["cus_2", "sub_2", "active", "4242"],
+    "the row keeps the customer and the plan the workspace is billed through",
+  );
+  assert.equal(writes(db, "events").length, 0, "and the ledger does not say anything was forgotten");
+  assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once");
+  const said = lines.find((l) => l.event === "stripe_event_superseded");
+  assert.deepEqual(
+    [said?.type, said?.customer, said?.current],
+    ["customer.deleted", "cus_1", "cus_2"],
+    "the log says whose deletion it was, and whose the row keeps",
+  );
+});
+
 test("a type nobody acts on is kept once and said to be ignored; an event about no workspace is answered and left", async () => {
   const db = fakeDb(tables());
   setPg(db);
@@ -604,6 +688,8 @@ test("a Stripe read that fails is not the subscription being gone: nothing is wr
       message: "Unrecognized request URL (GET: /v1/subscriptions/sub_1).",
     }),
   ];
+  // The event's own subscription reads as Stripe keeps it, cancelled; the read that fails is the row's.
+  subs.set("sub_0", sub({ id: "sub_0", status: "canceled" }));
   for (const refusal of refusals) {
     const state = tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_1" })] });
     const db = fakeDb(state, {}, {}, { unique: ["billing_events"] });
@@ -653,13 +739,14 @@ test("Stripe answering that the subscription the row names does not exist is sti
   assert.deepEqual(await res.json(), { ok: true, status: "canceled", switched: "paused" });
   const stale = lines.find((l) => l.event === "stripe_event_stale_row");
   assert.equal(stale?.row_status, "gone", "the row named a subscription Stripe does not hold");
-  // Both reads -- the guard's, and the full one the row is written from -- run
-  // under the same budget: no retry of the SDK's own, a timeout inside the
-  // door's thirty seconds. The client's default (twenty seconds, retried once)
-  // could outlive the function: a kill, rather than an answer Stripe retries.
+  // Both reads -- the full one the row is written from, which the guard
+  // judges, and the guard's of the row's own -- run under the same budget: no
+  // retry of the SDK's own, a timeout inside the door's thirty seconds. The
+  // client's default (twenty seconds, retried once) could outlive the
+  // function: a kill, rather than an answer Stripe retries.
   assert.deepEqual(
     reads.map((r) => r.id),
-    ["sub_1", "sub_0"],
+    ["sub_0", "sub_1"],
   );
   for (const r of reads) {
     assert.equal(r.options?.maxNetworkRetries, 0, `${r.id}: no retry of the SDK's own`);
@@ -792,6 +879,52 @@ test("a finished Checkout is read back from Stripe under the same budget, and ap
     [["sub_1", true, 0]],
     "one read, under the door's own budget",
   );
+});
+
+/** A finished Checkout's session, about the subscription it made. */
+const session = (id, subscription) => ({
+  id,
+  object: "checkout.session",
+  customer: "cus_1",
+  subscription,
+  metadata: { tenant_id: T },
+});
+
+test("a finished Checkout that arrives late, about a subscription long since ended, does not overwrite the one the workspace is on; one that replaces an ended plan is applied", async () => {
+  // A finished Checkout was applied with no guard at all: a late completion
+  // of an old session wrote the subscription it made, ended since, over the
+  // live one, and the workspace was paused while it paid.
+  const state = tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_2" })] });
+  const db = fakeDb(state, {}, {}, { unique: ["billing_events"] });
+  setPg(db);
+  subs.set("sub_1", sub({ status: "canceled" }));
+  subs.set("sub_2", sub({ id: "sub_2", status: "active" }));
+  const late = await deliver("checkout.session.completed", session("cs_old", "sub_1"));
+  assert.equal(late.status, 200);
+  assert.deepEqual(await late.json(), { ok: true, superseded: true });
+  assert.equal(writes(db, "billing_accounts").length, 0, "the row keeps the subscription the workspace is on");
+  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(writes(db, "notifications").length, 0, "and nobody is told a subscription ended");
+  assert.equal(state.billing_events[0].state, "applied", "the delivery is kept once");
+
+  // The plan ended and the workspace was paused; a new Checkout made a new subscription: that one is the truth.
+  const state2 = tables({
+    tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "paused", timezone: "America/New_York" }],
+    billing_accounts: [row({ status: "canceled", stripe_subscription_id: "sub_1" })],
+  });
+  const db2 = fakeDb(state2, {}, {}, { unique: ["billing_events"] });
+  setPg(db2);
+  subs.set("sub_3", sub({ id: "sub_3", status: "active" }));
+  const fresh = await deliver("checkout.session.completed", session("cs_new", "sub_3"));
+  assert.equal(fresh.status, 200);
+  assert.deepEqual(await fresh.json(), { ok: true, status: "active" });
+  const up = writes(db2, "billing_accounts").find((q) => q.op === "update");
+  assert.deepEqual(
+    [first(up).stripe_subscription_id, first(up).status],
+    ["sub_3", "active"],
+    "the row follows the new plan",
+  );
+  assert.equal(state2.tenants[0].status, "active", "and the receptionist answers again");
 });
 
 test("the kinds are a table: a kind named like a property every object has is a kind nobody acts on, kept once and ignored", async () => {

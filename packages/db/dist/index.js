@@ -1,5 +1,6 @@
 // src/events.ts
 import {
+  personName,
   SHARED_EVENT_VERSIONS
 } from "../../contracts/dist/index.js";
 
@@ -43,16 +44,27 @@ function namedFetch(base) {
 
 // src/events.ts
 var WRITES = {
+  "appointment.booked": { category: "appointment", version: 1 },
+  "appointment.cancelled": { category: "appointment", version: 1 },
+  "appointment.moved": { category: "appointment", version: 1 },
+  "billing.paid": { category: "billing", version: 1 },
+  "billing.payment_failed": { category: "billing", version: 1 },
+  "billing.trial_ending": { category: "billing", version: 1 },
   "billing.paused": { category: "billing", version: 1 },
   "billing.resumed": { category: "billing", version: 1 },
   "billing.updated": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
   "broadcast.stopped": { category: "message", version: 1 },
   "business.recorded": { category: "setup", version: 1 },
+  "capability.activated": { category: "setup", version: 1 },
+  "capability.deactivated": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "contact.email_suppressed": { category: "contact", version: 1 },
+  "contact.kept_apart": { category: "contact", version: 1 },
+  "conversation.owner_replied": { category: "message", version: 1 },
+  "escalation.opened": { category: "message", version: 1 },
   "google.connected": { category: "google", version: 1 },
   "google.disconnected": { category: "google", version: 1 },
   "google.linked": { category: "google", version: 1 },
@@ -64,8 +76,16 @@ var WRITES = {
   "ingest.unreachable_sender": { category: "ingest", version: 1 },
   "ingest.unroutable": { category: "ingest", version: 1 },
   "lead.emailed": { category: "lead", version: 1 },
+  "lead.excluded": { category: "lead", version: 1 },
+  "lead.kept": { category: "lead", version: 1 },
+  "lead.put_back": { category: "lead", version: 1 },
+  "lead.search_removed": { category: "lead", version: 1 },
+  "lead.search_renamed": { category: "lead", version: 1 },
+  "member.joined": { category: "system", version: 1 },
+  "member.left": { category: "system", version: 1 },
   "line.answering": { category: "setup", version: 1 },
   "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_set": { category: "setup", version: 1 },
   "line.forwarding_verified": { category: "setup", version: 1 },
   "line.released": { category: "setup", version: 1 },
   "line.texting_approved": { category: "setup", version: 1 },
@@ -76,9 +96,12 @@ var WRITES = {
   "message.send_raced_cancel": { category: "message", version: 1 },
   "message.sent": { category: "message", version: 1 },
   "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
+  "playbook.changed": { category: "message", version: 1 },
   "playbook.run": { category: "message", version: 1 },
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "reach_out.lead_stopped": { category: "lead", version: 1 },
+  "reach_out.send_decided": { category: "lead", version: 1 },
   "sending_domain.added": { category: "setup", version: 1 },
   "sending_domain.held": { category: "setup", version: 1 },
   "sending_domain.released": { category: "setup", version: 1 },
@@ -86,6 +109,8 @@ var WRITES = {
   "sending_domain.resumed": { category: "setup", version: 1 },
   "sending_domain.verified": { category: "setup", version: 1 },
   "settings.changed": { category: "system", version: 1 },
+  "template.removed": { category: "message", version: 1 },
+  "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
   "voice.provisioned": { category: "setup", version: 1 },
@@ -162,6 +187,121 @@ async function settleDelivery(db, d) {
   const { error } = await db.from("event_deliveries").update({ state: d.state, attempts: d.attempts, last_error: d.error }).eq("tenant_id", d.tenantId).eq("event_id", d.eventId).eq("subscriber", d.subscriber);
   if (error) throw new Error(`event_deliveries: ${error.message}`);
 }
+var IDS_PER_READ = 100;
+var chunks = (ids) => {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) out.push(ids.slice(i, i + IDS_PER_READ));
+  return out;
+};
+async function readByIds(ids, read) {
+  const answers = await Promise.all(chunks(ids).map((some) => read(some)));
+  const out = [];
+  for (const a of answers) {
+    if (a.error) throw new Error(a.error.message);
+    out.push(...a.data ?? []);
+  }
+  return out;
+}
+async function theirsOf(db, tenantId, idsOf) {
+  const [conversation, call, deal, message, escalation, appointment] = await Promise.all([
+    readByIds(
+      idsOf("conversation"),
+      (some) => db.from("conversations").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("call"),
+      (some) => db.from("calls").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("deal"),
+      (some) => db.from("deals").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("message"),
+      (some) => db.from("messages").select("id, contact_id, conversation_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("escalation"),
+      (some) => db.from("escalations").select("id, conversation_id").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("appointment"),
+      (some) => db.from("appointments").select("id, contact_id, client_name").eq("tenant_id", tenantId).in("id", some)
+    )
+  ]);
+  return { conversation, call, deal, message, escalation, appointment };
+}
+async function ownNames(db, tenantId, idsOf) {
+  const [lists, broadcasts, playbooks, leads, searches] = await Promise.all([
+    readByIds(idsOf("list"), (some) => db.from("segments").select("id, name").eq("tenant_id", tenantId).in("id", some)),
+    readByIds(
+      idsOf("broadcast"),
+      (some) => db.from("broadcasts").select("id, name").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("playbook"),
+      (some) => db.from("playbooks").select("id, name").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("lead"),
+      (some) => db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", some)
+    ),
+    readByIds(
+      idsOf("lead_search"),
+      (some) => db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", some)
+    )
+  ]);
+  const names = {};
+  for (const r of lists) if (r.name) names[`list:${r.id}`] = r.name;
+  for (const r of broadcasts) if (r.name) names[`broadcast:${r.id}`] = r.name;
+  for (const r of playbooks) if (r.name) names[`playbook:${r.id}`] = r.name;
+  for (const r of leads) if (r.business_name) names[`lead:${r.id}`] = r.business_name;
+  for (const r of searches) if (r.name) names[`lead_search:${r.id}`] = r.name;
+  return names;
+}
+async function activitySubjects(db, tenantId, subjects) {
+  const idsOf = (type) => [...new Set(subjects.filter((s) => s.type === type).map((s) => s.id))];
+  const [names, theirs] = await Promise.all([ownNames(db, tenantId, idsOf), theirsOf(db, tenantId, idsOf)]);
+  const threads = {};
+  const people = {};
+  const known = new Map((theirs.conversation ?? []).map((c) => [c.id, c.contact_id ?? null]));
+  const asked = [
+    ...new Set((theirs.escalation ?? []).map((e) => e.conversation_id).filter((id) => !!id))
+  ];
+  const more = await readByIds(
+    asked.filter((id) => !known.has(id)),
+    (some) => db.from("conversations").select("id, contact_id").eq("tenant_id", tenantId).in("id", some)
+  );
+  for (const c of more) known.set(c.id, c.contact_id ?? null);
+  const personOf = /* @__PURE__ */ new Map();
+  for (const id of idsOf("contact")) personOf.set(`contact:${id}`, id);
+  for (const [type, rows2] of Object.entries(theirs))
+    for (const r of rows2) {
+      const key = `${type}:${r.id}`;
+      if (type !== "conversation" && r.conversation_id) threads[key] = r.conversation_id;
+      const person = r.contact_id ?? (r.conversation_id ? known.get(r.conversation_id) : null) ?? null;
+      if (!person) continue;
+      personOf.set(key, person);
+      if (type === "deal") people[key] = person;
+    }
+  const rows = await readByIds(
+    [...new Set(personOf.values())],
+    (some) => db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", some)
+  );
+  const nameOf = /* @__PURE__ */ new Map();
+  for (const p of rows) {
+    if (p.display_name || p.wa_profile_name || p.phone_e164 || p.email) nameOf.set(p.id, personName(p));
+  }
+  for (const [key, person] of personOf) {
+    const name = nameOf.get(person);
+    if (name) names[key] = name;
+  }
+  for (const a of theirs.appointment ?? []) {
+    const key = `appointment:${a.id}`;
+    if (!names[key] && a.client_name) names[key] = a.client_name;
+  }
+  return { names, threads, people };
+}
 
 // src/ai-usage.ts
 import { mayUseModels, RETENTION_DAYS } from "../../contracts/dist/index.js";
@@ -214,7 +354,7 @@ async function usageMonth(db, tenantId, month) {
   }));
 }
 
-// src/billing-events.ts
+// src/billing/events.ts
 async function keepInvoiceAmount(db, eventId, amountCents, currency) {
   const { data, error } = await db.rpc("billing_event_keep_amount", {
     p_id: eventId,
@@ -222,6 +362,20 @@ async function keepInvoiceAmount(db, eventId, amountCents, currency) {
     p_currency: currency
   });
   if (error) throw new Error(`billing_event_keep_amount: ${error.message}`);
+  return data === true;
+}
+
+// src/billing/account.ts
+async function applyBilling(db, p) {
+  const row = {};
+  for (const [k, v] of Object.entries(p.row)) if (v !== void 0) row[k] = v;
+  const { data, error } = await db.rpc("billing_apply", {
+    p_tenant_id: p.tenantId,
+    p_row: row,
+    ...p.expect ? { p_expect: { ...p.expect } } : {},
+    ...p.tenantStatus ? { p_tenant_status: p.tenantStatus } : {}
+  });
+  if (error) throw new Error(`billing_apply: ${error.message}`);
   return data === true;
 }
 
@@ -242,8 +396,9 @@ var ERASURE_LEGS = {
   email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
-  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, its keys kept as digests",
-  jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests",
+  recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
+  jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
@@ -253,10 +408,76 @@ var withPerson = (by) => ({ kind: "with_person", by });
 var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
 var byAge = (days) => ({ kind: "by_age", days });
 var DIGEST = { kind: "digest" };
+var WITH_WORKSPACE = { kind: "with_workspace" };
 var NOT_PERSONAL = { kind: "not_personal" };
 var all = (strategy, ...names) => Object.fromEntries(names.map((n) => [n, strategy]));
 var ERASURE_STRATEGIES = {
+  // The model ledger (00273): which model answered and a hash of the system prompt, never a customer's turn. A shadow
+  // row's question and answers are labels from the question's own options; the rows go at 400 days whatever a later
+  // writer puts there.
+  ai_usage: {
+    ...all(NOT_PERSONAL, "model", "model_asked", "prompt_hash"),
+    ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer")
+  },
   ask_messages: { content: scrubbedBy("ask_scrub") },
+  // A thread that one of their turns makes theirs, or whose title or scope holds their id, number or address, is
+  // cleared, and removed once empty (00238). A title that names them by name alone stays, as 0036 leaves names; purge_ask
+  // takes the thread at 90 days.
+  ask_threads: all(scrubbedBy("ask_scrub"), "title", "scope"),
+  // A voice session's page can name a person as its label, and it holds the member's sealed token: the row goes a day
+  // after the token expires (sweep_voice_sessions). Its ids and its page's name are nobody's.
+  ask_voice_sessions: {
+    ...all(byAge("ask_voice_sessions"), "context", "scope", "token_cipher"),
+    ...all(NOT_PERSONAL, "id", "conversation_id", "surface", "turn_key")
+  },
+  // The workspace's account with Stripe: its payer's card, and Stripe's ids and price.
+  billing_accounts: {
+    ...all(WITH_WORKSPACE, "card_brand", "card_last4"),
+    ...all(NOT_PERSONAL, "facts", "price_id", "stripe_customer_id", "stripe_subscription_id")
+  },
+  billing_card_marks: { card_fingerprint: WITH_WORKSPACE },
+  billing_events: all(NOT_PERSONAL, "id", "type", "currency"),
+  broadcast_recipients: {
+    facts: scrubbedBy("recipients_trigger"),
+    // A refusal's or a failure's code.
+    reason: NOT_PERSONAL
+  },
+  // A run's name, its audience (a list's or a playbook's name, a rule in the closed vocabulary), its channels, its
+  // template and what fills its slots: the business's.
+  broadcasts: all(
+    NOT_PERSONAL,
+    "audience",
+    "channels",
+    "failure",
+    "name",
+    "params",
+    "template_language",
+    "template_name"
+  ),
+  // The workspace's carrier registration: the business, its address and tax id, and the representative it names.
+  business_records: all(
+    WITH_WORKSPACE,
+    "about",
+    "city",
+    "contact_email",
+    "contact_first_name",
+    "contact_job_position",
+    "contact_last_name",
+    "contact_phone",
+    "contact_title",
+    "country",
+    "ein",
+    "industry",
+    "legal_name",
+    "postal_code",
+    "region",
+    "street",
+    "street_secondary",
+    "trade_name",
+    "website_url"
+  ),
+  // The owner's note on switching a capability on.
+  capability_activations: { note: NOT_PERSONAL },
   calls: all(
     withPerson("erase_contact"),
     "retell_call_id",
@@ -295,52 +516,151 @@ var ERASURE_STRATEGIES = {
     email_suppressed_reason: scrubbedBy("email_trigger"),
     proposal_url: scrubbedBy("proposal_trigger"),
     erased_phone_hash: DIGEST,
-    erased_email_hash: DIGEST
+    erased_email_hash: DIGEST,
+    // The line or the ad a person came by, never the person (its column comment).
+    acquired_ref: NOT_PERSONAL
   },
   conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
-  deals: all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
+  deals: {
+    ...all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
+    // What was sold and in what currency, kept as its stage and amount are, as a visit keeps its service. The service is
+    // the team's words (80 characters): a name typed into it is the name 0036 leaves, not a number or an address.
+    ...all(NOT_PERSONAL, "service", "currency")
+  },
   decisions: { payload: scrubbedBy("erase_contact") },
   escalations: { details: withPerson("erase_contact") },
-  event_deliveries: all(NOT_PERSONAL, "subscriber", "kind"),
+  // A subscriber's error: an exception of the code's own, the subscribers touching no provider.
+  event_deliveries: all(NOT_PERSONAL, "subscriber", "kind", "last_error"),
   event_outbox: { kind: NOT_PERSONAL },
   events: {
     data: scrubbedBy("events_trigger"),
     ...all(NOT_PERSONAL, "kind", "category", "subject_type", "request_id")
   },
-  idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
-  jobs: { payload: scrubbedBy("jobs_scrub", "erase_contact") },
-  lead_places: all(withPerson("leads_trigger"), "place_id", "title", "street"),
-  lead_search_members: all(scrubbedBy("leads_trigger"), "judgment", "reason"),
-  lead_suppressions: { hash: DIGEST },
-  leads: all(
-    scrubbedBy("leads_trigger"),
-    "place_id",
-    "business_name",
-    "category",
-    "street",
-    "city",
-    "region",
-    "postal_code",
-    "website_host",
-    "instagram_url",
-    "phone_e164",
-    "email",
-    "email_alternates",
-    "last_outcome",
-    "last_note",
-    "about",
-    "hours",
-    "image_url",
-    "price",
-    "reviews_dist",
-    "facebook_url",
-    "linkedin_url",
-    "tiktok_url",
-    "maps_url",
-    "neighborhood",
-    "logo_url",
-    "mark_path"
+  // A member's own Google account, connected for the workspace's profile: the row goes at disconnect, and with the
+  // workspace. The profile's and Google's names and ids, and the sync's error, are nobody's.
+  google_connections: {
+    ...all(WITH_WORKSPACE, "google_email", "google_sub", "account_title"),
+    ...all(
+      NOT_PERSONAL,
+      "account_name",
+      "credentials_ref",
+      "facts",
+      "location_name",
+      "location_title",
+      "scopes",
+      "sync_error"
+    )
+  },
+  // The workspace's own listing, as Google's public read gives it.
+  google_listings: all(
+    NOT_PERSONAL,
+    "address",
+    "business_status",
+    "check_error",
+    "facts",
+    "maps_uri",
+    "name",
+    "place_id"
   ),
+  // A review's ids and language. Its reviewer, words and reply are counted (above).
+  google_reviews: all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
+  idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
+  // A team invitation's address: the workspace's, kept with it.
+  invitations: { email: WITH_WORKSPACE },
+  jobs: {
+    // A thrown error can quote the recipient a provider refused.
+    ...all(scrubbedBy("jobs_scrub", "erase_contact"), "payload", "last_error"),
+    // Ids only (jobs dedupeKeyOf).
+    dedupe_key: NOT_PERSONAL
+  },
+  lead_counters: { period: NOT_PERSONAL },
+  // A batch's judge: its model and the hashes of its work. Its answer is counted (above).
+  lead_judgments: all(NOT_PERSONAL, "model", "op_id", "request_hash"),
+  // A lead's stage before and after a move, its counts, ids and a keyed hash of its place.
+  lead_operations: all(NOT_PERSONAL, "before", "after"),
+  lead_preferences: {
+    example: scrubbedBy("leads_trigger"),
+    category_key: NOT_PERSONAL
+  },
+  // A search's rounds and runs: the owner's plan and question, the days, the provider's and the judge's ids.
+  lead_rounds: all(NOT_PERSONAL, "day", "judge_model", "month", "nearby", "plan", "platform_day", "question"),
+  lead_runs: all(
+    NOT_PERSONAL,
+    "actor",
+    "apify_run_id",
+    "build",
+    "claimed_by",
+    "dataset_id",
+    "lease_owner",
+    "term",
+    "webhook_token_hash"
+  ),
+  lead_places: all(withPerson("leads_trigger"), "place_id", "title", "street"),
+  lead_search_members: {
+    ...all(scrubbedBy("leads_trigger"), "judgment", "reason"),
+    ...all(NOT_PERSONAL, "counted_month", "excluded_by")
+  },
+  // What the owner asked the finder for, and the kinds of business it suggested.
+  lead_searches: all(NOT_PERSONAL, "asked", "card", "name", "plan"),
+  lead_suggestions: all(NOT_PERSONAL, "business_line", "items"),
+  lead_suppressions: { hash: DIGEST },
+  leads: {
+    ...all(
+      scrubbedBy("leads_trigger"),
+      "place_id",
+      "business_name",
+      "category",
+      "street",
+      "city",
+      "region",
+      "postal_code",
+      "website_host",
+      "instagram_url",
+      "phone_e164",
+      "email",
+      "email_alternates",
+      "last_outcome",
+      "last_note",
+      "about",
+      "hours",
+      "image_url",
+      "price",
+      "reviews_dist",
+      "facebook_url",
+      "linkedin_url",
+      "tiktok_url",
+      "maps_url",
+      "neighborhood",
+      "logo_url",
+      "mark_path"
+    ),
+    // What lead_blank keeps: the country, and the stage it came from.
+    ...all(NOT_PERSONAL, "country", "stage_from")
+  },
+  // The workspace's own numbers and the carrier's and provider's ids for them.
+  lines: {
+    // A member's own number a forwarding test rang from (facts.test_from), and the carrier's words on the filing that
+    // names the workspace's representative.
+    ...all(WITH_WORKSPACE, "facts", "last_error"),
+    ...all(
+      NOT_PERSONAL,
+      "a2p_profile_sid",
+      "brand_sid",
+      "campaign_sid",
+      "credential_list_sid",
+      "credentials_ref",
+      "e164",
+      "messaging_service_sid",
+      "number_sid",
+      "profile_sid",
+      "retell_agent_id",
+      "subaccount_sid",
+      "termination_uri",
+      "trunk_sid"
+    )
+  },
+  // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
+  memberships: all(NOT_PERSONAL, "push_off", "views"),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
@@ -365,8 +685,27 @@ var ERASURE_STRATEGIES = {
     ...all(NOT_PERSONAL, "notice_id", "tool", "from_address")
   },
   // Gmail's pending confirmation of a forward to the workspace's address (00345): the owner's own account, and
-  // Google's code and link for it. The workspace's, never a person's.
-  mailboxes: all(NOT_PERSONAL, "forward_confirm_account", "forward_confirm_code", "forward_confirm_link"),
+  // Google's code and link for it; the name its mail is sent from. The workspace's address on the platform's domain,
+  // its reply tokens and its intake's error code are nobody's.
+  mailboxes: {
+    ...all(WITH_WORKSPACE, "forward_confirm_account", "from_name"),
+    ...all(
+      NOT_PERSONAL,
+      "forward_confirm_code",
+      "forward_confirm_link",
+      "last_error",
+      "local_part",
+      "reply_token",
+      "reply_token_prev"
+    )
+  },
+  // A partner's ledger of the workspaces it brought: Stripe's ids, the code used, the sweep's checks and reasons; the
+  // address a workspace is handed to, the workspace's.
+  partner_earnings: all(NOT_PERSONAL, "currency", "stripe_event_id", "stripe_invoice_id"),
+  partner_tenants: {
+    handover_email: WITH_WORKSPACE,
+    ...all(NOT_PERSONAL, "checks", "code_used", "standing_why")
+  },
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
   platform_metrics: all(
     NOT_PERSONAL,
@@ -382,10 +721,50 @@ var ERASURE_STRATEGIES = {
     "dead_letters",
     "intake_lag_ms"
   ),
+  // A campaign: its name, channels, list, template and slots, and the team's instruction; the name it is signed with,
+  // the sender's.
+  playbooks: {
+    signed_by: WITH_WORKSPACE,
+    ...all(NOT_PERSONAL, "channels", "hand", "list_key", "name", "params", "template_language", "template_name")
+  },
+  // Numbers: a day's tokens, a pause's hours (contracts config/limits.ts).
+  policies: { limits: NOT_PERSONAL },
   provider_events: {
     body: scrubbedBy("deliveries_scrub"),
     ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers")
-  }
+  },
+  // A reply to a reach-out hangs on the replier's message and thread, and goes with them.
+  reach_out_replies: all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
+  reach_out_sends: {
+    // Written from the lead's record (00391).
+    ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
+    // A digest of the words checked, the facts' keys, and the hold's and the skip's codes.
+    ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason")
+  },
+  // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
+  segments: all(NOT_PERSONAL, "name", "rule"),
+  sending_domain_days: all(NOT_PERSONAL, "held_why", "host"),
+  // The workspace's sending domain and the provider's records for it; the address and the name its mail is sent as.
+  sending_domains: {
+    ...all(WITH_WORKSPACE, "from_local", "from_name"),
+    ...all(NOT_PERSONAL, "host", "provider_domain_id", "provider_status", "records")
+  },
+  templates: all(
+    NOT_PERSONAL,
+    "body_preview",
+    "components",
+    "language",
+    "meta_id",
+    "name",
+    "quality",
+    "rejected_reason",
+    "title",
+    "variables"
+  ),
+  // The workspace's channels: their configuration, its own numbers and the provider's ids.
+  tenant_channels: all(NOT_PERSONAL, "config", "credentials_ref", "external_id", "number_e164", "waba_id"),
+  // The receptionist's configuration, which names the addresses the workspace is alerted at.
+  tenant_config: { config: WITH_WORKSPACE }
 };
 
 // src/auth.ts
@@ -518,12 +897,47 @@ function platformWide(db) {
 import {
   openDealsFromJson
 } from "../../contracts/dist/index.js";
+
+// src/paged.ts
+var MAX_ROWS = 1e3;
+var DEFAULT_ROW_CAP = 2e4;
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
+  const out = [];
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(out.length, out.length + size - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) return out;
+  }
+  onCapped(what, cap);
+  return out;
+}
+async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
+  const out = [];
+  let after = null;
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(after, size);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    const last = rows.at(-1);
+    if (rows.length < size || last === void 0) return out;
+    after = key(last);
+  }
+  onCapped(what, cap);
+  return out;
+}
+
+// src/repositories/people.ts
 var PEOPLE_PAGE = 1e3;
-var IDS_PER_READ = 100;
+var IDS_PER_READ2 = 100;
 async function namesOfPeople(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`namesOfPeople: ${error.message}`);
     out.push(...data ?? []);
   }
@@ -564,11 +978,45 @@ async function personRow(db, tenantId, contactId) {
 }
 async function everyoneIn(db, tenantId) {
   const all2 = [];
+  for await (const page of everyonePages(db, tenantId)) all2.push(...page);
+  return all2;
+}
+async function* everyonePages(db, tenantId) {
+  let read = 0;
   for (let after = null; ; ) {
-    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all2.length });
-    all2.push(...page);
-    if (page.length < PEOPLE_PAGE) return all2;
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: read });
+    read += page.length;
+    yield page;
+    if (page.length < PEOPLE_PAGE) return;
     after = peopleCursorOf(page[page.length - 1]);
+  }
+}
+var COPY_READ_CAP = 5e5;
+var MISSED_AT_ONCE = 10;
+async function* everyoneOnceIn(db, tenantId) {
+  const seen = /* @__PURE__ */ new Set();
+  for await (const page of everyonePages(db, tenantId)) {
+    const fresh = page.filter((p) => !seen.has(p.id));
+    for (const p of fresh) seen.add(p.id);
+    yield fresh;
+  }
+  const live = await readAllRowsByKey(
+    "live people",
+    (c) => c.id,
+    (after, size) => {
+      let q = db.from("contacts").select("id").eq("tenant_id", tenantId).is("erased_at", null).is("merged_into_contact_id", null);
+      if (after) q = q.gt("id", after);
+      return q.order("id").limit(size);
+    },
+    COPY_READ_CAP,
+    (what, cap) => {
+      throw new Error(`${what}: more than ${cap}; no copy is whole`);
+    }
+  );
+  const missed = live.map((c) => c.id).filter((id) => !seen.has(id));
+  for (let i = 0; i < missed.length; i += MISSED_AT_ONCE) {
+    const rows = await Promise.all(missed.slice(i, i + MISSED_AT_ONCE).map((id) => personRow(db, tenantId, id)));
+    yield rows.filter((r) => r !== null);
   }
 }
 async function erasureDigests(db, tenantId, values) {
@@ -662,7 +1110,7 @@ async function openDoubtsOf(db, tenantId, contactId) {
   const rows = data ?? [];
   if (!rows.length) return [];
   const otherIds = [...new Set(rows.map((r) => r.contact_id === contactId ? r.other_id : r.contact_id))];
-  const others = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", otherIds.slice(0, IDS_PER_READ)).is("erased_at", null).is("merged_into_contact_id", null);
+  const others = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", otherIds.slice(0, IDS_PER_READ2)).is("erased_at", null).is("merged_into_contact_id", null);
   if (others.error) throw new Error(`person_doubts: ${others.error.message}`);
   const byId = new Map((others.data ?? []).map((c) => [c.id, c]));
   const out = [];
@@ -718,6 +1166,155 @@ async function markContact(db, contactId, mark) {
     marked_at: stampOf(o.marked_at)
   };
 }
+async function recordConsent(db, p) {
+  const { data, error } = await db.rpc("record_consent", {
+    p_contact_id: p.contactId,
+    p_purpose: p.purpose,
+    p_consent: p.consent,
+    p_source: p.source,
+    ...p.note ? { p_note: p.note } : {},
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    ...p.batch ? { p_batch: p.batch } : {},
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
+}
+
+// src/repositories/control.ts
+var CALL_CONTROL_S = 15 * 60;
+async function claimControl(db, p) {
+  const { data, error } = await db.rpc("claim_conversation_control", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_kind: p.holder.kind,
+    p_by: p.holder.kind === "person" ? p.holder.userId : null,
+    p_ref: p.holder.kind === "call" ? p.holder.callId : null,
+    p_seconds: p.seconds
+  });
+  if (error) throw new Error(`claim_conversation_control: ${error.message}`);
+  return data;
+}
+async function releaseControl(db, p) {
+  const { data, error } = await db.rpc("release_conversation_control", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_kind: p.holder.kind,
+    p_by: p.holder.kind === "person" ? p.holder.userId : null,
+    p_ref: p.holder.kind === "call" ? p.holder.callId : null
+  });
+  if (error) throw new Error(`release_conversation_control: ${error.message}`);
+  return data === true;
+}
+async function claimReplyTurn(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId
+  });
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function holdsReplyTurn(db, conversationId, messageId) {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function takeOverThread(db, p) {
+  const { data, error } = await db.rpc("conversation_take_over", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_paused_until: p.pausedUntil,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.paused_until !== "string" || typeof data.withdrawn_drafts !== "number")
+    throw new Error("conversation_take_over: the door answered without its decision");
+  return {
+    pausedUntil: data.paused_until,
+    withdrawnDrafts: data.withdrawn_drafts,
+    decisionId: id,
+    undoDropped: data.undo_dropped === true
+  };
+}
+async function handBackThread(db, p) {
+  const { data, error } = await db.rpc("conversation_hand_back", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.resolved_escalations !== "number")
+    throw new Error("conversation_hand_back: the door answered without its decision");
+  return { decisionId: id, resolvedEscalations: data.resolved_escalations, undoDropped: data.undo_dropped === true };
+}
+async function withdrawQueued(db, p) {
+  const { data, error } = await db.rpc("withdraw_queued", {
+    p_tenant_id: p.tenantId,
+    p_message_ids: p.messageIds,
+    ...p.reason ? { p_reason: p.reason } : {}
+  });
+  if (error) throw new Error(`withdraw_queued: ${error.message}`);
+  return Array.isArray(data) ? data : [];
+}
+async function withdrawAiDrafts(db, p) {
+  const { data, error } = await db.rpc("withdraw_ai_drafts", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_reason: p.reason,
+    ...p.keepMessageId ? { p_keep_message_id: p.keepMessageId } : {}
+  });
+  if (error) throw new Error(`withdraw_ai_drafts: ${error.message}`);
+  return Array.isArray(data) ? data : [];
+}
+async function memberWithdrawDrafts(db, p) {
+  const { data, error } = await db.rpc("member_withdraw_drafts", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
+}
+async function memberWithdrawMessage(db, p) {
+  const { data, error } = await db.rpc("member_withdraw_message", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    ...p.reason ? { p_reason: p.reason } : {}
+  });
+  if (error) throw error;
+  return data === true;
+}
+async function callBackMessage(db, p) {
+  const { data, error } = await db.rpc("message_call_back", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string") throw new Error("message_call_back: the door answered without its decision");
+  return { decisionId: id, undoDropped: data.undo_dropped === true };
+}
+async function openEscalation(db, p) {
+  const { data, error } = await db.rpc("escalation_open", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_reason: p.reason,
+    p_details: p.details
+  });
+  if (error) throw new Error(`escalation_open: ${error.message}`);
+  if (data !== "opened" && data !== "changed" && data !== "refreshed")
+    throw new Error(`escalation_open: the door answered ${String(data)}`);
+  return data;
+}
 
 // src/repositories/ingest.ts
 import {
@@ -729,7 +1326,7 @@ import {
 
 // src/repositories/campaigns/campaign-channels.ts
 async function whatsappChannelFacts(db, tenantId) {
-  const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle();
+  const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
   if (!data) return null;
   const cfg = data.config;
@@ -758,6 +1355,25 @@ async function playbookForChannels(db, tenantId, playbookId) {
   const waiting = await db.from("broadcasts").select("id").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
   if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
+}
+async function playbookForChange(db, tenantId, playbookId) {
+  const { data, error } = await db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
+  if (error) throw new Error(`playbook_for_change: ${error.message}`);
+  if (!data) return null;
+  const waiting = await db.from("broadcasts").select("id, recipient_count").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
+  if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
+  const [w] = waiting.data ?? [];
+  return { ...data, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
+}
+async function runningTwins(db, tenantId, on) {
+  const { data, error } = await db.from("playbooks").select("id, name, list_id, list_key").eq("tenant_id", tenantId).eq("state", "running").eq("trigger", on.trigger).eq("template_id", on.templateId);
+  if (error) throw new Error(`running_twins: ${error.message}`);
+  return (data ?? []).filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey).map((p) => ({ id: p.id, name: p.name }));
+}
+async function followUpOnFile(db, tenantId, trigger) {
+  const { data, error } = await db.from("playbooks").select("id").eq("tenant_id", tenantId).eq("trigger", trigger).limit(1);
+  if (error) throw new Error(`follow_up_on_file: ${error.message}`);
+  return (data ?? []).length > 0;
 }
 function noChannelColumns(error) {
   return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
@@ -796,8 +1412,8 @@ async function campaignMonthSent(db, tenantId, channel, at) {
   return data;
 }
 async function holdRecipients(db, p) {
-  for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ) {
-    const { error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ2) {
+    const { error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`hold_recipients: ${error.message}`);
   }
 }
@@ -840,10 +1456,11 @@ async function ingestInbound(db, p) {
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
-  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
-  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+  if (!out?.contact_id || !out.is_new) return out;
+  if (p.optIn) await noteYesOnChannel(db, p, out.contact_id);
+  if (p.optInMarketing && stoppedNow(out)) {
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
-  } else if (p.optInMarketing && out?.contact_id) {
+  } else if (p.optInMarketing) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -870,17 +1487,15 @@ async function ingestInbound(db, p) {
   return out;
 }
 async function recordCarrierOptOut(db, p) {
-  const { data, error } = await db.from("contacts").update({
-    consent: "opted_out",
-    dnc: true,
-    consent_source: CARRIER_CONSENT_SOURCE,
-    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
-  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  const { data, error } = await db.rpc("record_provider_stop", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_purpose: "conversational",
+    p_channel: p.channel,
+    p_source: CARRIER_CONSENT_SOURCE
+  });
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
-  if (!data || data.length === 0) return false;
-  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
-  return true;
+  return data === true;
 }
 async function markProcessed(db, tenantId, messageId) {
   const { error } = await db.rpc("mark_processed", {
@@ -982,7 +1597,7 @@ async function resolveOutboundTargetForContact(db, p) {
   return threadOf(db, p.tenantId, data, p.touch);
 }
 async function wireRowOf(db, p) {
-  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const head = "paused_until, control_kind, control_ref, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
   const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
   const read = (columns) => db.from("conversations").select(`${head}${columns}${tail}`).eq("id", p.conversationId).eq("tenant_id", p.tenantId).maybeSingle();
   const full = await read(`consent_channels, marketing_channels, ${p.relationship ? "has_relationship, " : ""}`);
@@ -1037,12 +1652,12 @@ async function recordEchoAndPause(db, p) {
       tenant_id: p.tenantId,
       error: e instanceof Error ? e.message : String(e)
     });
-    return;
+    return false;
   }
   const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
   if (verr || !conv) {
     dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
-    return;
+    return false;
   }
   const { error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
@@ -1059,10 +1674,20 @@ async function recordEchoAndPause(db, p) {
   });
   if (error && error.code !== "23505")
     dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
-  if (error?.code === "23505" && p.externalId) return;
+  if (error?.code === "23505" && p.externalId) return true;
   const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
-  if (perr)
-    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
+  if (perr) {
+    const unwound = !error && p.externalId ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error : null;
+    dbLog().error("record_echo_pause_failed", {
+      tenant_id: p.tenantId,
+      conversation_id: conv.id,
+      error: perr.message,
+      unwound
+    });
+    return false;
+  }
+  await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
+  return !error;
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
@@ -1078,30 +1703,19 @@ async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, o
     dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
-  let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued");
-  if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
-  const { error: wErr } = await withdraw;
-  if (wErr)
-    dbLog().error("pause_withdraw_drafts_failed", {
+  await withdrawAiDrafts(db, {
+    tenantId,
+    conversationId,
+    reason: { reason: "superseded_by_human" },
+    keepMessageId: opts.keepMessageId ?? null
+  }).catch(
+    (e) => dbLog().error("pause_withdraw_drafts_failed", {
       tenant_id: tenantId,
       conversation_id: conversationId,
-      error: wErr.message
-    });
+      error: e instanceof Error ? e.message : String(e)
+    })
+  );
   return true;
-}
-async function claimReplyTurn(db, tenantId, conversationId, messageId) {
-  const { data, error } = await db.rpc("claim_reply_turn", {
-    p_tenant: tenantId,
-    p_conversation: conversationId,
-    p_message: messageId
-  });
-  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
-  return data !== false;
-}
-async function holdsReplyTurn(db, conversationId, messageId) {
-  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
-  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
-  return data !== false;
 }
 
 // src/repositories/campaigns/email-offers.ts
@@ -1205,15 +1819,6 @@ async function mailboxFor(db, to) {
   return data;
 }
 async function ingestInboundEmail(db, p) {
-  const known = await db.from("contacts").select("id").eq("tenant_id", p.tenantId).eq("email", p.address).is("erased_at", null).is("merged_into_contact_id", null).maybeSingle();
-  if (known.error) throw new Error(`ingest_email: cannot read who has this address: ${known.error.message}`);
-  if (known.data) {
-    const { error } = await db.from("contact_identities").upsert(
-      { tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address },
-      { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true }
-    );
-    if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
-  }
   let optIn = p.optIn ?? false;
   if (optIn) {
     const held = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.receivedId).limit(1);
@@ -1235,12 +1840,6 @@ async function ingestInboundEmail(db, p) {
     optOut: p.optOut ?? false,
     optIn
   });
-  {
-    const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
-    if (error && error.code !== "23505")
-      throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
-  }
   if (p.fromThemProven && !out.processed) {
     const { error } = await db.from("contacts").update({ email_suppressed_at: null, email_suppressed_reason: null }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).eq("email", p.address).eq("email_suppressed_reason", "hard_bounce");
     if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
@@ -1439,25 +2038,16 @@ async function recordWhatsAppOffersStop(db, p) {
   if (sent.error) throw new Error(`reading the message WhatsApp refused (${p.externalId}): ${sent.error.message}`);
   const contactId = sent.data?.contact_id;
   if (!contactId) return false;
-  const who = await db.from("contacts").select("marketing_consent, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
-  if (who.error) throw new Error(`reading contact ${contactId} for WhatsApp's stop: ${who.error.message}`);
-  if (!who.data || who.data.erased_at || who.data.marketing_consent === "opted_out") return false;
-  const { data, error } = await db.from("contacts").update({
-    marketing_consent: "opted_out",
-    marketing_consent_source: WHATSAPP_CONSENT_SOURCE,
-    marketing_consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
-  }).eq("id", contactId).eq("tenant_id", p.tenantId).neq("marketing_consent", "opted_out").select("id");
-  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
-  if (!data || data.length === 0) return false;
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", contactId, {
-    purpose: "marketing",
-    consent: "opted_out",
-    previous: who.data.marketing_consent,
-    source: WHATSAPP_CONSENT_SOURCE,
-    channel: "whatsapp",
-    message_external_id: p.externalId
+  const { data, error } = await db.rpc("record_provider_stop", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: contactId,
+    p_purpose: "marketing",
+    p_channel: "whatsapp",
+    p_source: WHATSAPP_CONSENT_SOURCE,
+    p_message_external_id: p.externalId
   });
-  return true;
+  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
+  return data === true;
 }
 async function recordLateCarrierOptOut(db, p) {
   const sent = await db.from("messages").select("contact_id, conversation_id, direction, channel, created_at").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
@@ -1476,12 +2066,7 @@ async function recordLateCarrierOptOut(db, p) {
   if (!who.data || who.data.erased_at) return "no_person";
   if (who.data.consent === "opted_out") return "already_stopped";
   if (who.data.consent_updated_at && who.data.consent_updated_at > text2.created_at) return "newer_answer";
-  const wrote = await recordCarrierOptOut(db, {
-    tenantId: p.tenantId,
-    contactId,
-    channel: "sms",
-    previous: who.data.consent
-  });
+  const wrote = await recordCarrierOptOut(db, { tenantId: p.tenantId, contactId, channel: "sms" });
   return wrote ? "recorded" : "already_stopped";
 }
 
@@ -1906,6 +2491,23 @@ async function handRun(db, p) {
   const r = data ?? {};
   return { made: r.made ?? 0, already: r.already ?? 0 };
 }
+async function saveReachOutChain(db, p) {
+  const { data, error } = await db.rpc("reach_out_save", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_chain: p.chain,
+    p_decision: p.decision?.payload ?? null,
+    ...p.decision?.via ? { p_via: p.decision.via } : {},
+    ...p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}
+  });
+  if (error) return { data: null, error: { code: error.code, message: error.message } };
+  const saved = data;
+  if (!saved || typeof saved.root_id !== "string")
+    return { data: null, error: { message: "reach_out_save: no chain" } };
+  if (p.decision && typeof saved.decision_id !== "string")
+    return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
+  return { data: saved, error: null };
+}
 async function runsWaitingOf(db, tenantId) {
   const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
   if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
@@ -2111,10 +2713,12 @@ async function writtenEmails(db, ids) {
   return out;
 }
 async function withdrawEmail(db, p) {
-  const why = { reason: p.reason };
-  const { data, error } = await db.from("messages").update({ status: "canceled", error: why }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").select("id");
-  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
-  return (data ?? []).length > 0;
+  const withdrawn = await withdrawQueued(db, {
+    tenantId: p.tenantId,
+    messageIds: [p.id],
+    reason: { reason: p.reason }
+  });
+  return withdrawn.length > 0;
 }
 async function dueDomains(db, at, limit, opts = {}) {
   const { data, error } = await db.rpc("reach_out_due_domains", {
@@ -2471,28 +3075,77 @@ async function setTemplateQuality(db, p) {
 }
 
 // src/repositories/reports/report-series.ts
-async function reportSeries(db, tenantId, days) {
-  const { data, error } = await db.rpc("report_series", { p_tenant_id: tenantId, p_days: days });
-  if (error) throw new Error(`report_series: ${error.message}`);
+var ReportWindowNotReadable = class extends Error {
+  constructor(door) {
+    super(`${door}: this database cannot read a report of days that ended before today (00360)`);
+    this.name = "ReportWindowNotReadable";
+  }
+};
+var windowArgs = (tenantId, w) => w.end === null ? { p_tenant_id: tenantId, p_days: w.days } : { p_tenant_id: tenantId, p_days: w.days, p_end: w.end };
+var notReadable = (w, error) => w.end !== null && isMissingDoor({ code: error.code ?? null });
+async function reportSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("report_series", windowArgs(tenantId, window));
+  if (error) {
+    if (notReadable(window, error)) throw new ReportWindowNotReadable("report_series");
+    throw new Error(`report_series: ${error.message}`);
+  }
   return data;
 }
-async function campaignSeries(db, tenantId, days) {
-  const { data, error } = await db.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days });
-  if (error) throw new Error(`campaign_series: ${error.message}`);
+async function campaignSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("campaign_series", windowArgs(tenantId, window));
+  if (error) {
+    if (notReadable(window, error)) throw new ReportWindowNotReadable("campaign_series");
+    throw new Error(`campaign_series: ${error.message}`);
+  }
   return data;
 }
-async function reviewsLedger(db, tenantId, days) {
-  const { data, error } = await db.rpc("reviews_ledger", { p_tenant_id: tenantId, p_days: days });
+async function reviewsLedger(db, tenantId, window) {
+  const { data, error } = await db.rpc("reviews_ledger", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
     throw new Error(`reviews_ledger: ${error.message}`);
   }
   return data;
 }
-async function reachOutReport(db, tenantId, days) {
-  const { data, error } = await db.rpc("reach_out_report", { p_tenant_id: tenantId, p_days: days });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+async function receptionistSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("receptionist_series", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`receptionist_series: ${error.message}`);
+  }
+  return data;
+}
+async function reachOutReport(db, tenantId, window) {
+  const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
+  if (error) {
+    if (notReadable(window, error)) throw new ReportWindowNotReadable("reach_out_report");
+    return { ok: false, code: error.code ?? "", message: error.message };
+  }
   return { ok: true, data };
+}
+function answerOrMissing(name, data, error) {
+  if (error) {
+    if (isMissingDoor(error)) return "missing";
+    throw new Error(`${name}: ${error.message}`);
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error(`${name}: answered no object`);
+  return data;
+}
+async function playbookTotals(db, tenantId, history) {
+  const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
+  return answerOrMissing("playbook_totals", data, error);
+}
+async function runCounts(db, tenantId, runIds) {
+  const { data, error } = await db.rpc("run_counts", { p_tenant_id: tenantId, p_run_ids: [...runIds] });
+  return answerOrMissing("run_counts", data, error);
+}
+async function templateSends(db, tenantId) {
+  const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
+  return answerOrMissing("template_sends", data, error);
+}
+async function reachOutChainTotals(db, tenantId, window) {
+  const { data, error } = await db.rpc("reach_out_chain_totals", windowArgs(tenantId, window));
+  return answerOrMissing("reach_out_chain_totals", data, error);
 }
 
 // src/repositories/reports/first-replies.ts
@@ -2534,6 +3187,43 @@ async function forgetActivityTokens(db, tokens) {
   const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
   if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
 }
+var UNDEFINED_COLUMN2 = "42703";
+async function memberAlertsOf(db, p) {
+  const [mine, phones] = await Promise.all([
+    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
+    db.from("push_devices").select("platform, app_version, last_seen_at").eq("user_id", p.userId).order("last_seen_at", { ascending: false, nullsFirst: false })
+  ]);
+  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
+  if (mine.error && mine.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
+  return {
+    pushOff: mine.error ? [] : mine.data?.push_off ?? [],
+    phones: (phones.data ?? []).map((d) => ({
+      platform: d.platform,
+      app_version: d.app_version,
+      last_seen_at: d.last_seen_at
+    })),
+    choosable: !mine.error
+  };
+}
+async function setMemberPushOff(db, p) {
+  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
+  if (error) throw error;
+  return data ?? [];
+}
+async function membersPushedFor(db, p) {
+  if (p.userIds && !p.userIds.length) return [];
+  const ids = p.userIds ? [...p.userIds] : null;
+  const chosen = ids ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids) : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
+  if (!chosen.error)
+    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
+  if (chosen.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
+  if (ids) return ids;
+  const all2 = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
+  if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
+  return (all2.data ?? []).map((m) => m.user_id);
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -2557,20 +3247,41 @@ async function resolveChannelDetailed(db, kind, externalId) {
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
     return { channel: null, lookupFailed: true };
   }
-  const routed = data && data.status === "active" ? {
-    channelId: data.id,
-    tenantId: data.tenant_id,
-    kind: data.kind,
-    externalId: data.external_id,
-    numberE164: data.number_e164,
-    credentialsRef: data.credentials_ref,
-    config: data.config
-  } : null;
+  const routed = data && data.status === "active" ? routedOf(data) : null;
   cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
   return { channel: routed, lookupFailed: false };
 }
+var ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, config, external_id";
+function routedOf(row) {
+  return {
+    channelId: row.id,
+    tenantId: row.tenant_id,
+    kind: row.kind,
+    externalId: row.external_id,
+    numberE164: row.number_e164,
+    credentialsRef: row.credentials_ref,
+    config: row.config
+  };
+}
+async function oldestActiveChannel(db, tenantId, kind) {
+  const { data, error } = await db.from("tenant_channels").select(ROUTED_COLUMNS).eq("tenant_id", tenantId).eq("kind", kind).eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
+  return data ? routedOf(data) : null;
+}
 async function resolveChannel(db, kind, externalId) {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
+}
+async function activeWhatsappNumbers(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("id, credentials_ref, external_id").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
+  return data ?? [];
+}
+async function whatsappLineOf(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "whatsapp").eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
+  const meta = data?.meta;
+  const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
+  return typeof line === "string" && line ? line : null;
 }
 
 // src/repositories/calls.ts
@@ -2617,8 +3328,8 @@ async function linkCallMessage(db, tenantId, callId, messageId) {
 }
 async function callersOf(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`callersOf: ${error.message}`);
     out.push(...data ?? []);
   }
@@ -2927,8 +3638,8 @@ async function searchMessages(db, tenantId, words, since, limit) {
 }
 async function failedMessageErrors(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`failedMessageErrors: ${error.message}`);
     for (const r of data ?? [])
       if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
@@ -2938,8 +3649,8 @@ async function failedMessageErrors(db, tenantId, ids) {
 }
 async function messageSenders(db, tenantId, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
     if (error) throw new Error(`messageSenders: ${error.message}`);
     out.push(...data ?? []);
   }
@@ -3047,7 +3758,12 @@ async function keepIdempotencyReceipt(db, p) {
 
 // src/jobs.ts
 async function readJobToRequeue(db, tenantId, jobId) {
-  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at, spoke_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  if (error && NO_SUCH_COLUMN.has(error.code)) {
+    const older = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+    if (older.error) throw new Error(`read_job: ${older.error.message}`);
+    return older.data ? { ...older.data, spoke_at: null } : null;
+  }
   if (error) throw new Error(`read_job: ${error.message}`);
   return data;
 }
@@ -3057,14 +3773,68 @@ async function hasNewerCopy(db, tenantId, job) {
   return (data?.length ?? 0) > 0;
 }
 async function assembleBroadcast(db, args) {
+  const { decision } = args;
   const { data, error } = await db.rpc("assemble_broadcast", {
     p_tenant: args.tenantId,
     p_run: args.run,
     p_recipients: args.recipients,
-    ...args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {}
+    p_decision: decision?.payload ?? null,
+    ...args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {},
+    ...decision?.actor ? { p_actor: decision.actor } : {},
+    ...decision?.via ? { p_via: decision.via } : {},
+    ...decision?.undoOf ? { p_undo_of: decision.undoOf } : {}
   });
-  if (error || !data) throw new Error(error?.message ?? "broadcast not created");
-  return data;
+  if (error) throw new Error(error.message);
+  if (data === null || typeof data !== "object" || Array.isArray(data) || typeof data.id !== "string")
+    throw new Error("broadcast not created");
+  const decisionId = typeof data.decision_id === "string" ? data.decision_id : null;
+  if (decision && decisionId === null) throw new Error("assemble_broadcast: the door answered without its decision");
+  return { id: data.id, decisionId, undoDropped: data.undo_dropped === true };
+}
+var NO_SUCH_COLUMN = /* @__PURE__ */ new Set(["PGRST204", "42703"]);
+async function claimQueuedSend(db, tenantId, messageId) {
+  const { data, error } = await db.from("messages").update({ sending_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", messageId).eq("tenant_id", tenantId).eq("status", "queued").is("sending_at", null).select("id");
+  if (error && NO_SUCH_COLUMN.has(error.code)) return true;
+  if (error) throw new Error(`claim_queued_send: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function releaseQueuedSend(db, tenantId, messageId) {
+  const { error } = await db.from("messages").update({ sending_at: null }).eq("id", messageId).eq("tenant_id", tenantId).eq("status", "queued");
+  if (error && !NO_SUCH_COLUMN.has(error.code)) throw new Error(`release_queued_send: ${error.message}`);
+}
+async function approveBroadcast(db, args) {
+  const { data, error } = await db.rpc("approve_broadcast", {
+    p_tenant_id: args.tenantId,
+    p_broadcast_id: args.broadcastId,
+    p_send_at: args.sendAt.toISOString(),
+    p_job: args.job,
+    p_decision: args.decision,
+    ...args.via ? { p_via: args.via } : {},
+    ...args.undoOf ? { p_undo_of: args.undoOf } : {}
+  });
+  if (error) throw new Error(`approve_broadcast: ${error.message}`);
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string") throw new Error("approve_broadcast: the door answered without its decision");
+  return { decisionId: id, undoDropped: data.undo_dropped === true };
+}
+async function failQueuedSend(db, p) {
+  const { data, error } = await db.from("messages").update({ status: "failed", error: p.error }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("status", "queued").select("conversation_id, sender, channel, meta");
+  if (error) return { row: null, error: error.message };
+  const row = data?.[0];
+  if (!row) return { row: null, error: null };
+  const meta = row.meta !== null && typeof row.meta === "object" && !Array.isArray(row.meta) ? row.meta : null;
+  const email = meta?.email;
+  const request = email !== null && typeof email === "object" && !Array.isArray(email) ? email.request : void 0;
+  return {
+    row: {
+      conversation_id: row.conversation_id,
+      sender: row.sender,
+      channel: row.channel,
+      meta: request === void 0 ? null : { email: { request } }
+    },
+    error: null
+  };
 }
 
 // src/provider-events.ts
@@ -3094,32 +3864,6 @@ async function scrubProviderEvents(db, tenantId, needles) {
   return data ?? 0;
 }
 
-// src/repositories/control.ts
-var CALL_CONTROL_S = 15 * 60;
-async function claimControl(db, p) {
-  const { data, error } = await db.rpc("claim_conversation_control", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_kind: p.holder.kind,
-    p_by: p.holder.kind === "person" ? p.holder.userId : null,
-    p_ref: p.holder.kind === "call" ? p.holder.callId : null,
-    p_seconds: p.seconds
-  });
-  if (error) throw new Error(`claim_conversation_control: ${error.message}`);
-  return data;
-}
-async function releaseControl(db, p) {
-  const { data, error } = await db.rpc("release_conversation_control", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_kind: p.holder.kind,
-    p_by: p.holder.kind === "person" ? p.holder.userId : null,
-    p_ref: p.holder.kind === "call" ? p.holder.callId : null
-  });
-  if (error) throw new Error(`release_conversation_control: ${error.message}`);
-  return data === true;
-}
-
 // src/repositories/control-plane.ts
 import { receptionistOn } from "../../contracts/dist/index.js";
 async function getTenantConfig(db, tenantId) {
@@ -3127,10 +3871,30 @@ async function getTenantConfig(db, tenantId) {
   if (error) throw new Error(`getTenantConfig: ${error.message}`);
   return data;
 }
+async function getTenantConfigAsMember(db, tenantId) {
+  const row = await getTenantConfig(db, tenantId);
+  if (row) return { ...row, feed_hidden: false };
+  const { data, error } = await db.rpc("tenant_config_read", { p_tenant_id: tenantId }).maybeSingle();
+  if (error && isMissingDoor(error)) return null;
+  if (error) throw new Error(`getTenantConfigAsMember: ${error.message}`);
+  return data;
+}
 async function putTenantConfig(db, tenantId, config, expectedVersion, updatedBy) {
   const { data, error } = await db.from("tenant_config").update({ config, version: expectedVersion + 1, ...updatedBy ? { updated_by: updatedBy } : {} }).eq("tenant_id", tenantId).eq("version", expectedVersion).select("tenant_id, config, version, updated_at, updated_by").maybeSingle();
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
   if (data) return { ok: true, row: data };
+  const door = await db.rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: config, p_version: expectedVersion }).maybeSingle();
+  if (!door.error) {
+    const w = door.data;
+    if (w?.outcome === "saved")
+      return {
+        ok: true,
+        row: { tenant_id: tenantId, config, version: w.version, updated_at: w.updated_at, updated_by: w.updated_by }
+      };
+    if (w?.outcome === "stale" || w?.outcome === "missing") return { ok: false, reason: w.outcome };
+    throw new Error("putTenantConfig: the door answered without an outcome");
+  }
+  if (!isMissingDoor(door.error)) throw new Error(`putTenantConfig: ${door.error.message}`);
   const existing = await getTenantConfig(db, tenantId);
   return { ok: false, reason: existing ? "stale" : "missing" };
 }
@@ -3156,15 +3920,18 @@ async function personReplyMode(db, tenantId, contactId) {
 }
 async function setPersonReplyMode(db, tenantId, contactId, mode) {
   if (mode === null) {
-    const { error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId);
+    const { data, error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).select("mode");
     if (error2) throw new Error(error2.message);
-    return;
+    return data?.[0]?.mode ?? null;
   }
+  const { data: was, error: readError } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).maybeSingle();
+  if (readError) throw new Error(readError.message);
   const { error } = await db.from("policies").upsert(
     { tenant_id: tenantId, class: "reply", mode, subject_type: "contact", subject_id: contactId },
     { onConflict: "tenant_id,class,subject_type,subject_id" }
   );
   if (error) throw new Error(error.message);
+  return was?.mode ?? null;
 }
 async function workspaceAnswersOnItsOwn(db, tenantId) {
   const [tenant, billing] = await Promise.all([
@@ -3176,20 +3943,26 @@ async function workspaceAnswersOnItsOwn(db, tenantId) {
   if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
   return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
 }
+async function workspaceNamed(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data ? { name: data.name, slug: data.slug } : null;
+}
 async function membershipCountOf(db, userId) {
   const { count: count2, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
   if (error) throw new Error(`memberships_count: ${error.message}`);
   return count2 ?? 0;
+}
+async function workspaceIdsOf(db, userId) {
+  const { data, error } = await db.from("memberships").select("tenant_id").eq("user_id", userId);
+  if (error) throw new Error(`memberships_of: ${error.message}`);
+  return (data ?? []).map((m) => m.tenant_id);
 }
 async function createWorkspaceFn(db, args) {
   return db.rpc("create_workspace", args).single();
 }
 async function lineForwardingSet(db, args) {
   return db.rpc("line_forwarding_set", args);
-}
-async function setPlaybookState(db, id, state) {
-  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
-  return { error };
 }
 async function updatePlaybook(db, id, patch) {
   const { error } = await db.from("playbooks").update(patch).eq("id", id);
@@ -3199,38 +3972,36 @@ async function removePlaybook(db, id) {
   const { error, count: count2 } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
   return { error, count: count2 };
 }
-
-// src/paged.ts
-var MAX_ROWS = 1e3;
-var DEFAULT_ROW_CAP = 2e4;
-async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
-  const out = [];
-  while (out.length < cap) {
-    const size = Math.min(MAX_ROWS, cap - out.length);
-    const { data, error } = await page(out.length, out.length + size - 1);
-    if (error) throw new Error(`${what}: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < size) return out;
-  }
-  onCapped(what, cap);
-  return out;
+async function startPlaybook(db, p) {
+  const { data, error } = await db.rpc("start_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook: p.playbook,
+    p_decision: p.decision,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) return { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (typeof made.id !== "string" || typeof made.decision_id !== "string")
+    throw new Error("start_playbook: the door answered without its row and its decision");
+  return { data: { id: made.id, decisionId: made.decision_id }, error: null };
 }
-async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
-  const out = [];
-  let after = null;
-  while (out.length < cap) {
-    const size = Math.min(MAX_ROWS, cap - out.length);
-    const { data, error } = await page(after, size);
-    if (error) throw new Error(`${what}: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    const last = rows.at(-1);
-    if (rows.length < size || last === void 0) return out;
-    after = key(last);
-  }
-  onCapped(what, cap);
-  return out;
+async function writePlaybookChange(db, p) {
+  const { data, error } = await db.rpc("change_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook_id: p.playbookId,
+    p_set: p.set,
+    p_decision: p.decision,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) return isMissingDoor(error) ? "missing" : { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const was = made.was !== null && typeof made.was === "object" && !Array.isArray(made.was) ? made.was : {};
+  const decisionId = typeof made.decision_id === "string" ? made.decision_id : null;
+  if (typeof made.id !== "string" || decisionId === null && Object.keys(was).length > 0)
+    throw new Error("change_playbook: the door answered without its row, or a change without its decision");
+  return { data: { id: made.id, was, decisionId }, error: null };
 }
 
 // src/repositories/lists.ts
@@ -3456,6 +4227,16 @@ async function yesesSince(db, tenantId, since) {
     (from, to) => db.from("deals").select("id, stage, proposed_at, decided_at").eq("tenant_id", tenantId).in("stage", ["won", "ended"]).gte("decided_at", since.toISOString()).order("id").range(from, to)
   );
   return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
+}
+async function recordDeal(db, p) {
+  const { data, error } = await db.rpc("record_deal", {
+    p_contact_id: p.contactId,
+    p_stage: p.stage,
+    p_move: p.move,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
 }
 
 // src/repositories/partner.ts
@@ -3836,6 +4617,9 @@ var WATCHED = [
   // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
   // repaint (00321). Its people are not watched: a run's page reads them when it opens.
   { table: "broadcasts", events: EVERY },
+  // a playbook paused, resumed, renamed or retimed by a teammate, or stamped by the sweep's run: Campaigns' rows and
+  // their acts repaint (00376)
+  { table: "playbooks", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
   { table: "appointments", events: EVERY }
 ];
@@ -4135,6 +4919,14 @@ async function appointmentStates(db, tenantId, keys) {
   }
   return out;
 }
+async function reachOutBookedFrom(db, tenantId, appointmentId) {
+  const { data, error } = await db.rpc("reach_out_booked_from", {
+    p_tenant_id: tenantId,
+    p_appointment_id: appointmentId
+  });
+  if (error) throw new Error(`reach_out_booked_from: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
 
 // src/repositories/calendar/notices.ts
 async function appointmentNoticeOf(db, tenantId, noticeId) {
@@ -4147,9 +4939,11 @@ async function keepAppointmentNotice(db, row) {
   if (error) throw new Error(`appointment_notice_keep: ${error.message}`);
 }
 async function appointmentNoticesOf(db, tenantId) {
-  const latest = await db.from("appointment_notices").select("tool, received_at").eq("tenant_id", tenantId).in("outcome", ["booked", "changed", "cancelled"]).order("received_at", { ascending: false }).limit(1).maybeSingle();
+  const [latest, held] = await Promise.all([
+    db.from("appointment_notices").select("tool, received_at").eq("tenant_id", tenantId).in("outcome", ["booked", "changed", "cancelled"]).order("received_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("appointment_notices").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("outcome", "held")
+  ]);
   if (latest.error) throw new Error(`appointment_notices_latest: ${latest.error.message}`);
-  const held = await db.from("appointment_notices").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("outcome", "held");
   if (held.error) throw new Error(`appointment_notices_held: ${held.error.message}`);
   return { tool: latest.data?.tool ?? null, last_at: latest.data?.received_at ?? null, held: held.count ?? 0 };
 }
@@ -4181,12 +4975,15 @@ export {
   ERASURE_LEGS,
   ERASURE_STRATEGIES,
   HISTORY_COLUMNS,
-  IDS_PER_READ,
+  IDS_PER_READ2 as IDS_PER_READ,
   MAX_ROWS,
   PEOPLE_PAGE,
   PERSON_FORGOTTEN,
+  ReportWindowNotReadable,
   acceptHandover,
   acceptPartnerInvite,
+  activeWhatsappNumbers,
+  activitySubjects,
   activityTokensOf,
   addPersonNote,
   addToList,
@@ -4194,6 +4991,7 @@ export {
   addressesSuppressed,
   aiFailuresHour,
   answeredReachOutEmail,
+  applyBilling,
   applyDomainCheck,
   applyReplyReading,
   appointmentByClientStart,
@@ -4205,11 +5003,13 @@ export {
   appointmentsBetween,
   appointmentsForClient,
   appointmentsScrub,
+  approveBroadcast,
   archiveConversation,
   archiveList,
   assembleBroadcast,
   assembleHistory,
   becomePartner,
+  callBackMessage,
   callerNameOf,
   callersOf,
   campaignMonthSent,
@@ -4218,6 +5018,7 @@ export {
   claimCallNotification,
   claimControl,
   claimIdempotencyKey,
+  claimQueuedSend,
   claimReplyTell,
   claimReplyTurn,
   claimSends,
@@ -4264,10 +5065,13 @@ export {
   erasureDigests,
   eventOfDelivery,
   everyoneIn,
+  everyoneOnceIn,
+  failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
   finishableRuns,
   firstReplies,
+  followUpOnFile,
   followUpTouchesSince,
   forgetActivityTokens,
   forgetNotification,
@@ -4283,7 +5087,9 @@ export {
   getPartnerWorkspaces,
   getPlatformPartners,
   getTenantConfig,
+  getTenantConfigAsMember,
   getWorkspacePartner,
+  handBackThread,
   handRun,
   hasNewerCopy,
   heldNoticeDue,
@@ -4331,7 +5137,11 @@ export {
   markReplyDraft,
   markReplyTold,
   markWaitlistInvited,
+  memberAlertsOf,
   memberHasAddress,
+  memberWithdrawDrafts,
+  memberWithdrawMessage,
+  membersPushedFor,
   membershipCountOf,
   mergePeople,
   messageByExternalId,
@@ -4350,8 +5160,10 @@ export {
   offerLanguageOf,
   offersAnswerOf,
   offersEmailReach,
+  oldestActiveChannel,
   openConversation,
   openDoubtsOf,
+  openEscalation,
   ourLastWire,
   outreachFactsOf,
   outreachModeOf,
@@ -4368,7 +5180,9 @@ export {
   platformHoldStands,
   platformWide,
   playbookChannels,
+  playbookForChange,
   playbookForChannels,
+  playbookTotals,
   playbooksOnList,
   providerEventOf,
   purgeAiUsage,
@@ -4376,6 +5190,8 @@ export {
   queuedOutcomes,
   queuedRecipients,
   reachOutAudience,
+  reachOutBookedFrom,
+  reachOutChainTotals,
   reachOutDayDue,
   reachOutFollowers,
   reachOutPerson,
@@ -4395,11 +5211,14 @@ export {
   readThreadState,
   readVoiceSession,
   readVoiceSessionByConversation,
+  receptionistSeries,
   recheckSends,
   recordActivation,
   recordCallNote,
   recordCarrierOptOut,
   recordCheck,
+  recordConsent,
+  recordDeal,
   recordEchoAndPause,
   recordEmailNo,
   recordEmailStatus,
@@ -4415,6 +5234,7 @@ export {
   relayEvents,
   releaseControl,
   releaseIdempotencyKey,
+  releaseQueuedSend,
   releaseUnavailableHolds,
   removePlaybook,
   removeTemplateVersion,
@@ -4435,9 +5255,12 @@ export {
   resolveOutboundTargetForContact,
   resolvePerson,
   reviewsLedger,
+  runCounts,
   runGoesByOthers,
   runSending,
+  runningTwins,
   runsWaitingOf,
+  saveReachOutChain,
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
@@ -4459,11 +5282,11 @@ export {
   setEmailOffersYes,
   setEmailUnsubscribed,
   setListRule,
+  setMemberPushOff,
   setPartnerLetters,
   setPartnerStanding,
   setPartnerStatus,
   setPersonReplyMode,
-  setPlaybookState,
   setPolicyMode,
   setTemplateQuality,
   settleDelivery,
@@ -4476,6 +5299,7 @@ export {
   stampMailboxReceived,
   stampPlaybooksTried,
   stampReachOutStep,
+  startPlaybook,
   stopAllMessages,
   strandedRuns,
   stuckClaims,
@@ -4486,8 +5310,10 @@ export {
   syncFeedAppointments,
   takeCheckAttempt,
   takeIdempotencyKey,
+  takeOverThread,
   takeReplyRead,
   templateIdOf,
+  templateSends,
   templateStatusOf,
   templatesFor,
   templatesNamed,
@@ -4509,17 +5335,23 @@ export {
   watchedEvents,
   watchedTables,
   whatsappChannelFacts,
+  whatsappLineOf,
   whatsappNumberOf,
   whatsappNumbersToRead,
   wireRowOf,
+  withdrawAiDrafts,
   withdrawEmail,
   withdrawPartnerInvite,
+  withdrawQueued,
   workspaceAbout,
   workspaceAnswersOnItsOwn,
+  workspaceIdsOf,
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,
+  workspaceNamed,
   workspacePaused,
+  writePlaybookChange,
   writtenEmail,
   writtenEmails,
   yesesSince

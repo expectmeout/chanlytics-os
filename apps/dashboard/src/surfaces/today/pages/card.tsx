@@ -86,7 +86,13 @@ const ReviewLine = ({ nav }: { nav: Nav }) => {
   const G = useSurface("google");
   if (!G || !G.dto.listing) return null;
   // Only the line is drawn, which is no time of day: the workspace's zone is for the rest of the view model.
-  const line = toGoogleVM(G.dto, 30, Date.now(), workspaceClock()?.zone() ?? DEFAULT_TIMEZONE).todayLine;
+  // Today's line is the thirty days to today, whatever Reports shows.
+  const line = toGoogleVM(
+    G.dto,
+    { days: 30, until: null },
+    Date.now(),
+    workspaceClock()?.zone() ?? DEFAULT_TIMEZONE,
+  ).todayLine;
   if (!line) return null;
   return (
     <div className="brief-beat" data-testid="brief-review">
@@ -164,7 +170,7 @@ const TodayReceipt = ({ f, i, last, nav }: ReceiptProps) => {
   const { door } = f.receipt;
   return (
     <div
-      className="tc-receipt"
+      className="tc-receipt panel panel-pop"
       role="dialog"
       id={`today-receipt-${f.id}`}
       aria-label={`Why ${f.value} ${f.label}`}

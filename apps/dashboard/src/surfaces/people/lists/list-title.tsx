@@ -8,6 +8,7 @@ import { useState } from "react";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 import type { SavedList } from "../types";
 import { plDeleteList, plRenameList } from "./doors";
 import type { DeleteAnswer } from "./doors";
@@ -144,9 +145,9 @@ export function ListTitle({
     );
   }
   return (
-    <span className="cl-bulk-naming cl-list-renaming" data-testid="saved-filter">
+    <span className="cl-bulk-naming cl-list-renaming" data-testid="saved-filter" {...editorBox}>
       <input
-        autoFocus
+        autoFocus={focusAsDrawn()}
         value={name}
         maxLength={60}
         disabled={busy}

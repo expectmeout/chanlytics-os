@@ -572,9 +572,16 @@ const until = async (cond, what, ms = 5000) => {
   for (const from = Date.now(); !cond() && Date.now() - from < ms;) await tick();
   assert.ok(cond(), `never: ${what}`);
 };
-/** Every request the page has sent is answered: a save one test left in the air must not overlap the next test's read. */
+/**
+ * Every request the page has sent is answered, and the ones it was waiting to send behind them have gone out and been
+ * answered too (the view's saver sends the latest view the moment the one in flight lands, a few turns after the wire
+ * counts it done): a save one test left in the air must not overlap the next test's read.
+ */
 const drained = async () => {
-  for (const from = Date.now(); inFlight > 0 && Date.now() - from < 5000;) await tick();
+  for (let quiet = 0, from = Date.now(); quiet < 3 && Date.now() - from < 5000;) {
+    await tick();
+    quiet = inFlight > 0 ? 0 : quiet + 1;
+  }
 };
 /** The server's answer to a search the box sent: asked (after its wait), and its rows landed in the page's state. */
 const searchLanded = async (seen, from) => {
@@ -1130,7 +1137,7 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
       "the scopes are the frame's strip of views over the page, never the bar's",
     );
     assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
-    assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search by name or phone");
+    assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search names, numbers and emails");
     assert.ok(
       find(bar, (n) => n.type === Menu),
       "and the page's more-menu",
@@ -1293,7 +1300,15 @@ test("on a phone search is a capsule at rest that opens into the field; Cancel g
     tree = draw();
     const field = byTestId(tree, "people-phone-search");
     assert.equal(field.props.type, "search");
-    assert.equal(field.props.autoFocus, true);
+    assert.equal(field.props.autoFocus, true, "with keys the field is ready");
+    // On a touch screen the field waits for a tap: the button showed it, and the keyboard is the person's to ask for.
+    const media = globalThis.window.matchMedia;
+    globalThis.window.matchMedia = (q) => ({ ...media(q), matches: q === "(pointer: coarse)" || media(q).matches });
+    try {
+      assert.equal(byTestId(draw(), "people-phone-search").props.autoFocus, false, "no keyboard by itself");
+    } finally {
+      globalThis.window.matchMedia = media;
+    }
     assert.ok(
       byTestId(tree, "people-phone-lists"),
       "the list stays over the field, as the Inbox's buckets stay over its search",
@@ -2113,47 +2128,68 @@ test("export follows the list that is open, and is not offered for a list that c
     people: [person(1)],
     lists: [{ id: "s3", name: "Booked soon", ids: [], rule: { all: [{ field: "booked", op: "is", yes: true }] } }],
   });
-  // Export is an item of the file menu after Columns (canvas P1; the kit's Menu, read by its groups): the link is
-  // the route's (the client's own url for GET contacts/export), opened in place, with its path and the list it is
-  // asked for.
-  const exportItem = (tree) =>
-    find(tree, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "people-file-menu")
-      .props.groups.flatMap((g) => g.items || [])
-      .find((i) => i.label === "Export CSV");
+  // Export is a quiet button in the controls row after Columns (file-acts.tsx; the ⋯ that folded it away is gone): the
+  // link is the route's (the client's own url for GET contacts/export), opened in place, with its path and the list it is
+  // asked for. Its tip is what the item's title was.
+  const exportItem = (tree) => byTestId(tree, "people-export");
   const opened = [];
   const open = globalThis.window.open;
   globalThis.window.open = (u) => opened.push(String(u));
   try {
     const linkOf = (item) => {
-      item.onSelect();
+      item.props.onClick();
       const u = new URL(opened.at(-1), "https://app.chanlytics.com");
       return [u.pathname, u.searchParams.get("list")];
     };
+    assert.equal(
+      find(draw(), (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "people-file-menu"),
+      null,
+      "the ⋯ More menu is gone: Import and Export stand as words",
+    );
+    assert.equal(exportItem(draw()).props["data-tip"], "Download everyone as a CSV file");
     assert.deepEqual(linkOf(exportItem(draw())), ["/api/v1/contacts/export", null], "no list open: everyone");
     draw({ initialSegment: "opted_in" });
     const one = exportItem(draw({ initialSegment: "opted_in" }));
     assert.deepEqual(linkOf(one), ["/api/v1/contacts/export", "seg:opted_in"]);
-    assert.equal(one.title, "Download the people on Said yes to messages as a CSV file");
-    // A smart list that reads visits, with no calendar read: the route would refuse it, so the item says why and opens nothing.
+    assert.equal(one.props["data-tip"], "Download the people on Said yes to messages as a CSV file");
+    // A smart list that reads visits, with no calendar read: the route would refuse it, so the button says why and opens nothing.
     draw({ initialSaved: "s3" });
     const blocked = exportItem(draw({ initialSaved: "s3" }));
-    assert.equal(blocked.title, globalThis.window.__PEOPLE.saved[0].unknown);
+    assert.equal(blocked.props["data-tip"], globalThis.window.__PEOPLE.saved[0].unknown);
     const before = opened.length;
     const said = flashes.length;
-    blocked.onSelect();
+    blocked.props.onClick();
     assert.equal(opened.length, before, "held: nothing opens");
     assert.equal(
       flashes.length,
       said + 1,
       "REGRESSION: pressing it did nothing at all, and the reason was only a hover title",
     );
-    assert.equal(flashes.at(-1).msg, blocked.title, "and what it says is the reason, in contracts' words");
+    assert.equal(flashes.at(-1).msg, blocked.props["data-tip"], "and what it says is the reason, in contracts' words");
     // A list that is not here: the same, in the words of the empty page where it was (its title, then its body).
     draw({ initialSaved: "gone" });
     const gone = exportItem(draw({ initialSaved: "gone" }));
-    gone.onSelect();
+    gone.props.onClick();
     assert.equal(flashes.at(-1).msg, "This list isn't here. It was deleted, or the link is from another workspace.");
     assert.equal(opened.length, before, "and nothing opens");
+    // The owner has Import beside Export, as words; a role that may not export has neither a file in nor, pressed, a file out:
+    // the button stays, gated with the role's reason, and opens nothing.
+    assert.ok(byTestId(draw(), "people-import"), "an owner may bring a client list in");
+    const me = globalThis.window.__ME;
+    globalThis.window.__ME = { role: "viewer" };
+    try {
+      const tree = draw();
+      assert.equal(byTestId(tree, "people-import"), null, "no Import for a role that may not export");
+      const denied = byTestId(tree, "people-export");
+      assert.ok(denied, "Export stays, so the member sees it is held rather than missing");
+      assert.equal(denied.props["data-gated"], "", "gated");
+      assert.equal(typeof denied.props["data-tip"], "string", "with the role's reason as its tip");
+      assert.notEqual(denied.props["data-tip"], "Download everyone as a CSV file");
+      denied.props.onClick({ preventDefault() {}, stopPropagation() {} });
+      assert.equal(opened.length, before, "and pressing it opens nothing");
+    } finally {
+      globalThis.window.__ME = me;
+    }
   } finally {
     globalThis.window.open = open;
   }
@@ -2295,6 +2331,8 @@ test("REGRESSION: on a list, the Offers column shows the answer about offers -- 
       person(1, { marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null }),
       person(2),
     ],
+    // Offers waits in the Columns menu (off by default, 9 Oct 2026): the member has shown it.
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { offers: true } } },
   });
   const tree = draw({ initialSegment: "opted_in" });
   const offers = all(tree, (n) => n.props?.["data-testid"] === "row-offers")
@@ -2378,21 +2416,23 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
 
 /* ------------------------- the table, drawn from its columns (Phase 0) ------------------------- */
 
-/** Whether a member turned a column off: drawn, with a mark that only a desktop hides (pl-col-off). */
-const colOff = (n) => /\bpl-col-off\b/.test(String(n.props?.className || ""));
-/** The table's headings as a desktop shows them: those a member turned off, the checkbox's and the actions' empty ones left out, the sort arrow off. */
+/**
+ * The table's headings as a desktop shows them: the columns it built (a column turned off is not built at all, so there is
+ * no mark to leave out), the checkbox's left out and the actions' too (its word is a screen reader's alone), the sort arrow
+ * and the idle caret off.
+ */
 const headings = (tree) =>
-  all(tree, (n) => n.type === "th" && !colOff(n))
-    .map((th) => textOf(th).replace(/[▲▼]/g, "").trim())
+  all(tree, (n) => n.type === "th" && n.props?.["data-key"] && n.props["data-key"] !== "actions")
+    .map((th) => textOf(th).replace(/[▲▼↕]/g, "").trim())
     .filter(Boolean);
 /** A person's row, by their id. */
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
 
-test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, and Offers; Came from waits in the Columns menu", async () => {
+test("the table's columns: Person, State, Next step and Last contact, and with a calendar Visits; every other column waits in the Columns menu", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
   const sorting = (tree) =>
-    all(tree, (n) => n.type === "th" && !colOff(n) && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) =>
-      textOf(th).replace(/[▲▼]/g, "").trim(),
+    all(tree, (n) => n.type === "th" && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) =>
+      textOf(th).replace(/[▲▼↕]/g, "").trim(),
     );
   const oneCellPerHeading = (tree, why) => {
     const heads = all(
@@ -2413,11 +2453,11 @@ test("the table's columns: Person, State, Last contact, the receptionist or, wit
   };
   await freshPage({ people: [person(1), person(2)] });
   let tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Reach", "Last contact", "Offers"]);
+  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Last contact"]);
   assert.deepEqual(
     sorting(tree),
-    ["Person", "State", "Next step", "Last contact", "Offers"],
-    "the receptionist never sorts",
+    ["Person", "State", "Next step", "Last contact"],
+    "every heading that is shown sorts",
   );
   oneCellPerHeading(tree, "without a calendar");
   // Where they came from is the member's to show (canvas P1: with it the table outgrew the pane at 1440), and never sorts.
@@ -2426,25 +2466,31 @@ test("the table's columns: Person, State, Last contact, the receptionist or, wit
     views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
   });
   tree = draw();
-  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Reach", "Last contact", "Offers", "Came from"]);
+  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Last contact", "Came from"]);
+  assert.deepEqual(sorting(tree), ["Person", "State", "Next step", "Last contact"], "where they came from never sorts");
+  oneCellPerHeading(tree, "with Came from shown");
+  // Reach, Offers and the receptionist wait in the menu as well, and each shows where the member asks for it: Offers sorts,
+  // Reach and the receptionist never do.
+  await freshPage({
+    people: [person(1), person(2)],
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { reach: true, receptionist: true, offers: true } } },
+  });
+  tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Reach", "Last contact", "Receptionist", "Offers"]);
   assert.deepEqual(
     sorting(tree),
     ["Person", "State", "Next step", "Last contact", "Offers"],
-    "where they came from never sorts",
+    "the receptionist and Reach never sort",
   );
-  oneCellPerHeading(tree, "with Came from shown");
+  oneCellPerHeading(tree, "with Reach, the receptionist and Offers shown");
   await freshPage({ people: [person(1), person(2)], calendar: "ok" });
   tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Next step", "Reach", "Last contact", "Visits", "Offers"],
-    "with a calendar the outcome takes the receptionist's column",
+    ["Person", "State", "Next step", "Last contact", "Visits"],
+    "with a calendar the visit joins the four",
   );
-  assert.deepEqual(
-    sorting(tree),
-    ["Person", "State", "Next step", "Last contact", "Visits", "Offers"],
-    "the visit sorts",
-  );
+  assert.deepEqual(sorting(tree), ["Person", "State", "Next step", "Last contact", "Visits"], "the visit sorts");
   oneCellPerHeading(tree, "with a calendar");
 });
 
@@ -2886,6 +2932,8 @@ test("Reach says the address where a reply goes by email, and its whole is in th
       person(1, { email: address, message_channels: ["whatsapp", "email"], last_inbound_channel: "email" }),
       person(2),
     ],
+    // Reach is off until asked for (9 Oct 2026): the member has shown it.
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { reach: true } } },
   });
   const tree = draw();
   const reach = byTestId(rowOf(tree, "p1"), "row-reach");
@@ -2908,10 +2956,26 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
   const menu = columnsMenu(tree);
   assert.equal(textOf(menu.props.trigger).trim(), "Columns");
   assert.equal(menu.props.trigger.props["data-testid"], "people-columns");
+  // A desktop's table has a layout, so the menu holds the switches under their heading, then how tall a row stands, then the
+  // way back from the widths and places (a menu given no layout draws the first group alone).
   assert.deepEqual(
     menu.props.groups.map((g) => g.header),
-    ["Show on the table"],
-    "one group of switches, under its heading",
+    ["Show on the table", "Row height", undefined],
+    "the switches under their heading, then the row height and the way back",
+  );
+  assert.deepEqual(
+    menu.props.groups[1].choose.options.map((o) => [o.value, o.label]),
+    [
+      ["comfortable", "Comfortable"],
+      ["compact", "Compact"],
+    ],
+    "two heights to choose between",
+  );
+  assert.equal(menu.props.groups[1].choose.value, "comfortable", "comfortable until the member says otherwise");
+  assert.deepEqual(
+    menu.props.groups[2].items.map((i) => [i.label, i.disabled]),
+    [["Reset widths and order", true]],
+    "and nothing to put back while no width or place was changed",
   );
   assert.deepEqual(
     menuItems(tree),
@@ -2919,16 +2983,18 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
       { key: "name", on: true, locked: true },
       { key: "state", on: true, locked: false },
       { key: "next", on: true, locked: false },
-      { key: "reach", on: true, locked: false },
+      { key: "reach", on: false, locked: false },
       { key: "last", on: true, locked: false },
       { key: "receptionist", on: false, locked: false },
-      { key: "offers", on: true, locked: false },
+      { key: "offers", on: false, locked: false },
       { key: "came_from", on: false, locked: false },
       { key: "since", on: false, locked: false },
+      { key: "phone", on: false, locked: false },
       { key: "email", on: false, locked: false },
+      { key: "calls", on: false, locked: false },
       { key: "lists", on: false, locked: false },
     ],
-    "every column this workspace can show; Visits waits for a calendar",
+    "every column this workspace can show, four of them on; Visits waits for a calendar",
   );
   assert.ok(!headings(tree).includes("Came from"), "off until asked for");
   flipColumn(tree, "came_from");
@@ -2937,16 +3003,7 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
   assert.equal(menuItems(tree).find((c) => c.key === "came_from").on, true, "and its switch says so");
   flipColumn(tree, "lists");
   tree = draw();
-  assert.deepEqual(headings(tree), [
-    "Person",
-    "State",
-    "Next step",
-    "Reach",
-    "Last contact",
-    "Offers",
-    "Came from",
-    "Lists",
-  ]);
+  assert.deepEqual(headings(tree), ["Person", "State", "Next step", "Last contact", "Came from", "Lists"]);
   assert.equal(
     textOf(byTestId(rowOf(tree, "p1"), "row-lists")).trim(),
     "Regulars",
@@ -3066,7 +3123,7 @@ test("a view keeps its columns with its sort, and every save sends every key -- 
   let tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Next step", "Reach", "Last contact", "Offers", "Email"],
+    ["Person", "State", "Next step", "Last contact", "Email"],
     "the member's own columns",
   );
   assert.deepEqual(savedViews(seen), [], "the view it already holds is not saved again");
@@ -3138,7 +3195,7 @@ test("a saved view's columns are read with care -- only a true or false for a co
   const tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Next step", "Reach", "Last contact", "Offers", "Email"],
+    ["Person", "State", "Next step", "Last contact", "Email"],
     "Person stays, and a word is not a false",
   );
   assert.ok(
@@ -3157,7 +3214,7 @@ test("a saved view's columns are read with care -- only a true or false for a co
     await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns } } });
     assert.deepEqual(
       headings(draw()),
-      ["Person", "State", "Next step", "Reach", "Last contact", "Offers"],
+      ["Person", "State", "Next step", "Last contact"],
       `${JSON.stringify(columns)} is no set of columns: the defaults`,
     );
   }
@@ -3282,7 +3339,7 @@ test("a column put back the way its default has it is no choice any more -- the 
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves().at(-1) } });
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Next step", "Reach", "Last contact", "Visits", "Offers"],
+    ["Person", "State", "Next step", "Last contact", "Visits"],
     "a calendar connects, and Visits shows, as it does for everyone",
   );
 });
@@ -3301,14 +3358,16 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
       ["name", true],
       ["state", true],
       ["next", true],
-      ["reach", true],
+      ["reach", false],
       ["last", true],
       ["visits", true],
       ["receptionist", false],
-      ["offers", true],
+      ["offers", false],
       ["came_from", false],
       ["since", false],
+      ["phone", false],
       ["email", false],
+      ["calls", false],
       ["lists", false],
     ],
     "the visit shows; the receptionist waits in the menu",
@@ -3334,7 +3393,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves().at(-1) } });
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Next step", "Reach", "Last contact", "Offers", "Email"],
+    ["Person", "State", "Next step", "Last contact", "Email"],
     "back up, and Visits is still hidden, as chosen",
   );
 });
@@ -3415,7 +3474,7 @@ test("a read of People that overlapped no save takes the server's view -- anothe
   cells = [];
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Next step", "Reach", "Last contact", "Offers", "Email"],
+    ["Person", "State", "Next step", "Last contact", "Email"],
     "the other device's columns, not this tab's last save",
   );
 });
@@ -3671,12 +3730,26 @@ test("REGRESSION: a desktop builds no cell of a column the member turned off -- 
     views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } },
   });
   const desk = draw();
+  const row = rowOf(desk, "p1");
+  // A cell under each heading and no more (the checkbox's and the actions' count as headings here): a column turned off is
+  // not built at all, hidden or not, and the stylesheet has nothing to hide.
+  const heads = all(
+    find(desk, (n) => n.type === "thead"),
+    (n) => n.type === "th",
+  ).length;
   assert.equal(
-    all(rowOf(desk, "p1"), (n) => n.type === "td" && colOff(n)).length,
-    0,
-    "State, Offers, Email and Lists are not in the row at all",
+    row.props.children.filter((k) => k && k.type === "td").length,
+    heads,
+    "REGRESSION: a cell was built for a column that is not shown",
   );
-  assert.deepEqual(headings(desk), ["Person", "Next step", "Reach", "Last contact"]);
+  assert.equal(
+    find(row, (n) => n.type === "td" && /\bcl-state-cell\b/.test(String(n.props?.className || ""))),
+    null,
+    "the State the member turned off is not in the row at all",
+  );
+  for (const id of ["row-offers", "row-reach", "row-email", "row-lists", "row-came-from", "row-since", "row-phone"])
+    assert.equal(byTestId(row, id), null, `${id}: off by default, so not in the row at all`);
+  assert.deepEqual(headings(desk), ["Person", "Next step", "Last contact"]);
 });
 
 test("REGRESSION: a phone row is one cell -- the face, the name and the state; why they need a person, or their own words; the visit and the last contact -- and the member's desktop columns never reach it", () =>
@@ -3759,8 +3832,8 @@ test("REGRESSION: a selection's file spells a cell as the route's export does --
     const lines = (await blobs.at(-1).text()).replace(/^\ufeff/, "").split("\r\n");
     assert.equal(
       lines[0],
-      "Name,Phone,Email,State,Last contact,Consent,Offers,Next visit,First contact",
-      "a heading is quoted only when it must be",
+      "Name,Phone,Email,Consent,Offers,State,Next step,Last contact",
+      "a heading is quoted only when it must be, and the file follows the columns shown",
     );
     const hyper = lines.find((l) => l.includes("HYPERLINK"));
     assert.ok(
@@ -3768,6 +3841,27 @@ test("REGRESSION: a selection's file spells a cell as the route's export does --
       `REGRESSION: the formula was quoted and nothing more: ${hyper}`,
     );
     assert.deepEqual((await exportedNames(blobs.at(-1))).sort(), ['\'=HYPERLINK("http://x")', "Person 2"]);
+    // A column the member shows joins the file, in the table's order, and one they hide leaves it: Reach and Offers were
+    // asked for, the visit comes with a calendar, and First contact joins at the table's end.
+    await freshPage({
+      people: [person(1, { display_name: '=HYPERLINK("http://x")' }), person(2)],
+      calendar: "ok",
+      views: {
+        people: { sortBy: "last", sortDir: "desc", columns: { reach: true, offers: true, since: true, state: false } },
+      },
+    });
+    byTestId(draw(), "select-all").props.onChange();
+    byTestId(draw(), "bulk-export").props.onClick();
+    const wider = (await blobs.at(-1).text()).replace(/^\ufeff/, "").split("\r\n");
+    assert.equal(
+      wider[0],
+      "Name,Phone,Email,Consent,Offers,Next step,Reach,Last contact,Next visit,First contact",
+      "the file follows the table: the columns shown, in the table's order, and not the State that was hidden",
+    );
+    assert.ok(
+      wider.find((l) => l.includes("HYPERLINK")).startsWith(`"'=HYPERLINK(""http://x"")",'+1 (786) 555-1001,`),
+      "and a cell is spelled the same under it",
+    );
   } finally {
     restore();
   }
@@ -3785,6 +3879,8 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
       }),
       person(3, { queued_reply_at: iso(H) }),
     ],
+    // Reach waits in the Columns menu (9 Oct 2026): the member has shown it.
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { reach: true } } },
   });
   const tree = draw();
   const cls = (n) => String(n.props?.className || "");
@@ -3797,7 +3893,8 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
     "their WhatsApp name, where it differs, is the name's tip",
   );
 
-  // Each has a column of its own: the number and the channels are Reach; when they first wrote waits to be asked for.
+  // Each has a column of its own, which waits to be asked for: the number and the channels are Reach; when they first wrote
+  // is First contact.
   assert.ok(headings(tree).includes("Reach"), "Reach is a column");
   assert.match(textOf(byTestId(rowOf(tree, "p1"), "row-reach")), /786/, "and it holds the number");
   assert.match(
@@ -3824,7 +3921,7 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
 test("a heading that sorts is a button a keyboard reaches; one that does not is words", async () => {
   await freshPage({
     people: [person(1)],
-    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
+    views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true, offers: true } } },
   });
   const tree = draw();
   const ths = all(
@@ -3834,17 +3931,40 @@ test("a heading that sorts is a button a keyboard reaches; one that does not is 
   const isSort = (n) => n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || ""));
   const withButton = ths.filter((th) => find(th, isSort));
   assert.deepEqual(
-    withButton.map((th) => textOf(th).replace(/[▲▼]/g, "").trim()),
+    withButton.map((th) => textOf(th).replace(/[▲▼↕]/g, "").trim()),
     ["Person", "State", "Next step", "Last contact", "Offers"],
     "REGRESSION: the sort was the cell's own click, which Tab never found",
   );
   for (const th of withButton) assert.equal(find(th, isSort).props.type, "button", "a button, not a form's submit");
-  const cameFrom = ths.find((th) => textOf(th).trim() === "Came from");
+  const cameFrom = ths.find((th) => th.props["data-key"] === "came_from");
   assert.ok(cameFrom, "Came from is drawn, the member having shown it");
   assert.equal(
     find(cameFrom, (n) => n.type === "button"),
     null,
     "Came from does not sort, so it is words",
+  );
+  assert.equal(
+    textOf(find(cameFrom, (n) => /\bcl-th-text\b/.test(String(n.props?.className || "")))).trim(),
+    "Came from",
+    "in a span of their own",
+  );
+  // Each heading that sorts carries a caret: the arrow for the sort the table is in (Last contact, most recent first), and a
+  // quiet idle one on the others, so the ones that sort can be told from the ones that do not. Both are for the eye alone.
+  const caret = (th) => find(th, (n) => /\bsort-arr\b/.test(String(n.props?.className || "")));
+  const sorted = withButton.find((th) => th.props["data-key"] === "last");
+  assert.equal(textOf(caret(sorted)), "▼", "the sorted heading says which way");
+  assert.equal(caret(sorted).props["data-idle"], undefined, "and is not idle");
+  for (const th of withButton.filter((x) => x !== sorted)) {
+    assert.equal(textOf(caret(th)), "↕", `${th.props["data-key"]}: an idle caret`);
+    assert.equal(caret(th).props["data-idle"], "true");
+  }
+  for (const th of withButton) assert.equal(caret(th).props["aria-hidden"], "true", "a caret is not read out");
+  // The row's actions have no words of their own; a screen reader is given one.
+  const actions = ths.find((th) => th.props["data-key"] === "actions");
+  assert.equal(textOf(actions).trim(), "Actions", "the actions heading is read, not drawn");
+  assert.ok(
+    find(actions, (n) => /\brec-sr\b/.test(String(n.props?.className || ""))),
+    "in the kit's screen-reader-only class",
   );
 });
 

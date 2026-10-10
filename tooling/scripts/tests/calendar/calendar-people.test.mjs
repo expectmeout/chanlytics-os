@@ -1435,7 +1435,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     .join("\n");
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
-      svc.includes("export async function peopleVisits(") &&
+      // The calendar's read and everyone's visits off it, apart since 9 Oct 2026 so the pools ask for both at once.
+      svc.includes("export async function calendarRead(") &&
+      svc.includes("export function visitsIn(") &&
       svc.includes(
         "peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime())",
       ),
@@ -1566,14 +1568,11 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   assert.ok(mig.split("not public.is_acting_member(v_tenant)").length === 3, "owner or operator, both doors");
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts");
   assert.ok(route.includes('rate: "person_edit",') && route.includes('role: "operator",'));
-  assert.ok(
-    /rpc\("set_person_name", \{\s*p_contact_id: id,\s*p_name: name \?\? "",?\s*\}\)/.test(route) &&
-      /rpc\("set_person_notes", \{\s*p_contact_id: id,\s*p_notes: notes \?\? "",?\s*\}\)/.test(route),
-  );
-  assert.ok(
-    route.includes('"Send a name, notes, an email address or a proposal link."'),
-    "the schema refuses in the same words",
-  );
+  // The route is its handle's declaration (who may, how often). That the handle sends a name and notes through their
+  // two doors, and refuses an empty change in the schema's words, is driven through the route itself
+  // (people/people-routes.test.mjs, "details: an operator where the person lives"): this file read the route's source
+  // for both until #1507 moved the calls into src/server/people/person-details.ts.
+  assert.ok(route.includes("setPersonDetails"), "the route runs the one handle");
   // The profile reads the owner's notes and their proposal link off the person's own row: the two columns people_list
   // does not carry. None written is none. Run.
   const noted = await profileOf({
@@ -1908,22 +1907,27 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
     /stage/,
     "People's view is its own",
   );
+  // Offers waits in the Columns menu until a member asks for it, so this member has: the heading pressed below is drawn
+  // from their column choice, which the whole view carries beside the sort.
+  plSaveView("people", { columns: { offers: true } });
   const sent = await onTheWire(async () => {
     const kept = drawn();
     press(find(kept.tree, (n) => classes(n).includes("cl-th-sort") && textOf(n).includes("Offers")));
     kept.draw();
   });
-  assert.equal(
-    JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).sortBy,
-    "offers",
-    "on this device",
+  const device = JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view"));
+  assert.deepEqual(
+    [device.sortBy, device.sortDir, device.columns],
+    ["offers", "asc", { offers: true }],
+    "on this device: Offers' first press goes Yes first, and the column stays",
   );
   const put = sent.find((r) => r.method === "PUT" && r.route === "views/people");
   assert.deepEqual(
     [put?.body.view.sortBy, put?.body.view.sortDir, Object.keys(put?.body.view)],
-    ["offers", "desc", ["sortBy", "sortDir", "columns"]],
+    ["offers", "asc", ["sortBy", "sortDir", "columns"]],
     "and on the member's row in the workspace, the whole view",
   );
+  assert.deepEqual(put.body.view.columns, { offers: true }, "the sort does not lose the columns");
   // The frame's route (people-route.tsx): the addresses that take a view of People, and what each hands the page.
   const { peopleTakes } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
   for (const param of ["seg:needs_you", "list:sample-regulars", "state:quiet"])
@@ -2101,10 +2105,29 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   );
   // A selection never outlives its view is run, in both scopes: people-honest.test.mjs and leads-honest.test.mjs.
   // The file holds the columns the page shows, nothing invented.
+  // Who they are and whether they may be messaged lead every file; after them come the table's shown columns that say
+  // something in a file, in the table's order (the Name, Phone and Email columns are those first three, never repeated).
   assert.equal(
-    plCsv([]),
-    "Name,Phone,Email,State,Last contact,Consent,Offers,Next visit,First contact",
-    "the file holds the columns the page shows, nothing invented",
+    plCsv([], []),
+    "Name,Phone,Email,Consent,Offers",
+    "with no column shown the file holds who they are and the consent, nothing invented",
+  );
+  const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+  const { plShownColumns } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
+  assert.equal(
+    plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: true })),
+    "Name,Phone,Email,Consent,Offers,State,Next step,Last contact,Next visit",
+    "the columns the page shows by default, a calendar's Visits among them",
+  );
+  assert.equal(
+    plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: false })),
+    "Name,Phone,Email,Consent,Offers,State,Next step,Last contact",
+    "and no Visits where there is no calendar",
+  );
+  assert.equal(
+    plCsv([], plShownColumns(PL_COLUMNS, { offers: true, email: true, state: false }, { withCalendar: false })),
+    "Name,Phone,Email,Consent,Offers,Next step,Last contact",
+    "a column the member shows joins the file, one they hide leaves it, and Email is not said twice",
   );
   // Everyone shown can be kept as a list: a view that filters offers Save these, and its box takes the name.
   const filtered = drawn({ initialSegment: "needs_you" });
@@ -2287,7 +2310,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
     return again(() => PL_COLUMNS.find((c) => c.key === key).cell(p, { attention: {}, onOpen() {}, ...x }));
   };
   // First contact left the identity cell (22 Sep, Ruben: the row read jam-packed) for a column of its own that is off
-  // until a member asks for it, so Offers still holds the place on screen it took from First contact.
+  // until a member asks for it (Offers took its place on screen then, and has since gone the same way).
   const since = PL_COLUMNS.find((c) => c.key === "since");
   assert.deepEqual(
     [since.label, since.sortable, since.on],

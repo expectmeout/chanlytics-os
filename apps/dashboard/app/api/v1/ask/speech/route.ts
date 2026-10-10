@@ -10,18 +10,22 @@ import { edgeHeaders, edgeUrl, edgeConfigured, edgeReasonOf, edgeRefusalWords, t
  *
  * Today's Listen and an answer's Read aloud: the browser sends the words it shows (the brief's line, or an answer's
  * say) and plays what comes back. No agent, no microphone, no session row: nobody speaks back. Body: { text,
- * purpose } where purpose is `brief` or `answer`. The text is bounded (ASK_SPEECH_MAX_CHARS) and whitespace-folded
+ * purpose, before? } where purpose is `brief` or `answer`, and `before` is the words read just before these, where a
+ * reading is asked for as two clips (its first sentence, then the rest: legacy-bridge/ask/speech.ts), so the vendor
+ * reads the second as carrying on from the first. The text is bounded (ASK_SPEECH_MAX_CHARS) and whitespace-folded
  * here; the edge, which holds the vendor's key, bounds it again. The answer is the audio itself, MP3, streamed as the
  * vendor makes it (door E, apps/edge/api/admin/voice/speech.ts), so the browser hears the first word about when the
  * connection is up; the wrapper's envelope is for JSON and a Response passes it by, as the Ask stream's does.
  *
  * A refusal is answered as the voice mint's are: a workspace that may not spend is 402 payment_required with the
  * edge's words; a vendor that could not be reached, or an edge without the key, is 503 upstream_voice. Counted as
- * `speech` (sixty an hour a person): a brief is read a few times a day, an answer once.
+ * `speech` (a hundred and twenty an hour a person, two to a reading of more than one sentence): a brief is read a
+ * few times a day, an answer once.
  */
 const Input = z.object({
   text: z.string().min(1).max(ASK_SPEECH_MAX_CHARS),
   purpose: z.enum(SPEECH_PURPOSES),
+  before: z.string().max(ASK_SPEECH_MAX_CHARS).optional(),
 });
 
 const DOOR = "/api/admin/voice/speech";
@@ -58,7 +62,14 @@ export const POST = write({
     const tenantId = member.tenantId;
     const text = input.text.replace(/\s+/g, " ").trim();
     if (!text) throw new AppError("validation", "text: nothing to say", 400);
-    const body = JSON.stringify({ tenant_id: tenantId, user_id: ctx.userId, text, purpose: input.purpose });
+    const before = input.before?.replace(/\s+/g, " ").trim();
+    const body = JSON.stringify({
+      tenant_id: tenantId,
+      user_id: ctx.userId,
+      text,
+      purpose: input.purpose,
+      ...(before ? { before } : {}),
+    });
     const t0 = Date.now();
     let r: Response;
     try {

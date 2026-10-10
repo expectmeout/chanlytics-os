@@ -271,7 +271,7 @@ export interface AudiencePreview {
 /** The composer's note when some of an audience heard from a run this week; null when none did. */
 export function heardWords(n: number): string | null {
   if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a playbook or a broadcast this week.`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null, channel: ConsentChannel | null): PreviewPerson {

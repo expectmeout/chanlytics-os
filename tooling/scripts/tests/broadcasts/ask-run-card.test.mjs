@@ -137,8 +137,11 @@ async function runCall(input, { role = "operator", now = NOW } = {}) {
   };
 }
 
-/** A run as the run's sheet reads it (getBroadcast): the run, and every person on it. */
-const RUN_READ = ["broadcasts.select", "broadcast_recipients.select"];
+/**
+ * A run as the run's sheet reads it (getBroadcast): the run, then its counts (run_counts, 00374) asked as its people are,
+ * not after them, then every person on it.
+ */
+const RUN_READ = ["broadcasts.select", "rpc.run_counts", "broadcast_recipients.select"];
 const payload = (id, verb, name, people) => ({ broadcast_id: id, verb, name, people, timezone: TZ });
 
 /** Each call and what it comes to: a refusal in the model's words (and what was read before it), or the card. */
@@ -231,7 +234,7 @@ const RUN_CALLS = [
       kind: "run",
       needs: "operator",
       title: "Skip the run: Win-back · 2026-09-19",
-      summary: "2 people · Skipping loses this run only — the playbook keeps running.",
+      summary: "2 people · Skipping loses this run only — the campaign keeps running.",
       payload: payload(OLD, "skip", "Win-back · 2026-09-19", 2),
       undo: null,
     },
@@ -273,7 +276,7 @@ const RUN_CALLS = [
       kind: "run",
       needs: "operator",
       title: `Skip the run: Win-back · ${TODAY}`,
-      summary: "3 people · Skipping loses this run only — the playbook keeps running.",
+      summary: "3 people · Skipping loses this run only — the campaign keeps running.",
       payload: payload(RUN, "skip", `Win-back · ${TODAY}`, 3),
       undo: null,
     },
@@ -322,10 +325,46 @@ const CARD_ROUTES = [
  * card names over the database the card's builder read -- the card's marks carried as route() carries them, and the
  * jobs the approval schedules on the service client -- answered as the server answers; the window the walk tells.
  */
+/**
+ * The approval's door over the tables in memory, as 00353 writes it (approve_broadcast): a run of the workspace that
+ * still waits is released for the moment given, its send job written when one is asked for, and the approval recorded
+ * as the member's, together; null, and nothing written, for a run that no longer waits.
+ */
+const approvalDoor = (tables) => ({
+  approve_broadcast: (a) => {
+    const run = tables.broadcasts.find(
+      (b) => b.id === a.p_broadcast_id && b.tenant_id === a.p_tenant_id && b.state === "pending_approval",
+    );
+    if (!run) return null;
+    Object.assign(run, { state: "scheduled", scheduled_for: a.p_send_at });
+    if (a.p_job)
+      (tables.jobs ??= []).push({
+        id: `job-${tables.jobs.length + 1}`,
+        tenant_id: a.p_tenant_id,
+        kind: "broadcast_send",
+        due_at: a.p_send_at,
+        payload: { ...a.p_job, broadcast_id: a.p_broadcast_id },
+      });
+    const decision = {
+      id: `decision-${(tables.decisions ??= []).length + 1}`,
+      tenant_id: a.p_tenant_id,
+      subject_type: "broadcast",
+      subject_id: a.p_broadcast_id,
+      verb: "send_broadcast",
+      actor_type: "user",
+      actor_user_id: USER,
+      payload: { ...a.p_decision, ...(a.p_via ? { via: a.p_via } : {}) },
+      undo_of: a.p_undo_of ?? null,
+    };
+    tables.decisions.push(decision);
+    return { decision_id: decision.id, undo_dropped: false };
+  },
+});
+
 function tabOver(tables) {
   const sent = [];
   const events = [];
-  const supabase = fakeDb(tables, {}, {});
+  const supabase = fakeDb(tables, {}, approvalDoor(tables));
   setServiceClient(supabase);
   const client = createApi({
     fetch: async (url, init) => {

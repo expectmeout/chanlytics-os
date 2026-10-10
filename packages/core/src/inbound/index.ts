@@ -19,7 +19,6 @@ export type { RoutingFacts, ReplyPosture } from "./reply-posture";
 export { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES, VISION_MIMES } from "./vision";
 export {
   ageVerdict,
-  threadVerdict,
   holdPlan,
   layerTwo,
   holdCopy,

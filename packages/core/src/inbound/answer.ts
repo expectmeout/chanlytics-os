@@ -10,10 +10,11 @@
  * memory (Postgres, the only one there is) is read, an address in its words
  * is kept, and a redelivery stops at the replay gate. Then the gates, in
  * order: the person's own mode, an unknown thread, consent, the carriers'
- * hold and what kind of message it is (./gates.ts); a message the
- * receptionist may not read (./unreadable.ts); its age, a yes to confirm, the
- * thread's pause and the day's cap, the token budget, the billing pause and
- * the mode in force (./reply-gates.ts). Past the gates a photo's bytes are
+ * hold and what kind of message it is (./gates.ts); its age, before anything
+ * automated may be said of it (./reply-gates.ts); a message the receptionist
+ * may not read (./unreadable.ts); a yes to confirm, the thread's pause and the
+ * day's cap, the token budget, the billing pause and the mode in force
+ * (./reply-gates.ts). Past the gates a photo's bytes are
  * fetched (./unreadable.ts), the message claims the thread's reply turn, the
  * brain composes and layer two checks the words (./model-turn.ts, over
  * steps.ts), the turn is asked again (./turn.ts: a newer message of the thread
@@ -32,7 +33,7 @@ import { GO, openInbound } from "./context";
 import { ingestMessage, recordMessage } from "./ingest";
 import { modeInForce, firstGates } from "./gates";
 import { seeingOf, unreadableGate, wordsOf, photoOf } from "./unreadable";
-import { lateOrConfirmed, heldForThePerson } from "./reply-gates";
+import { tooLate, confirmedYes, heldForThePerson } from "./reply-gates";
 import { modelTurn } from "./model-turn";
 import { planTheHold, heldOrKept, sendNow } from "./dispatch";
 import { claimTheTurn, stillOurs } from "./turn";
@@ -100,10 +101,11 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   if (!kept) return;
   const at = { ...cx, ...kept, ...(await modeInForce(cx, kept.ing)) };
   if ((await firstGates(at)) !== GO) return;
+  if ((await tooLate(at)) !== GO) return;
   const seen = seeingOf(at);
   if ((await unreadableGate(at, seen)) !== GO) return;
   const bodyText = wordsOf(at, seen);
-  if ((await lateOrConfirmed(at, bodyText)) !== GO) return;
+  if ((await confirmedYes(at, bodyText)) !== GO) return;
   if ((await heldForThePerson(at, bodyText)) !== GO) return;
   const shown = await photoOf(at, seen);
   if (!shown) return;

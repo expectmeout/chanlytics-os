@@ -98,7 +98,7 @@ function RoFoot({ W, work, say, ready, busy, editing, onStart, saved, onClose, o
   const P = W.REACH_OUT_SHEET_PARTS;
   if (saved)
     return (
-      <div className="pb-foot">
+      <div className="pb-foot" data-foot-pair="">
         <span className="pb-foot-say" />
         <Button onClick={onClose} data-testid="ro-close">
           {P.close}
@@ -126,7 +126,7 @@ function RoFoot({ W, work, say, ready, busy, editing, onStart, saved, onClose, o
       </div>
     );
   return (
-    <div className="pb-foot">
+    <div className="pb-foot" data-foot-pair="">
       <span
         className="pb-foot-say"
         data-tone={say.tone}

@@ -1438,6 +1438,8 @@ test("the domains you send from: under the Email row, each in contracts' words, 
   const host = () => find(byTestId(tree, "domain-host"), (n) => n.type === "input");
   const local = () => find(byTestId(tree, "domain-local"), (n) => n.type === "input");
   const name = () => find(byTestId(tree, "domain-name"), (n) => n.type === "input");
+  // The kit field draws what is wrong under its box, named by the field (rec-<id>-problem).
+  const hostProblem = () => find(byTestId(tree, "domain-host"), (n) => n.props?.id === "rec-domain-host-problem");
   assert.equal(name().props.value, "Harbor Moving", "the mailbox's name to start from");
   host().props.onChange({ target: { value: "gmail.com" } });
   local().props.onChange({ target: { value: "sam" } });
@@ -1445,7 +1447,7 @@ test("the domains you send from: under the Email row, each in contracts' words, 
   press(byTestId(tree, "domain-save"));
   await flush();
   tree = settle(Connections);
-  assert.match(textOf(byTestId(tree, "domain-host-problem")), /free mail/);
+  assert.match(textOf(hostProblem()), /free mail/);
   assert.deepEqual(added, [], "nothing is asked about what the rules already refuse");
 
   host().props.onChange({ target: { value: "getharbor.com" } });
@@ -1456,7 +1458,7 @@ test("the domains you send from: under the Email row, each in contracts' words, 
   tree = settle(Connections);
   assert.deepEqual(added, [{ host: "getharbor.com", fromLocal: "sam", fromName: "Harbor Moving" }]);
   assert.equal(
-    textOf(byTestId(tree, "domain-host-problem")),
+    textOf(hostProblem()),
     "This workspace already sends from that domain.",
     "the door's refusal lands under the box that caused it",
   );
@@ -1676,5 +1678,38 @@ test("a person deletes their own account from Settings, in two steps, and the do
     assert.ok(textOf(tree).includes("Make someone else an owner first"), "the door's refusal, where it happened");
   } finally {
     Object.assign(meVerbs, real);
+  }
+});
+
+// Last in the file: the account's deletion closes the tab's cache for the rest of the page's life, so for this process.
+test("REGRESSION: an account deleted leaves nothing of theirs in the tab, and nothing written back after -- it went to sign in with the cache whole, for whoever signed in next", async () => {
+  const { meVerbs } = await import("../../../../apps/dashboard/src/legacy-bridge/identity.ts");
+  const cache = await import("../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+  const CACHE = "chanlytics.surfaces.v1";
+  const w = globalThis.window;
+  const was = { fetch: w.fetch, assign: w.location.assign };
+  const went = [];
+  w.fetch = async (url, init = {}) => {
+    went.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
+    return new Response(JSON.stringify({ ok: true, data: { deleted: true } }), { status: 200 });
+  };
+  w.location.assign = (url) => went.push(`assign ${url}`);
+  try {
+    w.INBOX_PROBE = { threads: ["studio's"] };
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "t-studio");
+    cache.flushSurfaceCache();
+    assert.ok(globalThis.sessionStorage.getItem(CACHE), "their rows, cached, as a reload would paint them");
+    const r = await meVerbs.deleteAccount();
+    assert.equal(r.ok, true);
+    assert.deepEqual(went, ["DELETE /api/v1/me", "assign /login"]);
+    assert.equal(globalThis.sessionStorage.getItem(CACHE), null, "REGRESSION: the deleted account's rows stayed");
+    // A read lands before the page unloads: persisted as every read is, and written by the page's hide.
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "t-studio");
+    cache.flushSurfaceCache();
+    assert.equal(globalThis.sessionStorage.getItem(CACHE), null, "and nothing is written back");
+  } finally {
+    delete w.INBOX_PROBE;
+    w.fetch = was.fetch;
+    w.location.assign = was.assign;
   }
 });

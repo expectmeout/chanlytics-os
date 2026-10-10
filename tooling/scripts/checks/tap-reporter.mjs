@@ -31,7 +31,8 @@ export async function* noteFailures(source, failed) {
 export function failuresLast(failed, root = process.cwd()) {
   if (!failed.length) return "";
   const lines = failed.map((f) => {
-    const where = f.file ? ` (${path.relative(root, f.file)}:${f.line})` : "";
+    // The repository's own slashes on every platform, so a path reads the same in Windows' run as in CI's.
+    const where = f.file ? ` (${path.relative(root, f.file).split(path.sep).join("/")}:${f.line})` : "";
     const why = String(f.details?.error?.message ?? "")
       .split("\n")[0]
       .trim();

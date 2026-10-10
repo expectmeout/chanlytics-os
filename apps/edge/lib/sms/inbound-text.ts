@@ -55,8 +55,8 @@ import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { oneTimeCodeOf, smsInboundFrom, smsAsWaMessage, type SmsInbound } from "../packages/channels.js";
 import type { Database, IngestResult, Json } from "../packages/db.js";
-import { scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
-import { smsSenderFor } from "./sms.js";
+import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
+import { smsSenderFor, type SmsSender } from "./sms.js";
 import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./sms-ingress.js";
 import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
@@ -200,11 +200,28 @@ async function answerLater(
 const CHECK_REFUSED = "23514";
 
 /**
+ * The line's sender for a job: the job says it is about to speak before the provider is called (jobs markSpoke), so a
+ * run that is killed with the text in flight, or throws after it left, is never run again to text the person twice.
+ * A mark that cannot be written throws at the wire, so nothing is sent and the send door answers as it does for any
+ * wire it could not use: the thread is flagged for a person and the owner told. A missed answer beats a second one.
+ */
+function speakingOnce(db: Db, job: ClaimedJob, sender: SmsSender): SmsSender {
+  return {
+    send: async (to, body) => {
+      await markSpoke(db, job);
+      return sender.send(to, body);
+    },
+  };
+}
+
+/**
  * The job's half (inbound_answer, bound by lib/ops/jobs-tick.ts): the text its door recorded, answered. The line and
  * its routing are read again (lineForAnswer), the text is the one Twilio sent, with the time it came for the staleness
  * check, and the whole inbound phase runs with `resume`: answered while the message is unprocessed and no reply names
  * it. Throws when the payload names no text, the number is another workspace's now, or a read failed: the ledger tries
- * again, and after that the deadman sweep hands the message to a person.
+ * again, and after that the deadman sweep hands the message to a person. Tried again only until it speaks: the line's
+ * sender says so on the job's row the moment before the provider is called (speakingOnce), and a run that dies or
+ * throws after that is never repeated, since the reply naming the message may not have been written yet.
  */
 export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
   const fields = job.payload.text;
@@ -215,7 +232,8 @@ export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
   const { line, acct, routed, held } = await lineForAnswer(db, inbound);
   if (routed.tenantId !== job.tenant_id)
     throw new Error("inbound_answer: the number texted is another workspace's now");
-  const carrier = carrierFor(inbound, held, held ? null : smsSenderFor(line, acct));
+  const sender = held ? null : smsSenderFor(line, acct);
+  const carrier = carrierFor(inbound, held, sender && speakingOnce(db, job, sender));
   const L = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
   L.info("sms_answer_taken_up", { held });
   await resumeInbound(smsAsWaMessage(inbound, receivedAt), routed.tenantId, routed, carrier);

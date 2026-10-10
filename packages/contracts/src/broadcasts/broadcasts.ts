@@ -23,6 +23,7 @@
  * exactly the rows most likely to matter.
  */
 import { MIN_MS } from "../shared/time";
+import { isCount, recordOrNull } from "../shared/unknown";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-titles";
 import { clockDate, clockWhen } from "../shared/clock";
@@ -220,6 +221,35 @@ export interface BroadcastCounts {
   sent_by?: Record<ConsentChannel, number>;
 }
 
+/** What run_counts says of each run (00374), in the order Sent writes a run's counts. */
+const RUN_COUNTED = ["queued", "sent", "skipped", "failed", "delivered", "read", "replied"] as const;
+
+/**
+ * run_counts' answer (00374), by run id, read into Sent's counts in the order the page has always written them (a run
+ * nobody is on is absent, and the caller says it as zeros), each count a whole number (isCount). Null when the answer is
+ * not that shape: a read that failed, never a run with nothing in it.
+ */
+export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | null {
+  const byRun = recordOrNull(answer);
+  if (!byRun) return null;
+  const out: Record<string, BroadcastCounts> = {};
+  for (const [id, raw] of Object.entries(byRun)) {
+    const c = recordOrNull(raw);
+    const by = recordOrNull(c?.sent_by);
+    if (!c || !by) return null;
+    const counts: BroadcastCounts = { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
+    for (const k of RUN_COUNTED) {
+      const n = c[k];
+      if (!isCount(n)) return null;
+      counts[k] = n;
+    }
+    const { whatsapp, sms, email } = by;
+    if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
+    out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
+  }
+  return out;
+}
+
 export interface BroadcastDto {
   id: string;
   name: string;
@@ -358,7 +388,7 @@ export function emptyAudienceRefusal(
   if (pool.some((r) => answeredYes(r, purpose))) return noNumberWords(`“${label}”`, purpose);
   return purpose === "marketing"
     ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent."
-    : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
+    : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 
 /* ---- One broadcast's people ---- */

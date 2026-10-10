@@ -78,7 +78,8 @@ after(async () => {
 
 /** A run of everyone by email, waiting for nobody: the people queued. */
 async function run(tenant, ids) {
-  const id = await assembleBroadcast(db, {
+  // The door with its decision (00381): none here, a run nobody decided, so the answer is the id alone.
+  const { id } = await assembleBroadcast(db, {
     tenantId: tenant,
     run: {
       name: "Visit reminder",
@@ -95,6 +96,7 @@ async function run(tenant, ids) {
     },
     recipients: ids.map((contact_id) => ({ contact_id, facts: null, channel: "email" })),
     sendAt: new Date(Date.now() + 86_400_000),
+    decision: null,
   });
   return id;
 }

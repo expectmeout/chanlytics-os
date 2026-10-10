@@ -25,9 +25,12 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import type { BusinessFieldVM, BusinessRecordDto, LineDto, RegistrationPath } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { RecordField } from "../../kit/record/field";
 import { canDo, gate, gateTitle, holdStill, meNow, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { businessRecord } from "./record";
 
@@ -66,16 +69,17 @@ function forkView(opts: ForkOptions) {
         {owner ? (
           <div className="biz-choices">
             {RECORD.paths.map((p) => (
-              <button
+              <Button
                 key={p}
                 className={`biz-choice${p === path ? " biz-choice-on" : ""}`}
                 onClick={() => onChoose(p)}
                 disabled={busy}
+                aria-pressed={p === path}
                 data-testid={`biz-path-${p}`}
               >
                 <span className="biz-choice-label">{RECORD.pathWords[p].choice}</span>
                 <span className="biz-hint">{RECORD.pathWords[p].sub}</span>
-              </button>
+              </Button>
             ))}
           </div>
         ) : (
@@ -94,13 +98,11 @@ function forkView(opts: ForkOptions) {
           </span>
         )}
         {asking && (
-          <button
-            className="cl-bucket-link"
-            onClick={(e) => holdStill(e && e.currentTarget, onBack)}
-            data-testid="biz-fork-back"
-          >
-            Back to the form
-          </button>
+          <div className="set-acts">
+            <LinkButton onClick={(e) => holdStill(e && e.currentTarget, onBack)} data-testid="biz-fork-back">
+              Back to the form
+            </LinkButton>
+          </div>
         )}
       </div>
     </div>
@@ -118,56 +120,62 @@ interface FieldOptions {
 /** One field of the form: its label, the box its kind draws, and what is wrong with it or why it is asked. */
 function fieldBox(opts: FieldOptions) {
   const { f, record, problem, disabled, onSet } = opts;
-  const problemId = `biz-${f.name}-problem`;
+  const testid = `biz-${f.name}`;
+  const label = (
+    <>
+      {f.label}
+      {f.required ? "" : <span className="dim"> · optional</span>}
+    </>
+  );
+  const cell = `biz-cell${f.multiline ? " biz-cell-wide" : ""}`;
+  if (!f.multiline && f.options) {
+    // A native list, as it was: the kit's Select is Base UI's, and a list asked once at setup is not worth its weight on
+    // the settings page (CI measured +48 KB gzipped for it).
+    const problemId = `rec-${testid}-problem`;
+    return (
+      <div className={cell} key={f.name} data-testid={testid}>
+        <div className="rec-field">
+          <label>
+            <span className="rec-field-label">{label}</span>
+            <select
+              className="rec-input"
+              value={record[f.name] ?? ""}
+              disabled={disabled}
+              aria-invalid={problem ? true : undefined}
+              aria-describedby={problem ? problemId : undefined}
+              onChange={(e) => onSet(f.name, e.target.value)}
+            >
+              {f.options.map((o) => (
+                <option key={o} value={o}>
+                  {RECORD.optionWords(o)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {problem ? (
+            <FieldError id={problemId} message={problem} />
+          ) : f.hint ? (
+            <span className="rec-hint">{f.hint}</span>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
   return (
-    <label className={`biz-field${f.multiline ? " biz-field-wide" : ""}`} key={f.name} data-testid={`biz-${f.name}`}>
-      <span className="biz-label">
-        {f.label}
-        {f.required ? "" : <span className="dim"> · optional</span>}
-      </span>
-      {f.multiline ? (
-        <textarea
-          className={`biz-input biz-area${problem ? " biz-bad" : ""}`}
-          rows={3}
-          value={record[f.name] ?? ""}
-          placeholder={f.placeholder || ""}
-          disabled={disabled}
-          aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? problemId : undefined}
-          onChange={(e) => onSet(f.name, e.target.value)}
-        />
-      ) : f.options ? (
-        <select
-          className={`biz-input${problem ? " biz-bad" : ""}`}
-          value={record[f.name] ?? ""}
-          disabled={disabled}
-          aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? problemId : undefined}
-          onChange={(e) => onSet(f.name, e.target.value)}
-        >
-          {f.options.map((o) => (
-            <option key={o} value={o}>
-              {RECORD.optionWords(o)}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          className={`biz-input${problem ? " biz-bad" : ""}`}
-          value={record[f.name] ?? ""}
-          placeholder={f.placeholder || ""}
-          disabled={disabled}
-          aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? problemId : undefined}
-          onChange={(e) => onSet(f.name, e.target.value)}
-        />
-      )}
-      {problem ? (
-        <FieldError id={problemId} message={problem} testid={problemId} />
-      ) : f.hint ? (
-        <span className="biz-hint">{f.hint}</span>
-      ) : null}
-    </label>
+    <div className={cell} key={f.name}>
+      <RecordField
+        id={testid}
+        testid={testid}
+        label={label}
+        value={record[f.name] ?? ""}
+        onChange={(words) => onSet(f.name, words)}
+        hint={f.hint}
+        problem={problem ? <span data-testid={`${testid}-problem`}>{problem}</span> : undefined}
+        rows={f.multiline ? 3 : null}
+        placeholder={f.placeholder || ""}
+        readOnly={disabled}
+      />
+    </div>
   );
 }
 
@@ -265,16 +273,17 @@ interface ActsRowOptions {
 function actsRow(opts: ActsRowOptions) {
   const { line, path, ready, arm, busy, acts, onArm } = opts;
   return (
-    <div className="bc-chips">
-      <button
-        className="btn btn-primary btn-sm"
+    <div className="set-acts">
+      <Button
+        size="sm"
+        variant="primary"
         onClick={() => void acts.save()}
         disabled={busy}
         data-testid="biz-save"
         {...gate("team", "fill in the business record")}
       >
         {busy ? "Saving…" : "Save"}
-      </button>
+      </Button>
       {/*
             Not on a line the carriers SENT BACK. Resubmitting one is support's action
             (gate 6), so this button could only be refused there -- a dead button on the
@@ -282,15 +291,15 @@ function actsRow(opts: ActsRowOptions) {
             Saving their corrections is still theirs, and is what unblocks it.
           */}
       {ready && line && !arm && line.sms_state !== "rejected" && (
-        <button
-          className="btn btn-sm"
+        <Button
+          size="sm"
           onClick={() => onArm(true)}
           disabled={busy}
           data-testid="biz-file"
           {...gate("team", "file with the carriers")}
         >
           File with the carriers
-        </button>
+        </Button>
       )}
       {line && line.sms_state === "rejected" && (
         <span className="set-row-hint" data-testid="biz-rejected">
@@ -344,14 +353,13 @@ function formView(opts: FormOptions) {
         </span>
         {/* The short question takes the long form's place: the page holds still under the press (data-bits holdStill). */}
         {owner && (
-          <button
-            className="cl-bucket-link"
+          <LinkButton
             onClick={(e) => holdStill(e && e.currentTarget, onAsk)}
             disabled={busy}
             data-testid="biz-path-change"
           >
             Not right?
-          </button>
+          </LinkButton>
         )}
       </div>
 

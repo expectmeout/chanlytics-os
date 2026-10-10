@@ -17,7 +17,9 @@ export {
 export type { EmittedKind, EventData, DeliveredEvent, DeliveryRow } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
-export { keepInvoiceAmount } from "./billing-events";
+export { keepInvoiceAmount } from "./billing/events";
+export { applyBilling } from "./billing/account";
+export type { BillingPatch, BillingExpectation } from "./billing/account";
 export { migrationHead } from "./ops";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
 export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
@@ -45,8 +47,6 @@ export {
   keepMessageCost,
   recordEchoAndPause,
   pauseConversation,
-  claimReplyTurn,
-  holdsReplyTurn,
 } from "./repositories/ingest";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
@@ -205,31 +205,63 @@ export {
   markHeldNotice,
   leadNamesByIds,
   handRun,
+  saveReachOutChain,
 } from "./repositories/reach-out-sheet";
 export type {
   ReachOutStepRow,
+  ReachOutSaved,
   ReachOutRunSend,
   OutreachMode,
   HeldNoticeMark,
   HeldNoticeRun,
   HandItem,
 } from "./repositories/reach-out-sheet";
-export { reportSeries, campaignSeries, reviewsLedger, reachOutReport } from "./repositories/reports/report-series";
+export {
+  reportSeries,
+  campaignSeries,
+  reviewsLedger,
+  receptionistSeries,
+  reachOutReport,
+  ReportWindowNotReadable,
+  playbookTotals,
+  runCounts,
+  templateSends,
+  reachOutChainTotals,
+} from "./repositories/reports/report-series";
+export type { ReportWindow } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
-export { forgetNotification, noticeKept, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
+export {
+  forgetNotification,
+  noticeKept,
+  activityTokensOf,
+  forgetActivityTokens,
+  memberAlertsOf,
+  setMemberPushOff,
+  membersPushedFor,
+} from "./repositories/notifications";
+export type { MemberAlertsRow } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
-export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
+export {
+  resolveChannelDetailed,
+  resolveChannel,
+  oldestActiveChannel,
+  activeWhatsappNumbers,
+  whatsappLineOf,
+} from "./repositories/routing";
 export {
   whatsappChannelFacts,
   textLineFacts,
   playbookChannels,
   playbookForChannels,
+  playbookForChange,
+  runningTwins,
+  followUpOnFile,
   queuedRecipients,
   runGoesByOthers,
   campaignMonthSent,
   holdRecipients,
 } from "./repositories/campaigns/campaign-channels";
-export type { RoutedChannel, ChannelLookup } from "./repositories/routing";
+export type { RoutedChannel, ChannelLookup, WhatsappNumberRow } from "./repositories/routing";
 export {
   ingestCall,
   linkCallMessage,
@@ -275,12 +307,41 @@ export {
   keepIdempotencyReceipt,
 } from "./repositories/idempotency";
 export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
-export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
+export {
+  readJobToRequeue,
+  hasNewerCopy,
+  assembleBroadcast,
+  approveBroadcast,
+  claimQueuedSend,
+  releaseQueuedSend,
+  failQueuedSend,
+} from "./jobs";
 export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
-export type { JobToRequeue } from "./jobs";
-export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
-export type { ControlHolder, ControlOutcome } from "./repositories/control";
+export type { JobToRequeue, AssembleDecision } from "./jobs";
+export {
+  claimControl,
+  releaseControl,
+  takeOverThread,
+  handBackThread,
+  CALL_CONTROL_S,
+  claimReplyTurn,
+  holdsReplyTurn,
+  withdrawQueued,
+  withdrawAiDrafts,
+  memberWithdrawDrafts,
+  memberWithdrawMessage,
+  callBackMessage,
+  openEscalation,
+} from "./repositories/control";
+export type {
+  ControlHolder,
+  ControlOutcome,
+  TakenOver,
+  HandedBack,
+  WithdrawReason,
+  CalledBack,
+} from "./repositories/control";
 export {
   templatesFor,
   templatesToSend,
@@ -305,18 +366,22 @@ export type {
 } from "./repositories/templates";
 export {
   getTenantConfig,
+  getTenantConfigAsMember,
   putTenantConfig,
   listPolicies,
   setPolicyMode,
   personReplyMode,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
+  workspaceNamed,
   membershipCountOf,
+  workspaceIdsOf,
   createWorkspaceFn,
   lineForwardingSet,
-  setPlaybookState,
   updatePlaybook,
   removePlaybook,
+  startPlaybook,
+  writePlaybookChange,
 } from "./repositories/control-plane";
 export type {
   TenantConfigRow,
@@ -325,6 +390,7 @@ export type {
   CreateWorkspaceArgs,
   LineForwardingArgs,
   PlaybookPatch,
+  PlaybookToStart,
 } from "./repositories/control-plane";
 export {
   PEOPLE_PAGE,
@@ -336,9 +402,11 @@ export {
   addPersonNote,
   peopleCursorOf,
   everyoneIn,
+  everyoneOnceIn,
   erasureDigests,
   scrubPersonNotes,
   mergePeople,
+  recordConsent,
   resolvePerson,
   PERSON_FORGOTTEN,
   openDoubtsOf,
@@ -363,10 +431,12 @@ export {
   deleteList,
 } from "./repositories/lists";
 export type { SavedListRow, ListRow, WriteError } from "./repositories/lists";
+export { activitySubjects } from "./events";
+export type { ActivitySubject, ActivitySubjects } from "./events";
 export { touchesSince, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
-export { yesesSince } from "./repositories/deals";
-export type { YesRow } from "./repositories/deals";
+export { yesesSince, recordDeal } from "./repositories/deals";
+export type { YesRow, DealMove } from "./repositories/deals";
 export {
   getOwnPartner,
   sessionHoldsPartnerSeat,
@@ -448,6 +518,7 @@ export {
   contactIdByEmail,
   syncFeedAppointments,
   appointmentStates,
+  reachOutBookedFrom,
 } from "./repositories/calendar/appointments";
 export type {
   AppointmentRow,

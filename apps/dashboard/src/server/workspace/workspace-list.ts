@@ -23,11 +23,13 @@ import {
   type SellsBy,
 } from "@chanlytics/contracts";
 import { acceptOpenInvites, openInvitesFor } from "@/server/workspace/team";
-import { getOpenHandovers, getOwnPartner } from "@chanlytics/db";
+import { emitEvent, getOpenHandovers, getOwnPartner } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
 import { env } from "@/server/env";
 import { log } from "@/server/log";
+import { settled } from "@/server/lazy";
 import type { Member } from "@/server/route";
 
 /** A workspace as the list says it: its zone, and how its customers buy (0008), null when it was never asked. */
@@ -67,13 +69,6 @@ async function tenantsOf(
 /** The caller's role in each of their workspaces: their own memberships, by RLS. */
 const rolesOf = (supabase: RouteContext["supabase"], userId: string) =>
   supabase.from("memberships").select("tenant_id, role").eq("user_id", userId);
-
-/** A promise that answers how it settled, so one read among several that may refuse is weighed after the rest. */
-const settled = <T>(p: Promise<T>): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> =>
-  p.then(
-    (value) => ({ ok: true as const, value }),
-    (error: unknown) => ({ ok: false as const, error }),
-  );
 
 export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   const { supabase, userId, email } = ctx;
@@ -244,8 +239,12 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
     .eq("id", member.tenantId)
     .select(patch.sells_by ? WORKSPACE_COLUMNS : OLDER_COLUMNS)) as unknown as {
     data: Partial<WorkspaceRow>[] | null;
-    error: { message: string } | null;
+    error: { message: string; code?: string } | null;
   };
+  // A zone this server's Intl knows and the database does not (00365 refuses one written, as creation always did) is
+  // the owner's to choose again, in the words a zone nobody knows is refused in, not a failure of ours.
+  if (error?.code === "22023" && patch.timezone)
+    throw new AppError("validation", `${patch.timezone} is not a timezone this system knows.`);
   if (error) throw new Error(error.message);
   // A forbidden UPDATE comes back successful with zero rows in this stack, so
   // the row count IS the permission check. Without this an owner whose policy
@@ -253,5 +252,13 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
   // on the next read.
   const what = zone ? "That workspace's timezone" : "How that workspace's customers buy";
   if (!data?.length) throw new AppError("forbidden", `${what} could not be changed.`, 403);
+  // On the ledger as every other setting is (settings-write.ts): which of the two moved and who by, never the value.
+  // They live on the tenant's row, not in its config, so a save of them left no trace. As the service role: a session
+  // may not insert into events.
+  await emitEvent(serviceDb(), member.tenantId, "settings.changed", "workspace", member.tenantId, {
+    fields: Object.keys(patch).sort(),
+    by: ctx.userId,
+    version: null,
+  });
   return { workspace: data[0] };
 }

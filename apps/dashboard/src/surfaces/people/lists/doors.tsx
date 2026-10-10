@@ -49,7 +49,7 @@ export const plArchivedWords = (name: string, r: { paused: string[]; readBy: str
     ) : r.readBy.length ? (
       <>{r.readBy.join(", ")} reads it</>
     ) : (
-      <>a playbook runs on it</>
+      <>a campaign runs on it</>
     )}
     . It comes back from Archived under your lists.
   </>

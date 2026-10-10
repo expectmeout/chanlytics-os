@@ -19,11 +19,10 @@
 import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
 import { appointmentKeyOf } from "./appointment-key";
-import { BOOKED_NEEDS_A_LINK } from "../setup/calendar-source";
 import { normalizeEmail } from "../shared/email-address";
+import { alertAddressesOf } from "../config/workspace-config/alerts";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { dateFormat, DAY_MS } from "../shared/time";
-import { plural } from "../shared/words";
 
 export interface EventContacts {
   /** E.164. */
@@ -150,11 +149,7 @@ export function ownAddressesOf(
     | null
     | undefined,
 ): OwnAddresses {
-  const out = new Set<string>();
-  for (const e of cfg?.notifications?.escalation_emails ?? []) {
-    const a = String(e).trim().toLowerCase();
-    if (a) out.add(a);
-  }
+  const out = alertAddressesOf(cfg?.notifications);
   const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
   if (owner) out.add(owner);
   return out;
@@ -664,7 +659,6 @@ export function peopleFromItems(
 
 /* ------------------------------------------------- asked, then booked */
 
-/** Of the people who wrote or called in the period, how many have an appointment on the calendar. */
 /**
  * What a refusal from `create_person` means for the rest of the batch.
  *
@@ -688,33 +682,6 @@ export function afterPersonRefused(code: string | null | undefined): "skip" | "s
   return code === "22023" || code === "PE001" ? "skip" : "stop";
 }
 
-export interface BookingReportDto {
-  calendar: "ok" | "unavailable" | "none";
-  days: number;
-  asked: number;
-  booked: number;
-}
-
-export interface BookingReportVM {
-  /** False without a readable calendar: nothing to count against. */
-  present: boolean;
-  /** Where the count came from: a calendar that was read, one that could not be read, or none connected. */
-  calendar: "ok" | "unavailable" | "none";
-  /** "12 of 40 booked" */
-  headline: string;
-  sub: string;
-  /** What the share is of, for a page that draws the share itself (the sub is the share and these words); empty when nothing was counted. */
-  words: string;
-  pct: number | null;
-  asked: number;
-  booked: number;
-  /** Of the ones who asked, how many still have nothing on the calendar. */
-  unbooked: number;
-  /** The share's other side, as a sentence of its own: "10 of the 26 who asked have nothing on the calendar yet",
-   *  or the good news when everybody booked. Empty when there is nothing to count. */
-  rest: string;
-}
-
 /**
  * Whether someone who reached out has an appointment that answers it: one
  * upcoming, or one held since they got in touch. The conversion Chanlytics
@@ -733,66 +700,4 @@ export function bookedAfterAsk(visits: Pick<Visits, "next" | "last"> | null | un
 export function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean {
   if (nextStartMs !== null) return true;
   return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
-}
-
-export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {
-  if (!dto || dto.calendar === "none")
-    return {
-      present: false,
-      calendar: "none",
-      headline: "—",
-      sub: BOOKED_NEEDS_A_LINK,
-      words: "",
-      pct: null,
-      asked: 0,
-      booked: 0,
-      unbooked: 0,
-      rest: "",
-    };
-  if (dto.calendar === "unavailable")
-    return {
-      present: false,
-      calendar: "unavailable",
-      headline: "—",
-      sub: "Your calendar could not be read.",
-      words: "",
-      pct: null,
-      asked: dto.asked,
-      booked: 0,
-      unbooked: 0,
-      rest: "",
-    };
-  if (dto.asked === 0)
-    return {
-      present: true,
-      calendar: "ok",
-      headline: "Nobody asked",
-      sub: `nobody wrote or called in the last ${plural(dto.days, "day")}`,
-      words: "",
-      pct: null,
-      asked: 0,
-      booked: 0,
-      unbooked: 0,
-      rest: "",
-    };
-  const pct = Math.round((dto.booked / dto.asked) * 100);
-  const words = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
-  const unbooked = dto.asked - dto.booked;
-  return {
-    present: true,
-    calendar: "ok",
-    headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct}% ${words}`,
-    words,
-    pct,
-    asked: dto.asked,
-    booked: dto.booked,
-    unbooked,
-    // The other side of the same share, said once: who is still waiting to be
-    // given a time. It is the half an owner can do something about.
-    rest:
-      unbooked === 0
-        ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.`
-        : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`,
-  };
 }

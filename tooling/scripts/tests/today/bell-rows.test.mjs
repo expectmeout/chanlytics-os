@@ -15,8 +15,9 @@ import {
   nameKnownCustomers,
   serverNotificationRows,
   JOB_KINDS,
+  REACH_OUT_DAY_ROUTE,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, textOf, classes, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_legacy-react.mjs";
 
 const NOW = Date.parse("2026-09-25T15:00:00Z");
 const kept = (over) => ({
@@ -292,6 +293,33 @@ const popover = (items, acts = {}) =>
     alerts: null,
   });
 
+test("Escape closes the bell while it is drawn: once, not a key something inside took, and not after it has gone", () => {
+  fresh();
+  const closed = [];
+  const draw = () =>
+    W.NotifPopover({
+      items: [],
+      onAction() {},
+      onReadAll() {},
+      onDismiss() {},
+      onClose: () => closed.push(1),
+      alerts: null,
+    });
+  draw();
+  const key = (k, over = {}) => ({ type: "keydown", key: k, defaultPrevented: false, ...over });
+  W.dispatchEvent(key("Escape"));
+  assert.equal(closed.length, 1, "Escape closes it");
+  W.dispatchEvent(key("Enter"));
+  W.dispatchEvent(key("Escape", { defaultPrevented: true }));
+  assert.equal(closed.length, 1, "no other key does, and a key a menu or a field inside took is not the bell's");
+  again(draw);
+  W.dispatchEvent(key("Escape"));
+  assert.equal(closed.length, 2, "drawn again, still one listener, never two");
+  unmount();
+  W.dispatchEvent(key("Escape"));
+  assert.equal(closed.length, 2, "gone with the popover: the window's Escape is nobody's while the bell is shut");
+});
+
 test("a note is one press that does what it says, named by where it goes; nothing on it is a row of buttons", () => {
   fresh();
   const acts = {};
@@ -543,4 +571,37 @@ test("the bell groups by what its notes are about, as the away card does: sixtee
     note(2, { type: "conversation", id: "c2" }),
   ]);
   assert.equal(spread.lines[0].title, "2 conversations need you");
+});
+
+/* ------------------------------ the day's reach-outs ------------------------------ */
+
+test("the day's reach-out numbers open Campaigns at its Reach-outs, whatever route the row was kept with", () => {
+  const day = (id, route, subject) =>
+    kept({
+      id,
+      kind: "reach_out_day",
+      title: "Today's reach-outs",
+      body: "1 bounced.",
+      route,
+      subject_type: "reach_out_day",
+      subject_id: subject,
+    });
+  const rows = serverNotificationRows({
+    seen_at: null,
+    notifications: [
+      day("n1", "outbound", "2026-09-28"),
+      day("n2", REACH_OUT_DAY_ROUTE, "2026-09-29"),
+      day("n3", null, "2026-09-30"),
+    ],
+  });
+  assert.equal(REACH_OUT_DAY_ROUTE, "campaigns/in:reach_out");
+  assert.deepEqual(
+    rows.map((r) => r.to),
+    ["campaigns/in:reach_out", "campaigns/in:reach_out", "campaigns/in:reach_out"],
+    "a row kept before this lands there too",
+  );
+  assert.deepEqual(
+    rows.map((r) => r.action),
+    ["Open Campaigns", "Open Campaigns", "Open Campaigns"],
+  );
 });

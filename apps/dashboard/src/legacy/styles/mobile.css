@@ -247,7 +247,6 @@
      Android reloaded it). Every other page's lists give way under a thumb on purpose (below, "every list pulls"). */
   .set-pane { padding: 16px 16px 48px; gap: 16px; overscroll-behavior-y: none; }
   html.legacy-on:has(.settings), html.legacy-on:has(.settings) body { overscroll-behavior-y: none; }
-  .settings .set-card { padding: 14px 15px 6px; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
      this bounded flex column and collapsed to its head with an inner scroll —
      every Settings card, on every phone. Cards keep their height; the pane scrolls. */
@@ -260,13 +259,12 @@
   .set-row-info { flex: 1 1 200px; }
   /* A phone reads the row and its control, not the sentence under the label (the record kit's rule for a filled
      row, record.css): a row with a control keeps its hint for a desktop, and its note stays behind the mark. A row
-     with no control ("Nobody yet") is its sentence, and keeps it. A card's line under its title goes the same way,
-     and Team's legend of what each role may do: the role's word is on every row. */
+     with no control ("Nobody yet") is its sentence, and keeps it. A card's line under its title goes the same way.
+     Team's Roles row stays: it holds Compare and Preview as now, where it held a legend of every role. */
   .set-row:has(.set-row-control > *) .set-row-hint { display: none; }
   /* ...unless the line IS the card's news: the back office's health, who is waiting and the workspaces counted
      (`set-says`). Hidden, "The platform" and "Waiting to get in" were titles over nothing on a phone. */
-  .settings .fl-card-sub:not(.set-says) { display: none; }
-  .set-roles-legend { display: none; }
+  .settings .set-says { display: block; }
   /* A finger's worth of every control. The settings input, the icon button and
      the options in a segmented dial each set a size for a mouse, and each was
      more specific than the 44px floor in legacy-bridge/legacy.css. */
@@ -428,8 +426,8 @@
      business editor: nothing scrolls sideways any more -- the policy matrix is a
      list and the invoices are a three-column grid -- so this now guards the back
      office alone.
-     .tq (Setup) is not .fl-card and never had it. */
-  .fl-card.set-card:has(table) { overflow-x: auto; }
+     .tq (Setup) is not a settings card and never had it. */
+  .set-card:has(table) { overflow-x: auto; }
   /* 104px a column now the headings are words, not filing labels. Only the back
      office reaches this rule: under 640px the matrix is a list, not a table. */
   .pol-table { min-width: 640px; }
@@ -543,7 +541,6 @@
      shows only for a search or a pick. Together they took 251px above the first thread. Each tap target keeps its
      44px: the box's is a thumb wide around it, without growing the row. */
   .inbox .ix-search-row { padding: 6px 14px; }
-  .inbox .ix-search-wrap { padding: 0 8px; }
   .inbox .ix-list-head { min-height: 40px; padding: 0 12px; }
   .inbox .ix-search-row .ix-checkall { width: 44px; min-height: 44px; margin: 0 -15px; }
   html.legacy-on .inbox .ix-checkall input { min-height: 0; }

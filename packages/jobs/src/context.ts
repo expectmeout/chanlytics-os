@@ -204,6 +204,11 @@ export interface ClaimedJob {
    * a failed job). Absent in a context that does not say, which reads as a first try.
    */
   attempts?: number;
+  /**
+   * Set by the handler the moment before it puts words on a wire (ledger markSpoke), and read back by the runner once
+   * the handler returns or throws: a job that spoke is never run again.
+   */
+  spoke_at?: string | null;
 }
 
 /**

@@ -11,7 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { recordOutbound } from "../packages/db.js";
+import { recordOutbound, withdrawQueued } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
 import type { BrainMeta } from "../packages/contracts.js";
 import type { LogEvent } from "../log.js";
@@ -81,12 +81,17 @@ export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: 
       // the draft first so it cannot be sent a second time and cannot render
       // as a pending one, and mark it canceled rather than deleting it — the
       // row is the only record that a hold was attempted and did not happen.
-      const { error } = await db
-        .from("messages")
-        .update({ status: "canceled", error: { reason: "scheduling_failed" } })
-        .eq("id", messageId)
-        .eq("status", "queued");
-      if (error) L.error("wa_queue_rollback_failed", { message_id: messageId, error: error.message });
+      // The one door (00387) takes it, and a job that did get written with it, while no run has claimed it.
+      await withdrawQueued(db, {
+        tenantId: a.tenantId,
+        messageIds: [messageId],
+        reason: { reason: "scheduling_failed" },
+      }).catch((e: unknown) =>
+        L.error("wa_queue_rollback_failed", {
+          message_id: messageId,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
     }
     return null;
   }

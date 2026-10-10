@@ -6,8 +6,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixedDaysOf } from "@chanlytics/contracts";
-import { reportsSample, reviewsSample } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
+import { fixedDaysOf, reportRangeKey } from "@chanlytics/contracts";
+import { toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
+import {
+  receptionistSample,
+  reportsSample,
+  reviewsSample,
+} from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
 
 const TODAY = "2026-09-18";
 
@@ -112,15 +117,120 @@ test("the sample's channels (0030) share each period's figures, every part insid
   }
 });
 
+const total = (xs) => xs.reduce((a, b) => a + b, 0);
+const valuesOf = (record) => Object.values(record);
+
+test("the Receptionist sample is the route's answer for the same business and days, folded by the real fold with every part available, and every part agrees with the report's own", () => {
+  for (const id of ["7d", "30d", "90d", "month"]) {
+    const report = reportsSample(id, TODAY);
+    const own = receptionistSample(id, TODAY);
+    const { series } = own.dto;
+    const v = toReceptionistReportVM(own.dto, { nowMs: own.readAt });
+    const at = `${id}`;
+    assert.deepEqual([own.key, own.dto.days, own.dto.today], [report.key, report.days, TODAY], `${at}: its days`);
+    assert.equal(own.readAt, Date.parse(`${TODAY}T16:00:00Z`), `${at}: read on the sample's own clock`);
+    assert.equal(v.available, true, `${at}: every part is available`);
+    const t = report.vm.answered.totals;
+    const h = series.hold.now;
+    // The hold: every outcome adds to the held replies, the replies sent are the ones the report counts, and the sample's business set a hold.
+    assert.equal(h.sent + h.canceled + h.steered + h.overtaken + h.person_first + h.waiting + h.other, h.total, at);
+    assert.equal(h.sent, t.ai, `${at}: a reply the receptionist sent went through the hold`);
+    assert.ok(h.low_confidence <= h.total, at);
+    assert.equal(total(v.hold.rows.map((r) => r.value)), h.total, `${at}: the bars are the held replies`);
+    assert.equal(
+      report.vm.replyTime.hold?.label,
+      "1-minute",
+      `${at}: the report's replies waited the hold the card names`,
+    );
+    assert.equal(report.vm.replyTime.dots.length, t.ai, `${at}: a dot for every reply`);
+    // The topics are of the text and WhatsApp messages the report counts by channel.
+    const texts = report.vm.channels
+      .filter((c) => ["whatsapp", "sms"].includes(c.key))
+      .reduce((s, c) => s + c.value, 0);
+    assert.equal(series.topics.of, texts, at);
+    assert.ok(series.topics.stamped <= series.topics.of, at);
+    assert.equal(
+      total(valuesOf(series.topics.by_intent)),
+      series.topics.stamped,
+      `${at}: a topic for each stamped message`,
+    );
+    // Replies in a language, how calls ended and what the door refused each add up to their whole.
+    assert.equal(total(valuesOf(series.languages.by_language)), series.languages.stamped, at);
+    assert.ok(series.languages.stamped <= series.languages.of, at);
+    assert.equal(total(valuesOf(series.call_endings.by_reason)), series.call_endings.total, at);
+    assert.ok(series.call_endings.total <= report.vm.calls.total, `${at}: calls someone spoke on are calls`);
+    assert.equal(total(valuesOf(series.blocked.by_reason)), series.blocked.total, at);
+    // What came while closed is a part of the messages of the window, and the receptionist answered no more than it answered.
+    const came = total(series.after_hours.map((r) => r.n));
+    assert.equal(came, t.in, `${at}: every message of the window by its quarter hour`);
+    assert.ok(
+      series.after_hours.every((r) => r.a <= r.n && r.n > 0),
+      at,
+    );
+    assert.ok(total(series.after_hours.map((r) => r.a)) <= t.ai, at);
+    assert.ok(
+      series.after_hours.every((r) => r.q >= 0 && r.q < 96),
+      at,
+    );
+    assert.ok(v.closed && v.closed.unset === false, `${at}: the sample keeps hours`);
+    // The handovers are the report's, and the people they reached are no more than were handed over.
+    const handed = total(report.vm.reasons.map((r) => r.value));
+    assert.equal(series.handover.now.n, handed, at);
+    for (const side of [series.handover.now, series.handover.before]) {
+      assert.ok(side.replied.n <= side.n && side.settled.n <= side.n, at);
+      assert.equal(side.replied.median_s === null, side.replied.n === 0, at);
+      assert.equal(side.settled.median_s === null, side.settled.n === 0, at);
+    }
+    for (const side of [series.missed.now, series.missed.before]) assert.ok(side.touched <= side.n, at);
+    // The people who wait on the owner now: the call-backs are counted inside them, and the oldest has waited since before it was read.
+    assert.ok(series.stuck.callbacks <= series.stuck.waiting, at);
+    assert.ok(Date.parse(series.stuck.oldest_at) < own.readAt, at);
+    assert.equal(v.stuck[0].value, String(series.stuck.waiting), at);
+    // The link: a count of the people sent it, and a count of who booked where the calendar could say.
+    assert.deepEqual([series.links.calendar, series.links.booked <= series.links.sent], ["ok", true], at);
+    assert.equal(JSON.stringify(v).includes("NaN"), false, `${at}: no NaN`);
+    assert.equal(JSON.stringify(v).includes("Infinity"), false, at);
+  }
+});
+
+test("the Receptionist sample is kept per range and day, names a range by its one name, and says days that ended before today as the report does", () => {
+  const a = receptionistSample("30d", TODAY);
+  assert.equal(
+    a,
+    receptionistSample("30d", TODAY),
+    "the same range on the same day is the same object, which the lens folds once",
+  );
+  assert.notEqual(a, receptionistSample("30d", "2026-09-19"), "another day, another read");
+  assert.deepEqual(Object.keys(a).sort(), ["dto", "key", "readAt"], "what the surface holds");
+  assert.equal(receptionistSample("14d", TODAY).key, "30d", "a period Reports does not offer is the default one");
+  assert.equal(receptionistSample("month", TODAY).dto.days, 18);
+  // Days a member picked are those days of the same business, ending on their last.
+  const picked = { from: "2026-09-01", to: "2026-09-10" };
+  const own = receptionistSample(picked, TODAY);
+  assert.equal(own.key, reportRangeKey(picked), "named by its one name");
+  assert.deepEqual([own.dto.days, own.dto.end, own.dto.today], [10, "2026-09-10", TODAY]);
+  assert.deepEqual(
+    [own.dto.series.links.calendar, own.dto.series.links.booked],
+    ["ended", null],
+    "who booked since is not counted for days that ended before today",
+  );
+  assert.equal(own.dto.series.after_hours.at(-1).d <= "2026-09-10", true, "nothing counted after the last day");
+  const v = toReceptionistReportVM(own.dto, { nowMs: own.readAt });
+  assert.equal(v.available, true);
+  assert.equal(v.link.booked, null);
+  // A window that ends today names no day to the database.
+  assert.equal("end" in receptionistSample("7d", TODAY).dto, false);
+});
+
 test("the Reviews sample is the public listing through the Reviews fold: four figures, the ratings it gained, the five reviews Google shows, and what a profile would add; kept per period and day", () => {
   const a = reviewsSample("30d", TODAY);
   assert.equal(a, reviewsSample("30d", TODAY), "kept rather than rebuilt on every draw");
-  assert.deepEqual(Object.keys(a).sort(), ["period", "vm"], "what the surface holds");
-  assert.equal(reviewsSample("14d", TODAY).period, "30d", "a period Reports does not offer is the default one");
+  assert.deepEqual(Object.keys(a).sort(), ["key", "vm"], "what the surface holds");
+  assert.equal(reviewsSample("14d", TODAY).key, "30d", "a period Reports does not offer is the default one");
   for (const id of ["7d", "30d", "90d", "month"]) {
     const s = reviewsSample(id, TODAY);
     const days = fixedDaysOf(id) ?? 18;
-    assert.equal(s.period, id);
+    assert.equal(s.key, id);
     assert.deepEqual(
       [s.vm.state, s.vm.source, s.vm.days, s.vm.empty],
       ["linked", "places", days, false],

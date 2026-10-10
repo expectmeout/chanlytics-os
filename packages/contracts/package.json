@@ -17,10 +17,25 @@
       "import": "./dist/write-rules.js",
       "default": "./dist/write-rules.js"
     },
+    "./report-window": {
+      "types": "./dist/report-window.d.ts",
+      "import": "./dist/report-window.js",
+      "default": "./dist/report-window.js"
+    },
+    "./report-lens": {
+      "types": "./dist/report-lens.d.ts",
+      "import": "./dist/report-lens.js",
+      "default": "./dist/report-lens.js"
+    },
+    "./alert-pane": {
+      "types": "./dist/alert-pane.d.ts",
+      "import": "./dist/alert-pane.js",
+      "default": "./dist/alert-pane.js"
+    },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

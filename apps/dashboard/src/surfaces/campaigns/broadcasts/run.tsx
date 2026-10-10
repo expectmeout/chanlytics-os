@@ -11,6 +11,7 @@
  */
 import { useEffect, useReducer, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -132,8 +133,8 @@ function bcRunHead(p: {
           </>
         )}
         {playbookId ? (
-          <LinkButton className="bc-run-link" onClick={() => navigate(`outbound/${playbookId}`)}>
-            {b.audience.label} playbook
+          <LinkButton className="bc-run-link" onClick={() => navigate(`campaigns/moment:${playbookId}`)}>
+            {b.audience.label} campaign
           </LinkButton>
         ) : (
           <span>{b.audience.label}</span>
@@ -504,7 +505,7 @@ export function BcRunVerbs({
           data-testid="bc-approve"
           {...(!canSend ? gate("approve", "approve a run") : late ? gatedProps(late) : {})}
         >
-          {approving ? "Approving…" : "Approve the run"}
+          {approving ? "Approving…" : LIFECYCLE_WORDS.ledger.approve(row.recipient_count)}
         </Button>
       )}
       {/* Named for what it does: Stop, Skip or Cancel -- never "Hold", which

@@ -2753,6 +2753,7 @@ export type Database = {
           last_error: string | null
           lease_until: string | null
           payload: Json
+          spoke_at: string | null
           state: string
           tenant_id: string
           updated_at: string
@@ -2769,6 +2770,7 @@ export type Database = {
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
+          spoke_at?: string | null
           state?: string
           tenant_id: string
           updated_at?: string
@@ -2785,6 +2787,7 @@ export type Database = {
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
+          spoke_at?: string | null
           state?: string
           tenant_id?: string
           updated_at?: string
@@ -3904,6 +3907,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          push_off: string[] | null
           role: string
           tenant_id: string
           user_id: string
@@ -3912,6 +3916,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          push_off?: string[] | null
           role?: string
           tenant_id: string
           user_id: string
@@ -3920,6 +3925,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          push_off?: string[] | null
           role?: string
           tenant_id?: string
           user_id?: string
@@ -3951,6 +3957,7 @@ export type Database = {
           media: Json | null
           meta: Json
           sender: string
+          sending_at: string | null
           sent_by: string | null
           status: string
           status_updated_at: string | null
@@ -3974,6 +3981,7 @@ export type Database = {
           media?: Json | null
           meta?: Json
           sender: string
+          sending_at?: string | null
           sent_by?: string | null
           status?: string
           status_updated_at?: string | null
@@ -3997,6 +4005,7 @@ export type Database = {
           media?: Json | null
           meta?: Json
           sender?: string
+          sending_at?: string | null
           sent_by?: string | null
           status?: string
           status_updated_at?: string | null
@@ -6118,18 +6127,53 @@ export type Database = {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
       }
+      approve_broadcast: {
+        Args: {
+          p_broadcast_id: string
+          p_decision: Json
+          p_job: Json
+          p_send_at: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       ask_for_tick: { Args: never; Returns: boolean }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
-      assemble_broadcast: {
-        Args: {
-          p_recipients: Json
-          p_run: Json
-          p_send_at?: string
-          p_tenant: string
-        }
-        Returns: string
-      }
+      assemble_broadcast:
+        | {
+            Args: {
+              p_actor?: string
+              p_decision: Json
+              p_recipients: Json
+              p_run: Json
+              p_send_at?: string
+              p_tenant: string
+              p_undo_of?: string
+              p_via?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_recipients: Json
+              p_run: Json
+              p_send_at?: string
+              p_tenant: string
+            }
+            Returns: string
+          }
       automated_send: { Args: { p_meta: Json }; Returns: boolean }
+      billing_apply: {
+        Args: {
+          p_expect?: Json
+          p_row: Json
+          p_tenant_id: string
+          p_tenant_status?: string
+        }
+        Returns: boolean
+      }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
@@ -6138,6 +6182,7 @@ export type Database = {
         Args: { p_amount_cents: number; p_currency: string; p_id: string }
         Returns: boolean
       }
+      billing_may_spend: { Args: { p_tenant_id: string }; Returns: boolean }
       calendars_due: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
@@ -6162,8 +6207,20 @@ export type Database = {
         Args: { p_at?: string; p_channel: string; p_tenant_id: string }
         Returns: number
       }
+      campaign_reply_window: { Args: never; Returns: string }
       campaign_series: {
-        Args: { p_days?: number; p_tenant_id: string }
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      change_playbook: {
+        Args: {
+          p_decision?: Json
+          p_playbook_id: string
+          p_set: Json
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
         Returns: Json
       }
       channel_keep_quality: {
@@ -6199,6 +6256,7 @@ export type Database = {
           last_error: string | null
           lease_until: string | null
           payload: Json
+          spoke_at: string | null
           state: string
           tenant_id: string
           updated_at: string
@@ -6246,9 +6304,28 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
+      conversation_hand_back: {
+        Args: {
+          p_conversation_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       conversation_open: {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: string
+      }
+      conversation_take_over: {
+        Args: {
+          p_conversation_id: string
+          p_paused_until: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
       }
       create_mailbox: {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
@@ -6398,6 +6475,15 @@ export type Database = {
         Returns: Json
       }
       erasure_rekey_hashes: { Args: { p_list: Json }; Returns: Json }
+      escalation_open: {
+        Args: {
+          p_conversation_id: string
+          p_details: string
+          p_reason: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       event_deliveries_redrive: {
         Args: { p_subscriber: string }
         Returns: number
@@ -6590,6 +6676,10 @@ export type Database = {
         Returns: string
       }
       lead_erase: { Args: { p_lead_id: string }; Returns: Json }
+      lead_estimate_ceiling: {
+        Args: { p_count: number; p_kind: string; p_terms?: number }
+        Returns: number
+      }
       lead_export_mark: {
         Args: { p_ids: string[]; p_tenant_id: string }
         Returns: number
@@ -6777,6 +6867,7 @@ export type Database = {
         Returns: undefined
       }
       lead_site_key: { Args: { p_host: string }; Returns: string }
+      lead_spend_refusal: { Args: { p_tenant_id: string }; Returns: Json }
       lead_suppression_hash: {
         Args: { p_tenant_id: string; p_value: string }
         Returns: string
@@ -6878,15 +6969,49 @@ export type Database = {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      may_read_workspace: { Args: { p_tenant: string }; Returns: boolean }
+      member_decision: {
+        Args: {
+          p_payload?: Json
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_verb: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       member_has_address: {
         Args: { p_address: string; p_tenant_id: string }
         Returns: boolean
+      }
+      member_push_off_set: {
+        Args: { p_kinds: string[]; p_tenant_id: string }
+        Returns: string[]
       }
       member_view_set: {
         Args: { p_page: string; p_tenant_id: string; p_view: Json }
         Returns: Json
       }
+      member_withdraw_drafts: {
+        Args: { p_conversation_id: string; p_tenant_id: string }
+        Returns: number
+      }
+      member_withdraw_message: {
+        Args: { p_message_id: string; p_reason?: Json; p_tenant_id: string }
+        Returns: boolean
+      }
       merge_people: { Args: { p_keep: string; p_merge: string }; Returns: Json }
+      message_call_back: {
+        Args: {
+          p_message_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       message_carries_link: {
         Args: { p_body: string; p_link: string }
         Returns: boolean
@@ -7557,6 +7682,10 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      playbook_totals: {
+        Args: { p_history?: number; p_tenant_id: string }
+        Returns: Json
+      }
       playbooks_due: {
         Args: {
           p_at: string
@@ -7610,7 +7739,11 @@ export type Database = {
         Returns: string
       }
       put_google_credentials: {
-        Args: { p_secret: Json; p_tenant_id: string }
+        Args: {
+          p_if_refresh_token?: string
+          p_secret: Json
+          p_tenant_id: string
+        }
         Returns: string
       }
       put_line_credentials: {
@@ -7654,8 +7787,16 @@ export type Database = {
         Args: { p_seen: Json; p_tenant_id: string }
         Returns: number
       }
+      reach_out_booked_from: {
+        Args: { p_appointment_id: string; p_tenant_id: string }
+        Returns: number
+      }
       reach_out_chain_report: {
         Args: { p_root_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_chain_totals: {
+        Args: { p_days: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       reach_out_check_take: {
@@ -7927,14 +8068,26 @@ export type Database = {
         Returns: string
       }
       reach_out_report: {
-        Args: { p_days: number; p_tenant_id: string }
+        Args: { p_days: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
-      reach_out_save: {
-        Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
-        Returns: Json
-      }
+      reach_out_save:
+        | {
+            Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_chain: Json
+              p_decision: Json
+              p_tenant_id: string
+              p_undo_of?: string
+              p_user_id: string
+              p_via?: string
+            }
+            Returns: Json
+          }
       reach_out_search_lines: {
         Args: { p_search_id: string; p_tenant_id: string }
         Returns: Json
@@ -8014,6 +8167,45 @@ export type Database = {
           why_it_fits: string
         }[]
       }
+      receptionist_series: {
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      record_consent: {
+        Args: {
+          p_batch?: number
+          p_consent: string
+          p_contact_id: string
+          p_message_id?: string
+          p_note?: string
+          p_purpose: string
+          p_source: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      record_deal: {
+        Args: {
+          p_contact_id: string
+          p_move?: Json
+          p_stage: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      record_provider_stop: {
+        Args: {
+          p_channel: string
+          p_contact_id: string
+          p_message_external_id?: string
+          p_purpose: string
+          p_source: string
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
       recording_opened: { Args: { p_call_id: string }; Returns: boolean }
       relay_events: { Args: { p_limit?: number }; Returns: number }
       release_conversation_control: {
@@ -8035,7 +8227,7 @@ export type Database = {
         Returns: Json
       }
       report_series: {
-        Args: { p_days?: number; p_tenant_id: string }
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       request_id_of_caller: { Args: never; Returns: string }
@@ -8060,7 +8252,11 @@ export type Database = {
       }
       resume_email_offers: { Args: { p_tenant_id: string }; Returns: boolean }
       reviews_ledger: {
-        Args: { p_days?: number; p_tenant_id: string }
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      run_counts: {
+        Args: { p_run_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
@@ -8210,6 +8406,16 @@ export type Database = {
           status: string
         }[]
       }
+      start_playbook: {
+        Args: {
+          p_decision?: Json
+          p_playbook: Json
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       stop_all_messages: {
         Args: {
           p_contact_id: string
@@ -8297,6 +8503,24 @@ export type Database = {
         }
         Returns: Json
       }
+      team_invite_renew: {
+        Args: {
+          p_actor: string
+          p_invitation_id: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_invite_renew_withdraw: {
+        Args: {
+          p_decision_id: string
+          p_invitation_id: string
+          p_tenant_id: string
+          p_was: string
+        }
+        Returns: undefined
+      }
       team_invite_withdraw: {
         Args: { p_invitation_id: string; p_tenant_id: string }
         Returns: undefined
@@ -8310,6 +8534,10 @@ export type Database = {
           p_user_id: string
           p_via?: string
         }
+        Returns: Json
+      }
+      team_leave: {
+        Args: { p_actor: string; p_tenant_id: string; p_via?: string }
         Returns: Json
       }
       team_owner_or_refuse: {
@@ -8341,6 +8569,27 @@ export type Database = {
         Args: { p_actor: string; p_tenant_id: string }
         Returns: undefined
       }
+      template_sends: { Args: { p_tenant_id: string }; Returns: Json }
+      tenant_config_read: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          config: Json
+          feed_hidden: boolean
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }[]
+      }
+      tenant_config_write: {
+        Args: { p_config: Json; p_tenant_id: string; p_version: number }
+        Returns: {
+          outcome: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }[]
+      }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_channel_quality_sweep: { Args: never; Returns: number }
@@ -8358,6 +8607,19 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
+      withdraw_ai_drafts: {
+        Args: {
+          p_conversation_id: string
+          p_keep_message_id?: string
+          p_reason: Json
+          p_tenant_id: string
+        }
+        Returns: string[]
+      }
+      withdraw_queued: {
+        Args: { p_message_ids: string[]; p_reason?: Json; p_tenant_id: string }
+        Returns: string[]
+      }
       workspace_days: {
         Args: { p_from: string; p_tenant_id: string; p_to: string }
         Returns: {

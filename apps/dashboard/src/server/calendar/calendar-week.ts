@@ -17,6 +17,7 @@ import {
   matchPerson,
   mondayOf,
   shiftKey,
+  windowFor,
   zoneMidnight,
   type BookingRules,
   type BusinessProfile,
@@ -44,13 +45,20 @@ import {
   type CalendarNoticesDto,
   type TenantConfig,
 } from "@chanlytics/contracts";
-import { appointmentNoticesOf, appointmentsBetween, heldNoticesOf, mailboxOfTenant } from "@chanlytics/db";
+import {
+  appointmentNoticesOf,
+  appointmentsBetween,
+  heldNoticesOf,
+  mailboxOfTenant,
+  type MailboxRow,
+} from "@chanlytics/db";
 import { hostedAddress } from "@chanlytics/channels";
 import type { RouteContext } from "@/server/with-route";
 import { emailDomain } from "../connections/email";
 import { tenantFacts } from "@/server/tenant";
 import { everyone } from "@/server/people/people";
 import { readSettings } from "./calendar-settings";
+import { storedConfigOf } from "@/server/workspace/config-row";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { addPeopleSeen } from "./people-seen";
 import { recordBusy } from "./record-busy";
@@ -76,11 +84,23 @@ const MAX_DAYS = 63;
  */
 export const MAX_ITEMS_PER_DAY = 100;
 
-function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
+/**
+ * The span a read covers. A day named is where it starts. With none, `around` says the board's own window (contracts
+ * windowFor: the weeks around the business's today, which the page used to work out from the zone before it could ask,
+ * so its first read waited for who is looking and could not be started from the document's head); else today's week.
+ */
+function spanFor(
+  from: string | null,
+  days: number,
+  tz: string,
+  now: Date,
+  around: "today" | null = null,
+): { from: string; days: number } {
   const todayKey = ((): string => {
     const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
     return f.format(now);
   })();
+  if (!isDayKey(from) && around === "today") return windowFor(todayKey);
   const start = isDayKey(from) ? from : mondayOf(todayKey);
   return { from: start, days: Math.min(MAX_DAYS, Math.max(1, Math.round(days) || 7)) };
 }
@@ -183,9 +203,10 @@ function unreadFeed(base: CalendarFeedDto, feed: ParsedRead): CalendarFeedDto {
 
 /**
  * The record's rows over the span and the notices' health line, read beside the feed: the bookings that arrived by
- * email (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md). One read after the other, so a turn's reads are in
- * one order (ask/readers.test.mjs pins them). A failed read is an empty board side and a logged line, never a board
- * that fails to draw the feed.
+ * email (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md). Asked for in one order (ask/readers.test.mjs pins
+ * it) and waited for together: none needs another's answer, and one after the other they were four round trips the
+ * board stood behind (9 Oct 2026). A failed read is an empty board side and a logged line, never a board that fails to
+ * draw the feed.
  */
 async function recordOverSpan(
   ctx: Pick<RouteContext, "supabase">,
@@ -202,33 +223,38 @@ async function recordOverSpan(
       tenant_id: tenantId,
       error: e instanceof Error ? e.message : String(e),
     });
-  const rows: AppointmentLike[] = await appointmentsBetween(ctx.supabase, tenantId, spanFrom, spanTo).catch((e) => {
-    failed(e);
-    return [];
-  });
-  return { rows, notices: await noticesHealth(ctx, tenantId, by, true) };
+  const [rows, notices] = await Promise.all([
+    appointmentsBetween(ctx.supabase, tenantId, spanFrom, spanTo).catch((e): AppointmentLike[] => {
+      failed(e);
+      return [];
+    }),
+    noticesHealth(ctx, tenantId, by, true),
+  ]);
+  return { rows, notices };
 }
 
 /**
  * The notices' health line alone: the tool, the address its emails go to, the latest that became a visit, how many are
  * held, and Gmail's pending confirmation. With `listed`, the held ones as the card lists them; without, their count
  * only, which is all Setup's and Connections' row says (the whole of what a feed-only read asks of the record).
+ * `mailboxRead`: how to ask for the workspace's mailbox, from a caller that reads it for more than this (Setup).
  */
 async function noticesHealth(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   by: { tool: string | null; name: string | null },
   listed: boolean,
+  mailboxRead: () => Promise<MailboxRow | null> = () => mailboxOfTenant(ctx.supabase, tenantId),
 ): Promise<Omit<CalendarNoticesDto, "count">> {
   const { tool } = by;
-  const latest = await appointmentNoticesOf(ctx.supabase, tenantId).catch(() => ({
-    tool: null,
-    last_at: null,
-    held: 0,
-  }));
+  // The latest and the held count beside the workspace's address, as the tool is to send to, with Gmail's pending
+  // confirmation of a forward here (00345): two reads that wait for nothing of each other's.
+  const [latest, mailbox] = await Promise.all([
+    appointmentNoticesOf(ctx.supabase, tenantId).catch(() => ({ tool: null, last_at: null, held: 0 })),
+    mailboxRead().catch(() => null),
+  ]);
+  // The held ones themselves only where the count says there are any.
   const held = listed && latest.held ? await heldNoticesOf(ctx.supabase, tenantId).catch(() => []) : [];
-  // The workspace's address, as the tool is to send to, and Gmail's pending confirmation of a forward here (00345).
-  const mailbox = await mailboxOfTenant(ctx.supabase, tenantId).catch(() => null);
   const domain = emailDomain();
   const local = suggestLocalPart(by.name);
   const notices: Omit<CalendarNoticesDto, "count"> = {
@@ -317,28 +343,27 @@ function weekBeforeReading(
  * owner's read would put the feed's people in People. The zone and the settings are read here unless a caller that
  * read them this turn hands them in (readers/calendar.ts), so a turn reads the tenant once. What the board shows
  * follows from this alone (weekFrom); a read that adds people does so between the two (calendarWeek, the calendar
- * route). Takes only the client it reads with, as calendarWeek does.
+ * route). Takes only the client it reads with, as calendarWeek does. `mailbox`: how a caller that reads the
+ * workspace's mailbox for more than the notices' line asks for it (Setup), so it is asked once.
  */
 export async function calendarSources(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  by: { from: string | null; days: number },
+  by: { from: string | null; days: number; around?: "today" | null },
   now: Date,
-  opts: { fresh?: boolean; timezone?: string; config?: unknown; feedOnly?: boolean } = {},
+  opts: {
+    fresh?: boolean;
+    timezone?: string;
+    config?: unknown;
+    feedOnly?: boolean;
+    mailbox?: () => Promise<MailboxRow | null>;
+  } = {},
 ): Promise<CalendarSources> {
   // The zone and the settings: handed in by a caller that read them this turn (readers/calendar.ts), else read here.
   const timezone = opts.timezone ?? (await tenantFacts(ctx.supabase, tenantId)).timezone;
-  const span = spanFor(by.from, by.days, timezone, now);
-  let raw = opts.config;
-  if (raw === undefined) {
-    const { data: row, error } = await ctx.supabase
-      .from("tenant_config")
-      .select("config")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    raw = row?.config ?? null;
-  }
+  const span = spanFor(by.from, by.days, timezone, now, by.around ?? null);
+  // The settings whole, the feed's address with them, for any member: the server reads the feed (config-row.ts).
+  const raw = opts.config === undefined ? await storedConfigOf(ctx.supabase, tenantId) : opts.config;
   const { cfg, lostCalendar } = readSettings(tenantId, raw);
   const url = cfg?.calendar?.ical_url ?? null;
   const profile = cfg?.brain?.profile ?? null;
@@ -353,7 +378,7 @@ export async function calendarSources(
   const { rows, notices } = !opts.feedOnly
     ? await recordOverSpan(ctx, tenantId, timezone, span.from, to, named)
     : named.tool
-      ? { rows: NO_RECORD.rows, notices: await noticesHealth(ctx, tenantId, named, false) }
+      ? { rows: NO_RECORD.rows, notices: await noticesHealth(ctx, tenantId, named, false, opts.mailbox) }
       : NO_RECORD;
   base.feed.notices = { ...notices, count: rows.length };
 
@@ -368,7 +393,10 @@ export async function calendarSources(
     base,
     rows,
   };
-  const sources = await withFeedAndPeople(ctx, tenantId, read, url, profile, now, !!opts.fresh);
+  const sources = await withFeedAndPeople(ctx, tenantId, read, url, profile, now, {
+    fresh: !!opts.fresh,
+    feedOnly: !!opts.feedOnly,
+  });
   // Beside a feed that reads, the record's taken time, which the open times subtract; never for a feed-only read.
   const taken = sources.parsed && !opts.feedOnly ? await takenBesideTheFeed(ctx, tenantId, read, now) : [];
   return { ...sources, taken };
@@ -380,7 +408,11 @@ const NO_RECORD: { rows: AppointmentLike[]; notices: Omit<CalendarNoticesDto, "c
   notices: { tool: null, address: null, last_at: null, held: 0, held_list: [], forwarding: null },
 };
 
-/** What calendarSources reads once the settings are known: the feed, when there is an address, and everyone in People. */
+/**
+ * What calendarSources reads once the settings are known: the feed, when there is an address, and everyone in People.
+ * A read that asks only where the calendar stands (`feedOnly`) reads nobody: its row names no one, and every Setup
+ * and Connections of a workspace with a calendar link read all of People to say whether the link reads (9 Oct 2026).
+ */
 async function withFeedAndPeople(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
@@ -388,14 +420,15 @@ async function withFeedAndPeople(
   url: string | null,
   profile: BusinessProfile | null,
   now: Date,
-  fresh: boolean,
+  { fresh, feedOnly }: { fresh: boolean; feedOnly: boolean },
 ): Promise<Omit<CalendarSources, "taken">> {
   const { timezone, rows } = read;
   // Everyone in People is read beside the feed, not after it: the two are independent, and a board whose feed is in the
   // few minutes' cache waited on this read alone. Begun only once there is something to match against (a workspace
   // with no calendar and no rows reads nobody), and its failure is an empty list, as it was, so a read nobody awaits
   // settles quietly.
-  const everyoneRead = url || rows.length ? everyone(ctx, tenantId).catch(() => []) : Promise.resolve([]);
+  const everyoneRead =
+    !feedOnly && (url || rows.length) ? everyone(ctx, tenantId).catch(() => []) : Promise.resolve([]);
   const people = async () => (await everyoneRead).map(personLike);
   if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], people: await people() };
 
@@ -525,9 +558,23 @@ export async function calendarWeek(
   tenantId: string,
   by: { from: string | null; days: number },
   now = new Date(),
-  opts: { canAct?: boolean; fresh?: boolean; feedOnly?: boolean } = {},
+  opts: {
+    canAct?: boolean;
+    fresh?: boolean;
+    feedOnly?: boolean;
+    /** The zone, the raw settings and the mailbox, from a caller that holds or reads them itself (calendarSources). */
+    timezone?: string;
+    config?: unknown;
+    mailbox?: () => Promise<MailboxRow | null>;
+  } = {},
 ): Promise<CalendarWeekDto> {
-  const s = await calendarSources(ctx, tenantId, by, now, { fresh: !!opts.fresh, feedOnly: !!opts.feedOnly });
+  const s = await calendarSources(ctx, tenantId, by, now, {
+    fresh: !!opts.fresh,
+    feedOnly: !!opts.feedOnly,
+    timezone: opts.timezone,
+    config: opts.config,
+    mailbox: opts.mailbox,
+  });
   // A copy: the read's own list is never changed.
   const people = [...s.people];
   // The people this feed names are put in People here, so the board an

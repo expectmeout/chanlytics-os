@@ -6,7 +6,8 @@
  */
 import { useState } from "react";
 import type { SetupDto } from "@chanlytics/contracts";
-import { FieldError } from "../../kit/field-error/field-error";
+import { Button } from "../../kit/button/button";
+import { RecordField } from "../../kit/record/field";
 import { gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { mailbox as MAILBOX } from "./mailbox";
 
@@ -58,60 +59,46 @@ export const EmailSetupForm = ({ email, businessName, flash, onClose }: EmailSet
     <div className="set-row set-row-stack biz" data-testid="email-setup">
       <div className="biz-fields">
         {!mailbox && (
-          <label className="biz-field" data-testid="email-local">
-            <span className="biz-label">The address customers write to</span>
-            <span className="biz-affix">
-              <input
-                className={`biz-input${problems.local ? " biz-bad" : ""}`}
-                value={local}
-                placeholder="yourbusiness"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                disabled={busy}
-                aria-invalid={problems.local ? true : undefined}
-                aria-describedby={problems.local ? "email-local-problem" : "email-local-hint"}
-                onChange={(e) => setLocal(e.target.value)}
-              />
-              <span className="biz-affix-text">@{email.domain}</span>
-            </span>
-            {problems.local ? (
-              <FieldError id="email-local-problem" message={problems.local} testid="email-local-problem" />
-            ) : (
-              <span className="biz-hint" id="email-local-hint">
-                It cannot be changed later: it goes on business cards and into customers&apos; address books.
-              </span>
-            )}
-          </label>
-        )}
-        <label className="biz-field" data-testid="email-name">
-          <span className="biz-label">The name customers see beside it</span>
-          <input
-            className={`biz-input${problems.name ? " biz-bad" : ""}`}
-            value={name}
-            disabled={busy}
-            aria-invalid={problems.name ? true : undefined}
-            aria-describedby={problems.name ? "email-name-problem" : undefined}
-            onChange={(e) => setName(e.target.value)}
+          <RecordField
+            id="email-local"
+            testid="email-local"
+            label="The address customers write to"
+            unit={`@${email.domain}`}
+            value={local}
+            onChange={setLocal}
+            hint="It cannot be changed later: it goes on business cards and into customers' address books."
+            problem={problems.local ? <span data-testid="email-local-problem">{problems.local}</span> : undefined}
+            placeholder="yourbusiness"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            readOnly={busy}
           />
-          {problems.name ? (
-            <FieldError id="email-name-problem" message={problems.name} testid="email-name-problem" />
-          ) : null}
-        </label>
+        )}
+        <RecordField
+          id="email-name"
+          testid="email-name"
+          label="The name customers see beside it"
+          value={name}
+          onChange={setName}
+          problem={problems.name ? <span data-testid="email-name-problem">{problems.name}</span> : undefined}
+          readOnly={busy}
+        />
       </div>
-      <div className="bc-chips">
-        <button
-          className="btn btn-primary btn-sm"
+      <div className="set-acts">
+        <Button
+          size="sm"
+          variant="primary"
           onClick={() => void save()}
           disabled={busy}
           data-testid="email-save"
           {...gate("team", "set up email")}
         >
           {busy ? "Saving…" : mailbox ? "Save" : "Use this address"}
-        </button>
-        <button className="btn btn-sm" onClick={onClose} disabled={busy}>
+        </Button>
+        <Button size="sm" onClick={onClose} disabled={busy}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

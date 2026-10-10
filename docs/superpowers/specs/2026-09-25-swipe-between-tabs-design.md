@@ -37,7 +37,10 @@ What a person does today keeps working, because the page swipe only starts where
 - Within 24px of either edge of the screen: the phone's own back gesture.
 - Where no strip is drawn, or it is hidden: an open thread (Inbox, Conversations), a person's page. The strip is the
   test, not a list of routes.
-- Mostly down or up: a scroll, as the sheets decide it today (the first 8px choose the axis).
+- Mostly down or up: a scroll, as the sheets decide it today (the first 8px choose the axis). The browser keeps to the
+  same axis: each strip page's phone scroller says `touch-action: pan-y` (components.css, 9 Oct 2026), so a touch that
+  began across never scrolls it, and one that began down never walks. Told nothing, the browser panned the list under a
+  page already moving sideways, and a thumb could carry the page in circles (Ruben's recording of Reports).
 
 ## How it is built
 

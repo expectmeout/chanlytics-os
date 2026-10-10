@@ -68,3 +68,56 @@ export function personDto(over = {}) {
 export function personRow(over = {}, { now = ROW_NOW, tz = ROW_TZ, viewer = null, ready = null } = {}) {
   return toPersonRowVM(personDto(over), tz, new Date(now), viewer, ready);
 }
+
+/**
+ * `record_consent` (00356) over a test's own doors, for a database in memory: the purpose's door as the test fakes it
+ * (`set_contact_consent`, or `set_marketing_consent` with the person's workspace), then the consent_change decision
+ * as the caller's, written to `tables.decisions` with the fields the function writes; the door's answer with the
+ * decision's id beside it. A door that throws leaves no decision, as the function's one transaction does. Spread over
+ * the test's rpcs: `fakeDb(tables, {}, consentDoor(tables, rpcs, USER))`. Here, beside the consent suites' other
+ * helper, rather than in the tests' root: only they use it.
+ */
+export function consentDoor(tables, rpcs, userId) {
+  return {
+    ...rpcs,
+    record_consent: (a) => {
+      const person = (tables.contacts ?? []).find((c) => c.id === a.p_contact_id);
+      if (!person) throw Object.assign(new Error("Contact not found."), { code: "P0002" });
+      const offers = a.p_purpose === "marketing";
+      const before = (offers ? person.marketing_consent : person.consent) ?? null;
+      const said = {
+        p_contact_id: a.p_contact_id,
+        p_consent: a.p_consent,
+        p_source: a.p_source,
+        ...(a.p_note ? { p_note: a.p_note } : {}),
+        ...(a.p_message_id ? { p_message_id: a.p_message_id } : {}),
+      };
+      const door = offers
+        ? rpcs.set_marketing_consent({ p_tenant_id: person.tenant_id, ...said })
+        : rpcs.set_contact_consent(said);
+      const decisions = (tables.decisions ??= []);
+      const decision = {
+        id: `decision-${decisions.length + 1}`,
+        tenant_id: person.tenant_id,
+        subject_type: "contact",
+        subject_id: a.p_contact_id,
+        verb: "consent_change",
+        actor_type: "user",
+        actor_user_id: userId,
+        payload: {
+          consent: a.p_consent,
+          source: a.p_source,
+          note: a.p_note ?? null,
+          previous: before,
+          ...(offers ? { purpose: "marketing" } : {}),
+          ...(a.p_message_id ? { message_id: a.p_message_id } : {}),
+          ...(a.p_batch ? { batch: a.p_batch } : {}),
+          ...(a.p_via ? { via: a.p_via } : {}),
+        },
+        undo_of: a.p_undo_of ?? null,
+      };
+      decisions.push(decision);
+      return { ...door, decision_id: decision.id, undo_dropped: false };
+    },
+  };
+}

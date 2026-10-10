@@ -13,7 +13,7 @@ import { MIN_MS, REPLY_DELAY_DEFAULT_MS, hardLimitsWords } from "@chanlytics/con
 import type { PolicyDials } from "@/legacy-bridge/inbox-verbs";
 import { modeLabel, uiRows, type UiRow } from "@/legacy-bridge/policy-store";
 import { FailedRead } from "../../kit/empty/empty";
-import { Icon } from "../../kit/icon/icon";
+import { RecordRow } from "../../kit/record/row";
 import { gate, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { SetDial, SetRow } from "./controls";
@@ -212,10 +212,10 @@ export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void })
 
   return (
     <>
-      <section className="fl-card set-card">
-        <div className="fl-card-head">
-          <h2 className="fl-card-title">Policy matrix</h2>
-          <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
+      <section className="rec-card set-card">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title">Policy matrix</h2>
+          <span className="rec-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
         {phone ? (
           <PolPhoneRows rows={rows} put={putMode} busy={busy} />
@@ -224,10 +224,10 @@ export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void })
         )}
       </section>
 
-      <section className="fl-card set-card">
-        <div className="fl-card-head">
-          <h2 className="fl-card-title">Reply timing and budget</h2>
-          <span className="fl-card-sub">
+      <section className="rec-card set-card">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title">Reply timing and budget</h2>
+          <span className="rec-card-sub">
             The hold window applies under Veto, and under Auto below the confidence dial.
           </span>
         </div>
@@ -256,21 +256,17 @@ export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void })
         ].map((d) => dialRow(d, phone, reply, putDial))}
       </section>
 
-      <section className="fl-card set-card">
-        <div className="fl-card-head">
-          <h2 className="fl-card-title">Hard limits</h2>
-          <span className="fl-card-sub">{hard.sub}</span>
+      <section className="rec-card set-card">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title">Hard limits</h2>
+          <span className="rec-card-sub">{hard.sub}</span>
         </div>
-        <ul className="st-bullets">
-          <li>
-            <Icon name="check" size={11} />
-            <span>Never messages a customer who asked to stop</span>
-          </li>
-          <li>
-            <Icon name="check" size={11} />
-            <span>Refunds, rates and negotiation always go to you — locked in the database</span>
-          </li>
-        </ul>
+        <RecordRow id="aut-hard-stop" label="Asked to stop" value="Never messaged" />
+        <RecordRow
+          id="aut-hard-money"
+          label="Refunds, rates, negotiation"
+          value="Always go to you — locked in the database"
+        />
         {/* The last two were Chanlytics' and could not be changed here (S6): the owner's dials now, through the same
             door as the three above. */}
         {[

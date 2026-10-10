@@ -19,12 +19,14 @@ import { usePeopleToast } from "../shell-verbs";
 import {
   plColumnChoices,
   plColumnOptions,
-  plDrawnColumns,
+  plFirstDir,
   plLocked,
   plShownColumns,
   plShows,
   plSortKeys,
 } from "../table/columns";
+import { plLayoutChoices, plOrdered, type LayoutChoices } from "../table/layout";
+import { usePlColumnLayout } from "../table/use-layout";
 import type { ColCtx, PeopleRead, TableColumn, TableCtx, TableRow } from "../types";
 import { ldScroller } from "./scroller";
 import { plLoadView, plSaveView, plViewSaver } from "./view-store";
@@ -44,6 +46,16 @@ interface ControlsArgs<R extends TableRow, X extends TableCtx> {
 }
 
 type View = Record<string, unknown>;
+
+/**
+ * The layout as a view keeps it: a key only where the member's choice differs from the page's own, so a view nobody
+ * changed saves nothing more than it did, and the one object a save replaces stays small (the route takes 2,000 characters).
+ */
+const layoutKeys = (l: LayoutChoices): View => ({
+  ...(Object.keys(l.widths).length ? { widths: l.widths } : {}),
+  ...(l.order.length ? { order: l.order } : {}),
+  ...(l.density === "compact" ? { density: l.density } : {}),
+});
 
 /** The phone's search (open, the bar is the field), a selection's sheet, Select people, and whether the window is a phone's width. */
 function usePhoneControls() {
@@ -112,6 +124,9 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
   // The columns this member chose to show or hide with the Columns menu; a column they never touched keeps its default
   // (PL_COLUMNS). The menu is the kit's, which opens and closes itself (table/columns-menu.tsx).
   const [colChoices, setColChoices] = useState(() => plColumnChoices(cols, remembered.columns));
+  // The layout they chose beside them: the widths they dragged columns to, the order they put them in, and how tall a row
+  // stands (table/layout.ts). Kept in the view as the columns are, and read as carefully.
+  const [layoutChoices, setLayoutChoices] = useState<LayoutChoices>(() => plLayoutChoices(cols, remembered));
   // Whether the table has scrolled sideways, for the hairline beside Person: kept here so the table stays hookless.
   const [scrolledX, setScrolledX] = useState(false);
   const pickExtra = (v: View | null): View | null => {
@@ -126,12 +141,14 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
     by: string;
     dir: string;
     columns: Record<string, boolean>;
+    layout: LayoutChoices;
     row: string | null | undefined;
     extra: View | null;
   }): View => ({
     ...(scope === "leads"
       ? { list: v.row, sortBy: v.by, sortDir: v.dir, columns: v.columns }
       : { sortBy: v.by, sortDir: v.dir, columns: v.columns }),
+    ...layoutKeys(v.layout),
     ...(v.extra || {}),
   });
   // What the server is taken to hold: the view as the page starts it, so a view nobody touched is never written back.
@@ -141,6 +158,7 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
         by: firstBy,
         dir: firstDir,
         columns: plColumnChoices(cols, remembered.columns),
+        layout: plLayoutChoices(cols, remembered),
         row: (remembered.list as string) || "all",
         extra: pickExtra(remembered),
       }),
@@ -166,15 +184,24 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
     const by = plSortKeys(cols).includes(serverView.sortBy as string) ? (serverView.sortBy as string) : sortBy;
     const dir = serverView.sortDir === "asc" || serverView.sortDir === "desc" ? serverView.sortDir : sortDir;
     const columns = plColumnChoices(cols, serverView.columns);
+    const layout = plLayoutChoices(cols, serverView);
     const extra = pickExtra(serverView);
-    savedView.current = JSON.stringify(viewAs({ by, dir, columns, row: railRow, extra }));
+    savedView.current = JSON.stringify(viewAs({ by, dir, columns, layout, row: railRow, extra }));
     setSortBy(by);
     setSortDir(dir);
     setColChoices(columns);
+    setLayoutChoices(layout);
     if (extra) setExtraViewState(extra);
   }, [peopleLanded]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const view = viewAs({ by: sortBy, dir: sortDir, columns: colChoices, row: railRow, extra: extraView });
+    const view = viewAs({
+      by: sortBy,
+      dir: sortDir,
+      columns: colChoices,
+      layout: layoutChoices,
+      row: railRow,
+      extra: extraView,
+    });
     plSaveView(scope, view);
     // The workspace's copy, once per change and never for the view it already holds. The choices change only when what
     // they say does (pickColumn keeps them for Person), so this runs once per change.
@@ -183,7 +210,7 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
     if (!viewKnown.current && !viewTouched.current) return;
     savedView.current = key;
     if (viewSaver.current) viewSaver.current(view);
-  }, [sortBy, sortDir, colChoices, railRow, JSON.stringify(extraView)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortBy, sortDir, colChoices, layoutChoices, railRow, JSON.stringify(extraView)]); // eslint-disable-line react-hooks/exhaustive-deps
   return {
     sortBy,
     setSortBy,
@@ -191,6 +218,8 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
     setSortDir,
     colChoices,
     setColChoices,
+    layoutChoices,
+    setLayoutChoices,
     scrolledX,
     setScrolledX,
     extraView,
@@ -251,16 +280,11 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
   const onSort = (key: string) => {
     viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    // A name starts at A, the soonest visit and the soonest next step first (People's column and the Pipeline's), and
-    // the Pipeline's Stage in its own order (Leads' stage column is a rank of its own, most first); any other number,
-    // most first.
+    // Which way a first press goes is the column's own word (`sortFirst`): a name starts at A, the soonest visit and the
+    // soonest next step first, the Pipeline's Stage in its own order; a column that says nothing goes most first.
     else {
       setSortBy(key);
-      setSortDir(
-        key === "name" || key === "visits" || key === "next" || (args.scope === "pipeline" && key === "stage")
-          ? "asc"
-          : "desc",
-      );
+      setSortDir(plFirstDir(cols, key));
     }
   };
   // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
@@ -274,16 +298,27 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
     viewTouched.current = true;
     setExtraViewState((x) => ({ ...(x || {}), ...patch }));
   };
-  // The columns drawn (every one this scope can show, those this member turned off marked for a desktop to hide). Kept
-  // while nothing they are made of changed, so a memoised row sees the same list from one draw to the next. On a phone
-  // both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-cells.jsx) for a lead, one
-  // plRowCard between them.
+  // The columns drawn: every one this scope can show that this member has not turned off, in the order they put them in.
+  // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next. On a
+  // phone both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-cells.jsx) for a lead,
+  // one plRowCard between them.
+  const { layoutChoices, setLayoutChoices } = view;
   const colKey = JSON.stringify(colCtx);
-  const columns = useMemo(
-    () => (phone ? phoneCols : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)),
-    [cols, colChoices, colKey, phone], // eslint-disable-line react-hooks/exhaustive-deps
+  const deskColumns = useMemo(
+    () => plOrdered(plShownColumns(cols, colChoices, colCtx), layoutChoices.order),
+    [cols, colChoices, colKey, layoutChoices.order], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const colOptions = plColumnOptions(cols, colChoices, colCtx);
+  const columns = phone ? phoneCols : deskColumns;
+  const colOptions = plColumnOptions(plOrdered(cols, layoutChoices.order), colChoices, colCtx);
+  // The widths, the order and the row height, drawn by the table and changed from its headings and its Columns menu.
+  const layout = usePlColumnLayout({
+    columns: deskColumns,
+    choices: layoutChoices,
+    setChoices: setLayoutChoices,
+    touch: () => {
+      viewTouched.current = true;
+    },
+  });
   // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again gives
   // way to Visits once a calendar connects, as it does for everyone.
@@ -325,6 +360,11 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
     columns,
     colOptions,
     pickColumn,
+    layout: phone ? null : layout,
+    // What a file of the people shown follows: the desk's columns, whichever the screen draws.
+    fileColumns: deskColumns,
+    layoutChoices,
+    setLayoutChoices,
     q: search.q,
     setQ: search.setQ,
     searchRef: search.searchRef,

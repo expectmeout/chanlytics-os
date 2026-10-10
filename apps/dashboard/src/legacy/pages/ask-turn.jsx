@@ -54,11 +54,11 @@ const answerMoves = (a) => [
 // 2026-09-27-ask-chat-on-a-phone, D16); these are its parts, and AskCard below holds its state and its verbs.
 
 // Each card's kind as the mark in its tile: a list's card and a run's card are marked as their rows are.
-const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user", list: askKindGlyph("list"), run: askKindGlyph("run") };
+const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", playbook_change: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user", list: askKindGlyph("list"), run: askKindGlyph("run") };
 
 // The card's head: the kind's mark in its tile, the title, and the kind's word under it.
 const AskCardHead = ({ p, t }) => {
-  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails, list: t.kList, run: t.kRun };
+  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, playbook_change: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails, list: t.kList, run: t.kRun };
   return (
     <div className="ask-card-head">
       <span className="ask-card-mark"><Icon name={AT_CARD_ICONS[p.kind] || "inbox"} size={15} /></span>
@@ -104,7 +104,7 @@ const AskCardActs = ({ p, t, busy, hideOpen, onApprove, onDismiss, onNav }) => {
         {busy ? t.working : p.kind === "reply" ? t.send : t.approve}
       </button>
       {p.kind === "reply" && pl.conversation_id ? <button className="btn btn-ghost btn-sm" onClick={() => { onNav(`inbox/th-${pl.conversation_id}`); if (A) A.editReply(p); }}>{t.editComposer}</button> : null}
-      {openRoute && !hideOpen ? <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{t.openIt}</button> : null}
+      {openRoute && !hideOpen ? <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{/^campaigns\/new:/.test(openRoute) ? t.openComposer : t.openIt}</button> : null}
       <button className="btn btn-ghost btn-sm ask-card-not-now" onClick={onDismiss} disabled={busy}>{t.notNow}</button>
     </div>
   );
@@ -140,7 +140,7 @@ const AskCardReceipt = ({ p, t, state, receipt, err, open, undoData, doneAt, bus
       {clock ? <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} /> : <Icon name={state === "done" ? "check" : state === "failed" ? "alert" : "x"} size={11} className={state === "done" ? "ok" : ""} />}
       <span className="ask-card-said">{state === "failed" ? err || receipt : state === "dismissed" ? t.notNow : receipt}</span>
       {can && !armed ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo} disabled={busy} title={clock ? p.undo : undefined}>{clock ? t.undo : p.undo}</button> : null}
-      {can && armed ? <window.Confirm question={`${p.undo}?`} detail="The playbook and its schedule go; runs already sent keep their numbers in Sent." yes="Yes, delete it" danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
+      {can && armed ? <window.Confirm question={`${p.undo}?`} detail="The campaign and its schedule go; runs already sent keep their numbers in Sent." yes="Yes, delete it" danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
       {state === "failed" ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={onRetry}>{t.tryAgain}</button> : null}
     </div>
   );

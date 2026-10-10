@@ -57,10 +57,10 @@
   },
   "apps/dashboard/src/legacy/styles/dashboard-a-v2.css": {
     "font": 70,
-    "radius": 10,
+    "radius": 9,
     "shadow": 3,
     "colour": 0,
-    "blur": 1
+    "blur": 0
   },
   "apps/dashboard/src/legacy/styles/dashboard.css": {
     "font": 38,
@@ -77,17 +77,17 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/inbox.css": {
-    "font": 72,
+    "font": 71,
     "radius": 20,
-    "shadow": 7,
-    "colour": 2,
+    "shadow": 6,
+    "colour": 1,
     "blur": 2
   },
   "apps/dashboard/src/legacy/styles/leads.css": {
     "font": 33,
-    "radius": 24,
+    "radius": 22,
     "shadow": 15,
-    "colour": 10,
+    "colour": 9,
     "blur": 1
   },
   "apps/dashboard/src/legacy/styles/live.css": {
@@ -126,10 +126,10 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/settings.css": {
-    "font": 23,
-    "radius": 9,
+    "font": 20,
+    "radius": 7,
     "shadow": 4,
-    "colour": 1,
+    "colour": 0,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/store.css": {

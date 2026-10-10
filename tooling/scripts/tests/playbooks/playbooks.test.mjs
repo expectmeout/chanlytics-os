@@ -371,11 +371,14 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
   );
   assert.equal(runDueNow({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), false);
   assert.equal(
-    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
   );
   assert.equal(
-    scheduleLine({ trigger: "everyone_monthly", run_hour: 9, cap_per_run: 50, gap_days: 90, cadence_days: 30 }),
+    scheduleLine(
+      { trigger: "everyone_monthly", run_hour: 9, cap_per_run: 50, gap_days: 90, cadence_days: 30 },
+      "visit",
+    ),
     "Every 30 days at 9:00 AM · up to 50 a day",
   );
   assert.equal(
@@ -466,8 +469,11 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
   assert.equal(
     POLICY_CLASS_WORDS.reengage.note,
-    `the win-back and save-our-number playbooks · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+    `the win-back and save-our-number campaigns · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
   );
+  // Each class says what it governs as a person reads it: campaigns, never playbooks (decision 19).
+  assert.match(POLICY_CLASS_WORDS.campaign.note, /^the welcome and month's-offer campaigns · /);
+  assert.match(POLICY_CLASS_WORDS.follow_up.note, /^the proposal follow-up campaign · /);
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
@@ -512,9 +518,8 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
   // The card's mode chip is run in playbook-composer.test.mjs.
   const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
   assert.ok(
-    routes.includes('role: "operator",') &&
-      routes.includes('rate: "playbook",') &&
-      routes.includes('"start_playbook", {'),
+    routes.includes('role: "operator",') && routes.includes('rate: "playbook",'),
+    "who may start a playbook and how often; that a start is on the ledger is run in outbound-routes.test.mjs",
   );
   const one = readCode(
     "apps/dashboard/app/api/v1/playbooks/[id]/route.ts",
@@ -561,10 +566,12 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
           : []),
         // A playbook made, changed or removed moves what People's rows say of it (their follow-up, W3).
         ...(["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]"].includes(k) ? ["people"] : []),
+        // One made on a starter files its message too (A0): the Library, and the Inbox's templates, read again.
+        ...(k === "POST playbooks" ? ["settings", "inbox"] : []),
       ],
       `${k}: every write re-fetches both surfaces`,
     );
-  const pools = readCode("apps/dashboard/src/server/campaigns/playbooks.ts");
+  const pools = readCode("apps/dashboard/src/server/campaigns/playbook-pools.ts");
   assert.ok(
     // 2 Oct 2026: the pool is counted with the message in view (null for a moment), as the run's enrolment reads it; 3 Oct:
     // for the channels it goes by and what the workspace can send on (poolCounter, over the turn's breath, clock and pace).
@@ -715,7 +722,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     canAct: true,
   });
   assert.ok(
-    sug.some((x) => x.kind === "act" && x.q === "Start a win-back playbook for the quiet clients"),
+    sug.some((x) => x.kind === "act" && x.q === "Start a win-back campaign for the quiet clients"),
     "an Act suggestion on People",
   );
   const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
@@ -735,7 +742,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     ),
   );
   assert.ok(
-    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
+    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
   );
   // Broadcasts' page (broadcasts.jsx once) is the page, its `when` words and its screens, in surfaces/campaigns/broadcasts.
   const broadcastsTsx = [
@@ -845,8 +852,8 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     ["a", "f"],
   );
   // What the card and the sheet say of it.
-  assert.equal(scheduleLine({ ...follow, run_hour: 10 }), "Daily 10:00 AM · up to 25 · once per proposal");
-  assert.equal(poolWords("proposal_waiting"), "with a proposal waiting");
+  assert.equal(scheduleLine({ ...follow, run_hour: 10 }, "visit"), "Daily 10:00 AM · up to 25 · once per proposal");
+  assert.equal(poolWords("proposal_waiting", "visit"), "with a proposal waiting");
   assert.deepEqual(
     reachLines(again.reach, follow).lines.map((l) => l.words),
     ["1 never said yes to hearing from you", "1 had this proposal's follow-up already", "1 asked you to stop"],

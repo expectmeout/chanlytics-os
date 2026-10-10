@@ -32,6 +32,7 @@ const metrics = await import(at("apps/dashboard/app/api/v1/metrics/route.ts"));
 const reports = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaigns = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
 const reviews = await import(at("apps/dashboard/app/api/v1/reports/reviews/route.ts"));
+const receptionist = await import(at("apps/dashboard/app/api/v1/reports/receptionist/route.ts"));
 const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const warm = await import(at("apps/dashboard/app/api/v1/ask/warm/route.ts"));
 const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
@@ -106,7 +107,7 @@ const turn = (id, thread_id, tenant_id, role, content) => ({
   created_at: "2026-09-10T00:00:01Z",
 });
 
-test("the eleven declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
+test("the twelve declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
   const open = { kind: "read", scope: "workspace", role: null, rate: null, spend: false };
   const own = { scope: "account", role: null, rate: null, spend: false };
   assert.deepEqual(ask.POST.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "ask", spend: false });
@@ -126,6 +127,7 @@ test("the eleven declare their policy: a question every member's and counted, th
   assert.deepEqual(reports.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(campaigns.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(reviews.GET.policy, { ...open, rate: "aggregate" });
+  assert.deepEqual(receptionist.GET.policy, { ...open, rate: "aggregate" });
 });
 
 test("a question: the workspace must be named, something must be asked and not too much, a thread must exist and be this workspace's — and nothing is saved for a refusal", async () => {
@@ -552,25 +554,26 @@ test("the reports: the three presets and no other, the series from the function 
   };
   const tables = { memberships: both("viewer", "viewer"), tenants: [], tenant_config: [], policies: [] };
   await refused(
-    reports.GET.run(get(`?days=10&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)),
+    reports.GET.run(get(`?period=14d&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)),
     "validation",
     400,
-    "period must be 7d, 30d, 90d or month.",
+    'period: Invalid option: expected one of "7d"|"30d"|"90d"|"month"',
   );
-  const week = await reports.GET.run(get(`?days=7&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
+  const week = await reports.GET.run(get(`?period=7d&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
   assert.deepEqual(week.report, { days: 7, tenant: A });
   assert.ok("booking" in week, "the conversion line rides along, or null when the calendar cannot be read");
   const month = await reports.GET.run(get(inA), ctxFor(tables, {}, rpcs));
   assert.equal(month.report.days, 30, "thirty by default");
   await refused(
-    campaigns.GET.run(get(`?days=45&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)),
+    campaigns.GET.run(get(`?period=14d&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)),
     "validation",
     400,
-    "period must be 7d, 30d, 90d or month.",
+    'period: Invalid option: expected one of "7d"|"30d"|"90d"|"month"',
   );
-  assert.deepEqual(await campaigns.GET.run(get(`?days=90&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)), {
-    report: { days: 90 },
-  });
+  assert.deepEqual(
+    await campaigns.GET.run(get(`?period=90d&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)),
+    { report: { days: 90 } },
+  );
   await refused(
     campaigns.GET.run(get(inB), ctxFor(tables, {}, rpcs)),
     "not_found",
@@ -955,7 +958,7 @@ test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on anot
       .map((b) => b.text)
       .join("\n");
     return {
-      line: /They are looking at (.+?) \((\w+) ([^)]+)\)/.exec(words)?.slice(1, 4) ?? null,
+      line: /They are looking at <record>(.+?)<\/record> \((\w+) ([^)]+)\)/.exec(words)?.slice(1, 4) ?? null,
       read: blocks.filter((b) => b.type === "search_result" && b.source === "read://people.get").map((b) => b.title),
     };
   };
@@ -1140,7 +1143,8 @@ test("the turn as the model was sent it rides on the answer's row, at content.ra
         {
           type: "tool_result",
           tool_use_id: "t-card",
-          content: JSON.stringify({ proposed: true, id: CARD.id }),
+          // As the model is sent it: the tool's own JSON, inside its fence (round.ts resultBlocks).
+          content: `<record>\n${JSON.stringify({ proposed: true, id: CARD.id })}\n</record>`,
           is_error: false,
         },
       ],

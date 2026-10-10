@@ -50,6 +50,7 @@ for (const k of [
   "ANTHROPIC_API_KEY",
   "WHATSAPP_ACCESS_TOKEN",
   "WHATSAPP_TEST_ALLOWLIST",
+  "WHATSAPP_ANSWERS_AS_JOBS",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
 ])
@@ -1745,6 +1746,94 @@ test("a failure that is the person's own no to offers (131050) is recorded as th
   );
 });
 
+/* ------------------------- a receipt or an echo the database did not keep comes again ------------------------- */
+
+/** One owner's reply from the Business app, as Meta echoes it on this workspace's number. */
+const echoed = (w, to, id, body = "On my way.") =>
+  w.change(
+    { message_echoes: [{ from: w.LINE.slice(1), to, id, timestamp: now(), type: "text", text: { body } }] },
+    { field: "smb_message_echoes" },
+  );
+
+test("a receipt or an owner's echo on a number the database could not answer for is not acknowledged: 503 with the count, no pause said that did not happen, and Meta's redelivery lands once the read works", async () => {
+  // Only messages were counted: a failed receipt went to a workspace of none and flagged nothing, an echo was not
+  // kept and still said it paused the thread, and both were answered 200, so Meta never sent either again.
+  const w = world();
+  const { row, failed } = accepted(w);
+  const to = w.customer();
+  const echo = echoed(w, to, `wamid.${w.i}.echo-blip`);
+  w.open({ "tenant_channels.select": { message: "connection terminated unexpectedly" } });
+  receptionist();
+  await listening(async (log) => {
+    assert.deepEqual(
+      await answer(await deliver(failed())),
+      [503, { ok: false, unrecorded: 1 }],
+      "REGRESSION: acknowledged, and the failure never flagged",
+    );
+    assert.deepEqual(
+      await answer(await deliver(echo)),
+      [503, { ok: false, unrecorded: 1 }],
+      "REGRESSION: acknowledged, and the owner's reply never kept",
+    );
+    assert.deepEqual(log.said("wa_paused_by_echo"), [], "no pause is said that did not happen");
+    assert.deepEqual(
+      log.said("wa_skip_routing_failed").map((l) => l.fields),
+      [
+        { phone_number_id: w.PHONE_ID, receipts: 1 },
+        { phone_number_id: w.PHONE_ID, echoes: 1 },
+      ],
+    );
+  });
+  assert.deepEqual([row.status, holds(w).length, w.tables.contacts.length], ["sent", 0, 0], "nothing was written");
+
+  // Meta sends both again, and the database answers: the failure is flagged and the owner's words pause the thread.
+  w.open();
+  assert.deepEqual(await answer(await deliver(failed())), [200, { ok: true }]);
+  assert.deepEqual([row.status, holds(w).length], ["failed", 1]);
+  assert.deepEqual(await answer(await deliver(echo)), [200, { ok: true }]);
+  const [contact] = w.tables.contacts;
+  assert.equal(contact.phone_e164, `+${to}`);
+  const thread = w.tables.conversations.find((c) => c.contact_id === contact.id);
+  assert.equal(thread.state, "needs_human");
+  assert.ok(Date.parse(thread.paused_until) > Date.now(), "the receptionist steps back for the owner");
+  assert.equal(w.tables.messages.filter((m) => m.meta?.echo).length, 1);
+});
+
+test("an owner's echo whose pause the database would not take is not acknowledged and leaves no words behind, so Meta's redelivery pauses the thread; a replay after that moves nothing", async () => {
+  // The write's failures were logged inside it and the door answered 200: the words were kept, the thread was not
+  // paused, and the receptionist answered over the owner. A redelivery would have found the words and stopped there.
+  const w = world();
+  w.open({ "conversations.update": { message: "the database is down" } });
+  receptionist();
+  const echo = echoed(w, w.customer(), `wamid.${w.i}.echo-refused`, "I'll call you in five minutes.");
+  await listening(async (log) => {
+    assert.deepEqual(
+      await answer(await deliver(echo)),
+      [503, { ok: false, unrecorded: 1 }],
+      "REGRESSION: acknowledged with no pause",
+    );
+    assert.deepEqual(log.said("wa_paused_by_echo"), []);
+    assert.deepEqual(
+      log.said("record_echo_pause_failed").map((l) => l.fields.unwound),
+      [true],
+      "the words without their pause are taken back out, and it says so",
+    );
+  });
+  assert.equal(w.tables.messages.length, 0, "so the redelivery is a new echo, not a replay that pauses nothing");
+
+  w.open();
+  assert.deepEqual(await answer(await deliver(echo)), [200, { ok: true }]);
+  const [thread] = w.tables.conversations;
+  assert.equal(thread.state, "needs_human");
+  const until = thread.paused_until;
+  assert.ok(Date.parse(until) > Date.now(), "paused for the owner");
+  assert.equal(w.tables.messages.length, 1, "and the owner's words kept, once");
+
+  // The same echo once more: kept whole already, so nothing moves.
+  assert.deepEqual(await answer(await deliver(echo)), [200, { ok: true }]);
+  assert.deepEqual([w.tables.messages.length, w.tables.conversations[0].paused_until], [1, until]);
+});
+
 test("the delivery is kept as it came under the body's digest, with no workspace, before the verdict (00336); a wrong signature keeps nothing", async () => {
   const w = world();
   w.open();
@@ -1774,4 +1863,152 @@ test("the delivery is kept as it came under the body's digest, with no workspace
     ["meta", true, "/api/whatsapp", DOOR, null, true, ["x-hub-signature-256"], raw],
     "Meta names no delivery and a batch may span workspaces: the body's digest is the key, and the workspace is none",
   );
+});
+
+/* ------------------------------- answered after the acknowledgement (0031, Phase 3) */
+
+const later = await import(at("apps/edge/lib/whatsapp/answer-later.ts"));
+const { realPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
+
+test("a workspace the edge names has its WhatsApp message recorded, its answer scheduled as a job and acknowledged: nothing is answered in the door, and the job answers it on the workspace's own wire", async () => {
+  const w = world();
+  w.tables.jobs = [];
+  const db = w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  const m = text(from, `wamid.${w.i}.later`, "do you have Saturday morning?");
+  const contacts = [{ wa_id: from, profile: { name: "Dana" } }];
+  await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: `someone-else, ${w.T.toUpperCase()}` }, async () => {
+    assert.deepEqual(await answer(await deliver(w.change({ contacts, messages: [m] }))), [200, { ok: true }]);
+  });
+  assert.deepEqual(seen.ingested, [{ tenantId: w.T, body: "do you have Saturday morning?" }], "recorded in the door");
+  assert.deepEqual(seen.sent, [], "and nothing answered there: Meta has its 200 before the model is asked anything");
+  assert.equal(w.tables.jobs.length, 1, "one job, for the one message");
+  const [job] = w.tables.jobs;
+  assert.deepEqual(
+    [job.tenant_id, job.kind, job.dedupe_key],
+    [w.T, "inbound_answer", "inbound_answer:m-in"],
+    "the text's kind and key: once per message, in the reply lane",
+  );
+  // The request the door served rides with it, as with every job scheduled while one is served: the job runs under it,
+  // so the knock, the answer and the send are one search in the log.
+  const { request_id: asked, ...carried } = job.payload;
+  assert.match(asked, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(
+    carried,
+    {
+      // The message as Meta sent it, and the two facts of its envelope the normaliser reads; no other message of the
+      // batch, no status, nothing else of the change.
+      wa: {
+        message: m,
+        value: { metadata: { display_phone_number: w.LINE.slice(1), phone_number_id: w.PHONE_ID }, contacts },
+      },
+      // Named, so an erasure cancels a job still waiting and scrubs one finished.
+      message_id: "m-in",
+      conversation_id: "conv-1",
+      contact_id: "k-1",
+    },
+    "what its job needs to take it up again",
+  );
+
+  // The job's half, as the tick hands it over: the routing read again, the receptionist run with the same world.
+  seen.ingested.length = 0;
+  await later.answerInboundJob(db, { id: "job-1", tenant_id: w.T, kind: job.kind, payload: job.payload, attempts: 1 });
+  assert.deepEqual(seen.ingested, [{ tenantId: w.T, body: "do you have Saturday morning?" }], "taken up again");
+  assert.deepEqual(
+    seen.sent,
+    [{ tenantId: w.T, to: from, body: GREETING, meta: { ack: true, fallback: "no_model" } }],
+    "answered by its job, as the door would have answered it",
+  );
+  assert.deepEqual(seen.wires.at(-1), { phoneId: w.PHONE_ID, accessToken: `token-${w.T}` }, "on its own number");
+});
+
+test("the switch names workspaces, and only those: unset, or naming another, a message is answered in the door as before and no job is written; all names every workspace", async () => {
+  for (const named of [undefined, "", "bbbbbbbb-0000-4000-8000-000000000000"]) {
+    const w = world();
+    w.tables.jobs = [];
+    w.open();
+    const seen = receptionist();
+    const from = w.customer();
+    await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: named }, () =>
+      deliver(w.change({ messages: [text(from, `wamid.${w.i}.door`, "hi")] })),
+    );
+    assert.equal(seen.sent.length, 1, `${named}: answered in Meta's request`);
+    assert.deepEqual(w.tables.jobs, [], `${named}: no job`);
+  }
+  const w = world();
+  w.tables.jobs = [];
+  w.open();
+  const seen = receptionist();
+  await withEnv({ WHATSAPP_ANSWERS_AS_JOBS: "ALL" }, () =>
+    deliver(w.change({ messages: [text(w.customer(), `wamid.${w.i}.all`, "hi")] })),
+  );
+  assert.deepEqual([seen.sent.length, w.tables.jobs.length], [0, 1]);
+});
+
+test("an answer job says it is about to speak before Meta is called, on its own row; a job whose number is another workspace's now, or that names no message, fails by name and answers nothing", async () => {
+  const w = world();
+  w.tables.jobs = [
+    { id: "job-9", tenant_id: w.T, kind: "inbound_answer", state: "fired", attempts: 1, spoke_at: null },
+  ];
+  const db = w.open();
+  const seen = receptionist();
+  // The same world, with a sink that puts the words on the wire it was handed, as the real one does: what the wire
+  // sees when it is called is what the job's row held at that moment.
+  const base = realPorts();
+  const atTheWire = [];
+  setInboundPorts({
+    ...base,
+    sender: () => async () => {
+      atTheWire.push(w.tables.jobs[0].spoke_at);
+      return { ok: true, wamid: "wamid.out", status: 200 };
+    },
+    persist: {
+      ...base.persist,
+      sink: (...args) => ({
+        ...base.persist.sink(...args),
+        deliver: async (to, body) => {
+          const sent = await args[5].whatsapp(to, { body });
+          return { outcome: sent.ok ? "sent" : "failed", messageId: "m-out", externalId: sent.wamid };
+        },
+      }),
+    },
+  });
+  const from = w.customer();
+  const payload = {
+    wa: {
+      message: text(from, `wamid.${w.i}.spoke`, "hello?"),
+      value: { metadata: { phone_number_id: w.PHONE_ID } },
+    },
+    message_id: "m-in",
+  };
+  const claimed = { id: "job-9", tenant_id: w.T, kind: "inbound_answer", payload, attempts: 1 };
+  await later.answerInboundJob(db, claimed);
+  assert.equal(atTheWire.length, 1, "one reply left");
+  assert.ok(atTheWire[0], "and the row already said the job spoke when the wire was called");
+  assert.equal(claimed.spoke_at, w.tables.jobs[0].spoke_at, "the claim the runner judges a retry from says so too");
+
+  // Refused by name, before anything is read as a message or said.
+  seen.sent.length = 0;
+  const job = (over) => ({ id: "job-x", tenant_id: w.T, kind: "inbound_answer", attempts: 1, payload, ...over });
+  await assert.rejects(
+    later.answerInboundJob(db, job({ tenant_id: "cccccccc-0000-4000-8000-000000000000" })),
+    /another workspace's now/,
+  );
+  await assert.rejects(
+    later.answerInboundJob(db, job({ payload: { wa: { message: { id: "", from } } } })),
+    /names no WhatsApp message/,
+  );
+  await assert.rejects(
+    later.answerInboundJob(db, job({ payload: { wa: { message: payload.wa.message, value: {} } } })),
+    /which number was written to/,
+  );
+  await assert.rejects(
+    later.answerInboundJob(
+      db,
+      job({ payload: { wa: { ...payload.wa, value: { metadata: { phone_number_id: w.stranger } } } } }),
+    ),
+    /could not be read, or is not active/,
+  );
+  assert.equal(atTheWire.length, 1, "nothing more was said");
 });

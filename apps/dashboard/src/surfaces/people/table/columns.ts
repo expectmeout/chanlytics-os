@@ -1,12 +1,13 @@
 /**
  * The table's columns, for any rows (moved whole from legacy/pages/people-table.jsx, decision 0015): every helper takes
- * the column list, so People's PL_COLUMNS and the Leads scope's own go through the same rules.
+ * the column list, so People's PL_COLUMNS and the Leads scope's own go through the same rules. Where a column stands and
+ * how wide it is are the member's to change (layout.ts); which ones show is here.
  */
 import type { ColCtx, TableColumn } from "../types";
 
 /** A column of any rows: what a scope hands the table. */
 type AnyColumn = TableColumn<never, never>;
-type ColumnLike = Pick<AnyColumn, "key" | "label" | "sortable" | "pinned" | "fixed" | "on" | "needs" | "off">;
+type ColumnLike = Pick<AnyColumn, "key" | "label" | "sortable" | "pinned" | "fixed" | "on" | "needs">;
 
 /** Person and the row's actions are not the member's to hide. */
 export const plLocked = (c: ColumnLike): boolean => !!(c.pinned || c.fixed);
@@ -21,20 +22,20 @@ export const plShows = (c: ColumnLike, choices: Record<string, boolean>, x: ColC
 export const plSortKeys = (columns: readonly ColumnLike[]): string[] =>
   columns.filter((c) => c.sortable).map((c) => c.key);
 
+/** Which way a first press on a heading goes: the column's own word, else the most first. */
+export const plFirstDir = (columns: readonly Pick<AnyColumn, "key" | "sortFirst">[], key: string): "asc" | "desc" =>
+  columns.find((c) => c.key === key)?.sortFirst ?? "desc";
+
 /**
- * The columns drawn, in their order: every one this workspace can show (Visits needs a calendar). A member's choices are
- * a desktop's: one they turned off is drawn all the same, `off`, and only a desktop hides it (clients.css, pl-col-off),
- * so a phone's cards keep the facts they draw by default.
+ * The columns a desktop draws: every one this workspace can show (Visits needs a calendar) that the member has not
+ * turned off. A phone draws one card a row instead (PL_PHONE_COLUMNS), whatever was chosen, so a member's choices are a
+ * desktop's and a card keeps the facts it draws by default.
  */
-export const plDrawnColumns = <C extends ColumnLike>(
+export const plShownColumns = <C extends ColumnLike>(
   columns: readonly C[],
   choices: Record<string, boolean>,
   x: ColCtx,
-): C[] => columns.filter((c) => !c.needs || c.needs(x)).map((c) => (plShows(c, choices, x) ? c : { ...c, off: true }));
-
-/** The columns the table is handed: on a phone every one, the ones off marked; on a desktop only what shows. */
-export const plShownColumns = <C extends ColumnLike>(drawn: readonly C[], phone: boolean): C[] =>
-  phone ? [...drawn] : drawn.filter((c) => !c.off);
+): C[] => columns.filter((c) => (!c.needs || c.needs(x)) && plShows(c, choices, x));
 
 /** A saved `columns` value, read with care: only the columns a member may hide, and only true or false. */
 export const plColumnChoices = (columns: readonly ColumnLike[], raw: unknown): Record<string, boolean> => {

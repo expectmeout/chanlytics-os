@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db";
 import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
+import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels";
 
 export type Db = SupabaseClient<Database>;
 
@@ -76,6 +77,19 @@ export const SEND_SETTLE_MS = 5_000;
 export const sendByAt = (deadline: number): number => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
 
 /**
+ * The latest moment a send may START on each wire that sendByAt does not bound: WhatsApp's and a text's are one try each
+ * under the provider's own timeout (channels WHATSAPP_SEND_TIMEOUT_MS, TWILIO_TIMEOUT_MS), which nothing shortens, so a
+ * send starts only while that timeout still ends by sendByAt. Begun just before the yield point, one ran its fifteen
+ * seconds to the ceiling itself, the five kept for the settle were gone, and a message that went could stay "outcome
+ * unknown" and its run be resumed. A batch leaves the rest for the next one instead (core BroadcastBatchCommand.startBy).
+ * Email has no moment: its send is bounded by sendBy itself (core putOnWire).
+ */
+export const startByAt = (deadline: number): { whatsapp: number; sms: number } => ({
+  whatsapp: sendByAt(deadline) - WHATSAPP_SEND_TIMEOUT_MS,
+  sms: sendByAt(deadline) - TWILIO_TIMEOUT_MS,
+});
+
+/**
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
  * deadline stops fifteen seconds short of the ceiling so a send in flight can
  * come back; a lead job guards every call it makes with its own margin
@@ -124,14 +138,28 @@ export const MAX_RESUMES = 5;
  */
 export const RELAY_LIMIT = 500;
 
-/** Kinds whose second run could reach a real person a second time. */
+/**
+ * Kinds whose second run could reach a real person a second time, whatever the first got to. A kind that speaks only
+ * at the end of work that is safe to repeat (a text's answer, after the model's turn) is not here: it says so on its
+ * own row the moment before it speaks (markSpoke), and is judged as one of these from then on.
+ */
 export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send", "broadcast_send"]);
 
 /**
- * Kinds whose failure the owner hears from someone else, so the ledger's own notice would be the second of two: a text's
- * answer that failed leaves its message to the deadman sweep, which hands it to a person with the customer's words.
+ * Kinds whose failure the ledger's own notice would tell the wrong person, so none is sent to the owner's bell: a text's
+ * answer that failed leaves its message to the deadman sweep, which hands it to a person with the customer's words; a
+ * change's delivery to a subscriber (00334) is the platform's to mend, nothing an owner can act on, and the operator is
+ * paged instead (PAGES_THE_PLATFORM). It used to ring the bell with "A change could not be passed on to what reads
+ * it", an internal fault in the customer's words.
  */
-export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer"]);
+export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer", "event_deliver"]);
+
+/**
+ * Kinds whose failure is the platform's condition: the operator is paged through the tick's `page` port (the edge's
+ * pageOperator, one page per condition per window), with the job named and where to look. The row still fails, so the
+ * day's dead letters count it by kind (platform_metrics_roll, 00332).
+ */
+export const PAGES_THE_PLATFORM: ReadonlySet<string> = new Set(["event_deliver"]);
 
 export const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 
@@ -145,6 +173,8 @@ export interface LedgerRow {
   attempts: number;
   /** The queue the claim took it from (jobs.lane, 00281): 0 a reply, 1 someone waiting, 2 bulk; null for a kind with none. */
   lane?: number | null;
+  /** When a run of this job put words on a wire (jobs.spoke_at, 00352): set, it is never run again; null or absent, it has not. */
+  spoke_at?: string | null;
 }
 
 export type Verdict = "run" | "give_up";
@@ -155,11 +185,12 @@ export type Verdict = "run" | "give_up";
  * the one case that must not be repeated: the run may have died after the
  * provider accepted the message and before the row recorded it, and a second
  * text to a real person cannot be taken back. Internal work is idempotent and
- * is tried again, up to a cap.
+ * is tried again, up to a cap. A job of any kind whose earlier run said it was
+ * about to speak (spoke_at) is the first case, not the second.
  */
-export function verdictFor(job: { kind: string; attempts: number }): Verdict {
+export function verdictFor(job: { kind: string; attempts: number; spoke_at?: string | null }): Verdict {
   if (job.attempts <= 1) return "run";
-  if (SPEAKS_TO_A_PERSON.has(job.kind)) return "give_up";
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.spoke_at) return "give_up";
   return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
 }
 
@@ -228,10 +259,14 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
 /**
  * How long a job that just threw waits before it is tried again; null when it is failed now. The wait is drawn a little
  * longer at random (contracts jittered), so the jobs one outage failed together are not all claimed again in the same
- * heartbeat; only ever longer, so every wait still outlasts the lease.
+ * heartbeat; only ever longer, so every wait still outlasts the lease. A job that spoke before it threw (spoke_at) is
+ * failed now, as a kind that always speaks is: its words may have left.
  */
-export function retryWait(job: { kind: string; attempts: number }, random: () => number = Math.random): number | null {
-  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
+export function retryWait(
+  job: { kind: string; attempts: number; spoke_at?: string | null },
+  random: () => number = Math.random,
+): number | null {
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.spoke_at || job.attempts >= MAX_ATTEMPTS) return null;
   const wait = RETRY_WAITS_MS[job.kind]?.[job.attempts - 1];
   return wait === undefined ? null : jittered(wait, random);
 }
@@ -252,6 +287,32 @@ export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow
   if (error) throw new Error(`claim_due_jobs: ${error.message}`);
   const rows: LedgerRow[] = data ?? [];
   return rows[0] ?? null;
+}
+
+/** PostgREST's answer for a column the database does not hold yet (a database 00352 has not reached). */
+const NO_SUCH_COLUMN = "PGRST204";
+
+/**
+ * A job about to put words on a wire says so first (jobs.spoke_at, 00352), on its row and on the claim this run was
+ * handed: from then on it is judged as a kind that always speaks is (verdictFor, retryWait), so a claim after a lease
+ * that ran out gives up and a throw is not retried. The same compare-and-swap as the exits. Throws when this run no
+ * longer holds the row (its lease was taken back, and another run has it: this one must not speak) or the write
+ * failed, and the caller sends nothing: a missed answer beats a second one. Said once: a job that speaks twice in one
+ * run writes it the first time. A database 00352 has not reached keeps no such fact: the job speaks as it did, and
+ * this run still knows it spoke.
+ */
+export async function markSpoke(
+  db: Db,
+  job: { id: string; attempts?: number; spoke_at?: string | null },
+): Promise<void> {
+  if (job.spoke_at) return;
+  const at = new Date().toISOString();
+  let write = db.from("jobs").update({ spoke_at: at }).eq("id", job.id).eq("state", "fired");
+  if (job.attempts !== undefined) write = write.eq("attempts", job.attempts);
+  const { data, error } = await write.select("id");
+  if (error && error.code !== NO_SUCH_COLUMN) throw new Error(`mark_spoke: ${error.message}`);
+  if (!error && (data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
+  job.spoke_at = at;
 }
 
 /**

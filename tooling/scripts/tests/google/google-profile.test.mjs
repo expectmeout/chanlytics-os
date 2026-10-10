@@ -573,7 +573,7 @@ test("the connection in words, and the view model that says replies are possible
   };
   const vm = toGoogleVM(
     { ready: { places: true, profile: true }, listing, connection: conn(), reviews: [review], days: [], role: "owner" },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -598,7 +598,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -613,7 +613,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -632,7 +632,7 @@ test("the connection in words, and the view model that says replies are possible
       days: [],
       role: "owner",
     },
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -813,8 +813,9 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   const card = ["pane", "row", "google-choose"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`))
     .join("\n");
-  for (const t of ["google-choose", "google-place-choose", "google-note"])
-    assert.ok(card.includes(`data-testid="${t}"`), t);
+  for (const t of ["google-choose", "google-place-choose"]) assert.ok(card.includes(`data-testid="${t}"`), t);
+  // The note is a record row of the kit's, which takes its test id as a prop.
+  assert.ok(card.includes('testid="google-note"'), "google-note");
   assert.ok(card.includes('testid="google-disconnect"'), "the disconnect asks through the one Confirm");
   for (const v of ["google-connect", "google-disconnect"])
     assert.ok(card.includes(`"verb:${v}": "${v}"`), `${v} keeps its name as a row verb`);
@@ -1326,4 +1327,66 @@ test("REGRESSION (review H:0): a paused or ended workspace, or one whose plan st
     ]) {
       assert.equal(await run(world), 1, `${why}: the sync reads its reviews and answers none`);
     }
+  }));
+
+/**
+ * Vault's two credential doors as 00364 writes them, over one secret: a write that names the refresh token it read
+ * (p_if_refresh_token) is refused with 40001 once the secret carries another. `before00364` answers a third argument
+ * as PostgREST does a function it cannot find, as a database before the migration would.
+ */
+function vaultDoors(secret, { before00364 = false } = {}) {
+  const vault = { secret, writes: [] };
+  const answer = (data, error = null) => Promise.resolve({ data, error });
+  const db = {
+    rpc(name, args) {
+      if (name === "get_google_credentials") return answer(vault.secret);
+      if (name !== "put_google_credentials") throw new Error(`not modelled: ${name}`);
+      if ("p_if_refresh_token" in args && before00364) return answer(null, { code: "PGRST202", message: "not found" });
+      if ("p_if_refresh_token" in args && vault.secret?.refresh_token !== args.p_if_refresh_token)
+        return answer(null, { code: "40001", message: "put_google_credentials: the token changed since it was read" });
+      vault.writes.push(args);
+      vault.secret = args.p_secret;
+      return answer(`google-creds-${args.p_tenant_id}`);
+    },
+  };
+  return { db, vault };
+}
+
+test("a token refreshed while the owner reconnected never writes the old grant back over the new one", () =>
+  withOAuthEnv(async () => {
+    const { tokenFor } = await import("../../../../apps/edge/lib/google/profile-credentials.ts");
+    const now = Date.parse("2026-09-12T00:00:00Z");
+    const stale = { refresh_token: "rt-old", access_token: "stale", expires_at: now - 60_000, scope: "s" };
+    const reconnected = { refresh_token: "rt-new", access_token: "at-new", expires_at: now + 3_600_000, scope: "s" };
+    const refreshed = { status: 200, body: JSON.stringify({ access_token: "at-refreshed", expires_in: 3600 }) };
+
+    // The owner reconnects while the refresh is at Google: the new grant is stored between the read and the write.
+    const raced = vaultDoors(stale);
+    const t = await tokenFor(raced.db, "t1", now, async () => {
+      raced.vault.secret = reconnected;
+      return refreshed;
+    });
+    assert.deepEqual(t, { ok: true, token: "at-new" }, "the reconnect's own token is answered");
+    assert.deepEqual(
+      raced.vault.secret,
+      reconnected,
+      "and the reconnect stands: the old refresh token is not written back",
+    );
+    assert.equal(raced.vault.writes.length, 0);
+
+    // Nobody in between: the refresh is kept, under the refresh token it refreshed.
+    const quiet = vaultDoors(stale);
+    assert.deepEqual(await tokenFor(quiet.db, "t1", now, async () => refreshed), { ok: true, token: "at-refreshed" });
+    assert.deepEqual(
+      [quiet.vault.secret.refresh_token, quiet.vault.secret.access_token, quiet.vault.writes[0].p_if_refresh_token],
+      ["rt-old", "at-refreshed", "rt-old"],
+    );
+
+    // A database before 00364 cannot compare: the refresh is written as it always was, and the profile keeps working.
+    const older = vaultDoors(stale, { before00364: true });
+    assert.deepEqual(await tokenFor(older.db, "t1", now, async () => refreshed), { ok: true, token: "at-refreshed" });
+    assert.deepEqual(
+      [older.vault.secret.access_token, "p_if_refresh_token" in older.vault.writes[0]],
+      ["at-refreshed", false],
+    );
   }));

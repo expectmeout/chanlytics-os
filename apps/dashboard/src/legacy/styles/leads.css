@@ -70,14 +70,14 @@
 .lf-changed { align-self: flex-start; font-size: var(--text-xs); color: var(--ink-dim); }
 .lf-pop {
   position: absolute; z-index: 12; top: calc(100% + 6px); left: 0; display: flex; flex-direction: column;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px;
-  box-shadow: var(--shadow-lg); padding: 6px; min-width: 228px;
+  padding: 6px; min-width: 228px;
 }
 .lf-pop-row {
-  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-lg);
   font-size: var(--text-sm); color: var(--ink); border: 0; background: transparent; width: 100%; text-align: left; cursor: pointer;
 }
-.lf-pop-row:hover, .lf-pop-row.on { background: var(--bg-hover); }
+/* A row lifts as a menu's item does (kit.css): a lozenge in the accent's soft tint. */
+.lf-pop-row:hover, .lf-pop-row.on { background: var(--accent-soft); }
 .lf-pop-row .r { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lf-pop-note { font-size: var(--text-xs); color: var(--ink-dim); padding: 6px 8px 4px; line-height: 1.45; max-width: 260px; }
 .lf-cannot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); color: var(--ink); }
@@ -228,8 +228,9 @@
 }
 .pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip { display: block; opacity: 1; transition-delay: 150ms; }
 @starting-style { .pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip { opacity: 0; } }
-/* The evidence's tip is a raised card: a list someone reads, not a line. */
-.pk-hint-tip.card { background: var(--bg-raised); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-lg); padding: 10px 12px; display: none; }
+/* The evidence's tip is a card: a list someone reads, not a line. Its ground is the kit's pop panel (hint.tsx), the
+   glass every menu and list wears. */
+.pk-hint-tip.card { color: var(--ink); padding: 10px 12px; display: none; }
 .pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip.card { display: flex; flex-direction: column; gap: 6px; }
 .pk-hint-tip.card .pk-group { display: flex; flex-direction: column; gap: 5px; }
 .pk-hint-tip.card .pk-group + .pk-group { padding-top: 6px; border-top: 1px solid var(--line); }
@@ -306,10 +307,10 @@
 .pk-input { width: 100%; height: 32px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); padding: 0 10px; font-family: inherit; font-size: var(--text-sm); color: var(--ink); }
 .pk-note-left { font-size: var(--text-xs); color: var(--ink-dim); }
 
-.pk-nf { position: absolute; right: 14px; top: 118px; width: 268px; z-index: 12; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg); padding: 6px; }
+.pk-nf { position: absolute; right: 14px; top: 118px; width: 268px; z-index: 12; padding: 6px; }
 .pk-nf .pop-h { font-size: 9.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); padding: 6px 8px 4px; }
-.pk-nf .pop-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink); border: 0; background: transparent; width: 100%; text-align: left; font-family: inherit; cursor: pointer; }
-.pk-nf .pop-row:hover { background: var(--bg-hover); }
+.pk-nf .pop-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-lg); font-size: var(--text-sm); color: var(--ink); border: 0; background: transparent; width: 100%; text-align: left; font-family: inherit; cursor: pointer; }
+.pk-nf .pop-row:hover { background: var(--accent-soft); }
 
 /* The shape an email state wears beside its word (PRD 10.4). */
 .ld-shape { display: inline-grid; place-items: center; flex: none; }
@@ -557,7 +558,7 @@ textarea.ld-line-box { height: auto; min-height: 112px; padding: 12px 14px; line
   /* The why list carries .pl-peek because PL_OVERLAY judges its role="menu" by
      that class. The full-screen rule above is the peek's own; the list stays
      the popover it is on a desktop, inside the peek that is now the screen. */
-  .pk .pk-nf.pl-peek { position: absolute; inset: auto; right: 14px; top: calc(118px + env(safe-area-inset-top, 0px)); width: 268px; background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
+  .pk .pk-nf.pl-peek { position: absolute; inset: auto; right: 14px; top: calc(118px + env(safe-area-inset-top, 0px)); width: 268px; }
 
   /* The plan panel opens as a sheet from the bottom. Two things wear .pl-plan, the name PL_OVERLAY knows the panel
      by: the sheet and the panel inside it, so the sheet's box names the sheet. The sheet is the pane, edge to edge on
@@ -568,7 +569,7 @@ textarea.ld-line-box { height: auto; min-height: 112px; padding: 12px 14px; line
   .sb-sheet.pl-plan {
     left: 0; right: 0; top: auto; bottom: var(--kb, 0px); transform: none; width: auto;
     max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); overflow: auto;
-    border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-bottom: 0; border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0;
     padding: 8px var(--gutter-page) 18px; display: flex; flex-direction: column; gap: 14px;
   }
   .ld-sheet-handle { width: 36px; height: 4px; border-radius: var(--radius-full); background: var(--line-strong); margin: 0 auto 2px; flex: none; }
@@ -695,7 +696,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 }
 .ld-card {
   position: absolute; left: 0; top: calc(100% + 8px); z-index: 21; width: 320px; padding: 12px; box-sizing: border-box;
-  border-radius: var(--radius-lg); background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg);
   text-align: left; white-space: normal; font-size: var(--text-sm); color: var(--ink); cursor: default;
   display: none; opacity: 0;
   transition: opacity 140ms var(--ease-out) 400ms, display 0s allow-discrete 540ms;
@@ -782,8 +782,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 }
 
 /* The phone (900px and under): the D5 row as a card -- the tile and the name, the two slots and the rating
-   under them, the 44px Call at the end. A phone draws every column, the ones switched off too (plDrawnColumns: a
-   member's choices are a desktop's), so each cell is placed on an area here or hidden here. A cell naming an area
+   under them, the 44px Call at the end. A phone draws every column its card has, whatever a member turned off
+   (a member's choices are a desktop's), so each cell is placed on an area here or hidden here. A cell naming an area
    the template lacks is not dropped: it opens implicit tracks past the grid. Fit and Stage still named the areas
    of the card before D5, and those tracks squeezed the name to a few letters and put Call mid-card. */
 @media (max-width: 900px) {
@@ -894,8 +894,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-act-none { flex: 1; }
 
 /* The photo, expanded: the page's own overlay over everything, the photo left, the place's facts right. */
-.ld-lightbox-backdrop { position: fixed; inset: 0; z-index: 50; background: oklch(0 0 0 / 0.55); }
-.ld-lightbox { position: fixed; inset: 40px; max-width: 1180px; margin: 0 auto; z-index: 51; display: flex; flex-direction: column; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden; }
+.ld-lightbox-backdrop { position: fixed; inset: 0; z-index: 50; background: var(--surface-scrim); }
+.ld-lightbox { position: fixed; inset: 40px; max-width: 1180px; margin: 0 auto; z-index: 51; display: flex; flex-direction: column; background: var(--surface-pop-fill); border: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pop-radius); box-shadow: var(--surface-pop-depth); overflow: hidden; }
 .ld-lb-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 18px; border-bottom: 1px solid var(--line); flex: none; }
 .ld-lb-head .sp { flex: 1; }
 .ld-lb-name { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
@@ -1434,14 +1434,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   }
   .main-scroll .pl-table tbody tr.ld-row-talking > td:first-child::before {
     background: var(--ok);
-  }
-  /* The card a name or a rating opens under the pointer is the pop layer: the look's own fill, corners and depth. It is
-     the hover's alone (.ld-hover): People's name block ends in their words, which this laid on a pop's white ground. */
-  .main-scroll .ld-hover > :last-child {
-    border: 0;
-    border-radius: var(--surface-pop-radius);
-    background: var(--surface-pop-fill);
-    box-shadow: var(--surface-pop-depth);
   }
 
   /* The panel's band on a desk (the panel boards): Close a 34px circle at the top right, Expand one at the bottom

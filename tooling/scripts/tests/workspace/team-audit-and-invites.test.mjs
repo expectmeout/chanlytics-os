@@ -96,6 +96,7 @@ test("an open invitation, run: looked up beside the boot's other reads, accepted
       { id: B, slug: "luna", name: "Luna", status: "active", timezone: "Europe/Madrid" },
     ],
     profiles: [],
+    events: [],
     invitations: [
       {
         id: "i-1",
@@ -136,10 +137,16 @@ test("an open invitation, run: looked up beside the boot's other reads, accepted
     assert.equal(home.user.role, "owner");
     assert.ok(world.invitations[0].accepted_at, "the invitation is stamped accepted");
     assert.equal(world.memberships.length, 2);
+    assert.deepEqual(
+      world.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+      [[B, "member.joined", "invitation", "i-1", { by: USER, role: "operator" }]],
+      "REGRESSION: the ledger kept the invitation and never that anybody arrived",
+    );
 
     const again = await read("same-origin");
     assert.equal(world.memberships.length, 2, "an accepted invitation is not looked up again");
     assert.equal(roleIn(again, B), "operator");
+    assert.equal(world.events.length, 1, "and is said once");
   } finally {
     setServiceClient(null);
   }
@@ -171,7 +178,12 @@ test("the index matches how the reader actually filters", () => {
 // there) is now that there is no seeded branch, no write to the role store's roster and no undo at all.
 {
   const { readCode } = await import("../_source.mjs");
-  const settings = readCode("apps/dashboard/src/surfaces/settings/team/team.tsx");
+  // The card, its presses (acts.tsx) and its invitation (invite.tsx): one card in three modules since 9 Oct 2026.
+  const settings = readCode(
+    "apps/dashboard/src/surfaces/settings/team/team.tsx",
+    "apps/dashboard/src/surfaces/settings/team/acts.tsx",
+    "apps/dashboard/src/surfaces/settings/team/invite.tsx",
+  );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   const seam = readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
 
@@ -179,13 +191,17 @@ test("the index matches how the reader actually filters", () => {
     // They mutated ST_STORE and toasted success on a pane fed by live data:
     // "Invite sent to x as Operator" while nothing was sent, stored or
     // audited, and a demotion confirmed while the database still said owner.
-    for (const verb of ["invite", "setRole", "remove"]) {
+    for (const verb of ["invite", "setRole", "remove", "resend", "leave"]) {
       assert.ok(settings.includes(`teamVerbs.${verb}(`), `${verb} must be called from the Team card`);
     }
-    assert.ok(
-      bridge.includes("export const teamVerbs = { invite: teamInvite, setRole: teamSetRole, remove: teamRemove };"),
-      "through the bridge's three doors",
-    );
+    for (const door of [
+      "invite: teamInvite",
+      "setRole: teamSetRole",
+      "remove: teamRemove",
+      "resend: teamResend",
+      "leave: teamLeave",
+    ])
+      assert.ok(bridge.includes(door), `through the bridge's doors: ${door}`);
   });
 
   test("the card never writes the role store's roster", () => {

@@ -70,6 +70,25 @@ test("STOP outranks an opt-in record; START outranks an opt-out record", () => {
   assert.equal(on({ optInNow: true, recorded: true }).optedOut, false);
 });
 
+test("a START taken in again is not the way back a second time: the record, which holds its yes and anything said since, decides", () => {
+  // 00361: a message already held writes no answer when it is taken in again (a text's answer job, a redelivery). A
+  // START, then a STOP, then the START's job run late: the record says the STOP, and the START is held by it, so no
+  // confirmation goes that the door would refuse and nobody is told the customer said yes.
+  assert.deepEqual(on({ optInNow: true, takenAgain: true, recorded: true }), { optedOut: true, source: "record" });
+  // The ordinary text START: its door wrote the yes, and its job, taken in again, reads it.
+  assert.deepEqual(on({ optInNow: true, takenAgain: true, recorded: false }), { optedOut: false, source: "record" });
+  assert.deepEqual(on({ optInNow: true, takenAgain: true, recorded: null }), { optedOut: false, source: "none" });
+  // A new START is the way back as it always was, and a STOP never waits on the record, taken in again or not.
+  assert.deepEqual(on({ optInNow: true, takenAgain: false, recorded: true }), {
+    optedOut: false,
+    source: "this_message",
+  });
+  assert.deepEqual(on({ optOutNow: true, takenAgain: true, recorded: false }), {
+    optedOut: true,
+    source: "this_message",
+  });
+});
+
 test("the decision carries nothing to write back: there is no cache to keep", () => {
   // The cached copy was the third source, and keeping it current cost a read
   // and a write in front of every brain call. Its absence is the point.

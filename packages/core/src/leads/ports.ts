@@ -307,6 +307,8 @@ export interface LeadDb {
   ): Promise<{ emails: Set<string>; placeIds: Set<string> }>;
   zoneOf(tenantId: TenantId): Promise<string>;
   leadSearchesOn(tenantId: TenantId): Promise<boolean>;
+  /** Whether the workspace may spend on the platform's account now (contracts maySpend); a read that fails throws. */
+  maySpend(tenantId: TenantId): Promise<boolean>;
 }
 
 export interface LeadPorts {

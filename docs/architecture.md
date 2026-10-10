@@ -281,7 +281,10 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   reads their workspace's (`GET usage` rolls the month up for an owner), the health sweep pages on its failures
   (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00274).
 - **One injection policy** (`contracts/ai/fence.ts`): someone else's words reach a model only inside a fence they cannot
-  close, and every system prompt shown such words carries one rule line.
+  close, and every system prompt shown such words carries one rule line. Ask fences where data becomes something the
+  model reads: a tool's result (`server/ask/round.ts`), a read made ahead of the question
+  (`server/ask/cross-page.ts`) and the page's own rows (`server/ask/context.ts`); the tools themselves answer plain
+  JSON.
 - **A second port, in shadow** (`packages/channels/src/models/typesafe.ts`; decision 0023): TypeSafe's Jev is asked the
   receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary while
   `TYPESAFE_SHADOW=1` and its key are set. Its answers are compared with the primary's and kept in the same ledger
@@ -387,6 +390,28 @@ Today, the Inbox and People are on it. The hand-written `surface:*` listeners th
 `addEventListener("surface:…")` sites in 22 of the shell's files on 29 September 2026, and the few that loop over a list of
 names) either do something a redraw does not (reseed a list and keep a thread open, say what a re-read did to it) or wait
 for their page to move to `useSurface`; a new page names its surfaces.
+
+**How a page opens.** Five things decide how soon a page has its rows, each with one owner, and a new page takes all
+five. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into a load and the Calendar its weeks at
+900, with the same page code drawing in 30 ms once the rows were in; the difference was when each was asked for.
+
+- _Its first reads leave from the document's head._ `packages/contracts/src/shell/route-prefetch.ts` (`PREFETCH_READS`)
+  names what each page opens on, spelled as the client spells it; the head starts them before a script has loaded, and the
+  page's own read takes the answer in place of a fetch (`apps/dashboard/src/client/api.ts`). A read that needs something
+  only the server knows is made sayable by its route, never left out: the Calendar asks for `around=today` and the route
+  works out the weeks by the business's clock. `tooling/scripts/tests/shell/surfaces/route-prefetch.test.mjs` runs each
+  page's surfaces against the list, and fails a page that has no entry.
+- _The boot reads the page's own first._ Who is looking, the page's surface and what it draws beside it
+  (`apps/dashboard/src/legacy-bridge/surface-registry.ts`, `ROUTE_DRAWS`), then everyone else's
+  (`apps/dashboard/src/legacy-bridge/surface-runner.ts`).
+- _What is read only where it is drawn is read as its page is reached for._ A surface marked `onDemand` (Reports) is on
+  no other page's boot; a pointer at its row in the sidebar, or the phone's drawer opening, starts its reads
+  (`surface-registry.ts` `warmWhatItDraws`), so the press finds them in or on their way.
+- _The tab keeps what it read._ The last read of every surface paints before React draws (`surface-cache.ts`), and a
+  view the tab has held paints at once and is read again behind (`apps/dashboard/src/legacy-bridge/held-views.ts`).
+- _Round trips that need nothing of each other go together._ A reader asks for them at once and waits for all
+  (`apps/dashboard/src/server/readers/`): one after the other, the Calendar's read spent 180 ms on the server for a
+  workspace with no calendar.
 
 ## The interface
 
@@ -604,6 +629,7 @@ packages/channels/src/
   tokens/
   voice/
 packages/contracts/src/
+  activity/
   ai/
   ask/
   ask-proposals/
@@ -615,6 +641,7 @@ packages/contracts/src/
   deals/
   email/
   google/
+  journey/
   leads/
   lines/
   mobile/
@@ -639,6 +666,7 @@ packages/core/src/
   leads/
   messages/
 packages/db/src/
+  billing/
   repositories/
 packages/jobs/src/
 tooling/scripts/

@@ -554,7 +554,7 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
         { day: "2026-09-07", rating: 4.8, review_count: 213 },
       ],
     }),
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -601,7 +601,7 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
         { day: "2026-09-07", rating: 4.8, review_count: 213 },
       ],
     }),
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -615,7 +615,7 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
         { day: "2026-09-07", rating: 4.8, review_count: 213 },
       ],
     }),
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -628,7 +628,7 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
         { day: "2026-09-07", rating: 4.7, review_count: 213 },
       ],
     }),
-    30,
+    { days: 30, until: null },
     NOW,
     "UTC",
   );
@@ -640,7 +640,7 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
     { day: "2026-09-07", rating: 4.8, review_count: 213 },
   ];
   assert.equal(
-    toGoogleVM(dto({ days: earlier }), 30, NOW, "UTC").tiles[2].compare,
+    toGoogleVM(dto({ days: earlier }), { days: 30, until: null }, NOW, "UTC").tiles[2].compare,
     "down from 40",
     "23 against the 40 before, in counts",
   );
@@ -651,20 +651,25 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
         { day: "2026-09-07", rating: 4.8, review_count: 213 },
       ],
     }),
-    7,
+    { days: 7, until: null },
     NOW,
     "UTC",
   );
   assert.deepEqual(unrated.tiles[0].spark, [4.8], "a read day with no rating is no point on the line, never a zero");
-  const quiet = toGoogleVM(dto({ reviews: [review({ first_seen_at: "2026-09-01T14:00:00Z" })] }), 30, NOW, "UTC");
+  const quiet = toGoogleVM(
+    dto({ reviews: [review({ first_seen_at: "2026-09-01T14:00:00Z" })] }),
+    { days: 30, until: null },
+    NOW,
+    "UTC",
+  );
   assert.equal(quiet.todayLine, null);
   assert.equal(quiet.tiles[2].value, "—");
   assert.equal(quiet.tiles[2].meta, "needs a second day of reading");
-  const none = toGoogleVM(dto({ listing: null, reviews: [] }), 30, NOW, "UTC");
+  const none = toGoogleVM(dto({ listing: null, reviews: [] }), { days: 30, until: null }, NOW, "UTC");
   assert.equal(none.listing, null);
   assert.deepEqual(none.tiles, []);
   assert.equal(none.todayLine, null);
-  const trouble = toGoogleVM(dto({ listing: listing({ check_error: "boom" }) }), 7, NOW, "UTC");
+  const trouble = toGoogleVM(dto({ listing: listing({ check_error: "boom" }) }), { days: 7, until: null }, NOW, "UTC");
   assert.equal(trouble.listing.trouble, true);
   assert.match(trouble.listing.checked, /could not be read since 3h ago/);
   assert.ok(!JSON.stringify(vm).includes("null."), "no null read aloud");

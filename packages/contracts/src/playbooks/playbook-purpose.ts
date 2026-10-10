@@ -58,9 +58,9 @@ export function enrolPurpose(policyClass: string | null | undefined, message: Ru
 /** The two ways a moment and its message disagree, and what each says. */
 export const MESSAGE_MOMENT_WORDS = {
   offer_on_texts:
-    "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a message about their own visit or proposal.",
+    "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a reminder, a check after, or a follow-up.",
   texts_on_offers:
-    "This moment sends offers, which only a yes to offers may get, and this message is about a person's own visit or proposal. Pick an offer, or a moment for visits.",
+    "This moment sends offers, which only a yes to offers may get, and this message is a reminder, a check after or a follow-up. Pick an offer, or the moment it was written for.",
 } as const;
 
 /**

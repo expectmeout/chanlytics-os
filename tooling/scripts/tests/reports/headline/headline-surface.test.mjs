@@ -195,7 +195,7 @@ test("a pick that fails on a tab that holds no headline for the period kept leav
   try {
     reset("30d");
     // The page shows thirty days; this tab never read thirty days' headline (Today was not on screen: it is on-demand).
-    setSurfaceValue("reports", { ...(surfaceValue("reports") ?? {}), period: "30d" });
+    setSurfaceValue("reports", { ...(surfaceValue("reports") ?? {}), period: "30d", range: "30d", key: "30d" });
     // Ninety days' headline landed behind a pick (the lighter read answers first), and is what Today would say.
     keepReportPeriod("90d");
     await reportsHeadlineOverride.apply();

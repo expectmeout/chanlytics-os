@@ -306,13 +306,17 @@ test("a permanent bounce flags the thread in words that say what to do, fails th
   assert.equal(t.contacts[0].email_suppressed_reason, "hard_bounce");
   assert.deepEqual(
     t.events.map((e) => [e.kind, e.subject_id, e.data]),
-    [["contact.email_suppressed", "k1", { reason: "hard_bounce" }]],
+    [
+      // The thread handed to the team is on the ledger too (escalation.opened), by the reason and never the words.
+      ["escalation.opened", "c1", { reason: "send_failed" }],
+      ["contact.email_suppressed", "k1", { reason: "hard_bounce" }],
+    ],
     "the reason, never the address",
   );
 
   assert.equal(await post(receipt("bounced", BOUNCE)), 200, "Resend delivers at least once");
   assert.equal(t.escalations.length, 1);
-  assert.equal(t.events.length, 1);
+  assert.equal(t.events.length, 2, "and the hold is said once: the same receipt again opens nothing");
 });
 
 test("a complaint arrives after delivery: the row stays delivered and the address stops. A corrected address is a different address, and is not stopped", async () => {

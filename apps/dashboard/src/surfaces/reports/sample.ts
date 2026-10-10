@@ -5,7 +5,9 @@
  * the messages and calls, the replies to what the receptionist answered, the reasons to the handovers, the moods to
  * the calls and the sources to what was sent. The page imports it, and draws it only in a demo session that has read
  * nothing of its own (the standalone mockup's Reports went with the shell's: a moved surface is drawn by the app). The Reviews
- * lens has its own, a listing Google shows with no Business Profile behind it (`reviewsSample`), drawn the same way.
+ * lens has its own, a listing Google shows with no Business Profile behind it (`reviewsSample`), drawn the same way, and so has
+ * the Receptionist lens (`receptionistSample`): the route's answer for the same business and days, which the lens folds as it
+ * folds a workspace's.
  */
 import {
   toReportVM,
@@ -19,19 +21,24 @@ import {
   type BookingReportDto,
   type GoogleReviewDto,
   type ReviewsReportDto,
+  type ReceptionistDto,
+  type ReportVM,
   HOUR_MS,
   sumOf,
   REPORT_PERIOD_DEFAULT,
-  fixedDaysOf,
+  isReportDays,
   isReportPeriod,
-  monthDaysAt,
-  type ReportPeriodId,
+  type ReportRange,
 } from "@chanlytics/contracts";
+import { reportWindowOf, type ReportWindowVM } from "@chanlytics/contracts/report-window";
+import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
 import type { ReportsSurface } from "./surface";
 
 const ZONE = "America/New_York";
 const SPAN = 180;
+/** The reply hold the sample's business has set, in seconds: each reply it sends waits it out. */
+const SAMPLE_HOLD_S = 60;
 
 type ReportDay = ReportDto["series"][number];
 type CampaignDay = CampaignReportDto["series"][number];
@@ -145,7 +152,10 @@ function business(today: string): SampleDay[] {
         opt_ins: r() > 0.85 ? 1 : 0,
         opt_outs: r() > 0.94 ? 1 : 0,
       },
-      replies: Array.from({ length: ai }, () => Math.round(r() > 0.9 ? 120 + r() * 1500 : 6 + r() * 60)),
+      // Every reply waits the business's hold: nearly all go out as it ends, one in ten takes longer.
+      replies: Array.from({ length: ai }, () =>
+        Math.round(SAMPLE_HOLD_S + (r() > 0.9 ? 60 + r() * 1500 : 2 + r() * 7)),
+      ),
       whatsapp: inbound - email - sms,
       email,
       sms,
@@ -183,7 +193,7 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
     reply_seconds: cur.flatMap((d) => d.replies).sort((a, b) => a - b),
     sentiments: tally(cur.flatMap((d) => d.moods)),
     voicemail: sumOf(cur.map((d) => d.voicemail)),
-    replies: cur.flatMap((d) => d.replies.map((s) => ({ day: d.report.day, s }))),
+    replies: cur.flatMap((d) => d.replies.map((s) => ({ day: d.report.day, s, hold: SAMPLE_HOLD_S }))),
     channels: { current: channels(cur), previous: channels(prev) },
     hours,
   };
@@ -279,10 +289,16 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
   return { timezone: ZONE, days: n, span_days: 2 * n, today, series: span.map((d) => d.campaign), sources, by_channel };
 }
 
-function bookingDto(all: readonly SampleDay[], n: number): BookingReportDto {
+/** Asked, then booked, counted for a window that ends today alone, as the server counts it (readers/report.ts bookingOf). */
+function bookingDto(all: readonly SampleDay[], n: number, live: boolean): BookingReportDto {
+  if (!live) return { calendar: "ended", days: n, asked: 0, booked: 0 };
   const asked = Math.max(1, Math.round(sumOf(all.slice(-n).map((d) => d.report.conversations)) * 0.45));
   return { calendar: "ok", days: n, asked, booked: Math.round(asked * 0.45) };
 }
+
+/** The window a sample is of: the range asked for (anything that is none of ours is the default period) as of `today`. */
+const sampleWindow = (range: ReportRange, today: string): ReportWindowVM =>
+  reportWindowOf(isReportPeriod(range) || isReportDays(range) ? range : REPORT_PERIOD_DEFAULT, today);
 
 const todayIn = (zone: string): string =>
   new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
@@ -291,24 +307,30 @@ const todayIn = (zone: string): string =>
 
 const keptReports = new Map<string, ReportsSurface>();
 
-/** The demo's report for a period (anything that is none of ours is the default) as of `today`, a YYYY-MM-DD key in the business's zone. */
-export function reportsSample(period: ReportPeriodId, today: string = todayIn(ZONE)): ReportsSurface {
-  const id = isReportPeriod(period) ? period : REPORT_PERIOD_DEFAULT;
-  const n = fixedDaysOf(id) ?? monthDaysAt(today);
-  const key = `${id}:${today}`;
+/**
+ * The demo's report for a range (anything that is none of ours is the default period) as of `today`, a YYYY-MM-DD key in
+ * the business's zone. Days a member picked are those days of the same business: half a year of it ending on their last
+ * day, said as the report says a window that ended before today (`end`).
+ */
+export function reportsSample(range: ReportRange, today: string = todayIn(ZONE)): ReportsSurface {
+  const win = sampleWindow(range, today);
+  const n = win.days;
+  const key = `${win.key}:${today}`;
   const hit = keptReports.get(key);
   if (hit) return hit;
-  const all = business(today);
-  const vm = toReportVM(reportDto(all, n, today), { profile: null });
-  const campaigns = toCampaignReportVM(campaignDto(all, n, today));
+  const all = business(win.to);
+  const vm = toReportVM({ ...reportDto(all, n, win.to), today, end: win.to }, { profile: null });
+  const campaigns = toCampaignReportVM(campaignDto(all, n, win.to));
   const surface: ReportsSurface = {
     vm,
     campaigns,
-    booking: toBookingReportVM(bookingDto(all, n)),
+    booking: toBookingReportVM(bookingDto(all, n, win.live)),
     // The demo is a salon: no deal was ever recorded, so Reports draws no Deals section (0004).
-    deals: toDealReportVM(null, vm.rangeLabel),
+    deals: toDealReportVM(null, vm.period.within),
     facts: reportFacts(vm, campaigns),
-    period: id,
+    range: win.range,
+    key: win.key,
+    period: win.period,
     days: n,
     fetchedAt: 0,
   };
@@ -332,17 +354,18 @@ const keptReviews = new Map<string, ReviewsSurface>();
  * counts, the ratings its daily readings gained, the five public reviews, and what a profile would add. Nothing here can be answered:
  * a demo posts no reply to Google.
  */
-export function reviewsSample(period: ReportPeriodId, today: string = todayIn(ZONE)): ReviewsSurface {
-  const id = isReportPeriod(period) ? period : REPORT_PERIOD_DEFAULT;
-  const n = fixedDaysOf(id) ?? monthDaysAt(today);
-  const key = `${id}:${today}`;
+export function reviewsSample(range: ReportRange, today: string = todayIn(ZONE)): ReviewsSurface {
+  const win = sampleWindow(range, today);
+  const n = win.days;
+  const key = `${win.key}:${today}`;
   const hit = keptReviews.get(key);
   if (hit) return hit;
   const r = seeded(11);
   let count = 180;
+  // The listing's daily readings up to the window's last day: what the lens counts a gain from.
   const days = Array.from({ length: n + 1 }, (_, i) => {
     count += r() > 0.6 ? 1 : 0;
-    return { day: back(today, n - i), rating: 4.8, review_count: count };
+    return { day: back(win.to, n - i), rating: 4.8, review_count: count };
   });
   const reviews = PUBLIC_REVIEWS.map(([author, rating, body, ago], i): GoogleReviewDto => {
     const day = back(today, ago);
@@ -366,6 +389,7 @@ export function reviewsSample(period: ReportPeriodId, today: string = todayIn(ZO
   const dto: ReviewsReportDto = {
     timezone: ZONE,
     today,
+    ...(win.live ? {} : { end: win.to }),
     days: n,
     readable: true,
     ledger: null,
@@ -390,8 +414,193 @@ export function reviewsSample(period: ReportPeriodId, today: string = todayIn(ZO
   };
   const surface: ReviewsSurface = {
     vm: toReviewsReportVM(dto, { nowMs: Date.parse(`${today}T16:00:00Z`) }),
-    period: id,
+    key: win.key,
   };
   keptReviews.set(key, surface);
+  return surface;
+}
+
+type ReceptionistSeries = NonNullable<ReceptionistDto["series"]>;
+type Totals = ReportVM["answered"]["totals"];
+
+/** A count shared over parts in the proportion of their weights; what rounding leaves goes to the first part. */
+function sharedOver(total: number, weights: readonly number[]): number[] {
+  const whole = Math.max(1, sumOf(weights));
+  const parts = weights.map((w) => Math.floor((total * w) / whole));
+  const [first = 0, ...rest] = parts;
+  return [first + total - sumOf(parts), ...rest];
+}
+
+/** What became of the replies held for the owner: those sent, and the few that did not go out as written. */
+function sampleHold(totals: Totals): ReceptionistSeries["hold"] {
+  const sent = totals.ai;
+  const [canceled = 0, steered = 0, overtaken = 0, other = 0] = [0.04, 0.03, 0.02, 0.02].map((f) =>
+    Math.round(sent * f),
+  );
+  const personFirst = Math.round(totals.you * 0.5);
+  const total = sent + canceled + steered + overtaken + personFirst + other;
+  return {
+    now: {
+      total,
+      sent,
+      canceled,
+      steered,
+      overtaken,
+      person_first: personFirst,
+      waiting: 0,
+      other,
+      low_confidence: Math.round(sent * 0.1),
+    },
+    before: { total: Math.round(total * 0.9), sent: Math.round(sent * 0.9) },
+  };
+}
+
+/** What customers asked about: four in five of the texts and WhatsApp messages carry a topic, shared over five. */
+const TOPIC_WEIGHTS: ReadonlyArray<readonly [string, number]> = [
+  ["booking", 40],
+  ["pricing", 25],
+  ["hours", 15],
+  ["services", 12],
+  ["other", 8],
+];
+
+function sampleTopics(vm: ReportVM): ReceptionistSeries["topics"] {
+  const texts = sumOf((vm.channels ?? []).filter((c) => c.key === "whatsapp" || c.key === "sms").map((c) => c.value));
+  const stamped = Math.round(texts * 0.8);
+  const counts = sharedOver(
+    stamped,
+    TOPIC_WEIGHTS.map(([, w]) => w),
+  );
+  return { of: texts, stamped, by_intent: Object.fromEntries(TOPIC_WEIGHTS.map(([id], i) => [id, counts[i] ?? 0])) };
+}
+
+/** The language of each reply it sent: mostly English, some Spanish (none, in a period too quiet to have one). */
+function sampleLanguages(replies: number): ReceptionistSeries["languages"] {
+  const es = Math.round(replies * 0.15);
+  return { of: replies, stamped: replies, by_language: replies ? { en: replies - es, es } : {} };
+}
+
+/** The replies the send door refused: nearly all because a person had the thread. */
+function sampleBlocked(totals: Totals): ReceptionistSeries["blocked"] {
+  const total = Math.round(totals.ai * 0.05);
+  const human = Math.ceil(total * 0.75);
+  return { total, by_reason: { human_has_it: human, opted_out: total - human } };
+}
+
+/** How the calls that connected ended: those that reached voicemail did not connect. */
+function sampleCallEndings(vm: ReportVM): ReceptionistSeries["call_endings"] {
+  const total = Math.max(0, vm.calls.total - vm.calls.voicemail);
+  const [user = 0, agent = 0, unknown = 0] = sharedOver(total, [60, 30, 10]);
+  return { total, by_reason: { user_hangup: user, agent_hangup: agent, unknown } };
+}
+
+/** A handover and the middle of the two times that follow it; the period before had a fifth fewer, and took longer. */
+function sampleHandovers(handovers: number): ReceptionistSeries["handover"] {
+  const timed = (n: number, median: number) => ({ n, median_s: n ? median : null });
+  const at = (share: number, replied: number, settled: number) => {
+    const n = Math.round(handovers * share);
+    return { n, replied: timed(Math.round(n * 0.9), replied), settled: timed(Math.round(n * 0.75), settled) };
+  };
+  return { now: at(1, 540, 3900), before: at(0.8, 780, 5400) };
+}
+
+/** The calls nobody took: a fifth of the calls, and the business reached three in five of the people within the hour. */
+function sampleMissed(calls: number): ReceptionistSeries["missed"] {
+  const at = (share: number) => {
+    const n = Math.round(calls * share);
+    return { n, touched: Math.round(n * 0.6), pending: 0, unknown: 0 };
+  };
+  return { now: at(0.2), before: at(0.25) };
+}
+
+/** The quarter hours the sample's customers write at: through the morning, the afternoon, and at nine in the evening. */
+const MORNING_Q = 44;
+const AFTERNOON_Q = 64;
+const EVENING_Q = 84;
+
+/**
+ * Every customer message of the window by its day and quarter hour: a quarter of each day's in the evening, the rest split
+ * through the day, so the messages add up to the period's. The receptionist answered first as many as it answered that day,
+ * the evening's before the rest.
+ */
+function sampleAfterHours(points: ReportVM["answered"]["points"]): ReceptionistSeries["after_hours"] {
+  return points.flatMap((p) => {
+    const evening = Math.floor(p.in / 4);
+    const morning = Math.ceil((p.in - evening) / 2);
+    const afternoon = p.in - evening - morning;
+    let answered = p.ai;
+    return (
+      [
+        [EVENING_Q, evening],
+        [MORNING_Q, morning],
+        [AFTERNOON_Q, afternoon],
+      ] as const
+    ).flatMap(([q, n]) => {
+      const a = Math.min(n, answered);
+      answered -= a;
+      return n > 0 ? [{ d: p.day, q, n, a }] : [];
+    });
+  });
+}
+
+/** Monday to Saturday, nine to six: the sample's Sundays and evenings are closed. */
+const SAMPLE_PROFILE: NonNullable<ReceptionistDto["profile"]> = {
+  hours: Object.fromEntries(
+    ["mon", "tue", "wed", "thu", "fri", "sat"].map((d) => [d, { open: "09:00", close: "18:00" }]),
+  ),
+};
+
+/** The route's answer for the sample's business and window, from the numbers the report's sample already holds. */
+function receptionistDto(vm: ReportVM, win: ReportWindowVM, today: string): ReceptionistDto {
+  const totals = vm.answered.totals;
+  const sent = Math.round(totals.ai * 0.3);
+  const series: ReceptionistSeries = {
+    timezone: ZONE,
+    today,
+    ...(win.live ? {} : { end: win.to }),
+    days: win.days,
+    hold: sampleHold(totals),
+    topics: sampleTopics(vm),
+    languages: sampleLanguages(totals.ai),
+    blocked: sampleBlocked(totals),
+    call_endings: sampleCallEndings(vm),
+    handover: sampleHandovers(sumOf(vm.reasons.map((r) => r.value))),
+    missed: sampleMissed(vm.calls.total),
+    after_hours: sampleAfterHours(vm.answered.points),
+    // Who booked since is not counted for days that ended before today, as the booking card is not.
+    links: win.live
+      ? { sent, booked: Math.round(sent * 0.45), calendar: "ok" }
+      : { sent, booked: null, calendar: "ended" },
+    stuck: { waiting: 2, oldest_at: `${today}T13:40:00Z`, callbacks: 1, capped: false },
+  };
+  return {
+    timezone: ZONE,
+    today,
+    ...(win.live ? {} : { end: win.to }),
+    days: win.days,
+    series,
+    profile: SAMPLE_PROFILE,
+  };
+}
+
+const keptReceptionist = new Map<string, ReceptionistSurface>();
+
+/**
+ * The demo's Receptionist read for a range as of `today`: the route's answer for the same business and days as `reportsSample`
+ * (the messages, handovers and calls it holds, shared into the hold, the topics, how calls ended, the link and the times), read at
+ * four in the afternoon of that day, with two people waiting on the owner. The same range on the same day is the same object, which
+ * the lens folds once.
+ */
+export function receptionistSample(range: ReportRange, today: string = todayIn(ZONE)): ReceptionistSurface {
+  const win = sampleWindow(range, today);
+  const key = `${win.key}:${today}`;
+  const hit = keptReceptionist.get(key);
+  if (hit) return hit;
+  const surface: ReceptionistSurface = {
+    dto: receptionistDto(reportsSample(range, today).vm, win, today),
+    key: win.key,
+    readAt: Date.parse(`${today}T16:00:00Z`),
+  };
+  keptReceptionist.set(key, surface);
   return surface;
 }

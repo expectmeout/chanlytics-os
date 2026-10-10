@@ -17,7 +17,7 @@ import {
   isOptedOut,
   toInboxThreadVM,
 } from "@chanlytics/contracts";
-import { normalizeInbound } from "@chanlytics/channels";
+import { normalizeInbound, smsKeywordConsent } from "@chanlytics/channels";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -205,3 +205,82 @@ test("the patterns are anchored and case-insensitive", () => {
     assert.ok(!/wa_skip_stale/.test(edgeSrc), "the silent drop must be gone, not merely bypassed");
   });
 }
+
+/* --------------------------- a stop, as a sentence -------------------------- */
+
+// The keywords read one word. The same request as a sentence was read as asking for nothing, and the receptionist
+// answered it (channels stop-request.ts). Each of these is the whole of what the person wrote.
+const STOP_SENTENCES = [
+  "Stop texting me",
+  "please stop texting me",
+  "Please stop texting me!!",
+  "stop sending me messages",
+  "stop sending these",
+  "STOP SENDING ME TEXTS PLEASE",
+  "don't text me",
+  "Don’t text me again",
+  "do not contact me",
+  "dont message me anymore",
+  "remove me",
+  "remove me from your list",
+  "take me off your list",
+  "unsubscribe me",
+  "opt out",
+  "I want to opt out",
+  "no more messages",
+  "leave me alone",
+  "I don't want these messages",
+  "i do not want to receive any more texts",
+  "I don't want to be contacted",
+  "hey stop messaging me thanks",
+  "no me escribas más",
+  "No me escriban",
+  "ya no me manden mensajes",
+  "no me envíen más mensajes",
+  "dejen de escribirme",
+  "no quiero recibir más mensajes",
+  "dame de baja",
+  "por favor denme de baja",
+  "no más mensajes",
+  "borren mi número",
+  "sácame de la lista",
+  "cancelar suscripción",
+  "no quiero que me escriban más",
+];
+
+test("a stop written as a sentence opts out, in English and Spanish, on WhatsApp and on a texting line", () => {
+  for (const w of STOP_SENTENCES) {
+    assert.equal(wa(w).optOut, true, `"${w}" must opt out on WhatsApp`);
+    assert.deepEqual(smsKeywordConsent(w), { optOut: true, optIn: false }, `"${w}" must opt out by text`);
+  }
+});
+
+test("a message that asks for something else is still a person's or the receptionist's to read", () => {
+  // Whole-message only, as the keywords are: a stop with a request beside it is not a pattern's to decide.
+  for (const w of [
+    "stop by at 4?",
+    "please stop the 8 AM reminder, noon is fine",
+    "stop texting me so early, text me at noon",
+    "don't text me, call me instead",
+    "I can't stop thinking about the haircut",
+    "remove my appointment",
+    "no more appointments this week?",
+    "not interested",
+    "wrong number",
+    "para mañana a las 4",
+    "no me escribas tan temprano",
+    "baja el precio",
+    "don't call me before noon",
+    "unsubscribe from the newsletter but keep my reminders",
+  ]) {
+    assert.equal(wa(w).optOut, false, `"${w}" must NOT opt out on WhatsApp`);
+    assert.equal(smsKeywordConsent(w), null, `"${w}" must NOT opt out by text`);
+  }
+});
+
+test("a sentence does not make the carriers' words a WhatsApp opt-out, and a texting line keeps them", () => {
+  for (const w of ["cancel", "end", "quit"]) {
+    assert.equal(wa(w).optOut, false, `"${w}" is a booking's word on WhatsApp`);
+    assert.deepEqual(smsKeywordConsent(w), { optOut: true, optIn: false }, `"${w}" stops a texting line`);
+  }
+});

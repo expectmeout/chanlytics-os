@@ -12,15 +12,10 @@
  * exact URL plus every POST field sorted by name with its value appended,
  * keyed with the auth token of the account the number belongs to, base64.
  */
-import {
-  LINE_CODES_MAX,
-  LINE_CODES_WITHIN_MS,
-  SMS_OPT_OUT_PATTERN,
-  utf8Bytes,
-  type LineCodeDto,
-} from "@chanlytics/contracts";
+import { LINE_CODES_MAX, LINE_CODES_WITHIN_MS, utf8Bytes, type LineCodeDto } from "@chanlytics/contracts";
 import type { ReceivedText } from "./lines";
 import type { NormalizedInbound, WaRawMessage } from "../whatsapp";
+import { asksToStop } from "../stop-request";
 
 /** Twilio's inbound message, the fields the product reads. */
 export interface SmsInbound {
@@ -107,9 +102,12 @@ export function carrierConsent(s: Pick<SmsInbound, "optOutType">): CarrierConsen
   return null;
 }
 
-/** The carriers' opt-out words, whole-message. Opt-in words stay the product's own (START, UNSTOP, RESUME). */
+/**
+ * The carriers' opt-out words, and the same request written as a sentence (stop-request.ts), whole-message. Opt-in
+ * words stay the product's own (START, UNSTOP, RESUME).
+ */
 export function smsKeywordConsent(body: string | null | undefined): CarrierConsent | null {
-  if (!body || !SMS_OPT_OUT_PATTERN.test(body)) return null;
+  if (!asksToStop(body, "sms")) return null;
   return { optOut: true, optIn: false };
 }
 

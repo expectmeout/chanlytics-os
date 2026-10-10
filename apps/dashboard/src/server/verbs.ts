@@ -8,6 +8,7 @@
 import {
   AppError,
   asTenantId,
+  CAMPAIGN_NOT_FOUND,
   REACH_OUT_REFUSALS,
   REPLY_UNDO_REFUSALS,
   isPersonsWords,
@@ -17,7 +18,15 @@ import {
   type TenantId,
   pauseMsOf,
 } from "@chanlytics/contracts";
-import { listRow, ourLastWire, reachOutRootOf, reachOutSendRefOf, replyReadingRefOf, type Json } from "@chanlytics/db";
+import {
+  listRow,
+  memberWithdrawDrafts,
+  ourLastWire,
+  reachOutRootOf,
+  reachOutSendRefOf,
+  replyReadingRefOf,
+  type Json,
+} from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
@@ -313,10 +322,10 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
  * and the customer received nothing. Withdrawing the receptionist's draft must
  * not touch a colleague's words.
  *
- * Order is row first, then job, and that is deliberate. If the row update
- * lands and the job cancel fails, the job fires and no-ops on a row that is no
- * longer `queued`. The reverse leaves a queued row with nothing left to send
- * it — the same strand, reached from the other side.
+ * Row and job are one write since 00387 (member_withdraw_drafts over the one door, withdraw_queued): the row cannot be
+ * canceled with its job left to fire, nor the job withdrawn with its row left queued for ever. Only a draft no send job
+ * has claimed yet (sending_at, 00352): a claimed one is already on its way to the customer and stays queued only until
+ * the provider answers, and is left to say what became of it, not counted.
  *
  * Returns how many drafts were withdrawn, so a caller can tell the operator
  * their reply replaced the bot's rather than merely followed it.
@@ -324,26 +333,18 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
 export async function cancelPendingAiReply(
   ctx: RouteContext,
   conv: { id: string; tenant_id: string },
-  cancelJobs: (tenantId: string, key: string, value: string) => Promise<number>,
 ): Promise<number> {
-  const { data, error } = await ctx.supabase
-    .from("messages")
-    .update({ status: "canceled", error: { reason: "superseded_by_human" } })
-    .eq("conversation_id", conv.id)
-    .eq("status", "queued")
-    .eq("sender", "ai")
-    .select("id");
-  if (error) {
+  try {
+    return await memberWithdrawDrafts(ctx.supabase, { tenantId: conv.tenant_id, conversationId: conv.id });
+  } catch (e) {
     // Not fatal to the operator's own action — but it means a draft may still
     // fire, so it must be visible rather than swallowed.
-    log.error("cancel_pending_ai_reply_failed", { conversation: conv.id, error: error.message });
+    log.error("cancel_pending_ai_reply_failed", {
+      conversation: conv.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return 0;
   }
-  const ids = (data ?? []).map((m) => m.id);
-  for (const id of ids) {
-    await cancelJobs(conv.tenant_id, "message_id", id);
-  }
-  return ids.length;
 }
 
 interface VerbErasure {
@@ -422,7 +423,8 @@ export const templateScope = row((ctx, params) => loadTemplate(ctx, String(param
 
 /** The playbook a verb acts on (paused, rewritten, run, deleted), read under RLS: one the caller cannot see is a 404. */
 async function loadPlaybook(ctx: RouteContext, id: string) {
-  const playbookId = requireUuid(id, "playbook");
+  // A person reads "campaign", never "playbook" (decision 19): the 404s below are said in a toast.
+  const playbookId = requireUuid(id, "campaign");
   const { data, error } = await ctx.supabase
     .from("playbooks")
     // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
@@ -430,7 +432,7 @@ async function loadPlaybook(ctx: RouteContext, id: string) {
     .eq("id", playbookId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new AppError("not_found", "Playbook not found.", 404);
+  if (!data) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   return data;
 }
 export const playbookScope = row((ctx, params) => loadPlaybook(ctx, String(params.id ?? "")));

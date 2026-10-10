@@ -47,4 +47,4 @@ export * from "./leads";
 export * from "./inbound";
 export { bookingPageLinkedFrom } from "./booking-page";
 export { SUBSCRIBERS } from "./subscribers";
-export type { Subscriber } from "./subscribers";
+export type { Subscriber, SubscriberPorts } from "./subscribers";

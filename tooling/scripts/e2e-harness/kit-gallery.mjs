@@ -243,12 +243,14 @@ const PHOTO =
   "fill='%23e5e5e5'/%3E%3C/svg%3E";
 
 /**
- * A person's row on a phone, as the kit draws it, with a line of words said or not, a note under it or not, and as a
- * link to their page or not.
+ * A person's row on a phone, as the kit draws it, with a line of words said or not, a note under it or not, as a link to
+ * their page or not, and a row whose first column is its kind (the kit's mark) instead of someone's face.
  */
-const listRow = ({ said = true, note = false, door = false } = {}) =>
+const listRow = ({ said = true, note = false, door = false, mark = false } = {}) =>
   (door ? `<a class="list-row" href="#kit">` : `<div class="list-row">`) +
-  `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>` +
+  (mark
+    ? `<span class="mark list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
+    : `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>`) +
   `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
   (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
@@ -411,6 +413,10 @@ const kitMenu = () =>
   kitItem("copy", "Copy number") +
   kitItem("calendar", "Send booking link", { after: `<span class="more-item-meta">By text</span>` }) +
   kitItem("pause", "Pause the receptionist", { after: `<span class="more-item-hint">until 10:00</span>` }) +
+  kitItem("user", "Operator", {
+    tone: " more-item-two",
+    after: `<span class="more-item-meta">Answers and approves conversations, tunes autonomy</span>`,
+  }) +
   `</div>` +
   `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
   `<a role="menuitem" tabindex="-1" href="#kit" class="more-item">${icon("user", 13)}` +
@@ -516,45 +522,69 @@ const kitDatePicker = () => {
 };
 
 /**
- * The kit's MonthRange, a window of thirty days (September 7 to October 6, 2026, today the 6th) on a month: on October, the
- * month it ends in, where the band runs from the weeks' start to its last day; and moved back to September, where it starts.
- * The date picker's head and weekdays over six weeks of days that press nothing, hidden from a screen reader (the page says
- * the range in words beside it).
+ * The kit's DayRangePicker over a window of thirty days (September 7 to October 6, 2026, today the 6th, ninety days at
+ * most): chosen, on October, the month it ends in, where the band runs from the weeks' start to its last day, no day
+ * after today presses and the arrow to the month after stands down; and on September with a first day pressed (the
+ * 14th) and the pointer on the 25th, where the band is what would be chosen, fourteen days at most here, so the days
+ * too far to be the other end stand down. The date picker's head and weekdays over six weeks of days in the ARIA grid,
+ * the range's two ends its selected cells, and what is chosen so far said under it.
  */
-const kitMonthRange = (month) => {
+const kitDayRange = ({ month, first = null, reach = null, most = 90 }) => {
   const [from, to, today] = ["2026-09-07", "2026-10-06", "2026-10-06"];
-  const first = new Date(Date.UTC(2026, month, 1));
-  const start = new Date(Date.UTC(2026, month, 1 - ((first.getUTCDay() + 6) % 7)));
+  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October"];
+  const firstOf = new Date(Date.UTC(2026, month, 1));
+  const start = new Date(Date.UTC(2026, month, 1 - ((firstOf.getUTCDay() + 6) % 7)));
   const key = (d) => d.toISOString().slice(0, 10);
-  const cell = (d) => {
+  const apart = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
+  const band = first === null ? { from, to } : first <= reach ? { from: first, to: reach } : { from: reach, to: first };
+  // The one tab stop: the range's last day, and, moved back a month by the arrow, the same day of the month before.
+  const stop = month === 9 ? to : "2026-09-06";
+  const cell = (d, w) => {
     const k = key(d);
+    const inBand = k >= band.from && k <= band.to;
+    const open = k <= today && (first === null || apart(first, k) < most);
     const marks = [
-      k >= from && k <= to ? ' data-in="true"' : "",
-      k === from ? ' data-start="true"' : "",
-      k === to ? ' data-end="true"' : "",
+      inBand ? ' data-in="true"' : "",
+      k === band.from ? ' data-start="true"' : "",
+      k === band.to ? ' data-end="true"' : "",
       d.getUTCMonth() === month ? "" : ' data-outside="true"',
       k === today ? ' data-today="true"' : "",
     ].join("");
-    return `<span class="date-pick-cell"${marks}><span class="date-pick-num">${d.getUTCDate()}</span></span>`;
+    const name = `${full[w]}, ${months[d.getUTCMonth()]} ${d.getUTCDate()}, 2026${inBand ? ", in the range" : ""}`;
+    return (
+      `<div role="gridcell" class="date-pick-cell" data-day="${k}" aria-selected="${k === band.from || k === band.to}"${marks}>` +
+      `<button type="button" class="date-pick-day" tabindex="${k === stop ? 0 : -1}" aria-label="${name}"` +
+      `${k === today ? ' aria-current="date"' : ""}${open ? "" : ' aria-disabled="true"'}>` +
+      `<span class="date-pick-num">${d.getUTCDate()}</span></button></div>`
+    );
   };
   const week = (w) =>
-    `<div class="date-pick-row">` +
-    Array.from({ length: 7 }, (_, d) => cell(new Date(start.getTime() + (w * 7 + d) * 86_400_000))).join("") +
+    `<div role="row" class="date-pick-row">` +
+    Array.from({ length: 7 }, (_, d) => cell(new Date(start.getTime() + (w * 7 + d) * 86_400_000), d)).join("") +
     `</div>`;
-  const title = month === 9 ? "October 2026" : "September 2026";
+  const hint =
+    first === null ? "Press a first day, then a last. 90 days at most." : "Sep 14 – Sep 25, 12 days. Press to choose.";
+  // Nothing after the month that holds today can be chosen: the arrow that goes there stands down.
+  const last = month === 9;
   return (
-    `<div class="date-pick-month">` +
-    `<div class="date-pick-head"><span class="date-pick-title" aria-live="polite">${title}</span>` +
+    `<div class="date-pick-month"${first === null ? "" : ' data-pending="true"'}>` +
+    `<div class="date-pick-head"><span class="date-pick-title" aria-live="polite">${months[month]} 2026</span>` +
     `<span class="date-pick-nav">` +
     `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Previous month"><span class="date-pick-back">${icon("chevron", 14)}</span></button>` +
-    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Next month">${icon("chevron", 14)}</button>` +
+    `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Next month"${last ? " disabled" : ""}>${icon("chevron", 14)}</button>` +
     `</span></div>` +
-    `<div class="date-pick-grid" aria-hidden="true">` +
-    `<div class="date-pick-row">` +
-    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((w) => `<span class="date-pick-dow">${w}</span>`).join("") +
+    `<div role="grid" tabindex="-1" aria-label="Days" aria-multiselectable="true" class="date-pick-grid">` +
+    `<div role="row" class="date-pick-row">` +
+    weekdays
+      .map((w, d) => `<span role="columnheader" aria-label="${full[d]}" class="date-pick-dow">${w}</span>`)
+      .join("") +
     `</div>` +
     Array.from({ length: 6 }, (_, w) => week(w)).join("") +
-    `</div></div>`
+    `</div>` +
+    `<p class="date-pick-hint" role="status">${hint}</p>` +
+    `</div>`
   );
 };
 
@@ -571,6 +601,7 @@ const figure = ({
   change = null,
   meta = "on 6 of 7 days",
   door = null,
+  thin = null,
 } = {}) => {
   const number =
     door === "a"
@@ -579,9 +610,10 @@ const figure = ({
         ? `<button type="button" class="figure-door">${value}</button>`
         : value;
   return (
-    `<dl class="gx-figs"><div class="figure"><dt class="figure-label">${term}</dt>` +
+    `<dl class="gx-figs"><div class="figure${thin === null ? "" : " is-thin"}"><dt class="figure-label">${term}</dt>` +
     `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
-    `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}</div></dl>`
+    `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}` +
+    `${thin === null ? "" : `<dd class="figure-n">only ${thin}, too few to read</dd>`}</div></dl>`
   );
 };
 
@@ -601,7 +633,7 @@ const kitOption = (label, meta, { chosen = false, walked = false, focus = null }
 const kitSelect = () =>
   `<div class="rec-field"><label><span class="rec-field-label">Service</span></label>` +
   `<button type="button" tabindex="0" role="combobox" aria-expanded="true" aria-haspopup="listbox" ` +
-  `class="rec-input rec-select"><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
+  `class="rec-input rec-select" data-popup-open=""><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
   `</button><span class="rec-hint">What the proposal is for.</span></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 88px; left: 16px; --anchor-width: 240px;")}>` +
   `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1">` +
@@ -810,7 +842,7 @@ export const FAMILIES = [
   {
     family: "Button",
     about:
-      "The button: secondary, primary, quiet and danger; small, and a glyph alone; a link drawn as one; off; refused by a role.",
+      "The button: secondary, primary, quiet and danger; small, and a glyph alone; the size of the words it holds, in their own type; a link drawn as one; off; refused by a role.",
     entries: [
       {
         id: "btn",
@@ -839,6 +871,10 @@ export const FAMILIES = [
         html:
           `<button type="button" class="btn btn-icon" aria-label="More">${icon("more", 14)}</button> ` +
           `<button type="button" class="btn btn-icon btn-sm" aria-label="Close">${icon("x", 12)}</button>`,
+      },
+      {
+        id: "btn-text",
+        html: `<button type="button" class="btn btn-text btn-ghost" aria-pressed="false">Visit reminder: 12 people, 3 campaigns, 2 on and 1 paused</button>`,
       },
       { id: "btn-link", html: `<a class="btn" href="#kit">${icon("copy", 13)}Download the QR code</a>` },
       {
@@ -891,6 +927,37 @@ export const FAMILIES = [
         html:
           `<div class="input">${icon("search", 14)}` +
           `<input placeholder="Search people" aria-label="Search people"><span class="kbd">/</span></div>`,
+      },
+    ],
+  },
+  {
+    family: "Search",
+    about:
+      "The capsule a list is searched from, Search (surfaces/kit/search/search.tsx), People's and the Inbox's: at rest on " +
+      "a phone a button saying what it finds; pressed, the field (16px on a phone) with its words, their clear and " +
+      "Cancel beside it; on a desk the field alone, at the page's size.",
+    entries: [
+      {
+        id: "search",
+        html:
+          `<div class="search"><button type="button" class="search-rest" aria-label="Search names, numbers and emails">` +
+          `${icon("search", 15)}<span>Search names, numbers and emails</span></button></div>`,
+      },
+      {
+        id: "search-open",
+        html:
+          `<div class="search" tabindex="-1"><label class="search-box">${icon("search", 15)}` +
+          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="Sam" ` +
+          `placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails">` +
+          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label>` +
+          `<button type="button" class="search-cancel">Cancel</button></div>`,
+      },
+      {
+        id: "search-desk",
+        html:
+          `<div class="search"><label class="search-box">${icon("search", 15)}` +
+          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="" ` +
+          `placeholder="Search by name or message" aria-label="Search by name or message"></label></div>`,
       },
     ],
   },
@@ -1039,6 +1106,18 @@ export const FAMILIES = [
           `<button class="more-item" role="menuitemradio" aria-checked="true">${icon("check", 13)}<span class="more-item-label">Newest first</span></button>` +
           `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">Oldest first</span></button>` +
           `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">By name</span></button>` +
+          `</div></div>`,
+      },
+      {
+        id: "more-menu-select",
+        stage: "pop",
+        html:
+          `<div class="more-wrap"><button type="button" class="rec-input rec-select" aria-haspopup="menu" aria-expanded="true">All activity ${icon("chevron-down", 10)}</button>` +
+          `<div class="more-backdrop"></div>` +
+          `<div class="more-menu align-left" role="menu">` +
+          `<button class="more-item" role="menuitemradio" aria-checked="true">${icon("check", 13)}<span class="more-item-label">All activity</span></button>` +
+          `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">What went wrong or was stopped</span></button>` +
+          `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">Conversations</span></button>` +
           `</div></div>`,
       },
       {
@@ -1617,7 +1696,8 @@ export const FAMILIES = [
       "kit.css's quiet link button (step 2.2): words that act with no ground, as Confirm's No and a line's acts draw " +
       "them, its danger form, and words that open a page, a link that keeps the browser's underline in the words' " +
       "colour, as the house's quiet links draw one. Each beside the rule it reproduces (.cl-bucket-link), which the " +
-      "spec holds it equal to.",
+      "spec holds it equal to. And a line's door: a list row's name in the line's own size, weight and ink, cut with " +
+      "an ellipsis.",
     entries: [
       {
         id: "link-btn",
@@ -1648,6 +1728,10 @@ export const FAMILIES = [
         id: "src-cl-bucket-link-door",
         source: "styles/components.css:1882",
         html: `<a class="cl-bucket-link" href="#kit">Open the listing${icon("arrow-right", 10)}</a>`,
+      },
+      {
+        id: "link-btn-inherit",
+        html: `<a class="link-btn link-btn-inherit" href="#kit">Win-back, for everyone quiet for 30 days with nothing booked</a>`,
       },
     ],
   },
@@ -1702,12 +1786,14 @@ export const FAMILIES = [
       "kit.css's list row (step 2.2): a face, the lines beside it and what trails, on the row tokens every list on a " +
       "phone shares: three lines, two (nothing said, so the face spans two), a line of its own under the facts, and " +
       "a row with a page of its own, a link that keeps the row's colours with no underline. People's and Leads' phone " +
-      "rows draw it (surfaces/people/cells/row-card.tsx).",
+      "rows draw it (surfaces/people/cells/row-card.tsx); and a row whose first column is its kind, the kit's mark in " +
+      "the face's place (Campaigns' phone list, surfaces/campaigns/home/ledger/ledger-phone.tsx).",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },
       { id: "list-row-note", html: listRow({ note: true }) },
       { id: "list-row-door", html: listRow({ note: true, door: true }) },
+      { id: "list-row-mark", html: listRow({ said: false, mark: true }) },
     ],
   },
   {
@@ -1740,12 +1826,15 @@ export const FAMILIES = [
     about:
       "The kit's figure (surfaces/kit/figure/figure.tsx): a term and its definitions in the page's list -- what it counts, " +
       "the number at the large step, the period before beside it in plain ink, one line under it. The number a link where " +
-      "it has an address and a button where it acts. Reports' strip is drawn with it.",
+      "it has an address and a button where it acts. A ratio of some, but too few (its count above none and under the " +
+      "minimum) is greyed and says how few, under the line under it; of none there is no ratio, and nothing is greyed. " +
+      "Reports' strip is drawn with it.",
     entries: [
       { id: "figure", html: figure() },
       { id: "figure-change", html: figure({ change: "up from 7" }) },
       { id: "figure-door", html: figure({ door: "a" }) },
       { id: "figure-door-act", html: figure({ door: "button" }) },
+      { id: "figure-thin", html: figure({ value: "62%", thin: 3 }) },
     ],
   },
   {
@@ -1833,14 +1922,16 @@ export const FAMILIES = [
     entries: [{ id: "datepicker-kit", stage: "pop", html: kitDatePicker() }],
   },
   {
-    family: "Month range",
+    family: "Day range picker",
     about:
-      "The kit's MonthRange (surfaces/kit/datepicker/month-range.tsx): the days a period covers on a month, one band of the " +
-      "inset's fill from its first day to its last, its ends the picked lozenge and today the accent's ink; it presses " +
-      "nothing but its two arrows. Reports' period draws it.",
+      "The kit's DayRangePicker (surfaces/kit/datepicker/day-range-picker.tsx): a month to choose a range of days from. " +
+      "The days chosen are one band from the first to the last, its ends the picked lozenge and today the accent's ink; " +
+      "two presses choose, a first day and a last, and while the last is still to be pressed the band follows the " +
+      "pointer and the days that cannot be the other end stand down, as every day to come does. Reports' date range " +
+      "draws it.",
     entries: [
-      { id: "month-range", html: kitMonthRange(9) },
-      { id: "month-range-start", html: kitMonthRange(8) },
+      { id: "day-range", html: kitDayRange({ month: 9 }) },
+      { id: "day-range-first", html: kitDayRange({ month: 8, first: "2026-09-14", reach: "2026-09-25", most: 14 }) },
     ],
   },
   {

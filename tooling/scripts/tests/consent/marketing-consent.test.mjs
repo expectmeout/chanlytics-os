@@ -57,6 +57,7 @@ import { personRow } from "./_person-row.mjs";
 // People's Offers column and its sort, from the code the page runs (surfaces/people/), not a scan of it.
 const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 const { plPeopleShown } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
+const { plFirstDir } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
 
 test("which question a customer's message answers", () => {
   // The split. One pattern used to match both, so one message gave one yes.
@@ -383,7 +384,7 @@ test("the message flow filed with the carriers describes one program, every way 
     "the registered name as the brand was vetted, doing business as the trade name, in the reviewers' own register",
   );
   assert.match(desc, /on Marisa's Beauty Salon's own behalf/, "the business, not the software it sends with");
-  assert.match(desc, /by the Chanlytics OS application/, "and the application layer named, as 30912 asks");
+  assert.match(desc, /by the Chanlytics application/, "and the application layer named, as 30912 asks");
   assert.doesNotMatch(
     desc,
     /wrote to .* first/,
@@ -544,12 +545,15 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   // both controls that looked like they did wrote the conversational column.
   const ingest = readCode("packages/db/src/repositories/ingest.ts");
   assert.match(ingest, /rpc\("set_marketing_consent"/, "the customer's own message");
-  const door = readCode("apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts");
-  assert.match(door, /rpc\("set_marketing_consent"/, "and a person at the desk");
-  assert.match(door, /role: "operator",/);
-  // The tenant is the one the contact was READ from under RLS, never from the body:
-  // this RPC takes it as a parameter because the edge calls it with no session.
-  assert.match(door, /p_tenant_id: contact\.tenant_id,/);
+  // A person at the desk: the member's one call (00356 record_consent), which hands the offers door the workspace it
+  // read the person from (the edge calls that door with no session, so it takes the workspace as a parameter), and
+  // writes the history line with the answer. consent-paths.test.mjs runs the route through it.
+  const desk = readRaw("supabase/migrations/00356_an_answer_and_its_history_line_are_one_write.sql");
+  assert.match(
+    desk,
+    /public\.set_marketing_consent\(v_tenant, p_contact_id, p_consent, p_source, p_note, null, p_message_id\)/,
+    "and a person at the desk, with no evidence of the session's own",
+  );
 
   // The bulk sibling, because a signed-form yes usually arrives for a class at once.
   const bridge = readCode("apps/dashboard/src/surfaces/people/people-detail.ts");
@@ -631,9 +635,13 @@ test('every read of "said yes to offers" points at the offers column', () => {
       q: "",
       sortBy: "offers",
       sortDir,
+      columns: PL_COLUMNS,
     }).map((p) => p.id);
   assert.deepEqual(sortedBy("asc"), ["y", "u", "n"], "and sorting by it sorts by it: yes, not asked, no");
   assert.deepEqual(sortedBy("desc"), ["n", "u", "y"]);
+  // The heading's first press goes ascending, so Yes comes first: the column says which way it starts, and the sort
+  // above is exactly as told, whichever way it is asked.
+  assert.equal(plFirstDir(PL_COLUMNS, "offers"), "asc", "a first press on Offers lists the yeses first");
 
   const exp = readCode("apps/dashboard/src/server/export/export.ts");
   assert.match(exp, /\["offers_consent", \(r\) => r\.marketing_consent \?\? "unknown"\]/);

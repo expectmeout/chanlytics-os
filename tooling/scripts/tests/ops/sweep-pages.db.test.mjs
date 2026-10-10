@@ -7,12 +7,25 @@
  * hour is neither in the page nor counted. Neither door opens to anon. packages/db reads both as the sweeps do.
  *
  * Each read is kept to this suite's own workspaces (p_tenant_id), so the database suites running beside it keep
- * their rows out of these pages and counts. Local stack only: it makes workspaces.
+ * their rows out of these pages and counts. Local stack only: it makes workspaces. A zone Postgres does not know is
+ * refused when written since 00365, so a workspace that holds one is written as such a row was before it, through the
+ * Supabase CLI (SUPABASE_CLI names the binary when `supabase` is not on PATH, SUPABASE_DB_URL the database here).
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { runDueNow } from "@chanlytics/contracts";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
+const DB_URL = process.env.SUPABASE_DB_URL;
+const CLI_TARGET =
+  DB_URL && /^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL)
+    ? ["--db-url", `${DB_URL}${DB_URL.includes("?") ? "&" : "?"}sslmode=disable`]
+    : ["--local"];
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,16 +51,29 @@ let duePlaybooks;
 let dueCalendars;
 const made = [];
 
-/** A workspace on its own clock, with the template its moments send. */
+/**
+ * A workspace on its own clock, with the template its moments send. A zone Postgres does not know (00365 refuses one
+ * written) is the zone of a row written before the guard: the workspace is made on the default, and the zone put in
+ * with the triggers off for that one statement, through the CLI.
+ */
 async function workspace(name, timezone) {
-  const id = ok(
-    await db
+  const insert = (zone) =>
+    db
       .from("tenants")
-      .insert({ slug: `pages-${name}-${stamp}`, name: `Pages ${name}`, timezone })
+      .insert({ slug: `pages-${name}-${stamp}`, name: `Pages ${name}`, ...(zone ? { timezone: zone } : {}) })
       .select("id")
-      .single(),
-  ).id;
+      .single();
+  let res = await insert(timezone);
+  const unknown = res.error?.code === "22023";
+  if (unknown) res = await insert(null);
+  const id = ok(res).id;
   made.push(id);
+  if (unknown) {
+    const sql = `do $$ begin execute 'set local session_replication_role = replica'; update public.tenants set timezone = '${timezone}' where id = '${id}'; end $$`;
+    const r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], { cwd: ROOT, encoding: "utf8" });
+    if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+    assert.equal(r.status, 0, `${name}: ${[r.stderr, r.stdout].join("\n").slice(-600)}`);
+  }
   const template = ok(
     await db
       .from("templates")
@@ -306,8 +332,9 @@ test(
   "a zone the database does not know is judged in UTC (safe_zone), and one such workspace never fails the page for the others",
   { skip },
   async () => {
-    // tenants.timezone is owner-settable text, checked against pg_timezone_names only at creation: a name Postgres
-    // does not know can be stored, and `at time zone` on it raises.
+    // tenants.timezone is owner-settable text, checked against pg_timezone_names at creation and, since 00365, on every
+    // write that changes it; a workspace that took a name Postgres does not know before then still holds it, and
+    // `at time zone` on it raises.
     const mars = await workspace("mars", "Mars/Olympus");
     const due = await moment(mars, "On a clock nobody has");
     assert.equal(ok(await db.rpc("safe_zone", { p: "Mars/Olympus" })), "UTC");

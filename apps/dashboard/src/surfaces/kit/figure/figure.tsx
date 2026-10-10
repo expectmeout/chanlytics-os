@@ -4,6 +4,9 @@
  * holds several (Reports' strip). Where the words need a definition (what is counted, and what is not) the label is a stop for
  * the kit's Tooltip, never a native `title`; where the number opens something it is a door: the kit's press (press.tsx), a link
  * where it has an address and a button where it acts. A figure is not a tone: its change is plain ink, never green or red.
+ * A ratio says the count it is of (`n`) and the fewest that say anything (`minN`); of some, but too few, it is greyed and says
+ * how few (`is-thin`, the reports lenses spec, D9), so a share of three messages is never read as a trend. Of none there is no
+ * ratio, and nothing to grey.
  *
  * It draws what the gallery's Figure families draw (tooling/scripts/e2e-harness/kit-gallery.mjs): "Figure", entry for entry,
  * and "Figure, on Base UI" for the label that carries a definition. `className` is for the page's layout, and comes last.
@@ -27,12 +30,23 @@ export type FigureProps = {
   definition?: string;
   /** Where the number opens something: a link where it has an address, a press that acts where it has none. */
   door?: PressAct | PressDoor;
+  /**
+   * The count a ratio is of (17 messages, 6 replies); none where the figure is no ratio or the count is not known. Some, but
+   * too few (1 up to the minimum less one) greys the figure; none at all (0) is no ratio to grey, and the figure says why in
+   * its own line.
+   */
+  n?: number | null;
+  /** The fewest that say anything: a ratio of some, but fewer than this, is greyed and says how few (the reports lenses spec, D9). */
+  minN?: number;
   /** What the figure is, for a page's tests and a later phase's definitions (`data-figure`). */
   id?: string;
   className?: string;
   /** The id a test finds the figure by; the label's stop, where it has one, is `<id>-term`. */
   "data-testid"?: string;
 };
+
+/** What a thin figure says under itself: how few it is of, and that they are too few to read. */
+const figureThinWords = (n: number): string => `only ${n}, too few to read`;
 
 /** A figure: a term, its number and what sits with it. */
 export function Figure({
@@ -42,10 +56,15 @@ export function Figure({
   meta = null,
   definition,
   door,
+  n = null,
+  minN,
   id,
   className,
   "data-testid": testid,
 }: FigureProps) {
+  // Too few to read: only where the figure says both what it is of and the fewest that say anything. At n = 0 there is no
+  // ratio to grey (its "—" and its line already say why), so a figure of some, but too few, is the one that is thin.
+  const thin = n !== null && minN !== undefined && n > 0 && n < minN;
   const term =
     definition === undefined ? (
       label
@@ -71,13 +90,14 @@ export function Figure({
       </Press>
     );
   return (
-    <div className={cx("figure", className)} data-figure={id} data-testid={testid}>
+    <div className={cx("figure", thin && "is-thin", className)} data-figure={id} data-testid={testid}>
       <dt className="figure-label">{term}</dt>
       <dd className="figure-value">
         {number}
         {change ? <span className="figure-change">{change}</span> : null}
       </dd>
       {meta ? <dd className="figure-meta">{meta}</dd> : null}
+      {thin ? <dd className="figure-n">{figureThinWords(n)}</dd> : null}
     </div>
   );
 }

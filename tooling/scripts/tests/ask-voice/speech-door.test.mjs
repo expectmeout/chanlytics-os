@@ -218,3 +218,29 @@ test("the vendor's no: its limit (429) is 503 provider_unreachable, a dropped co
   assert.equal(body.error, "provider_refused");
   assert.equal(refused.calls.length, 1);
 });
+
+test("the rest of a reading: the words read just before it go to the vendor as what came before (previous_text), folded and bounded as the words are; a reading's first clip, or its only one, says nothing of it", async () => {
+  use();
+  const mp3 = new Uint8Array([0xff, 0xfb, 0x90, 0x00, 1]);
+  const net = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+  const res = await knock(T(1), ask({ text: "Five are booked today.", before: "Two  people\nneed you." }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(JSON.parse(net.calls[0].body), {
+    text: "Five are booked today.",
+    model_id: ASK_VOICE_MODEL,
+    apply_text_normalization: "on",
+    previous_text: "Two people need you.",
+  });
+  // Blank, or not words at all: a clip like any other.
+  for (const before of ["   ", 7, null]) {
+    const one = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+    assert.equal((await knock(T(1), ask({ before }))).status, 200);
+    assert.equal("previous_text" in JSON.parse(one.calls[0].body), false);
+  }
+  // Longer than a clip's own words may be: its end, which is what the next clip carries on from.
+  const long = wired(() => new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+  await knock(T(1), ask({ before: `${"x".repeat(2000)} the end.` }));
+  const sent = JSON.parse(long.calls[0].body).previous_text;
+  assert.equal(sent.length, 1500);
+  assert.ok(sent.endsWith(" the end."));
+});

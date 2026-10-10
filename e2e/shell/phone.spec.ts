@@ -18,7 +18,7 @@ test.describe("Installable shell, no session", () => {
     expect(m.status()).toBe(200);
     expect(m.headers()["content-type"]).toContain("manifest");
     const json = await m.json();
-    expect(json.name).toBe("Chanlytics OS");
+    expect(json.name).toBe("Chanlytics");
     expect(json.display).toBe("standalone");
     expect(json.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
     const sw = await request.get("/sw.js", { maxRedirects: 0 });
@@ -294,11 +294,13 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * Campaigns' home on a phone: the moments stand down a line (the phone's rail, one under another), the tiles are one column,
-   * every control is inside the screen, and New message, the page's act, is whole on the first screen. Its composer, in a
-   * sheet from the bottom, holds nothing past the edge either.
+   * Campaigns' home on a phone (decision 16 of the spec of 9 October 2026): the moments are the one list's spine, each
+   * moment's head on the line, one under another, its campaigns under it; the tiles are one column; every control is
+   * inside the screen; and New message, the page's act, is whole on the first screen. Its composer, in a sheet from the
+   * bottom, holds nothing past the edge either. Read-only: nothing here is pressed but New message, and its sheet is left
+   * unsaved.
    */
-  test("Campaigns: every control on the home is inside the screen, the moments stand down a line, and the page opens on the work", async ({
+  test("Campaigns: every control on the home is inside the screen, the moments' heads stand down a line with their campaigns under them, and the page opens on the work", async ({
     page,
   }) => {
     await page.goto("/#/campaigns");
@@ -307,27 +309,39 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(home).toBeVisible();
     await expect(home).toHaveAttribute("data-phone", "true");
     await expect(page.getByTestId("cmh-new")).toBeInViewport({ ratio: 1 });
-    // One moment under another: each stage's top is below the one before it.
-    const stages = home.getByTestId("cmh-stage");
-    expect(await stages.count()).toBeGreaterThanOrEqual(4);
-    const tops = await stages.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+    // Heads on the line: each moment's head is below the one before it, never two on one line. The journey holds four
+    // moments, or five where deals are on (contracts journeyOf): how many is playbooks.spec's, read from the answer.
+    const heads = home.locator('[data-testid="cmh-group-head"][data-stage]');
+    expect(await heads.count()).toBeGreaterThanOrEqual(4);
+    const tops = await heads.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
     expect(tops, "the moments stand one under another").toEqual([...tops].sort((a, b) => a - b));
     expect(new Set(tops.map(Math.round)).size, "no two moments on one line").toBe(tops.length);
-    // Who can hear you is a line in the moments' head (8 Oct 2026; it was a tile of its own over them), so the moments
-    // are the first tile on the page: nothing of the page's own stands above their tile.
+    // Rows under them: every campaign of a group stands below its group's head.
+    const underTheirHeads = await home.getByTestId("cmh-group").evaluateAll((groups) =>
+      groups.every((g) => {
+        const head = g.querySelector('[data-testid="cmh-group-head"]');
+        if (!head) return false;
+        const foot = head.getBoundingClientRect().bottom;
+        return [...g.querySelectorAll('[data-testid="cmh-row"]')].every(
+          (r) => r.getBoundingClientRect().top >= foot - 1,
+        );
+      }),
+    );
+    expect(underTheirHeads, "each group's campaigns stand under its head").toBe(true);
+    // Who can hear you is one line in the moments' head, inside their pane: nothing of the page's own stands above it.
     const rail = home.getByTestId("cmh-rail");
     await expect(rail.getByTestId("cmh-reach")).toBeVisible();
     await expect(home.getByTestId("cmh-reach")).toHaveCount(1);
+    await expect(home.getByTestId("cmh-also")).toHaveCount(0);
     const railTop = (await rail.boundingBox())?.y ?? 0;
-    for (const id of ["cmh-also", "cmh-coming", "cmh-results"]) {
+    for (const id of ["cmh-coming", "cmh-results"]) {
       const box = await home.getByTestId(id).first().boundingBox();
       if (box) expect(box.y, `${id} stands under the moments`).toBeGreaterThan(railTop);
     }
-    // The marks a moment goes by (8 Oct 2026): on a phone each keeps its word beside its dot (a dot alone said which
-    // channel by its colour), inside the screen, and the whole still says itself to a screen reader. Which moments
-    // carry marks is playbooks.spec's, against the API.
+    // The marks a campaign goes by (8 Oct 2026): on a phone each keeps its word beside its dot, inside the screen, and
+    // the whole says itself to a screen reader. Which campaigns carry marks is playbooks.spec's, against the API.
     const width = page.viewportSize()?.width ?? 0;
-    const marks = stages.getByTestId("cmh-chans");
+    const marks = home.getByTestId("cmh-row").locator(".cmh-chans");
     for (let i = 0; i < (await marks.count()); i++) {
       const m = marks.nth(i);
       await expect(m).toHaveAttribute("aria-label", /Goes by |waits?\b/);
@@ -427,8 +441,12 @@ test.describe("Phone shell on a real workspace", () => {
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
     // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
+    // On a touch screen the field waits for a tap: no keyboard rises by itself.
     await bar.getByTestId("people-phone-search-open").click();
     const field = page.getByTestId("people-phone-search");
+    await expect(field).toBeVisible();
+    await expect(field).not.toBeFocused();
+    await field.tap();
     await expect(field).toBeFocused();
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     await page.getByTestId("people-phone-search-cancel").click();
@@ -710,13 +728,16 @@ test.describe("Phone shell on a real workspace", () => {
     });
     const [first, firstShape] = shapes[0];
     // The Inbox's and People's strips stand beside the page's act and give 4px of each tab's side to it (components.css,
-    // "Beside the act the strip has 44px less"); Settings' has no act beside it. So a tab's words sit 4px further in
-    // there, and that one measure is held between the two that share the row.
+    // "Beside the act the strip has 44px less"); Settings' has no act beside it, so a tab's words sit further in there.
+    // The Inbox's act says a word since #1508 ("+ New": a plus alone said nothing), and beside that capsule its strip
+    // gives 2px more of each side, so its three views still stand on one line on a phone 360 wide. So that one measure
+    // is held between the two that share the row with an act: People's words start 2px further in than the Inbox's.
     const { words: firstWords, ...firstRest } = firstShape;
     for (const [label, shape] of shapes.slice(1)) {
       const { words, ...rest } = shape;
       expect(rest, `the strip on ${label} is the one on ${first}`).toEqual(firstRest);
-      if (label === "People") expect(words, `a tab's words on ${label} start where ${first}'s do`).toBe(firstWords);
+      if (label === "People")
+        expect(words - firstWords, `a tab's words on ${label} start 2px further in than on ${first}`).toBe(2);
     }
     expect(
       Math.abs(firstShape.middle - firstShape.tab / 2),
@@ -808,8 +829,8 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * Reports' period stands over what scrolls (25 Sep): it is the head's act now, a round button beside the strip of lenses
-   * (6 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
+   * Reports' date range stands over what scrolls (25 Sep): it is the head's act now, a capsule beside the strip of lenses
+   * that says what the page is on (6 and 9 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
    */
   test("Reports' period stands over the charts, and only they scroll", async ({ page }) => {
     await page.goto("/#/reports");
@@ -840,7 +861,7 @@ test.describe("Phone shell on a real workspace", () => {
     expect(shape.scrolls, "the period stands over what scrolls").toBe(false);
     expect(shape.still, "and holds its place as the charts scroll").toBe(0);
     expect(shape.edge, "the charts scroll edge to edge").toEqual([0, 0]);
-    expect(shape.beside, "a round button beside the strip of lenses, on its line").toBe(true);
+    expect(shape.beside, "a capsule beside the strip of lenses, on its line").toBe(true);
   });
 
   /**
@@ -1083,6 +1104,56 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".stabs.stabs-settings")).toBeVisible();
     await swipe(300, 90);
     await expect(page).toHaveURL(atRoute(/^admin\/team/));
+  });
+
+  /**
+   * A touch under a strip keeps the axis it began on (9 Oct 2026, Ruben's recording of Reports): a swipe across that
+   * drifts down walks the strip and scrolls nothing, and a scroll down that drifts across scrolls and walks nothing.
+   * The reader chose one axis at 8px from the start (data-bits touchSwipe), but the browser was told nothing of it and
+   * panned the page's list under a page already moving sideways, so a thumb could carry the page in circles. Each
+   * strip page's phone scroller says `touch-action: pan-y` (components.css; swipe-axis.test.mjs holds the list), and
+   * the browser keeps to the axis it was given, as a phone's own pagers do. Real touches through CDP, as the swipe
+   * above; the scroll is read while the finger is still down, before the page the swipe lands on is drawn.
+   */
+  test("a touch under a strip keeps its axis: a swipe that drifts down scrolls nothing, a scroll that drifts across walks nothing", async ({
+    page,
+  }) => {
+    await page.goto("/#/reports");
+    await page.waitForLoadState("networkidle");
+    const body = page.locator(".rpt-body");
+    test.skip((await body.count()) === 0, "no Reports on this workspace");
+    const room = await body.evaluate((el) => el.scrollHeight - el.clientHeight);
+    test.skip(room < 60, "Reports' Overview does not scroll on this workspace");
+    const lit = page.getByTestId("reports-lenses").locator(".stabs-tab.active");
+    await expect(lit).toHaveText(/^Overview/);
+    /** A thumb from one point to another through the browser's own input, in eight moves; `read` before it lets go. */
+    const drift = async (from: [number, number], to: [number, number], read: () => Promise<number>) => {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from[0], y: from[1] }] });
+      for (let i = 1; i <= 8; i += 1) {
+        const x = from[0] + ((to[0] - from[0]) * i) / 8;
+        const y = from[1] + ((to[1] - from[1]) * i) / 8;
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
+      }
+      const held = await read();
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      return held;
+    };
+    const scrolled = () => body.evaluate((el) => el.scrollTop);
+    // Across first (the first move is wider than it is tall), then down by two thirds as much: the page walks, the
+    // body stands.
+    const whileAcross = await drift([300, 420], [96, 560], scrolled);
+    expect(whileAcross, "a swipe that drifts down scrolls nothing while the finger is down").toBe(0);
+    await expect(lit, "and still walks the strip").toHaveText(/^Receptionist/);
+    await page.goto("/#/reports");
+    await page.waitForLoadState("networkidle");
+    await expect(lit).toHaveText(/^Overview/);
+    // Down first (the first move is taller than it is wide), then across by half as much: the body scrolls, the page
+    // stands.
+    const whileDown = await drift([300, 560], [200, 380], scrolled);
+    expect(whileDown, "a scroll that drifts across still scrolls").toBeGreaterThan(20);
+    await page.waitForTimeout(600);
+    await expect(lit, "and walks nothing").toHaveText(/^Overview/);
   });
 
   /**

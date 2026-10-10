@@ -3,7 +3,7 @@
  * apart from either. Here, rather than in handlers.ts, so that settling a job that died does not load the core.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { openEscalation, type Database } from "@chanlytics/db";
 import { logger } from "@chanlytics/channels";
 
 /**
@@ -34,60 +34,18 @@ export async function upsertEscalation(
   reason: string,
   details: string,
 ): Promise<EscalationOutcome> {
-  const { error } = await db.from("escalations").insert({
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    reason,
-    details,
-  });
-  if (!error) return "opened";
-  if (error.code === "23505") {
-    // One open escalation per conversation, so this thread already has one.
-    // Whether it said something ELSE is the whole question: asked as an update
-    // that only matches a different reason, so the answer is a row count rather
-    // than a read and a write with a gap between them.
-    const { data: replaced, error: changeErr } = await db
-      .from("escalations")
-      .update({ details, reason })
-      .eq("tenant_id", tenantId)
-      .eq("conversation_id", conversationId)
-      .eq("state", "open")
-      .neq("reason", reason)
-      .select("id");
-    if (changeErr) {
-      logger().error("escalation_change_failed", {
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        error: changeErr.message,
-      });
-      return "failed";
-    }
-    if (replaced && replaced.length > 0) return "changed";
-    // The same reason, saying itself again: only the words move.
-    //
-    // A refresh that did not land must not come back as "refreshed": the caller
-    // reads that as "the hold is already open and now says why" and stays quiet,
-    // which is how a hold ends up open with a stale reason and nobody paged.
-    const { error: refreshErr } = await db
-      .from("escalations")
-      .update({ details })
-      .eq("tenant_id", tenantId)
-      .eq("conversation_id", conversationId)
-      .eq("state", "open");
-    if (refreshErr) {
-      logger().error("escalation_refresh_failed", {
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        error: refreshErr.message,
-      });
-      return "failed";
-    }
-    return "refreshed";
+  // One door (00388 escalation_open): the row and its escalation.opened on the ledger, or the open one's reason or
+  // words, in one transaction. The event used to be written after the insert, best effort, so a hold could be open with
+  // nothing on the ledger saying so; and a hold resolved between the insert that found it and the update after came
+  // back "refreshed", leaving the caller quiet about a thread nothing held.
+  try {
+    return await openEscalation(db, { tenantId, conversationId, reason, details });
+  } catch (e) {
+    logger().error("escalation_upsert_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return "failed";
   }
-  logger().error("escalation_upsert_failed", {
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    error: error.message,
-  });
-  return "failed";
 }

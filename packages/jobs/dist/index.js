@@ -6,6 +6,7 @@ import { logger, requestId } from "../../channels/dist/index.js";
 // src/ledger.ts
 import { DAY_MS, MIN_MS, jittered } from "../../contracts/dist/index.js";
 import { DEADLINE_MARGIN_MS } from "../../core/dist/index.js";
+import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "../../channels/dist/index.js";
 var LEASE_SECONDS = 90;
 var CLAIM_FOR_MS = 2e4;
 var CLAIM_SLOTS = 3;
@@ -13,17 +14,22 @@ var YIELD_AT_MS = 45e3;
 var FUNCTION_CEILING_MS = MIN_MS;
 var SEND_SETTLE_MS = 5e3;
 var sendByAt = (deadline) => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
+var startByAt = (deadline) => ({
+  whatsapp: sendByAt(deadline) - WHATSAPP_SEND_TIMEOUT_MS,
+  sms: sendByAt(deadline) - TWILIO_TIMEOUT_MS
+});
 var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 var REPLY_LATE_PAGE_MS = MIN_MS;
 var MAX_ATTEMPTS = 3;
 var MAX_RESUMES = 5;
 var RELAY_LIMIT = 500;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
-var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["inbound_answer"]);
+var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["inbound_answer", "event_deliver"]);
+var PAGES_THE_PLATFORM = /* @__PURE__ */ new Set(["event_deliver"]);
 var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 function verdictFor(job) {
   if (job.attempts <= 1) return "run";
-  if (SPEAKS_TO_A_PERSON.has(job.kind)) return "give_up";
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.spoke_at) return "give_up";
   return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
 }
 var RETRY_WAITS_MS = {
@@ -64,7 +70,7 @@ var RETRY_WAITS_MS = {
   inbound_answer: [2 * MIN_MS]
 };
 function retryWait(job, random = Math.random) {
-  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.spoke_at || job.attempts >= MAX_ATTEMPTS) return null;
   const wait = RETRY_WAITS_MS[job.kind]?.[job.attempts - 1];
   return wait === void 0 ? null : jittered(wait, random);
 }
@@ -75,6 +81,17 @@ async function claimNext(db, leaseSeconds) {
   if (error) throw new Error(`claim_due_jobs: ${error.message}`);
   const rows = data ?? [];
   return rows[0] ?? null;
+}
+var NO_SUCH_COLUMN = "PGRST204";
+async function markSpoke(db, job) {
+  if (job.spoke_at) return;
+  const at = (/* @__PURE__ */ new Date()).toISOString();
+  let write = db.from("jobs").update({ spoke_at: at }).eq("id", job.id).eq("state", "fired");
+  if (job.attempts !== void 0) write = write.eq("attempts", job.attempts);
+  const { data, error } = await write.select("id");
+  if (error && error.code !== NO_SUCH_COLUMN) throw new Error(`mark_spoke: ${error.message}`);
+  if (!error && (data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
+  job.spoke_at = at;
 }
 async function completeJob(db, job) {
   const { data, error } = await db.from("jobs").update({ state: "done", lease_until: null }).eq("id", job.id).eq("state", "fired").eq("attempts", job.attempts).select("id");
@@ -103,7 +120,7 @@ function named(payload) {
     return payload;
   return { ...payload, request_id: id };
 }
-function dedupeKeyOf(kind, payload) {
+function dedupeKeyOf({ tenantId, kind, payload }) {
   const p = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const field = (name) => typeof p[name] === "string" ? p[name] : null;
   switch (kind) {
@@ -113,10 +130,12 @@ function dedupeKeyOf(kind, payload) {
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
-    // One read per delivery (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again, or the
-    // provider's webhook replayed, finds the read already on the ledger.
+    // One read per delivery in each workspace (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again,
+    // or the provider's webhook replayed, finds the read already on the ledger. One delivery addressed to two
+    // workspaces' mailboxes is an intake for each (edge resend-event.ts), and each reads it into its own appointments:
+    // keyed by the delivery alone, the second workspace's read was already_scheduled, and its booking never read.
     case "booking_read":
-      return field("received_id") ? `booking_read:${field("received_id")}` : null;
+      return field("received_id") ? `booking_read:${tenantId}:${field("received_id")}` : null;
     case "inbound_answer":
       return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
     default:
@@ -138,7 +157,7 @@ async function scheduleJob(db, p) {
   return { jobId: data.id };
 }
 async function scheduleJobOnce(db, p) {
-  const key = dedupeKeyOf(p.kind, p.payload);
+  const key = dedupeKeyOf(p);
   const insert = (dedupeKey) => db.from("jobs").insert(rowToInsert(p, dedupeKey));
   let { error } = await insert(key);
   if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
@@ -159,7 +178,11 @@ async function requeueFailedJob(db, tenantId, jobId, record) {
   const row = await readJobToRequeue(db, tenantId, jobId);
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
-  if (SPEAKS_TO_A_PERSON.has(row.kind)) return { outcome: "speaks_to_a_person", kind: row.kind };
+  if (row.kind === "event_deliver") {
+    const subscriber = row.payload?.subscriber;
+    return { outcome: "redrive", subscriber: typeof subscriber === "string" ? subscriber : "" };
+  }
+  if (SPEAKS_TO_A_PERSON.has(row.kind) || row.spoke_at) return { outcome: "speaks_to_a_person", kind: row.kind };
   if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
   const kind = JOB_KINDS.find((k) => k === row.kind);
   if (!kind) return { outcome: "unknown_kind", kind: row.kind };
@@ -210,47 +233,27 @@ import {
   settleDelivery,
   memberHasAddress,
   keepForwardingConfirmation,
-  getTenantConfig
+  getTenantConfig,
+  claimQueuedSend as claimQueuedSend2,
+  releaseQueuedSend as releaseQueuedSend2,
+  membersPushedFor,
+  reachOutBookedFrom
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
+import { openEscalation } from "../../db/dist/index.js";
 import { logger as logger2 } from "../../channels/dist/index.js";
 async function upsertEscalation(db, tenantId, conversationId, reason, details) {
-  const { error } = await db.from("escalations").insert({
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    reason,
-    details
-  });
-  if (!error) return "opened";
-  if (error.code === "23505") {
-    const { data: replaced, error: changeErr } = await db.from("escalations").update({ details, reason }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open").neq("reason", reason).select("id");
-    if (changeErr) {
-      logger2().error("escalation_change_failed", {
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        error: changeErr.message
-      });
-      return "failed";
-    }
-    if (replaced && replaced.length > 0) return "changed";
-    const { error: refreshErr } = await db.from("escalations").update({ details }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open");
-    if (refreshErr) {
-      logger2().error("escalation_refresh_failed", {
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        error: refreshErr.message
-      });
-      return "failed";
-    }
-    return "refreshed";
+  try {
+    return await openEscalation(db, { tenantId, conversationId, reason, details });
+  } catch (e) {
+    logger2().error("escalation_upsert_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: e instanceof Error ? e.message : String(e)
+    });
+    return "failed";
   }
-  logger2().error("escalation_upsert_failed", {
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    error: error.message
-  });
-  return "failed";
 }
 
 // src/broadcast-send.ts
@@ -272,12 +275,14 @@ import {
 import {
   appointmentStates,
   campaignMonthSent,
+  claimQueuedSend,
   emitEvent,
   insertQueuedEmail,
   mailboxOfTenant,
   messageVersionRowsOf,
   queuedRecipients,
   recordEvent,
+  releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   runGoesByOthers,
@@ -407,6 +412,11 @@ function peoplePorts(ctx, tenantId) {
     unsubscribeUrl: unsubscribeUrlPort(ctx, tenantId),
     // The email, written queued under the id its request was frozen with, before it leaves (the door asks for the
     // row). Its row keeps the request as meta.email, as every email's does. A row already there is a resumed run's.
+    // Written CLAIMED (sending_at, 00352), as sendQueued claims a reply's row before the wire: the batch holds this
+    // person and puts the words on the wire next, and a call-back that asks `sending_at is null` (a member's
+    // cancel-send, the clock's withdrawal) would otherwise win the row while the provider answers, and the person
+    // would get the email under a row that said canceled for ever. A resumed run's row still queued is this run's (the
+    // person's claim is the batch's one door), and takes the claim before it is read, unless it holds one already.
     queueEmail: async (row) => {
       const wrote = await insertQueuedEmail(db, {
         id: row.id,
@@ -419,17 +429,22 @@ function peoplePorts(ctx, tenantId) {
         type: "text",
         body: row.body,
         status: "queued",
+        sending_at: (/* @__PURE__ */ new Date()).toISOString(),
         meta: {
           ...row.meta,
           email: { subject: row.request.subject, to: [...row.request.to], request: frozen(row.request) }
         }
       });
       if (wrote === "written") return { status: "queued" };
+      await claimQueuedSend(db, tenantId, row.id);
       const there = await writtenEmail(db, { tenantId, id: row.id });
       if (!there) throw new Error(`broadcast_send: the email ${row.id} is taken and cannot be read`);
       return { status: there.status };
     },
+    // The batch's own row, which it wrote claimed: the claim given back first (the provider did not take the email, or
+    // the door threw before the wire), so the withdrawal that follows, which takes only a row no run holds, takes it.
     withdrawEmail: async (messageId) => {
+      await releaseQueuedSend(db, tenantId, messageId);
       await withdrawEmail(db, { tenantId, id: messageId, reason: "not_taken" });
     },
     monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
@@ -550,7 +565,15 @@ async function broadcastSend(ctx, job) {
       now: Date.now,
       sleep: (ms) => new Promise((res) => setTimeout(res, ms))
     },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, ...carriedBy(p) }
+    // A WhatsApp send or a text runs its wire's own timeout whole, so the batch starts one only while that still ends
+    // inside the function (ledger startByAt); the people after it are the next batch's.
+    {
+      tenantId: job.tenant_id,
+      broadcastId: p.broadcast_id,
+      deadline: ctx.deadline,
+      startBy: startByAt(ctx.deadline),
+      ...carriedBy(p)
+    }
   );
 }
 function nextBatch(id, carry) {
@@ -729,12 +752,23 @@ import {
   keepAppointmentNotice,
   tenantZoneOf,
   updateAppointment,
-  clearForwardingConfirmation
+  clearForwardingConfirmation,
+  emitEvent as emitEvent2
 } from "../../db/dist/index.js";
 var STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
 var OUTCOMES = ["booked", "changed", "cancelled", "held", "dismissed"];
 var isStatus = (v) => STATUSES.includes(v);
 var isOutcome = (v) => OUTCOMES.includes(v);
+async function sayBooking(db, p) {
+  if (!p.appointmentId) return;
+  const data = { source: "booking_email", tool: p.tool };
+  if (p.outcome === "booked")
+    await emitEvent2(db, p.tenantId, "appointment.booked", "appointment", p.appointmentId, data);
+  if (p.outcome === "changed")
+    await emitEvent2(db, p.tenantId, "appointment.moved", "appointment", p.appointmentId, data);
+  if (p.outcome === "cancelled")
+    await emitEvent2(db, p.tenantId, "appointment.cancelled", "appointment", p.appointmentId, data);
+}
 function stored(r) {
   if (!isStatus(r.status)) throw new Error(`booking_read: an appointment is ${r.status}`);
   return {
@@ -828,17 +862,20 @@ async function bookingRead(ctx, job) {
         const row = await appointmentNoticeOf(db, tenantId, noticeId);
         return row ? ledgerOf(row) : null;
       },
-      keepNotice: (p) => keepAppointmentNotice(db, {
-        tenant_id: p.tenantId,
-        notice_id: p.noticeId,
-        tool: p.tool,
-        from_address: p.fromAddress,
-        subject: p.subject,
-        received_at: p.receivedAt,
-        outcome: p.outcome,
-        hold_reason: p.holdReason,
-        appointment_id: p.appointmentId
-      }),
+      keepNotice: async (p) => {
+        await keepAppointmentNotice(db, {
+          tenant_id: p.tenantId,
+          notice_id: p.noticeId,
+          tool: p.tool,
+          from_address: p.fromAddress,
+          subject: p.subject,
+          received_at: p.receivedAt,
+          outcome: p.outcome,
+          hold_reason: p.holdReason,
+          appointment_id: p.appointmentId
+        });
+        await sayBooking(db, p);
+      },
       byKey: async (tenantId, key) => {
         const r = await appointmentByKey(db, tenantId, "booking_email", key);
         return r ? stored(r) : null;
@@ -906,6 +943,29 @@ async function bookingRead(ctx, job) {
   }
 }
 
+// src/delivery-page.ts
+function carried(payload, key) {
+  const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const v = p[key];
+  return typeof v === "string" && v ? v : "unknown";
+}
+function deliveryPageKey(job) {
+  return `event_deliver_failed:${carried(job.payload, "subscriber")}`;
+}
+function deliveryPage(job, reason, wreckage = null) {
+  const named2 = (key) => carried(job.payload, key);
+  return {
+    subject: "A change was not passed on to what reads it",
+    body: [
+      `The delivery of event ${named2("event_id")} (${named2("kind")}) to the ${named2("subscriber")} subscriber failed for good in workspace ${job.tenant_id}: ${reason}.`,
+      wreckage,
+      "The delivery row says what the subscriber was handed and why it stopped. The owner was not told: the fault is the platform's, not theirs. Newest first:\n\n  select event_id, subscriber, kind, state, attempts, last_error, updated_at from event_deliveries where state = 'failed' order by updated_at desc limit 20;",
+      "Once the subscriber is mended, event_deliveries_redrive('<subscriber>') schedules every failed delivery of it again; an event the ledger no longer holds cannot be delivered, and its row stays failed as the record.",
+      `Reference: job ${job.id} (event_deliver).`
+    ].filter(Boolean).join("\n\n")
+  };
+}
+
 // src/handlers.ts
 async function outboundSend(ctx, job) {
   await sendQueued(
@@ -932,6 +992,8 @@ async function outboundSend(ctx, job) {
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
+      claim: (id) => claimQueuedSend2(ctx.db, job.tenant_id, id),
+      release: (id) => releaseQueuedSend2(ctx.db, job.tenant_id, id),
       deliver: (d) => deliver2({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
@@ -997,9 +1059,9 @@ async function emailIngest(ctx, job) {
         senderChecks = e?.authentication ?? null;
         return e ? incomingEmailOf(e) : null;
       },
-      // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
-      // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
-      // provider no longer has when the read runs is still kept on the ledger as the tool's.
+      // A booking tool's notice is read into an appointment by its own job, once per delivery and workspace
+      // (dedupe_key), as this job's own tenant: the intake run again finds it already on the ledger. The tool rides
+      // along, so a delivery the provider no longer has when the read runs is still kept on the ledger as the tool's.
       readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
         await ctx.scheduleOnce("booking_read", /* @__PURE__ */ new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
       },
@@ -1051,13 +1113,14 @@ async function pushSend(ctx, job) {
   if (!id) throw new Error("push_send: no notification named");
   const n = must(
     "push_send: cannot read the notification",
-    await ctx.db.from("notifications").select("id, tenant_id, title, body, route, recipient_user_id").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
+    await ctx.db.from("notifications").select("id, tenant_id, kind, title, body, route, recipient_user_id").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
   );
   if (!n) return;
-  const readers = n.recipient_user_id ? [n.recipient_user_id] : (must(
-    "push_send: cannot read who is in the workspace",
-    await ctx.db.from("memberships").select("user_id").eq("tenant_id", job.tenant_id)
-  ) ?? []).map((m) => m.user_id);
+  const readers = await membersPushedFor(ctx.db, {
+    tenantId: job.tenant_id,
+    userIds: n.recipient_user_id ? [n.recipient_user_id] : null,
+    kind: n.kind
+  });
   if (!readers.length) return;
   const devices = must(
     "push_send: cannot read the phones",
@@ -1084,7 +1147,13 @@ async function pushSend(ctx, job) {
       await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
         tickets: tickets.map((t) => ({ id: t.id, to: t.to }))
       });
-    } catch {
+    } catch (e) {
+      logger6().error("push_receipts_schedule_failed", {
+        tenant_id: job.tenant_id,
+        job: job.id,
+        tickets: tickets.length,
+        error: e instanceof Error ? e.message : String(e)
+      });
     }
   }
 }
@@ -1166,13 +1235,37 @@ async function eventDeliver(ctx, job) {
   }
   const event = await eventOfDelivery(ctx.db, job.tenant_id, named2.eventId);
   if (!event) {
-    await settle("failed", "the ledger no longer holds the event");
+    const why = "the ledger no longer holds the event";
+    await settle("failed", why);
+    logger6().error("event_deliver_event_gone", {
+      tenant_id: job.tenant_id,
+      job: job.id,
+      event_id: named2.eventId,
+      subscriber: named2.subscriber,
+      kind: named2.kind
+    });
+    if (ctx.page) {
+      try {
+        const page = deliveryPage(job, why);
+        await ctx.page(deliveryPageKey(job), page.subject, page.body);
+      } catch (e) {
+        logger6().error("job_page_failed", {
+          tenant_id: job.tenant_id,
+          job: job.id,
+          kind: job.kind,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
     return;
   }
   if (!subscriberNamed(named2.subscriber)) throw new Error(`event_deliver: no subscriber named ${named2.subscriber}`);
   const subscriber = SUBSCRIBERS[named2.subscriber];
+  const ports = {
+    bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId)
+  };
   try {
-    await subscriber(event);
+    await subscriber(event, ports);
   } catch (e) {
     await settle("failed", e instanceof Error ? e.message : String(e));
     throw e;
@@ -1209,7 +1302,7 @@ async function dispatchJob(ctx, job) {
 // src/settle.ts
 import { isCampaignEmail } from "../../contracts/dist/index.js";
 import { logger as logger7 } from "../../channels/dist/index.js";
-import { emitEvent as emitEvent2 } from "../../db/dist/index.js";
+import { emitEvent as emitEvent3, failQueuedSend } from "../../db/dist/index.js";
 var NEVER_SENT = "the job that would have sent this never ran";
 var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 var MAY_HAVE_SENT = "the run that was sending this did not finish";
@@ -1243,7 +1336,7 @@ async function failBroadcast(db, job, broadcastId, why, far) {
   const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).in("state", ["scheduled", "sending"]).select("id");
   if (error) return [{ what: "broadcast", changed: false, ...far, error: `${why}; then ${error.message}` }];
   if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
-  await emitEvent2(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
+  await emitEvent3(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
     failure: "run_interrupted",
     sent: far.reached
   });
@@ -1254,11 +1347,11 @@ async function settleJob(db, job, certain) {
   if (job.kind === "outbound_send") {
     const messageId = idFrom(job.payload, "message_id");
     if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
-    const { data, error } = await db.from("messages").update({
-      status: "failed",
+    const { row, error } = await failQueuedSend(db, {
+      tenantId: job.tenant_id,
+      messageId,
       error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT, ...certain ? {} : { outcome: "unknown" } }
-    }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender, channel, meta");
-    const row = data?.[0] ?? null;
+    });
     const campaign = row?.channel === "email" && isCampaignEmail(row.meta?.email?.request);
     const flagged = !error && row?.conversation_id && !campaign ? await upsertEscalation(
       db,
@@ -1270,9 +1363,9 @@ async function settleJob(db, job, certain) {
     return [
       {
         what: "message",
-        changed: !!data?.length,
+        changed: !!row,
         ...flagged ? { flagged } : {},
-        ...error ? { error: error.message } : {}
+        ...error ? { error } : {}
       }
     ];
   }
@@ -1363,7 +1456,7 @@ function lateFields(lateMs) {
   return Object.fromEntries(Object.entries(lateMs).map(([kind, ms]) => [`late_ms_${kind}`, ms]));
 }
 async function runTick(ports, opts) {
-  const started = ports.now();
+  const started = opts.startedAt ?? ports.now();
   const deadlineFor = (kind) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
   const c = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 };
   const slots = Math.max(1, Math.floor(opts.slots ?? 1));
@@ -1494,6 +1587,14 @@ async function conclude(ports, job, reason, certain, end) {
     attempts: job.attempts,
     reason
   });
+  if (PAGES_THE_PLATFORM.has(job.kind)) {
+    try {
+      const page = deliveryPage(job, reason, wreckage);
+      await ports.page(deliveryPageKey(job), page.subject, page.body);
+    } catch (e) {
+      ports.log.error("job_page_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
+    }
+  }
   if (TOLD_ELSEWHERE.has(job.kind)) return;
   try {
     const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
@@ -1530,6 +1631,7 @@ export {
   failJob,
   incomingEmailOf,
   lateFields,
+  markSpoke,
   requeueFailedJob,
   retryWait,
   runTick,

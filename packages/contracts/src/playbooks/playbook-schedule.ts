@@ -3,6 +3,7 @@
  * words. Moved whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
 import { shiftKey, zoneMidnight } from "../calendar/day-keys";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
 import { clockHour } from "../shared/clock";
@@ -95,14 +96,18 @@ export function inLastSendingHour(tz: string, now: Date): boolean {
 
 /**
  * "Daily 10:00 AM · up to 25 · once per person, again after 90 days". The hour is said by the product's clock
- * (shared/clock.ts clockHour), as a broadcast's time is: it said "10:00" and "18:00" beside "6:00 PM" until 8 Oct 2026.
+ * (shared/clock.ts clockHour), as a broadcast's time is: it said "10:00" and "18:00" beside "6:00 PM" until 8 Oct 2026. An
+ * appointment moment's says who in the workspace's word (contracts appointmentWords).
  */
 export function scheduleLine(
   p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">,
+  word: AppointmentWord,
 ): string {
   const at = clockHour(p.run_hour);
-  if (triggerOf(p.trigger)?.kind === "visit")
-    return `Daily ${at} · ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} · up to ${p.cap_per_run}`;
+  if (triggerOf(p.trigger)?.kind === "visit") {
+    const W = appointmentWords(word);
+    return `Daily ${at} · ${p.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} · up to ${p.cap_per_run}`;
+  }
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} · up to ${p.cap_per_run} a day`;
   // One follow-up per proposal (0006): no gap to wait out.
   if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at} · up to ${p.cap_per_run} · once per proposal`;

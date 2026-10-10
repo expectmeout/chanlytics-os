@@ -165,7 +165,7 @@ const history = historyOf(win);
 const address = await legacyAddress();
 win.CHANLY = { nav() {}, address };
 globalThis.document = {
-  title: "Chanlytics OS",
+  title: "Chanlytics",
   visibilityState: "hidden",
   body: { style: {} },
   addEventListener() {},
@@ -348,9 +348,17 @@ test("the status is published whenever any part of it changes, and only then", (
 
 test("a session that ends mid-page signs in again to the same page: the route rides to /login and back", async () => {
   assert.equal(workspace.signInHref({ hash: "#/inbox/th-1" }), "/login#/inbox/th-1");
-  assert.equal(workspace.signInHref({ pathname: "/w/acme/inbox/th-1", hash: "" }), "/login#/inbox/th-1", "from a path");
+  assert.equal(
+    workspace.signInHref({ pathname: "/w/acme/inbox/th-1", hash: "" }),
+    "/login?w=acme#/inbox/th-1",
+    "from a path, in its workspace",
+  );
   for (const none of ["", "#", undefined, null, "#access_token=abc"])
-    assert.equal(workspace.signInHref({ pathname: "/w/acme", hash: none }), "/login", `${none} is not a page`);
+    assert.equal(
+      workspace.signInHref({ pathname: "/w/acme", hash: none }),
+      "/login?w=acme",
+      `${none} is not a page; the workspace still is`,
+    );
 
   // The client's 401, on any read or write.
   const page = {
@@ -379,7 +387,7 @@ test("a session that ends mid-page signs in again to the same page: the route ri
   ]);
   await settle();
   stop();
-  assert.deepEqual(win.location.assigned, ["/login#/calendar"]);
+  assert.deepEqual(win.location.assigned, ["/login?w=acme#/calendar"], "in the workspace the page is in");
   win.location.hash = "#/inbox/th-1";
 });
 
@@ -596,7 +604,7 @@ const mount = (hash) => {
   cells = [];
   frames.begin();
   placeAt(hash);
-  globalThis.document.title = "Chanlytics OS";
+  globalThis.document.title = "Chanlytics";
   globalThis.ShellStatusBar = win.ShellStatusBar;
   const tree = win.ChanlyticsApp({
     ...PAGES,
@@ -720,7 +728,7 @@ test("REGRESSION: the tab keeps its name when the layout's own title lands after
     const { title } = mount("#/admin/autonomy");
     assert.equal(title, "Autonomy · Settings · Chanlytics");
     // What the layout's metadata does when it lands after the shell's first paint: its own title, over the shell's.
-    globalThis.document.title = "Chanlytics OS";
+    globalThis.document.title = "Chanlytics";
     for (const w of watches) if (w.on) w.fn([]);
     assert.equal(
       globalThis.document.title,
@@ -1074,8 +1082,8 @@ test("REGRESSION (C13): a link to a playbook opens Campaigns' home on it, named 
     assert.deepEqual(crumbs("#/campaigns"), ["Campaigns"]);
     assert.equal(
       crumbs("#/campaigns/moment:pb-gone").at(-1),
-      "Playbook",
-      "a playbook since deleted is still named for what it was",
+      "Campaign",
+      "a campaign since deleted is still named for what it was",
     );
   } finally {
     setSurfaceValue("playbooks", undefined);
@@ -1140,6 +1148,10 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
       "and the address becomes the page's own, in place, so Back does not land on it again",
     );
     assert.ok(shows(mount("#/soon/fleet").tree, "ComingSoon"), "a page kept for the demo still says so");
+    // What it says a person reads: "campaigns", never "playbooks" (decision 19).
+    const soon = find(mount("#/soon/fleet").tree, (n) => typeof n.type === "function" && n.type.name === "ComingSoon");
+    const blurb = textOf(find(soon.type(soon.props), (n) => n.props?.className === "soon-blurb"));
+    assert.equal(blurb, "Deep management for every agent: autonomy, campaigns, performance.");
     tree = mount("#/soon/nope").tree;
     assert.ok(
       shows(tree, "NotFound") && !shows(tree, "ComingSoon"),

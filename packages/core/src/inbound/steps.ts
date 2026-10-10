@@ -34,17 +34,6 @@ export function ageVerdict(
   return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
 }
 
-/** Whether the thread may be answered now: a human has it, or the day's replies are spent. */
-export function threadVerdict(
-  thread: { pausedUntil: number; replies: number[] },
-  maxRepliesDay: number,
-  now = Date.now(),
-): "paused" | "ratecap" | "ok" {
-  if (now < thread.pausedUntil) return "paused";
-  if (thread.replies.length >= maxRepliesDay) return "ratecap";
-  return "ok";
-}
-
 /**
  * How long the reply waits before it goes out, and why.
  *

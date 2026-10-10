@@ -163,6 +163,8 @@ export function RecordInline(props: RecordInlineProps) {
       ref={box}
       className="rec-inline"
       role="group"
+      // Focusable by the editor's own rule and never by Tab: on a touch screen it opens on itself (focus.ts).
+      tabIndex={-1}
       aria-labelledby={keyId}
       aria-busy={saving || undefined}
       data-open={open ? "true" : "false"}

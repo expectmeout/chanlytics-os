@@ -68,8 +68,8 @@ export const REACH_OUT_REFUSALS = {
   leadGone: "This lead is gone.",
   /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
   nothingWritten: "Nothing has been written to them yet.",
-  /** 00241 reach_out_report: only Reports' own periods. */
-  period: "A period is 7, 30 or 90 days.",
+  /** reach_out_report (00241, 00360): any count of days Reports reads, as its other functions take them. */
+  period: "A period is 1 to 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",

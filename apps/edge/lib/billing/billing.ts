@@ -2,14 +2,16 @@
  * Billing on the edge: the Stripe client, the readiness, and the routines
  * that turn a subscription reading into the row, the switch and the bell.
  * The decisions are pure (contracts/billing.ts planBilling); this file is
- * the only place the secret key is handled and the only writer of
- * billing_accounts, billing_events and tenants.status for a stripe-mode
- * workspace. A direct-arrangement workspace is never touched from here.
+ * the only place the secret key is handled and the only caller that writes
+ * billing_accounts and tenants.status for a stripe-mode workspace, through
+ * the row's one door (db applyBilling, 00382 billing_apply: the row and the
+ * switch in one write), and the only writer of billing_events. A
+ * direct-arrangement workspace is never touched from here.
  */
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { emitEvent } from "../packages/db.js";
+import { applyBilling, emitEvent, type BillingPatch } from "../packages/db.js";
 import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
@@ -24,7 +26,7 @@ import {
   type SubscriptionFacts,
   MIN_MS,
 } from "../packages/contracts.js";
-import { recordNotification } from "../ops/notify.js";
+import { keepAndPush } from "../ops/notify.js";
 import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
@@ -32,6 +34,10 @@ import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 
 type Db = SupabaseClient<Database>;
 type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
+
+/** A write nothing races (a customer's id, a stamp, a customer Stripe forgot): the row's one door, with no expectation. */
+const keepOnRow = (db: Db, tenantId: string, row: BillingPatch) =>
+  applyBilling(db, { tenantId, row, expect: null, tenantStatus: null });
 
 /**
  * Back on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the page reads once: Settings ›
@@ -203,6 +209,7 @@ export async function applySubscription(
   sub: Stripe.Subscription,
   source: string,
   now = new Date(),
+  by: string | null = null,
 ): Promise<{ switched: "paused" | "resumed" | null; status: BillingStatus }> {
   const L = logger({ tenant_id: row.tenant_id, subscription: sub.id });
   const tenant = await tenantState(db, row.tenant_id);
@@ -223,31 +230,27 @@ export async function applySubscription(
   );
   const plan = ended ? keptEnded(planned) : planned;
   const customerId = idOf(sub.customer);
-  // Written only if the row is still what this reading was planned against.
-  // Stripe sends several events for one change within milliseconds
-  // (subscription.created, checkout.session.completed, invoice.paid), and
-  // two of them applied side by side each saw the old row and rang the
-  // same bell twice. The loser writes nothing and rings nothing; the row
-  // already holds the same reading.
-  const up = await db
-    .from("billing_accounts")
-    .update({ ...plan.row, ...(customerId ? { stripe_customer_id: customerId } : {}) })
-    .eq("tenant_id", row.tenant_id)
-    .eq("status", row.status)
-    .eq("updated_at", row.updated_at)
-    .select("tenant_id");
-  if (up.error) throw new Error(up.error.message);
-  if (!up.data?.length) {
+  // Written only if the row is still what this reading was planned against,
+  // and with the switch it throws, in one write (00382): a death between the
+  // row and the switch left a workspace paid and paused until Stripe's next
+  // event about it. Stripe sends several events for one change within
+  // milliseconds (subscription.created, checkout.session.completed,
+  // invoice.paid), and two of them applied side by side each saw the old row
+  // and rang the same bell twice. The loser writes nothing and rings nothing;
+  // the row already holds the same reading.
+  const won = await applyBilling(db, {
+    tenantId: row.tenant_id,
+    row: { ...plan.row, ...(customerId ? { stripe_customer_id: customerId } : {}) },
+    expect: { status: row.status, updated_at: row.updated_at },
+    tenantStatus: plan.tenantStatus,
+  });
+  if (!won) {
     L.info("billing_apply_raced", { source, status: facts.status });
     return { switched: null, status: facts.status };
   }
-  if (plan.tenantStatus) {
-    const t = await db.from("tenants").update({ status: plan.tenantStatus }).eq("id", row.tenant_id);
-    if (t.error) throw new Error(t.error.message);
-  }
   if (ended && !PLAN_ENDED.has(facts.status)) await endLeftEmpty(sub.id, L);
   if (plan.bell) {
-    await recordNotification(row.tenant_id, {
+    await keepAndPush(row.tenant_id, {
       kind: "billing",
       title: plan.bell.title,
       body: plan.bell.body,
@@ -261,7 +264,7 @@ export async function applySubscription(
     plan.switched === "paused" ? "billing.paused" : plan.switched === "resumed" ? "billing.resumed" : "billing.updated",
     "subscription",
     null,
-    { source, status: facts.status, subscription: sub.id, price_id: facts.price_id },
+    { source, status: facts.status, subscription: sub.id, price_id: facts.price_id, ...(by ? { by } : {}) },
   ).catch(() => {});
   L.info("billing_applied", {
     source,
@@ -285,8 +288,7 @@ async function customerFor(
     ...(email ? { email } : {}),
     metadata: { tenant_id: row.tenant_id },
   });
-  const up = await db.from("billing_accounts").update({ stripe_customer_id: c.id }).eq("tenant_id", row.tenant_id);
-  if (up.error) throw new Error(up.error.message);
+  await keepOnRow(db, row.tenant_id, { stripe_customer_id: c.id });
   return c.id;
 }
 
@@ -498,6 +500,7 @@ export async function resumeFor(
   db: Db,
   tenantId: string,
   now = new Date(),
+  by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   if (!s) return { ok: false, error: "not_ready" };
@@ -512,7 +515,7 @@ export async function resumeFor(
       billing_cycle_anchor: "now",
       expand: ["default_payment_method"],
     });
-    const r = await applySubscription(db, row, sub, "resume", now);
+    const r = await applySubscription(db, row, sub, "resume", now, by);
     return { ok: true, status: r.status };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
@@ -529,6 +532,7 @@ export async function startPlanNowFor(
   db: Db,
   tenantId: string,
   now = new Date(),
+  by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   if (!s) return { ok: false, error: "not_ready" };
@@ -543,7 +547,7 @@ export async function startPlanNowFor(
       trial_end: "now",
       expand: ["default_payment_method"],
     });
-    const r = await applySubscription(db, row, sub, "start_now", now);
+    const r = await applySubscription(db, row, sub, "start_now", now, by);
     return { ok: true, status: r.status };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
@@ -554,16 +558,16 @@ export async function startPlanNowFor(
 const DELETED_CUSTOMER = "customer.deleted";
 
 /**
- * Stripe deleted the customer: the ids the row kept point at nothing, so the
- * portal would refuse and Checkout would reuse a customer that is gone. The
- * row says nothing is on record, and Checkout may start again with a fresh
- * customer. The workspace's own status is not touched here: the
- * subscription's own deleted event, which Stripe sends first, decided it.
+ * Stripe deleted the customer: the ids the row kept point at nothing, so the portal would refuse and Checkout would
+ * reuse a customer that is gone. The row says nothing is on record, and Checkout may start again with a fresh customer.
+ * Only the row's own customer is forgotten (false, and nothing written, for any other): one routed here by its metadata
+ * may be a customer the workspace has left. The workspace's own status is not touched here: the subscription's own
+ * deleted event, which Stripe sends first, decided it.
  */
-export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
-  const up = await db
-    .from("billing_accounts")
-    .update({
+export async function forgetCustomer(db: Db, row: BillingRow, customerId: string): Promise<boolean> {
+  const forgotten = await applyBilling(db, {
+    tenantId: row.tenant_id,
+    row: {
       stripe_customer_id: null,
       stripe_subscription_id: null,
       status: "none",
@@ -574,14 +578,14 @@ export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
       cancel_at_period_end: false,
       card_brand: null,
       card_last4: null,
-    })
-    .eq("tenant_id", row.tenant_id);
-  if (up.error) throw new Error(up.error.message);
-  // The reason is built outside the call: the event-kinds lint reads every
-  // dotted literal inside an emitEvent to its closing paren, and Stripe's own
-  // event names look exactly like ours.
+    },
+    expect: { stripe_customer_id: customerId },
+    tenantStatus: null,
+  });
+  if (!forgotten) return false;
   const why = { source: DELETED_CUSTOMER, status: "none" };
   await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, why).catch(() => {});
+  return true;
 }
 
 /**
@@ -612,7 +616,7 @@ type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "u
  * Stripe not answering, which says nothing about the subscription. A false
  * "gone" applies a dead event, so the test is as narrow as it can be.
  */
-function saysGone(e: unknown): boolean {
+export function saysGone(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
   const { statusCode, code } = e as { statusCode?: unknown; code?: unknown };
   return statusCode === 404 && code === "resource_missing";
@@ -759,29 +763,26 @@ export async function notePayment(
   now = new Date(),
 ): Promise<void> {
   if (kind === "failed") {
-    const up = await db
-      .from("billing_accounts")
-      .update({ last_payment_failed_at: now.toISOString() })
-      .eq("tenant_id", row.tenant_id);
-    if (up.error) throw new Error(up.error.message);
-    await recordNotification(row.tenant_id, {
+    await keepOnRow(db, row.tenant_id, { last_payment_failed_at: now.toISOString() });
+    await keepAndPush(row.tenant_id, {
       kind: "billing",
       title: "A payment did not go through",
       body: "The card on file was declined. Stripe tries again over the next days; update the card from Billing to keep the receptionist answering.",
       route: "admin/billing",
       about: null,
     });
+    await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(() => {});
   } else if (amountPaid === undefined || amountPaid > 0) {
-    const up = await db
-      .from("billing_accounts")
-      .update({ last_paid_at: now.toISOString() })
-      .eq("tenant_id", row.tenant_id);
-    if (up.error) throw new Error(up.error.message);
+    await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() });
+    await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(() => {});
   }
 }
 
 export async function noteTrialEnding(db: Db, row: BillingRow, trialEnd: string | null): Promise<void> {
-  await recordNotification(row.tenant_id, {
+  await emitEvent(db, row.tenant_id, "billing.trial_ending", "subscription", null, { trial_end: trialEnd }).catch(
+    () => {},
+  );
+  await keepAndPush(row.tenant_id, {
     kind: "billing",
     title: "Your trial ends in three days",
     body: `The card on file is charged when the trial ends${trialEnd ? ` on ${new Date(trialEnd).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}. Cancel from Billing before then if you'd rather not.`,

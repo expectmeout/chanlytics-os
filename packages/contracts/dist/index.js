@@ -254,10 +254,105 @@ function sweepTickAtOrAfter(ms2) {
   return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
 }
 
+// src/deals/sells-by.ts
+var SELLS_BY = ["booking", "proposal"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+function isSellsBy(s) {
+  return typeof s === "string" && SELLS_BY.includes(s);
+}
+var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
+function bookingLinkOptional(sellsBy) {
+  return dealsAreOn(sellsBy);
+}
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+var SELLS_BY_FIRST = "booking";
+var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+function sellsByVM(answer) {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+  };
+}
+function sellsBySaved(was, now) {
+  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
+  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+}
+
 // src/shared/words.ts
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 var joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+// src/journey/appointment-word.ts
+var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
+function isAppointmentWord(value) {
+  return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
+}
+function appointmentWordOf(o) {
+  if (isAppointmentWord(o.stored)) return o.stored;
+  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
+}
+var FORMS = {
+  appointment: {
+    a: "an appointment",
+    has: "has an appointment",
+    have: "have an appointment",
+    had: "had an appointment"
+  },
+  visit: { a: "a visit", has: "visits", have: "visit", had: "visited" },
+  // trade-word: the word's own forms, said once
+  meeting: { a: "a meeting", has: "has a meeting", have: "have a meeting", had: "had a meeting" },
+  session: { a: "a session", has: "has a session", have: "have a session", had: "had a session" },
+  lesson: { a: "a lesson", has: "has a lesson", have: "have a lesson", had: "had a lesson" }
+};
+function appointmentWords(word) {
+  const f = FORMS[word];
+  const Title = capitalize(word);
+  const many = `${word}s`;
+  const people = (n) => plural(n, "person", "people");
+  return {
+    word,
+    one: word,
+    many,
+    a: f.a,
+    Title,
+    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
+    after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
+    lapsedHint: `No ${word} in 45 days, and nothing booked`,
+    tomorrowWho: `everyone with ${f.a} tomorrow`,
+    yesterdayWho: `everyone who ${f.had} yesterday`,
+    withTomorrow: `with ${f.a} tomorrow`,
+    whoYesterday: `who ${f.had} yesterday`,
+    eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
+    eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
+    offTomorrow: (n) => `Off \xB7 ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
+    offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
+    startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
+    byMany: `by ${many}`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`
+  };
+}
 
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
@@ -288,24 +383,23 @@ var PLAYBOOK_TRIGGERS = [
   },
   {
     id: "visit_tomorrow",
-    label: "Visit reminder",
+    label: "Appointment reminder",
     list: null,
     cls: "booking",
     kind: "visit",
     hint: "The day before an appointment on the calendar"
   },
-  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the visit went and offers nothing,
-  // so it reaches a yes to texts. It was a re-engagement, and its "book your next visit" made it an offer. Its label
-  // is also the NAME a playbook made on it was given and keeps (the composer names a new playbook after its moment, and
-  // the name is stored): a new label here would say one thing on the moment and another on every playbook already
-  // made, so a rename is a product decision with a migration of the stored names, never a constant's change alone.
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the appointment went and offers
+  // nothing, so it reaches a yes to texts. The labels here are the default word's (contracts appointmentWords, D42); a
+  // page and a new campaign's name say the workspace's own (triggerWords), and a name already stored keeps its words
+  // until its owner renames it (D43). The id never changes.
   {
     id: "visited",
-    label: "After the visit",
+    label: "After the appointment",
     list: null,
     cls: "booking",
     kind: "visit",
-    hint: "The day after a visit, when nothing is booked next"
+    hint: "The day after an appointment, when nothing is booked next"
   },
   // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
   // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
@@ -316,7 +410,7 @@ var PLAYBOOK_TRIGGERS = [
     list: "lapsed",
     cls: "reengage",
     kind: "list",
-    hint: "No visit in 45 days, and nothing booked"
+    hint: "No appointment in 45 days, and nothing booked"
   },
   // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
   // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
@@ -361,8 +455,18 @@ var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
   (t) => t.kind !== "reach_out"
 );
 var PLAYBOOK_STATES = ["running", "paused"];
+function isPlaybookState(v) {
+  return PLAYBOOK_STATES.some((s) => s === v);
+}
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var PLAYBOOK_LIMITS = {
+  run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
+  cap_per_run: { min: 1, max: 500, what: "The cap" },
+  gap_days: { min: 7, max: 365, what: "The gap" },
+  cadence_days: { min: 1, max: 90, what: "The cadence" }
+};
+var PLAYBOOK_CAP_CHOICES = [5, 10, 25, 50, 100, 250, 500];
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
   max: PLAYBOOK_HOURS.max,
@@ -370,6 +474,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
+var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
@@ -381,11 +486,12 @@ var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 function vetoRunNotice(name, people, when) {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
   return {
-    subject: `Playbook \u201C${name}\u201D sends ${when}: ${who}`,
+    subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
     body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
+var CAMPAIGN_NOT_FOUND = "Campaign not found.";
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
@@ -402,17 +508,29 @@ var WIN_BACKS = ["quiet_30", "lapsed"];
 function isWinBack(id) {
   return WIN_BACKS.includes(id);
 }
-var hintOf = (id) => (triggerOf(id)?.hint ?? "").toLowerCase();
-var WIN_BACK_WORDS = {
-  quiet_30: `A calendar is connected here, so the win-back goes by visits: ${hintOf("lapsed")}. Start that one.`,
-  lapsed: `The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: ${hintOf("quiet_30")}.`
-};
+function triggerWords(t, word) {
+  const W = appointmentWords(word);
+  if (t.id === "visit_tomorrow") return { label: W.before.name, hint: W.before.hint };
+  if (t.id === "visited") return { label: W.after.caps, hint: W.after.hint };
+  if (t.id === "lapsed") return { label: t.label, hint: W.lapsedHint };
+  return { label: t.label, hint: t.hint };
+}
+function winBackWords(word) {
+  const W = appointmentWords(word);
+  const silence = (triggerOf("quiet_30")?.hint ?? "").toLowerCase();
+  return {
+    quiet_30: `A calendar is connected here, so the win-back goes ${W.byMany}: ${W.lapsedHint.toLowerCase()}. Start that one.`,
+    lapsed: `The win-back ${W.byMany} needs your calendar, and none is connected. Start the one that goes by silence: ${silence}.`
+  };
+}
+function momentReadsCalendar(t) {
+  return isWinBack(t.id) || t.kind === "visit";
+}
 function momentOffered(t, o) {
   if (!triggerOffered(t, o.dealsOn)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
-  if (t.id === "quiet_30") return !o.calendarOn;
-  if (t.id === "lapsed") return o.calendarOn;
-  return true;
+  if (!momentReadsCalendar(t)) return true;
+  return t.id === "quiet_30" ? !o.calendarOn : o.calendarOn;
 }
 function policyClassOffered(cls, dealsOn) {
   if (cls === "outreach") return true;
@@ -447,12 +565,12 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `the win-back and save-our-number campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `the welcome and month's-offer campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -464,7 +582,7 @@ var POLICY_CLASS_WORDS = {
   follow_up: {
     name: "Proposal follow-ups",
     short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+    note: "the proposal follow-up campaign \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
   },
   // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
   outreach: {
@@ -1018,6 +1136,19 @@ function splitQuotedReply(body) {
   return { text, quoted };
 }
 
+// src/config/intent-labels.ts
+var INTENT_LABELS = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  money: "Money question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other"
+};
+
 // src/config/brain.ts
 var BRAIN_INTENTS = [
   "booking",
@@ -1032,17 +1163,6 @@ var BRAIN_INTENTS = [
   "smalltalk",
   "other"
 ];
-var INTENT_LABELS = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  money: "Money question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other"
-};
 var BRAIN_LANGUAGES = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA = {
   type: "object",
@@ -1122,7 +1242,15 @@ function isAutomatedSend(meta) {
   const source = metaKey(meta, "source");
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
-var NOT_A_PERSONS_CLAIMS = ["automated", "auto_reply", "report", "booking_notice"];
+var EMAIL_CLAIMS = [
+  { claim: "report", personsWords: false },
+  { claim: "booking_notice", personsWords: false },
+  { claim: "forwarding_confirmation", personsWords: false },
+  { claim: "auto_reply", personsWords: false },
+  { claim: "automated", personsWords: false },
+  { claim: "person", personsWords: true }
+];
+var NOT_A_PERSONS_CLAIMS = EMAIL_CLAIMS.filter((c) => !c.personsWords).map((c) => c.claim);
 function isPersonsWords(meta) {
   const claim = metaKey(metaKey(meta, "email"), "claim");
   return !(typeof claim === "string" && NOT_A_PERSONS_CLAIMS.includes(claim));
@@ -1136,8 +1264,9 @@ function messageAuthor(m) {
   const via = messageVia(m);
   if (via) {
     return via.kind === "playbook" ? (
-      // A playbook named "The month's offer" is not "the The month's offer playbook".
-      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+      // A campaign named "The month's offer" is not "the The month's offer campaign"; a person reads "campaign", never
+      // "playbook" (decision 19), and the kind keeps its name.
+      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} campaign` }
     ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
   }
   return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
@@ -1430,9 +1559,10 @@ function addressInMessage(body) {
 // src/shared/phone.ts
 function normalizePhone(raw) {
   if (raw == null) return null;
-  const digits2 = String(raw).replace(/[^\d]/g, "");
+  const typed = String(raw).trim();
+  const digits2 = typed.replace(/[^\d]/g, "");
   if (!digits2) return null;
-  if (digits2.length === 10) return `+1${digits2}`;
+  if (!typed.startsWith("+") && digits2.length === 10) return `+1${digits2}`;
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
@@ -2377,7 +2507,7 @@ var SENDER_WORDS = {
     offerAsked: (who) => `You asked for offers from ${who}.`,
     offerCustomer: (who) => `You're a customer of ${who}.`,
     visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
-    visitBooked: (who) => `You're getting this because of your visit with ${who}.`,
+    visitBooked: (who) => `You're getting this because of your appointment with ${who}.`,
     visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`
   },
   es: {
@@ -2390,7 +2520,7 @@ var SENDER_WORDS = {
     offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
     offerCustomer: (who) => `Eres cliente de ${who}.`,
     visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
-    visitBooked: (who) => `Recibes esto por tu visita con ${who}.`,
+    visitBooked: (who) => `Recibes esto por tu cita con ${who}.`,
     visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`
   }
 };
@@ -2643,9 +2773,9 @@ function reachOutStepOf(name) {
   const parts2 = /^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/.exec(hex);
   return parts2 ? parts2.slice(1).join("-") : null;
 }
-function versionsOf(rows, name) {
+function versionsOf(rows2, name) {
   const out = { whatsapp: [], email: [], sms: [] };
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (r2.name !== name || isReachOutRow(r2)) continue;
     if (VERSION_CHANNELS.includes(r2.channel)) out[r2.channel].push(r2);
   }
@@ -3160,7 +3290,8 @@ function draftRefusal(f) {
 }
 var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
 function leadReplyNote(p) {
-  const business = flatClip(p.business, 120) || "a business";
+  const name = promptSafeName(p.business);
+  const business = name ? fencedInline("profile_name", name) : "a business";
   const answered = flatClip(p.answered, 600);
   const signedBy = flatClip(p.signedBy, 60);
   return [
@@ -4181,6 +4312,13 @@ var FLAGS = [
     }
   },
   {
+    name: "WHATSAPP_ANSWERS_AS_JOBS",
+    mechanism: "edge_env",
+    does: "Workspace ids, or 'all': their WhatsApp messages are recorded, acknowledged and answered by a job (whatsapp/answer-later.ts); empty answers every message inside the webhook.",
+    owner: "Ruben",
+    sunset: "2026-12-31"
+  },
+  {
     name: "LINES_DRY_RUN",
     mechanism: "edge_env",
     does: "'1' uses the dry line provider (fake SIDs) on a preview or a laptop.",
@@ -4963,8 +5101,8 @@ function stepDays(nowMs, tz) {
   return out;
 }
 var TODAY_STEPS_MAX = 3;
-function todayStepsDue(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
-  const due = rows.map((row2) => {
+function todayStepsDue(rows2, nowMs, tz, max = TODAY_STEPS_MAX) {
+  const due = rows2.map((row2) => {
     const s = row2.nextStep;
     const day = dueStepDay(s, tz, nowMs);
     return s && day ? { row: row2, step: { ...s, day, due: day.due } } : null;
@@ -5018,14 +5156,14 @@ function waitingOnProposal(r2, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r2);
 }
-function eachOpenProposal(rows) {
-  return rows.flatMap((r2) => {
+function eachOpenProposal(rows2) {
+  return rows2.flatMap((r2) => {
     const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
     return open.filter((d) => d.stage === "proposed").map((d) => ({ ...r2, deal: d }));
   });
 }
-function proposalsWaiting(rows, nowMs, pace) {
-  return rows.filter((r2) => waitingOnProposal(r2, nowMs, pace));
+function proposalsWaiting(rows2, nowMs, pace) {
+  return rows2.filter((r2) => waitingOnProposal(r2, nowMs, pace));
 }
 
 // src/deals/pipeline/pipeline-vm.ts
@@ -5034,11 +5172,11 @@ function pipelineRowId(personId, dealKey) {
   return dealKey === null ? personId : `${personId}_${dealKey}`;
 }
 function pipelineRowNow(vm, rowId) {
-  const rows = vm.groups.flatMap((g) => g.rows);
-  if (rows.some((row2) => row2.id === rowId)) return rowId;
+  const rows2 = vm.groups.flatMap((g) => g.rows);
+  if (rows2.some((row2) => row2.id === rowId)) return rowId;
   const at3 = rowId.indexOf("_");
   const deal = at3 < 0 ? null : rowId.slice(at3 + 1);
-  return deal && rows.find((row2) => row2.deal?.id === deal)?.id || null;
+  return deal && rows2.find((row2) => row2.deal?.id === deal)?.id || null;
 }
 function pipelinePersonOf(rowId) {
   const at3 = rowId.indexOf("_");
@@ -5319,7 +5457,7 @@ var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_WARM_MAX_TOKENS = 64;
-var ASK_TOKENS_DAY = 15e5;
+var ASK_TOKENS_DAY = 3e6;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -5333,9 +5471,37 @@ var ASK_CAPS = {
 };
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var ASK_UNDO_MS = 10 * 6e4;
-var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_CARD_FRESH_MS = DAY_MS;
+function askCardLapsed(p, nowMs) {
+  const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
+  return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
+}
+var ASK_SCOPE_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "run",
+  "playbook"
+];
 var UUID = /^[0-9a-f-]{36}$/;
-function scopeFromRoute(page, param, label) {
+function clientsScope(param, label) {
+  const leads = parseLeadsRoute(`clients/${param}`);
+  if (leads) {
+    if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
+    if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
+    return null;
+  }
+  const pipeline = parsePipelineRoute(`clients/${param}`);
+  if (pipeline)
+    return pipeline.peek ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" } : null;
+  if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  return null;
+}
+function scopeFromRoute(page, param, label, chains) {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
     return { kind: "thread", id: param.slice(3), label: label || "this thread" };
@@ -5348,18 +5514,13 @@ function scopeFromRoute(page, param, label) {
   if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
-  if (page === "clients") {
-    const leads = parseLeadsRoute(`clients/${param}`);
-    if (leads) {
-      if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
-      if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
-      return null;
-    }
-    const pipeline = parsePipelineRoute(`clients/${param}`);
-    if (pipeline)
-      return pipeline.peek ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" } : null;
-    if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7))) {
+    const id = param.slice(7);
+    const chain = chains?.find((c) => c.root_id === id);
+    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
+    return { kind: "playbook", id, label: label || "this campaign" };
   }
+  if (page === "clients") return clientsScope(param, label);
   return null;
 }
 var ASK_SURFACES = [
@@ -5410,6 +5571,14 @@ var FOLLOWUP_ECHO = [
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
+var unquoted = (s) => (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "\u2026").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1\u2026");
+var WRITE_CLAIMS = [
+  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled)\b/i,
+  /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado)\b/i,
+  /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
+  /\bdone[,.!]/i
+];
+var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
 
 // src/calendar/booking-notice.ts
 var BOOKING_TOOL_IDS = [
@@ -6224,49 +6393,779 @@ function roleAtLeast(role, atLeast) {
   return have !== void 0 && have >= ROLE_RANK[atLeast];
 }
 
-// src/deals/sells-by.ts
-var SELLS_BY = ["booking", "proposal"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+// src/conversations/escalations.ts
+var ESCALATION_REASON_LABELS = {
+  human_token: "Customer asked for a person",
+  refusal: "Assistant declined to answer",
+  brain_error: "The receptionist hit an error \u2014 a holding message went out",
+  non_text: "Sent a voice note / photo",
+  send_failed: "Reply failed to deliver",
+  policy_block: "Held by your reply setting \u2014 nothing was sent",
+  policy_ask: "Set to Ask me first \u2014 a person answers this one",
+  person_hold: "You handle this person \u2014 the receptionist stays out",
+  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
+  deadman: "Nobody picked this up \u2014 flagged after silence",
+  manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
+  stale: "Arrived hours late \u2014 too old to answer automatically",
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  paused: "Held \u2014 the workspace is paused until billing resumes",
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email \u2014 a person answers"
 };
-function isSellsBy(s) {
-  return typeof s === "string" && SELLS_BY.includes(s);
+var ESCALATION_REASON_SHORT = {
+  human_token: "asked for a person",
+  refusal: "the receptionist declined to answer",
+  brain_error: "the receptionist hit an error",
+  non_text: "sent a voice note or photo",
+  send_failed: "reply failed to deliver",
+  policy_block: "held by your reply setting",
+  policy_ask: "set to Ask me first",
+  person_hold: "you handle this person",
+  rate_cap: "too many replies too fast",
+  deadman: "nobody picked this up",
+  manual: "flagged by hand",
+  opt_out: "asked to stop",
+  state_unavailable: "the receptionist could not read this thread",
+  stale: "arrived hours late",
+  budget: "the day's model budget is used up",
+  callback: "needs a call back",
+  paused: "the workspace is paused until billing resumes",
+  carriers: "the carriers have not approved this line",
+  email_review: "wrote by email"
+};
+function reasonShort(reason) {
+  if (!reason) return "";
+  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
 }
-var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
+var ESCALATION_REASON_WHY = {
+  human_token: "because a customer asked for a person",
+  refusal: "because it declined to answer",
+  brain_error: "because it hit an error",
+  non_text: "for something it can't read",
+  send_failed: "because a reply failed to send",
+  policy_block: "because your reply setting held it",
+  policy_ask: "for a booking or a question set to Ask me first",
+  person_hold: "because you handle this person",
+  rate_cap: "because the reply limit was reached",
+  deadman: "because no answer came in time",
+  manual: "because it was flagged by hand",
+  opt_out: "because they asked to stop",
+  state_unavailable: "because it could not read the thread",
+  stale: "because a message arrived too late to answer",
+  budget: "because the day's model budget ran out",
+  callback: "because they need a call back",
+  paused: "because the workspace is paused",
+  carriers: "while waiting on carriers",
+  email_review: "because they wrote by email"
+};
+function reasonWhy(reason) {
+  return ESCALATION_REASON_WHY[reason] ?? `because ${reasonShort(reason)}`;
 }
-function bookingLinkOptional(sellsBy) {
-  return dealsAreOn(sellsBy);
+var ESCALATION_SUMMARIES = {
+  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
+  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
+  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
+  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
+  callback: "They phoned and the receptionist couldn't finish it.",
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+};
+function reasonLabelOf(reason) {
+  return ESCALATION_REASON_LABELS[reason] ?? reason;
 }
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-var SELLS_BY_FIRST = "booking";
-var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-function sellsByVM(answer) {
-  const said = isSellsBy(answer) ? answer : null;
-  const on = dealsAreOn(said);
-  const verb = said ? "Change" : "Choose";
+function reasonSummaryOf(reason) {
+  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
+}
+
+// src/reports/report-speed.ts
+var REPLY_BUCKETS = [
+  { id: "lt15", label: "under 15s", max: 14 },
+  { id: "lt60", label: "15s \u2013 1m", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m", max: 300 },
+  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
+  { id: "gte1800", label: "over 30m", max: Infinity }
+];
+var LATER_BUCKETS = [
+  { id: "lt60", label: "up to 1m later", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m later", max: 300 },
+  { id: "gte300", label: "over 5m later", max: Infinity }
+];
+var HOLD_SLACK_S = 10;
+var holdWords2 = (s) => s < 60 ? `${s}-second` : s % 60 === 0 && s < 3600 ? `${s / 60}-minute` : durationWords(s);
+var heldSeconds = (r2) => r2.hold !== void 0 && r2.hold > 0 ? r2.hold : 0;
+function classOf(r2) {
+  const hold = heldSeconds(r2);
+  if (!hold) return { kind: "unheld" };
+  const past = r2.s - hold;
+  return past > HOLD_SLACK_S ? { kind: "later", past } : { kind: "atEnd" };
+}
+function classified(replies) {
+  const rs = (replies ?? []).filter((r2) => Number.isFinite(r2.s));
+  if (!rs.some((r2) => r2.hold !== void 0)) return null;
+  const all = rs.map((r2) => ({ hold: r2.hold ?? 0, c: classOf(r2) }));
+  return all.some((x) => x.c.kind !== "unheld") ? all : null;
+}
+var countOf = (all, kind) => all.filter((x) => x.c.kind === kind).length;
+var pastOf = (all) => all.flatMap((x) => x.c.kind === "later" ? [x.c.past] : []);
+function holdOf(replies) {
+  const all = classified(replies);
+  if (!all) return null;
+  const counts = /* @__PURE__ */ new Map();
+  for (const x of all) if (x.c.kind !== "unheld") counts.set(x.hold, (counts.get(x.hold) ?? 0) + 1);
+  const [seconds2] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
+  const past = pastOf(all);
   return {
-    question: SELLS_BY_QUESTION,
-    value: said ? SELLS_BY_WORDS[said].label : null,
-    empty: "Not said yet",
-    act: said ? "Change" : "Choose one",
-    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
-    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
-    refusal: SELLS_BY_REFUSAL,
-    first: said ?? SELLS_BY_FIRST,
-    dealsOn: on,
-    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+    seconds: seconds2,
+    label: holdWords2(seconds2),
+    atEnd: countOf(all, "atEnd"),
+    unheld: countOf(all, "unheld"),
+    later: past.length,
+    laterMost: past.length ? Math.max(...past) : null
   };
 }
-function sellsBySaved(was, now) {
-  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
-  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+function spanCounts(spans, seconds2) {
+  const rounded = seconds2.map(Math.round);
+  const rows2 = [];
+  let lo = -Infinity;
+  for (const { id, label, max } of spans) {
+    rows2.push([id, label, rounded.filter((s) => s > lo && s <= max).length]);
+    lo = max;
+  }
+  return rows2;
+}
+function holdBuckets(replies) {
+  const all = classified(replies);
+  if (!all) return null;
+  return [
+    ["unheld", "with no hold", countOf(all, "unheld")],
+    ["atEnd", "as the hold ended", countOf(all, "atEnd")],
+    ...spanCounts(LATER_BUCKETS, pastOf(all))
+  ];
+}
+var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
+var replyHoldDtoOf = (hold) => hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
+var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
+var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
+var endedWithHold = (hold) => hold.atEnd >= hold.later;
+var againstHold = (hold) => endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
+var heldCount = (hold) => endedWithHold(hold) ? hold.atEnd : hold.later;
+function heroSpeed(replies, medianLabel, hold) {
+  if (!replies) return "";
+  if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
+  return ` ${heldCount(hold)} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+}
+function receptionistSpeed(hold) {
+  return hold && waitedHold(hold) ? `, ${heldCount(hold)} ${againstHold(hold)}` : "";
+}
+var REPLY_DOTS_MOST = 500;
+function replyDotsOf(replies, most = REPLY_DOTS_MOST) {
+  const dots = (replies ?? []).filter((r2) => Number.isFinite(r2.s)).map((r2) => ({
+    day: r2.day,
+    past: Math.round(Math.max(0, r2.s - heldSeconds(r2))),
+    held: heldSeconds(r2) > 0
+  }));
+  return dots.slice(Math.max(0, dots.length - most));
+}
+function replySpeedOf(median, hold) {
+  if (median === null) return null;
+  const counts = hold && {
+    label: hold.label,
+    atEnd: hold.at_end,
+    later: hold.later,
+    unheld: hold.unheld
+  };
+  if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
+  return {
+    held: true,
+    words: againstHold(counts)
+  };
+}
+function holdLine(hold) {
+  if (hold.laterMost !== null) {
+    const more = durationWords(hold.laterMost);
+    return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more} more.`;
+  }
+  return hold.unheld ? `None waited longer than your hold; ${hold.unheld} had no hold.` : "None waited longer than your hold.";
+}
+var holdNote = (hold) => hold ? ` \xB7 includes your ${hold.label} hold` : "";
+
+// src/reports/report-closed.ts
+function closedOf(arrivals, profile) {
+  if (!arrivals || !profile || !hasHours(profile.hours)) return null;
+  return arrivals.reduce((s, a) => s + (openAt(profile.hours, profile.closures, a.d, a.q * 15) ? 0 : a.n), 0);
+}
+function hoursUnsetOf(arrivals, profile) {
+  return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
+}
+
+// src/reports/report-tiles.ts
+var REPORT_MIN_N = 5;
+function fmtSeconds(s) {
+  if (s == null || !Number.isFinite(s)) return "\u2014";
+  return durationWords(s);
+}
+function deltaOf(current, previous, upIsGood, noun) {
+  if (!previous) return null;
+  const pct2 = Math.round((current - previous) / previous * 100);
+  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
+  const up = pct2 > 0;
+  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
+}
+function pointsDelta(current, previous, noun) {
+  if (current === null || previous === null) return null;
+  const pts = current - previous;
+  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
+  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
+}
+var beforeWords = (rangeLabel) => `the ${rangeLabel === plural(1, "day") ? "day" : rangeLabel} before`;
+function compareWords(current, previous, rangeLabel, priorHadAny) {
+  if (!priorHadAny || current === 0 && previous === 0) return null;
+  if (previous === 0) return `none ${beforeWords(rangeLabel)}`;
+  if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
+  return `${current > previous ? "up" : "down"} from ${previous}`;
+}
+var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "messages",
+  metric: "customer_messages",
+  label: "Customer messages",
+  value: String(tot.in),
+  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}` : "none in this period",
+  delta: deltaOf(tot.in, prev.in, true, noun),
+  spark: points.map((p) => p.in),
+  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
+  door: "conversations"
+});
+var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
+  id: "answered",
+  metric: "answered_share",
+  label: "Receptionist answered",
+  value: aiShare === null ? "\u2014" : `${aiShare}%`,
+  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
+  // A share compares in POINTS. Against counts, the share could fall from
+  // 100% to 60% while the delta read +20% in green.
+  delta: pointsDelta(aiShare, prevShare, noun),
+  spark: points.map((p) => p.ai),
+  compare: null,
+  // A share of the messages that wanted an answer: of few, it says nothing (the page greys it).
+  n: answeredTotal,
+  minN: REPORT_MIN_N
+});
+var replyTile = ({ sortedReply, median, p90, hold }) => ({
+  id: "reply",
+  metric: "reply_median",
+  label: "Median reply time",
+  value: fmtSeconds(median),
+  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
+  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
+  delta: null,
+  spark: [],
+  compare: null,
+  // A median of the replies counted: of few, it says nothing (the page greys it).
+  n: sortedReply.length,
+  minN: REPORT_MIN_N
+});
+var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "needed",
+  metric: "handovers",
+  label: "Needed you",
+  value: String(tot.escalations),
+  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+  spark: points.map((p) => p.escalations),
+  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
+  door: "inbox"
+});
+var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "calls",
+  metric: "calls",
+  label: "Calls",
+  value: String(tot.calls),
+  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
+  delta: deltaOf(tot.calls, prev.calls, true, noun),
+  spark: points.map((p) => p.calls),
+  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
+});
+var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "people",
+  metric: "new_people",
+  label: "New people",
+  value: String(tot.newPeople),
+  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+  spark: points.map((p) => p.newPeople),
+  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
+});
+var REPORT_TILES = [
+  messagesTile,
+  answeredTile,
+  replyTile,
+  neededTile,
+  callsTile,
+  peopleTile
+];
+var BOOKED_ENDED_META = "not counted for days that have ended: it follows people as they stand today";
+function bookedTileOf(booking) {
+  const tile = { id: "booked", metric: "booked", label: "Booked", compare: null };
+  if (booking?.calendar === "ended") return { ...tile, value: "\u2014", meta: BOOKED_ENDED_META };
+  if (booking && booking.present)
+    return {
+      ...tile,
+      value: String(booking.booked),
+      meta: booking.asked ? `of ${booking.asked} who asked` : "nobody asked"
+    };
+  return {
+    ...tile,
+    value: "\u2014",
+    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar link"
+  };
+}
+
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
+
+// src/reports/reports.ts
+var REPORT_CHANNELS = [
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "voice", label: "Calls" },
+  { key: "email", label: "Email" },
+  { key: "sms", label: "Text" }
+];
+var REPORT_RANGES = [
+  { days: 7, id: "7d", label: "7 days" },
+  { days: 30, id: "30d", label: "30 days" },
+  { days: 90, id: "90d", label: "90 days" },
+  { days: null, id: "month", label: "Month" }
+];
+function dayDate(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+function fmtDay(day) {
+  return DATE_FMT.format(dayDate(day));
+}
+var daysWords = (from, to) => from === to ? fmtDay(to) : `${fmtDay(from)} \u2013 ${fmtDay(to)}`;
+var endedOn = (report) => report.end && report.end < report.today ? report.end : null;
+function dayPointOf(day) {
+  return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function bars(entries) {
+  const max = Math.max(1, ...entries.map((e) => e[2]));
+  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
+}
+function priorOf(n, previous, pick) {
+  return Array.from({ length: n }, (_, i) => {
+    const j = previous.length - n + i;
+    return j >= 0 ? pick(previous[j]) : null;
+  });
+}
+var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+var weekdayOf2 = (day) => (dayDate(day).getDay() + 6) % 7;
+function weekOf(series) {
+  const total = [0, 0, 0, 0, 0, 0, 0];
+  const seen = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of series) {
+    const w = weekdayOf2(d.day);
+    total[w] += (d.messages_in || 0) + (d.calls || 0);
+    seen[w] += 1;
+  }
+  return total.map((t, w) => seen[w] ? Math.round(t / seen[w] * 10) / 10 : 0);
+}
+function onlyIndex(values, wins) {
+  if (!values.some((v) => v > 0)) return null;
+  let at3 = 0;
+  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at3])) at3 = i;
+  return values.filter((v) => v === values[at3]).length === 1 ? at3 : null;
+}
+function reportHourWords(h) {
+  const x = (h % 24 + 24) % 24;
+  return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
+}
+function hoursOf(grid, closed = null) {
+  if (!grid || !grid.length) return null;
+  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
+  const total = values.reduce((a, b) => a + b, 0);
+  let peak = null;
+  if (total > 0) {
+    peak = 0;
+    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
+  }
+  return { values, peak, closed, labels: values.map((_, h) => reportHourWords(h)) };
+}
+function channelsOf(ch) {
+  if (!ch) return null;
+  return REPORT_CHANNELS.map(({ key, label }) => ({
+    key,
+    label,
+    value: Number(ch.current?.[key]) || 0,
+    prior: Number(ch.previous?.[key]) || 0
+  })).filter((c) => c.value > 0 || c.prior > 0);
+}
+function runningTotal(values) {
+  let t = 0;
+  return values.map((v) => t += v || 0);
+}
+function speedOf(replies, days) {
+  const byDay = /* @__PURE__ */ new Map();
+  for (const r2 of replies) {
+    if (!Number.isFinite(r2.s)) continue;
+    const xs = byDay.get(r2.day) ?? [];
+    xs.push(r2.s);
+    byDay.set(r2.day, xs);
+  }
+  const point = (chunk) => {
+    const s = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
+    const first = chunk[0];
+    const p50 = quantile(s, 0.5);
+    const p90 = quantile(s, 0.9);
+    return {
+      day: first,
+      label: fmtDay(first),
+      short: chunk.length > 1 ? fmtDay(first) : String(dayDate(first).getDate()),
+      p50,
+      p90,
+      p50Label: fmtSeconds(p50),
+      p90Label: fmtSeconds(p90),
+      count: s.length
+    };
+  };
+  if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
+  const weeks = [];
+  for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
+  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
+  return { unit: "week", points: weeks.map(point) };
+}
+var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
+var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
+var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
+function channelsLine(channels, rangeLabel) {
+  if (!channels) return null;
+  const reached = channels.reduce((s, c) => s + c.value, 0);
+  if (!reached) return null;
+  const top = channels.reduce((a, c) => c.value > a.value ? c : a);
+  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize(channelNoun(top))} ${top.key === "voice" || top.key === "sms" ? "lead" : "leads"}`;
+  const before = channels.reduce((s, c) => s + c.prior, 0);
+  if (!before) return `${lead}.`;
+  const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
+  if (wasTop.key === top.key) return `${lead}, as ${beforeWords(rangeLabel)}.`;
+  return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
+}
+function rhythmLine(week) {
+  if (!week.current.some((v) => v > 0)) return null;
+  const avg = week.unit === "average";
+  const name = (i) => avg ? `${week.long[i]}s` : week.long[i];
+  const idle = week.current.flatMap((v, i) => v === 0 ? [i] : []);
+  if (idle.length >= 4)
+    return `Only on ${listWords(
+      week.current.flatMap((v, i) => v > 0 ? [name(i)] : []),
+      "and"
+    )}.`;
+  if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
+  if (week.quietest === null) return null;
+  return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
+}
+var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
+var periodWords = (days, until) => {
+  const rangeLabel = rangeLabelOf(days);
+  const before = capitalize(beforeWords(rangeLabel));
+  if (until === null) return { now: `Last ${rangeLabel}`, before, within: `in the last ${rangeLabel}` };
+  return {
+    now: daysWords(shiftKey(until, -(days - 1)), until),
+    before,
+    within: days === 1 ? `on ${fmtDay(until)}` : `in the ${rangeLabel} to ${fmtDay(until)}`
+  };
+};
+var withinWords = (days, until) => days === 1 && until === null ? "today" : periodWords(days, until).within;
+function periodFactsOf(dto) {
+  const days = dto.days;
+  const series = dto.series ?? [];
+  const current = series.slice(-days);
+  const previous = series.slice(0, Math.max(0, series.length - days));
+  const points = current.map((d) => ({
+    ...dayPointOf(d.day),
+    in: d.messages_in,
+    ai: d.answered_ai,
+    you: d.answered_you,
+    none: d.unanswered,
+    calls: d.calls,
+    callSeconds: d.call_seconds,
+    escalations: d.escalations,
+    newPeople: d.new_contacts
+  }));
+  const tot = {
+    in: sumOf(current.map((d) => d.messages_in)),
+    ai: sumOf(current.map((d) => d.answered_ai)),
+    you: sumOf(current.map((d) => d.answered_you)),
+    none: sumOf(current.map((d) => d.unanswered)),
+    escalations: sumOf(current.map((d) => d.escalations)),
+    calls: sumOf(current.map((d) => d.calls)),
+    callSeconds: sumOf(current.map((d) => d.call_seconds)),
+    newPeople: sumOf(current.map((d) => d.new_contacts))
+  };
+  const prev = {
+    in: sumOf(previous.map((d) => d.messages_in)),
+    ai: sumOf(previous.map((d) => d.answered_ai)),
+    you: sumOf(previous.map((d) => d.answered_you)),
+    none: sumOf(previous.map((d) => d.unanswered)),
+    escalations: sumOf(previous.map((d) => d.escalations)),
+    calls: sumOf(previous.map((d) => d.calls)),
+    newPeople: sumOf(previous.map((d) => d.new_contacts))
+  };
+  const noun = plural(days, "day");
+  const until = endedOn(dto);
+  const answeredTotal = tot.ai + tot.you + tot.none;
+  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
+  const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  return {
+    dto,
+    days,
+    current,
+    previous,
+    points,
+    tot,
+    prev,
+    noun,
+    /** The day the period ended, where that was before today; null for one that ends today (endedOn). */
+    until,
+    rangeLabel: rangeLabelOf(days),
+    // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
+    priorHadAny: prev.in + prev.calls > 0,
+    /** Nobody wrote or called in the period: no customer message and no call. */
+    empty: tot.in === 0 && tot.calls === 0,
+    answeredTotal,
+    aiShare: pct(tot.ai, answeredTotal),
+    prevAnsweredTotal,
+    prevShare: pct(prev.ai, prevAnsweredTotal),
+    sortedReply,
+    median: quantile(sortedReply, 0.5),
+    p90: quantile(sortedReply, 0.9),
+    // The replies against their holds, said once for the tile, the bars, the hero and the line (holdOf).
+    hold: holdOf(dto.replies)
+  };
+}
+var reasonBarsOf = (reasons) => bars(
+  Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
+);
+var moodBarsOf = (sentiments) => bars(
+  Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
+);
+function weekShapeOf({ current, previous }) {
+  const weekNow = weekOf(current);
+  const weekBefore = weekOf(previous);
+  return {
+    axes: [...REPORT_WEEK_SHORT],
+    long: [...REPORT_WEEK_LONG],
+    current: weekNow,
+    prior: weekBefore.some((v) => v > 0) ? weekBefore : null,
+    busiest: onlyIndex(weekNow, (a, b) => a > b),
+    quietest: onlyIndex(weekNow, (a, b) => a < b),
+    unit: current.length > 7 ? "average" : "count"
+  };
+}
+function answeredOf(f) {
+  const { current, previous, points, tot, prev, answeredTotal, prevAnsweredTotal } = f;
+  return {
+    points,
+    totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
+    max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
+    prior: priorOf(current.length, previous, (d) => d.messages_in),
+    share: answeredTotal ? tot.ai / answeredTotal : null,
+    priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
+  };
+}
+function replyTimeOf({ dto, sortedReply, median, p90, hold }) {
+  return {
+    count: sortedReply.length,
+    median,
+    p90,
+    medianLabel: fmtSeconds(median),
+    p90Label: fmtSeconds(p90),
+    buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
+    hold,
+    dots: replyDotsOf(dto.replies)
+  };
+}
+function callsOf({ dto, current, previous, points, tot }, sentiments) {
+  return {
+    points,
+    total: tot.calls,
+    minutes: Math.round(tot.callSeconds / 60),
+    voicemail: dto.voicemail ?? 0,
+    sentiments,
+    max: Math.max(1, ...points.map((p) => p.calls)),
+    prior: priorOf(current.length, previous, (d) => d.calls)
+  };
+}
+function peopleOf({ current, previous, points, tot, prev }) {
+  const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
+  const peopleRun = runningTotal(points.map((p) => p.newPeople));
+  return {
+    points,
+    total: tot.newPeople,
+    max: Math.max(1, ...points.map((p) => p.newPeople)),
+    prior: peopleBefore,
+    cumulative: {
+      points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
+      prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
+    }
+  };
+}
+function replyLine({ sortedReply, p90, hold }) {
+  if (hold) return holdLine(hold);
+  if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
+  return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
+}
+function linesOf(f, week, channels) {
+  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
+  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
+  return {
+    hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}` : "No customer wrote in this period.",
+    heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
+    receptionist: answeredTotal ? `${tot.ai} of ${answeredTotal} messages answered without you${receptionistSpeed(f.hold)}.` : null,
+    answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
+    reply: replyLine(f),
+    calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
+    channels: channelsLine(channels, rangeLabel),
+    rhythm: rhythmLine(week)
+  };
+}
+function headlineOf(dto, period, booking) {
+  const f = periodFactsOf(dto);
+  return {
+    period,
+    days: f.days,
+    empty: f.empty,
+    messages_in: f.tot.in,
+    // Nothing to compare with where the period before had no customer message and no call at all (compareWords).
+    messages_before: f.priorHadAny ? f.prev.in : null,
+    answered_ai: f.tot.ai,
+    answered_you: f.tot.you,
+    unanswered: f.tot.none,
+    answered_share: answeredOf(f).share,
+    calls: f.tot.calls,
+    booking
+  };
+}
+function toReportVM(dto, opts) {
+  const f = periodFactsOf(dto);
+  const tiles = REPORT_TILES.map((tile) => tile(f));
+  const reasons = reasonBarsOf(dto.reasons);
+  const sentiments = moodBarsOf(dto.sentiments);
+  const week = weekShapeOf(f);
+  const channels = channelsOf(dto.channels);
+  const first = f.current[0]?.day;
+  const last = f.current[f.current.length - 1]?.day;
+  return {
+    days: f.days,
+    rangeLabel: f.rangeLabel,
+    since: first ? fmtDay(first) : "",
+    until: last ? fmtDay(last) : "",
+    timezone: dto.timezone,
+    today: dto.today,
+    end: dto.end ?? dto.today,
+    live: f.until === null,
+    empty: f.empty,
+    tiles,
+    answered: answeredOf(f),
+    reasons,
+    replyTime: replyTimeOf(f),
+    calls: callsOf(f, sentiments),
+    people: peopleOf(f),
+    speed: dto.replies ? speedOf(
+      dto.replies,
+      f.current.map((d) => d.day)
+    ) : null,
+    week,
+    hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts?.profile)),
+    hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
+    channels,
+    period: periodWords(f.days, f.until),
+    lines: linesOf(f, week, channels),
+    table: {
+      columns: [
+        "Day",
+        "Customer messages",
+        "Answered by receptionist",
+        "Answered by you",
+        "Unanswered",
+        "Calls",
+        "Needed you",
+        "New people"
+      ],
+      rows: f.points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
+    }
+  };
+}
+
+// src/reports/report-periods.ts
+var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
+var REPORT_PERIOD_DEFAULT = "30d";
+var CAMPAIGNS_RESULTS_PERIOD = "30d";
+var REPORT_PERIOD_STORAGE = "chanlytics.report.period";
+var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
+var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
+function fixedDaysOf(period) {
+  return REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
+}
+var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
+var periodSince = (today, days) => shiftKey(today, -(days - 1));
+function reportPeriodOf(asked) {
+  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
+  return REPORT_PERIOD_DEFAULT;
+}
+function reportDaysAsked(view) {
+  const asked = Number(view);
+  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
+}
+var REPORT_MOST_DAYS = MOST_DAYS;
+var isRealDay = (value) => isDayKey(value) && shiftKey(value, 0) === value;
+var isReportDays = (value) => typeof value === "object" && value !== null && isRealDay(value.from) && isRealDay(value.to);
+var dayOrdinal = (day) => {
+  const { y, m, d } = keyParts(day);
+  return Math.round(Date.UTC(y, m - 1, d) / DAY_MS);
+};
+var reportDaysCount = (days) => dayOrdinal(days.to) - dayOrdinal(days.from) + 1;
+var reportRangeKey = (range) => typeof range === "string" ? range : `${range.from}~${range.to}`;
+function reportRangeOfKey(key) {
+  if (isReportPeriod(key)) return key;
+  const [from, to, more] = String(key ?? "").split("~");
+  return more === void 0 && isRealDay(from) && isRealDay(to) && from <= to ? { from, to } : null;
+}
+var sameReportRange = (a, b) => reportRangeKey(a) === reportRangeKey(b);
+function reportDaysRefusal(days, today) {
+  if (!isReportDays(days)) return "from and to are days, written YYYY-MM-DD.";
+  if (days.from > days.to) return "from is after to.";
+  if (days.to > today) return "A report ends today at the latest.";
+  if (reportDaysCount(days) > MOST_DAYS) return `A report covers ${MOST_DAYS} days at most.`;
+  return null;
+}
+function reportRangeAsked(asked) {
+  if (asked.from === void 0 && asked.to === void 0) return reportPeriodOf(asked);
+  if (asked.period !== void 0) return null;
+  return isRealDay(asked.from) && isRealDay(asked.to) ? { from: asked.from, to: asked.to } : null;
 }
 
 // src/reports/lenses.ts
@@ -6320,7 +7219,7 @@ var REPORT_LENSES = [
     role: "viewer",
     empty: (r2) => ({
       title: "Nothing went out",
-      body: `No broadcast or playbook run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
+      body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
       door: { label: "Open Sent", to: "broadcasts" }
     })
   },
@@ -6337,13 +7236,34 @@ var REPORT_LENSES = [
     })
   }
 ];
-var lensRoute = (id) => id === "overview" ? "reports" : `reports/${id}`;
+var lensRoute = (id, days = null) => {
+  if (days === null) return id === "overview" ? "reports" : `reports/${id}`;
+  return id === "overview" ? `reports/${reportRangeKey(days)}` : `reports/${id}:${reportRangeKey(days)}`;
+};
 var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
 var isLensParam = (param) => REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
-function lensOfRoute(route) {
-  if (route === "reports") return "overview";
+var daysOfKey = (key) => {
+  const range = reportRangeOfKey(key);
+  return range !== null && typeof range !== "string" ? range : null;
+};
+function reportsParamParts(param) {
+  if (param === "") return { lens: "overview", days: null };
+  const alone = daysOfKey(param);
+  if (alone) return { lens: "overview", days: alone };
+  const at3 = param.indexOf(":");
+  const word = at3 < 0 ? param : param.slice(0, at3);
+  if (!isLensParam(word)) return null;
+  if (at3 < 0) return { lens: word, days: null };
+  const days = daysOfKey(param.slice(at3 + 1));
+  return days ? { lens: word, days } : null;
+}
+function reportsRouteParts(route) {
+  if (route === "reports") return reportsParamParts("");
   const param = route.startsWith("reports/") ? route.slice("reports/".length) : "";
-  return isLensParam(param) ? param : null;
+  return param === "" ? null : reportsParamParts(param);
+}
+function lensOfRoute(route) {
+  return reportsRouteParts(route)?.lens ?? null;
 }
 function lensesFor(who) {
   return REPORT_LENSES.filter(
@@ -6438,87 +7358,186 @@ function citationRoute(c, read) {
   return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
 
-// src/shell/campaign-rooms.ts
-var CAMPAIGN_ROOMS = {
-  home: "Campaigns",
-  sent: "Sent",
-  library: "Library",
-  newMessage: "New message"
+// src/ask/ask-suggestions.ts
+var CHIPS_OF = {
+  pipeline: "people",
+  calendar: "other",
+  campaigns: "other"
 };
-var { sent, library } = CAMPAIGN_ROOMS;
-var PLAYBOOK_DELETE_WORDS = {
-  /** The toast's tail, after the playbook's name. */
-  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
-  /** The question's detail. */
-  detail: `Its runs stay in ${sent} with their numbers.`
+var SET_UP_CAMPAIGNS = { en: "Set up my campaigns", es: "Prepara mis campa\xF1as" };
+var T = {
+  en: {
+    needs: "Who needs me right now?",
+    held: "What is the receptionist holding for me?",
+    calls: "Did anyone call while I was busy?",
+    live: "What is the call on the line about?",
+    openSat: "What's open Saturday?",
+    openTomorrow: "What's open tomorrow?",
+    week: "How did the week go?",
+    said: "What did the receptionist tell {name}?",
+    why: "Why was this reply held?",
+    who: "Who wrote today?",
+    rules: "What can the receptionist do on its own?",
+    hours: "What are our hours this week?",
+    brief: "Brief me on today",
+    proposals: "Who has a proposal out?",
+    setupLeft: "What is left to set up?",
+    moreLike: "Find more like: {asked}",
+    actLate: "Tell {name} we're running late",
+    actLateQ: "Tell {name} we're running about 15 minutes late today",
+    actDraft: "Draft a reply to {name}",
+    actDraftQ: "Draft a reply to {name}: ",
+    actRemember: "Remember something for the receptionist",
+    actRememberQ: "Remember that ",
+    actClose: "Close for a day",
+    actCloseQ: "Close on ",
+    actHours: "Change a day's hours",
+    actHoursQ: "Change Saturday's hours to ",
+    actInvite: "Invite a teammate",
+    actInviteQ: "Invite ",
+    actOffer: "Send an offer to a list",
+    actOfferQ: "Send the ",
+    actPlaybook: "Start a win-back campaign",
+    actPlaybookQ: "Start a win-back campaign for the quiet clients",
+    actHold: "Hold every reply for my review",
+    actHoldQ: "Hold every reply for my review before it sends",
+    setUp: SET_UP_CAMPAIGNS.en,
+    winBackIdea: "Win back customers who went quiet",
+    offerIdea: "What should go out this month?",
+    whyWaiting: "Why is {name} waiting?",
+    working: "What's working?"
+  },
+  es: {
+    needs: "\xBFQui\xE9n me necesita ahora?",
+    held: "\xBFQu\xE9 tiene retenido la recepcionista para m\xED?",
+    calls: "\xBFLlam\xF3 alguien mientras estaba ocupada?",
+    live: "\xBFDe qu\xE9 trata la llamada en curso?",
+    openSat: "\xBFQu\xE9 hay libre el s\xE1bado?",
+    openTomorrow: "\xBFQu\xE9 hay libre ma\xF1ana?",
+    week: "\xBFC\xF3mo fue la semana?",
+    said: "\xBFQu\xE9 le dijo la recepcionista a {name}?",
+    why: "\xBFPor qu\xE9 se retuvo esta respuesta?",
+    who: "\xBFQui\xE9n escribi\xF3 hoy?",
+    rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
+    hours: "\xBFCu\xE1l es nuestro horario esta semana?",
+    brief: "Res\xFAmeme el d\xEDa",
+    proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
+    setupLeft: "\xBFQu\xE9 falta por configurar?",
+    moreLike: "Encuentra m\xE1s como: {asked}",
+    actLate: "Dile a {name} que vamos con retraso",
+    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
+    actDraft: "Redacta una respuesta a {name}",
+    actDraftQ: "Redacta una respuesta a {name}: ",
+    actRemember: "Recu\xE9rdale algo a la recepcionista",
+    actRememberQ: "Recuerda que ",
+    actClose: "Cerrar el sal\xF3n un d\xEDa",
+    actCloseQ: "Cierra el ",
+    actHours: "Cambiar el horario de un d\xEDa",
+    actHoursQ: "Cambia el horario del s\xE1bado a ",
+    actInvite: "Invitar a alguien del equipo",
+    actInviteQ: "Invita a ",
+    actOffer: "Enviar una oferta a una lista",
+    actOfferQ: "Env\xEDa la ",
+    actPlaybook: "Iniciar una campa\xF1a de recuperaci\xF3n",
+    actPlaybookQ: "Inicia una campa\xF1a de recuperaci\xF3n para los clientes inactivos",
+    actHold: "Retener cada respuesta para revisarla",
+    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla",
+    setUp: SET_UP_CAMPAIGNS.es,
+    winBackIdea: "Recupera a los clientes que dejaron de escribir",
+    offerIdea: "\xBFQu\xE9 deber\xEDa salir este mes?",
+    whyWaiting: "\xBFPor qu\xE9 espera {name}?",
+    working: "\xBFQu\xE9 est\xE1 funcionando?"
+  }
 };
-var NO_TEMPLATE_WORDS = {
-  lead: "No message to send yet \u2014 add the starter set, or write one in the",
-  link: library
+var PAGE_QUESTIONS = {
+  today: [
+    ["brief", "sparkle"],
+    ["who", "users"]
+  ],
+  inbox: [
+    ["who", "users"],
+    ["rules", "shield"]
+  ],
+  people: [["who", "users"]],
+  reports: [["week", "trending-up"]],
+  settings: [
+    ["rules", "shield"],
+    ["hours", "clock"]
+  ],
+  start: [
+    ["setupLeft", "check"],
+    ["hours", "clock"]
+  ]
 };
-function noMessageWords(forThisMoment) {
-  return {
-    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in the`,
-    link: library
+function clipWords(s, cap2) {
+  const w = s.replace(/\s+/g, " ").trim();
+  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
+}
+function pageChips(input, t, add) {
+  if (input.surface === "leads") {
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+    return false;
+  }
+  const rows2 = input.surface === "campaigns" ? input.campaigns?.rows ?? null : null;
+  if (!rows2) return false;
+  if (rows2.length === 0) {
+    for (const k of ["setUp", "winBackIdea", "offerIdea"]) add(t[k], "ask", "bolt");
+    return true;
+  }
+  const waiting = rows2.find((r2) => r2.waiting);
+  if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+  add(t.working, "ask", "trending-up");
+  if (!rows2.some((r2) => isWinBack(r2.trigger) && r2.state === "running")) add(t.winBackIdea, "ask", "bolt");
+  return true;
+}
+function buildAskSuggestions(input) {
+  const t = T[input.language === "es" ? "es" : "en"];
+  const at3 = CHIPS_OF[input.surface] ?? input.surface;
+  const out = [];
+  const add = (q, kind, icon, fast = false, label) => {
+    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
   };
+  const s = input.scope;
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    add(t.said.replace("{name}", s.label), "ask", "chat");
+    if (s.kind === "thread") add(t.why, "ask", "sparkle");
+  }
+  if (s && s.kind === "call") add(t.live, "ask", "phone");
+  const winBackSaid = pageChips(input, t, add);
+  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
+  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
+  if (input.liveNow > 0) add(t.live, "ask", "phone");
+  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
+  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
+  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
+  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
+  if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
+  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
+  add(t.week, "ask", "trending-up");
+  add(t.rules, "ask", "shield");
+  const asks = out.slice(0, 7);
+  if (!input.canAct) return asks;
+  const acts = [];
+  const act2 = (label, q, icon, compose = false) => {
+    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
+  };
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    act2(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
+    act2(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
+  }
+  act2(t.actRemember, t.actRememberQ, "sparkle", true);
+  if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
+  if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
+  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
+  if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
+  if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
+  if ((at3 === "people" || at3 === "other") && !winBackSaid) act2(t.actPlaybook, t.actPlaybookQ, "bolt");
+  return [...asks, ...acts.slice(0, 4)];
 }
-var LIBRARY_WORDS = {
-  title: library,
-  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
-  reading: `Reading the ${library}\u2026`,
-  failed: `The ${library} couldn\u2019t be loaded right now`,
-  failedWhat: `the ${library}`,
-  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
-  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
-  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
-  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
-  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
-  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
-  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
-};
-var NEW_MESSAGE_WORDS = {
-  /** The first choice's name: Email, Text or WhatsApp. */
-  where: "Where is it sent",
-  /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
-  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
-  /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
-  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
-  /** What a text says after the carriers' sentence: the way out. */
-  textGoesByEmail: "This one can go by email.",
-  writeAsEmail: "Write it as an email",
-  /** The act that takes the last of a message's values away: only the last, so no value is renumbered under words that use it. */
-  removeValue: "Remove the last value",
-  /** Under the title: the name the message is filed under, which WhatsApp would know it by. */
-  knownAs: "WhatsApp would know it as",
-  titleMissing: "Give it a title.",
-  titleTooLong: (max) => `A title is at most ${max} characters.`,
-  titleNeedsWords: "A title needs letters or digits in it.",
-  nameTaken: "There is a message by that name already. Give this one another title.",
-  valuesNeedWords: "Give each value a name and an example.",
-  valueTooLong: (what, max) => `A value's ${what} is at most ${max} characters.`
-};
-var LIBRARY_STARTER_WORDS = {
-  /** The banner's second line: the languages it comes in, and what is written now. */
-  banner: (languages, hasNumber) => hasNumber ? `In ${languages} \u2014 email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.` : `In ${languages} \u2014 email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
-  /** The toast's clauses: what was written, what could not be, and what waits. */
-  versionsWritten: (n) => `${n} email and text version${n === 1 ? "" : "s"} written`,
-  versionsFailed: (n, why) => `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
-  waitsForNumber: "WhatsApp versions wait for a number",
-  /** The route's refusal when the channels it is asked for are none it knows. */
-  pickAChannel: "Pick at least one channel: WhatsApp, email or text."
-};
-var BROADCAST_WORDS = {
-  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
-};
-function runStoppedWords(was) {
-  if (was === "sending") return "stops after this batch";
-  return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
-}
-var OFFERS_IN_WRITING_WORDS = {
-  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
-  link: `print one in ${sent}`
-};
 
 // src/workspace/billing.ts
 var BILLING_MODES = ["stripe", "direct"];
@@ -6814,8 +7833,539 @@ function pausedVoiceFacts(businessName) {
   ].join("\n");
 }
 
-// src/playbooks/lifecycle-words.ts
+// src/people/person-merge.ts
+var MERGE_CONSENT_SOURCE = "merge";
+var MERGE_REFUSALS = {
+  same: "Choose two different records to merge.",
+  owner: "Only an owner can merge two records.",
+  deleted: "One of these people was deleted, so there is nothing to merge.",
+  merged: "One of these records was already merged into another.",
+  phones: "These two records have different phone numbers, so they may be two people. They can't be merged.",
+  emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
+  deals: "Both records have an open deal for the same service. Close or move one of them first."
+};
+var MERGE_WORDS = {
+  act: "Merge with another record\u2026",
+  actHint: "Two records of one person become one",
+  pick: "Which record is the same person?",
+  pickPlaceholder: "Search by name, number or email",
+  pickEmpty: "Nobody else matches",
+  pickNone: "Choose the other record",
+  pickReading: "People is still being read; the other records are offered once it lands.",
+  question: (kept, other) => `Merge ${other} into ${kept}?`,
+  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  typed: (kept) => `Type ${kept} to confirm.`,
+  yes: "Merge the two records",
+  busy: "Merging\u2026",
+  done: (kept, other) => `${other} merged into ${kept}`
+};
+function offersAnswer(a, b, stopped) {
+  if (a === "opted_out" || b === "opted_out") return "opted_out";
+  if (stopped) return "unknown";
+  return a === "opted_in" || b === "opted_in" ? "opted_in" : "unknown";
+}
+function mergedAnswers(a, b) {
+  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
+  return {
+    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
+    dnc: stopped,
+    marketing: offersAnswer(a.marketing, b.marketing, stopped),
+    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
+  };
+}
+
+// src/people/person-consent.ts
+var CONSENT_SOURCES = [
+  { id: "in_person", label: "In person" },
+  { id: "phone", label: "On the phone" },
+  { id: "form", label: "Sign-up form" },
+  { id: "customer_message", label: "Their own message" }
+];
+var CONSENT_RESET_SOURCE = "operator";
+var CARRIER_CONSENT_SOURCE = "carrier";
+var STOP_ENDED_OFFERS_SOURCE = "stop";
+var WHATSAPP_CONSENT_SOURCE = "whatsapp";
+var OFFERS_YES_SOURCES = ["form", "customer_message"];
+function offersYesRefusal(source) {
+  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
+  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
+}
+var OWN_MESSAGE_REFUSALS = {
+  /** Their own message, with no message named. */
+  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
+  /** The message named is not one this person sent this workspace. */
+  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
+  /** The message named has nothing written in it. */
+  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
+  /** A message named beside another way of answering. */
+  notOwnMessage: "Only an answer in their own message names a message.",
+  /** Their own message, for many people at once: one message cannot be every person's. */
+  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form."
+};
+function ownMessageRefusal(source, messageId) {
+  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
+  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
+}
+function consentSourceLabel(source) {
+  if (!source) return null;
+  const known = CONSENT_SOURCES.find((s) => s.id === source);
+  if (known) return known.label;
+  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
+  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
+  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
+  if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
+  return source === CONSENT_RESET_SOURCE ? null : source;
+}
+function mayReceive(r2, purpose, channel, about) {
+  return whyNotReceive(r2, purpose, channel, about) === null;
+}
+function bearingOf(c) {
+  return {
+    consent: c.state,
+    dnc: c.dnc,
+    marketing_consent: c.marketing,
+    consent_channels: c.channels,
+    marketing_channels: c.marketingChannels,
+    // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
+    email_marketing: c.emailMarketing,
+    has_relationship: c.relationship
+  };
+}
+function whyNotReceive(r2, purpose, channel, about) {
+  if (channel === "email") {
+    if (!r2.email) return "no_address";
+    if (r2.emailSuppressed) return "address_stopped";
+  } else if (!r2.phone) return "no_number";
+  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about });
+  if (said.ok) return null;
+  const { reason } = said;
+  switch (reason) {
+    case "opted_out":
+      return "stopped";
+    case "unsubscribed":
+      return "unsubscribed";
+    case "no_marketing_consent":
+    case "not_opted_in":
+      return "no_yes";
+    default: {
+      const unreachable = reason;
+      return unreachable;
+    }
+  }
+}
+function saidYesTo(r2, purpose, channel, about) {
+  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
+}
+
+// src/broadcasts/email-offers.ts
+var OFFERS_BY_EMAIL_WORDS = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var OFFER_GATES = {
+  complaints: { window: 1e3, above: 1e-3, minimum: 200 },
+  bounces: { window: 500, above: 0.02, minimum: 100 }
+};
+var OFFER_PAUSE_REASONS = ["complaints", "bounces"];
+function offerGate(c) {
+  const { complaints, bounces } = OFFER_GATES;
+  if (c.complaintSample >= complaints.minimum && c.complaints / c.complaintSample > complaints.above)
+    return "complaints";
+  if (c.bounceSample >= bounces.minimum && c.bounces / c.bounceSample > bounces.above) return "bounces";
+  return null;
+}
+function offerPauseOf(at3, reason) {
+  if (!at3) return null;
+  return {
+    at: at3,
+    reason: OFFER_PAUSE_REASONS.includes(reason ?? "") ? reason : null
+  };
+}
+var pausedBecause = (reason) => reason === "complaints" ? "too many people marked offers as spam" : reason === "bounces" ? "too many offers went to addresses that did not accept them" : "complaints and bounces need a look";
+var OFFERS_PAUSED_WORDS = {
+  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
+  /** Where it is told once more, to the person who can do something about it. */
+  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right."
+};
+var OFFERS_NOTICE_WORDS = {
+  paused: (reason) => ({
+    title: "Offers and news by email are paused",
+    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
+  })
+};
+function emailOffersOpen(f, couldNotBeChecked) {
+  if (f.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: f.paused };
+  if (!f.campaigns) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: f.paused };
+  if (!f.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: f.paused };
+  if (f.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: f.paused };
+  return { ok: true, why: null, paused: null };
+}
+function offersPausedLine(offers) {
+  return offers?.paused ? OFFERS_PAUSED_WORDS.head(offers.paused.reason) : null;
+}
+
+// src/broadcasts/whatsapp-offers.ts
+var PLUS_ONE = /^\+1\d{10}$/;
+var US_PAUSED = "Meta isn't delivering marketing messages on WhatsApp to US numbers right now (paused since April 2025). Appointment messages and replies on WhatsApp are unaffected.";
+function whatsappOffersPaused(e164) {
+  return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
+}
+function whatsappOffersOpen(e164) {
+  return whatsappOffersPaused(e164) ? { ok: false, why: US_PAUSED, paused: null } : { ok: true, why: null, paused: null };
+}
+
+// src/broadcasts/reach-for.ts
+var DEFAULT_CAMPAIGN_CHANNELS = ["whatsapp"];
+var NEW_PLAYBOOK_TICKS_EVERY_CHANNEL = true;
+function newCampaignChannels(kind, open) {
+  const [first] = open ?? [];
+  if (!open || first === void 0) return [...DEFAULT_CAMPAIGN_CHANNELS];
+  return kind === "playbook" && NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? [...open] : [first];
+}
+var CHANNEL_WORDS = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+function channelNeverCarries(channel, purpose) {
+  return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS.noOffersByText : null;
+}
+function channelRefuses(channel, purpose, about, ready) {
+  const never = channelNeverCarries(channel, purpose);
+  if (never) return never;
+  if (channel === "whatsapp" && purpose === "marketing") {
+    const offers2 = ready.whatsapp.offers;
+    return offers2 && !offers2.ok ? offers2.why : null;
+  }
+  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
+  const offers = ready.email.offers;
+  return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
+}
+function offersNote(ready) {
+  const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
+  const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
+  const noText = "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
+  const paused = ready.whatsapp.offers?.why ?? "";
+  if (byWhatsApp && byEmail)
+    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
+  if (byWhatsApp)
+    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+  if (byEmail)
+    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
+  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
+}
+function channelsReady(f) {
+  const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
+  const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
+  const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
+  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
+  const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
+  return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
+}
+function channelChoices(ready, purpose, about) {
+  return CONSENT_CHANNELS.map((channel) => {
+    const refuses = channelRefuses(channel, purpose, about, ready);
+    if (refuses) return { channel, ok: false, why: refuses };
+    return { channel, ok: ready[channel].ready, why: ready[channel].why };
+  });
+}
+var HELD_ORDER = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6
+};
+var HELD_ON = Object.keys(HELD_ORDER).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
+);
+function reachFor(r2, purpose, o) {
+  const usable = CONSENT_CHANNELS.filter(
+    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
+  );
+  if (usable.length === 0) return { channel: null, held: "no_channel" };
+  const last = r2.lastChannel ?? null;
+  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
+  const why = [];
+  for (const c of order) {
+    const w = whyNotReceive(r2, purpose, c, o.about);
+    if (w === null) return { channel: c, held: null };
+    why.push(w);
+  }
+  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
+}
+function reachSplit(rows2, purpose, o) {
+  const out = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
+  for (const r2 of rows2) {
+    const p = reachFor(r2, purpose, o);
+    if (p.channel) {
+      out.reached += 1;
+      out.byChannel[p.channel] += 1;
+    } else {
+      out.held += 1;
+      out.heldBy[p.held] = (out.heldBy[p.held] ?? 0) + 1;
+    }
+  }
+  return out;
+}
+var SPLIT_CHANNEL_WORDS = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
+function reachSplitWords(s) {
+  const parts2 = CONSENT_CHANNELS.filter((c) => s.byChannel[c] > 0).map(
+    (c) => `${s.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`
+  );
+  const head = s.reached === 0 ? "Reaches nobody" : parts2.length === 1 ? `Reaches ${parts2[0]}` : `Reaches ${s.reached}: ${parts2.join(", ")}`;
+  return s.held > 0 ? `${head} \xB7 ${s.held} can't be reached` : head;
+}
+var CAMPAIGN_MONTH_ALLOWANCE = {
+  email: 2e3,
+  sms: 500
+};
+function heldByAllowance(trigger, purpose) {
+  const t = trigger ? triggerOf(trigger) : null;
+  return !(t?.cls === "booking" && purpose === "conversational");
+}
+function nextMonthStart(tz, atMs) {
+  const { y, m } = dayInZone(tz, atMs);
+  const [year, month] = m === 12 ? [y + 1, 1] : [y, m + 1];
+  return wallClockAt(tz, `${year}-${String(month).padStart(2, "0")}-01`, 0, 0);
+}
+function monthSentAt(read, at3) {
+  const next = read.month_sent_next;
+  if (next && at3 >= next.from) return next.sent;
+  return read.month_sent ?? null;
+}
+function allowanceRoom(channel, sent2) {
+  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent2);
+}
+function pastAllowance(people, sent2, trigger, purpose) {
+  if (!heldByAllowance(trigger, purpose)) return [];
+  const room = { email: allowanceRoom("email", sent2.email), sms: allowanceRoom("sms", sent2.sms) };
+  const past = [];
+  for (const p of people) {
+    if (p.channel === "whatsapp") continue;
+    if (room[p.channel] > 0) room[p.channel] -= 1;
+    else past.push(p);
+  }
+  return past;
+}
+function sends(channel, n) {
+  const one = channel === "email" ? "email" : "text";
+  return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
+}
+var peopleWord = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
+function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
+  if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
+  const lines = [];
+  for (const channel of ["email", "sms"]) {
+    const room = allowanceRoom(channel, sent2[channel]);
+    const past = byChannel[channel] - room;
+    if (past <= 0) continue;
+    lines.push(
+      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
+    );
+  }
+  return lines.length > 0 ? lines.join(" ") : null;
+}
+function allowanceLine(channel, used) {
+  const of = CAMPAIGN_MONTH_ALLOWANCE[channel];
+  if (used * 2 < of) return null;
+  const noun = channel === "email" ? "emails" : "texts";
+  return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
+}
+function allowanceLines(sent2) {
+  if (!sent2) return [];
+  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
+}
+
+// src/broadcasts/channels-standing.ts
+var CHANNELS_DOOR = "admin/integrations";
+var BILLING_DOOR = "admin/billing";
+var NO_DOOR = [
+  CHANNEL_WORDS.unchecked,
+  CHANNEL_WORDS.noEmailDomain,
+  CHANNEL_WORDS.textLineNotActive,
+  CHANNEL_WORDS.textLineMock
+];
+function closedWords(channel, why) {
+  const reason = (why ?? "").replace(/\.$/, "");
+  return reason ? `${VERSION_CHANNEL_WORDS[channel]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel]} is off`;
+}
+function channelsStandingParts(ready) {
+  if (!ready) return null;
+  if (ready.paused === true)
+    return [{ channel: null, channels: [], open: false, words: WORKSPACE_PAUSED_FACT, door: BILLING_DOOR }];
+  const open = CONSENT_CHANNELS.filter((c) => ready[c].ready);
+  const closed = CONSENT_CHANNELS.filter((c) => !ready[c].ready);
+  const parts2 = [
+    {
+      channel: null,
+      channels: open,
+      open: true,
+      words: open.length > 0 ? `Sending ${joinWords(open.map((c) => CONSENT_CHANNEL_WORDS[c]))}` : "Nothing can send yet",
+      door: null
+    }
+  ];
+  for (const c of closed) {
+    const why = ready[c].why;
+    parts2.push({
+      channel: c,
+      channels: [c],
+      open: false,
+      words: closedWords(c, why),
+      door: why && NO_DOOR.includes(why) ? null : CHANNELS_DOOR
+    });
+  }
+  return parts2;
+}
+function channelsStandingWords(parts2) {
+  return parts2.map((p) => p.words).join(" \xB7 ");
+}
+
+// src/shell/campaign-rooms.ts
+var CAMPAIGN_ROOMS = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent, library } = CAMPAIGN_ROOMS;
+var PLAYBOOK_DELETE_WORDS = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent} with their numbers.`
+};
+var NO_TEMPLATE_WORDS = {
+  lead: "No message to send yet \u2014 add the starter set, or write one in the",
+  link: library
+};
+function noMessageWords(forThisMoment) {
+  return {
+    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in the`,
+    link: library
+  };
+}
+var LIBRARY_WORDS = {
+  title: library,
+  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
+  reading: `Reading the ${library}\u2026`,
+  failed: `The ${library} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
+  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
+  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
+  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
+  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
+  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
+};
+var NEW_MESSAGE_WORDS = {
+  /** The first choice's name: Email, Text or WhatsApp. */
+  where: "Where is it sent",
+  /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
+  sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
+  /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
+  own: "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.",
+  /** What a text says after the carriers' sentence: the way out. */
+  textGoesByEmail: "This one can go by email.",
+  writeAsEmail: "Write it as an email",
+  /** The act that takes the last of a message's values away: only the last, so no value is renumbered under words that use it. */
+  removeValue: "Remove the last value",
+  /** Under the title: the name the message is filed under, which WhatsApp would know it by. */
+  knownAs: "WhatsApp would know it as",
+  titleMissing: "Give it a title.",
+  titleTooLong: (max) => `A title is at most ${max} characters.`,
+  titleNeedsWords: "A title needs letters or digits in it.",
+  nameTaken: "There is a message by that name already. Give this one another title.",
+  valuesNeedWords: "Give each value a name and an example.",
+  valueTooLong: (what, max) => `A value's ${what} is at most ${max} characters.`
+};
+var LIBRARY_STARTER_WORDS = {
+  /** The banner's second line: the languages it comes in, and what is written now. */
+  banner: (languages, hasNumber) => hasNumber ? `In ${languages} \u2014 email and text versions are written at once, and WhatsApp reviews each of its versions, usually within minutes.` : `In ${languages} \u2014 email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
+  /** The toast's clauses: what was written, what could not be, and what waits. */
+  versionsWritten: (n) => `${n} email and text version${n === 1 ? "" : "s"} written`,
+  versionsFailed: (n, why) => `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
+  waitsForNumber: "WhatsApp versions wait for a number",
+  /** The route's refusal when the channels it is asked for are none it knows. */
+  pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
+  /** A new campaign named by a starter that is not its moment's own, or by no starter the set has (A0). */
+  notThisMoment: (moment) => `That starter is not one \u201C${moment}\u201D goes by: name the moment's own starter, or a message from the Library.`,
+  /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
+  takesOwnWords: (title) => `The \u201C${title}\u201D starter takes words of its own: write them in the composer and start it there.`,
+  /**
+   * A starter the workspace hid in its Library: it has a version, and no card adds it back, so the way out is to show it
+   * again or to go by another message, never the starter set, which leaves a hidden one hidden.
+   */
+  hiddenInLibrary: (title) => `The \u201C${title}\u201D starter is hidden in this workspace's ${library}: show it again under ${CAMPAIGN_ROOMS.home} \u203A ${library}, or name another message.`,
+  /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
+  addsFirst: (title) => `adds the \u201C${title}\u201D starter first`,
+  /**
+   * The card's WhatsApp clause where no WhatsApp version of the starter is on file: the filing sends one for review at
+   * Approve, which cannot be taken back, and the campaign's people there wait for WhatsApp's answer. No time is promised:
+   * nothing on record says how long a review takes. A version already on file is said as it stands (messageWhyNot).
+   */
+  whatsappForReview: "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.",
+  /**
+   * The same review, said beside the workspace's own reason WhatsApp waits (a number WhatsApp flagged): there, WhatsApp's
+   * approval of the version releases nobody, so the reason stands and the review is a clause of its own.
+   */
+  whatsappSentForReview: "Its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back.",
+  /**
+   * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
+   * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
+   * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).
+   */
+  waitsForWhatsApp: (title, on, could) => could ? `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.` : `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
+  /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
+  notAdded: "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library.",
+  /**
+   * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
+   * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
+   */
+  notAddedSentForReview: "The starter's WhatsApp version went to WhatsApp for review and is in the Library, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice."
+};
+var BROADCAST_WORDS = {
+  tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
+};
+function runStoppedWords(was) {
+  if (was === "sending") return "stops after this batch";
+  return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+}
+var OFFERS_IN_WRITING_WORDS = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent}`
+};
+
+// src/playbooks/lifecycle/lifecycle-words.ts
 var channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
+var NEEDS_CALENDAR = {
+  none: "Needs your calendar",
+  email: "Needs your calendar feed",
+  door: "Connect your calendar"
+};
 var LIFECYCLE_WORDS = {
   title: CAMPAIGN_ROOMS.home,
   lede: "What goes out on its own as a customer reaches a moment, and what you send yourself.",
@@ -6833,7 +8383,8 @@ var LIFECYCLE_WORDS = {
   receptionist: "Answers \xB7 asks for the yes",
   // First contact where the workspace has nothing to answer on: no number and no channel that can send.
   noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
-  alsoRunning: "Also running",
+  // An appointment moment where no calendar feeds it (decision 44 of 9 Oct 2026): what it says instead of a figure, and its door.
+  needsCalendar: NEEDS_CALENDAR,
   callText: {
     name: "The call's text",
     words: "The booking link and your WhatsApp, sent while they're on the phone",
@@ -6841,10 +8392,8 @@ var LIFECYCLE_WORDS = {
     none: "No message for it yet"
   },
   monthsOffer: { name: "The month's offer" },
-  // What the drawer's head calls a line that is not a stage.
-  kickers: { call_text: "The call's text", moment: "Also", list: "On a list", reach_out: "Reach-out" },
   gone: {
-    title: "That playbook isn't here any more.",
+    title: "That campaign isn't here any more.",
     body: "Its runs stay in Sent, with their numbers."
   },
   compose: {
@@ -6852,6 +8401,22 @@ var LIFECYCLE_WORDS = {
     kind: "What kind of message",
     once: "Send once",
     every: "Every time a moment comes",
+    /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
+    turnOn: (name) => `Turn on ${name}`,
+    /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
+    holds: (name, paused) => `${name} \xB7 ${paused ? "Paused" : "On"}`,
+    /**
+     * The composer's two sentences that name a setting, each with its door to it (spec §4.2): the calendar's is the one
+     * "Needs your calendar" opens (Settings › Business, the calendar's row), with its words; the number's is Connections.
+     */
+    calendar: {
+      words: "This moment reads your calendar: a run can send once it is connected.",
+      door: { label: NEEDS_CALENDAR.door, to: CALENDAR_SETTING_ROUTE }
+    },
+    number: {
+      words: "No WhatsApp number is connected yet: a run cannot send by WhatsApp until one is.",
+      door: { label: "Open Connections", to: CHANNELS_DOOR }
+    },
     // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
     failed: {
       what: "who and what you can send to",
@@ -6859,7 +8424,7 @@ var LIFECYCLE_WORDS = {
       surface: "broadcasts"
     }
   },
-  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  phone: { moments: "Moments" },
   // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
   channels: {
     goesBy: "Goes by",
@@ -6880,7 +8445,7 @@ var LIFECYCLE_WORDS = {
     templates: {
       what: "your templates",
       body: "The call's text and the Library's count show once they read. Everything else here is current.",
-      surface: "settings"
+      surface: "playbooks"
     },
     counts: {
       what: "who each moment reaches",
@@ -6888,7 +8453,7 @@ var LIFECYCLE_WORDS = {
       surface: "playbooks"
     },
     chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
-    report: { what: "this period's numbers", body: "The runs below stand.", surface: "broadcasts" },
+    report: { what: "this period's numbers", body: "The runs below stand.", surface: "campaign_results" },
     // The broadcasts read itself, said in each tile made from it.
     reach: {
       what: "who can hear you",
@@ -6905,6 +8470,68 @@ var LIFECYCLE_WORDS = {
       body: "The numbers show once they read. Everything else here is current.",
       surface: "broadcasts"
     }
+  },
+  // Campaigns' ledger (spec 2026-10-09 §4.3, §4.4): every word its page says once; each row's own are the view model's.
+  ledger: {
+    /** The ledger's name to a screen reader. */
+    label: "Your campaigns",
+    /** The phone's strip of chips, to a screen reader. */
+    strip: "Campaigns by moment",
+    /** The phone's search circle, which opens the search. */
+    find: "Search campaigns",
+    heads: { campaign: "Campaign", goesBy: "Goes by", people: "People now", results: "Last 30 days", next: "Next" },
+    /** `label`: the desk's status tabs, to a screen reader. */
+    tabs: { label: "Campaigns by state", all: "All", needs: "Needs you", paused: "Paused" },
+    /** "Needs you" names its unit, where its count is said: "2 campaigns need you". */
+    needsOf: (n) => `${plural(n, "campaign")} ${n === 1 ? "needs" : "need"} you`,
+    search: (n) => `Search ${plural(n, "campaign")}`,
+    showing: (n, of) => `Showing ${n} of ${of}`,
+    showingIn: (caps, n, of) => `${caps} \xB7 showing ${n} of ${of}`,
+    clear: "Clear",
+    sort: { label: "Sort", next: "Next", name: "Name", people: "People now", replied: "Replied" },
+    group: { label: "Group", moment: "By moment", none: "No groups" },
+    groups: { lists: "Lists & offers", reach_out: "Reach-outs", sent_once: "Sent once" },
+    /** A group no campaign stands on yet. */
+    none: "No campaign yet",
+    empty: "No campaigns match",
+    /** What is not counted, or not known, in a cell: never a zero nobody counted. */
+    dash: "\u2014",
+    turnOn: "Turn on",
+    findBusinesses: "Find businesses to write to",
+    archived: "Its list is archived",
+    businesses: "businesses",
+    chainNeeds: "Writes to the businesses a search found",
+    openRun: "Open the run",
+    /** A row's last 30 days, as its cell says them. */
+    results: (r2) => r2 === "uncounted" ? "\u2014" : r2 === "none" ? "Nothing sent" : r2.kind === "sent" ? `${r2.sent} sent \xB7 ${r2.replied} replied` : `${r2.written} written \xB7 ${r2.wroteBack} wrote back`,
+    sentOnce: {
+      footer: (n) => `Sent once \xB7 last 30 days \xB7 ${n}`,
+      open: "Sent",
+      state: "Sent",
+      hint: (when) => when ? `Sent once \xB7 ${when}` : "Sent once"
+    },
+    /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
+    approve: (n) => `Approve \xB7 ${plural(n, "person", "people")}`,
+    skip: "Skip",
+    resume: {
+      label: "Resume",
+      question: (name) => `Resume ${name}?`,
+      /** When, and to about how many; when alone where the moment could not be counted (null), never "about 0". */
+      detail: (when, n) => n === null ? `Next run ${when}` : `Next run ${when}, about ${plural(n, "person", "people")}`,
+      chain: "Its next emails go out on its next run.",
+      /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
+      auto: "It sends on its own: nothing will wait for your approval.",
+      yes: "Yes, resume it"
+    },
+    /** What the drawer's head calls a campaign whose group the page does not hold. */
+    kicker: "Campaign"
+  },
+  /** Ask's doors on the page (the moment spec, A1): the head's, the first day's sentence, and the drawer's More. */
+  ask: {
+    door: "Ask",
+    /** The chip Ask offers on the first day says the same sentence (contracts SET_UP_CAMPAIGNS). */
+    setUp: SET_UP_CAMPAIGNS.en,
+    about: "Ask about this campaign"
   },
   reach: {
     title: "Who can hear you",
@@ -6926,7 +8553,8 @@ var LIFECYCLE_WORDS = {
   coming: {
     title: "Coming up",
     window: "next 7 days",
-    link: "Calendar",
+    // Its door goes to Sent's week (spec 2026-10-09 §4.3), where every run is read.
+    link: CAMPAIGN_ROOMS.sent,
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
@@ -6970,6 +8598,7 @@ var LIFECYCLE_WORDS = {
 };
 var LIFECYCLE_TOAST = {
   resumed: (name) => [{ b: name }, " resumed"],
+  paused: (name) => [{ b: name }, " paused"],
   changed: (name) => [{ b: name }, " changed"],
   // A new playbook's next run is under Coming up, by the business's clock; there is no card to look on any more.
   running: (name) => [
@@ -7008,6 +8637,11 @@ var LIFECYCLE_TOAST = {
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase) => `Couldn't copy, the phrase is: ${phrase}`
 };
+function momentHoldsWords(rows2, trigger, editing) {
+  if (triggerOf(trigger)?.kind === "saved") return [];
+  const same2 = (t) => t === trigger || isWinBack(t) && isWinBack(trigger);
+  return rows2.filter((p) => p.id !== editing && same2(p.trigger)).map((p) => LIFECYCLE_WORDS.compose.holds(p.name, p.state !== "running"));
+}
 function lifecycleClock(p) {
   return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
@@ -7019,21 +8653,64 @@ function lifecycleStateOf(p) {
     paused
   });
   if (p.off) return stated("Not running here", "plain");
-  if (p.state !== "running") return stated("Paused", "warn", true);
+  if (p.state !== "running") return stated("Paused", "plain", true);
   if (p.totals.waiting) return stated("Waiting on you", "warn");
   return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
 }
+function tallyWords(n, t) {
+  return [
+    plural(n, "campaign"),
+    t.on > 0 ? `${t.on} on` : "",
+    t.waiting > 0 ? `${t.waiting} waiting` : "",
+    t.paused > 0 ? `${t.paused} paused` : "",
+    t.off > 0 ? `${t.off} not running here` : ""
+  ].filter(Boolean).join(" \xB7 ");
+}
+
+// src/playbooks/playbook-patch.ts
+var PLAYBOOK_PATCH_KEYS = ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days"];
+var PLAYBOOK_PATCH_WORDS = {
+  title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
+  name: (to) => `Renamed \u201C${to}\u201D`,
+  run_hour: (to, was) => `Runs at ${clockHour(to)} by your clock, where it ran at ${clockHour(was)}`,
+  cap_per_run: (to, was) => `Up to ${to} people a run, where it was ${was}`,
+  gap_days: (to, was) => `Reaches a person again after ${to} days, where it was ${was}`,
+  cadence_days: (to, was) => `Every ${to} days, where it was every ${was}`,
+  paused: "Nothing more runs until it is resumed",
+  /** D8: a pause leaves the run that waits; skipping it is a second card. */
+  pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
+  /** D7: a resume says its class's mode, in full. */
+  resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
+  same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
+  nothing: "Name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days.",
+  state: "A campaign is running or paused.",
+  nameMissing: "A name needs words.",
+  nameLong: (max) => `A name is at most ${max} characters.`,
+  /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
+  cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`,
+  /**
+   * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
+   * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
+   */
+  putBody: "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id."
+};
 
 // src/ask-proposals/spec.ts
 var PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
-  noUndo: "This one has no undo."
+  noUndo: "This one has no undo.",
+  /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
+  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now."
 };
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
 var decisionOf = (data) => {
   const id = rec(data).decision_id;
   return typeof id === "string" && id ? id : null;
+};
+var wasIn = (data, k) => {
+  const was = rec(rec(data).was);
+  return Object.prototype.hasOwnProperty.call(was, k) ? was[k] : void 0;
 };
 var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
 var refuseWith = (words3) => ({ refused: words3 });
@@ -7048,6 +8725,26 @@ function proposalChannelsWords(channels, byChannel) {
   if (carrying.length < 2) return goes;
   return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
 }
+var PLAYBOOK_CARD_REFUSALS = {
+  /** A typed slot the proposal gave no words for: a question for the person. */
+  typedSlot: (label) => `this template takes typed words for \u201C${label}\u201D; ask the person what to say there, then propose again with params`,
+  value: "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+  plainText: "every typed value must be plain text under 1024 characters, without line breaks",
+  /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
+  starterHidden: (title, from) => `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
+  starterUnsent: (title, from) => `the \u201C${title}\u201D starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
+  hiddenTemplate: (from) => `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
+  noList: (from) => `no such list; ${from} names them`,
+  uncounted: (list2, why) => `${list2} can't be counted right now: ${why}`,
+  /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
+  twin: (name) => `\u201C${name}\u201D already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
+  followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
+  /** The week's breath: every message sent this week, a member's own too, holds its person, so the count waits on it. */
+  weekUnread: "who was messaged this week could not be read just now; say so, and try again in a moment",
+  trigger: (triggers) => `trigger must be one of ${triggers.join(", ")}`,
+  listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
+  templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
+};
 var channelsNamed = (pl) => Array.isArray(pl.channels) ? { channels: pl.channels } : {};
 var cancelCall = (u) => ({
   route: "POST broadcasts/[id]/cancel",
@@ -7093,7 +8790,8 @@ var playbookSpec = {
       // On a list (decision 0009): the list it names, and whether it sends an offer or a win-back.
       ...pl.list_key ? { list_key: pl.list_key } : pl.list_id ? { list_id: pl.list_id } : {},
       ...pl.list_key || pl.list_id ? { policy_class: pl.policy_class } : {},
-      template_id: pl.template_id,
+      // A starter named and no message (A0): the route files the starter, then starts the playbook on it.
+      ...pl.starter_key && !pl.template_id ? { starter_key: pl.starter_key } : { template_id: pl.template_id },
       params: Array.isArray(pl.params) ? pl.params : [],
       run_hour: pl.run_hour,
       cap_per_run: pl.cap_per_run,
@@ -7102,7 +8800,8 @@ var playbookSpec = {
       ...channelsNamed(pl)
     }
   }),
-  receipt: ({ payload: pl }, data) => `Playbook \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns`,
+  // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
+  receipt: ({ payload: pl }, data) => `Campaign \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns${rec(rec(data).starter).status === "submitted" ? " \xB7 its starter's WhatsApp version is with WhatsApp for review" : ""}`,
   undo: {
     label: () => "Delete it \u2014 nothing will run",
     window: "ten_minutes",
@@ -7110,7 +8809,15 @@ var playbookSpec = {
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
     receipt: () => "Deleted \u2014 nothing will run"
   },
-  open: () => "outbound"
+  // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
+  // commit kept for the undo, as the list card opens the list it made; before then the composer on its moment, where the
+  // whole of it can be set by hand ("Open in the composer"), and the home where the card names no moment.
+  open: ({ payload }, outcome) => {
+    const id = idIn(rec(outcome?.undo), "playbook_id");
+    if (id) return `campaigns/moment:${id}`;
+    const trigger = idIn(payload, "trigger");
+    return trigger ? `campaigns/new:moment:${trigger}` : "outbound";
+  }
 };
 var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
 var playbookChannelsSpec = {
@@ -7124,11 +8831,13 @@ var playbookChannelsSpec = {
   },
   // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
   // after it that the run which waits keeps the channels it was made with, where one does.
-  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The playbook", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
+  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
   undo: {
     label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
     window: "ten_minutes",
-    record: (p) => ({ playbook_id: p.payload.playbook_id, was: p.payload.was }),
+    // The channels the route found when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => ({ playbook_id: p.payload.playbook_id, was: wasIn(data, "channels") ?? p.payload.was }),
     call: (u) => {
       const was = channelsIn(u.was);
       return was.length === 0 || !asText(u.playbook_id) ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: { channels: was } };
@@ -7136,6 +8845,51 @@ var playbookChannelsSpec = {
     receipt: () => "Its channels are as they were"
   },
   // Its drawer on Campaigns' home, where the Goes by row shows what it goes by now.
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
+var patchIn = (pl) => Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && pl[k] !== null).map((k) => [k, pl[k]]));
+var resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
+var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
+var playbookChangeSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    const body = patchIn(pl);
+    if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return { route: "PUT playbooks/[id]", params: { id }, body };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(rec(data).name ?? pl.name ?? pl.playbook_name) || LIFECYCLE_TOAST.nameless;
+    if (pl.state === "paused") return toastWords(LIFECYCLE_TOAST.paused(name));
+    if (pl.state === "running") return toastWords(LIFECYCLE_TOAST.resumed(name));
+    return toastWords(LIFECYCLE_TOAST.changed(name));
+  },
+  undo: {
+    label: ({ payload }) => payload.state === "paused" ? resumeUndoLabel(payload.mode) : payload.state === "running" ? "Pause it again" : "Put it back",
+    window: "ten_minutes",
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
+    // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody
+    // made the same change first) answers it empty: no undo, which would undo theirs.
+    record: (p, data) => {
+      const was = rec(data).was;
+      if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
+      return {
+        playbook_id: p.payload.playbook_id,
+        was: was && typeof was === "object" ? was : p.payload.was,
+        decision_id: decisionOf(data)
+      };
+    },
+    call: (u) => {
+      const was = patchIn(rec(u.was));
+      return !asText(u.playbook_id) || Object.keys(was).length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };
+    },
+    receipt: () => "It is as it was"
+  },
+  // Its drawer on Campaigns, where its state, clock and name are.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
     return id ? `campaigns/moment:${id}` : "outbound";
@@ -7837,9 +9591,9 @@ function leadAskedFor(search) {
     ...plan.exclusions.map((e) => ({ text: e.text, kind: "exclusion" }))
   ];
 }
-function leadReviewGroups(rows, search) {
+function leadReviewGroups(rows2, search) {
   const by = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (r2.cls !== "review") continue;
     const reasons = r2.reasons ?? [];
     const held = reasons.map(reviewGroupOf).filter((g2) => g2 !== null && g2 !== "checks_out");
@@ -7857,8 +9611,8 @@ function leadReviewGroups(rows, search) {
 }
 var M_PER_DEG_LAT = 111320;
 var LEAD_MAP_MAX_SPAN_M = 8e4;
-function leadMapPlot(rows, area) {
-  const placed = rows.filter((r2) => !!r2.point);
+function leadMapPlot(rows2, area) {
+  const placed = rows2.filter((r2) => !!r2.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
   if (!anchor || !placed.length && !area?.center)
     return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
@@ -7905,7 +9659,7 @@ function delimiterOf(text) {
 function parseCsv(text) {
   const s = text.charCodeAt(0) === 65279 ? text.slice(1) : text;
   const sep = delimiterOf(s);
-  const rows = [];
+  const rows2 = [];
   let row2 = [];
   let cell = "";
   let quoted = false;
@@ -7913,7 +9667,7 @@ function parseCsv(text) {
   let rowStartLine = 1;
   const pushRow = () => {
     Object.defineProperty(row2, "line", { value: rowStartLine, enumerable: false });
-    rows.push(row2);
+    rows2.push(row2);
   };
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
@@ -7958,7 +9712,7 @@ function parseCsv(text) {
     row2.push(cell);
     pushRow();
   }
-  return rows.filter((r2) => r2.some((c) => c.trim() !== ""));
+  return rows2.filter((r2) => r2.some((c) => c.trim() !== ""));
 }
 var NAME_WORDS = /^(name|full ?name|client|client ?name|customer|customer ?name|first ?name|given ?name|nombre)$/i;
 var LAST_WORDS = /^(last ?name|surname|family ?name|apellidos?)$/i;
@@ -7971,10 +9725,10 @@ function isHeaderRow(first) {
   return first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
 }
 var COLUMN_SHARE = 0.6;
-function columnShare(rows, col, is) {
+function columnShare(rows2, col, is) {
   let seen = 0;
   let hit = 0;
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const v = (r2[col] ?? "").trim();
     if (!v) continue;
     seen += 1;
@@ -7982,11 +9736,11 @@ function columnShare(rows, col, is) {
   }
   return seen ? hit / seen : 0;
 }
-function matchColumns(rows) {
-  const first = rows[0] ?? [];
-  const width = rows.reduce((w, r2) => Math.max(w, r2.length), 0);
+function matchColumns(rows2) {
+  const first = rows2[0] ?? [];
+  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
   const header = isHeaderRow(first);
-  const body = header ? rows.slice(1) : rows;
+  const body = header ? rows2.slice(1) : rows2;
   const columns = { name: null, last: null, phone: null, email: null };
   if (header) {
     first.forEach((h, i) => {
@@ -8015,9 +9769,9 @@ function matchColumns(rows) {
   }
   return { columns, header };
 }
-function importRowsOf(rows, columns, header) {
+function importRowsOf(rows2, columns, header) {
   const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
-  return (header ? rows.slice(1) : rows).map((r2, n) => {
+  return (header ? rows2.slice(1) : rows2).map((r2, n) => {
     const name = Array.from(
       [cell(r2, columns.name), cell(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ")
     ).slice(0, 80).join("").trim();
@@ -8030,12 +9784,12 @@ function importRowsOf(rows, columns, header) {
     };
   });
 }
-function importCounts(rows) {
+function importCounts(rows2) {
   return {
-    rows: rows.length,
-    withPhone: rows.filter((r2) => r2.phone).length,
-    withEmail: rows.filter((r2) => r2.email).length,
-    unreadable: rows.filter((r2) => !r2.phone && !r2.email).length
+    rows: rows2.length,
+    withPhone: rows2.filter((r2) => r2.phone).length,
+    withEmail: rows2.filter((r2) => r2.email).length,
+    unreadable: rows2.filter((r2) => !r2.phone && !r2.email).length
   };
 }
 
@@ -8066,11 +9820,11 @@ function regionOf(raw) {
   if (/^[A-Za-z]{2}$/.test(s) && codes.has(s.toUpperCase())) return s.toUpperCase();
   return US_STATES[s.toLowerCase()] ?? null;
 }
-function leadImportColumns(rows) {
-  const first = rows[0] ?? [];
-  const width = rows.reduce((w, r2) => Math.max(w, r2.length), 0);
+function leadImportColumns(rows2) {
+  const first = rows2[0] ?? [];
+  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
   const header = isHeaderRow(first);
-  const body = header ? rows.slice(1) : rows;
+  const body = header ? rows2.slice(1) : rows2;
   const columns = {
     name: null,
     email: null,
@@ -8111,7 +9865,7 @@ function leadImportPlanOf(text) {
   const { columns, header } = leadImportColumns(cells);
   const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
   const words3 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
-  const rows = (header ? cells.slice(1) : cells).map((r2, n) => {
+  const rows2 = (header ? cells.slice(1) : cells).map((r2, n) => {
     const carried = r2.line;
     return {
       line: carried ?? n + (header ? 2 : 1),
@@ -8128,12 +9882,12 @@ function leadImportPlanOf(text) {
     columns,
     header,
     headers: header ? cells[0] ?? [] : [],
-    rows,
+    rows: rows2,
     counts: {
-      rows: rows.length,
-      ready: rows.filter(leadImportReady).length,
-      noEmail: rows.filter((r2) => !r2.email).length,
-      noName: rows.filter((r2) => !!r2.email && !r2.name).length
+      rows: rows2.length,
+      ready: rows2.filter(leadImportReady).length,
+      noEmail: rows2.filter((r2) => !r2.email).length,
+      noName: rows2.filter((r2) => !!r2.email && !r2.name).length
     }
   };
 }
@@ -9231,10 +10985,10 @@ var builtinByToken = (token2) => {
   const ref = parseListToken(token2);
   return ref && ref.kind === "builtin" ? BUILTIN_LISTS.find((l) => l.id === ref.id) ?? null : null;
 };
-function listMembers(list2, rows, ctx, lookup = () => null) {
+function listMembers(list2, rows2, ctx, lookup = () => null) {
   if (list2.rule == null) {
     const on = new Set(list2.ids);
-    return { state: "ok", ids: new Set(rows.filter((v) => on.has(v.id)).map((v) => v.id)) };
+    return { state: "ok", ids: new Set(rows2.filter((v) => on.has(v.id)).map((v) => v.id)) };
   }
   const rule2 = asListRule(list2.rule);
   if (!rule2) return { state: "unknown", reason: "rule" };
@@ -9246,15 +11000,15 @@ function listMembers(list2, rows, ctx, lookup = () => null) {
     const other = b ? { rule: b.rule, ids: [], readable: true } : lookup(token2);
     if (!other || !other.readable) return { state: "unknown", reason: "list" };
     if (other.rule && ruleLists(other.rule).length) return { state: "unknown", reason: "list" };
-    const m = listMembers(other, rows, ctx);
+    const m = listMembers(other, rows2, ctx);
     if (m.state === "unknown") return m;
     read.set(token2, m.ids);
   }
   const inList = (token2, id) => read.get(token2)?.has(id) ?? false;
-  return { state: "ok", ids: new Set(rows.filter((v) => listRuleMatches(rule2, v, inList)).map((v) => v.id)) };
+  return { state: "ok", ids: new Set(rows2.filter((v) => listRuleMatches(rule2, v, inList)).map((v) => v.id)) };
 }
-function savedListIds(list2, rows, ctx, lookup = () => null) {
-  const m = listMembers(list2, rows, ctx, lookup);
+function savedListIds(list2, rows2, ctx, lookup = () => null) {
+  const m = listMembers(list2, rows2, ctx, lookup);
   return m.state === "ok" ? m.ids : /* @__PURE__ */ new Set();
 }
 function savedListLookup(saved) {
@@ -9333,9 +11087,9 @@ function resolveList(ref, saved) {
   const l = saved.find((x) => x.id.toLowerCase() === ref.id.toLowerCase());
   return l ? savedDef(l, savedListLookup(saved)) : null;
 }
-function membersOf(def, rows, ctx, saved = []) {
+function membersOf(def, rows2, ctx, saved = []) {
   if (!def.readable) return { state: "unknown", reason: "rule" };
-  return listMembers(def.byHand ? { ids: def.ids } : { ids: [], rule: def.rule }, rows, ctx, savedListLookup(saved));
+  return listMembers(def.byHand ? { ids: def.ids } : { ids: [], rule: def.rule }, rows2, ctx, savedListLookup(saved));
 }
 function listUnknownWords(reason, calendar) {
   switch (reason) {
@@ -9363,7 +11117,7 @@ function ruleNeedsViewer(rule2) {
   const r2 = asListRule(rule2);
   return !!r2 && ruleNeeds(r2).includes("viewer");
 }
-var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;
+var viewerListWords = (name) => `${name} is about whoever is looking ("me"), and a campaign's run has no one looking. Pick a list that says who by what they did.`;
 var TODAY_PINS_MAX = 8;
 function pinTokens(view) {
   const pins = view && typeof view === "object" ? view.pins : null;
@@ -9413,7 +11167,7 @@ var listSpec = {
       if (d.archived !== true) return "Deleted. The people stay.";
       const paused = namesIn(d, "paused");
       const readBy = namesIn(d, "read_by");
-      const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a playbook runs on it";
+      const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a campaign runs on it";
       return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
     }
   },
@@ -9561,229 +11315,6 @@ function addedBy(added) {
     who: added.source === "calendar" ? "Calendar" : "Leads",
     how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`
   };
-}
-
-// src/conversations/escalations.ts
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages",
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
-};
-var ESCALATION_REASON_SHORT = {
-  human_token: "asked for a person",
-  refusal: "the receptionist declined to answer",
-  brain_error: "the receptionist hit an error",
-  non_text: "sent a voice note or photo",
-  send_failed: "reply failed to deliver",
-  policy_block: "held by your reply setting",
-  policy_ask: "set to Ask me first",
-  person_hold: "you handle this person",
-  rate_cap: "too many replies too fast",
-  deadman: "nobody picked this up",
-  manual: "flagged by hand",
-  opt_out: "asked to stop",
-  state_unavailable: "the receptionist could not read this thread",
-  stale: "arrived hours late",
-  budget: "the day's model budget is used up",
-  callback: "needs a call back",
-  paused: "the workspace is paused until billing resumes",
-  carriers: "the carriers have not approved this line",
-  email_review: "wrote by email"
-};
-function reasonShort(reason) {
-  if (!reason) return "";
-  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
-}
-var ESCALATION_REASON_WHY = {
-  human_token: "because a customer asked for a person",
-  refusal: "because it declined to answer",
-  brain_error: "because it hit an error",
-  non_text: "for something it can't read",
-  send_failed: "because a reply failed to send",
-  policy_block: "because your reply setting held it",
-  policy_ask: "for a booking or a question set to Ask me first",
-  person_hold: "because you handle this person",
-  rate_cap: "because the reply limit was reached",
-  deadman: "because no answer came in time",
-  manual: "because it was flagged by hand",
-  opt_out: "because they asked to stop",
-  state_unavailable: "because it could not read the thread",
-  stale: "because a message arrived too late to answer",
-  budget: "because the day's model budget ran out",
-  callback: "because they need a call back",
-  paused: "because the workspace is paused",
-  carriers: "while waiting on carriers",
-  email_review: "because they wrote by email"
-};
-function reasonWhy(reason) {
-  return ESCALATION_REASON_WHY[reason] ?? `because ${reasonShort(reason)}`;
-}
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
-};
-function reasonLabelOf(reason) {
-  return ESCALATION_REASON_LABELS[reason] ?? reason;
-}
-function reasonSummaryOf(reason) {
-  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
-}
-
-// src/people/person-merge.ts
-var MERGE_CONSENT_SOURCE = "merge";
-var MERGE_REFUSALS = {
-  same: "Choose two different records to merge.",
-  owner: "Only an owner can merge two records.",
-  deleted: "One of these people was deleted, so there is nothing to merge.",
-  merged: "One of these records was already merged into another.",
-  phones: "These two records have different phone numbers, so they may be two people. They can't be merged.",
-  emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
-  deals: "Both records have an open deal for the same service. Close or move one of them first."
-};
-var MERGE_WORDS = {
-  act: "Merge with another record\u2026",
-  actHint: "Two records of one person become one",
-  pick: "Which record is the same person?",
-  pickPlaceholder: "Search by name, number or email",
-  pickEmpty: "Nobody else matches",
-  pickNone: "Choose the other record",
-  pickReading: "People is still being read; the other records are offered once it lands.",
-  question: (kept, other) => `Merge ${other} into ${kept}?`,
-  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
-  typed: (kept) => `Type ${kept} to confirm.`,
-  yes: "Merge the two records",
-  busy: "Merging\u2026",
-  done: (kept, other) => `${other} merged into ${kept}`
-};
-function offersAnswer(a, b, stopped) {
-  if (a === "opted_out" || b === "opted_out") return "opted_out";
-  if (stopped) return "unknown";
-  return a === "opted_in" || b === "opted_in" ? "opted_in" : "unknown";
-}
-function mergedAnswers(a, b) {
-  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
-  return {
-    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
-    dnc: stopped,
-    marketing: offersAnswer(a.marketing, b.marketing, stopped),
-    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
-  };
-}
-
-// src/people/person-consent.ts
-var CONSENT_SOURCES = [
-  { id: "in_person", label: "In person" },
-  { id: "phone", label: "On the phone" },
-  { id: "form", label: "Sign-up form" },
-  { id: "customer_message", label: "Their own message" }
-];
-var CONSENT_RESET_SOURCE = "operator";
-var CARRIER_CONSENT_SOURCE = "carrier";
-var STOP_ENDED_OFFERS_SOURCE = "stop";
-var WHATSAPP_CONSENT_SOURCE = "whatsapp";
-var OFFERS_YES_SOURCES = ["form", "customer_message"];
-function offersYesRefusal(source) {
-  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
-  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
-}
-var OWN_MESSAGE_REFUSALS = {
-  /** Their own message, with no message named. */
-  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
-  /** The message named is not one this person sent this workspace. */
-  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
-  /** The message named has nothing written in it. */
-  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
-  /** A message named beside another way of answering. */
-  notOwnMessage: "Only an answer in their own message names a message.",
-  /** Their own message, for many people at once: one message cannot be every person's. */
-  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form."
-};
-function ownMessageRefusal(source, messageId) {
-  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
-  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
-}
-function consentSourceLabel(source) {
-  if (!source) return null;
-  const known = CONSENT_SOURCES.find((s) => s.id === source);
-  if (known) return known.label;
-  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
-  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
-  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
-  if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
-  return source === CONSENT_RESET_SOURCE ? null : source;
-}
-function mayReceive(r2, purpose, channel, about) {
-  return whyNotReceive(r2, purpose, channel, about) === null;
-}
-function bearingOf(c) {
-  return {
-    consent: c.state,
-    dnc: c.dnc,
-    marketing_consent: c.marketing,
-    consent_channels: c.channels,
-    marketing_channels: c.marketingChannels,
-    // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
-    email_marketing: c.emailMarketing,
-    has_relationship: c.relationship
-  };
-}
-function whyNotReceive(r2, purpose, channel, about) {
-  if (channel === "email") {
-    if (!r2.email) return "no_address";
-    if (r2.emailSuppressed) return "address_stopped";
-  } else if (!r2.phone) return "no_number";
-  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about });
-  if (said.ok) return null;
-  const { reason } = said;
-  switch (reason) {
-    case "opted_out":
-      return "stopped";
-    case "unsubscribed":
-      return "unsubscribed";
-    case "no_marketing_consent":
-    case "not_opted_in":
-      return "no_yes";
-    default: {
-      const unreachable = reason;
-      return unreachable;
-    }
-  }
-}
-function saidYesTo(r2, purpose, channel, about) {
-  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
 }
 
 // src/people/person-row-facts.ts
@@ -10161,11 +11692,16 @@ var personModeSpec = {
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",
-    record: (p, data) => ({
-      contact_id: p.payload.contact_id,
-      mode: p.payload.previous ?? "inherit",
-      decision_id: decisionOf(data)
-    }),
+    // The mode the route found when it wrote (its answer's `was`; none is inherit), the card's own reading where an
+    // older route answers none.
+    record: (p, data) => {
+      const was = wasIn(data, "mode");
+      return {
+        contact_id: p.payload.contact_id,
+        mode: was === void 0 ? p.payload.previous ?? "inherit" : was ?? "inherit",
+        decision_id: decisionOf(data)
+      };
+    },
     call: (u) => ({
       route: "PUT contacts/[id]/receptionist",
       params: { id: asText(u.contact_id) },
@@ -10263,11 +11799,13 @@ var personDetailsSpec = {
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",
-    // Each changed field as it was before the card: the route clears a field with an empty string, so one that held
-    // nothing is set back to nothing. One whose previous value the card does not carry is never cleared on a guess.
-    record: ({ payload: pl }) => {
-      const prev = rec(pl.previous);
+    // Each changed field as the route found it when it wrote (its answer's `was`), the card's own reading where an
+    // older route answers none: the route clears a field with an empty string, so one that held nothing is set back to
+    // nothing. One whose previous value neither carries is never cleared on a guess.
+    record: ({ payload: pl }, data) => {
       const changed = DETAIL_FIELDS.filter((k) => typeof pl[k] === "string");
+      const found = rec(rec(data).was);
+      const prev = changed.length > 0 && changed.every((k) => k in found) ? found : rec(pl.previous);
       if (!changed.length || changed.some((k) => !(k in prev))) return null;
       return { contact_id: pl.contact_id, ...Object.fromEntries(changed.map((k) => [k, asText(prev[k])])) };
     },
@@ -10346,8 +11884,11 @@ var policySpec = {
     label: () => "Set it back",
     window: "ten_minutes",
     // The events ledger keeps policy changes and hands back no row id, so this undo names none.
-    record: (p) => {
-      const prev = p.payload.previous ?? {};
+    // The row as the route found it when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => {
+      const found = rec(data).was;
+      const prev = found && typeof found === "object" ? found : p.payload.previous ?? {};
       return { class: p.payload.class, mode: prev.mode ?? null, min_confidence: prev.min_confidence ?? null };
     },
     call: (u) => !u.mode && typeof u.min_confidence !== "number" ? refuseWith("The previous setting is unknown; change it in Settings.") : { route: "PUT policies", body: policyBody(u.class, u.mode, u.min_confidence) },
@@ -10414,7 +11955,8 @@ var PROPOSAL_SPECS = {
   person_details: personDetailsSpec,
   list: listSpec,
   run: runSpec,
-  playbook_channels: playbookChannelsSpec
+  playbook_channels: playbookChannelsSpec,
+  playbook_change: playbookChangeSpec
 };
 function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
@@ -10525,7 +12067,7 @@ var KIND_WORDS = {
     deal: "Deal",
     list: "List",
     broadcast: "Broadcast",
-    playbook: "Playbook",
+    playbook: "Campaign",
     template: "Template",
     domain: "Domain"
   },
@@ -10540,7 +12082,7 @@ var KIND_WORDS = {
     deal: "Acuerdo",
     list: "Lista",
     broadcast: "Difusi\xF3n",
-    playbook: "Playbook",
+    playbook: "Campa\xF1a",
     template: "Plantilla",
     domain: "Dominio"
   }
@@ -10582,7 +12124,7 @@ function rightNowLine(w, language) {
   const total = who.length + w.more;
   const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you` : "";
   const n = w.runs.length;
-  const runs = n ? es ? `${n === 1 ? "un env\xEDo de playbook espera" : `${n} env\xEDos de playbook esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval` : "";
+  const runs = n ? es ? `${n === 1 ? "un env\xEDo de campa\xF1a espera" : `${n} env\xEDos de campa\xF1a esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one campaign run is" : `${n} campaign runs are`} waiting for your approval` : "";
   const k = w.searches.length;
   const searchesLine = k ? es ? k === 1 ? `tu b\xFAsqueda de ${w.searches[0].name} espera tu respuesta` : `${k} b\xFAsquedas esperan tu respuesta` : k === 1 ? `your search for ${w.searches[0].name} is waiting for your answer` : `${k} searches are waiting for your answer` : "";
   if (!people && !runs && !searchesLine)
@@ -10615,7 +12157,8 @@ function needsAnswer(w, language) {
     })),
     ...w.runs.map((r2) => ({
       title: r2.label,
-      meta: "Playbook",
+      // The word a cited campaign's item says, in the answer's language.
+      meta: KIND_WORDS[es ? "es" : "en"].playbook,
       line: es ? `${r2.reach} ${r2.reach === 1 ? "persona" : "personas"}` : `${r2.reach} ${r2.reach === 1 ? "person" : "people"}`,
       source: { kind: "page", id: r2.to, label: r2.label, to: r2.to, door: true }
     }))
@@ -10840,7 +12383,7 @@ function answerForCards(cards, language) {
     n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`,
     language
   );
-  a.say.detail = n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas." : "Approve, change or dismiss each: nothing happens until you do.";
+  a.say.detail = n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do.";
   return a;
 }
 function failedAnswer(sentenceText, language) {
@@ -10887,6 +12430,7 @@ var ASK_CONTEXT_ROW_KINDS = [
   "search",
   "run",
   "playbook",
+  "reach_out",
   "template"
 ];
 var isRowFocus = (k) => k !== "page" && ASK_SCOPE_KINDS.includes(k);
@@ -11063,161 +12607,6 @@ function askJump(query, index, limit = 6) {
   for (const p of index) if (p.kind === "page" && (p.also ?? []).some((w) => w.toLowerCase().includes(s))) push(p);
   for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
   return out.slice(0, limit);
-}
-
-// src/ask/ask-suggestions.ts
-var CHIPS_OF = {
-  pipeline: "people",
-  calendar: "other",
-  campaigns: "other"
-};
-var T = {
-  en: {
-    needs: "Who needs me right now?",
-    held: "What is the receptionist holding for me?",
-    calls: "Did anyone call while I was busy?",
-    live: "What is the call on the line about?",
-    openSat: "What's open Saturday?",
-    openTomorrow: "What's open tomorrow?",
-    week: "How did the week go?",
-    said: "What did the receptionist tell {name}?",
-    why: "Why was this reply held?",
-    who: "Who wrote today?",
-    rules: "What can the receptionist do on its own?",
-    hours: "What are our hours this week?",
-    brief: "Brief me on today",
-    proposals: "Who has a proposal out?",
-    setupLeft: "What is left to set up?",
-    moreLike: "Find more like: {asked}",
-    actLate: "Tell {name} we're running late",
-    actLateQ: "Tell {name} we're running about 15 minutes late today",
-    actDraft: "Draft a reply to {name}",
-    actDraftQ: "Draft a reply to {name}: ",
-    actRemember: "Remember something for the receptionist",
-    actRememberQ: "Remember that ",
-    actClose: "Close for a day",
-    actCloseQ: "Close on ",
-    actHours: "Change a day's hours",
-    actHoursQ: "Change Saturday's hours to ",
-    actInvite: "Invite a teammate",
-    actInviteQ: "Invite ",
-    actOffer: "Send an offer to a list",
-    actOfferQ: "Send the ",
-    actPlaybook: "Start a win-back playbook",
-    actPlaybookQ: "Start a win-back playbook for the quiet clients",
-    actHold: "Hold every reply for my review",
-    actHoldQ: "Hold every reply for my review before it sends"
-  },
-  es: {
-    needs: "\xBFQui\xE9n me necesita ahora?",
-    held: "\xBFQu\xE9 tiene retenido la recepcionista para m\xED?",
-    calls: "\xBFLlam\xF3 alguien mientras estaba ocupada?",
-    live: "\xBFDe qu\xE9 trata la llamada en curso?",
-    openSat: "\xBFQu\xE9 hay libre el s\xE1bado?",
-    openTomorrow: "\xBFQu\xE9 hay libre ma\xF1ana?",
-    week: "\xBFC\xF3mo fue la semana?",
-    said: "\xBFQu\xE9 le dijo la recepcionista a {name}?",
-    why: "\xBFPor qu\xE9 se retuvo esta respuesta?",
-    who: "\xBFQui\xE9n escribi\xF3 hoy?",
-    rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
-    hours: "\xBFCu\xE1l es nuestro horario esta semana?",
-    brief: "Res\xFAmeme el d\xEDa",
-    proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
-    setupLeft: "\xBFQu\xE9 falta por configurar?",
-    moreLike: "Encuentra m\xE1s como: {asked}",
-    actLate: "Dile a {name} que vamos con retraso",
-    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
-    actDraft: "Redacta una respuesta a {name}",
-    actDraftQ: "Redacta una respuesta a {name}: ",
-    actRemember: "Recu\xE9rdale algo a la recepcionista",
-    actRememberQ: "Recuerda que ",
-    actClose: "Cerrar el sal\xF3n un d\xEDa",
-    actCloseQ: "Cierra el ",
-    actHours: "Cambiar el horario de un d\xEDa",
-    actHoursQ: "Cambia el horario del s\xE1bado a ",
-    actInvite: "Invitar a alguien del equipo",
-    actInviteQ: "Invita a ",
-    actOffer: "Enviar una oferta a una lista",
-    actOfferQ: "Env\xEDa la ",
-    actPlaybook: "Iniciar un playbook de recuperaci\xF3n",
-    actPlaybookQ: "Inicia un playbook de recuperaci\xF3n para los clientes inactivos",
-    actHold: "Retener cada respuesta para revisarla",
-    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
-  }
-};
-var PAGE_QUESTIONS = {
-  today: [
-    ["brief", "sparkle"],
-    ["who", "users"]
-  ],
-  inbox: [
-    ["who", "users"],
-    ["rules", "shield"]
-  ],
-  people: [["who", "users"]],
-  reports: [["week", "trending-up"]],
-  settings: [
-    ["rules", "shield"],
-    ["hours", "clock"]
-  ],
-  start: [
-    ["setupLeft", "check"],
-    ["hours", "clock"]
-  ]
-};
-function clipWords(s, cap2) {
-  const w = s.replace(/\s+/g, " ").trim();
-  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
-}
-function buildAskSuggestions(input) {
-  const t = T[input.language === "es" ? "es" : "en"];
-  const at3 = CHIPS_OF[input.surface] ?? input.surface;
-  const out = [];
-  const add = (q, kind, icon, fast = false, label) => {
-    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast, ...label ? { label } : {} });
-  };
-  const s = input.scope;
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    add(t.said.replace("{name}", s.label), "ask", "chat");
-    if (s.kind === "thread") add(t.why, "ask", "sparkle");
-  }
-  if (s && s.kind === "call") add(t.live, "ask", "phone");
-  if (input.surface === "leads") {
-    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-    for (const w of ideas) add(w, "ask", "search");
-    if (!ideas.length)
-      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
-  }
-  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
-  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
-  if (input.liveNow > 0) add(t.live, "ask", "phone");
-  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
-  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
-  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
-  if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
-  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
-  add(t.week, "ask", "trending-up");
-  add(t.rules, "ask", "shield");
-  const asks = out.slice(0, 7);
-  if (!input.canAct) return asks;
-  const acts = [];
-  const act2 = (label, q, icon, compose = false) => {
-    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
-  };
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    act2(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
-    act2(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
-  }
-  act2(t.actRemember, t.actRememberQ, "sparkle", true);
-  if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
-  if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
-  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
-  if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
-  if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
-  if (at3 === "people" || at3 === "other") act2(t.actPlaybook, t.actPlaybookQ, "bolt");
-  return [...asks, ...acts.slice(0, 4)];
 }
 
 // src/conversations/call-dto.ts
@@ -11888,6 +13277,18 @@ var ASK_ANSWER_FORMAT = {
   additionalProperties: false
 };
 
+// src/shared/unknown.ts
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var lineOrNull = (s) => {
+  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
+  return t ? t.slice(0, 200) : null;
+};
+
 // src/templates/starter-templates.ts
 var STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
@@ -12280,7 +13681,7 @@ var STARTER_TEMPLATES = [
     },
     texts: {
       en_US: {
-        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next visit, pick a time here: {{3}}.",
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
         footer: STOP_EN,
         slots: [FIRST, BUSINESS, LINK]
       },
@@ -12467,7 +13868,7 @@ function broadcastStep(cta, to, members) {
     enabled: true
   };
 }
-function peopleAggregates(rows, nowMs) {
+function peopleAggregates(rows2, nowMs) {
   let needsYou = 0;
   let oldest = null;
   let newThisMonth = 0;
@@ -12475,7 +13876,7 @@ function peopleAggregates(rows, nowMs) {
   let reachedWeekNew = 0;
   let booked = 0;
   let askedNotBooked = 0;
-  for (const v of rows) {
+  for (const v of rows2) {
     if (v.booked) booked++;
     if (v.askedNotBooked) askedNotBooked++;
     if (v.state === "needs_you") {
@@ -12489,7 +13890,7 @@ function peopleAggregates(rows, nowMs) {
     }
   }
   return {
-    total: rows.length,
+    total: rows2.length,
     needsYou,
     needsYouOldestMs: oldest,
     newThisMonth,
@@ -12509,9 +13910,9 @@ var RECENCY_BUCKETS = [
   { label: "3m", max: 90 },
   { label: "older", max: Infinity }
 ];
-function recencyCells(rows, nowMs) {
+function recencyCells(rows2, nowMs) {
   const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
-  for (const v of rows) {
+  for (const v of rows2) {
     const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
     let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
     if (i === -1) i = cells.length - 1;
@@ -12663,7 +14064,7 @@ function stoppedRunFix(why, run) {
 function playbookRunNext(run, by) {
   if (!run.playbook_id) return null;
   if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return "It does not run again today, and a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later.";
+    return "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
   return by === "tomorrow" ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice." : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
 }
 var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not_approved"]);
@@ -12743,247 +14144,6 @@ function broadcastFailureFix(failure, reached = 0, run) {
   }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : void 0;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
-}
-
-// src/broadcasts/email-offers.ts
-var OFFERS_BY_EMAIL_WORDS = {
-  /** The deployment's campaigns domain is not set up or not verified yet. */
-  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
-  /** The business has no postal address on file, which every offer's foot names. */
-  noAddress: "Add your business's address to send offers by email.",
-  /** The workspace's offers are paused by a gate. */
-  paused: "Offers by email are paused while complaints and bounces settle."
-};
-var OFFER_GATES = {
-  complaints: { window: 1e3, above: 1e-3, minimum: 200 },
-  bounces: { window: 500, above: 0.02, minimum: 100 }
-};
-var OFFER_PAUSE_REASONS = ["complaints", "bounces"];
-function offerGate(c) {
-  const { complaints, bounces } = OFFER_GATES;
-  if (c.complaintSample >= complaints.minimum && c.complaints / c.complaintSample > complaints.above)
-    return "complaints";
-  if (c.bounceSample >= bounces.minimum && c.bounces / c.bounceSample > bounces.above) return "bounces";
-  return null;
-}
-function offerPauseOf(at3, reason) {
-  if (!at3) return null;
-  return {
-    at: at3,
-    reason: OFFER_PAUSE_REASONS.includes(reason ?? "") ? reason : null
-  };
-}
-var pausedBecause = (reason) => reason === "complaints" ? "too many people marked offers as spam" : reason === "bounces" ? "too many offers went to addresses that did not accept them" : "complaints and bounces need a look";
-var OFFERS_PAUSED_WORDS = {
-  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
-  /** Where it is told once more, to the person who can do something about it. */
-  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right."
-};
-var OFFERS_NOTICE_WORDS = {
-  paused: (reason) => ({
-    title: "Offers and news by email are paused",
-    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a playbook that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
-  })
-};
-function emailOffersOpen(f, couldNotBeChecked) {
-  if (f.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: f.paused };
-  if (!f.campaigns) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: f.paused };
-  if (!f.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: f.paused };
-  if (f.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: f.paused };
-  return { ok: true, why: null, paused: null };
-}
-function offersPausedLine(offers) {
-  return offers?.paused ? OFFERS_PAUSED_WORDS.head(offers.paused.reason) : null;
-}
-
-// src/broadcasts/whatsapp-offers.ts
-var PLUS_ONE = /^\+1\d{10}$/;
-var US_PAUSED = "Meta isn't delivering marketing messages on WhatsApp to US numbers right now (paused since April 2025). Appointment messages and replies on WhatsApp are unaffected.";
-function whatsappOffersPaused(e164) {
-  return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
-}
-function whatsappOffersOpen(e164) {
-  return whatsappOffersPaused(e164) ? { ok: false, why: US_PAUSED, paused: null } : { ok: true, why: null, paused: null };
-}
-
-// src/broadcasts/reach-for.ts
-var DEFAULT_CAMPAIGN_CHANNELS = ["whatsapp"];
-var NEW_PLAYBOOK_TICKS_EVERY_CHANNEL = true;
-function newCampaignChannels(kind, open) {
-  const [first] = open ?? [];
-  if (!open || first === void 0) return [...DEFAULT_CAMPAIGN_CHANNELS];
-  return kind === "playbook" && NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? [...open] : [first];
-}
-var CHANNEL_WORDS = {
-  noOffersByText: "Texts carry no offers.",
-  /**
-   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
-   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
-   */
-  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
-  noWhatsApp: "Connect a WhatsApp number first.",
-  noTextLine: "No texting line yet.",
-  textLineMock: "Your texting line is a test filing: it sends nothing.",
-  textLineNotActive: "Your texting line is not approved by the carriers yet.",
-  noMailbox: "Set up email in Settings \u203A Connections first.",
-  noEmailDomain: "Email is not switched on for this deployment yet.",
-  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
-  unchecked: "This could not be checked just now."
-};
-function channelNeverCarries(channel, purpose) {
-  return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS.noOffersByText : null;
-}
-function channelRefuses(channel, purpose, about, ready) {
-  const never = channelNeverCarries(channel, purpose);
-  if (never) return never;
-  if (channel === "whatsapp" && purpose === "marketing") {
-    const offers2 = ready.whatsapp.offers;
-    return offers2 && !offers2.ok ? offers2.why : null;
-  }
-  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
-  const offers = ready.email.offers;
-  return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
-}
-function offersNote(ready) {
-  const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
-  const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
-  const noText = "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
-  const paused = ready.whatsapp.offers?.why ?? "";
-  if (byWhatsApp && byEmail)
-    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
-  if (byWhatsApp)
-    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
-  if (byEmail)
-    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
-  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
-}
-function channelsReady(f) {
-  const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
-  const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
-  const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
-  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
-  const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
-  return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
-}
-function channelChoices(ready, purpose, about) {
-  return CONSENT_CHANNELS.map((channel) => {
-    const refuses = channelRefuses(channel, purpose, about, ready);
-    if (refuses) return { channel, ok: false, why: refuses };
-    return { channel, ok: ready[channel].ready, why: ready[channel].why };
-  });
-}
-var HELD_ORDER = {
-  stopped: 0,
-  unsubscribed: 1,
-  no_yes: 2,
-  no_number: 3,
-  no_address: 4,
-  address_stopped: 5,
-  no_channel: 6
-};
-var HELD_ON = Object.keys(HELD_ORDER).sort(
-  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
-);
-function reachFor(r2, purpose, o) {
-  const usable = CONSENT_CHANNELS.filter(
-    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
-  );
-  if (usable.length === 0) return { channel: null, held: "no_channel" };
-  const last = r2.lastChannel ?? null;
-  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const why = [];
-  for (const c of order) {
-    const w = whyNotReceive(r2, purpose, c, o.about);
-    if (w === null) return { channel: c, held: null };
-    why.push(w);
-  }
-  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
-}
-function reachSplit(rows, purpose, o) {
-  const out = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
-  for (const r2 of rows) {
-    const p = reachFor(r2, purpose, o);
-    if (p.channel) {
-      out.reached += 1;
-      out.byChannel[p.channel] += 1;
-    } else {
-      out.held += 1;
-      out.heldBy[p.held] = (out.heldBy[p.held] ?? 0) + 1;
-    }
-  }
-  return out;
-}
-var SPLIT_CHANNEL_WORDS = {
-  whatsapp: "on WhatsApp",
-  sms: "by text",
-  email: "by email"
-};
-function reachSplitWords(s) {
-  const parts2 = CONSENT_CHANNELS.filter((c) => s.byChannel[c] > 0).map(
-    (c) => `${s.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`
-  );
-  const head = s.reached === 0 ? "Reaches nobody" : parts2.length === 1 ? `Reaches ${parts2[0]}` : `Reaches ${s.reached}: ${parts2.join(", ")}`;
-  return s.held > 0 ? `${head} \xB7 ${s.held} can't be reached` : head;
-}
-var CAMPAIGN_MONTH_ALLOWANCE = {
-  email: 2e3,
-  sms: 500
-};
-function heldByAllowance(trigger, purpose) {
-  const t = trigger ? triggerOf(trigger) : null;
-  return !(t?.cls === "booking" && purpose === "conversational");
-}
-function nextMonthStart(tz, atMs) {
-  const { y, m } = dayInZone(tz, atMs);
-  const [year, month] = m === 12 ? [y + 1, 1] : [y, m + 1];
-  return wallClockAt(tz, `${year}-${String(month).padStart(2, "0")}-01`, 0, 0);
-}
-function monthSentAt(read, at3) {
-  const next = read.month_sent_next;
-  if (next && at3 >= next.from) return next.sent;
-  return read.month_sent ?? null;
-}
-function allowanceRoom(channel, sent2) {
-  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent2);
-}
-function pastAllowance(people, sent2, trigger, purpose) {
-  if (!heldByAllowance(trigger, purpose)) return [];
-  const room = { email: allowanceRoom("email", sent2.email), sms: allowanceRoom("sms", sent2.sms) };
-  const past = [];
-  for (const p of people) {
-    if (p.channel === "whatsapp") continue;
-    if (room[p.channel] > 0) room[p.channel] -= 1;
-    else past.push(p);
-  }
-  return past;
-}
-function sends(channel, n) {
-  const one = channel === "email" ? "email" : "text";
-  return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
-}
-var peopleWord = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
-function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
-  if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
-  const lines = [];
-  for (const channel of ["email", "sms"]) {
-    const room = allowanceRoom(channel, sent2[channel]);
-    const past = byChannel[channel] - room;
-    if (past <= 0) continue;
-    lines.push(
-      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
-    );
-  }
-  return lines.length > 0 ? lines.join(" ") : null;
-}
-function allowanceLine(channel, used) {
-  const of = CAMPAIGN_MONTH_ALLOWANCE[channel];
-  if (used * 2 < of) return null;
-  const noun = channel === "email" ? "emails" : "texts";
-  return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
-}
-function allowanceLines(sent2) {
-  if (!sent2) return [];
-  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
 }
 
 // src/broadcasts/reach-any.ts
@@ -13125,16 +14285,16 @@ var PARAM_SOURCE_LABELS = {
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
-  visit_when: "Their visit's time",
-  visit_service: "Their visit's service",
+  visit_when: "Their booked time",
+  visit_service: "Their booked service",
   proposal_link: "Their proposal's link"
 };
 var PARAM_SOURCE_HINTS = {
   first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
   business_name: "From Settings \u203A Business",
   booking_link: "From Settings \u203A Business",
-  visit_when: "Each visit's own, from the calendar",
-  visit_service: "Each visit's own, from the calendar",
+  visit_when: "Each one's own, from the calendar",
+  visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal"
 };
 function parseParamSpec(raw) {
@@ -13160,7 +14320,7 @@ function paramLabel(spec) {
 function playbooksStillSending(names3) {
   const quoted = names3.map((n) => `\u201C${n}\u201D`);
   if (quoted.length <= 1)
-    return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 function firstNameOf(displayName, waProfileName) {
@@ -13234,7 +14394,7 @@ function templateUseWords(use) {
   if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
   if (u.booking) parts2.push("the Inbox");
   if (parts2.length === 0) return "Nothing sends it";
-  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
+  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
   return capital(sayList(parts2));
 }
 function templateUseNote(use) {
@@ -13269,6 +14429,17 @@ function templateSends(src) {
   }
   return out;
 }
+function templateSendsOf(answer) {
+  const byName = recordOrNull(answer);
+  if (!byName) return null;
+  const out = {};
+  for (const [name, raw] of Object.entries(byName)) {
+    const s = recordOrNull(raw);
+    if (!s || !isCount(s.count) || !(s.last_at === null || typeof s.last_at === "string")) return null;
+    out[name] = { count: s.count, lastAt: s.last_at };
+  }
+  return out;
+}
 function templateSentWords(s, tz, nowMs) {
   if (!s || s.count === 0) return { count: null, when: "Never sent" };
   const at3 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
@@ -13293,12 +14464,12 @@ function doorNamesNoAudience(to, audiences) {
   return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
 }
 var UNKNOWN_AUDIENCE_WORDS = "That list can't be messaged right now, so check who this is addressed to before you send.";
-function eligibleFor(rows, kind, id, savedIds, purpose, how) {
-  return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
+function eligibleFor(rows2, kind, id, savedIds, purpose, how) {
+  return enrolFor(rows2, kind, id, savedIds, purpose, how).map((e) => e.row);
 }
-function enrolFor(rows, kind, id, savedIds, purpose, how) {
+function enrolFor(rows2, kind, id, savedIds, purpose, how) {
   const out = [];
-  for (const row2 of audienceMembers(rows, kind, id, savedIds)) {
+  for (const row2 of audienceMembers(rows2, kind, id, savedIds)) {
     const p = reachFor(row2, purpose, how);
     if (p.channel) out.push({ row: row2, channel: p.channel });
   }
@@ -13343,24 +14514,24 @@ function heldBackWords(channels) {
   const reach = lacks.length > 0 ? [`have ${lacks.join(" or ")}`] : [];
   return `people who ${["asked to stop", ...reach].join(", ")}, or are mid-thread with a person are held back at the wire`;
 }
-function audienceMembers(rows, kind, id, savedIds) {
+function audienceMembers(rows2, kind, id, savedIds) {
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
-    return l ? rows.filter(l.test) : [];
+    return l ? rows2.filter(l.test) : [];
   }
-  if (kind === "saved") return savedIds ? rows.filter((r2) => savedIds.has(r2.id)) : [];
-  return rows;
+  if (kind === "saved") return savedIds ? rows2.filter((r2) => savedIds.has(r2.id)) : [];
+  return rows2;
 }
 function heardWords(n) {
   if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a playbook or a broadcast this week.`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
 }
 function previewPerson(r2, refusal, channel) {
   return { id: r2.id, label: r2.name, firstName: firstNameOf(r2.givenName, r2.waName), refusal, channel };
 }
 var NO_ONE = /* @__PURE__ */ new Set();
-function audiencePreview(rows, kind, id, savedIds, purpose, how, limit = 5, touched = NO_ONE) {
-  const pool = audienceMembers(rows, kind, id, savedIds);
+function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touched = NO_ONE) {
+  const pool = audienceMembers(rows2, kind, id, savedIds);
   const picks = pool.map((r2) => ({ r: r2, p: reachFor(r2, purpose, how) }));
   const sending = picks.filter((x) => x.p.channel !== null);
   const held = picks.filter((x) => x.p.channel === null);
@@ -13526,10 +14697,6 @@ function finishedRunHeldWhy(emailHeld) {
   return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }
 
-// src/shared/numbers.ts
-var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
-var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
-
 // src/broadcasts/run-report.ts
 var RUN_REPORT_STEPS = 8;
 var RUN_REPORT_SPANS_H = [1, 2, 4, 8, 12, 24, 48, 72];
@@ -13545,10 +14712,10 @@ function consentAnswerWords(consent, purpose) {
   if (consent === "opted_in") return purpose === "marketing" ? "said yes to offers" : "said yes to hearing from you";
   return purpose === "marketing" ? "stopped offers, not messages" : "asked to stop hearing from you";
 }
-function answersWords(rows, consent) {
-  const byEmail = rows.filter((r2) => r2.consent_purpose === "email_marketing").length;
-  const offers = byEmail + rows.filter((r2) => r2.consent_purpose === "marketing").length;
-  const rest = rows.length - offers;
+function answersWords(rows2, consent) {
+  const byEmail = rows2.filter((r2) => r2.consent_purpose === "email_marketing").length;
+  const offers = byEmail + rows2.filter((r2) => r2.consent_purpose === "marketing").length;
+  const rest = rows2.length - offers;
   if (rest === 0 && byEmail === offers) return consentAnswerWords(consent, "email_marketing");
   if (offers === 0 || rest === 0) return consentAnswerWords(consent, offers > 0 ? "marketing" : "conversational");
   return consent === "opted_in" ? `${offers} to offers \xB7 ${rest} to hearing from you` : `${offers} stopped offers \xB7 ${rest} stopped everything`;
@@ -13886,6 +15053,27 @@ function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title
   const day = clockDate(now.getTime(), tz, now.getTime());
   return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
+var RUN_COUNTED = ["queued", "sent", "skipped", "failed", "delivered", "read", "replied"];
+function runCountsOf(answer) {
+  const byRun = recordOrNull(answer);
+  if (!byRun) return null;
+  const out = {};
+  for (const [id, raw] of Object.entries(byRun)) {
+    const c = recordOrNull(raw);
+    const by = recordOrNull(c?.sent_by);
+    if (!c || !by) return null;
+    const counts = { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
+    for (const k of RUN_COUNTED) {
+      const n = c[k];
+      if (!isCount(n)) return null;
+      counts[k] = n;
+    }
+    const { whatsapp, sms, email } = by;
+    if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
+    out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
+  }
+  return out;
+}
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
   return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
@@ -13923,7 +15111,7 @@ function emptyAudienceRefusal(purpose, label, pool, how) {
   if (ticked.includes("email"))
     return `Nobody on \u201C${label}\u201D can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
   if (pool.some((r2) => answeredYes(r2, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 
 // src/shared/html.ts
@@ -14003,10 +15191,10 @@ var PREVIEW_CHANNEL_WORDS = {
   sms: capitalised2(CONSENT_CHANNEL_WORDS.sms),
   email: capitalised2(CONSENT_CHANNEL_WORDS.email)
 };
-function previewVersionsOf(rows, name, language) {
+function previewVersionsOf(rows2, name, language) {
   const out = {};
   for (const channel of OWN_VERSION_CHANNELS) {
-    const row2 = rows.find((r2) => r2.channel === channel && r2.name === name && r2.language === language);
+    const row2 = rows2.find((r2) => r2.channel === channel && r2.name === name && r2.language === language);
     if (row2) out[channel] = versionWords(row2);
   }
   return out;
@@ -14064,50 +15252,6 @@ function reachBarWords(split) {
   if (!first) return "Reaches nobody";
   if (parts2.length === 1) return `Reaches ${first.words}`;
   return `Reaches ${split.reached.toLocaleString("en-US")}: ${parts2.map((p) => p.words).join(", ")}`;
-}
-
-// src/broadcasts/channels-standing.ts
-var CHANNELS_DOOR = "admin/integrations";
-var BILLING_DOOR = "admin/billing";
-var NO_DOOR = [
-  CHANNEL_WORDS.unchecked,
-  CHANNEL_WORDS.noEmailDomain,
-  CHANNEL_WORDS.textLineNotActive,
-  CHANNEL_WORDS.textLineMock
-];
-function closedWords(channel, why) {
-  const reason = (why ?? "").replace(/\.$/, "");
-  return reason ? `${VERSION_CHANNEL_WORDS[channel]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel]} is off`;
-}
-function channelsStandingParts(ready) {
-  if (!ready) return null;
-  if (ready.paused === true)
-    return [{ channel: null, channels: [], open: false, words: WORKSPACE_PAUSED_FACT, door: BILLING_DOOR }];
-  const open = CONSENT_CHANNELS.filter((c) => ready[c].ready);
-  const closed = CONSENT_CHANNELS.filter((c) => !ready[c].ready);
-  const parts2 = [
-    {
-      channel: null,
-      channels: open,
-      open: true,
-      words: open.length > 0 ? `Sending ${joinWords(open.map((c) => CONSENT_CHANNEL_WORDS[c]))}` : "Nothing can send yet",
-      door: null
-    }
-  ];
-  for (const c of closed) {
-    const why = ready[c].why;
-    parts2.push({
-      channel: c,
-      channels: [c],
-      open: false,
-      words: closedWords(c, why),
-      door: why && NO_DOOR.includes(why) ? null : CHANNELS_DOOR
-    });
-  }
-  return parts2;
-}
-function channelsStandingWords(parts2) {
-  return parts2.map((p) => p.words).join(" \xB7 ");
 }
 
 // src/broadcasts/send-when-words.ts
@@ -14687,6 +15831,42 @@ function offerLead(offer) {
   return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
 }
 
+// src/config/workspace-config/alerts.ts
+var ALERT_ADDRESSES_MAX = 10;
+var ALERT_ADDRESSES_MIN = 1;
+var alertKey = (address) => String(address ?? "").trim().toLowerCase();
+function alertAddressesOf(notifications) {
+  const out = /* @__PURE__ */ new Set();
+  for (const e of notifications?.escalation_emails ?? []) {
+    const key = alertKey(e);
+    if (key) out.add(key);
+  }
+  return out;
+}
+function memberGetsAlerts(email, notifications) {
+  const key = alertKey(email);
+  return !!key && alertAddressesOf(notifications).has(key);
+}
+var ALERT_REFUSED_WORDS = {
+  last: "Someone has to get alerts. Add another address on Notifications first.",
+  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
+  address: "That doesn't look like an email address."
+};
+function withAlertAddress(notifications, email, on) {
+  const key = alertKey(email);
+  if (!key || !key.includes("@")) return { ok: false, reason: "address" };
+  const list2 = [...notifications?.escalation_emails ?? []];
+  const has3 = list2.some((e) => alertKey(e) === key);
+  const next = on ? has3 ? list2 : [...list2, key] : list2.filter((e) => alertKey(e) !== key);
+  if (on && !has3 && next.length > ALERT_ADDRESSES_MAX) return { ok: false, reason: "full" };
+  if (!on && has3 && next.length < ALERT_ADDRESSES_MIN) return { ok: false, reason: "last" };
+  return {
+    ok: true,
+    changed: has3 !== on,
+    notifications: { ...notifications ?? {}, escalation_emails: next }
+  };
+}
+
 // src/calendar/calendar-people.ts
 function threadOf(p) {
   return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
@@ -14718,11 +15898,7 @@ function calendarOwnerOf(url) {
   return id;
 }
 function ownAddressesOf(cfg) {
-  const out = /* @__PURE__ */ new Set();
-  for (const e of cfg?.notifications?.escalation_emails ?? []) {
-    const a = String(e).trim().toLowerCase();
-    if (a) out.add(a);
-  }
+  const out = alertAddressesOf(cfg?.notifications);
   const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
   if (owner) out.add(owner);
   return out;
@@ -14996,64 +16172,6 @@ function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
   if (nextStartMs !== null) return true;
   return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }
-function toBookingReportVM(dto) {
-  if (!dto || dto.calendar === "none")
-    return {
-      present: false,
-      calendar: "none",
-      headline: "\u2014",
-      sub: BOOKED_NEEDS_A_LINK,
-      words: "",
-      pct: null,
-      asked: 0,
-      booked: 0,
-      unbooked: 0,
-      rest: ""
-    };
-  if (dto.calendar === "unavailable")
-    return {
-      present: false,
-      calendar: "unavailable",
-      headline: "\u2014",
-      sub: "Your calendar could not be read.",
-      words: "",
-      pct: null,
-      asked: dto.asked,
-      booked: 0,
-      unbooked: 0,
-      rest: ""
-    };
-  if (dto.asked === 0)
-    return {
-      present: true,
-      calendar: "ok",
-      headline: "Nobody asked",
-      sub: `nobody wrote or called in the last ${plural(dto.days, "day")}`,
-      words: "",
-      pct: null,
-      asked: 0,
-      booked: 0,
-      unbooked: 0,
-      rest: ""
-    };
-  const pct2 = Math.round(dto.booked / dto.asked * 100);
-  const words3 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
-  const unbooked = dto.asked - dto.booked;
-  return {
-    present: true,
-    calendar: "ok",
-    headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct2}% ${words3}`,
-    words: words3,
-    pct: pct2,
-    asked: dto.asked,
-    booked: dto.booked,
-    unbooked,
-    // The other side of the same share, said once: who is still waiting to be
-    // given a time. It is the half an owner can do something about.
-    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
-  };
-}
 
 // src/shared/link.ts
 var MAX_LINK = 500;
@@ -15143,8 +16261,8 @@ function dealFactsOf(r2) {
     lost_reason: r2.deal_lost_reason ?? null
   };
 }
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
+function pickCurrentDeal(rows2) {
+  const sorted = [...rows2].sort(
     (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
   );
   return sorted[0] ?? null;
@@ -15319,9 +16437,9 @@ function dealStagesOf(stage, open) {
   const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
   return [...new Set(stage ? [stage, ...theirs] : theirs)];
 }
-function consultationsWithoutProposal(rows, nowMs) {
+function consultationsWithoutProposal(rows2, nowMs) {
   const endOf = (r2) => r2.consultedMs;
-  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
+  return rows2.filter((r2) => consultationHeld(r2, nowMs)).sort(
     (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
   );
 }
@@ -15353,10 +16471,10 @@ function feedAppointmentRows(items, o) {
   return [...out.values()];
 }
 var OFF = /* @__PURE__ */ new Set(["missed", "cancelled"]);
-function appointmentHolds(rows, facts) {
+function appointmentHolds(rows2, facts) {
   const key = typeof facts.appointment === "string" ? facts.appointment : null;
   const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
-  const row2 = key ? rows.get(key) : void 0;
+  const row2 = key ? rows2.get(key) : void 0;
   if (!row2 || !Number.isFinite(start)) return true;
   if (OFF.has(row2.status)) return false;
   const read = typeof facts.appointment_read_at === "string" ? Date.parse(facts.appointment_read_at) : NaN;
@@ -15364,9 +16482,9 @@ function appointmentHolds(rows, facts) {
   if (row2.vanished_at !== null && Date.parse(row2.vanished_at) > read) return false;
   return Date.parse(row2.starts_at) === start || !(Date.parse(row2.updated_at) > read);
 }
-function appointmentKeysOf(rows) {
+function appointmentKeysOf(rows2) {
   const keys = /* @__PURE__ */ new Set();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const f = r2.facts;
     if (f && typeof f === "object" && !Array.isArray(f)) {
       const k = f.appointment;
@@ -15481,8 +16599,8 @@ function appointmentTitle(row2) {
   const parts2 = [row2.service, row2.client_name].map((s) => s?.trim()).filter((s) => !!s);
   return parts2.length ? parts2.join(" \xB7 ") : APPOINTMENT_UNTITLED;
 }
-function busyOfAppointments(rows) {
-  return rows.map((r2) => ({ start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) }));
+function busyOfAppointments(rows2) {
+  return rows2.map((r2) => ({ start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) }));
 }
 function feedItemOfAppointment(row2) {
   return {
@@ -15531,11 +16649,11 @@ function itemOfAppointment(row2, people) {
     price: row2.price
   };
 }
-function withoutVisitsRowsDraw(items, rows, own) {
-  if (!rows.length) return items;
+function withoutVisitsRowsDraw(items, rows2, own) {
+  if (!rows2.length) return items;
   const byPhone = /* @__PURE__ */ new Map();
   const byEmail = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const at3 = Date.parse(r2.starts_at);
     if (r2.client_phone) byPhone.set(r2.client_phone, [...byPhone.get(r2.client_phone) ?? [], at3]);
     if (r2.client_email) byEmail.set(r2.client_email.toLowerCase(), [...byEmail.get(r2.client_email) ?? [], at3]);
@@ -15548,9 +16666,9 @@ function withoutVisitsRowsDraw(items, rows, own) {
     return !same2;
   });
 }
-function daysWithAppointments(days, rows, tz, people) {
-  if (!rows.length) return days;
-  const items = rows.map((r2) => ({
+function daysWithAppointments(days, rows2, tz, people) {
+  if (!rows2.length) return days;
+  const items = rows2.map((r2) => ({
     at: { start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) },
     item: itemOfAppointment(r2, people)
   }));
@@ -15565,7 +16683,7 @@ function daysWithAppointments(days, rows, tz, people) {
 }
 
 // src/calendar/calendar.ts
-function hoursOf(tz, ms2) {
+function hoursOf2(tz, ms2) {
   const c = clockInZone(tz, ms2);
   return c.hh + c.mm / 60;
 }
@@ -15573,7 +16691,7 @@ function nextOpenWords(startIso, tz, todayKey) {
   const ms2 = startIso ? Date.parse(startIso) : Number.NaN;
   if (!Number.isFinite(ms2)) return "\u2014";
   const day = dayInZone(tz, ms2);
-  const clock3 = clockLabel(hoursOf(tz, ms2));
+  const clock3 = clockLabel(hoursOf2(tz, ms2));
   if (day.key === todayKey) return `today ${clock3}`;
   if (day.key === shiftKey(todayKey, 1)) return `tomorrow ${clock3}`;
   if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock3}`;
@@ -15653,8 +16771,8 @@ var sourceOfWeek = (dto, link, forwarding) => calendarSourceOf({
 function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
-  const t = s === dayStartMs ? 0 : hoursOf(tz, s);
-  const tEnd = e === dayEndMs ? 24 : hoursOf(tz, e);
+  const t = s === dayStartMs ? 0 : hoursOf2(tz, s);
+  const tEnd = e === dayEndMs ? 24 : hoursOf2(tz, e);
   return {
     id: item.id,
     t,
@@ -15780,8 +16898,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
     assignLanes(timed);
     const windows = d.windows.map((w) => {
-      const t = hoursOf(tz, Date.parse(w.start));
-      const tEnd = hoursOf(tz, Date.parse(w.end));
+      const t = hoursOf2(tz, Date.parse(w.start));
+      const tEnd = hoursOf2(tz, Date.parse(w.end));
       return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel2(t, tEnd) };
     });
     return {
@@ -15812,7 +16930,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const feedRead = feedReadWords(dto.feed.state, ago3);
   const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
   const source = sourceOfWeek(dto, feedHealth, !!notices.forwarding);
-  const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
+  const nowIn = days.some((d) => d.today) ? hoursOf2(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
   const ahead = closuresFrom(dto.closures, todayKey);
@@ -15976,7 +17094,7 @@ var JOB_KINDS = [
    */
   "inbound_answer"
 ];
-var EVENT_SUBSCRIBERS = ["audit"];
+var EVENT_SUBSCRIBERS = ["audit", "reach_out_booked"];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
   "phone_number_quality_update",
@@ -16167,11 +17285,62 @@ var EVENT_KINDS = [
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated",
   /**
-   * An appointment the calendar's hourly read kept changed (appointments_feed_sync, 00348, decision 0002): { change: added
-   * | moved | vanished | back, source, starts_at }, never its title. On the appointment; hidden from the activity
-   * log unless asked for by name, since a calendar read writes one per appointment.
+   * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
+   * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
+   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00389). On
+   * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
+   * appointment.
    */
-  "appointment.changed"
+  "appointment.changed",
+  /**
+   * What a member did, or the receptionist, that neither ledger kept (the activity log's review, 8 Oct 2026). Each
+   * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
+   *
+   * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
+   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00388), once per hold; a
+   * reason that changes under an open hold is escalation.changed.
+   */
+  "escalation.opened",
+  /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
+  "member.joined",
+  /** A playbook, or a reach-out's chain, edited ({ name, by, fields }: which parts moved, never their words). */
+  "playbook.changed",
+  /** A message sent to WhatsApp for approval, and one deleted from the Library ({ name, language, by }). */
+  "template.submitted",
+  "template.removed",
+  /** The owner switched what the workspace answers on or off ({ capability, by }: calls, WhatsApp or texts). */
+  "capability.activated",
+  "capability.deactivated",
+  /** A person left the workspace by deleting their account ({ by, how }): the seat is gone, and so is its name. */
+  "member.left",
+  /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
+  "reach_out.lead_stopped",
+  "reach_out.send_decided",
+  /** A place in Needs review kept (it counts against the month), left out, or put back ({ by, search_id }), on the lead. */
+  "lead.kept",
+  "lead.excluded",
+  "lead.put_back",
+  /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
+  "lead.search_renamed",
+  "lead.search_removed",
+  /** Two records a doubt named, said to be two people ({ by }), on the person. */
+  "contact.kept_apart",
+  /** The number a business keeps set to forward to its line ({ carrier, mode, by }: never the number), on the line. */
+  "line.forwarding_set",
+  /**
+   * A booking tool's email, read into the calendar (packages/jobs booking-read): a visit booked, moved or cancelled
+   * ({ source: "booking_email", tool }), on the appointment. Shown, where appointment.changed (the calendar's hourly
+   * read) is a kept record: an email is one thing that happened, said once.
+   */
+  "appointment.booked",
+  "appointment.moved",
+  "appointment.cancelled",
+  /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
+  "conversation.owner_replied",
+  /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */
+  "billing.payment_failed",
+  "billing.paid",
+  "billing.trial_ending"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
@@ -16303,6 +17472,11 @@ var DECISION_VERBS = [
   "start_playbook",
   "pause_playbook",
   /**
+   * A playbook changed in place (the change_playbook door): its name, hour, cap, gap or cadence. Subject 'playbook'; the
+   * payload names what changed. A pause or a resume stays pause_playbook or start_playbook.
+   */
+  "change_playbook",
+  /**
    * An answer to a review on Google, in the business's own words: subject
    * 'review' (the row's id), payload the words and when Google took them.
    * Replaces the previous answer; Google keeps one per review.
@@ -16422,6 +17596,53 @@ var ROLE_PERMS = {
     find: false
   }
 };
+var ROLE_SAYS = {
+  owner: {
+    label: "Owner",
+    one: "an Owner",
+    can: "Everything, billing and the team included.",
+    short: "Everything, billing and the team included"
+  },
+  operator: {
+    label: "Operator",
+    one: "an Operator",
+    can: "Answers and approves conversations, tunes autonomy. No billing, team or channels.",
+    short: "Answers and approves, tunes autonomy"
+  },
+  partner: {
+    label: "Partner",
+    one: "a Partner",
+    can: "Sets up and runs the receptionist with you. No billing, team or customer export.",
+    short: "Sets up and runs the receptionist with you"
+  },
+  viewer: {
+    label: "Viewer",
+    one: "a Viewer",
+    can: "Sees everything, changes nothing.",
+    short: "Sees everything, changes nothing"
+  }
+};
+function roleSays(role) {
+  return ROLE_SAYS[role] ?? { label: role, one: role, can: "", short: "" };
+}
+var ROLE_TABLE_LINES = [
+  { perm: null, says: "See conversations, people and reports" },
+  { perm: "approve", says: "Approve and send replies" },
+  { perm: "autonomy", says: "Tune autonomy" },
+  { perm: "settings", says: "Business details and who gets alerts" },
+  { perm: "disconnect", says: "Connect and disconnect channels" },
+  { perm: "find", says: "Find leads", note: "uses the month's allowance" },
+  { perm: "export", says: "Export the customer list" },
+  { perm: "billing", says: "Billing" },
+  { perm: "team", says: "The team and its roles" }
+];
+function roleTable() {
+  return ROLE_TABLE_LINES.map((line) => ({
+    says: line.says,
+    note: line.note ?? null,
+    can: Object.fromEntries(ROLES.map((r2) => [r2, line.perm === null ? true : ROLE_PERMS[r2][line.perm]]))
+  }));
+}
 
 // src/config/workspace-config/policy-limits-schema.ts
 import { z as z5 } from "zod";
@@ -16572,14 +17793,14 @@ var trimmed = (v) => {
   return s || null;
 };
 var activeChannel = (known, kind) => {
-  const rows = known?.channels ?? [];
-  const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
+  const rows2 = known?.channels ?? [];
+  const row2 = rows2.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
 var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r2) => trimmed(r2.from_e164) && samePhone(r2.to_e164, line))?.from_e164) : null;
-function knownForwarding(rows) {
+function knownForwarding(rows2) {
   const out = [];
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const from = trimmed(r2.e164);
     if (r2.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r2.forwarding?.destination_e164 ?? null });
   }
@@ -16899,8 +18120,16 @@ function refuseUnknownFields(read, raw, ctx) {
 
 // src/config/workspace-config/config-schema.ts
 var NotificationsConfigSchema = z8.object({
-  escalation_emails: z8.array(z8.string().email()).min(1).max(10),
-  from: z8.string().max(200).optional()
+  escalation_emails: z8.array(z8.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
+  from: z8.string().max(200).optional(),
+  /**
+   * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
+   * set: a kind a newer dashboard writes must not make an older edge's read fail, and `emailOffOf` reads only the kinds
+   * that may be turned off. An edge older than the field drops it and keeps emailing, the safe side.
+   */
+  // `.catch`: a stored value that is not a short list of short names reads as none (everything emailed), never as a
+  // config that cannot be parsed, which would leave the receptionist silent.
+  email_off: z8.array(z8.string().max(40)).max(40).optional().catch(void 0)
 }).strip();
 var CalendarConfigSchema = z8.object({
   ical_url: z8.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
@@ -17907,7 +19136,7 @@ function abilityRows(i) {
   const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = !i.hasBookingLink ? i.linkOptional ? "No booking link, so it takes their details for you to follow up with a quote." : "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  const rows = [
+  const rows2 = [
     {
       id: "answer",
       title: "Answer from your facts",
@@ -17988,7 +19217,7 @@ function abilityRows(i) {
     door: "Your Autonomy tab",
     to: "admin/autonomy"
   } : null;
-  return { rows, held };
+  return { rows: rows2, held };
 }
 var CANNOT_ROWS = [
   {
@@ -18209,8 +19438,8 @@ function promptBlocks(text, channel, from) {
 }
 
 // src/google/review-reply.ts
-function reviewReplyModeOf(rows) {
-  const m = rows?.find((r2) => r2.class === "reviews")?.mode;
+function reviewReplyModeOf(rows2) {
+  const m = rows2?.find((r2) => r2.class === "reviews")?.mode;
   return m === "auto" || m === "never" ? m : "ask";
 }
 var REVIEW_REPLY_MAX_WORDS = 60;
@@ -18275,10 +19504,10 @@ var REVIEW_HELD_WORDS = { price: "it named a price", money: "it named money" };
 function reviewHeldWords(why) {
   return why != null && Object.hasOwn(REVIEW_HELD_WORDS, why) ? REVIEW_HELD_WORDS[why] ?? null : null;
 }
-function autoReplyCandidates(rows, connectedAt, nowMs, cap2 = REVIEW_AUTO_REPLIES_PER_SYNC) {
+function autoReplyCandidates(rows2, connectedAt, nowMs, cap2 = REVIEW_AUTO_REPLIES_PER_SYNC) {
   const connected = connectedAt ? Date.parse(connectedAt) : NaN;
   if (Number.isNaN(connected)) return [];
-  return rows.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at3 }) => !Number.isNaN(at3) && at3 > connected && nowMs - at3 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap2)).map(({ r: r2 }) => r2);
+  return rows2.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at3 }) => !Number.isNaN(at3) && at3 > connected && nowMs - at3 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap2)).map(({ r: r2 }) => r2);
 }
 function autoReplyBell(answered) {
   if (!answered.length) return null;
@@ -18297,593 +19526,6 @@ function reviewReplyWords(mode, canReply) {
   if (mode === "auto") return "new ones are answered by the receptionist within the hour";
   if (mode === "ask") return "the receptionist drafts, you send";
   return "";
-}
-
-// src/reports/report-speed.ts
-var REPLY_BUCKETS = [
-  { id: "lt15", label: "under 15s", max: 14 },
-  { id: "lt60", label: "15s \u2013 1m", max: 60 },
-  { id: "lt300", label: "1 \u2013 5m", max: 300 },
-  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
-  { id: "gte1800", label: "over 30m", max: Infinity }
-];
-var LATER_BUCKETS = [
-  { id: "lt60", label: "up to 1m later", max: 60 },
-  { id: "lt300", label: "1 \u2013 5m later", max: 300 },
-  { id: "gte300", label: "over 5m later", max: Infinity }
-];
-var HOLD_SLACK_S = 10;
-var holdWords2 = (s) => s < 60 ? `${s}-second` : s % 60 === 0 && s < 3600 ? `${s / 60}-minute` : durationWords(s);
-function classOf(r2) {
-  if (r2.hold === void 0 || !(r2.hold > 0)) return { kind: "unheld" };
-  const past = r2.s - r2.hold;
-  return past > HOLD_SLACK_S ? { kind: "later", past } : { kind: "atEnd" };
-}
-function classified(replies) {
-  const rs = (replies ?? []).filter((r2) => Number.isFinite(r2.s));
-  if (!rs.some((r2) => r2.hold !== void 0)) return null;
-  const all = rs.map((r2) => ({ hold: r2.hold ?? 0, c: classOf(r2) }));
-  return all.some((x) => x.c.kind !== "unheld") ? all : null;
-}
-var countOf = (all, kind) => all.filter((x) => x.c.kind === kind).length;
-var pastOf = (all) => all.flatMap((x) => x.c.kind === "later" ? [x.c.past] : []);
-function holdOf(replies) {
-  const all = classified(replies);
-  if (!all) return null;
-  const counts = /* @__PURE__ */ new Map();
-  for (const x of all) if (x.c.kind !== "unheld") counts.set(x.hold, (counts.get(x.hold) ?? 0) + 1);
-  const [seconds2] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
-  const past = pastOf(all);
-  return {
-    seconds: seconds2,
-    label: holdWords2(seconds2),
-    atEnd: countOf(all, "atEnd"),
-    unheld: countOf(all, "unheld"),
-    later: past.length,
-    laterMost: past.length ? Math.max(...past) : null
-  };
-}
-function spanCounts(spans, seconds2) {
-  const rounded = seconds2.map(Math.round);
-  const rows = [];
-  let lo = -Infinity;
-  for (const { id, label, max } of spans) {
-    rows.push([id, label, rounded.filter((s) => s > lo && s <= max).length]);
-    lo = max;
-  }
-  return rows;
-}
-function holdBuckets(replies) {
-  const all = classified(replies);
-  if (!all) return null;
-  return [
-    ["unheld", "with no hold", countOf(all, "unheld")],
-    ["atEnd", "as the hold ended", countOf(all, "atEnd")],
-    ...spanCounts(LATER_BUCKETS, pastOf(all))
-  ];
-}
-var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
-var replyHoldDtoOf = (hold) => hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
-var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
-var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
-var endedWithHold = (hold) => hold.atEnd >= hold.later;
-var againstHold = (hold) => endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
-function heroSpeed(replies, medianLabel, hold) {
-  if (!replies) return "";
-  if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
-  return ` ${endedWithHold(hold) ? hold.atEnd : hold.later} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
-}
-function replySpeedOf(median, hold) {
-  if (median === null) return null;
-  const counts = hold && {
-    label: hold.label,
-    atEnd: hold.at_end,
-    later: hold.later,
-    unheld: hold.unheld
-  };
-  if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
-  return {
-    held: true,
-    words: againstHold(counts)
-  };
-}
-function holdLine(hold) {
-  if (hold.laterMost !== null) {
-    const more = durationWords(hold.laterMost);
-    return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more} more.`;
-  }
-  return hold.unheld ? `None waited longer than your hold; ${hold.unheld} had no hold.` : "None waited longer than your hold.";
-}
-var holdNote = (hold) => hold ? ` \xB7 includes your ${hold.label} hold` : "";
-
-// src/reports/report-closed.ts
-function closedOf(arrivals, profile) {
-  if (!arrivals || !profile || !hasHours(profile.hours)) return null;
-  return arrivals.reduce((s, a) => s + (openAt(profile.hours, profile.closures, a.d, a.q * 15) ? 0 : a.n), 0);
-}
-function hoursUnsetOf(arrivals, profile) {
-  return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
-}
-
-// src/reports/report-tiles.ts
-function fmtSeconds(s) {
-  if (s == null || !Number.isFinite(s)) return "\u2014";
-  return durationWords(s);
-}
-function deltaOf(current, previous, upIsGood, noun) {
-  if (!previous) return null;
-  const pct2 = Math.round((current - previous) / previous * 100);
-  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
-  const up = pct2 > 0;
-  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
-}
-function pointsDelta(current, previous, noun) {
-  if (current === null || previous === null) return null;
-  const pts = current - previous;
-  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
-  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
-}
-var beforeWords = (rangeLabel) => `the ${rangeLabel === plural(1, "day") ? "day" : rangeLabel} before`;
-function compareWords(current, previous, rangeLabel, priorHadAny) {
-  if (!priorHadAny || current === 0 && previous === 0) return null;
-  if (previous === 0) return `none ${beforeWords(rangeLabel)}`;
-  if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
-  return `${current > previous ? "up" : "down"} from ${previous}`;
-}
-var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "messages",
-  metric: "customer_messages",
-  label: "Customer messages",
-  value: String(tot.in),
-  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}` : "none in this period",
-  delta: deltaOf(tot.in, prev.in, true, noun),
-  spark: points.map((p) => p.in),
-  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
-});
-var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
-  id: "answered",
-  metric: "answered_share",
-  label: "Receptionist answered",
-  value: aiShare === null ? "\u2014" : `${aiShare}%`,
-  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
-  // A share compares in POINTS. Against counts, the share could fall from
-  // 100% to 60% while the delta read +20% in green.
-  delta: pointsDelta(aiShare, prevShare, noun),
-  spark: points.map((p) => p.ai),
-  compare: null
-});
-var replyTile = ({ sortedReply, median, p90, hold }) => ({
-  id: "reply",
-  metric: "reply_median",
-  label: "Median reply time",
-  value: fmtSeconds(median),
-  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
-  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
-  delta: null,
-  spark: [],
-  compare: null
-});
-var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "needed",
-  metric: "handovers",
-  label: "Needed you",
-  value: String(tot.escalations),
-  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-  spark: points.map((p) => p.escalations),
-  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
-});
-var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "calls",
-  metric: "calls",
-  label: "Calls",
-  value: String(tot.calls),
-  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
-  delta: deltaOf(tot.calls, prev.calls, true, noun),
-  spark: points.map((p) => p.calls),
-  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
-});
-var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "people",
-  metric: "new_people",
-  label: "New people",
-  value: String(tot.newPeople),
-  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-  spark: points.map((p) => p.newPeople),
-  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
-});
-var REPORT_TILES = [
-  messagesTile,
-  answeredTile,
-  replyTile,
-  neededTile,
-  callsTile,
-  peopleTile
-];
-function bookedTileOf(booking) {
-  const tile = { id: "booked", metric: "booked", label: "Booked", compare: null };
-  if (booking && booking.present)
-    return {
-      ...tile,
-      value: String(booking.booked),
-      meta: booking.asked ? `of ${booking.asked} who asked` : "nobody asked"
-    };
-  return {
-    ...tile,
-    value: "\u2014",
-    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar link"
-  };
-}
-
-// src/reports/reports.ts
-var REPORT_CHANNELS = [
-  { key: "whatsapp", label: "WhatsApp" },
-  { key: "voice", label: "Calls" },
-  { key: "email", label: "Email" },
-  { key: "sms", label: "Text" }
-];
-var REPORT_RANGES = [
-  { days: 7, id: "7d", label: "7 days" },
-  { days: 30, id: "30d", label: "30 days" },
-  { days: 90, id: "90d", label: "90 days" },
-  { days: null, id: "month", label: "Month" }
-];
-function dayDate(day) {
-  const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
-}
-function fmtDay(day) {
-  return DATE_FMT.format(dayDate(day));
-}
-function dayPointOf(day) {
-  return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
-}
-function quantile(sorted, q) {
-  if (!sorted.length) return null;
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-function bars(entries) {
-  const max = Math.max(1, ...entries.map((e) => e[2]));
-  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
-}
-function priorOf(n, previous, pick) {
-  return Array.from({ length: n }, (_, i) => {
-    const j = previous.length - n + i;
-    return j >= 0 ? pick(previous[j]) : null;
-  });
-}
-var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-var weekdayOf2 = (day) => (dayDate(day).getDay() + 6) % 7;
-function weekOf(series) {
-  const total = [0, 0, 0, 0, 0, 0, 0];
-  const seen = [0, 0, 0, 0, 0, 0, 0];
-  for (const d of series) {
-    const w = weekdayOf2(d.day);
-    total[w] += (d.messages_in || 0) + (d.calls || 0);
-    seen[w] += 1;
-  }
-  return total.map((t, w) => seen[w] ? Math.round(t / seen[w] * 10) / 10 : 0);
-}
-function onlyIndex(values, wins) {
-  if (!values.some((v) => v > 0)) return null;
-  let at3 = 0;
-  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at3])) at3 = i;
-  return values.filter((v) => v === values[at3]).length === 1 ? at3 : null;
-}
-function reportHourWords(h) {
-  const x = (h % 24 + 24) % 24;
-  return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
-}
-function hoursOf2(grid, closed = null) {
-  if (!grid || !grid.length) return null;
-  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
-  const total = values.reduce((a, b) => a + b, 0);
-  let peak = null;
-  if (total > 0) {
-    peak = 0;
-    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
-  }
-  return { values, peak, closed, labels: values.map((_, h) => reportHourWords(h)) };
-}
-function channelsOf(ch) {
-  if (!ch) return null;
-  return REPORT_CHANNELS.map(({ key, label }) => ({
-    key,
-    label,
-    value: Number(ch.current?.[key]) || 0,
-    prior: Number(ch.previous?.[key]) || 0
-  })).filter((c) => c.value > 0 || c.prior > 0);
-}
-function runningTotal(values) {
-  let t = 0;
-  return values.map((v) => t += v || 0);
-}
-function speedOf(replies, days) {
-  const byDay = /* @__PURE__ */ new Map();
-  for (const r2 of replies) {
-    if (!Number.isFinite(r2.s)) continue;
-    const xs = byDay.get(r2.day) ?? [];
-    xs.push(r2.s);
-    byDay.set(r2.day, xs);
-  }
-  const point = (chunk) => {
-    const s = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
-    const first = chunk[0];
-    const p50 = quantile(s, 0.5);
-    const p90 = quantile(s, 0.9);
-    return {
-      day: first,
-      label: fmtDay(first),
-      short: chunk.length > 1 ? fmtDay(first) : String(dayDate(first).getDate()),
-      p50,
-      p90,
-      p50Label: fmtSeconds(p50),
-      p90Label: fmtSeconds(p90),
-      count: s.length
-    };
-  };
-  if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
-  const weeks = [];
-  for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
-  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
-  return { unit: "week", points: weeks.map(point) };
-}
-function callMoodTone(sentiment) {
-  return sentiment === "Positive" ? "ok" : sentiment === "Negative" ? "danger" : "";
-}
-var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
-var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
-var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
-function channelsLine(channels, rangeLabel) {
-  if (!channels) return null;
-  const reached = channels.reduce((s, c) => s + c.value, 0);
-  if (!reached) return null;
-  const top = channels.reduce((a, c) => c.value > a.value ? c : a);
-  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize(channelNoun(top))} ${top.key === "voice" || top.key === "sms" ? "lead" : "leads"}`;
-  const before = channels.reduce((s, c) => s + c.prior, 0);
-  if (!before) return `${lead}.`;
-  const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
-  if (wasTop.key === top.key) return `${lead}, as ${beforeWords(rangeLabel)}.`;
-  return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
-}
-function rhythmLine(week) {
-  if (!week.current.some((v) => v > 0)) return null;
-  const avg = week.unit === "average";
-  const name = (i) => avg ? `${week.long[i]}s` : week.long[i];
-  const idle = week.current.flatMap((v, i) => v === 0 ? [i] : []);
-  if (idle.length >= 4)
-    return `Only on ${listWords(
-      week.current.flatMap((v, i) => v > 0 ? [name(i)] : []),
-      "and"
-    )}.`;
-  if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
-  if (week.quietest === null) return null;
-  return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
-}
-var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
-var periodWords = (rangeLabel) => ({
-  now: `Last ${rangeLabel}`,
-  before: capitalize(beforeWords(rangeLabel)),
-  within: `in the last ${rangeLabel}`
-});
-var withinWords = (days) => days === 1 ? "today" : periodWords(rangeLabelOf(days)).within;
-function periodFactsOf(dto) {
-  const days = dto.days;
-  const series = dto.series ?? [];
-  const current = series.slice(-days);
-  const previous = series.slice(0, Math.max(0, series.length - days));
-  const points = current.map((d) => ({
-    ...dayPointOf(d.day),
-    in: d.messages_in,
-    ai: d.answered_ai,
-    you: d.answered_you,
-    none: d.unanswered,
-    calls: d.calls,
-    callSeconds: d.call_seconds,
-    escalations: d.escalations,
-    newPeople: d.new_contacts
-  }));
-  const tot = {
-    in: sumOf(current.map((d) => d.messages_in)),
-    ai: sumOf(current.map((d) => d.answered_ai)),
-    you: sumOf(current.map((d) => d.answered_you)),
-    none: sumOf(current.map((d) => d.unanswered)),
-    escalations: sumOf(current.map((d) => d.escalations)),
-    calls: sumOf(current.map((d) => d.calls)),
-    callSeconds: sumOf(current.map((d) => d.call_seconds)),
-    newPeople: sumOf(current.map((d) => d.new_contacts))
-  };
-  const prev = {
-    in: sumOf(previous.map((d) => d.messages_in)),
-    ai: sumOf(previous.map((d) => d.answered_ai)),
-    you: sumOf(previous.map((d) => d.answered_you)),
-    none: sumOf(previous.map((d) => d.unanswered)),
-    escalations: sumOf(previous.map((d) => d.escalations)),
-    calls: sumOf(previous.map((d) => d.calls)),
-    newPeople: sumOf(previous.map((d) => d.new_contacts))
-  };
-  const noun = plural(days, "day");
-  const answeredTotal = tot.ai + tot.you + tot.none;
-  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
-  const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
-  return {
-    dto,
-    days,
-    current,
-    previous,
-    points,
-    tot,
-    prev,
-    noun,
-    rangeLabel: rangeLabelOf(days),
-    // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
-    priorHadAny: prev.in + prev.calls > 0,
-    /** Nobody wrote or called in the period: no customer message and no call. */
-    empty: tot.in === 0 && tot.calls === 0,
-    answeredTotal,
-    aiShare: pct(tot.ai, answeredTotal),
-    prevAnsweredTotal,
-    prevShare: pct(prev.ai, prevAnsweredTotal),
-    sortedReply,
-    median: quantile(sortedReply, 0.5),
-    p90: quantile(sortedReply, 0.9),
-    // The replies against their holds, said once for the tile, the bars, the hero and the line (holdOf).
-    hold: holdOf(dto.replies)
-  };
-}
-var reasonBarsOf = (reasons) => bars(
-  Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
-);
-var moodBarsOf = (sentiments) => bars(
-  Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
-).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
-function weekShapeOf({ current, previous }) {
-  const weekNow = weekOf(current);
-  const weekBefore = weekOf(previous);
-  return {
-    axes: [...REPORT_WEEK_SHORT],
-    long: [...REPORT_WEEK_LONG],
-    current: weekNow,
-    prior: weekBefore.some((v) => v > 0) ? weekBefore : null,
-    busiest: onlyIndex(weekNow, (a, b) => a > b),
-    quietest: onlyIndex(weekNow, (a, b) => a < b),
-    unit: current.length > 7 ? "average" : "count"
-  };
-}
-function answeredOf(f) {
-  const { current, previous, points, tot, prev, answeredTotal, prevAnsweredTotal } = f;
-  return {
-    points,
-    totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
-    max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
-    prior: priorOf(current.length, previous, (d) => d.messages_in),
-    share: answeredTotal ? tot.ai / answeredTotal : null,
-    priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
-  };
-}
-function replyTimeOf({ dto, sortedReply, median, p90, hold }) {
-  return {
-    count: sortedReply.length,
-    median,
-    p90,
-    medianLabel: fmtSeconds(median),
-    p90Label: fmtSeconds(p90),
-    buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
-    hold
-  };
-}
-function callsOf({ dto, current, previous, points, tot }, sentiments) {
-  return {
-    points,
-    total: tot.calls,
-    minutes: Math.round(tot.callSeconds / 60),
-    voicemail: dto.voicemail ?? 0,
-    sentiments,
-    max: Math.max(1, ...points.map((p) => p.calls)),
-    prior: priorOf(current.length, previous, (d) => d.calls)
-  };
-}
-function peopleOf({ current, previous, points, tot, prev }) {
-  const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
-  const peopleRun = runningTotal(points.map((p) => p.newPeople));
-  return {
-    points,
-    total: tot.newPeople,
-    max: Math.max(1, ...points.map((p) => p.newPeople)),
-    prior: peopleBefore,
-    cumulative: {
-      points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
-      prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
-    }
-  };
-}
-function replyLine({ sortedReply, p90, hold }) {
-  if (hold) return holdLine(hold);
-  if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
-  return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
-}
-function linesOf(f, week, channels) {
-  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
-  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
-  return {
-    hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}` : "No customer wrote in this period.",
-    heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
-    answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
-    reply: replyLine(f),
-    calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-    channels: channelsLine(channels, rangeLabel),
-    rhythm: rhythmLine(week)
-  };
-}
-function headlineOf(dto, period, booking) {
-  const f = periodFactsOf(dto);
-  return {
-    period,
-    days: f.days,
-    empty: f.empty,
-    messages_in: f.tot.in,
-    // Nothing to compare with where the period before had no customer message and no call at all (compareWords).
-    messages_before: f.priorHadAny ? f.prev.in : null,
-    answered_ai: f.tot.ai,
-    answered_you: f.tot.you,
-    unanswered: f.tot.none,
-    answered_share: answeredOf(f).share,
-    calls: f.tot.calls,
-    booking
-  };
-}
-function toReportVM(dto, opts) {
-  const f = periodFactsOf(dto);
-  const tiles = REPORT_TILES.map((tile) => tile(f));
-  const reasons = reasonBarsOf(dto.reasons);
-  const sentiments = moodBarsOf(dto.sentiments);
-  const week = weekShapeOf(f);
-  const channels = channelsOf(dto.channels);
-  const first = f.current[0]?.day;
-  const last = f.current[f.current.length - 1]?.day;
-  return {
-    days: f.days,
-    rangeLabel: f.rangeLabel,
-    since: first ? fmtDay(first) : "",
-    until: last ? fmtDay(last) : "",
-    timezone: dto.timezone,
-    today: dto.today,
-    empty: f.empty,
-    tiles,
-    answered: answeredOf(f),
-    reasons,
-    replyTime: replyTimeOf(f),
-    calls: callsOf(f, sentiments),
-    people: peopleOf(f),
-    speed: dto.replies ? speedOf(
-      dto.replies,
-      f.current.map((d) => d.day)
-    ) : null,
-    week,
-    hours: hoursOf2(dto.hours, closedOf(dto.arrivals, opts?.profile)),
-    hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
-    channels,
-    period: periodWords(f.rangeLabel),
-    lines: linesOf(f, week, channels),
-    table: {
-      columns: [
-        "Day",
-        "Customer messages",
-        "Answered by receptionist",
-        "Answered by you",
-        "Unanswered",
-        "Calls",
-        "Needed you",
-        "New people"
-      ],
-      rows: f.points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
-    }
-  };
 }
 
 // src/google/google.ts
@@ -19027,10 +19669,10 @@ function toGoogleReviewVM(r2, linkedAt, tz, nowMs) {
     fromProfile: r2.origin === "profile"
   };
 }
-function googleReviewsTable(rows) {
+function googleReviewsTable(rows2) {
   return {
     columns: ["Reviewer", "Stars", "Written", "Words"],
-    rows: rows.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"])
+    rows: rows2.map((r2) => [r2.author, r2.rating ?? "\u2014", r2.when || "\u2014", r2.text || "\u2014"])
   };
 }
 var NEEDS_SECOND_READING = "needs a second day of reading";
@@ -19042,14 +19684,14 @@ var noGainYet = () => ({
 var noGained = () => ({ points: [], max: 0, total: null, sinceLabel: null });
 function gainedScope(g, days, last, behind) {
   if (g.sinceLabel) return `since ${g.sinceLabel}`;
-  if (!behind) return withinWords(days);
+  if (!behind) return withinWords(days, null);
   return days === 1 ? `on ${fmtDay(last)}` : `in the ${rangeLabelOf(days)} to ${fmtDay(last)}`;
 }
-function gainedWords(g, days, today) {
+function gainedWords(g, days, today, until) {
   const { total, sinceLabel } = g;
   if (total === null) return noGainYet();
   const last = g.points.at(-1)?.day ?? today;
-  const behind = last < shiftKey(today, -1);
+  const behind = until !== null || last < shiftKey(today, -1);
   const scope = gainedScope(g, days, last, behind);
   const head = total < 0 ? `down ${plural(-total, "rating")} ${scope}` : `${total ? `${plural(total, "rating")} gained` : "none gained"} ${scope}`;
   const meta = sinceLabel ? `since ${sinceLabel}, the first day on record` : total < 0 ? "Google's count fell" : `new ratings${behind ? ` to ${fmtDay(last)}` : ""}, words or not`;
@@ -19081,7 +19723,8 @@ function gainedOver(days, periodDays) {
   const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
-function toGoogleVM(dto, periodDays, nowMs, tz) {
+function toGoogleVM(dto, period, nowMs, tz) {
+  const { days: periodDays, until } = period;
   const l = dto.listing;
   const c = dto.connection ?? null;
   const connection = c ? {
@@ -19108,9 +19751,12 @@ function toGoogleVM(dto, periodDays, nowMs, tz) {
     };
   const latest = [...dto.reviews].sort((a, b) => (isoMs(b.published_at) ?? 0) - (isoMs(a.published_at) ?? 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, tz, nowMs));
   const source = reviewsFromProfile(c) ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
-  const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
+  const days = dto.days.filter((d) => until === null || d.day <= until).sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   const { current, previous } = gainedOver(days, periodDays);
-  const gained = { ...current, words: gainedWords(current, periodDays, zoneDayKey(nowMs, tz)) };
+  const gained = {
+    ...current,
+    words: gainedWords(current, periodDays, zoneDayKey(nowMs, tz), until)
+  };
   const noun = plural(periodDays, "day");
   const inPeriod = days.length ? days.filter((d) => d.day >= shiftKey(days[days.length - 1].day, -(periodDays - 1))) : [];
   const ratingSpark = inPeriod.flatMap((d) => d.rating === null ? [] : [d.rating]);
@@ -19238,69 +19884,6 @@ function googleFillsOf(brain, listing) {
   return { ...brain, profile: { ...p, ...Object.fromEntries(fills.map((k) => [k, google[k]])) } };
 }
 
-// src/shell/address.ts
-var ROUTE_WORDS = {
-  clients: "people",
-  segments: "lists",
-  outbound: "playbooks",
-  messages: "templates",
-  admin: "settings"
-};
-var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
-function doorOf(route) {
-  const head = headOf(route);
-  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
-  if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
-  }
-  if (head !== "outbound") return null;
-  return word ? `campaigns/moment:${word}` : "campaigns";
-}
-function shellRoute(route) {
-  const head = headOf(route);
-  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
-  return name === void 0 ? route : name + route.slice(head.length);
-}
-function pathRoute(route) {
-  const head = headOf(route);
-  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
-  return word === void 0 ? route : word + route.slice(head.length);
-}
-var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
-function routeOfPath(pathname) {
-  const m = WORKSPACE_PATH.exec(pathname ?? "");
-  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
-}
-function routeOfHash(hash) {
-  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
-}
-function routeOfAddress(address) {
-  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
-}
-function movedAddress(address) {
-  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
-  if (m?.[2]) {
-    const written = m[2].replace(/\/+$/, "");
-    const door = doorOf(shellRoute(written));
-    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
-    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
-      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
-    }
-  }
-  const route = routeOfHash(address.hash);
-  if (!m || route === null || m[2]) return null;
-  const at3 = route.indexOf("?");
-  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
-  if (!name) return null;
-  const own = at3 < 0 ? "" : route.slice(at3 + 1);
-  const search = address.search ?? "";
-  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
-}
-function workspacePath(slug, route = "") {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
-}
-
 // src/shell/chrome.ts
 var THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
@@ -19378,61 +19961,6 @@ function inAppBootScript() {
     "}catch(e){}"
   ].join("");
 }
-var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
-var PREFETCH_SLOT = "__prefetched";
-var PREFETCH_READS = {
-  today: ["metrics?days=1", "conversations", "escalations?state=open", "calls", "lead-searches", "setup", "views"],
-  inbox: ["conversations", "escalations?state=open", "templates"],
-  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
-  conversations: ["conversations", "calls", "escalations?state=open"],
-  // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
-  clients: ["contacts", "segments", "views"],
-  segments: ["contacts", "segments", "views"],
-  live: ["calls", "channels"],
-  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
-  broadcasts: [
-    "broadcasts",
-    "contacts",
-    "segments",
-    "templates",
-    "channels",
-    "settings",
-    "reports/campaigns?period=30d"
-  ],
-  outbound: ["playbooks", "templates", "channels", "settings"],
-  // Templates and every pane of Settings are drawn from the settings surface.
-  messages: ["settings", "team", "policies", "channels", "templates?all=1"],
-  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
-  start: ["setup", "views"]
-};
-var PREFETCH_ROUTE_OF_WORD = Object.fromEntries(
-  Object.entries(ROUTE_WORDS).map(([route, word]) => [word, route])
-);
-var PREFETCH_TIMEOUT_MS = 15e3;
-function routePrefetchScript() {
-  return [
-    "try{",
-    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
-    "if(p){",
-    "var w=encodeURIComponent(decodeURIComponent(p[1]));",
-    'var u=["/api/v1/workspaces?workspace="+w];',
-    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
-    'var h=r.split("/"),l=h[1]||"";',
-    `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)};`,
-    `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
-    // Leads is People's scope with a surface of its own, and opens on the view it remembers.
-    'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
-    'for(var j=0;j<t[s].length;j++)u.push("/api/v1/"+t[s][j]+(t[s][j].indexOf("?")<0?"?":"&")+"workspace="+w);',
-    `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
-    "var M=window.AbortController;",
-    "var g=function(x){",
-    `var a=M?new M():null,k=a?setTimeout(function(){a.abort()},${PREFETCH_TIMEOUT_MS}):0;`,
-    'var q=fetch(x,{credentials:"same-origin",signal:a?a.signal:undefined});',
-    "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
-    "for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
-    "}}catch(e){}"
-  ].join("");
-}
 var isSidebarPref = (v) => v === "open" || v === "rail";
 function isTypingTarget(tagName, contentEditable) {
   const t = (tagName ?? "").toUpperCase();
@@ -19472,6 +20000,18 @@ function shellStatusLine(s) {
       cta: "Billing",
       busy: null
     };
+  if (s.previewing) {
+    const one = roleSays(s.previewing).one;
+    return {
+      kind: "preview",
+      tone: "info",
+      text: `Previewing as ${one}`,
+      detail: `Controls ${one} wouldn't have are hidden. Your own access hasn't changed.`,
+      action: "exit-preview",
+      cta: "Exit preview",
+      busy: null
+    };
+  }
   if (s.stale)
     return {
       kind: "stale",
@@ -19611,10 +20151,11 @@ function waysFor(f, phrase) {
   }
   return ways;
 }
+var CONVERSATIONAL_ASK_TITLE = "Messages about your appointment";
 function askWords(name) {
   return {
     conversational: {
-      title: "Messages about your visit",
+      title: CONVERSATIONAL_ASK_TITLE,
       lead: `Appointment reminders and confirmations from ${name}, and a reply when you write to them.`,
       optional: null,
       terms: [
@@ -19653,7 +20194,7 @@ function consentPageVM(f) {
   ];
   return {
     title: `Text messages from ${name}`,
-    lead: empty ? `${name} is not set up to take sign-ups here yet.` : asks.length > 1 ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.` : `One thing you can say yes to, in your own message from your own phone: messages about your visit. ${name} never sells or shares your number.`,
+    lead: empty ? `${name} is not set up to take sign-ups here yet.` : asks.length > 1 ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.` : `One thing you can say yes to, in your own message from your own phone: messages about your appointment. ${name} never sells or shares your number.`,
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: bothTerms(name),
@@ -19731,19 +20272,19 @@ var SAYS = {
     ask: {
       title: "Unsubscribe",
       lead: (b) => `Stop offers from ${b}?`,
-      body: (b) => `Press the button and ${b} won't send you offers by email again. You'll still get messages about your visits.`,
+      body: (b) => `Press the button and ${b} won't send you offers by email again. You'll still get messages about your appointments.`,
       button: "Unsubscribe from offers"
     },
     done: {
       title: "Unsubscribed",
       lead: (b) => `You're unsubscribed from offers from ${b}.`,
-      body: "You'll still get messages about your visits.",
+      body: "You'll still get messages about your appointments.",
       button: "Stop all messages"
     },
     stopAsk: {
       title: "Stop all messages",
       lead: (b) => `Stop every message from ${b}?`,
-      body: "That includes reminders and confirmations about your visits. Nothing more will go to you by email, text or WhatsApp.",
+      body: "That includes reminders and confirmations about your appointments. Nothing more will go to you by email, text or WhatsApp.",
       button: "Yes, stop all messages"
     },
     stopped: {
@@ -19758,19 +20299,19 @@ var SAYS = {
     ask: {
       title: "Darme de baja",
       lead: (b) => `\xBFDejar de recibir ofertas de ${b}?`,
-      body: (b) => `Pulsa el bot\xF3n y ${b} no volver\xE1 a enviarte ofertas por correo. Seguir\xE1s recibiendo mensajes sobre tus visitas.`,
+      body: (b) => `Pulsa el bot\xF3n y ${b} no volver\xE1 a enviarte ofertas por correo. Seguir\xE1s recibiendo mensajes sobre tus citas.`,
       button: "Darme de baja de las ofertas"
     },
     done: {
       title: "Te diste de baja",
       lead: (b) => `Te diste de baja de las ofertas de ${b}.`,
-      body: "Seguir\xE1s recibiendo mensajes sobre tus visitas.",
+      body: "Seguir\xE1s recibiendo mensajes sobre tus citas.",
       button: "Dejar de recibir todos los mensajes"
     },
     stopAsk: {
       title: "Dejar de recibir todos los mensajes",
       lead: (b) => `\xBFDejar de recibir todos los mensajes de ${b}?`,
-      body: "Eso incluye los recordatorios y las confirmaciones de tus visitas. No recibir\xE1s nada m\xE1s por correo, mensaje de texto ni WhatsApp.",
+      body: "Eso incluye los recordatorios y las confirmaciones de tus citas. No recibir\xE1s nada m\xE1s por correo, mensaje de texto ni WhatsApp.",
       button: "S\xED, dejar de recibir todos los mensajes"
     },
     stopped: {
@@ -20252,7 +20793,7 @@ function toConversationVM(dto, escalation, tz, now = /* @__PURE__ */ new Date())
 // src/conversations/conversation-moves.ts
 var ANY = CONVERSATION_STATES;
 var CONVERSATION_MOVES = {
-  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs. */
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00386). */
   take_over: {
     from: ANY,
     to: "needs_human",
@@ -20264,7 +20805,7 @@ var CONVERSATION_MOVES = {
     to: "needs_human",
     sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" }
   },
-  /** The receptionist resumes: nothing paused, snoozed or claimed. */
+  /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00386). */
   hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
   /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
   snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },
@@ -20370,9 +20911,8 @@ function openLine(open) {
   if (!worth2) return `${plural(open.count, "proposal", "proposals")} still open.`;
   return open.count === 1 ? `${worth2} still open in 1 proposal.` : `${worth2} still open across ${open.count} proposals.`;
 }
-function toDealReportVM(dto, rangeLabel) {
+function toDealReportVM(dto, within2) {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
-  const { within: within2 } = periodWords(rangeLabel);
   const headline = dto.sent === 0 ? `No proposals went out ${within2}.` : `${plural(dto.sent, "proposal", "proposals")} went out ${within2}.`;
   const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
   const stock = dto.clients === 0 ? "No clients right now." : `${plural(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
@@ -20398,16 +20938,16 @@ function toDealReportVM(dto, rangeLabel) {
 
 // src/deals/pace.ts
 var SAME_SITTING_MS = HOUR_MS;
-function yesWaits(rows) {
-  return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS)).sort((a, b) => a - b);
+function yesWaits(rows2) {
+  return rows2.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS)).sort((a, b) => a - b);
 }
 function medianWait(waits) {
   const m = quantile([...waits], 0.5);
   return m === null ? null : Math.round(m);
 }
-function dealPaceFrom(rows, nowMs) {
+function dealPaceFrom(rows2, nowMs) {
   const since = nowMs - PACE_WINDOW_DAYS * DAY_MS;
-  const waits = yesWaits(rows.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
+  const waits = yesWaits(rows2.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
   return { median_days: medianWait(waits), yeses: waits.length };
 }
 
@@ -20600,12 +21140,7 @@ function calendarPeekDeal(block, people, nowMs) {
 }
 
 // src/shell/identity.ts
-var ROLE_WORDS = {
-  owner: "Owner",
-  operator: "Operator",
-  partner: "Partner",
-  viewer: "Viewer"
-};
+var ROLE_WORDS = Object.fromEntries(ROLES.map((r2) => [r2, ROLE_SAYS[r2].label]));
 function personInitials(name, email) {
   const n = (name ?? "").trim();
   if (n) return initialsOf(n);
@@ -20644,15 +21179,19 @@ function providerNameOf(metadata) {
   }
   return null;
 }
-function inviteState(expiresAt, nowMs) {
-  const at3 = expiresAt ? Date.parse(expiresAt) : NaN;
-  if (Number.isNaN(at3)) return { expired: false, words: "invite pending" };
-  if (at3 <= nowMs) return { expired: true, words: "invite expired \u2014 revoke it and send a new one" };
+var TEAM_INVITE_DAYS = 7;
+function joinedWords(joinedAt, tz, nowMs) {
+  const at3 = joinedAt ? Date.parse(joinedAt) : NaN;
+  return Number.isNaN(at3) ? null : `Joined ${clockDate(at3, tz, nowMs)}`;
+}
+function invitationWords(inv, tz, nowMs) {
+  const sentAt = inv.createdAt ? Date.parse(inv.createdAt) : NaN;
+  const sent2 = Number.isNaN(sentAt) ? null : `invited ${clockDate(sentAt, tz, nowMs)}`;
+  const at3 = inv.expiresAt ? Date.parse(inv.expiresAt) : NaN;
+  if (Number.isNaN(at3)) return { expired: false, sent: sent2, left: null };
+  if (at3 <= nowMs) return { expired: true, sent: sent2, left: null };
   const days = Math.ceil((at3 - nowMs) / DAY_MS);
-  return {
-    expired: false,
-    words: days <= 1 ? "invite pending \xB7 expires today" : `invite pending \xB7 expires in ${days} days`
-  };
+  return { expired: false, sent: sent2, left: days <= 1 ? "expires today" : `${days} days left` };
 }
 
 // src/lines/line-failure.ts
@@ -20944,7 +21483,8 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   // Running is a standing rule that is on -- healthy, ok. It is not happening
   // right now: its RUN is, while it sends, and that is the broadcast's own
   // "sending", which keeps the accent.
-  playbook: { running: "ok", paused: "warn", approval: "warn" },
+  // Paused rests (decision 13, 9 Oct 2026): amber is a run waiting on someone, never a rule its owner stopped.
+  playbook: { running: "ok", paused: "plain", approval: "warn" },
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
@@ -21066,8 +21606,8 @@ var LEAD_MAP_STATE_WORDS = {
   ready: LEAD_STAGE_WORDS.ready,
   out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
 };
-function leadMapLegend(rows) {
-  const present = new Set(rows.map((r2) => r2.state));
+function leadMapLegend(rows2) {
+  const present = new Set(rows2.map((r2) => r2.state));
   return LEAD_MAP_LEGEND_ORDER.filter((s) => present.has(s)).map((state) => ({
     state,
     tone: leadPinTone({ state }),
@@ -21165,10 +21705,12 @@ function runDueNow(p, tz, now) {
 function inLastSendingHour(tz, now) {
   return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
 }
-function scheduleLine(p) {
+function scheduleLine(p, word) {
   const at3 = clockHour(p.run_hour);
-  if (triggerOf(p.trigger)?.kind === "visit")
-    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
+  if (triggerOf(p.trigger)?.kind === "visit") {
+    const W = appointmentWords(word);
+    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} \xB7 up to ${p.cap_per_run}`;
+  }
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at3} \xB7 up to ${p.cap_per_run} a day`;
   if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
   return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
@@ -21296,8 +21838,8 @@ function enrolPurpose(policyClass, message) {
   return purposeOfTemplate(message.category);
 }
 var MESSAGE_MOMENT_WORDS = {
-  offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a message about their own visit or proposal.",
-  texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is about a person's own visit or proposal. Pick an offer, or a moment for visits."
+  offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a reminder, a check after, or a follow-up.",
+  texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is a reminder, a check after or a follow-up. Pick an offer, or the moment it was written for."
 };
 function messageFitsMoment(policyClass, category) {
   const moment = purposeOfPlaybook(policyClass);
@@ -21328,13 +21870,13 @@ function touchesAfterRun(touches, run, people) {
   byThis.set(run.playbookId, mine);
   return { byThis, byAny, followUps, followUpKeys };
 }
-function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
-  return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
+function eligibleForPlaybook(rows2, p, touches, nowMs, pace, listIds = null) {
+  return playbookRunReach(rows2, p, touches, nowMs, pace, listIds).eligible;
 }
 var savedNameOf = (r2) => r2.givenName ?? r2.waName;
-function fullNameHolders(rows) {
+function fullNameHolders(rows2) {
   const holders = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const key = fullNameKey(savedNameOf(r2));
     if (key !== null) holders.set(key, (holders.get(key) ?? 0) + 1);
   }
@@ -21350,8 +21892,8 @@ function visitOnDay(v, day, side, theirs) {
   );
   return (side === "next" ? onDay[0] : onDay[onDay.length - 1]) ?? null;
 }
-function theirVisitTest(rows) {
-  const holders = fullNameHolders(rows);
+function theirVisitTest(rows2) {
+  const holders = fullNameHolders(rows2);
   return (r2, via) => visitIsTheirs(r2, via, holders);
 }
 function visitIsTheirs(r2, via, holders) {
@@ -21359,7 +21901,7 @@ function visitIsTheirs(r2, via, holders) {
   const key = fullNameKey(savedNameOf(r2));
   return key !== null && holders.get(key) === 1;
 }
-function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
+function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
     will: 0,
@@ -21386,21 +21928,21 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
     at: touches.followUps.get(id),
     keys: touches.followUpKeys.get(id)
   });
-  const theirs = theirVisitTest(t.kind === "visit" ? rows : []);
+  const theirs = theirVisitTest(t.kind === "visit" ? rows2 : []);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
     // theirs (visitIsTheirs).
-    rows.filter((r2) => {
+    rows2.filter((r2) => {
       if (!r2.calendarTz) return false;
       const day = visitMomentDay(p.trigger, r2.calendarTz, nowMs);
       const onDay = r2.visitDays.some((d) => d.date === day && theirs(r2, d.via));
       if (p.trigger === "visit_tomorrow") return onDay;
       return onDay && !r2.booked;
     })
-  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.flatMap((r2) => {
+  ) : t.kind === "saved" ? audienceMembers(rows2, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows2.flatMap((r2) => {
     const d = followUpDealOf(r2, nowMs, pace, hadOf(r2.id));
     return d ? [{ ...r2, deal: d }] : [];
-  }) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  }) : audienceMembers(rows2, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r2) => saidYesOnAny(r2, purpose, how)).length;
   const done = (eligible2) => {
@@ -21545,10 +22087,13 @@ function reachOutExampleValues(workspace) {
 }
 
 // src/playbooks/playbook-approval.ts
-function poolWords(trigger) {
+function poolWords(trigger, word) {
   const t = triggerOf(trigger);
   if (!t) return "";
-  if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  if (t.kind === "visit") {
+    const W = appointmentWords(word);
+    return trigger === "visit_tomorrow" ? W.withTomorrow : W.whoYesterday;
+  }
   if (t.kind === "deal") return "with a proposal waiting";
   return t.list || t.kind === "saved" ? "on the list" : "in People";
 }
@@ -21569,11 +22114,11 @@ function reachLines(reach, p, allowanceHeld = 0) {
       tone: "plain",
       door: { words: "Get their yes", to: GET_YES_ROUTE }
     },
-    { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
+    { n: reach.heardAny, words: "heard from a campaign this week", tone: "warn", door: null },
     { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
       n: reach.heardThis,
-      words: once ? "had this proposal's follow-up already" : gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately",
+      words: once ? "had this proposal's follow-up already" : gap ? `heard from this campaign in the last ${gap} days` : "heard from this campaign lately",
       tone: once ? "plain" : "warn",
       door: null
     },
@@ -21685,20 +22230,19 @@ function toApprovalVM(d, opts) {
   if (t && opts.playbook) {
     rules.push(...consentRuleWords(by, purposeOfPlaybook(t.cls), messageAboutOfTrigger(opts.playbook.trigger)));
     if (t.kind === "visit") {
-      rules.push(
-        opts.playbook.trigger === "visit_tomorrow" ? "each has a visit tomorrow on the calendar" : "each visited yesterday and has nothing booked next"
-      );
+      const W = appointmentWords(opts.playbook.word);
+      rules.push(opts.playbook.trigger === "visit_tomorrow" ? W.eachTomorrow : W.eachYesterday);
     } else if (t.kind === "deal") {
       rules.push(
         "each has a proposal waiting with nothing back, and its link",
         "none followed up on that proposal before",
-        "none heard from any playbook this week"
+        "none heard from any campaign this week"
       );
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");
+      rules.push(`none heard from this campaign in ${gap} days`, "none heard from any campaign this week");
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     }
@@ -21740,7 +22284,7 @@ function toApprovalVM(d, opts) {
     approve: refusal ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
     expired: refusal,
     goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
-    skip: "Skipping loses this run only \u2014 the playbook keeps running."
+    skip: "Skipping loses this run only \u2014 the campaign keeps running."
   };
 }
 
@@ -22235,7 +22779,7 @@ function dealSheetRefusal(message) {
 
 // src/deals/pipeline/pipeline.ts
 var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
-var daysWords = (days) => days === null ? "" : `${days} d`;
+var daysWords2 = (days) => days === null ? "" : `${days} d`;
 var zoneOf = (r2, tz) => r2.calendarTz || tz;
 function proposalChip(r2, d, tz, nowMs, pace) {
   const mine = { deal: d, askedMs: r2.askedMs };
@@ -22286,7 +22830,7 @@ function dealRow(x, chip, nowMs, group) {
     service: d.service,
     value: d.amount,
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
-    inStage: daysWords(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
+    inStage: daysWords2(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
     chip,
     track: dealTrack(r2, d, chip)
   };
@@ -22301,7 +22845,7 @@ function heldRow(r2, endMs, tz, nowMs) {
     deal: null,
     service: null,
     value: null,
-    inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
+    inStage: daysWords2(wholeDaysSince(heldMs, nowMs)),
     chip: { words: `Held ${clockNear(heldMs, zoneOf(r2, tz), nowMs)} \xB7 no proposal yet`, tone: "warn" },
     // Held, and the proposal is the step now: in warn, as the chip says it, since it waits on the owner.
     track: [step("consultation", "done"), step("proposal", "current", "warn"), step("client", "ahead")]
@@ -22338,9 +22882,9 @@ function openOf(r2) {
   return r2.deal && dealIsOpen(r2.deal) ? [r2.deal] : [];
 }
 var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
-function bandsOf(rows, heldSet, nowMs) {
+function bandsOf(rows2, heldSet, nowMs) {
   const out = { ahead: [], proposals: [], clients: [], closed: [] };
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     const held = heldSet.has(r2);
     const stage = held ? "consultation" : dealStageOf(r2, nowMs);
     const aheadOf = !held && stage === "consultation" ? r2.consultAhead : null;
@@ -22358,9 +22902,9 @@ function bandsOf(rows, heldSet, nowMs) {
   }
   return out;
 }
-function pipelineOf(rows, nowMs, tz, pace, view = "all") {
-  const held = consultationsWithoutProposal(rows, nowMs);
-  const { ahead, proposals, clients, closed } = bandsOf(rows, new Set(held), nowMs);
+function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
+  const held = consultationsWithoutProposal(rows2, nowMs);
+  const { ahead, proposals, clients, closed } = bandsOf(rows2, new Set(held), nowMs);
   const lapsed = proposals.filter((x) => !!x.d.validUntil?.lapsed);
   const waits = (x) => waitingOnProposal({ deal: x.d, askedMs: x.r.askedMs }, nowMs, pace);
   const waiting = proposals.filter(waits).length;
@@ -22519,11 +23063,11 @@ function pipelineSorted(vm, by, dir) {
   return { ...vm, groups };
 }
 var PIPELINE_PASS_MAX = 50;
-function pipelinePassMany(rows) {
-  const out = rows.filter((r2) => r2.deal && r2.deal.stage === "proposed" && r2.deal.id).map((r2) => ({ personId: r2.id, dealId: r2.deal.id, rowId: r2.rowId ?? r2.id }));
+function pipelinePassMany(rows2) {
+  const out = rows2.filter((r2) => r2.deal && r2.deal.stage === "proposed" && r2.deal.id).map((r2) => ({ personId: r2.id, dealId: r2.deal.id, rowId: r2.rowId ?? r2.id }));
   const deals = out.slice(0, PIPELINE_PASS_MAX);
   const later = out.length - deals.length;
-  const k = rows.length - out.length;
+  const k = rows2.length - out.length;
   return {
     deals,
     button: deals.length ? `${PIPELINE_WORDS.pass.button} \xB7 ${deals.length}` : null,
@@ -22886,7 +23430,7 @@ function domainRecordRows(d) {
     if (n === host) return "@";
     return n.endsWith(`.${host}`) ? n.slice(0, -(host.length + 1)) : n;
   };
-  const rows = d.records.map((r2) => {
+  const rows2 = d.records.map((r2) => {
     const name = relative(r2.name);
     return {
       kind: r2.type === "MX" ? "Return path" : KIND_OF_RECORD[r2.label] ?? r2.label,
@@ -22899,7 +23443,7 @@ function domainRecordRows(d) {
     };
   });
   if (d.dmarc !== "found")
-    rows.push({
+    rows2.push({
       kind: "Policy (DMARC)",
       type: "TXT",
       name: "_dmarc",
@@ -22908,7 +23452,7 @@ function domainRecordRows(d) {
       found: false,
       key: "_dmarc-TXT"
     });
-  return rows;
+  return rows2;
 }
 function domainRecordsIntro(host) {
   return `These records tell Gmail and others that Chanlytics may send as ${host}. Add each one where you bought the domain, then press Check.`;
@@ -22946,6 +23490,106 @@ function sendingDomainsFootWords(count2, max) {
   if (count2 === 0)
     return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
   return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
+}
+
+// src/journey/journey.ts
+var JOURNEY_STAGE_IDS = ["first_contact", "before", "after", "proposal", "quiet"];
+var HOLDS = {
+  first_contact: ["new_week", "phoned_only"],
+  before: ["visit_tomorrow"],
+  after: ["visited"],
+  proposal: ["proposal_waiting"],
+  quiet: ["quiet_30", "lapsed"]
+};
+function journeyStageOf(trigger) {
+  return JOURNEY_STAGE_IDS.find((id) => HOLDS[id].includes(trigger)) ?? null;
+}
+function journeyOf(s) {
+  const W = appointmentWords(s.word);
+  const unmet = s.calendarOn ? null : "calendar";
+  const winBack = s.calendarOn ? "lapsed" : "quiet_30";
+  const every = { day: "Every", at: "day" };
+  const stages = [
+    {
+      id: "first_contact",
+      kind: "receptionist",
+      caps: "First contact",
+      name: "Your receptionist",
+      glyph: "chat",
+      unit: "this week",
+      trigger: null,
+      holds: HOLDS.first_contact,
+      poolKey: "new_week",
+      unmet: null,
+      one: false,
+      off: null
+    },
+    {
+      id: "before",
+      kind: "moment",
+      caps: W.before.caps,
+      name: W.before.name,
+      glyph: "bell",
+      unit: "people",
+      trigger: "visit_tomorrow",
+      holds: HOLDS.before,
+      poolKey: "visit_tomorrow",
+      unmet,
+      one: false,
+      off: { hint: "tomorrow", when: every, why: W.offTomorrow }
+    },
+    {
+      id: "after",
+      kind: "moment",
+      caps: W.after.caps,
+      name: "How did it go",
+      glyph: "check",
+      unit: "yesterday",
+      trigger: "visited",
+      holds: HOLDS.after,
+      poolKey: "visited",
+      unmet,
+      one: false,
+      off: { hint: "yesterday", when: { day: "The day", at: "after" }, why: W.offYesterday }
+    },
+    {
+      id: "proposal",
+      kind: "moment",
+      caps: "Proposal waiting",
+      name: "Proposal follow-up",
+      glyph: "deal",
+      unit: "waiting",
+      trigger: "proposal_waiting",
+      holds: HOLDS.proposal,
+      poolKey: "proposal_waiting",
+      unmet: null,
+      one: true,
+      off: {
+        hint: "waiting",
+        when: { day: "When one", at: "waits" },
+        why: (n) => `Off \xB7 ${plural(n, "proposal")} waiting`
+      }
+    },
+    {
+      id: "quiet",
+      kind: "moment",
+      caps: "Quiet or lapsed",
+      name: "Win-back",
+      glyph: "refresh",
+      unit: "people",
+      trigger: winBack,
+      holds: HOLDS.quiet,
+      poolKey: winBack,
+      unmet: null,
+      one: false,
+      off: {
+        hint: "quiet",
+        when: every,
+        why: (n) => `Off \xB7 ${plural(n, "person", "people")} ${n === 1 ? "has" : "have"} gone quiet`
+      }
+    }
+  ];
+  return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
 }
 
 // src/leads/search/plan-schema.ts
@@ -23268,8 +23912,8 @@ var LeadChooseSchema = z12.object({
 
 // src/lines/channels.ts
 var channelIsOn = (c) => typeof c.on === "boolean" ? c.on : (c.status ?? "active") === "active";
-function channelFor(rows, kind) {
-  const mine = rows.filter((c) => c.kind === kind);
+function channelFor(rows2, kind) {
+  const mine = rows2.filter((c) => c.kind === kind);
   if (mine.length === 0) return null;
   const on = mine.filter(channelIsOn);
   const pool = on.length > 0 ? on : mine;
@@ -24135,7 +24779,7 @@ function parseTodayWidgetSnapshot(v) {
   const text = (x) => typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null;
   const headline = text(s.headline);
   const at3 = typeof s.at === "string" && !Number.isNaN(Date.parse(s.at)) ? s.at : null;
-  const waiting = typeof s.waiting === "number" && Number.isInteger(s.waiting) && s.waiting >= 0 ? s.waiting : null;
+  const waiting = isCount(s.waiting) ? s.waiting : null;
   if (headline === null || at3 === null || waiting === null || !Array.isArray(s.figures)) return null;
   const figures = [];
   for (const f of s.figures.slice(0, FIGURES_MAX)) {
@@ -24163,7 +24807,6 @@ var APP_FILE_MAX_CHARS = 2e6;
 var APP_FILE_NAME_RE = /^[\w .()-]{1,100}\.(csv|txt)$/;
 var PUSH_TOKEN_MAX = 200;
 var isRecord = (v) => typeof v === "object" && v !== null;
-var isCount = (n) => typeof n === "number" && Number.isInteger(n) && n >= 0;
 var PAGE_MESSAGES = {
   route: (v) => typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "route", route: v.route } : null,
   needs: (v) => isCount(v.inbox) ? { t: "needs", inbox: v.inbox } : null,
@@ -24506,7 +25149,7 @@ function titleWithoutLanguage(title, code2) {
   return title;
 }
 function inboxTemplates(templates, to) {
-  const rows = [];
+  const rows2 = [];
   let promotions = 0;
   let unfillable = 0;
   const refused = [];
@@ -24524,14 +25167,14 @@ function inboxTemplates(templates, to) {
       promotions += 1;
       continue;
     }
-    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
+    rows2.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
   }
   const isDefault = (r2) => languageBase(r2.template.language) === "en";
-  const named = [...new Set(rows.map((r2) => r2.template.name))];
-  const inDefault = (name) => rows.some((r2) => r2.template.name === name && isDefault(r2));
+  const named = [...new Set(rows2.map((r2) => r2.template.name))];
+  const inDefault = (name) => rows2.some((r2) => r2.template.name === name && isDefault(r2));
   const names3 = [...named.filter(inDefault), ...named.filter((name) => !inDefault(name))];
   const ordered = names3.flatMap((name) => {
-    const own = rows.filter((r2) => r2.template.name === name);
+    const own = rows2.filter((r2) => r2.template.name === name);
     return [...own.filter(isDefault), ...own.filter((r2) => !isDefault(r2))];
   });
   const reads = (title) => ordered.filter((r2) => r2.title === title).length;
@@ -25383,8 +26026,8 @@ var REACH_OUT_REFUSALS = {
   leadGone: "This lead is gone.",
   /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
   nothingWritten: "Nothing has been written to them yet.",
-  /** 00241 reach_out_report: only Reports' own periods. */
-  period: "A period is 7, 30 or 90 days.",
+  /** reach_out_report (00241, 00360): any count of days Reports reads, as its other functions take them. */
+  period: "A period is 1 to 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -26708,7 +27351,7 @@ function campaignsOf(d, tz, nowMs) {
       when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
       outcome,
       // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
-      line: `${c.playbook_id ? "Playbook" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
+      line: `${c.playbook_id ? "Campaign" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: `broadcasts/run:${c.broadcast_id}`
     };
@@ -26805,7 +27448,7 @@ function playbookFailedAbout(playbookId, runFor) {
 }
 var PLAYBOOK_CALENDAR_UNREAD = "calendar: could not be read";
 function playbookFailedWords(name, why) {
-  const label = name.trim() || "A playbook";
+  const label = name.trim() || "A campaign";
   if (why === "calendar")
     return {
       title: `\u201C${label}\u201D could not read your calendar today`,
@@ -26819,6 +27462,47 @@ It kept trying through the day. Check that the calendar link under Settings \u20
 
 It kept trying through the day. If today's message matters, you can send it yourself from Campaigns.`
   };
+}
+
+// src/playbooks/playbook-run-split.ts
+function runCapOf(p) {
+  return triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+}
+var noOne = () => ({ whatsapp: 0, sms: 0, email: 0 });
+function runReadingOf(drawn, trigger, caps) {
+  const whole = drawn.reach.by_channel ?? noOne();
+  const reading = { candidates: drawn.reach.will, by_channel: whole };
+  const below = new Set(
+    caps.map((cap2) => runCapOf({ trigger, cap_per_run: cap2 })).filter((cap2) => cap2 >= 1 && cap2 < reading.candidates)
+  );
+  if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
+  const last = Math.max(...below);
+  const counts = noOne();
+  const run_split = {};
+  let taken = 0;
+  for (const person of drawn.eligible) {
+    if (taken === last) break;
+    const channel = drawn.channelOf[person.id];
+    if (channel) counts[channel] += 1;
+    taken += 1;
+    if (below.has(taken)) run_split[String(taken)] = { ...counts };
+  }
+  return { ...reading, run_split };
+}
+function oneRunByChannel(reading, run) {
+  const whole = reading.by_channel;
+  if (!whole) return null;
+  const cap2 = runCapOf(run);
+  if (cap2 === 0 || cap2 >= reading.candidates) return whole;
+  const atCap = reading.run_split?.[String(cap2)];
+  if (atCap) return atCap;
+  const carrying = CONSENT_CHANNELS.filter((c) => whole[c] > 0);
+  const [only] = carrying;
+  return carrying.length === 1 && only ? { ...noOne(), [only]: cap2 } : null;
+}
+function heldBackOfOneRun(reading, run, sent2, purpose) {
+  const split = oneRunByChannel(reading, run) ?? reading.by_channel;
+  return split ? allowanceBeforeSend(split, sent2, run.trigger, purpose) : null;
 }
 
 // src/templates/campaign-message.ts
@@ -26844,12 +27528,12 @@ function whatsappVersionOf(row2) {
     reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
   };
 }
-function messageFrom(name, language, rows) {
+function messageFrom(name, language, rows2) {
   const {
     whatsapp: [w = null],
     email: [e = null],
     sms: [s = null]
-  } = versionsOf(rows, name);
+  } = versionsOf(rows2, name);
   const anchorRow = w ?? e ?? s;
   if (anchorRow === null) return null;
   const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
@@ -26874,16 +27558,16 @@ function messageFrom(name, language, rows) {
     versions
   };
 }
-function campaignMessageOf(rows, name, language) {
+function campaignMessageOf(rows2, name, language) {
   return messageFrom(
     name,
     language,
-    rows.filter((r2) => r2.language === language)
+    rows2.filter((r2) => r2.language === language)
   );
 }
-function campaignMessagesOf(rows) {
+function campaignMessagesOf(rows2) {
   const groups = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (isReachOutRow(r2)) continue;
     const key = JSON.stringify([r2.name, r2.language]);
     const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
@@ -26947,10 +27631,10 @@ function whatsappStoppedRunWords(m) {
 }
 var NO_RUN_VERSION_WORDS = "has no version its runs can send";
 var MESSAGE_GONE_WORDS = {
-  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the playbook sends another.`,
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the campaign sends another.`,
   composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
 };
-var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.";
+var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
 var STARTER_LINE_WORDS = {
   /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
   reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
@@ -26963,7 +27647,7 @@ var STARTER_LINE_WORDS = {
   add: "Add it \u2014 its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes"
 };
 var MESSAGE_BEGIN_WORDS = {
-  customIsAnOffer: "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+  customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
   starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet."
 };
@@ -27058,7 +27742,7 @@ function todayRunWords(r2) {
   const reach = isReachOutRun(r2.audience);
   const one = r2.recipient_count === 1;
   const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
-  const kind = reach ? "Reach-out" : "Playbook";
+  const kind = reach ? "Reach-out" : "Campaign";
   const sent2 = `${r2.counts.sent} sent`;
   return {
     people,
@@ -27083,21 +27767,21 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 
-// src/playbooks/lifecycle-tiles.ts
+// src/playbooks/lifecycle/lifecycle-tiles.ts
 var COMING_DAYS = 7;
-var RESULTS_DAYS = 30;
+var RESULTS_DAYS = fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD);
 var RUNS_SHOWN = 3;
 var outOf = (b) => b === void 0 ? "reading" : "failed";
-function reachCountsOf(rows) {
+function reachCountsOf(rows2) {
   const byChannel = Object.fromEntries(
-    CONSENT_CHANNELS.map((c) => [c, rows.filter((r2) => r2.reachedOn === c).length])
+    CONSENT_CHANNELS.map((c) => [c, rows2.filter((r2) => r2.reachedOn === c).length])
   );
   return {
-    people: rows.length,
-    canHear: rows.filter((r2) => r2.canReceive.messages).length,
-    saidMessages: rows.filter((r2) => r2.saidYes.messages).length,
-    saidOffers: rows.filter((r2) => r2.saidYes.offers).length,
-    ...rows.some((r2) => r2.reachedOn !== void 0) ? { byChannel } : {}
+    people: rows2.length,
+    canHear: rows2.filter((r2) => r2.canReceive.messages).length,
+    saidMessages: rows2.filter((r2) => r2.saidYes.messages).length,
+    saidOffers: rows2.filter((r2) => r2.saidYes.offers).length,
+    ...rows2.some((r2) => r2.reachedOn !== void 0) ? { byChannel } : {}
   };
 }
 function opensOf(stages, needs2, more) {
@@ -27151,6 +27835,14 @@ function nextRunLine(p, nowMs, tz) {
   const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
   return { day: word, at: clockHour(next.hour), atMs };
 }
+function nextShare(p) {
+  const all = p.candidates ?? 0;
+  const cap2 = runCapOf(p);
+  return cap2 > 0 ? Math.min(all, cap2) : all;
+}
+function workspacePausedOf(input) {
+  return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
+}
 function whoWill(p) {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
   const of = p.named ? ` of ${p.named.pool}` : "";
@@ -27158,8 +27850,8 @@ function whoWill(p) {
   switch (reach) {
     case "sends": {
       const all = p.candidates ?? 0;
-      const cap2 = triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
-      const next = cap2 > 0 ? Math.min(all, cap2) : all;
+      const cap2 = runCapOf(p);
+      const next = nextShare(p);
       const later = all - next;
       return {
         why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap2} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
@@ -27224,6 +27916,9 @@ function offerOf(r2, nowMs, tz, at3) {
     at3
   );
 }
+function waitingOffer(r2, input, at3) {
+  return offerOf(r2, input.nowMs, input.tz, at3);
+}
 function runRow(r2, name, nowMs, tz, at3) {
   const atMs = Date.parse(r2.scheduled_for);
   const waits = r2.state === "pending_approval";
@@ -27241,54 +27936,36 @@ function runRow(r2, name, nowMs, tz, at3) {
     atMs
   };
 }
-function offWhy(id, n) {
-  const people = plural(n, "person", "people");
-  switch (id) {
-    case "visit":
-      return `Off \xB7 ${people} ${n === 1 ? "visits" : "visit"} tomorrow`;
-    case "after":
-      return `Off \xB7 ${people} visited yesterday`;
-    case "quiet":
-      return `Off \xB7 ${people} ${n === 1 ? "has" : "have"} gone quiet`;
-    default:
-      return `Off \xB7 ${plural(n, "proposal")} waiting`;
-  }
-}
-var OFF_WHEN = {
-  first_contact: { day: "", at: "" },
-  visit: { day: "Every", at: "day" },
-  after: { day: "The day", at: "after" },
-  quiet: { day: "Every", at: "day" },
-  proposal: { day: "When one", at: "waits" }
-};
-function offRows(stages, nowMs) {
-  return stages.flatMap(
-    (s, i) => s.state === "off" && s.act?.kind === "turn_on" && (s.people ?? 0) > 0 ? [
+function offRows(stages, defs, nowMs) {
+  return stages.flatMap((s, i) => {
+    const off = defs.find((d) => d.id === s.id)?.off;
+    if (!off || s.state !== "off" || s.act?.kind !== "turn_on" || (s.people ?? 0) <= 0) return [];
+    return [
       {
         id: `off:${s.id}`,
         kind: "off",
-        when: OFF_WHEN[s.id],
+        when: off.when,
         what: s.name,
-        why: offWhy(s.id, s.people ?? 0),
+        why: off.why(s.people ?? 0),
         pill: null,
         act: { kind: "turn_on", label: "Turn on", moment: s.act.moment },
         waiting: null,
         atMs: nowMs + COMING_DAYS * DAY_MS + i
       }
-    ] : []
-  );
+    ];
+  });
 }
-function lifecycleComing(input, stages) {
+function lifecycleComing(input, stages, defs) {
   const playbooks = input.playbooks;
   if (!playbooks) return null;
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const playbookOf2 = (id) => playbooks.rows.find((p) => p.id === id);
-  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
+  const playbookOf = (id) => playbooks.rows.find((p) => p.id === id);
+  const paused = workspacePausedOf(input);
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => {
-    const p = playbookOf2(r2.playbook_id);
+    const p = playbookOf(r2.playbook_id);
     return runRow(r2, p?.name ?? r2.name, nowMs, tz, { paused, known: p !== void 0 });
   });
   const covered = new Set(
@@ -27296,8 +27973,8 @@ function lifecycleComing(input, stages) {
   );
   const moments = playbooks.rows.filter((p) => !covered.has(p.id)).flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
   const timed = [...moments, ...runs].sort((a, b) => a.atMs - b.atMs);
-  const rows = [...timed, ...offRows(stages, nowMs)];
-  return { read: "read", rows, empty: LIFECYCLE_WORDS.coming.empty, rules };
+  const rows2 = [...timed, ...offRows(stages, defs, nowMs)];
+  return { read: "read", rows: rows2, empty: LIFECYCLE_WORDS.coming.empty, rules };
 }
 function wentAt(r2) {
   return Date.parse(r2.finished_at ?? r2.started_at ?? r2.scheduled_for);
@@ -27333,10 +28010,11 @@ function lifecycleResults(input) {
       quiet: false
     };
   }
-  const days = b.report?.days ?? RESULTS_DAYS;
+  const report = input.report;
+  const days = report?.days ?? RESULTS_DAYS;
   const note = plural(days, "day");
   const runs = cameBack(input, days);
-  if (!b.report)
+  if (!report)
     return {
       read: "read",
       days,
@@ -27350,7 +28028,7 @@ function lifecycleResults(input) {
       runs,
       quiet: false
     };
-  const t = b.report.totals;
+  const t = report.totals;
   const W = LIFECYCLE_WORDS.results.funnel;
   const readOf = t.readOf ?? t.sent;
   const step2 = (id, n, of = t.sent) => ({
@@ -27378,14 +28056,19 @@ function lifecycleResults(input) {
     readNote,
     // What went by each channel (0030), where more than one sent: a line under the funnel in the channels' own words.
     byChannel: countsByChannelWords(
-      b.report.byChannel ? Object.fromEntries(b.report.byChannel.map((c) => [c.channel, c.sent])) : null
+      report.byChannel ? Object.fromEntries(report.byChannel.map((c) => [c.channel, c.sent])) : null
     ),
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0
   };
 }
 
-// src/playbooks/lifecycle.ts
+// src/playbooks/lifecycle/lifecycle-ledger.ts
+var LEDGER_TOOLS_AT = 7;
+var LEDGER_SORTS = ["next", "name", "people", "replied"];
+var LEDGER_PERIOD = periodWords(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), null).now;
+var SENT_ROUTE = "broadcasts";
+var LEADS_ROUTE = "clients/leads";
 function readyOf(input) {
   return input.playbooks?.ready ?? input.broadcasts?.ready ?? null;
 }
@@ -27403,71 +28086,442 @@ function channelMarksOf(p, templates, ready) {
     return { channel: c, word: VERSION_CHANNEL_WORDS[c], state: stand === "could" && !message ? "off" : stand };
   });
 }
-function chainMarksOf(ready) {
-  const waits = ready !== null && (!ready.email.ready || ready.paused === true);
+function chainMarksOf(ready, workspacePaused) {
+  const waits = workspacePaused || ready !== null && !ready.email.ready;
   return CONSENT_CHANNELS.map((c) => ({
     channel: c,
     word: VERSION_CHANNEL_WORDS[c],
     state: c !== "email" ? "off" : waits ? "waits" : "on"
   }));
 }
-var STAGES = [
-  { id: "first_contact", caps: "First contact", name: "Your receptionist", glyph: "chat", unit: "this week", hint: "" },
-  { id: "visit", caps: "Visit tomorrow", name: "Visit reminder", glyph: "bell", unit: "people", hint: "tomorrow" },
-  { id: "after", caps: "After a visit", name: "How did it go", glyph: "check", unit: "yesterday", hint: "yesterday" },
-  { id: "quiet", caps: "Quiet or lapsed", name: "Win-back", glyph: "refresh", unit: "people", hint: "quiet" },
-  { id: "proposal", caps: "Proposal out", name: "Proposal follow-up", glyph: "deal", unit: "waiting", hint: "waiting" }
-];
-var STAGE_TRIGGER = {
-  first_contact: null,
-  visit: "visit_tomorrow",
-  after: "visited",
-  quiet: "quiet_30",
-  proposal: "proposal_waiting"
-};
-var FIRST_CONTACT_POOL = "new_week";
-function playbookOf(id, rows) {
-  const trigger = STAGE_TRIGGER[id];
-  if (trigger === null) return null;
-  const own = rows.filter((p) => id === "quiet" ? isWinBack(p.trigger) : p.trigger === trigger);
-  return own.find((p) => p.state === "running") ?? own[0] ?? null;
+function stagePlaybooks(def, rows2) {
+  return rows2.filter((p) => def.holds.includes(p.trigger));
 }
-function winBackMoment(playbooks) {
-  return playbooks.triggers.find((t) => t.offered && isWinBack(t.id))?.id ?? "quiet_30";
+function tallyOf(own) {
+  const t = { on: 0, waiting: 0, paused: 0, off: 0 };
+  for (const p of own) {
+    if (p.off) t.off += 1;
+    else if (p.state !== "running") t.paused += 1;
+    else if (p.totals.waiting) t.waiting += 1;
+    else t.on += 1;
+  }
+  return t;
+}
+function sentResultsOfSource(s) {
+  return s && s.sent > 0 ? { kind: "sent", sent: s.sent, replied: s.replied } : "none";
+}
+function sentResultsOf(id, report) {
+  if (!report) return "uncounted";
+  return sentResultsOfSource(report.sources.find((x) => x.id === id));
+}
+function lifecycleChainsOf(dto) {
+  if (!dto) return null;
+  return {
+    complete: dto.complete,
+    byRoot: Object.fromEntries(
+      Object.entries(dto.by_root).map(([root, c]) => [root, { written: c.written, wroteBack: c.wrote_back }])
+    )
+  };
+}
+function chainResultsOf(rootId, chains) {
+  if (!chains) return "uncounted";
+  const c = chains.byRoot[rootId];
+  if (!c) return chains.complete ? "none" : "uncounted";
+  return c.written > 0 ? { kind: "written", written: c.written, wroteBack: c.wroteBack } : "none";
+}
+var rowSearchOf = (...parts2) => parts2.join(" ").toLowerCase();
+var NO_NEXT = { words: LIFECYCLE_WORDS.ledger.dash, atMs: null };
+function rowStatusOf(p) {
+  if (p.off) return "not_here";
+  if (p.state !== "running") return "paused";
+  return p.totals.waiting ? "waiting" : "on";
+}
+function rowHintOf(p, word) {
+  if (p.trigger === "saved_list") return `On a list \xB7 ${p.triggerLabel}`;
+  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days, to a yes to offers`;
+  if (p.off) return p.off;
+  const t = triggerOf(p.trigger);
+  return t ? triggerWords(t, word).hint : p.triggerLabel;
+}
+function rowNextOf(p, status, input) {
+  if (status === "waiting") return { words: LIFECYCLE_WORDS.coming.waiting, atMs: input.nowMs };
+  if (status === "paused") return { words: lifecycleStateOf(p).words, atMs: null };
+  if (status !== "on") return NO_NEXT;
+  return { words: p.next, atMs: nextRunLine(p, input.nowMs, input.tz).atMs };
+}
+function rowWaitingOf(p, at3) {
+  const id = p.totals.waiting?.id;
+  const run = id ? at3.input.broadcasts?.rows.find((r2) => r2.id === id) : void 0;
+  if (!run) return null;
+  const offer = waitingOffer(run, at3.input, { paused: workspacePausedOf(at3.input), known: true });
+  if (offer.kind === "open") return null;
+  return { runId: run.id, people: run.recipient_count, refusal: offer.kind === "skip" ? offer.why : null };
+}
+function resumeOf(p, input) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const when = nextRunLabel(
+    { ...p, state: "running" },
+    input.tz,
+    new Date(input.nowMs),
+    workspacePausedOf(input)
+  );
+  const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
+  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto";
+  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
+  return {
+    kind: "resume",
+    label: W.label,
+    playbookId: p.id,
+    ask: { question: W.question(p.name), detail: auto ? `${detail}. ${W.auto}` : detail }
+  };
+}
+function playbookRow(p, at3) {
+  const s = lifecycleStateOf(p);
+  const status = rowStatusOf(p);
+  const hint = rowHintOf(p, at3.word);
+  const archived = !!p.listArchived;
+  const needs2 = purposeOfPlaybook(p.policy_class ?? triggerOf(p.trigger)?.cls ?? null) === "marketing" ? "offers" : "messages";
+  return {
+    id: p.id,
+    kind: p.trigger === "saved_list" ? "list" : p.trigger === "everyone_monthly" ? "offer" : "playbook",
+    name: p.name,
+    hint,
+    status,
+    stateWords: archived ? LIFECYCLE_WORDS.ledger.archived : s.words,
+    phoneWords: archived ? LIFECYCLE_WORDS.ledger.archived : s.short,
+    tone: archived ? "warn" : s.tone,
+    needs: needs2,
+    needsWords: LIFECYCLE_WORDS.needs[needs2],
+    channels: channelMarksOf(p, at3.playbooks.templates, at3.ready),
+    people: { n: at3.counted && p.named ? p.named.pool : null, unit: at3.unit },
+    results: sentResultsOf(p.id, at3.input.report),
+    next: rowNextOf(p, status, at3.input),
+    open: { kind: "open", label: "Open", playbookId: p.id },
+    waiting: status === "waiting" ? rowWaitingOf(p, at3) : null,
+    act: status === "paused" && !archived ? resumeOf(p, at3.input) : null,
+    search: rowSearchOf(p.name, hint, at3.caps)
+  };
+}
+function receptionistRow(stage) {
+  return {
+    id: "receptionist",
+    kind: "receptionist",
+    name: stage.name,
+    hint: stage.needsWords,
+    status: stage.state === "always" ? "always" : "off",
+    stateWords: stage.stateWords,
+    phoneWords: stage.phoneWords,
+    tone: stage.tone,
+    needs: "none",
+    needsWords: stage.needsWords,
+    channels: [],
+    people: { n: stage.people, unit: stage.unit },
+    results: "uncounted",
+    next: NO_NEXT,
+    open: null,
+    waiting: null,
+    act: null,
+    search: rowSearchOf(stage.name, stage.caps)
+  };
+}
+function callTextRow(library2, caps) {
+  const W = LIFECYCLE_WORDS.callText;
+  const found = library2 ? bookingTemplate(library2) : null;
+  const [status, stateWords, tone] = !library2 ? ["off", "", "plain"] : found ? ["always", W.on, "ok"] : ["off", W.none, "warn"];
+  return {
+    id: "call_text",
+    kind: "call_text",
+    name: W.name,
+    hint: W.words,
+    status,
+    stateWords,
+    phoneWords: stateWords,
+    tone,
+    needs: "none",
+    needsWords: LIFECYCLE_WORDS.needs.none,
+    channels: [],
+    people: { n: null, unit: "" },
+    results: "uncounted",
+    next: NO_NEXT,
+    open: { kind: "route", label: "Open", route: "messages" },
+    waiting: null,
+    act: null,
+    search: rowSearchOf(W.name, W.words, caps)
+  };
+}
+function offOfferRow(caps) {
+  const name = LIFECYCLE_WORDS.monthsOffer.name;
+  const hint = `Every ${PLAYBOOK_DEFAULTS.cadenceDays} days, to a yes to offers`;
+  return {
+    id: "everyone_monthly",
+    kind: "offer",
+    name,
+    hint,
+    status: "off",
+    stateWords: "Off",
+    phoneWords: "Off",
+    tone: "plain",
+    needs: "offers",
+    needsWords: LIFECYCLE_WORDS.needs.offers,
+    channels: [],
+    people: { n: null, unit: "people" },
+    results: "uncounted",
+    next: NO_NEXT,
+    open: null,
+    waiting: null,
+    act: { kind: "turn_on", label: LIFECYCLE_WORDS.ledger.turnOn, moment: "everyone_monthly" },
+    search: rowSearchOf(name, hint, caps)
+  };
+}
+function chainRow(c, at3) {
+  const W = LIFECYCLE_WORDS.ledger;
+  const paused = c.state !== "running";
+  const waitingRun = paused ? null : c.next.waiting_run_id;
+  const status = paused ? "paused" : waitingRun ? "waiting" : "on";
+  const stateWords = paused ? "Paused" : waitingRun ? LIFECYCLE_WORDS.coming.waiting : "On";
+  const hint = `Cold email${c.search ? ` to ${c.search.name}` : ""} \xB7 ${plural(c.steps.length, "step")}`;
+  const resume = {
+    kind: "resume",
+    label: W.resume.label,
+    playbookId: c.root_id,
+    ask: { question: W.resume.question(c.name), detail: W.resume.chain }
+  };
+  return {
+    id: c.root_id,
+    kind: "chain",
+    name: c.name,
+    hint,
+    status,
+    stateWords,
+    phoneWords: stateWords,
+    tone: waitingRun ? "warn" : paused ? "plain" : "ok",
+    needs: "none",
+    needsWords: W.chainNeeds,
+    channels: chainMarksOf(at3.ready, workspacePausedOf(at3.input)),
+    people: { n: null, unit: W.businesses },
+    results: chainResultsOf(c.root_id, at3.input.chains),
+    next: waitingRun ? { words: LIFECYCLE_WORDS.coming.waiting, atMs: at3.input.nowMs } : paused ? { words: "Paused", atMs: null } : NO_NEXT,
+    open: { kind: "open", label: "Open", playbookId: c.root_id },
+    waiting: null,
+    act: paused ? resume : waitingRun ? { kind: "route", label: W.openRun, route: `broadcasts/run:${waitingRun}` } : null,
+    search: rowSearchOf(c.name, hint, at3.caps)
+  };
+}
+function sentOnceRow(s, at3) {
+  const W = LIFECYCLE_WORDS.ledger.sentOnce;
+  const hint = W.hint(s.lastAt ? clockNear(Date.parse(s.lastAt), at3.input.tz, at3.input.nowMs) : null);
+  return {
+    id: s.id,
+    kind: "sent_once",
+    name: s.name,
+    hint,
+    status: "off",
+    stateWords: W.state,
+    phoneWords: W.state,
+    tone: "plain",
+    needs: "none",
+    needsWords: "",
+    channels: [],
+    people: { n: null, unit: "" },
+    results: sentResultsOfSource(s),
+    next: NO_NEXT,
+    open: { kind: "route", label: "Open", route: `${SENT_ROUTE}/run:${s.id}` },
+    waiting: null,
+    act: null,
+    search: rowSearchOf(s.name, hint, at3.caps)
+  };
+}
+var isLedgerCampaign = (r2) => r2.kind !== "receptionist" && r2.kind !== "call_text" && !(r2.kind === "offer" && r2.status === "off");
+function groupMetaOf(rows2, otherwise) {
+  const campaigns = rows2.filter(isLedgerCampaign);
+  if (campaigns.length === 0) return otherwise;
+  const t = { on: 0, waiting: 0, paused: 0, off: 0 };
+  for (const r2 of campaigns) {
+    if (r2.status === "on" || r2.status === "always") t.on += 1;
+    else if (r2.status === "waiting") t.waiting += 1;
+    else if (r2.status === "paused") t.paused += 1;
+    else t.off += 1;
+  }
+  return tallyWords(campaigns.length, t);
+}
+function journeyAddOf(def, stage, held, playbooks) {
+  if (def.kind === "receptionist") return null;
+  if (def.unmet) return { kind: "route", label: LIFECYCLE_WORDS.needsCalendar.door, route: CALENDAR_SETTING_ROUTE };
+  if (def.one && held > 0) return null;
+  const moment = stage.moment;
+  if (!moment || !playbooks.triggers.some((t) => t.id === moment && t.offered)) return null;
+  return {
+    kind: "turn_on",
+    label: stage.state === "off" && stage.hint ? stage.hint : LIFECYCLE_WORDS.ledger.turnOn,
+    moment
+  };
+}
+function journeyGroup(def, stage, at3) {
+  const own = stagePlaybooks(def, at3.playbooks.rows);
+  const lead = own.find((p) => p.id === stage.playbookId);
+  const ordered = lead ? [lead, ...own.filter((p) => p !== lead)] : own;
+  const each = { ...at3, caps: def.caps, unit: def.unit, counted: !def.unmet };
+  const rows2 = [
+    ...def.kind === "receptionist" ? [receptionistRow(stage), callTextRow(at3.input.library, def.caps)] : [],
+    ...ordered.map((p) => playbookRow(p, each))
+  ];
+  return {
+    id: def.id,
+    caps: def.caps,
+    glyph: def.glyph,
+    meta: groupMetaOf(rows2, stage.stateWords),
+    rows: rows2,
+    add: journeyAddOf(def, stage, own.length, at3.playbooks)
+  };
+}
+function listsGroup(at3, onStage) {
+  const caps = LIFECYCLE_WORDS.ledger.groups.lists;
+  const each = { ...at3, caps, unit: "people", counted: true };
+  const offered = (id) => at3.playbooks.triggers.some((t) => t.id === id && t.offered);
+  const offers = at3.playbooks.rows.filter((p) => p.trigger === "everyone_monthly");
+  const rest = at3.playbooks.rows.filter((p) => p.trigger !== "everyone_monthly" && !onStage.has(p.id));
+  const rows2 = [
+    ...offers.length === 0 && offered("everyone_monthly") ? [offOfferRow(caps)] : offers.map((p) => playbookRow(p, each)),
+    ...rest.map((p) => playbookRow(p, each))
+  ];
+  return {
+    id: "lists",
+    caps,
+    glyph: "bolt",
+    meta: groupMetaOf(rows2, LIFECYCLE_WORDS.ledger.none),
+    rows: rows2,
+    add: offered("saved_list") ? { kind: "turn_on", label: LIFECYCLE_WORDS.ledger.turnOn, moment: "saved_list" } : null
+  };
+}
+function reachOutGroup(at3) {
+  const caps = LIFECYCLE_WORDS.ledger.groups.reach_out;
+  const chains = at3.input.reachOuts;
+  const rows2 = (chains ?? []).map((c) => chainRow(c, { input: at3.input, ready: at3.ready, caps }));
+  return {
+    id: "reach_out",
+    caps,
+    glyph: "send",
+    meta: chains ? groupMetaOf(rows2, LIFECYCLE_WORDS.ledger.none) : LIFECYCLE_WORDS.ledger.dash,
+    rows: rows2,
+    add: { kind: "route", label: LIFECYCLE_WORDS.ledger.findBusinesses, route: LEADS_ROUTE }
+  };
+}
+function sentOnceGroup(sources, input) {
+  const caps = LIFECYCLE_WORDS.ledger.groups.sent_once;
+  return {
+    id: "sent_once",
+    caps,
+    glyph: "send",
+    meta: `${plural(sources.length, "send")} \xB7 ${LEDGER_PERIOD.toLowerCase()}`,
+    rows: sources.map((s) => sentOnceRow(s, { input, caps })),
+    add: null
+  };
+}
+var LEDGER_STATUSES = ["all", "needs", "paused"];
+function ledgerRowIn(row2, status) {
+  if (status === "all") return true;
+  if (row2.kind === "sent_once" || row2.kind === "receptionist" || row2.kind === "call_text") return false;
+  return status === "needs" ? row2.tone === "warn" : row2.status === "paused";
+}
+function countsOf(rows2) {
+  const campaigns = rows2.filter(isLedgerCampaign);
+  return {
+    all: campaigns.length,
+    running: campaigns.filter((r2) => r2.status === "on" || r2.status === "waiting").length,
+    needs: campaigns.filter((r2) => ledgerRowIn(r2, "needs")).length,
+    paused: campaigns.filter((r2) => ledgerRowIn(r2, "paused")).length
+  };
+}
+function lifecycleLedger(at3) {
+  const { input, defs, stages } = at3;
+  const results = input.report === void 0 ? "reading" : input.report === null ? "failed" : "read";
+  const said = { period: LEDGER_PERIOD, results, words: LIFECYCLE_WORDS.ledger };
+  if (!input.playbooks || !input.shape)
+    return { groups: [], counts: { all: 0, running: 0, needs: 0, paused: 0 }, tools: false, sentOnce: null, ...said };
+  const from = { input, playbooks: input.playbooks, ready: readyOf(input), word: input.shape.word };
+  const journey = defs.flatMap((def) => {
+    const stage = stages.find((s) => s.id === def.id);
+    return stage ? [journeyGroup(def, stage, from)] : [];
+  });
+  const onStage = new Set(journey.flatMap((g) => g.rows.map((r2) => r2.id)));
+  const groups = [...journey, listsGroup(from, onStage), reachOutGroup(from)];
+  const tools = countsOf(groups.flatMap((g) => g.rows)).all >= LEDGER_TOOLS_AT;
+  const once = (input.report?.sources ?? []).filter((s) => s.kind === "broadcast");
+  const every = tools && once.length > 0 ? [...groups, sentOnceGroup(once, input)] : groups;
+  return {
+    groups: every,
+    counts: countsOf(every.flatMap((g) => g.rows)),
+    tools,
+    sentOnce: !tools && once.length > 0 ? { n: once.length, open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SENT_ROUTE } } : null,
+    ...said
+  };
+}
+var NEXT_RANK = {
+  waiting: 0,
+  on: 1,
+  always: 2,
+  off: 2,
+  not_here: 2,
+  paused: 3
+};
+function repliedOf(r2) {
+  if (r2.results === "uncounted") return -1;
+  if (r2.results === "none") return 0;
+  return r2.results.kind === "sent" ? r2.results.replied : r2.results.wroteBack;
+}
+function ledgerOrder(by) {
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  if (by === "name") return byName;
+  if (by === "people") return (a, b) => (b.people.n ?? -1) - (a.people.n ?? -1) || byName(a, b);
+  if (by === "replied") return (a, b) => repliedOf(b) - repliedOf(a) || byName(a, b);
+  const at3 = (r2) => r2.next.atMs ?? Number.MAX_SAFE_INTEGER;
+  return (a, b) => NEXT_RANK[a.status] - NEXT_RANK[b.status] || at3(a) - at3(b) || byName(a, b);
+}
+function ledgerPhoneLine(r2, caps) {
+  const dash = LIFECYCLE_WORDS.ledger.dash;
+  const next = r2.status === "waiting" || r2.next.words === dash ? null : r2.next.words;
+  return [caps, next, ledgerPeopleWords(r2.people)].filter((p) => !!p).join(" \xB7 ");
+}
+function ledgerPeopleWords(people) {
+  if (people.n === null) return null;
+  if (people.unit === "people") return plural(people.n, "person", "people");
+  return `${people.n} ${people.unit}`.trim();
+}
+
+// src/playbooks/lifecycle/lifecycle.ts
+function winBackMoment(playbooks, fallback) {
+  return playbooks.triggers.find((t) => t.offered && isWinBack(t.id))?.id ?? fallback;
 }
 function poolOf(playbooks, key) {
   return playbooks.pools[key] ?? null;
+}
+function calendarRead(playbooks, shape) {
+  if (shape.calendar === "feed") return playbooks;
+  const why = LIFECYCLE_WORDS.needsCalendar[shape.calendar];
+  return {
+    ...playbooks,
+    rows: playbooks.rows.map((p) => !p.off && triggerOf(p.trigger)?.kind === "visit" ? { ...p, off: why } : p)
+  };
+}
+function stageSummaryOf(own) {
+  if (own.length > 1) return tallyWords(own.length, tallyOf(own));
+  const p = own.at(0);
+  if (!p) return null;
+  const short = lifecycleStateOf(p).short;
+  return `${p.name} \xB7 ${short.charAt(0).toLowerCase()}${short.slice(1)}`;
+}
+function barOf(own) {
+  if (own.length < 2) return null;
+  const t = tallyOf(own);
+  return { on: t.on, waiting: t.waiting, paused: t.paused, of: own.length };
 }
 function hasLine(broadcasts) {
   const ready = broadcasts?.ready;
   if (!broadcasts || broadcasts.number.present || !ready) return true;
   return CONSENT_CHANNELS.some((c) => ready[c].ready);
 }
-function stageOf(def, playbooks, line, ready) {
-  const trigger = def.id === "quiet" ? winBackMoment(playbooks) : STAGE_TRIGGER[def.id];
-  const p = playbookOf(def.id, playbooks.rows);
-  const offered = trigger === null || playbooks.triggers.some((t) => t.id === trigger && t.offered) || !!p;
-  if (def.id === "proposal" && !p && !playbooks.triggers.some((t) => t.id === trigger)) return null;
-  const poolKey = def.id === "first_contact" ? FIRST_CONTACT_POOL : p?.trigger ?? trigger ?? "";
-  const pool = poolOf(playbooks, poolKey);
-  const needs2 = trigger === null ? "none" : purposeOfPlaybook(triggerOf(trigger)?.cls ?? null) === "marketing" ? "offers" : "messages";
-  const base = {
-    id: def.id,
-    caps: def.caps,
-    name: p ? p.name : def.name,
-    glyph: def.glyph,
-    moment: trigger,
-    playbookId: p ? p.id : null,
-    people: pool ? pool.pool : null,
-    unit: def.unit,
-    needs: needs2,
-    needsWords: LIFECYCLE_WORDS.needs[needs2],
-    hint: null,
-    waits: false,
-    // A playbook's channels; the receptionist's and an off moment's are none (what Turn on ticks is the composer's to say).
-    channels: p ? channelMarksOf(p, playbooks.templates, ready) : []
-  };
-  if (trigger === null && !line) {
+function receptionistStage(base, line) {
+  if (!line)
     return {
       ...base,
       needsWords: LIFECYCLE_WORDS.noLine.needs,
@@ -27478,33 +28532,47 @@ function stageOf(def, playbooks, line, ready) {
       covered: false,
       act: null
     };
-  }
-  if (trigger === null) {
-    return {
-      ...base,
-      state: "always",
-      stateWords: LIFECYCLE_WORDS.receptionist,
-      phoneWords: "Live",
-      tone: "ok",
-      covered: true,
-      act: null
-    };
-  }
-  if (p) {
-    const s = lifecycleStateOf(p);
-    const state = p.off ? "not_here" : s.paused ? "paused" : "on";
-    return {
-      ...base,
-      state,
-      stateWords: s.words,
-      phoneWords: s.short,
-      tone: s.tone,
-      covered: state === "on",
-      // On, and a run of it waits for the person: the node is a clock (the pill beside it says "Waiting on you").
-      waits: state === "on" && !!p.totals.waiting,
-      act: p.off ? null : { kind: "open", label: "Open", playbookId: p.id }
-    };
-  }
+  return {
+    ...base,
+    state: "always",
+    stateWords: LIFECYCLE_WORDS.receptionist,
+    phoneWords: "Live",
+    tone: "ok",
+    covered: true,
+    act: null
+  };
+}
+function unmetStage(base, shape) {
+  const words3 = LIFECYCLE_WORDS.needsCalendar[shape.calendar === "email" ? "email" : "none"];
+  const act2 = base.playbookId ? { kind: "open", label: "Open", playbookId: base.playbookId } : { kind: "route", label: LIFECYCLE_WORDS.needsCalendar.door, route: CALENDAR_SETTING_ROUTE };
+  return {
+    ...base,
+    people: null,
+    channels: [],
+    state: "not_here",
+    stateWords: words3,
+    phoneWords: words3,
+    tone: "plain",
+    covered: false,
+    act: act2
+  };
+}
+function playbookStage(base, p) {
+  const s = lifecycleStateOf(p);
+  const state = p.off ? "not_here" : s.paused ? "paused" : "on";
+  return {
+    ...base,
+    state,
+    stateWords: s.words,
+    phoneWords: s.short,
+    tone: s.tone,
+    covered: state === "on",
+    // On, and a run of it waits for the person: the node is a clock (the pill beside it says "Waiting on you").
+    waits: state === "on" && !!p.totals.waiting,
+    act: { kind: "open", label: "Open", playbookId: p.id }
+  };
+}
+function emptyStage(base, offered, moment) {
   if (!offered) {
     const words3 = "Not offered here";
     return {
@@ -27524,120 +28592,72 @@ function stageOf(def, playbooks, line, ready) {
     phoneWords: "Off",
     tone: "plain",
     covered: false,
-    act: { kind: "turn_on", label: "Turn on", moment: trigger }
+    act: { kind: "turn_on", label: "Turn on", moment }
   };
 }
-function withHint(stages, playbooks) {
-  const at3 = stages.findIndex((s) => {
-    const reach = poolOf(playbooks, s.moment ?? "")?.candidates ?? 0;
-    return s.state === "off" && reach > 0;
-  });
+function stageOf(def, at3) {
+  const { playbooks } = at3;
+  const own = def.kind === "moment" ? stagePlaybooks(def, playbooks.rows) : [];
+  const p = own.find((x) => x.state === "running") ?? own.at(0) ?? null;
+  const moment = def.id === "quiet" ? winBackMoment(playbooks, def.trigger) : def.trigger;
+  const poolKey = def.kind === "receptionist" ? def.poolKey : p?.trigger ?? moment ?? def.poolKey;
+  const pool = def.unmet ? null : poolOf(playbooks, poolKey);
+  const needs2 = moment === null ? "none" : purposeOfPlaybook(triggerOf(moment)?.cls ?? null) === "marketing" ? "offers" : "messages";
+  const base = {
+    id: def.id,
+    caps: def.caps,
+    name: p ? p.name : def.name,
+    glyph: def.glyph,
+    moment,
+    playbookId: p ? p.id : null,
+    people: pool ? pool.pool : null,
+    unit: def.unit,
+    needs: needs2,
+    needsWords: LIFECYCLE_WORDS.needs[needs2],
+    hint: null,
+    waits: false,
+    // A campaign's channels; the receptionist's and an empty moment's are none (what Turn on ticks is the composer's to say).
+    channels: p ? channelMarksOf(p, playbooks.templates, at3.ready) : [],
+    summary: stageSummaryOf(own),
+    bar: barOf(own)
+  };
+  if (def.kind === "receptionist") return receptionistStage(base, at3.line);
+  if (def.unmet) return unmetStage(base, at3.shape);
+  if (p) return playbookStage(base, p);
+  const offered = moment !== null && playbooks.triggers.some((t) => t.id === moment && t.offered);
+  return emptyStage(base, offered, moment ?? def.poolKey);
+}
+function withHint(stages, defs, playbooks) {
+  const reachOf = (s) => poolOf(playbooks, s.moment ?? "")?.candidates ?? 0;
+  const at3 = stages.findIndex((s) => s.state === "off" && reachOf(s) > 0);
   if (at3 < 0) return [...stages];
   return stages.map((s, i) => {
     if (i !== at3 || s.act?.kind !== "turn_on") return s;
-    const n = poolOf(playbooks, s.moment ?? "")?.candidates ?? 0;
-    const unit = STAGES.find((d) => d.id === s.id)?.hint ?? "";
-    const hint = `Turn on \xB7 ${n} ${unit}`;
+    const hint = `Turn on \xB7 ${reachOf(s)} ${defs.find((d) => d.id === s.id)?.off?.hint ?? ""}`;
     return { ...s, hint, act: { ...s.act, label: hint } };
   });
 }
-function lifecycleStages(playbooks, line, ready) {
-  const made = STAGES.map((d) => stageOf(d, playbooks, line, ready)).filter((s) => s !== null);
-  return withHint(made, playbooks);
-}
-function stripOfPlaybook(p, kind, glyph, words3, channels) {
-  const s = lifecycleStateOf(p);
-  const open = { kind: "open", label: "Open", playbookId: p.id };
-  const resume = { kind: "resume", label: "Resume", playbookId: p.id };
+function lifecycleStages(at3) {
+  const held = new Set(
+    at3.playbooks.rows.flatMap((p) => {
+      const id = journeyStageOf(p.trigger);
+      return id ? [id] : [];
+    })
+  );
+  const defs = journeyOf({
+    calendarOn: at3.shape.calendar === "feed",
+    dealsOn: at3.shape.dealsOn,
+    word: at3.shape.word,
+    held
+  });
   return {
-    id: p.id,
-    kind,
-    glyph,
-    name: p.name,
-    words: words3,
-    stateWords: p.listArchived ? "Its list is archived" : s.words,
-    tone: p.listArchived ? "warn" : s.tone,
-    open,
-    act: s.paused && !p.listArchived ? resume : open,
-    channels
+    defs,
+    stages: withHint(
+      defs.map((d) => stageOf(d, at3)),
+      defs,
+      at3.playbooks
+    )
   };
-}
-function callTextStrip(library2) {
-  const W = LIFECYCLE_WORDS.callText;
-  const open = { kind: "route", label: "Open", route: "messages" };
-  const found = library2 ? bookingTemplate(library2) : null;
-  const [stateWords, tone] = !library2 ? ["", "plain"] : found ? [W.on, "ok"] : [W.none, "warn"];
-  return {
-    id: "call_text",
-    kind: "call_text",
-    glyph: "phone",
-    name: W.name,
-    words: W.words,
-    stateWords,
-    tone,
-    open,
-    act: open,
-    channels: []
-  };
-}
-function monthsOfferStrip(playbooks, ready) {
-  const p = playbooks.rows.find((r2) => r2.trigger === "everyone_monthly");
-  if (p) {
-    const marks = channelMarksOf(p, playbooks.templates, ready);
-    return stripOfPlaybook(p, "moment", "gift", `Every ${p.cadence_days} days, to a yes to offers`, marks);
-  }
-  if (!playbooks.triggers.some((t) => t.id === "everyone_monthly" && t.offered)) return null;
-  const name = LIFECYCLE_WORDS.monthsOffer.name;
-  const turnOn = { kind: "turn_on", label: "Turn on", moment: "everyone_monthly" };
-  return {
-    id: "everyone_monthly",
-    kind: "moment",
-    glyph: "gift",
-    name,
-    words: "Every 30 days, to a yes to offers",
-    stateWords: "Off",
-    tone: "plain",
-    open: turnOn,
-    act: turnOn,
-    channels: []
-  };
-}
-function chainStrip(c, ready) {
-  const open = { kind: "open", label: "Open", playbookId: c.root_id };
-  const paused = c.state !== "running";
-  const waiting = !paused && !!c.next.waiting_run_id;
-  return {
-    id: c.root_id,
-    kind: "reach_out",
-    glyph: "send",
-    name: c.name,
-    words: `Cold email${c.search ? ` to ${c.search.name}` : ""} \xB7 ${plural(c.steps.length, "step")}`,
-    stateWords: paused ? "Paused" : waiting ? "Waiting on you" : "On",
-    tone: paused || waiting ? "warn" : "ok",
-    open,
-    act: paused ? { kind: "resume", label: "Resume", playbookId: c.root_id } : open,
-    channels: chainMarksOf(ready)
-  };
-}
-function lifecycleStrips(input, stages) {
-  const out = [callTextStrip(input.library)];
-  const playbooks = input.playbooks;
-  const ready = readyOf(input);
-  if (playbooks) {
-    const month = monthsOfferStrip(playbooks, ready);
-    if (month) out.push(month);
-    const onStage = new Set(stages.flatMap((s) => s.playbookId ? [s.playbookId] : []));
-    const rest = playbooks.rows.filter((p) => !onStage.has(p.id) && p.trigger !== "everyone_monthly");
-    const marks = (p) => channelMarksOf(p, playbooks.templates, ready);
-    for (const p of rest.filter((r2) => r2.trigger === "saved_list")) {
-      out.push(stripOfPlaybook(p, "list", "bolt", `On a list \xB7 ${p.triggerLabel}`, marks(p)));
-    }
-    for (const p of rest.filter((r2) => r2.trigger !== "saved_list")) {
-      out.push(stripOfPlaybook(p, "moment", "bolt", triggerOf(p.trigger)?.hint ?? p.triggerLabel, marks(p)));
-    }
-  }
-  for (const c of input.reachOuts ?? []) out.push(chainStrip(c, ready));
-  return out;
 }
 function emailRowsOf(reachOuts) {
   return reachOuts ? emailTemplateRowsOf(reachOuts).length : 0;
@@ -27664,8 +28684,8 @@ function lifecycleHeadOf(input, stages) {
 function lifecycleKicker(home, id) {
   const stage = home.rail.stages.find((s) => s.playbookId === id);
   if (stage) return stage.caps;
-  const line = home.strips.find((s) => s.id === id);
-  return line ? LIFECYCLE_WORDS.kickers[line.kind] : "Moment";
+  const group = home.ledger.groups.find((g) => g.rows.some((r2) => r2.id === id));
+  return group ? group.caps : LIFECYCLE_WORDS.ledger.kicker;
 }
 function failedOf(input) {
   const F = LIFECYCLE_WORDS.failed;
@@ -27674,29 +28694,55 @@ function failedOf(input) {
     templates: input.library === null ? F.templates : null,
     counts: input.playbooks && !input.playbooks.countsRead ? F.counts : null,
     chains: input.reachOuts === null ? F.chains : null,
-    report: b && b.report === null ? F.report : null,
+    report: input.report === null ? F.report : null,
     reach: b === null || b !== void 0 && !b.reach ? F.reach : null,
     coming: b === null ? F.coming : null,
     results: b === null ? F.results : null
   };
 }
 function campaignsHomeOf(input) {
-  const stages = input.playbooks ? lifecycleStages(input.playbooks, hasLine(input.broadcasts), readyOf(input)) : [];
+  const at3 = input.playbooks && input.shape ? { ...input, playbooks: calendarRead(input.playbooks, input.shape) } : input;
+  const made = at3.playbooks && at3.shape ? lifecycleStages({ playbooks: at3.playbooks, shape: at3.shape, line: hasLine(at3.broadcasts), ready: readyOf(at3) }) : { defs: [], stages: [] };
+  const { defs, stages } = made;
   const covered = stages.filter((s) => s.covered).length;
   return {
-    head: lifecycleHeadOf(input, stages),
+    head: lifecycleHeadOf(at3, stages),
     rail: {
       title: LIFECYCLE_WORDS.rail,
       coveredWords: stages.length > 0 ? `${covered} of ${stages.length} moments covered` : null,
       phoneWords: stages.length > 0 ? `${covered} of ${stages.length} on` : null,
       stages
     },
-    strips: lifecycleStrips(input, stages),
-    reach: lifecycleReach(input, stages),
-    coming: lifecycleComing(input, stages),
-    results: lifecycleResults(input),
-    failed: failedOf(input)
+    ledger: lifecycleLedger({ input: at3, defs, stages }),
+    reach: lifecycleReach(at3, stages),
+    coming: lifecycleComing(at3, stages, defs),
+    results: lifecycleResults(at3),
+    failed: failedOf(at3)
   };
+}
+
+// src/playbooks/playbook-totals.ts
+var isText = (v) => typeof v === "string";
+var isTextOrNull = (v) => v === null || typeof v === "string";
+function isHistoryRun(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isText(r2.id) && isTextOrNull(r2.run_for) && isText(r2.state) && isText(r2.scheduled_for) && isCount(r2.recipient_count) && isCount(r2.sent) && isCount(r2.held) && isCount(r2.delivered) && isCount(r2.replied);
+}
+function isLastRun(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isText(r2.id) && isText(r2.state) && isTextOrNull(r2.run_for) && isCount(r2.recipient_count);
+}
+function isWaiting(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isText(r2.id) && isCount(r2.recipient_count) && isText(r2.name) && isTextOrNull(r2.run_for) && isTextOrNull(r2.trigger);
+}
+function isTotalsRow(v) {
+  const r2 = recordOrNull(v);
+  return !!r2 && isCount(r2.runs) && isCount(r2.sent) && isCount(r2.delivered) && isCount(r2.replied) && isCount(r2.held) && isLastRun(r2.last_run) && (r2.waiting === null || isWaiting(r2.waiting)) && Array.isArray(r2.history) && r2.history.every(isHistoryRun);
+}
+function isPlaybookTotalsDto(answer) {
+  const byId = recordOrNull(answer);
+  return !!byId && Object.values(byId).every(isTotalsRow);
 }
 
 // src/reach-out/reach-out.ts
@@ -28328,9 +29374,9 @@ function withoutWrongPerson(waiting, readings) {
   for (const [thread, r2] of newestReadings(readings)) if (r2.intent === "wrong_person" && !r2.undone) gone.add(thread);
   return gone.size ? waiting.filter((w) => !gone.has(w.conversationId)) : [...waiting];
 }
-function withReplies(rows, readings) {
+function withReplies(rows2, readings) {
   const newest = newestReadings(readings);
-  return rows.map((row2) => {
+  return rows2.map((row2) => {
     const r2 = row2.kind === "handoff" && row2.conversationId ? newest.get(row2.conversationId) : void 0;
     return r2 && rowWorthy(r2) ? replyRowOf(row2, r2) : row2;
   });
@@ -28356,13 +29402,87 @@ function bookedSeenOf(items, own) {
   return out.slice(0, BOOKED_SEEN_CAP);
 }
 
+// src/reports/booking-report.ts
+var BOOKED_NEEDS_TODAY = "It follows people as they stand today, so it is only true of a period that ends today.";
+function toBookingReportVM(dto) {
+  if (!dto || dto.calendar === "none")
+    return {
+      present: false,
+      calendar: "none",
+      headline: "\u2014",
+      sub: BOOKED_NEEDS_A_LINK,
+      words: "",
+      pct: null,
+      asked: 0,
+      booked: 0,
+      unbooked: 0,
+      rest: ""
+    };
+  if (dto.calendar === "ended")
+    return {
+      present: false,
+      calendar: "ended",
+      headline: "Not counted for these days",
+      sub: BOOKED_NEEDS_TODAY,
+      words: "",
+      pct: null,
+      asked: 0,
+      booked: 0,
+      unbooked: 0,
+      rest: ""
+    };
+  if (dto.calendar === "unavailable")
+    return {
+      present: false,
+      calendar: "unavailable",
+      headline: "\u2014",
+      sub: "Your calendar could not be read.",
+      words: "",
+      pct: null,
+      asked: dto.asked,
+      booked: 0,
+      unbooked: 0,
+      rest: ""
+    };
+  if (dto.asked === 0)
+    return {
+      present: true,
+      calendar: "ok",
+      headline: "Nobody asked",
+      sub: `nobody wrote or called in the last ${plural(dto.days, "day")}`,
+      words: "",
+      pct: null,
+      asked: 0,
+      booked: 0,
+      unbooked: 0,
+      rest: ""
+    };
+  const pct2 = Math.round(dto.booked / dto.asked * 100);
+  const words3 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
+  const unbooked = dto.asked - dto.booked;
+  return {
+    present: true,
+    calendar: "ok",
+    headline: `${dto.booked} of ${dto.asked} booked`,
+    sub: `${pct2}% ${words3}`,
+    words: words3,
+    pct: pct2,
+    asked: dto.asked,
+    booked: dto.booked,
+    unbooked,
+    // The other side of the same share, said once: who is still waiting to be
+    // given a time. It is the half an owner can do something about.
+    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
+  };
+}
+
 // src/reports/campaign-report.ts
 var CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
   (c) => c.key !== "voice"
 );
 var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
-function campaignChannelsOf2(rows) {
-  return (rows ?? []).flatMap((r2) => {
+function campaignChannelsOf2(rows2) {
+  return (rows2 ?? []).flatMap((r2) => {
     const known = CAMPAIGN_CHANNELS.find((c) => c.key === r2.channel);
     if (!known || !(r2.sent > 0)) return [];
     const whatsapp = known.key === "whatsapp";
@@ -28429,7 +29549,7 @@ function toCampaignReportVM(dto) {
   const sources = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
-    kindLabel: s.kind === "playbook" ? "Playbook" : "Broadcast",
+    kindLabel: s.kind === "playbook" ? "Campaign" : "Broadcast",
     name: s.name,
     templateName: s.template_name,
     template: s.template_name ? templateTitle(s.template_name) : "",
@@ -28516,7 +29636,7 @@ function toCampaignReportVM(dto) {
     lines: {
       // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
       funnel: tot.optIns || tot.optOuts ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.` : "Nobody said yes to messages or asked to stop.",
-      sent: sends2 ? sends2 === 1 ? "From one broadcast or playbook run." : `From ${sends2} broadcast and playbook runs.` : null,
+      sent: sends2 ? sends2 === 1 ? "From one broadcast or campaign run." : `From ${sends2} broadcast and campaign runs.` : null,
       channels: channelsLine2(channels)
     }
   };
@@ -28529,7 +29649,7 @@ function lensAnswerOf(lens, parts2) {
     case "overview":
       return vm.empty ? void 0 : vm.lines.hero;
     case "receptionist":
-      return vm.empty ? void 0 : vm.lines.answered ?? void 0;
+      return vm.empty ? void 0 : vm.lines.receptionist ?? void 0;
     case "people":
       return vm.empty ? void 0 : vm.lines.channels ?? void 0;
     case "pipeline":
@@ -28541,37 +29661,6 @@ function lensAnswerOf(lens, parts2) {
   }
 }
 
-// src/reports/report-periods.ts
-var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
-var REPORT_PERIOD_DEFAULT = "30d";
-var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
-var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
-var fixedDaysOf = (period) => REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
-var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
-var periodSince = (today, days) => shiftKey(today, -(days - 1));
-function reportPeriodOf(asked) {
-  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
-  if (asked.days !== void 0)
-    return REPORT_RANGES.find((r2) => r2.days !== null && r2.days === Number(asked.days))?.id ?? null;
-  return REPORT_PERIOD_DEFAULT;
-}
-function reportDaysAsked(view) {
-  const asked = Number(view);
-  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
-}
-function reportWindowOf(period, today) {
-  const fixed = fixedDaysOf(period);
-  const from = periodSince(today, fixed ?? monthDaysAt(today));
-  const label = REPORT_RANGES.find((r2) => r2.id === period)?.label ?? "";
-  return {
-    period,
-    from,
-    to: today,
-    range: from === today ? fmtDay(today) : `${fmtDay(from)} \u2013 ${fmtDay(today)}`,
-    said: fixed === null ? "This month so far" : `Last ${label}`
-  };
-}
-
 // src/reports/review-record.ts
 var REVIEW_REPLY_TIME_MIN = 3;
 function isReviewsLedgerDto(answer) {
@@ -28580,8 +29669,8 @@ function isReviewsLedgerDto(answer) {
 function reviewsAreOnRecord(google) {
   return google.listing !== null && reviewsFromProfile(google.connection);
 }
-function reviewsWindowOf(today, days) {
-  const since = periodSince(today, days);
+function reviewsWindowOf(last, days) {
+  const since = periodSince(last, days);
   return { since, priorSince: periodSince(shiftKey(since, -1), days) };
 }
 function reviewsHistoryOf(ledger, connection, tz) {
@@ -28624,13 +29713,13 @@ function reviewsWeeksOf(perDay, since, today, h) {
   }
   return weeks;
 }
-function reviewsPeriodOf(ledger, history, today, days) {
-  const { since, priorSince } = reviewsWindowOf(today, days);
-  const current = ledger.written.filter((r2) => r2.d >= since && r2.d <= today);
+function reviewsPeriodOf(ledger, history, { last, days, until }) {
+  const { since, priorSince } = reviewsWindowOf(last, days);
+  const current = ledger.written.filter((r2) => r2.d >= since && r2.d <= last);
   const perDay = /* @__PURE__ */ new Map();
   for (const r2 of current) perDay.set(r2.d, (perDay.get(r2.d) ?? 0) + 1);
-  const weeks = reviewsWeeksOf(perDay, since, today, history);
-  if (!historyReaches(history, since)) return { period: { exact: false, days, history }, weeks };
+  const weeks = reviewsWeeksOf(perDay, since, last, history);
+  if (!historyReaches(history, since)) return { period: { exact: false, days, until, history }, weeks };
   const answered = current.filter((r2) => r2.replied);
   const waits = answered.flatMap((r2) => r2.secs === null ? [] : [r2.secs]).sort((a, b) => a - b);
   const mix = reviewsStarMixOf(current);
@@ -28638,6 +29727,7 @@ function reviewsPeriodOf(ledger, history, today, days) {
     period: {
       exact: true,
       days,
+      until,
       history,
       written: current.length,
       prior: historyReaches(history, priorSince) ? ledger.written.filter((r2) => r2.d >= priorSince && r2.d < since).length : null,
@@ -28739,7 +29829,7 @@ function reviewsNoneHead(l, onRecord, nowMs) {
 }
 function profileHeadTail(p) {
   if (!p.exact) return historyWords(p.history) ?? "";
-  const within2 = withinWords(p.days);
+  const within2 = withinWords(p.days, p.until);
   if (!p.written) return `none new ${within2}`;
   const answered = p.answered === p.written ? "all answered" : p.answered ? `${p.answered} answered` : "none answered yet";
   return `${p.written} new ${within2}, ${answered}`;
@@ -28747,7 +29837,7 @@ function profileHeadTail(p) {
 function reviewsMixLine(p) {
   if (!p.exact) return null;
   if (!p.written) return NOTHING_WRITTEN;
-  const within2 = withinWords(p.days);
+  const within2 = withinWords(p.days, p.until);
   if (!p.rated) return `No star rating among the reviews written ${within2}.`;
   const of = p.rated === p.written ? plural(p.rated, "review") : plural(p.rated, "rated review");
   return `${p.good} of the ${of} written ${within2} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
@@ -28756,26 +29846,27 @@ function reviewsWeeklyLine(p, weeks, since) {
   const total = sumOf(weeks.map((w) => w.written));
   if (total) {
     const first = weeks.at(0);
-    const over = first && first.day > since ? `since ${first.label}` : withinWords(p.days);
+    const over = first && first.day > since ? `since ${first.label}` : withinWords(p.days, p.until);
     return `${total} written ${over}`;
   }
   return p.exact && !p.written ? NOTHING_WRITTEN : null;
 }
 function reviewsWaitingOf(ledger, linkedAt, tz, nowMs) {
-  const rows = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r2) => {
+  const rows2 = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r2) => {
     const why = reviewHeldWords(r2.held);
     return {
       ...toGoogleReviewVM(r2, linkedAt, tz, nowMs),
       held: why ? `The receptionist wrote a reply and held it: ${why}.` : null
     };
   });
-  return { total: ledger.waiting_total, rows };
+  return { total: ledger.waiting_total, rows: rows2 };
 }
 var latestEmptyWords = (google, latest) => latest.length ? null : google.latest.length ? LATEST_ALL_WAIT_WORDS : LATEST_NONE_WORDS;
 function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
-  const { days, today, timezone } = dto;
+  const { days, timezone } = dto;
+  const last = dto.end ?? dto.today;
   const history = reviewsHistoryOf(ledger, dto.google.connection, timezone);
-  const { period: p, weeks } = reviewsPeriodOf(ledger, history, today, days);
+  const { period: p, weeks } = reviewsPeriodOf(ledger, history, { last, days, until: endedOn(dto) });
   const weekly = sumOf(weeks.map((w) => w.written)) ? { points: weeks } : null;
   const waiting = reviewsWaitingOf(ledger, l.linked_at, timezone, nowMs);
   const waitingIds = new Set(waiting.rows.map((r2) => r2.id));
@@ -28798,7 +29889,7 @@ function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
       ...noLines(),
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${profileHeadTail(p)}.`,
       mix: reviewsMixLine(p),
-      weekly: reviewsWeeklyLine(p, weeks, periodSince(today, days)),
+      weekly: reviewsWeeklyLine(p, weeks, periodSince(last, days)),
       history: startsAt,
       historyTitle: startsAt ? `${capitalize(startsAt)}.` : null,
       waiting: waiting.total > waiting.rows.length ? `Showing the oldest ${waiting.rows.length}.` : null,
@@ -28833,7 +29924,8 @@ function reviewsFromPlaces({ dto, google, l, nowMs }) {
   };
 }
 function reviewsNotLinked(dto, google) {
-  const found = lensEmpty("reviews", { since: periodSince(dto.today, dto.days), until: dto.today }).title;
+  const last = dto.end ?? dto.today;
+  const found = lensEmpty("reviews", { since: periodSince(last, dto.days), until: last }).title;
   return {
     days: dto.days,
     state: dto.readable ? "unlinked" : "unavailable",
@@ -28851,23 +29943,65 @@ function reviewsNotLinked(dto, google) {
 }
 function toReviewsReportVM(dto, opts) {
   const { nowMs } = opts;
-  const google = toGoogleVM(dto.google, dto.days, nowMs, dto.timezone);
+  const google = toGoogleVM(dto.google, { days: dto.days, until: endedOn(dto) }, nowMs, dto.timezone);
   const l = dto.google.listing;
   if (!l) return reviewsNotLinked(dto, google);
   const build = { dto, google, l, nowMs };
   return dto.ledger && reviewsAreOnRecord(dto.google) ? reviewsFromLedger(build, dto.ledger) : reviewsFromPlaces(build);
 }
 
+// src/reports/receptionist/receptionist-record.ts
+var MISSED_CALL_TOUCH_WORDS = "an hour";
+var OPEN_ESCALATIONS_LISTED = 500;
+var isObjectAnswer = (v) => typeof v === "object" && v !== null;
+function isReceptionistSeriesDto(answer) {
+  return isObjectAnswer(answer) && typeof answer.timezone === "string" && typeof answer.today === "string" && typeof answer.days === "number" && isObjectAnswer(answer.hold) && isObjectAnswer(answer.handover) && isObjectAnswer(answer.stuck) && Array.isArray(answer.stuck.open);
+}
+function windowEcho(h) {
+  return { timezone: h.timezone, today: h.today, ...h.end === void 0 ? {} : { end: h.end }, days: h.days };
+}
+function stuckOf(open, nowMs) {
+  const needsYou = (o) => standingOfThread(
+    { state: o.state, paused_until: o.paused_until, assignee_user_id: o.assignee_user_id },
+    true,
+    nowMs
+  ).standing === "needs_you";
+  const waiting = open.filter(needsYou);
+  const oldest = waiting.reduce(
+    (first, o) => first === null || Date.parse(o.created_at) < Date.parse(first) ? o.created_at : first,
+    null
+  );
+  return {
+    waiting: waiting.length,
+    oldest_at: oldest,
+    callbacks: waiting.filter((o) => o.reason === "callback").length,
+    capped: open.length >= OPEN_ESCALATIONS_LISTED
+  };
+}
+function receptionistDtoOf(series, parts2) {
+  if (series === null) return { ...windowEcho(parts2.head), series: null, profile: parts2.profile };
+  const { links, stuck, ...rest } = series;
+  return {
+    ...windowEcho(series),
+    series: {
+      ...rest,
+      links: { sent: links.total, booked: parts2.booked?.booked ?? null, calendar: parts2.booked?.calendar ?? "none" },
+      stuck: stuckOf(stuck.open, parts2.nowMs)
+    },
+    profile: parts2.profile
+  };
+}
+
 // src/reports/report-metrics.ts
 var METRIC_WORDS = {
   customer_messages: "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
-  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a playbook message is nobody's answer.",
+  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a campaign message is nobody's answer.",
   reply_median: "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
-  calls: "Calls to the receptionist that someone spoke on. A call that rang out or dropped before anyone spoke is not counted.",
+  calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message, in either direction, or first connected call fell in this period. People brought in with their history, people who asked to be forgotten, and people with no message or call yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
-  messages_sent: "Messages your broadcasts and playbook runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
+  messages_sent: "Messages your broadcasts and campaign runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   replied_share: `Of the messages sent, the share the person answered in their own words ${REPLY_WINDOW_WORDS}. A note the system wrote, and a program writing from their address, are not their words.`,
   said_yes: "People who said yes to being messaged in this period, in their own words or recorded at the desk, counted once a day each.",
@@ -28878,9 +30012,316 @@ var METRIC_WORDS = {
   newest_review: "The newest of the five reviews Google shows for your listing, and when it was written. Google shows five at most.",
   reviews_written: "Reviews written in this period, with words or without, by the day Google dates them, from your Business Profile. A review Google later removes stays on record and is still counted.",
   reviews_answered: "Of the reviews written in this period, how many have a reply on Google, from you or the receptionist. A review with no reply yet is not answered. A reply counts as the receptionist's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
-  review_reply_time: "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said."
+  review_reply_time: "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said.",
+  handover_first_reply: "The middle time from the receptionist handing a conversation to you, over the handovers that wanted a message, to the first message a person sent in it that went out. A handover for an opt-out or a call-back (which wants none), one nobody has replied to yet, and a message the system sent are not counted.",
+  handover_settled: "The middle time from the receptionist handing a conversation to you to its being settled, over this period's handovers that have been. A handover for an opt-out or a call-back, one still open, and one settled before settling was recorded are not counted.",
+  missed_calls_answered: `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or the receptionist reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call the receptionist placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
+  answered_while_closed: "Of the customer messages that came in while your opening hours and closures say you were closed, how many the receptionist answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
+  waiting_on_you: "Conversations the receptionist flagged for a person that nobody has taken, as of now, whatever period is picked. One you or a teammate has taken over, and one put aside until later, are not counted.",
+  call_backs: "Of the conversations waiting on you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
+  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted."
 };
 var metricWordsOf = (metric) => METRIC_WORDS[metric];
+
+// src/reports/receptionist/receptionist-words.ts
+var ownWord = (words3, key) => Object.hasOwn(words3, key) ? words3[key] : void 0;
+function rankedEntries(counts, labelOf2) {
+  return Object.entries(counts).filter(([, n]) => n > 0).map(([key, n]) => [key, labelOf2(key), n]).sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : 1));
+}
+var HOLD_OUTCOMES = [
+  ["sent", "Went out as the hold ended"],
+  ["canceled", "You cancelled"],
+  ["steered", "You changed"],
+  ["overtaken", "A newer message came first"],
+  ["person_first", "A person answered first"],
+  ["waiting", "Still waiting"],
+  ["other", "Did not go out"]
+];
+var HOLD_EMPTY = "No reply waited in a hold in this period.";
+var holdEntries = (now) => HOLD_OUTCOMES.map(([key, label]) => [key, label, now[key]]).filter(([, , n]) => n > 0);
+function holdLine2(now) {
+  const out = `${now.sent} of ${now.total} went out as the hold ended.`;
+  const n = now.low_confidence;
+  return n > 0 ? `${out} ${n} ${n === 1 ? "was" : "were"} held back as not sure enough to send alone.` : out;
+}
+function topicsEmpty(of, stamped) {
+  if (of === 0) return "Topics are read from texts and WhatsApp messages. None came in this period.";
+  if (stamped === 0) return `No topic is recorded for the ${plural(of, "message")} that came by text or WhatsApp.`;
+  return null;
+}
+var topicEntries = (byIntent) => rankedEntries(byIntent, (key) => ownWord(INTENT_LABELS, key) ?? key);
+var topicsLine = (stamped, of) => `${stamped} of ${of} text and WhatsApp messages had a topic.`;
+var LANGUAGE_LABELS = { en: "English", es: "Spanish", other: "Another language" };
+var languageEntries = (byLanguage) => rankedEntries(byLanguage, (key) => ownWord(LANGUAGE_LABELS, key) ?? key);
+var languagesLine = (stamped, of) => `${stamped} of ${of} replies say the language they were written in.`;
+var CALLS_EMPTY = "Nobody phoned in this period.";
+var CALLS_NONE_CONNECTED = "No call connected in this period.";
+var callEndingWords = (key) => key === "unknown" ? "Not recorded" : ownWord(DISCONNECTION_LABELS, key) ?? key.replace(/_/g, " ");
+var callEndingEntries = (byReason) => rankedEntries(byReason, callEndingWords);
+var callEndingsLine = (total) => `${plural(total, "call")} that connected.`;
+function bookedReason(calendar) {
+  if (calendar === "ended") return BOOKED_NEEDS_TODAY;
+  if (calendar === "none") return BOOKED_NEEDS_A_LINK;
+  if (calendar === "unavailable") return "Your calendar could not be read.";
+  return null;
+}
+function linkLine(sent2, booked, calendar) {
+  if (sent2 === 0) return "Nobody was sent the booking link in this period.";
+  const was = `${sent2} ${sent2 === 1 ? "person was" : "people were"} sent the booking link`;
+  if (booked !== null) return `${was}; ${booked} ${booked === 1 ? "has" : "have"} booked since.`;
+  const reason = bookedReason(calendar);
+  return reason === null ? `${was}.` : `${was}. ${reason}`;
+}
+var HANDOVER_NONE = "nothing was handed over in this period";
+var handoverReplyMeta = (replied, n) => n === 0 ? HANDOVER_NONE : `${replied} of ${plural(n, "handover")} that wanted a message had a reply from you`;
+var handoverSettledMeta = (settled, n) => n === 0 ? HANDOVER_NONE : `${settled} of ${n} settled`;
+var MISSED_LABEL = `Missed calls answered within ${MISSED_CALL_TOUCH_WORDS}`;
+function missedMeta(m) {
+  const left = [
+    m.pending > 0 ? `${m.pending} under ${MISSED_CALL_TOUCH_WORDS} old, not counted yet` : null,
+    m.unknown > 0 ? `${m.unknown} with no caller on record not counted` : null
+  ].filter((part) => part !== null);
+  if (left.length > 0) return left.join(" \xB7 ");
+  return m.n === 0 ? "no call went unanswered at the phone" : `${plural(m.n, "person", "people")} rang and found nobody`;
+}
+var CLOSED_UNSET = "set your opening hours to see this";
+var CLOSED_NONE = "no message came while you were closed";
+var closedMeta = (came, answered) => `${plural(came, "message")} came while you were closed; the receptionist answered ${answered}.`;
+function waitedWords(oldestAt, nowMs) {
+  const seconds2 = oldestAt === null ? NaN : (nowMs - Date.parse(oldestAt)) / 1e3;
+  return Number.isFinite(seconds2) ? durationWords(seconds2) : null;
+}
+function waitingMeta(waiting, oldestAt, nowMs) {
+  if (waiting === 0) return "nobody is waiting for you";
+  const waited = waitedWords(oldestAt, nowMs);
+  return waited === null ? "waiting for you now" : `the oldest has waited ${waited}`;
+}
+var callbacksMeta = (callbacks) => callbacks === 0 ? "no call-back is waiting" : "people to ring, counted in waiting on you";
+var refusalWords = (key) => ownWord(HELD_REASONS, key) ?? key.replace(/_/g, " ");
+function heldBackMeta(byReason) {
+  const top = rankedEntries(byReason, refusalWords).slice(0, 2);
+  return top.length > 0 ? top.map(([, words3, n]) => `${words3} ${n}`).join(" \xB7 ") : "none were held at the door in this period";
+}
+var heldBackEntries = (byReason) => rankedEntries(byReason, (key) => capitalize(refusalWords(key)));
+
+// src/reports/receptionist/receptionist-report.ts
+function barsOf2(entries) {
+  const max = Math.max(1, ...entries.map(([, , value]) => value));
+  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
+}
+var mixOf = (entries, line) => ({ rows: barsOf2(entries), line, empty: null });
+var noMix = (empty) => ({ rows: [], line: null, empty });
+function holdPart({ hold }) {
+  return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), holdLine2(hold.now));
+}
+function topicsPart({ topics }) {
+  const empty = topicsEmpty(topics.of, topics.stamped);
+  return empty === null ? mixOf(topicEntries(topics.by_intent), topicsLine(topics.stamped, topics.of)) : noMix(empty);
+}
+function languagesPart({ languages }) {
+  const entries = languageEntries(languages.by_language);
+  return entries.length < 2 ? null : mixOf(entries, languagesLine(languages.stamped, languages.of));
+}
+function callEndingsPart({ call_endings, missed }) {
+  if (call_endings.total > 0)
+    return mixOf(callEndingEntries(call_endings.by_reason), callEndingsLine(call_endings.total));
+  const rang = missed.now.n + missed.now.pending + missed.now.unknown > 0;
+  return noMix(rang ? CALLS_NONE_CONNECTED : CALLS_EMPTY);
+}
+function wasWords(now, before, days) {
+  return now === null || before === null ? null : `was ${fmtSeconds(before)} ${beforeWords(rangeLabelOf(days))}`;
+}
+function handoverFigures({ handover }, days) {
+  const { now, before } = handover;
+  return [
+    {
+      id: "handover-reply",
+      metric: "handover_first_reply",
+      label: "Your first reply after a handover",
+      value: fmtSeconds(now.replied.median_s),
+      meta: handoverReplyMeta(now.replied.n, now.n),
+      compare: wasWords(now.replied.median_s, before.replied.median_s, days),
+      n: now.replied.n,
+      minN: REPORT_MIN_N
+    },
+    {
+      id: "handover-settled",
+      metric: "handover_settled",
+      label: "Time to settle a handover",
+      value: fmtSeconds(now.settled.median_s),
+      meta: handoverSettledMeta(now.settled.n, now.n),
+      compare: wasWords(now.settled.median_s, before.settled.median_s, days),
+      n: now.settled.n,
+      minN: REPORT_MIN_N
+    }
+  ];
+}
+function missedFigure({ missed }, days) {
+  const { now, before } = missed;
+  return {
+    id: "missed-calls",
+    metric: "missed_calls_answered",
+    label: MISSED_LABEL,
+    value: now.n === 0 ? "\u2014" : `${now.touched} of ${now.n}`,
+    meta: missedMeta(now),
+    // Set against the period before only beside a figure: nothing is set against a dash.
+    compare: now.n > 0 && before.n > 0 ? `was ${before.touched} of ${before.n} ${beforeWords(rangeLabelOf(days))}` : null,
+    n: now.n,
+    minN: REPORT_MIN_N
+  };
+}
+function closedFigure({ after_hours }, profile) {
+  const tile = {
+    id: "closed",
+    metric: "answered_while_closed",
+    label: "Answered while you were closed",
+    compare: null
+  };
+  if (hoursUnsetOf(after_hours, profile)) {
+    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/workspace", unset: true };
+  }
+  if (profile === null) return null;
+  const came = closedOf(after_hours, profile) ?? 0;
+  if (came === 0) return { ...tile, value: "0", meta: CLOSED_NONE, unset: false };
+  const answered = closedOf(
+    after_hours.map(({ d, q, a }) => ({ d, q, n: a })),
+    profile
+  ) ?? 0;
+  return {
+    ...tile,
+    value: `${answered} of ${came}`,
+    meta: closedMeta(came, answered),
+    n: came,
+    minN: REPORT_MIN_N,
+    unset: false
+  };
+}
+function stuckFigures({ stuck, blocked }, nowMs) {
+  return [
+    {
+      id: "waiting",
+      metric: "waiting_on_you",
+      label: "Waiting on you",
+      // A list cut at the database's limit is a floor: the Inbox is where the rest is.
+      value: stuck.capped ? `${stuck.waiting}+` : String(stuck.waiting),
+      meta: waitingMeta(stuck.waiting, stuck.oldest_at, nowMs),
+      compare: null,
+      door: "inbox"
+    },
+    {
+      id: "call-backs",
+      metric: "call_backs",
+      label: "Call-backs",
+      value: String(stuck.callbacks),
+      meta: callbacksMeta(stuck.callbacks),
+      compare: null,
+      door: "today"
+    },
+    {
+      id: "held-back",
+      metric: "replies_held_back",
+      label: "Replies held back",
+      value: String(blocked.total),
+      meta: heldBackMeta(blocked.by_reason),
+      compare: null,
+      door: "inbox"
+    }
+  ];
+}
+function unavailableVM() {
+  return {
+    available: false,
+    hold: noMix(null),
+    topics: noMix(null),
+    languages: null,
+    callEndings: noMix(null),
+    link: { sent: 0, booked: null, line: "" },
+    handover: [],
+    missed: {
+      id: "missed-calls",
+      metric: "missed_calls_answered",
+      label: MISSED_LABEL,
+      value: "\u2014",
+      meta: "",
+      compare: null
+    },
+    closed: null,
+    stuck: [],
+    heldBack: []
+  };
+}
+function toReceptionistReportVM(dto, opts) {
+  const { series } = dto;
+  if (series === null) return unavailableVM();
+  const { links } = series;
+  return {
+    available: true,
+    hold: holdPart(series),
+    topics: topicsPart(series),
+    languages: languagesPart(series),
+    callEndings: callEndingsPart(series),
+    link: { sent: links.sent, booked: links.booked, line: linkLine(links.sent, links.booked, links.calendar) },
+    handover: handoverFigures(series, dto.days),
+    missed: missedFigure(series, dto.days),
+    closed: closedFigure(series, dto.profile),
+    stuck: stuckFigures(series, opts.nowMs),
+    heldBack: barsOf2(heldBackEntries(series.blocked.by_reason))
+  };
+}
+
+// src/reports/report-window.ts
+function reportShortcuts(today) {
+  const yesterday = shiftKey(today, -1);
+  const monday = mondayOf(today);
+  return [
+    { id: "yesterday", label: "Yesterday", days: { from: yesterday, to: yesterday } },
+    { id: "last-week", label: "Last week", days: { from: shiftKey(monday, -7), to: shiftKey(monday, -1) } },
+    {
+      id: "last-month",
+      label: "Last month",
+      days: { from: shiftMonth(today, -1), to: shiftKey(shiftMonth(today, 0), -1) }
+    }
+  ];
+}
+function shortDates(from, to) {
+  if (from === to) return fmtDay(to);
+  return from.slice(0, 7) === to.slice(0, 7) ? `${fmtDay(from)} \u2013 ${keyParts(to).d}` : daysWords(from, to);
+}
+function reportWindowOf(range, today) {
+  const picked = typeof range === "string" ? null : range;
+  const period = typeof range === "string" ? range : null;
+  const fixed = period === null ? null : fixedDaysOf(period);
+  const to = picked?.to ?? today;
+  const from = picked?.from ?? periodSince(today, fixed ?? monthDaysAt(today));
+  const days = reportDaysCount({ from, to });
+  const label = REPORT_RANGES.find((r2) => r2.id === period)?.label ?? "";
+  const shortcut = picked ? reportShortcuts(today).find((s) => s.days.from === from && s.days.to === to) : void 0;
+  const before = { from: shiftKey(from, -days), to: shiftKey(from, -1) };
+  const dated = period === null && shortcut === void 0;
+  return {
+    range,
+    period,
+    key: reportRangeKey(range),
+    from,
+    to,
+    days,
+    live: to === today,
+    dates: daysWords(from, to),
+    said: period === null ? shortcut?.label ?? plural(days, "day") : fixed === null ? "This month so far" : `Last ${label}`,
+    short: period === null ? shortcut?.label ?? shortDates(from, to) : label,
+    beside: dated ? plural(days, "day") : daysWords(from, to),
+    before: { ...before, dates: daysWords(before.from, before.to) }
+  };
+}
+function reportPickWords(first, band, refused) {
+  if (refused?.why === "to-come") return `${fmtDay(refused.day)} is still to come. Press today or a day before.`;
+  if (refused && first !== null)
+    return `${fmtDay(refused.day)} is more than ${REPORT_MOST_DAYS} days from ${fmtDay(first)}. Press a nearer day.`;
+  if (first === null) return `Press a first day, then a last. ${REPORT_MOST_DAYS} days at most.`;
+  const days = reportDaysCount(band);
+  if (days === 1) return `From ${fmtDay(first)}. Press the last day, or this one again for the day alone.`;
+  return `${daysWords(band.from, band.to)}, ${plural(days, "day")}. Press to choose.`;
+}
 
 // src/reports/report-headline.ts
 function isReportDto(answer) {
@@ -28892,7 +30333,8 @@ function toHeadlineVM(dto) {
     period: dto.period,
     days: dto.days,
     rangeLabel,
-    lead: periodWords(rangeLabel).now,
+    // Today reads a period by name, never days a member picked: it ends today.
+    lead: periodWords(dto.days, null).now,
     empty: dto.empty,
     messages: {
       total: dto.messages_in,
@@ -28932,7 +30374,7 @@ function reportFacts(vm, campaigns) {
       door: { label: "See them", to: "inbox" }
     });
   }
-  const b = vm.week.busiest;
+  const b = vm.days > 1 ? vm.week.busiest : null;
   const h = vm.hours;
   const peak = h && h.peak !== null ? `peak ${reportHourWords(h.peak)} to ${reportHourWords(h.peak + 2)}` : "";
   if (b !== null) {
@@ -28998,6 +30440,27 @@ function reportFacts(vm, campaigns) {
 }
 
 // src/reports/reach-out-report.ts
+function chainTotalsOf(answer) {
+  const roots = recordOrNull(answer);
+  if (!roots) return null;
+  const by_root = {};
+  for (const [root, value] of Object.entries(roots)) {
+    const v = recordOrNull(value);
+    if (!v || !isCount(v.written) || !isCount(v.wrote_back)) return null;
+    by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+  }
+  return { complete: true, by_root };
+}
+function chainTotalsFromReport(report) {
+  const by_root = {};
+  for (const c of report.chains) {
+    by_root[c.root_id] = {
+      written: c.steps.reduce((sum2, s) => sum2 + s.written, 0),
+      wrote_back: c.steps.reduce((sum2, s) => sum2 + s.wrote_back, 0)
+    };
+  }
+  return { complete: false, by_root };
+}
 var pctText = (n, d) => {
   const share = pct(n, d);
   return share === null ? "\u2014" : `${share}%`;
@@ -29025,7 +30488,7 @@ function funnelOf(t) {
   };
 }
 function anglesOf(dto) {
-  const rows = dto.angles.map((a) => ({
+  const rows2 = dto.angles.map((a) => ({
     id: a.angle,
     label: a.angle,
     value: pct(a.wrote_back, a.written) ?? 0,
@@ -29033,13 +30496,13 @@ function anglesOf(dto) {
   }));
   const o = dto.other_angles;
   if (o.written > 0)
-    rows.push({
+    rows2.push({
       id: "other",
       label: "Other angles",
       value: pct(o.wrote_back, o.written) ?? 0,
       display: `${o.wrote_back} of ${o.written}  ${pctText(o.wrote_back, o.written)}`
     });
-  return { rows, max: Math.max(1, ...rows.map((r2) => r2.value)) };
+  return { rows: rows2, max: Math.max(1, ...rows2.map((r2) => r2.value)) };
 }
 function domainStateWords(d, nowMs, tz) {
   if (d.host === null) return "Since removed";
@@ -29130,12 +30593,15 @@ function stepLineOf(root, s) {
 function linesOf2(dto) {
   const t = dto.totals;
   const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
+  const until = endedOn(dto);
+  const oneDay = dto.days === 1 ? withinWords(1, until) : null;
+  const these = oneDay ?? "in these days";
   return {
-    funnel: t.written ? `Of ${plural(t.written, "email")} written in these ${plural(dto.days, "day")}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.` : "Nothing was written in these days.",
-    angles: angled ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}` : "No email in these days had an opening, so there is no angle to compare.",
+    funnel: t.written ? `Of ${plural(t.written, "email")} written ${oneDay ?? `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.` : `Nothing was written ${these}.`,
+    angles: angled ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}` : `No email ${these} had an opening, so there is no angle to compare.`,
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote ${periodWords(rangeLabelOf(dto.days)).within}.`
+    empty: `No reach-out wrote ${withinWords(dto.days, until)}.`
   };
 }
 var NO_COUNTS = {
@@ -29153,6 +30619,7 @@ function wholeOf(raw) {
     timezone: raw.timezone || "UTC",
     days: raw.days ?? 30,
     today: raw.today ?? "",
+    end: raw.end ?? raw.today ?? "",
     since: raw.since ?? "",
     has_reach_out: raw.has_reach_out === true,
     totals: { ...NO_COUNTS, ...raw.totals ?? {} },
@@ -29588,7 +31055,7 @@ function lineToGetRow(i, ctx) {
     verb: { label: "Ask for a line", to: "verb:request-line" }
   };
 }
-function receptionistRow(i, ctx) {
+function receptionistRow2(i, ctx) {
   const { voice, voiceReady, voiceNum, answering, handoffNum, ownLine, nowMs } = ctx;
   if (voiceReady) {
     const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
@@ -30143,7 +31610,7 @@ var SETUP_ROWS = [
   factsRow,
   handoffRow,
   lineRow,
-  receptionistRow,
+  receptionistRow2,
   tryRow,
   keepRow,
   whatsappRow,
@@ -30165,20 +31632,20 @@ function setupSteps(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const ctx = rowContextOf(i, nowMs);
   const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
-  const rows = [];
+  const rows2 = [];
   for (const build of SETUP_ROWS) {
     const r2 = build(i, ctx);
     if (r2)
-      rows.push({
+      rows2.push({
         ...r2,
         stateWords: r2.stateWords ?? SETUP_STATE_WORDS[r2.state],
         later: !r2.required && later.has(r2.id)
       });
   }
-  const open = rows.filter((r2) => r2.state !== "ready" && !r2.later);
+  const open = rows2.filter((r2) => r2.state !== "ready" && !r2.later);
   const nextRow = open.find((r2) => r2.verb) ?? null;
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
-  const done = rows.filter((r2) => r2.state === "ready").length;
+  const done = rows2.filter((r2) => r2.state === "ready").length;
   const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
   const sentence2 = seriousConflict ? (
     // "Answering" and "answering correctly" are different claims, and the top
@@ -30186,11 +31653,11 @@ function setupSteps(i, nowMs = Date.now()) {
     seriousConflict.sentence
   ) : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
   return {
-    rows,
+    rows: rows2,
     readiness: { answering, sentence: sentence2 },
     next,
     done,
-    total: rows.length,
+    total: rows2.length,
     tryIt: answering ? {
       voice: voiceReady ? voice.number : null,
       voiceLabel: voiceReady ? voiceNum : null,
@@ -30200,6 +31667,7 @@ function setupSteps(i, nowMs = Date.now()) {
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
     forwardingOwed: forwardingOwedOf(i, later),
+    calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
   };
 }
@@ -31310,6 +32778,11 @@ function firstRunOf(vm, at3, who) {
   };
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
+var CARD_REMIND = {
+  words: "Your calendar is in. Remind each customer the day before?",
+  label: "Turn on",
+  to: "campaigns/new:moment:visit_tomorrow"
+};
 function setupCardOf(vm) {
   const fr = firstRunOf(vm);
   if (!fr.complete && fr.current !== "try") {
@@ -31331,21 +32804,27 @@ function setupCardOf(vm) {
       },
       rows: [],
       hide: null,
-      skip: CARD_SKIP
+      skip: CARD_SKIP,
+      remind: null
     };
   }
-  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
+  const rows2 = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
     (r2) => r2 !== null && r2.state !== "ready" && !r2.later && !!r2.verb
   );
-  if (!rows.length) return null;
-  const said = rows.length === 1 ? CARD_SKIP.said : `All ${rows.length} put off. They stay in Setting up for when you're ready.`;
+  if (!rows2.length) return null;
+  const said = rows2.length === 1 ? CARD_SKIP.said : `All ${rows2.length} put off. They stay in Setting up for when you're ready.`;
+  const calendar = rowOf(vm, "calendar");
   return {
     title: FINISH_SETTING_UP,
-    left: `${rows.length} left`,
+    left: `${rows2.length} left`,
     start: null,
-    rows,
+    rows: rows2,
     hide: { put: "Hide", said },
-    skip: CARD_SKIP
+    skip: CARD_SKIP,
+    // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
+    // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
+    // the composer's moment is not offered and core refuses it.
+    remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null
   };
 }
 var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
@@ -31914,14 +33393,14 @@ function connectionRows(i, nowMs = Date.now()) {
 var CONNECTION_GROUP_WORDS = {
   connected: {
     title: "Connected",
-    sub: (rows) => {
-      const bad = rows.filter((r2) => r2.state !== "connected").length;
-      return `${rows.length} connected${bad ? ` \xB7 ${bad} need${bad === 1 ? "s" : ""} attention` : ""}`;
+    sub: (rows2) => {
+      const bad = rows2.filter((r2) => r2.state !== "connected").length;
+      return `${rows2.length} connected${bad ? ` \xB7 ${bad} need${bad === 1 ? "s" : ""} attention` : ""}`;
     }
   },
   available: {
     title: "Available",
-    sub: (rows) => rows.some((r2) => r2.state === "waiting_you") ? "something here waits on you" : rows.some((r2) => r2.state === "waiting_them") ? "in progress" : "ready when you are"
+    sub: (rows2) => rows2.some((r2) => r2.state === "waiting_you") ? "something here waits on you" : rows2.some((r2) => r2.state === "waiting_them") ? "in progress" : "ready when you are"
   },
   later: { title: "Later", sub: () => "not yet: nothing here is connected" }
 };
@@ -32171,17 +33650,6 @@ var EDGE_ERROR_CODES = [
   "write_failed"
 ];
 
-// src/shared/unknown.ts
-var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
-var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
-var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
-var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var lineOrNull = (s) => {
-  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
-  return t ? t.slice(0, 200) : null;
-};
-
 // src/shared/bytes.ts
 var encoder = null;
 var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
@@ -32318,7 +33786,8 @@ var SCHEMA_SETS = {
     "delete_list",
     "import",
     "open_recording",
-    "merge"
+    "merge",
+    "change_playbook"
   ],
   "escalations.reason": [
     "human_token",
@@ -32589,6 +34058,7 @@ var ROUTE_KEYS = [
   "GET leads/[id]",
   "GET leads/export",
   "GET lines/codes",
+  "GET me/alerts",
   "GET messages/[id]/media",
   "GET metrics",
   "GET notifications",
@@ -32609,6 +34079,7 @@ var ROUTE_KEYS = [
   "GET reports/campaigns",
   "GET reports/headline",
   "GET reports/reach-outs",
+  "GET reports/receptionist",
   "GET reports/reviews",
   "GET segments",
   "GET settings",
@@ -32699,6 +34170,7 @@ var ROUTE_KEYS = [
   "POST mailboxes",
   "POST messages/[id]/cancel-send",
   "POST messages/[id]/steer",
+  "POST notifications/test",
   "POST partner",
   "POST partner/invitations/[id]/accept",
   "POST partner/invitations/[id]/decline",
@@ -32731,6 +34203,8 @@ var ROUTE_KEYS = [
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
+  "POST team/invite/[id]/resend",
+  "POST team/leave",
   "POST team/partner",
   "POST templates",
   "POST templates/draft",
@@ -32752,6 +34226,7 @@ var ROUTE_KEYS = [
   "PUT lead-suggestions",
   "PUT mailboxes/[id]",
   "PUT me",
+  "PUT me/alerts",
   "PUT me/devices",
   "PUT notifications",
   "PUT playbooks/[id]",
@@ -32843,6 +34318,10 @@ function confirmEmailToOf(details) {
   const to = details && typeof details === "object" ? details.confirm_email_to : void 0;
   return typeof to === "string" && to.trim() ? to.trim() : null;
 }
+var SESSION_ENDED = { session_ended: true };
+function sessionEnded(details) {
+  return !!details && typeof details === "object" && details.session_ended === true;
+}
 function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
@@ -32916,6 +34395,156 @@ function roleGate(role, perm, doing) {
     title: NEEDS_TITLE[needs2],
     reason: needs2 === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.`
   };
+}
+
+// src/shell/address.ts
+var ROUTE_WORDS = {
+  clients: "people",
+  segments: "lists",
+  outbound: "playbooks",
+  messages: "templates",
+  admin: "settings"
+};
+var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
+function doorOf(route) {
+  const head = headOf(route);
+  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "broadcasts") {
+    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
+  }
+  if (head !== "outbound") return null;
+  return word ? `campaigns/moment:${word}` : "campaigns";
+}
+function shellRoute(route) {
+  const head = headOf(route);
+  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
+  return name === void 0 ? route : name + route.slice(head.length);
+}
+function pathRoute(route) {
+  const head = headOf(route);
+  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
+  return word === void 0 ? route : word + route.slice(head.length);
+}
+var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
+function routeOfPath(pathname) {
+  const m = WORKSPACE_PATH.exec(pathname ?? "");
+  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
+}
+function routeOfHash(hash) {
+  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
+}
+function routeOfAddress(address) {
+  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
+}
+function movedAddress(address) {
+  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
+  if (m?.[2]) {
+    const written = m[2].replace(/\/+$/, "");
+    const door = doorOf(shellRoute(written));
+    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
+    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
+      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
+    }
+  }
+  const route = routeOfHash(address.hash);
+  if (!m || route === null || m[2]) return null;
+  const at3 = route.indexOf("?");
+  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
+  if (!name) return null;
+  const own = at3 < 0 ? "" : route.slice(at3 + 1);
+  const search = address.search ?? "";
+  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
+}
+function workspacePath(slug, route = "") {
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
+}
+
+// src/shell/route-prefetch.ts
+var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
+var PREFETCH_SLOT = "__prefetched";
+var PREFETCH_READS = {
+  // Today's strip (the next visit, the next opening) is drawn from the calendar's weeks, the read the Calendar opens on.
+  today: [
+    "metrics?days=1",
+    "conversations",
+    "escalations?state=open",
+    "calls",
+    "lead-searches",
+    "setup",
+    "views",
+    "calendar?around=today"
+  ],
+  inbox: ["conversations", "escalations?state=open", "templates"],
+  // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
+  conversations: ["conversations", "calls", "escalations?state=open"],
+  // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
+  clients: ["contacts", "segments", "views"],
+  segments: ["contacts", "segments", "views"],
+  // Leads is a scope of People with a surface of its own: its searches, and the first page of everyone in its order.
+  leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
+  // The weeks around the business's today, by the route's clock (GET calendar `around`).
+  calendar: ["calendar?around=today"],
+  // The report, the offers' and the reach-outs' over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head.
+  reports: ["reports?period=30d", "reports/campaigns?period=30d", "reports/reach-outs?period=30d"],
+  live: ["calls", "channels"],
+  // Sent: the runs, who an audience reaches and the composers' reads.
+  broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings"],
+  outbound: ["playbooks", "templates", "channels", "settings"],
+  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
+  // 30 days (campaign_results, the period named once) and the reach-outs' chains (ROUTE_DRAWS): each surface's first reads.
+  campaigns: [
+    "playbooks",
+    "templates",
+    "channels",
+    "settings",
+    "broadcasts",
+    "contacts",
+    "segments",
+    `reports/campaigns?period=${CAMPAIGNS_RESULTS_PERIOD}`,
+    `reports/reach-outs?period=${CAMPAIGNS_RESULTS_PERIOD}`,
+    "reach-outs"
+  ],
+  // Templates and every pane of Settings are drawn from the settings surface.
+  messages: ["settings", "team", "policies", "channels", "templates?all=1"],
+  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
+  start: ["setup", "views"]
+};
+var PREFETCH_ROUTE_OF_WORD = Object.fromEntries(
+  Object.entries(ROUTE_WORDS).map(([route, word]) => [word, route])
+);
+var PREFETCH_TIMEOUT_MS = 15e3;
+function routePrefetchScript() {
+  return [
+    "try{",
+    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
+    "if(p){",
+    "var w=encodeURIComponent(decodeURIComponent(p[1]));",
+    'var u=["/api/v1/workspaces?workspace="+w];',
+    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
+    'var h=r.split("/"),l=h[1]||"";',
+    `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)};`,
+    // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
+    'if(s==="clients"&&l==="leads")s="leads";',
+    // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here.
+    'if(s==="calendar"&&l)s="";',
+    // Reports is read over the days its address says, where it says them (`reports/people:2026-09-01~2026-09-20`,
+    // lenses.ts lensRoute: a link someone sent), else over the period this device last picked, as the page reads it; one
+    // it does not know is the default's. The days are spelled as the page's own read spells them, first then last.
+    `var P=null;if(s==="reports"){var d=/(?:^|:)(\\d{4}-\\d{2}-\\d{2})~(\\d{4}-\\d{2}-\\d{2})$/.exec(l);if(d)P="from="+d[1]+"&to="+d[2];else try{var o=localStorage.getItem(${JSON.stringify(REPORT_PERIOD_STORAGE)});if(${JSON.stringify(REPORT_PERIOD_IDS)}.indexOf(o)>=0)P="period="+o}catch(e){}}`,
+    `if(s==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(l))u.push("/api/v1/contacts/"+l+"?workspace="+w);`,
+    // A view of Leads the address names (a search, a list) is the page's to read: it opens on who is looking alone.
+    'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
+    `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},P):t[s][j];u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}`,
+    `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
+    "var M=window.AbortController;",
+    "var g=function(x){",
+    `var a=M?new M():null,k=a?setTimeout(function(){a.abort()},${PREFETCH_TIMEOUT_MS}):0;`,
+    'var q=fetch(x,{credentials:"same-origin",signal:a?a.signal:undefined});',
+    "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
+    "for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
+    "}}catch(e){}"
+  ].join("");
 }
 
 // src/shell/vitals.ts
@@ -32998,9 +34627,9 @@ function sentenceOf(overall) {
   ].filter(Boolean);
   return said.length ? `Of ${counted2}, three in four ${said.join(" and ")}.` : `${counted2}; none has drawn its page yet.`;
 }
-function pagesOf(rows) {
+function pagesOf(rows2) {
   const byPage = /* @__PURE__ */ new Map();
-  for (const r2 of rows) {
+  for (const r2 of rows2) {
     if (r2.page === null || r2.metric !== "LCP" && r2.metric !== "INP") continue;
     const held = byPage.get(r2.page) ?? {};
     if (r2.metric === "LCP") held.drawn = r2;
@@ -33016,10 +34645,10 @@ function pagesOf(rows) {
     return { page: p.page, loads: p.drawn.samples, drawn, tap, hint: `${said} \xB7 ${loadsWords(p.drawn.samples)}` };
   });
 }
-function pageVitalsWords(rows) {
-  if (rows === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
+function pageVitalsWords(rows2) {
+  if (rows2 === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
   const overall = /* @__PURE__ */ new Map();
-  for (const r2 of rows) if (r2.page === null && isVital(r2.metric)) overall.set(r2.metric, r2);
+  for (const r2 of rows2) if (r2.page === null && isVital(r2.metric)) overall.set(r2.metric, r2);
   if (overall.size === 0) {
     return {
       sentence: `No page has sent its timings in the last ${PAGE_VITALS_READ.days} days.`,
@@ -33027,7 +34656,7 @@ function pageVitalsWords(rows) {
       pages: []
     };
   }
-  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
+  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows2) };
 }
 
 // src/shell/vitals-schema.ts
@@ -33633,6 +35262,7 @@ function todayProof(live, tz, now) {
   const gap = replyGapSeconds(live);
   return `The last message arrived ${lastIn}${gap !== null ? `, and the receptionist answered ${secondsPhrase(gap)} later` : ""}.`;
 }
+var isCustomerMessage = (x) => x.direction === "inbound" && x.sender === "customer" && isPersonsWords(x.meta);
 function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const p = m.period;
   const live = m.now;
@@ -33643,7 +35273,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   const lastAt = tzClock(live.last_inbound_at, tz, now);
   const wires = tally(
     conversations.flatMap(
-      (c) => c.messages.filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x)).map((x) => threadChannelWords([x]))
+      (c) => c.messages.filter((x) => isCustomerMessage(x) && fresh(x)).map((x) => threadChannelWords([x]))
     )
   );
   const held = wires.reduce((s, [, n]) => s + n, 0);
@@ -33778,19 +35408,19 @@ function todayNeedsRows(f) {
   }));
 }
 function todayNeedsYou(f) {
-  const rows = todayNeedsRows(f);
+  const rows2 = todayNeedsRows(f);
   const { period } = f;
   return {
     count: f.needsYouCount,
     hint: "The receptionist stopped and asked for a human.",
-    rows,
+    rows: rows2,
     // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
     empty: f.needsYouCount ? null : period.unanswered_in_window === 0 && period.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
   };
 }
 function todayWindowClosing(f) {
   const { closingConvs, tz, now } = f;
-  const rows = closingConvs.map((c) => {
+  const rows2 = closingConvs.map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
     const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / MIN_MS)) : 0;
     return {
@@ -33799,10 +35429,10 @@ function todayWindowClosing(f) {
       to: `inbox/th-${c.id}`
     };
   });
-  return rows.length ? {
+  return rows2.length ? {
     label: "Reply window closing",
     hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
-    rows
+    rows: rows2
   } : null;
 }
 var NO_REPLY_AFTER_MS = HOUR_MS;
@@ -33866,11 +35496,11 @@ function todayCallRows(f) {
     };
   });
 }
-function todayCalls(f, rows) {
+function todayCalls(f, rows2) {
   const { period, callMinutes } = f;
   return period.calls ? {
     line: `${period.calls} call${period.calls === 1 ? "" : "s"} today${callMinutes ? ` \xB7 ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}.`,
-    rows
+    rows: rows2
   } : null;
 }
 
@@ -34131,8 +35761,8 @@ function names2(who, rest) {
   return out;
 }
 function needsSentences(vm) {
-  const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter(isPersonRow).map((r2) => r2.who))];
+  const rows2 = vm.queue.rows;
+  const people = [...new Set(rows2.filter(isPersonRow).map((r2) => r2.who))];
   const { calls, searches } = vm.queue;
   const out = [];
   if (people.length) {
@@ -34271,22 +35901,22 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     };
   });
   let reminders = null;
-  if (feed === "ok") {
-    const visit = (playbooks ?? []).filter(
+  if (feed === "ok" && playbooks) {
+    const { word } = playbooks;
+    const visit = playbooks.rows.filter(
       (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running"
     );
+    const W = appointmentWords(word);
     reminders = visit.length === 0 ? {
-      // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
-      text: "No visit reminders yet \u2014 a playbook can write the day before an appointment and the day after a visit.",
+      // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
+      // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
+      text: `No ${W.one} reminders yet \u2014 a campaign can write the day before ${W.a} and the day after.`,
       to: "outbound"
     } : {
-      text: visit.map(
-        (p) => (
-          // The playbook's kind in its moment's own label (playbook-triggers.ts), never spelled again here.
-          // A count that could not be read is left out, never said as "null people".
-          `${triggerOf(p.trigger)?.label ?? p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`
-        )
-      ).join(" \xB7 "),
+      text: visit.map((p) => {
+        const t = triggerOf(p.trigger);
+        return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`;
+      }).join(" \xB7 "),
       to: "outbound"
     };
   }
@@ -34516,6 +36146,9 @@ function parseDevice(body) {
 }
 var PUSH_KINDS = [
   "handoff",
+  // A customer still waiting is the second alert about someone nobody answered (decision 0040): the phone is where it is
+  // most likely seen, and it was emailed alone.
+  "deadman",
   "call",
   "note_for_you",
   "leads_ready",
@@ -34532,10 +36165,24 @@ var PUSH_KINDS = [
   "reach_out_replied"
 ];
 var isPushKind = (kind) => PUSH_KINDS.includes(kind);
-function unreadFor(rows, seenAt, marks) {
+function pushOffOf(raw) {
+  if (!Array.isArray(raw)) return [];
+  return PUSH_KINDS.filter((k) => raw.includes(k));
+}
+function pushesFor(pushOff, kind) {
+  return isPushKind(kind) && !(pushOff ?? []).includes(kind);
+}
+function parseMemberAlerts(body) {
+  const b = body && typeof body === "object" ? body : {};
+  if (!Array.isArray(b.push_off)) return { ok: false, reason: "Send the kinds your phone is not told, as push_off." };
+  const unknown = b.push_off.filter((k) => typeof k !== "string" || !isPushKind(k));
+  if (unknown.length) return { ok: false, reason: "That is not something a phone is told." };
+  return { ok: true, pushOff: pushOffOf(b.push_off) };
+}
+function unreadFor(rows2, seenAt, marks) {
   const seen = seenAt ? Date.parse(seenAt) : 0;
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
-  return rows.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
+  return rows2.filter((r2) => Date.parse(r2.created_at) > seen && !gone.has(r2.id)).length;
 }
 var isForReader = (row2, userId) => row2.recipient_user_id === null || row2.recipient_user_id === userId;
 function firstLine(body, max = 160) {
@@ -34640,8 +36287,8 @@ function applyReadState(items, state) {
   const gone = new Set(state.dismissed);
   return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
 }
-function unreadCount(rows) {
-  return rows.filter((r2) => r2.unread).length;
+function unreadCount(rows2) {
+  return rows2.filter((r2) => r2.unread).length;
 }
 function agoLabel(atMs, now) {
   return agoShort(atMs, now);
@@ -34688,9 +36335,10 @@ var JOB_WORK = {
   // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
-  // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
-  // did not get there, and the activity log is where the fact is.
-  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
+  // A fact's delivery to a subscriber (00334). Not sent (packages/jobs TOLD_ELSEWHERE): a subscriber that fails is the
+  // platform's fault, nothing an owner can act on, and the operator is paged instead (PAGES_THE_PLATFORM); these are
+  // the words should it ever be, and its door opens Activity, where the fact is.
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/activity" },
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
   inbound_answer: { stopped: "A text could not be answered", to: "inbox" }
@@ -34717,6 +36365,7 @@ function jobRowWords(n) {
   const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], { attempts: tries ? Number(tries[1]) : 1, resumed: false });
   return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
 }
+var REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -34759,8 +36408,8 @@ var SERVER_LOOK = {
   note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
   /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
   reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
-  /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Playbooks. */
-  reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: "outbound" },
+  /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Campaigns, at its Reach-outs. */
+  reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: REACH_OUT_DAY_ROUTE },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
 var ROUTE_VERBS = [
@@ -34770,6 +36419,7 @@ var ROUTE_VERBS = [
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
+  [/^admin\/activity/, "Open Activity"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
@@ -34822,7 +36472,7 @@ function serverNotificationRows(dto) {
     const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
     const at3 = Date.parse(n.created_at);
     const job = jobRowWords(n);
-    const route = job ? job.route : n.route;
+    const route = job ? job.route : n.kind === "reach_out_day" ? REACH_OUT_DAY_ROUTE : n.route;
     return {
       key: `${SERVER_KEY_PREFIX}${n.id}`,
       kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
@@ -34838,16 +36488,16 @@ function serverNotificationRows(dto) {
     };
   });
 }
-function dedupeFeed(rows) {
+function dedupeFeed(rows2) {
   const covered = new Set(
-    rows.flatMap((r2) => r2.kind === "needs_you" ? [conversationOfNeedsKey(r2.key)] : []).filter((id) => !!id)
+    rows2.flatMap((r2) => r2.kind === "needs_you" ? [conversationOfNeedsKey(r2.key)] : []).filter((id) => !!id)
   );
-  return rows.filter(
+  return rows2.filter(
     (r2) => !(r2.key.startsWith(SERVER_KEY_PREFIX) && r2.about?.type === "conversation" && covered.has(r2.about.id))
   );
 }
 var NUMBER_IN_WORDS = /\+\d{8,15}\b|(?:\+\d{1,3}\s?)?\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b|(?:\+\d{1,3}\s)?\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/;
-function nameKnownCustomers(rows, threads, calls) {
+function nameKnownCustomers(rows2, threads, calls) {
   const named = (who) => who && !/\d{4}/.test(who) ? who.trim() : null;
   const byConversation = /* @__PURE__ */ new Map();
   for (const t of threads ?? []) {
@@ -34859,7 +36509,7 @@ function nameKnownCustomers(rows, threads, calls) {
     const who = named(c.who);
     if (who) byCall.set(c.callId, who);
   }
-  return rows.map((r2) => {
+  return rows2.map((r2) => {
     if (!r2.about || !NUMBER_IN_WORDS.test(r2.title)) return r2;
     const who = r2.about.type === "conversation" ? byConversation.get(r2.about.id) : r2.about.type === "call" ? byCall.get(r2.about.id) : void 0;
     return who ? { ...r2, title: r2.title.replace(NUMBER_IN_WORDS, who) } : r2;
@@ -34867,7 +36517,7 @@ function nameKnownCustomers(rows, threads, calls) {
 }
 
 // src/today/today-away.ts
-var readyRunTitle = (label) => `Playbook \u201C${label}\u201D is ready`;
+var readyRunTitles = (label) => [`Campaign \u201C${label}\u201D is ready`, `Playbook \u201C${label}\u201D is ready`];
 var AWAY_NOUN = {
   call: ["call", "calls"],
   job_failed: ["job did not finish", "jobs did not finish"],
@@ -34875,7 +36525,7 @@ var AWAY_NOUN = {
   calendar_people: ["person added from your calendar", "people added from your calendar"],
   booking_notice: ["booking email needs a look", "booking emails need a look"],
   handoff: ["conversation needs you", "conversations need you"],
-  playbook: ["playbook is ready", "playbooks are ready"],
+  playbook: ["campaign is ready", "campaigns are ready"],
   // One sync can approve several at once, and several rejections read as one
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
@@ -34894,8 +36544,8 @@ var AWAY_NOUN = {
   reach_out_replied: ["reply to a reach-out", "replies to a reach-out"]
 };
 function groupTitle(members, noun, idOf) {
-  const subjects = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
-  return `${subjects} ${noun[subjects === 1 ? 0 : 1]}`;
+  const subjects2 = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
+  return `${subjects2} ${noun[subjects2 === 1 ? 0 : 1]}`;
 }
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
@@ -34907,7 +36557,7 @@ function awayFoot(more, queued, drew) {
   if (queued <= 0) return head;
   return queued === more ? `${head}, already in the queue above` : `${head}, ${queued} of them already in the queue above`;
 }
-function todayAwayGrouped(rows, inQueue = [], max = 5) {
+function todayAwayGrouped(rows2, inQueue = [], max = 5) {
   const convs = new Set(
     inQueue.flatMap((q) => {
       const id = typeof q === "string" ? q : q.conversationId;
@@ -34915,7 +36565,7 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
     })
   );
   const callsQueued = new Set(inQueue.flatMap((q) => typeof q === "string" || !q.callId ? [] : [q.callId]));
-  const runsQueued = inQueue.flatMap((q) => typeof q === "string" || !q.runLabel ? [] : [readyRunTitle(q.runLabel)]);
+  const runsQueued = inQueue.flatMap((q) => typeof q === "string" || !q.runLabel ? [] : readyRunTitles(q.runLabel));
   const searchesQueued = new Set(inQueue.flatMap((q) => typeof q === "string" || !q.searchTo ? [] : [q.searchTo]));
   const idOf = (r2) => r2.id ?? r2.key ?? "";
   const door = (r2) => r2.to ?? (r2.actions && r2.actions[0] ? r2.actions[0].to : void 0);
@@ -34931,7 +36581,7 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
     const to = door(r2);
     return !!to && to.startsWith("inbox/th-") && convs.has(to.slice("inbox/th-".length));
   };
-  const fresh = rows.filter((r2) => r2.unread && !aboutQueued(r2));
+  const fresh = rows2.filter((r2) => r2.unread && !aboutQueued(r2));
   const order = [];
   const byKind = /* @__PURE__ */ new Map();
   for (const r2 of fresh) {
@@ -34963,13 +36613,13 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const sorted = groups.map((g, i) => ({ g, i })).sort((x, y) => rank(x.g) - rank(y.g) || x.i - y.i).map((x) => x.g);
   const shown = sorted.slice(0, max);
   const stoodFor = shown.reduce((n, g) => n + g.count, 0);
-  const total = unreadCount(rows);
+  const total = unreadCount(rows2);
   const queued = total - fresh.length;
   const more = Math.max(0, total - stoodFor);
   const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
 }
-function bellSections(rows) {
+function bellSections(rows2) {
   const idOf = (r2) => r2.id ?? r2.key ?? "";
   const part = (label, list2) => {
     const order = [];
@@ -35003,18 +36653,18 @@ function bellSections(rows) {
   return [
     part(
       "New",
-      rows.filter((r2) => r2.unread)
+      rows2.filter((r2) => r2.unread)
     ),
     part(
       "Earlier",
-      rows.filter((r2) => !r2.unread)
+      rows2.filter((r2) => !r2.unread)
     )
   ].filter((s) => s.lines.length > 0);
 }
 
 // src/today/today-steps.ts
-function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
-  const due = todayStepsDue(rows ?? [], nowMs, tz, max);
+function todaySteps(rows2, nowMs, tz, max = TODAY_STEPS_MAX) {
+  const due = todayStepsDue(rows2 ?? [], nowMs, tz, max);
   if (!due.count) return null;
   return {
     title: NOTE_WORDS.stepsDue,
@@ -35054,144 +36704,289 @@ var NOTIFICATION_DELIVERY = {
   reach_out_replied: "email",
   reach_out_day: "bell"
 };
-var EMAILED_NOTIFICATION_KINDS = SERVER_NOTIFICATION_KINDS.filter(
-  (k) => NOTIFICATION_DELIVERY[k] === "email"
-);
+var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 function emailsNotificationKind(kind) {
-  const known = SERVER_NOTIFICATION_KINDS.includes(kind ?? "");
+  const known = Object.hasOwn(NOTIFICATION_DELIVERY, kind ?? "");
   return NOTIFICATION_DELIVERY[known ? kind : "alert"] === "email";
 }
-var NOTIFICATION_KIND_GROUPS = [
+var EMAIL_ALWAYS_KINDS = ["handoff", "deadman"];
+var ALERT_GROUP_TITLES = {
+  needs_you: "Needs you",
+  worth_knowing: "Worth knowing",
+  for_you: "For your information"
+};
+var ALERT_TOPICS = [
   {
-    title: "Customers",
-    rows: [
-      {
-        title: "A customer needs a person",
-        what: "It stopped on a thread and someone is waiting. The alert carries their message.",
-        kinds: ["handoff"]
-      },
-      { title: "Still waiting", what: "A handoff has gone unanswered for a while.", kinds: ["deadman"] },
-      { title: "After every phone call", what: "Who called, how long, how it went.", kinds: ["call"] }
-    ]
+    key: "handoff",
+    group: "needs_you",
+    title: "A customer needs a person",
+    what: "The receptionist stopped on a conversation and someone is waiting. The alert carries their message.",
+    email: "always",
+    phone: true,
+    kinds: ["handoff"]
   },
   {
-    // What stopped, finished or was paused in the sending: a reply, a broadcast, a playbook, the offers by email, a job.
-    title: "Sending",
-    rows: [
-      {
-        title: "Something did not finish",
-        what: "A reply may not have been sent, or a search, a broadcast or another background job stopped partway. It says what stopped and whether it carries on in a fresh run.",
-        kinds: ["job_failed"]
-      },
-      {
-        title: "A broadcast finished, or stopped",
-        what: "When a broadcast has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
-        kinds: ["broadcast_sent", "broadcast_stopped"]
-      },
-      {
-        title: "A playbook's run needs you, or could not run",
-        what: "When a run waits for your approval, or is about to go unless you stop it, with how many people it reaches. And when a playbook could not run for the day, or could not read your calendar, so nobody was sent it: tomorrow's run tries again.",
-        kinds: ["playbook"]
-      },
-      {
-        title: "Offers and news by email are paused",
-        what: "Complaints or bounces went over the line, so they wait until it is fixed. Messages about a visit, replies by email and everything on WhatsApp go on.",
-        kinds: ["sweep"]
-      }
-    ]
+    key: "deadman",
+    group: "needs_you",
+    title: "Still waiting for an answer",
+    what: "A customer who needed a person has waited a while, a message went unanswered, or a reply never left.",
+    email: "always",
+    phone: true,
+    kinds: ["deadman"]
   },
   {
-    title: "Numbers and templates",
-    rows: [
-      {
-        title: "Your WhatsApp number needs attention",
-        what: "WhatsApp flagged it, lowered how many new conversations it can start, restricted the account or rejected its review, or the business removed Chanlytics from it. Good news about the number is not emailed.",
-        kinds: ["number"]
-      },
-      {
-        title: "A WhatsApp template was approved or blocked",
-        what: "WhatsApp approved a template, or rejected, paused or disabled it, or moved it to marketing, where a send needs the customer's recorded yes.",
-        kinds: ["template_ready", "template_blocked"]
-      },
-      {
-        title: "Your phone number is going back",
-        what: "Your subscription ended: a warning with the day your receptionist's number goes back to the phone company, and a note once it has. A card declined or a trial ending is on the bell, not emailed.",
-        kinds: ["billing"]
-      }
-    ]
+    key: "playbook",
+    group: "needs_you",
+    title: "A campaign or reach-out waits for your yes",
+    what: "A run waits for your approval, or goes unless you stop it, with how many people it reaches; a reach-out holds an email for your call; or a campaign could not run today, and tomorrow's run tries again.",
+    email: "choice",
+    phone: true,
+    kinds: ["playbook"]
   },
   {
-    title: "Lead searches",
-    rows: [
-      {
-        title: "A search is waiting for your answer",
-        what: `A lead search stopped to ask you something. ${LEAD_QUESTION_WAIT_LINE}`,
-        kinds: ["leads_question"]
-      }
-    ]
+    key: "leads_question",
+    group: "needs_you",
+    title: "A lead search asks you something",
+    what: `A lead search stopped to ask you something. ${LEAD_QUESTION_WAIT_LINE}`,
+    email: "choice",
+    phone: true,
+    kinds: ["leads_question"]
   },
   {
-    // Reach out, Part 5 (N2): what a reach-out tells its owner, each the moment it happens; and Part 6 (H12), the
-    // day's numbers at 6 PM, the one row that is a line in the bell rather than an email.
-    title: "Reach-outs",
-    rows: [
-      {
-        title: "They wrote back",
-        what: "A business answered a reach-out: what the reply was read as, what was done, and the receptionist's draft when it wrote one.",
-        kinds: ["reach_out_replied"]
-      },
-      {
-        title: "A reach-out waits for you",
-        what: "A run is planned and waits for your yes before anything sends.",
-        kinds: ["playbook"]
-      },
-      {
-        title: "A reach-out holds an email for you",
-        what: "The check held an email of a run it could not pass, and it waits for your call.",
-        kinds: ["playbook"]
-      },
-      {
-        title: "A sending domain is held, and when it sends again",
-        what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again.",
-        kinds: ["sweep"]
-      },
-      {
-        // Part 6 (H12): a line in the bell, never an email.
-        title: "The day's numbers",
-        what: "At 6 PM your time, a line in the bell, not an email: what your reach-outs wrote that day, who wrote back, and what waits for you.",
-        kinds: ["reach_out_day"],
-        bell: true
-      }
-    ]
+    key: "call",
+    group: "worth_knowing",
+    title: "After every phone call",
+    what: "Who called, how long, what they wanted and what to do next. The email carries the transcript.",
+    email: "choice",
+    phone: true,
+    kinds: ["call"]
   },
   {
-    // A switched-off number has no workspace to address, and a stalled sweep belongs to nobody's workspace. Listing
-    // them beside "goes to each of these addresses" without saying so promised an email the owner never receives.
-    title: "To Chanlytics",
-    rows: [
-      {
-        title: "Messages arriving for a switched-off number",
-        what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.",
-        kinds: ["alert"],
-        platform: true
-      },
-      {
-        title: "Background checks",
-        what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.",
-        kinds: ["alert"],
-        platform: true
-      }
-    ]
+    key: "reach_out_replied",
+    group: "worth_knowing",
+    title: "A business wrote back to a reach-out",
+    what: "What the reply was read as, what was done, and the receptionist's draft when it wrote one.",
+    email: "choice",
+    phone: true,
+    kinds: ["reach_out_replied"]
+  },
+  {
+    key: "job_failed",
+    group: "worth_knowing",
+    title: "Something did not finish",
+    what: "A reply may not have been sent, or a search, a broadcast or another background job stopped partway. It says what stopped and whether it carries on.",
+    email: "choice",
+    phone: true,
+    kinds: ["job_failed"]
+  },
+  {
+    key: "broadcasts",
+    group: "worth_knowing",
+    title: "A broadcast finished, or stopped",
+    what: "When a broadcast has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
+    email: "choice",
+    phone: true,
+    kinds: ["broadcast_sent", "broadcast_stopped"]
+  },
+  {
+    key: "number",
+    group: "worth_knowing",
+    title: "Your WhatsApp number needs attention",
+    what: "WhatsApp flagged it, lowered how many new conversations it can start, restricted the account or rejected its review, or the business removed Chanlytics from it.",
+    email: "choice",
+    phone: true,
+    kinds: ["number"]
+  },
+  {
+    key: "templates",
+    group: "worth_knowing",
+    title: "A WhatsApp template was approved or blocked",
+    what: "WhatsApp approved a template, or rejected, paused or disabled it, or moved it to marketing, where a send needs the customer's recorded yes.",
+    email: "choice",
+    phone: false,
+    kinds: ["template_ready", "template_blocked"]
+  },
+  {
+    key: "sweep",
+    group: "worth_knowing",
+    title: "Sending is paused",
+    what: "Offers and news by email, or a sending domain, are held after bounces or complaints, and you are told when they send again. Messages about a visit and everything on WhatsApp go on.",
+    email: "choice",
+    phone: false,
+    kinds: ["sweep"]
+  },
+  {
+    key: "billing",
+    group: "worth_knowing",
+    title: "Your plan",
+    what: "A card declined, a trial ending, or the subscription ended and your receptionist's number is going back. Only the number going back is emailed.",
+    email: "choice",
+    phone: true,
+    kinds: ["billing"]
+  },
+  {
+    key: "leads_ready",
+    group: "for_you",
+    title: "A search found leads",
+    what: "A lead search finished, with how many it found.",
+    onBell: "finished searches",
+    email: null,
+    phone: true,
+    kinds: ["leads_ready"]
+  },
+  {
+    key: "review",
+    group: "for_you",
+    title: "A new Google review",
+    what: "Someone reviewed the business on its Google profile.",
+    onBell: "new Google reviews",
+    email: null,
+    phone: true,
+    kinds: ["review"]
+  },
+  {
+    key: "note_for_you",
+    group: "for_you",
+    title: "A note left for you",
+    what: "A teammate left you a note on a person. Only you are told.",
+    onBell: "notes left for you",
+    email: null,
+    phone: true,
+    kinds: ["note_for_you"]
   }
 ];
-var NOTIFICATION_PANE_WORDS = {
-  recipients: "Each alert below is emailed to every one of these, except the two marked for Chanlytics and the day's numbers, a line in the bell.",
-  kinds: "By email, the moment it happens; the day's reach-out numbers are a line in the bell. What is not listed here is not emailed.",
-  /** The address the alerts come from, said before the config's own `from` where an operator set one (nothing in the app writes it). */
-  sentFrom: "Sent from",
-  /** And where none is set, which is every workspace the app made: the platform's own. Nothing swaps it for a verified sending domain of the workspace's. */
-  sentFromPlatform: "Sent from the Chanlytics alert address."
+var BELL_LINE_KINDS = [
+  "calendar_people",
+  "booking_notice",
+  "reach_out_day",
+  "alert"
+];
+var EMAIL_CHOICE_KINDS = ALERT_TOPICS.flatMap(
+  (t) => t.email === "choice" ? t.kinds : []
+);
+function emailOffOf(notifications) {
+  const off = notifications?.email_off;
+  if (!Array.isArray(off)) return [];
+  return EMAIL_CHOICE_KINDS.filter((k) => off.includes(k));
+}
+function emailsFor(notifications, kind) {
+  if (!emailsNotificationKind(kind)) return false;
+  return !emailOffOf(notifications).includes(kind ?? "");
+}
+function topicEmailed(topic, notifications) {
+  if (topic.email === null) return false;
+  const off = emailOffOf(notifications);
+  return topic.email === "always" || !topic.kinds.some((k) => off.includes(k));
+}
+function topicPushed(topic, pushOff) {
+  return topic.phone && !topic.kinds.some((k) => pushOff.includes(k));
+}
+function withTopicEmail(notifications, topic, on) {
+  const off = new Set(emailOffOf(notifications));
+  if (topic.email === "choice") switchKinds(off, topic.kinds, on);
+  return EMAIL_CHOICE_KINDS.filter((k) => off.has(k));
+}
+function switchKinds(off, kinds, on) {
+  for (const k of kinds) {
+    if (on) off.delete(k);
+    else off.add(k);
+  }
+}
+function withTopicPush(pushOff, topic, on) {
+  const off = new Set(pushOff);
+  if (topic.phone) switchKinds(off, topic.kinds, on);
+  return ALERT_TOPICS.flatMap((t) => t.phone ? t.kinds : []).filter((k) => off.has(k));
+}
+var ALERT_PANE_WORDS = {
+  where: "Where alerts reach you",
+  whereSub: "The bell keeps everything. Choose what else reaches you below.",
+  bell: "Bell",
+  bellValue: `Everything below, for ${BELL_WINDOW_DAYS} days`,
+  bellOn: "Always on",
+  email: "Email",
+  emailNobody: "Nobody yet",
+  emailNobodyHint: "Until an address is added, a customer who needs a person reaches nobody by email: Chanlytics is told the workspace needs one, without the customer's message.",
+  emailMore: (n) => n === 1 ? "and 1 more" : `and ${n} more`,
+  change: "Change",
+  done: "Done",
+  you: "you",
+  notOnTeam: "Not on the team",
+  onTeam: "On the team",
+  addPlaceholder: "name@yourbusiness.com",
+  addLabel: "Add an address to email",
+  teammates: "Teammates not emailed:",
+  emailFoot: `Each address gets what is ticked under Email. Up to ${ALERT_ADDRESSES_MAX}.`,
+  test: "Send a test",
+  testing: "Sending\u2026",
+  testSent: (n) => n === 1 ? "A test was sent to 1 address." : `A test was sent to ${n} addresses.`,
+  testNot: (why) => why === "no_address" ? "There is no address to send a test to." : why === "not_live" ? "Tests are sent from the live app only, not from a preview." : "The test could not be sent. Try again in a minute.",
+  phone: (n) => n > 1 ? "Your phones" : "Your phone",
+  phoneHint: "Signing out on a phone stops its alerts.",
+  browser: "This browser",
+  browserValue: "When someone needs you right now",
+  browserHint: "A customer who needs a person, a reply waiting for your OK, a missed call, or a search's question, while Chanlytics is open in a tab.",
+  browserBlocked: "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.",
+  what: "What you're told about",
+  whatSub: "Tick where else each one reaches you. Email is the business's; your phone is yours.",
+  emailHead: "Email",
+  emailHeadSub: "for the business",
+  phoneHead: "Phone",
+  phoneHeadSub: "yours",
+  always: "Always emailed: the receptionist must always reach someone.",
+  ownerChooses: "The owner chooses what the business is emailed.",
+  addFirst: "Add an address to email first.",
+  phoneTold: "Your phone is told this.",
+  notEmailed: "Not sent by email.",
+  notPushed: "Not sent to phones.",
+  /** The bell's own line: what it holds that nothing else carries, and the topics that have nothing to choose here. */
+  bellLine: (also) => {
+    const all = [
+      ...also,
+      "people added from your calendar",
+      "a booking email that needs a look",
+      "the day's reach-out numbers at 6 PM",
+      "a problem with a line",
+      "invitations not yet accepted"
+    ];
+    return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;
+  },
+  never: "Never sent: text messages, or a daily or weekly email. Today is your brief.",
+  /** The address the alerts come from, said only where an operator set one (nothing in the app writes it). */
+  sentFrom: (from) => `Sent from ${from}.`
 };
+function alertTestMail(o) {
+  return {
+    subject: `Test alert for ${o.business}`,
+    body: `This is a test from Settings \u203A Notifications. If you can read it, alerts for ${o.business} reach this address: a customer who needs a person, and whatever is ticked under Email.
+
+Nothing needs doing.
+
+${o.link}`
+  };
+}
+function alertGrid(o) {
+  const groups = ["needs_you", "worth_knowing", "for_you"];
+  return groups.map((group) => ({
+    group,
+    title: ALERT_GROUP_TITLES[group],
+    rows: ALERT_TOPICS.filter((t) => t.group === group && !bellOnly(t, !!o.phone)).map((topic) => ({
+      topic,
+      email: topic.email === "always" ? { kind: "always" } : topic.email === null ? { kind: "none" } : { kind: "tick", on: topicEmailed(topic, o.notifications), held: o.emailHeld },
+      phone: !o.phone ? null : !topic.phone ? { kind: "none" } : o.phone.choosable ? { kind: "tick", on: topicPushed(topic, o.phone.pushOff), held: null } : { kind: "told" }
+    }))
+  })).filter((g) => g.rows.length > 0);
+}
+var bellOnly = (t, hasPhone) => t.email === null && !hasPhone;
+function bellLineFor(hasPhone) {
+  return ALERT_PANE_WORDS.bellLine(ALERT_TOPICS.filter((t) => bellOnly(t, hasPhone)).map((t) => t.onBell ?? t.title));
+}
+function phoneLine(p, now) {
+  const what = p.platform === "ios" ? "iPhone" : "Android phone";
+  const at3 = p.last_seen_at ? Date.parse(p.last_seen_at) : NaN;
+  if (Number.isNaN(at3)) return what;
+  const ago3 = agoShort(at3, now);
+  return `${what} \xB7 ${ago3 === "now" ? "seen just now" : `seen ${ago3} ago`}`;
+}
 
 // src/workspace/signup.ts
 var SIGNUP_NAME_MIN = 2;
@@ -35495,8 +37290,8 @@ function factsFor(r2, nowMs) {
   const at_ = at2(r2.last_inbound_at);
   return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
 }
-function platformRows(rows, nowMs = Date.now()) {
-  return rows.map((r2) => {
+function platformRows(rows2, nowMs = Date.now()) {
+  return rows2.map((r2) => {
     const verdict = verdictFor(r2, nowMs);
     return {
       tenantId: r2.tenant_id,
@@ -35514,8 +37309,8 @@ function platformRows(rows, nowMs = Date.now()) {
     return a.name.localeCompare(b.name);
   });
 }
-function platformSummary(rows) {
-  const customers = rows.filter((r2) => r2.verdict !== "test");
+function platformSummary(rows2) {
+  const customers = rows2.filter((r2) => r2.verdict !== "test");
   const needsUs = customers.filter((r2) => r2.verdict === "broken" || r2.verdict === "rehearsal").length;
   const needsThem = customers.filter(
     (r2) => r2.verdict === "billing" || r2.verdict === "waiting_owner" || r2.verdict === "stalled"
@@ -35585,8 +37380,8 @@ function platformLineActions(l, nowMs = Date.now()) {
   }
   return out;
 }
-function platformHealthOf(rows, backlog, now = /* @__PURE__ */ new Date()) {
-  const unhealthy = (rows ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
+function platformHealthOf(rows2, backlog, now = /* @__PURE__ */ new Date()) {
+  const unhealthy = (rows2 ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
   return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
 }
 function platformHealthWords(h) {
@@ -35620,16 +37415,16 @@ function sourceWords(source) {
 function platformQueue(q, nowMs = Date.now()) {
   const note = QUEUE_SENDS_NOTHING;
   if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
-  const rows = q.waiting.map((r2) => ({
+  const rows2 = q.waiting.map((r2) => ({
     id: r2.id,
     email: r2.email,
     detail: waitingDetail(r2),
     waited: `asked ${agoWords(Date.parse(r2.created_at), nowMs)}`
   }));
-  const total = q.total ?? rows.length;
+  const total = q.total ?? rows2.length;
   const oldest = q.waiting[0];
-  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
-  return { rows, sentence: sentence2, unreadable: false, note };
+  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows2.length ? ` \xB7 showing the first ${rows2.length}` : ""}.`;
+  return { rows: rows2, sentence: sentence2, unreadable: false, note };
 }
 
 // src/workspace/partner.ts
@@ -35725,16 +37520,16 @@ function broughtWords(count2) {
   return `${count2} workspaces have you as their partner.`;
 }
 var dayWords2 = (at3) => new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-function sumWords(rows, state) {
-  const of = rows.filter((r2) => r2.state === state && r2.earned_cents !== 0);
-  if (!of.length) return { words: moneyWords(0, rows[0]?.currency ?? "usd"), cents: 0 };
+function sumWords(rows2, state) {
+  const of = rows2.filter((r2) => r2.state === state && r2.earned_cents !== 0);
+  if (!of.length) return { words: moneyWords(0, rows2[0]?.currency ?? "usd"), cents: 0 };
   return {
     words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
     cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
   };
 }
-function partnerEarningsWords(rows, nowMs = Date.now()) {
-  const list2 = rows ?? [];
+function partnerEarningsWords(rows2, nowMs = Date.now()) {
+  const list2 = rows2 ?? [];
   const held = sumWords(list2, "held");
   const payable = sumWords(list2, "payable");
   const paid = sumWords(list2, "paid");
@@ -35782,7 +37577,7 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
     const s = moneyOf(id)[0]?.standing ?? "pending";
     return PARTNER_STANDING_WORDS[s] ?? null;
   };
-  const rows = judged.map((r2) => {
+  const rows2 = judged.map((r2) => {
     const v = PLATFORM_VERDICTS[r2.verdict];
     return {
       tenantId: r2.tenantId,
@@ -35798,10 +37593,10 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
       onTeam: true
     };
   });
-  const seen = new Set(rows.map((r2) => r2.tenantId));
+  const seen = new Set(rows2.map((r2) => r2.tenantId));
   const off = [...new Map(money2.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
   for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
-    rows.push({
+    rows2.push({
       tenantId: m.tenant_id,
       slug: null,
       name: m.name,
@@ -35815,12 +37610,12 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
       onTeam: m.on_team
     });
   }
-  const total = rows.length;
-  const live = rows.filter((r2) => r2.verdict === "live").length;
-  const needs2 = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
+  const total = rows2.length;
+  const live = rows2.filter((r2) => r2.verdict === "live").length;
+  const needs2 = rows2.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
   const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs2) parts2.push(`${needs2} need${needs2 === 1 ? "s" : ""} you`);
-  return { rows, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
+  return { rows: rows2, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
 }
 var PARTNER_STANDING_VERBS = {
   qualified: "Qualify",
@@ -35845,9 +37640,9 @@ function partnerStatusOutcomeWords(code2, r2) {
   const what = r2.status === "closed" ? "closed" : "paused";
   return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
 }
-function platformPartnerRows(rows) {
+function platformPartnerRows(rows2) {
   const seen = /* @__PURE__ */ new Set();
-  return rows.map((r2) => {
+  return rows2.map((r2) => {
     const first = !seen.has(r2.partner_id);
     seen.add(r2.partner_id);
     const cur = r2.currency ?? "usd";
@@ -35881,13 +37676,13 @@ function platformPartnerRows(rows) {
     };
   });
 }
-function platformPartnerSummary(rows) {
-  const partners = new Set(rows.map((r2) => r2.partner_id)).size;
+function platformPartnerSummary(rows2) {
+  const partners = new Set(rows2.map((r2) => r2.partner_id)).size;
   if (!partners) return "No partners yet.";
   const byCur = /* @__PURE__ */ new Map();
-  for (const r2 of rows)
+  for (const r2 of rows2)
     if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
-  const review = [...new Map(rows.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
+  const review = [...new Map(rows2.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
   const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
   parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
   if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
@@ -35969,7 +37764,7 @@ function partnerStandingOutcomeWords(r2) {
   return `Now ${label}. What it holds waits until a person decides.`;
 }
 var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
-var money = (rows) => rows.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
+var money = (rows2) => rows2.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
 var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
 var setUpWords = (name) => name && name.trim() ? name.trim() : "A workspace you set up";
 var whyWords = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
@@ -36015,8 +37810,8 @@ function partnerLetter(news, opts) {
   return { subject: letterSubject(news), body };
 }
 var sharesOf = (news) => news.written.filter((w) => w.kind === "share");
-var countOf2 = (rows) => rows.reduce((k, w) => k + w.count, 0);
-var nonZero = (rows) => rows.filter((r2) => r2.cents !== 0);
+var countOf2 = (rows2) => rows2.reduce((k, w) => k + w.count, 0);
+var nonZero = (rows2) => rows2.filter((r2) => r2.cents !== 0);
 function letterLines(news) {
   const lines = [];
   if (news.status) lines.push(statusLine(news.status));
@@ -36104,8 +37899,9 @@ var WORDS2 = {
   consent_change: "Recorded a consent answer",
   send_broadcast: "Sent a broadcast",
   cancel_broadcast: "Canceled a broadcast",
-  start_playbook: "Started a playbook",
-  pause_playbook: "Paused a playbook",
+  start_playbook: "Started a campaign",
+  pause_playbook: "Paused a campaign",
+  change_playbook: "Changed a campaign",
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",
@@ -36155,13 +37951,45 @@ var WORDS2 = {
   "conversation.pause_expired": "A pause ended",
   "conversation.snooze_expired": "A snooze ended",
   "escalation.changed": "A handover's reason changed",
+  "escalation.opened": "A thread was handed to the team",
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A broadcast finished",
   "broadcast.stopped": "A broadcast stopped",
-  "playbook.run": "A playbook ran",
+  "playbook.run": "A campaign ran",
+  "playbook.changed": "A campaign was edited",
+  "template.submitted": "A message was sent to WhatsApp for approval",
+  "template.removed": "A message was deleted from the Library",
+  "member.joined": "Joined the workspace",
+  "member.left": "Left the workspace",
+  "reach_out.lead_stopped": "A reach-out stopped writing to a lead",
+  "reach_out.send_decided": "A held reach-out email was decided",
+  "lead.kept": "A lead was kept from Needs review",
+  "lead.excluded": "A lead was left out of Needs review",
+  "lead.put_back": "A lead was put back in Needs review",
+  "lead.search_renamed": "A search was renamed",
+  "lead.search_removed": "A search was removed",
+  "contact.kept_apart": "Two records were kept as two people",
+  "line.forwarding_set": "Call forwarding was set up",
+  "appointment.booked": "A booking arrived by email",
+  "appointment.moved": "A booking was changed by email",
+  "appointment.cancelled": "A booking was cancelled by email",
+  "conversation.owner_replied": "The owner replied from the WhatsApp Business app, and the receptionist stepped back",
+  "billing.payment_failed": "A payment did not go through",
+  "billing.paid": "A payment went through",
+  "billing.trial_ending": "The trial ends in three days",
+  "capability.activated": "Answering was switched on",
+  "capability.deactivated": "Answering was switched off",
   "channel.quality_rating": "A WhatsApp number's quality rating changed",
+  // Meta's own news of the account (contracts WABA_FIELDS), one kind per field: said as what Meta did, never as its field.
+  "channel.phone_number_quality_update": "Meta changed a WhatsApp number's quality",
+  "channel.account_update": "Meta updated the WhatsApp account",
+  "channel.message_template_status_update": "Meta reviewed a message",
+  "channel.account_review_update": "Meta reviewed the WhatsApp account",
+  "channel.message_template_quality_update": "Meta changed a message's quality",
+  "channel.template_category_update": "Meta changed a message's category",
+  "channel.phone_number_name_update": "Meta reviewed a WhatsApp number's name",
   "channel.standing": "A WhatsApp number's standing with Meta changed",
   "setup.requested": "Setup was requested",
   "voice.provisioned": "The phone receptionist was provisioned",
@@ -36240,6 +38068,7 @@ function humanize(kind) {
   const tail = (rest ?? "").replace(/_/g, " ");
   return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` \xB7 ${tail}` : ""}`;
 }
+var activityKindWords = (kind) => WORDS2[kind] ?? humanize(kind);
 var textAt = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
 var numberAt = (o, k) => typeof o[k] === "number" ? o[k] : null;
 function importWords(p) {
@@ -36288,8 +38117,9 @@ function leadNotAFitWords(p, base) {
   const head = p.bulk === true && n !== null ? `${plural(n, "lead")} ${n === 1 ? "was" : "were"} marked not a fit` : base;
   return joinBits(head, [wordOf(LEAD_NOT_A_FIT_WORDS, textAt(p, "why"))]);
 }
+var REACH_OUT_EMAILED_WORDS = "A reach-out email went to a lead";
 function leadEmailedWords(p, base) {
-  return textAt(p, "by") === "reach_out" ? "A reach-out email went to a lead" : base;
+  return textAt(p, "by") === "reach_out" ? REACH_OUT_EMAILED_WORDS : base;
 }
 var ACTIVATED_WORDS = {
   line_live: "its first line is answering",
@@ -36325,6 +38155,28 @@ function runEndWords(kind, p, base) {
   return [base, ...bits2].join(" \xB7 ");
 }
 var replyWords = (p, base) => p.starts === true ? "Began a conversation from the dashboard" : base;
+var CALL_MISSED_WORDS = "A call was missed";
+var CALL_UNANSWERED_WORDS = "A call we placed did not connect";
+function callRecordedWords(p, base) {
+  if (textAt(p, "status") !== "not_connected") return base;
+  return textAt(p, "direction") === "outbound" ? CALL_UNANSWERED_WORDS : CALL_MISSED_WORDS;
+}
+var SEND_DECIDED_WORDS = {
+  include: "A held reach-out email was sent as written",
+  rewrite: "A held reach-out email was sent back to be written again",
+  skip: "A held reach-out email was skipped",
+  not_a_fit: "A held reach-out email was dropped: the lead is not a fit"
+};
+var FORWARDING_WORDS = { unanswered: "the calls not answered", always: "every call" };
+function searchRemovedWords(p, base) {
+  const kept = numberAt(p, "kept");
+  return joinBits(base, [textAt(p, "name"), kept !== null ? `${kept} kept` : null]);
+}
+var CAPABILITY_WORDS = { voice: "calls", whatsapp: "WhatsApp", sms: "texts" };
+var wordsAt = (o, k) => {
+  const list2 = Array.isArray(o[k]) ? o[k].filter((f) => typeof f === "string") : [];
+  return list2.length ? list2.slice(0, 4).join(", ") : null;
+};
 var WHOLE_SENTENCE = new Map([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
   ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
@@ -36342,6 +38194,29 @@ var WHOLE_SENTENCE = new Map([
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
   ["google.reply_held", (p, base) => joinBits(base, [reviewHeldWords(textAt(p, "why"))])],
   ["message.send_blocked", sendBlockedWords],
+  ["escalation.opened", (p, base) => joinBits(base, [textAt(p, "reason") ? reasonShort(textAt(p, "reason")) : null])],
+  ["member.joined", (p, base) => joinBits(base, [textAt(p, "role") ? `as ${textAt(p, "role")}` : null])],
+  [
+    "member.left",
+    (p, base) => joinBits(base, [textAt(p, "how") === "account_deleted" ? "deleted their account" : null])
+  ],
+  // Team's Resend renews an invitation and emails it again (00371 team_invite_renew); a member's own Leave is a removal
+  // by their own hand (team_leave). Each is said as what happened, not as a second invitation or a removal by somebody.
+  ["invite", (p, base) => p.resent === true ? "Sent an invitation again" : base],
+  ["remove_member", (p, base) => p.left === true ? "Left the team" : base],
+  ["call.recorded", callRecordedWords],
+  ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
+  ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["lead.search_removed", searchRemovedWords],
+  ["line.forwarding_set", (p, base) => joinBits(base, [wordOf(FORWARDING_WORDS, textAt(p, "mode"))])],
+  ["appointment.booked", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["appointment.moved", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["appointment.cancelled", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  ["playbook.changed", (p, base) => joinBits(base, [textAt(p, "name"), wordsAt(p, "fields")])],
+  ["template.submitted", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["template.removed", (p, base) => joinBits(base, [textAt(p, "name")])],
+  ["capability.activated", (p, base) => joinBits(base, [wordOf(CAPABILITY_WORDS, textAt(p, "capability"))])],
+  ["capability.deactivated", (p, base) => joinBits(base, [wordOf(CAPABILITY_WORDS, textAt(p, "capability"))])],
   ["message.send_failed", sendFailedWords],
   // A partner's standing is between the platform and the partner: the owner reads that it was judged, never the
   // verdict or who gave it (the raw label said no more before these words).
@@ -36394,8 +38269,8 @@ function activityWords(kind, payload) {
     case "export": {
       const what = textAt(p, "what");
       if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
-      const rows = numberAt(p, "rows");
-      if (rows !== null) bits2.push(`${rows} rows`);
+      const rows2 = numberAt(p, "rows");
+      if (rows2 !== null) bits2.push(`${rows2} rows`);
       break;
     }
     case "pause_agent":
@@ -36471,67 +38346,11 @@ function activityWords(kind, payload) {
   }
   return bits2.length ? `${base} \xB7 ${bits2.join(" \xB7 ")}` : base;
 }
-var TONES2 = {
-  // danger -- it failed, it was refused, or something is gone
-  "message.send_failed": "danger",
-  "message.send_blocked": "danger",
-  "line.failed": "danger",
-  "broadcast.stopped": "danger",
-  "line.texting_rejected": "danger",
-  "contact.erased": "danger",
-  "contact.blob_erased": "danger",
-  "ingest.unroutable": "danger",
-  "ingest.unreachable_sender": "danger",
-  erase: "danger",
-  decline: "danger",
-  remove_member: "danger",
-  // ok -- it completed, it connected, it is answering
-  "line.answering": "ok",
-  "line.texting_approved": "ok",
-  "line.forwarding_verified": "ok",
-  "voice.provisioned": "ok",
-  "google.linked": "ok",
-  "google.connected": "ok",
-  "broadcast.sent": "ok",
-  "billing.resumed": "ok",
-  "mailbox.created": "ok",
-  "mailbox.offers_resumed": "ok",
-  "sending_domain.verified": "ok",
-  "sending_domain.released": "ok",
-  "sending_domain.resumed": "ok",
-  "workspace.created": "ok",
-  approve: "ok",
-  resolve: "ok",
-  connect_channel: "ok",
-  "deal.won": "ok",
-  // warn -- somebody stopped something, or a rule was stepped around
-  "billing.paused": "warn",
-  "policy.veto_window_skipped": "warn",
-  "line.released": "warn",
-  "google.unlinked": "warn",
-  "google.disconnected": "warn",
-  "sending_domain.held": "warn",
-  "mailbox.offers_paused": "warn",
-  "message.send_raced_cancel": "warn",
-  "ingest.allowlist_skip": "warn",
-  pause_agent: "warn",
-  pause_playbook: "warn",
-  cancel_send: "warn",
-  cancel_broadcast: "warn",
-  revoke_invite: "warn",
-  snooze: "warn",
-  // info -- it is on its way, or a person took it on
-  "message.received": "info",
-  "conversation.reopened": "info",
-  "line.texting_on": "info",
-  take_over: "info",
-  hand_back: "info",
-  reply: "info"
-};
-function activityTone(kind) {
-  return TONES2[kind] ?? "plain";
-}
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var ACTIVITY_KINDS = [
+  ...DECISION_VERBS,
+  ...EVENT_KINDS,
+  ...WABA_FIELDS.map((field) => `channel.${field}`)
+];
 function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || ACTIVITY_NOISE_KINDS.includes(kind);
 }
@@ -36751,8 +38570,8 @@ function partnerHandoverVM(h, nowMs = Date.now()) {
     return of("expired", `The invitation to ${to} expired on ${dayWords2(h.expiresAt)}. Send it again.`);
   return of("waiting", `Waiting for its owner: sent to ${to}, open until ${dayWords2(h.expiresAt)}.`);
 }
-function handoverRoom(rows) {
-  const waiting = rows.filter((r2) => !r2.acceptedAt).length;
+function handoverRoom(rows2) {
+  const waiting = rows2.filter((r2) => !r2.acceptedAt).length;
   const full = waiting >= HANDOVER_WAITING_MAX;
   return {
     waiting,
@@ -36906,29 +38725,33 @@ function workspacePartnerVM(dto, nowMs = Date.now()) {
       state: "partner",
       sentence: p.seated ? `${p.code} is your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}. Remove them in the team above at any time.` : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}, and are no longer on your team. A workspace has one partner.`,
       canInvite: false,
-      canWithdraw: false
+      canWithdraw: false,
+      seated: p.seated
     };
   const i = dto.invitation;
-  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false, seated: false };
   if (i.declinedAt)
     return {
       state: "declined",
       sentence: `${i.code} declined on ${dayWords2(i.declinedAt)}.`,
       canInvite: true,
-      canWithdraw: false
+      canWithdraw: false,
+      seated: false
     };
   if (Date.parse(i.expiresAt) <= nowMs)
     return {
       state: "expired",
       sentence: `Your invitation to ${i.code} expired on ${dayWords2(i.expiresAt)}.`,
       canInvite: true,
-      canWithdraw: false
+      canWithdraw: false,
+      seated: false
     };
   return {
     state: "waiting",
     sentence: `Waiting for ${i.code} to accept: asked on ${dayWords2(i.sentAt)}, open until ${dayWords2(i.expiresAt)}.`,
     canInvite: false,
-    canWithdraw: true
+    canWithdraw: true,
+    seated: false
   };
 }
 var partnerInvitationWords = (i) => `${i.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${dayWords2(i.expiresAt)}.`;
@@ -37017,11 +38840,11 @@ function receptionistLine(r2) {
   const pace = r2.brain_p95_ms === null ? "" : ` \xB7 95% within ${(r2.brain_p95_ms / 1e3).toFixed(1)} s`;
   return `${parts2.join(", ")}${pace}`;
 }
-function platformDaysWords(rows) {
-  if (!rows) return { day: null, sentence: "Could not be read just now.", lines: [] };
-  const day = rows.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
+function platformDaysWords(rows2) {
+  if (!rows2) return { day: null, sentence: "Could not be read just now.", lines: [] };
+  const day = rows2.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
   if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
-  const lines = rows.filter((r2) => r2.day === day).map((r2) => ({
+  const lines = rows2.filter((r2) => r2.day === day).map((r2) => ({
     tenantId: r2.tenant_id,
     name: r2.name,
     day: r2.day,
@@ -37037,21 +38860,443 @@ function platformDaysWords(rows) {
   const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
   return { day, sentence: sentence2, lines };
 }
+
+// src/activity/tones.ts
+var TONES2 = {
+  // danger -- it failed, it was refused, or something is gone
+  "message.send_failed": "danger",
+  "message.send_blocked": "danger",
+  "line.failed": "danger",
+  "billing.payment_failed": "danger",
+  "broadcast.stopped": "danger",
+  "line.texting_rejected": "danger",
+  "contact.erased": "danger",
+  "contact.blob_erased": "danger",
+  "ingest.unroutable": "danger",
+  "ingest.unreachable_sender": "danger",
+  erase: "danger",
+  decline: "danger",
+  remove_member: "danger",
+  // ok -- it completed, it connected, it is answering
+  "line.answering": "ok",
+  "line.texting_approved": "ok",
+  "line.forwarding_verified": "ok",
+  "voice.provisioned": "ok",
+  "google.linked": "ok",
+  "google.connected": "ok",
+  "broadcast.sent": "ok",
+  "billing.resumed": "ok",
+  "mailbox.created": "ok",
+  "mailbox.offers_resumed": "ok",
+  "sending_domain.verified": "ok",
+  "sending_domain.released": "ok",
+  "sending_domain.resumed": "ok",
+  "workspace.created": "ok",
+  approve: "ok",
+  resolve: "ok",
+  connect_channel: "ok",
+  "deal.won": "ok",
+  "member.joined": "ok",
+  "appointment.booked": "ok",
+  "billing.paid": "ok",
+  "capability.activated": "ok",
+  // warn -- somebody stopped something, or a rule was stepped around
+  "billing.paused": "warn",
+  "policy.veto_window_skipped": "warn",
+  "line.released": "warn",
+  "google.unlinked": "warn",
+  "google.disconnected": "warn",
+  "sending_domain.held": "warn",
+  "mailbox.offers_paused": "warn",
+  "capability.deactivated": "warn",
+  "member.left": "warn",
+  "appointment.cancelled": "warn",
+  "reach_out.lead_stopped": "warn",
+  "message.send_raced_cancel": "warn",
+  "ingest.allowlist_skip": "warn",
+  pause_agent: "warn",
+  pause_playbook: "warn",
+  cancel_send: "warn",
+  cancel_broadcast: "warn",
+  revoke_invite: "warn",
+  snooze: "warn",
+  // info -- it is on its way, or a person took it on
+  "message.received": "info",
+  "conversation.reopened": "info",
+  "escalation.opened": "info",
+  "conversation.owner_replied": "info",
+  "line.texting_on": "info",
+  take_over: "info",
+  hand_back: "info",
+  reply: "info"
+};
+function activityTone(kind) {
+  return TONES2[kind] ?? "plain";
+}
+
+// src/activity/families.ts
+var ACTIVITY_FAMILIES = [
+  "conversations",
+  "calls",
+  "people",
+  "lists",
+  "leads",
+  "deals",
+  "campaigns",
+  "calendar",
+  "google",
+  "connections",
+  "team",
+  "settings",
+  "billing",
+  "partner",
+  "records"
+];
+var FAMILY_WORDS = {
+  conversations: "Conversations",
+  calls: "Calls",
+  people: "People",
+  lists: "Lists",
+  leads: "Leads",
+  deals: "Deals",
+  campaigns: "Campaigns",
+  calendar: "Calendar",
+  google: "Google",
+  connections: "Connections",
+  team: "Team",
+  settings: "Settings",
+  billing: "Billing",
+  partner: "Partner",
+  records: "Kept records"
+};
+var VERB_FAMILY = {
+  approve: "conversations",
+  edit: "conversations",
+  decline: "conversations",
+  snooze: "conversations",
+  wake: "conversations",
+  take_over: "conversations",
+  hand_back: "conversations",
+  resolve: "conversations",
+  archive: "conversations",
+  reply: "conversations",
+  cancel_send: "conversations",
+  pause_agent: "conversations",
+  resume_agent: "conversations",
+  invite: "team",
+  revoke_invite: "team",
+  change_role: "team",
+  remove_member: "team",
+  erase: "people",
+  merge: "people",
+  whisper: "calls",
+  connect_channel: "connections",
+  consent_change: "people",
+  send_broadcast: "campaigns",
+  cancel_broadcast: "campaigns",
+  start_playbook: "campaigns",
+  pause_playbook: "campaigns",
+  change_playbook: "campaigns",
+  reply_review: "google",
+  export: "settings",
+  end_call: "calls",
+  record_deal: "deals",
+  make_list: "lists",
+  rename_list: "lists",
+  change_list_rule: "lists",
+  add_to_list: "lists",
+  drop_from_list: "lists",
+  archive_list: "lists",
+  restore_list: "lists",
+  delete_list: "lists",
+  import: "people",
+  open_recording: "calls"
+};
+var PREFIX_FAMILY = {
+  message: "conversations",
+  conversation: "conversations",
+  escalation: "conversations",
+  member: "team",
+  template: "campaigns",
+  capability: "connections",
+  booking_link: "conversations",
+  policy: "settings",
+  contact: "people",
+  person: "people",
+  call: "calls",
+  voice: "connections",
+  line: "connections",
+  channel: "connections",
+  mailbox: "connections",
+  sending_domain: "connections",
+  setup: "connections",
+  google: "google",
+  lead: "leads",
+  reach_out: "leads",
+  deal: "deals",
+  broadcast: "campaigns",
+  playbook: "campaigns",
+  appointment: "calendar",
+  business: "settings",
+  settings: "settings",
+  workspace: "settings",
+  platform: "settings",
+  billing: "billing",
+  partner: "partner",
+  usage: "records",
+  webhook: "records",
+  ingest: "records"
+};
+var KIND_FAMILY = {
+  // A reply held past its window is a conversation's news, though the rule that held it is a setting.
+  "policy.veto_window_skipped": "conversations"
+};
+function activityFamily(kind) {
+  if (Object.hasOwn(VERB_FAMILY, kind)) return VERB_FAMILY[kind];
+  if (Object.hasOwn(KIND_FAMILY, kind)) return KIND_FAMILY[kind] ?? null;
+  const dot = kind.indexOf(".");
+  const prefix = dot > 0 ? kind.slice(0, dot) : "";
+  return Object.hasOwn(PREFIX_FAMILY, prefix) ? PREFIX_FAMILY[prefix] : null;
+}
+var isActivityFamily = (v) => typeof v === "string" && ACTIVITY_FAMILIES.includes(v);
+function activityFamilyKinds(family) {
+  return ACTIVITY_KINDS.filter((k) => activityFamily(k) === family);
+}
+var ACTIVITY_PROBLEM_KINDS = ACTIVITY_KINDS.filter((k) => {
+  const tone = activityTone(k);
+  return (tone === "danger" || tone === "warn") && !isActivityNoise(k);
+});
+function activityKindGroups(kinds) {
+  return ACTIVITY_FAMILIES.map((family) => ({
+    family,
+    label: FAMILY_WORDS[family],
+    kinds: kinds.filter((k) => activityFamily(k) === family).map((k) => ({ kind: k, label: activityKindWords(k) }))
+  })).filter((g) => g.kinds.length > 0);
+}
+var ACTIVITY_SPANS = ["today", "yesterday", "week", "month"];
+var ACTIVITY_SPAN_DAYS = { today: 1, yesterday: 1, week: 7, month: 30 };
+var ACTIVITY_ACTORS = ["receptionist", "system"];
+var ACTIVITY_PAGE_WORDS = {
+  title: "Activity",
+  sub: "What happened, and who did it \xB7 newest first",
+  narrow: "Narrow it",
+  /** The first box: every part of the product, or what went wrong. The second, once a part is picked: its kinds. */
+  area: { label: "Part of the product", any: "All activity", problems: "What went wrong or was stopped" },
+  kind: { label: "Kind of activity", any: "All kinds" },
+  who: { label: "Who did it", any: "Anyone", receptionist: "Receptionist", system: "System" },
+  when: {
+    label: "When",
+    any: "Any time",
+    today: "Today",
+    yesterday: "Yesterday",
+    week: "Last 7 days",
+    month: "Last 30 days",
+    day: "One day",
+    pick: "Pick the day"
+  },
+  person: {
+    label: "A person, by name or number",
+    find: "Find a person",
+    everyone: (name) => `Everyone, not only ${name}`
+  },
+  reading: "Reading the activity log\u2026",
+  /** An empty log: narrowed, the filters are why; whole, nothing has happened in the workspace yet. */
+  none: "Nothing here for that.",
+  noneYet: "Nothing has happened yet.",
+  clear: "Clear the filters",
+  clearShort: "Clear",
+  more: "Show more",
+  moreReading: "Reading\u2026",
+  soFar: (n) => `${n} so far`,
+  /** A fold's name to a screen reader: its sentence, then what a press on it does. */
+  fold: {
+    show: (said) => `${said}: show them`,
+    hide: (said) => `${said}: hide them`
+  },
+  since: (time) => `since ${time}`,
+  member: "A member",
+  foot: "Model usage, webhook receipts and unplaced messages are kept out of the log. Pick Kept records to see them.",
+  ownerOnly: "Only an owner can read the activity log: it is the whole record of the workspace, including what every member did."
+};
+
+// src/activity/lines.ts
+var rows = (many) => ({ counts: "rows", many });
+var subjects = (many) => ({ counts: "subjects", many });
+var FOLD_WORDS = {
+  // decisions: what one member, or the receptionist, did again and again
+  approve: rows((n) => `Approved ${n} replies`),
+  edit: rows((n) => `Edited ${n} replies`),
+  reply: rows((n) => `Replied ${n} times from the dashboard`),
+  archive: subjects((n) => `Archived ${n} threads`),
+  wake: subjects((n) => `Woke ${n} threads`),
+  resolve: rows((n) => `Resolved ${n} escalations`),
+  open_recording: subjects((n) => `Listened to ${n} calls' recordings`),
+  whisper: rows((n) => `Whispered to the phone receptionist ${n} times`),
+  consent_change: rows((n) => `Recorded ${n} consent answers`),
+  // One row per part of fifty (00170): the parts are one import, and each part's counts are a press away.
+  import: rows((n) => `Imported people from a spreadsheet, in ${n} parts`),
+  // events: the day's routine
+  "message.received": rows((n) => `${n} messages came in`),
+  "message.sent": rows((n) => `${n} messages went out`),
+  "contact.added": subjects((n) => `${n} people were added`),
+  "contact.named": subjects((n) => `${n} people were named`),
+  "contact.noted": rows((n) => `${n} notes were written`),
+  "contact.note_changed": rows((n) => `${n} notes were changed`),
+  "contact.note_removed": rows((n) => `${n} notes were taken away`),
+  "contact.note_suggested": rows((n) => `The receptionist suggested ${n} notes`),
+  "contact.note_kept": rows((n) => `${n} suggested notes were kept`),
+  "contact.note_dismissed": rows((n) => `${n} suggested notes were dismissed`),
+  "contact.note_done": rows((n) => `${n} steps were done`),
+  "contact.note_undone": rows((n) => `${n} steps were opened again`),
+  "contact.consent_changed": rows((n) => `${n} consent answers changed`),
+  "contact.email_set": subjects((n) => `${n} people's email addresses changed`),
+  "conversation.reopened": subjects((n) => `${n} threads reopened`),
+  "conversation.pause_expired": rows((n) => `${n} pauses ended`),
+  "conversation.snooze_expired": rows((n) => `${n} snoozes ended`),
+  // A call that never connected is not one that was recorded: each says its own, and folds with its own.
+  "call.recorded": {
+    counts: "subjects",
+    split: (row2) => row2.text,
+    many: (n, newest) => newest.text === CALL_MISSED_WORDS ? `${n} calls were missed` : newest.text === CALL_UNANSWERED_WORDS ? `${n} calls we placed did not connect` : `${n} calls were recorded`
+  },
+  "lead.kept": subjects((n) => `${n} leads were kept from Needs review`),
+  "lead.excluded": subjects((n) => `${n} leads were left out of Needs review`),
+  "lead.put_back": subjects((n) => `${n} leads were put back in Needs review`),
+  // What was decided is the sentence, so each decision folds with its own: "… was skipped · 40 times".
+  "reach_out.send_decided": {
+    counts: "rows",
+    split: (row2) => row2.text,
+    many: (n, newest) => `${newest.text} \xB7 ${n} times`
+  },
+  "appointment.booked": rows((n) => `${n} bookings arrived by email`),
+  "lead.emailed": {
+    counts: "subjects",
+    split: (row2) => row2.text,
+    many: (n, newest) => newest.text === REACH_OUT_EMAILED_WORDS ? `${n} reach-out emails went to leads` : `${n} leads were marked as emailed`
+  },
+  "lead.call": rows((n) => `${n} calls to leads were logged`),
+  "google.reviews": rows((n) => `New Google reviews were read ${n} times`),
+  "playbook.run": rows((n) => `Campaigns ran ${n} times`)
+};
+var ACTIVITY_FOLD_KINDS = Object.keys(FOLD_WORDS);
+var FOLD_MIN = 2;
+var handOf2 = (r2) => r2.actor_user_id ?? r2.actor_type ?? "";
+function lineKey(r2, day) {
+  const words3 = FOLD_WORDS[r2.kind];
+  if (!words3) return `@${r2.id}`;
+  return [day, r2.kind, handOf2(r2), words3.split ? words3.split(r2) : ""].join("|");
+}
+function foldTitle(members, words3) {
+  const newest = members[0];
+  if (!newest) return "";
+  const n = words3.counts === "rows" ? members.length : new Set(members.map((m) => m.subject_id ? `${m.subject_type ?? ""}:${m.subject_id}` : `@${m.id}`)).size;
+  return n === 1 ? `${activityKindWords(newest.kind)} \xB7 ${members.length} times` : words3.many(n, newest);
+}
+function activityLines(list2, dayOf2, fold2 = true) {
+  const order = [];
+  const byKey = /* @__PURE__ */ new Map();
+  for (const r2 of list2) {
+    const k = fold2 ? lineKey(r2, dayOf2(r2.at)) : `@${r2.id}`;
+    const bucket = byKey.get(k);
+    if (bucket) bucket.push(r2);
+    else {
+      byKey.set(k, [r2]);
+      order.push(k);
+    }
+  }
+  const lines = [];
+  for (const k of order) {
+    const members = byKey.get(k) ?? [];
+    const newest = members[0];
+    if (!newest) continue;
+    const words3 = FOLD_WORDS[newest.kind];
+    if (!words3 || members.length < FOLD_MIN) {
+      for (const r2 of members) lines.push({ key: r2.id, row: r2, count: 1, title: null, members: [r2], since: null });
+      continue;
+    }
+    lines.push({
+      key: k,
+      row: newest,
+      count: members.length,
+      title: foldTitle(members, words3),
+      members,
+      since: members[members.length - 1]?.at ?? null
+    });
+  }
+  return lines;
+}
+function activityRowsForLines(list2, dayOf2, max, fold2 = true) {
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < list2.length; i += 1) {
+    const r2 = list2[i];
+    if (!r2) continue;
+    const k = fold2 ? lineKey(r2, dayOf2(r2.at)) : `@${r2.id}`;
+    if (seen.has(k)) continue;
+    if (seen.size >= max) return i;
+    seen.add(k);
+  }
+  return list2.length;
+}
+function activityDoor(r2) {
+  const id = r2.subject_id;
+  switch (r2.subject_type) {
+    case "contact":
+      return id ? `clients/${id}` : null;
+    case "conversation":
+      return id ? `inbox/th-${id}` : null;
+    case "call":
+      return id ? `conversations/cv-${id}` : null;
+    case "lead":
+      return id ? leadsRoute({ peek: id }) : null;
+    case "broadcast":
+      return id ? `broadcasts/run:${id}` : null;
+    case "appointment":
+      return id ? `calendar/a-${id}` : null;
+    case "lead_search":
+      return id ? leadsRoute({ searchId: id }) : null;
+    case "membership":
+    case "invitation":
+      return "admin/team";
+    case "channel":
+      return "admin/integrations";
+    case "review":
+      return lensRoute("reviews");
+    default:
+      return null;
+  }
+}
+function activityMemberWords(row2, about) {
+  if (!about) return row2.text;
+  return row2.text === activityKindWords(row2.kind) ? about : `${row2.text} \xB7 ${about}`;
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
   ABOUT_MAX,
   ABOUT_MIN,
   ACTIVATION_MILESTONES,
+  ACTIVITY_ACTORS,
+  ACTIVITY_FAMILIES,
+  ACTIVITY_FOLD_KINDS,
   ACTIVITY_KINDS,
   ACTIVITY_NOISE_KINDS,
   ACTIVITY_NOISE_PREFIXES,
+  ACTIVITY_PAGE_WORDS,
+  ACTIVITY_PROBLEM_KINDS,
+  ACTIVITY_SPANS,
+  ACTIVITY_SPAN_DAYS,
   ACTOR_TYPES,
+  ALERT_ADDRESSES_MAX,
+  ALERT_ADDRESSES_MIN,
   ALERT_KINDS,
+  ALERT_PANE_WORDS,
+  ALERT_REFUSED_WORDS,
+  ALERT_TOPICS,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
+  APPOINTMENT_WORDS,
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK_ANSWER_CAPS,
@@ -37091,12 +39336,15 @@ export {
   AppError,
   AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
+  BELL_LINE_KINDS,
   BELL_WINDOW_DAYS,
   BILLING_MODES,
   BILLING_STATUSES,
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
+  BOOKED_ENDED_META,
   BOOKED_NEEDS_A_LINK,
+  BOOKED_NEEDS_TODAY,
   BOOKED_SEEN_CAP,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
@@ -37141,11 +39389,15 @@ export {
   CALL_ACTIVITY_ROLES,
   CALL_ACTIVITY_STALE_MS,
   CALL_HEARTBEAT_MS,
+  CALL_MISSED_WORDS,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
+  CALL_UNANSWERED_WORDS,
   CAMPAIGNS_PAUSED_WORDS,
+  CAMPAIGNS_RESULTS_PERIOD,
   CAMPAIGN_EMAIL_TAG,
   CAMPAIGN_MONTH_ALLOWANCE,
+  CAMPAIGN_NOT_FOUND,
   CAMPAIGN_ROOMS,
   CAPABILITY_KINDS,
   CARRIERS,
@@ -37178,6 +39430,7 @@ export {
   CONSENT_STATES,
   CONSULT_FIRST_DEAL_HINT,
   CONSULT_FOLLOW_DAYS,
+  CONVERSATIONAL_ASK_TITLE,
   CONVERSATION_MOVES,
   CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_PHRASE,
@@ -37245,7 +39498,9 @@ export {
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
   EMAILED_NOTIFICATION_KINDS,
+  EMAIL_ALWAYS_KINDS,
   EMAIL_BODY_MAX,
+  EMAIL_CLAIMS,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_HOLDS,
   EMAIL_NOT_ANSWERED_SENTENCE,
@@ -37323,6 +39578,7 @@ export {
   InviteCodeSchema,
   JOB_KINDS,
   JOB_STATES,
+  JOURNEY_STAGE_IDS,
   JUDGE_FACT_KEYS,
   JUDGE_OUTPUT_SCHEMA,
   KEEP_ROW,
@@ -37432,6 +39688,8 @@ export {
   LEAD_UNREACHABLE_KEY,
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
+  LEDGER_SORTS,
+  LEDGER_STATUSES,
   LENS_ROUTES,
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
@@ -37497,6 +39755,7 @@ export {
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
   MIN_MS,
+  MISSED_CALL_TOUCH_WORDS,
   MOCK_TEXTING_SENTENCE,
   MODELS,
   MODEL_CALL_OUTCOMES,
@@ -37524,8 +39783,6 @@ export {
   NOTICE_HOLD_WORDS,
   NOTICE_READ_MAX_TOKENS,
   NOTICE_SCHEMA,
-  NOTIFICATION_KIND_GROUPS,
-  NOTIFICATION_PANE_WORDS,
   NO_CHANNEL_REACH,
   NO_FIELDS_COMPOSED_WORDS,
   NO_LINK_DETAILS,
@@ -37618,11 +39875,16 @@ export {
   PLATFORM_VERDICTS,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CALENDAR_UNREAD,
+  PLAYBOOK_CAP_CHOICES,
+  PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_DELETE_WORDS,
   PLAYBOOK_HOURS,
+  PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
+  PLAYBOOK_PATCH_KEYS,
+  PLAYBOOK_PATCH_WORDS,
   PLAYBOOK_REACH_WORDS,
   PLAYBOOK_STATES,
   PLAYBOOK_TOUCH_WINDOW_MS,
@@ -37681,7 +39943,9 @@ export {
   REACH_OUT_AWAY_MAX_DAYS,
   REACH_OUT_BODY_MAX,
   REACH_OUT_CHECKS_PER_DAY,
+  REACH_OUT_DAY_ROUTE,
   REACH_OUT_DECISIONS,
+  REACH_OUT_EMAILED_WORDS,
   REACH_OUT_FIRST_WORDS,
   REACH_OUT_GAP_FIRST,
   REACH_OUT_GAP_MINUTES,
@@ -37746,8 +40010,11 @@ export {
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
   REPORT_LENSES,
+  REPORT_MIN_N,
+  REPORT_MOST_DAYS,
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
+  REPORT_PERIOD_STORAGE,
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
@@ -37764,6 +40031,7 @@ export {
   REVIEW_REPLY_MAX_WORDS,
   ROLES,
   ROLE_PERMS,
+  ROLE_SAYS,
   ROLE_WORDS,
   ROUTE_KEYS,
   ROUTE_WORDS,
@@ -37802,6 +40070,7 @@ export {
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SERVICE_SUGGESTION_TYPES,
+  SESSION_ENDED,
   SETUP_CARD_ORDER,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
@@ -37842,6 +40111,7 @@ export {
   SYSTEM_ONE_STATE_MAX_CHARS,
   ServiceSchema,
   SignupSchema,
+  TEAM_INVITE_DAYS,
   TEAM_ROLES,
   TEMPLATE_BODY_MAX,
   TEMPLATE_BUTTON_TEXT_MAX,
@@ -37900,11 +40170,18 @@ export {
   WHATSAPP_LANGUAGES,
   WHATSAPP_VERSION_ALONE,
   WHY_FROM_MAPS,
-  WIN_BACK_WORDS,
   WRITE_HOLDS,
   WRITE_HOLD_WORDS,
   abandonedCall,
   abilityRows,
+  activityDoor,
+  activityFamily,
+  activityFamilyKinds,
+  activityKindGroups,
+  activityKindWords,
+  activityLines,
+  activityMemberWords,
+  activityRowsForLines,
   activityTone,
   activityWords,
   addressAlreadyKnown,
@@ -37916,6 +40193,9 @@ export {
   agoShort,
   agoWords,
   aiUsageBodyOf,
+  alertAddressesOf,
+  alertGrid,
+  alertTestMail,
   allVisitsIn,
   allowanceBeforeSend,
   allowanceLine,
@@ -37936,6 +40216,8 @@ export {
   appointmentKeyOf,
   appointmentKeysOf,
   appointmentTitle,
+  appointmentWordOf,
+  appointmentWords,
   approvalWordsOf,
   approvedWordsFor,
   areaCodeOf,
@@ -37944,6 +40226,7 @@ export {
   asPersonMode,
   asTenantId,
   askCallOutcome,
+  askCardLapsed,
   askIntent,
   askJump,
   askModelProfile,
@@ -37960,6 +40243,7 @@ export {
   awayUntilOf,
   bellActionOf,
   bellCalls,
+  bellLineFor,
   bellSections,
   billingAccountDto,
   billingDoorOpen,
@@ -38022,7 +40306,6 @@ export {
   callAttemptWords,
   callJumpSub,
   callLength,
-  callMoodTone,
   callNoteLines,
   callNotesOf,
   callOfKey,
@@ -38048,6 +40331,9 @@ export {
   chainPaceOf,
   chainPathWords,
   chainReportWordsOf,
+  chainResultsOf,
+  chainTotalsFromReport,
+  chainTotalsOf,
   changedConfigFields,
   channelChoices,
   channelFor,
@@ -38068,6 +40354,7 @@ export {
   checkedWords,
   chipsMoreWords,
   citationRoute,
+  claimsWrite,
   clampWords,
   classify,
   cleanAnswer,
@@ -38141,6 +40428,7 @@ export {
   dayWords,
   daysToSunset,
   daysWithAppointments,
+  daysWords,
   dealCardsOf,
   dealFactsOf,
   dealIsOpen,
@@ -38212,10 +40500,12 @@ export {
   emailTemplateWords,
   emailWires,
   emailWordCount,
+  emailsFor,
   emailsNotificationKind,
   emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
+  endedOn,
   endingOfRound,
   enrolFor,
   enrolPurpose,
@@ -38323,6 +40613,7 @@ export {
   headlineOf,
   heardSinceProposal,
   heardWords,
+  heldBackOfOneRun,
   heldBackWords,
   heldByAllowance,
   heldDraftWaits,
@@ -38336,7 +40627,7 @@ export {
   holderOf,
   hoursFromGoogle,
   hoursLines2 as hoursLines,
-  hoursOf2 as hoursOf,
+  hoursOf,
   hoursRuns,
   hoursZoneWords,
   identityWords,
@@ -38357,10 +40648,12 @@ export {
   insertSlot,
   instructionsDraft,
   instructionsWords,
-  inviteState,
+  invitationWords,
   invoiceStatusWords,
+  isActivityFamily,
   isActivityMoney,
   isActivityNoise,
+  isAppointmentWord,
   isAutomatedSend,
   isBaselinePrompt,
   isBookingTool,
@@ -38384,6 +40677,7 @@ export {
   isHeldDraft,
   isIdentifierName,
   isLeadList,
+  isLedgerCampaign,
   isLensParam,
   isLibrarySample,
   isLiveCall,
@@ -38399,6 +40693,8 @@ export {
   isPersonRow,
   isPersonsWords,
   isPipelineView,
+  isPlaybookState,
+  isPlaybookTotalsDto,
   isProductFallback,
   isPushKind,
   isReachOutHold,
@@ -38406,9 +40702,11 @@ export {
   isReachOutRow,
   isReachOutRun,
   isRealDate,
+  isReceptionistSeriesDto,
   isReplyIntent,
   isReplyTo,
   isReplyUndoRefusal,
+  isReportDays,
   isReportDto,
   isReportPeriod,
   isReviewsLedgerDto,
@@ -38432,6 +40730,9 @@ export {
   itemOfAppointment,
   jittered,
   jobNewsWords,
+  joinedWords,
+  journeyOf,
+  journeyStageOf,
   judgeAsked,
   judgeDomain,
   judgeOpId,
@@ -38511,6 +40812,10 @@ export {
   leadWhere,
   leadsRoute,
   leadsStanding,
+  ledgerOrder,
+  ledgerPeopleWords,
+  ledgerPhoneLine,
+  ledgerRowIn,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
@@ -38522,6 +40827,7 @@ export {
   lensRoute,
   lensesFor,
   libraryCount,
+  lifecycleChainsOf,
   lifecycleKicker,
   lineCredentialFailure,
   lineOrNull,
@@ -38568,6 +40874,7 @@ export {
   mediaKind,
   mediaVM,
   medianWait,
+  memberGetsAlerts,
   memberMetaOf,
   memberWords,
   membersOf,
@@ -38590,7 +40897,9 @@ export {
   missedCallIsNews,
   mmss,
   modelRoute,
+  momentHoldsWords,
   momentOffered,
+  momentReadsCalendar,
   mondayOf,
   moneyWords,
   monthDaysAt,
@@ -38688,6 +40997,7 @@ export {
   parseJudgeAnswer,
   parseLeadsRoute,
   parseListToken,
+  parseMemberAlerts,
   parseOpening,
   parsePageMessage,
   parseParamSpec,
@@ -38744,6 +41054,7 @@ export {
   personStanding,
   personStateFor,
   phoneDialable,
+  phoneLine,
   phoneTail,
   pickCurrentDeal,
   pinTokens,
@@ -38851,6 +41162,8 @@ export {
   purposeOfPlaybook,
   purposeOfTemplate,
   pushFor,
+  pushOffOf,
+  pushesFor,
   quantile,
   questionAfterProbe,
   ratingWords,
@@ -38909,6 +41222,7 @@ export {
   receiptWords,
   recencyCells,
   receptionistCardOf,
+  receptionistDtoOf,
   receptionistOf2 as receptionistOf,
   receptionistOn,
   receptionistPrimary,
@@ -38942,10 +41256,19 @@ export {
   replyWhy,
   replyWindow,
   reportDaysAsked,
+  reportDaysCount,
+  reportDaysRefusal,
   reportFacts,
   reportHourWords,
   reportPeriodOf,
+  reportPickWords,
+  reportRangeAsked,
+  reportRangeKey,
+  reportRangeOfKey,
+  reportShortcuts,
   reportWindowOf,
+  reportsParamParts,
+  reportsRouteParts,
   reputationHoldOf,
   requestCodeWords,
   rereadAt,
@@ -38970,6 +41293,8 @@ export {
   rightNowLine,
   roleAtLeast,
   roleGate,
+  roleSays,
+  roleTable,
   routeOfAddress,
   routeOfHash,
   routeOfPath,
@@ -38985,8 +41310,10 @@ export {
   rulesLine,
   rulesWithoutFieldsWords,
   runApprovalRefusal,
+  runCountsOf,
   runDayPassed,
   runDueNow,
+  runReadingOf,
   runStoppedWords,
   runningTotal,
   runsWords,
@@ -38998,6 +41325,7 @@ export {
   sameName,
   samePhone,
   sameQuestion,
+  sameReportRange,
   savedListAction,
   savedListIds,
   savedListLookup,
@@ -39021,7 +41349,9 @@ export {
   sendingDomainDtoOf,
   sendingDomainWords,
   sendingDomainsFootWords,
+  sendsWaitWords,
   sentByWords,
+  sentResultsOfSource,
   serverNotificationRows,
   serviceNamedIn,
   serviceOf2 as serviceOf,
@@ -39031,6 +41361,7 @@ export {
   servicesSaveWords,
   servicesToldWords,
   servicesWords,
+  sessionEnded,
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,
@@ -39132,6 +41463,7 @@ export {
   templatePreview,
   templatePreviewValues,
   templateSends,
+  templateSendsOf,
   templateSentWords,
   templateSlots,
   templateTitle,
@@ -39179,6 +41511,7 @@ export {
   toPersonRowVM,
   toPersonVM,
   toReachOutReportVM,
+  toReceptionistReportVM,
   toReportVM,
   toReviewsReportVM,
   toRunReportVM,
@@ -39208,12 +41541,14 @@ export {
   trialWords,
   triggerOf,
   triggerOffered,
+  triggerWords,
   trimmedOrNull,
   tryItLink,
   tzClock,
   tzSince,
   unknownDetails,
   unmetNeed,
+  unquoted,
   unreadCount,
   unreadFor,
   unsubscribePageWords,
@@ -39290,11 +41625,15 @@ export {
   whyNotForward,
   whyNotLook,
   whyNotReceive,
+  winBackWords,
   windowFor,
   wireFailure,
+  withAlertAddress,
   withFirstAlertAddress,
   withReplies,
   withStoredKeysKept,
+  withTopicEmail,
+  withTopicPush,
   withVisitsOf,
   withoutVisitsRowsDraw,
   withoutWrongPerson,

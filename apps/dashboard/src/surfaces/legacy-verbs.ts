@@ -11,6 +11,7 @@
  * Nothing here is new behaviour: each reads what the pages it stands in for read, in the same words.
  */
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
+import type { AskScope } from "@chanlytics/contracts";
 import type { AskApi } from "../legacy-bridge/ask";
 import type { ViewPage } from "./kit/view-tabs/pager";
 import type { SetupSurface } from "./setup/surface";
@@ -33,10 +34,14 @@ export interface LegacyFlash {
 
 declare global {
   interface Window {
-    CHANLY?: { nav?: (route: string, opts?: { replace?: boolean; quiet?: boolean }) => void };
+    CHANLY?: {
+      nav?: (route: string, opts?: { replace?: boolean; quiet?: boolean }) => void;
+      /** The frame's address (legacy-bridge/workspace.ts): `hear` follows the route on screen, and answers the stop. */
+      address?: { hear?: (fn: () => void) => () => void };
+    };
     canDo?: (action: string) => boolean;
     holdStill?: (el: Element | null | undefined, change: () => void) => void;
-    askAbout?: (about: { prompt?: string; mode?: string; thread?: string }) => void;
+    askAbout?: (about: AskAbout) => void;
     appAsk?: () => void;
     __listRoute?: (id: string) => string;
     __refreshSurface?: (key: string) => Promise<void>;
@@ -58,11 +63,6 @@ export function actingRole(): string {
 /** The lower role an owner is previewing (the role store's View-as), or null to act as who they are. */
 export function viewAsRole(): string | null {
   return (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
-}
-
-/** Preview a lower role, or `null` to stop: the role store's own, which every gate then reads (`team:changed`). */
-export function setViewAs(role: string | null): void {
-  window.ST_STORE?.setViewAs?.(role);
 }
 
 /** Hear the role store change (View-as, the mockup's roster): what a page that draws by the acting role redraws on. */
@@ -98,9 +98,43 @@ export function holdStill(control: Element | null | undefined, change: () => voi
   else change();
 }
 
+/**
+ * What Ask is opened with (dashboard-a-ask.jsx `askAbout`): a question to ask, or to finish with `mode` "compose"; a
+ * conversation to open; and `about`, the scope its chip opens on in place of the address's.
+ */
+interface AskAbout {
+  prompt?: string;
+  mode?: string;
+  thread?: string;
+  about?: AskScope;
+}
+
 /** Open Ask on a question (the Line asks it, or opens on the scope). Nothing where Ask is not drawn. */
-export function askAbout(about: { prompt?: string; mode?: string; thread?: string }): void {
+export function askAbout(about: AskAbout): void {
   window.askAbout?.(about);
+}
+
+/**
+ * Move the address (`move`: a sheet's close, which may be a Back), then run `then` once the route on screen has moved
+ * (the frame's address, `CHANLY.address.hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
+ * lands a moment after it is asked for, so what follows it waits for it. Where the frame hears no address (the
+ * standalone mockup), `then` follows the move at once.
+ */
+export function afterMove(move: () => void, then: () => void): void {
+  const hear = window.CHANLY?.address?.hear;
+  if (!hear) {
+    move();
+    then();
+    return;
+  }
+  let done = false;
+  const stop = hear(() => {
+    if (done) return;
+    done = true;
+    stop();
+    then();
+  });
+  move();
 }
 
 /** Open Ask as ⌘K does (the frame's `appAsk`), keeping what is in its field; on nothing where the frame has no door of its own. */
@@ -117,6 +151,31 @@ export function askCalls(): AskApi | undefined {
 /** Where a People list is, by its id: the list picked (People's own rule), or People itself before its lists are read. */
 export function listRoute(id: string): string {
   return window.__listRoute ? window.__listRoute(id) : "clients";
+}
+
+/*
+ * The Booking tool's sheet, on the page a door to it was pressed on (settings/booking-tool/, Ruben, 9 October 2026).
+ * The door's verb stands here, with the verbs every page already loads, and not beside the sheet: a module of its own
+ * imported by pages with chunks of their own (Reports, the first run) made the build hand each a second copy of a
+ * chunk the route shares (Reports +9.9 KB gzipped, measured against the budget main banked).
+ */
+let bookingToolHost: (() => void) | null = null;
+
+/** The frame's host says how the sheet is opened; what it answers takes that back. */
+export function hostBookingTool(open: () => void): () => void {
+  bookingToolHost = open;
+  return () => {
+    if (bookingToolHost === open) bookingToolHost = null;
+  };
+}
+
+/**
+ * Open what the business books with, where the person is. At `orAt`, the row's own address in Settings, where there
+ * is no host to draw the sheet or the role may not change the business and so only reads the row.
+ */
+export function openBookingTool(orAt: string): void {
+  if (bookingToolHost && canDo("settings")) bookingToolHost();
+  else navigate(orAt);
 }
 
 /** Read one surface again by its key (a failed read's Retry): the runner's own, which the cache, the status and the pill follow. */
@@ -369,6 +428,83 @@ export function touchSwipe(options: SwipeOptions): SwipeHandlers {
 /** Whether the shell takes a thumb's gestures at all (data-bits `touchSwipe`): a row slides only where it does. */
 export function hasTouchSwipe(): boolean {
   return !!window.touchSwipe;
+}
+
+/*
+ * What the app knows of a finger (Ruben, 8 October 2026: on a phone nothing that opens puts a person in a field by
+ * itself, and everything that rises from the bottom edge goes back down by a pull). These are the app's own and no
+ * page's. They stand here, with the verbs every page already loads, and not in a file of their own: a small module
+ * shared by the frame's kit and by the pages' own sheets made the build regroup its chunks, and People and Templates
+ * were handed a second copy of the record kit (13 KB each, measured against main's own build).
+ */
+
+/** Whether the window's media answers a query; none does where the window has none (a test's stand-in). */
+function mediaSays(query: string): boolean {
+  return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(query).matches;
+}
+
+/**
+ * Whether the pointer a person mostly uses is a finger: the house's one test for a touch screen, the one
+ * app/globals.css sizes every field by (`pointer: coarse`). It is not a width: a narrow window on a desk still has its
+ * keys, and a tablet held wide still has a keyboard that rises.
+ */
+function onTouchScreen(): boolean {
+  return mediaSays("(pointer: coarse)");
+}
+
+/**
+ * Whether a text field may take focus as it is drawn. Not on a touch screen: a field that took focus by itself raised
+ * the keyboard over a sheet the person had not read yet, and the phone moved the page to it. There a sheet opens with
+ * itself in focus (the kit's Sheet, RecordSheet), and a tap on a field begins the typing. A mouse and keys keep the
+ * field ready. An editor a press opened in place (a rename, a search its button reveals) asks it too, and its box
+ * takes the focus there (`editorBox`).
+ */
+export function focusAsDrawn(): boolean {
+  return !onTouchScreen();
+}
+
+/** On a touch screen, focus on an editor's own box as it is drawn, unless focus is already inside it. */
+function focusBoxOnTouch(el: HTMLElement | null): void {
+  if (!el || !onTouchScreen() || el.contains(document.activeElement)) return;
+  el.focus({ preventScroll: true });
+}
+
+/**
+ * What the box of an editor a press opened in place spreads: a rename, a search its button reveals, a name asked in
+ * the row (Ruben, 9 October 2026: these open as a sheet does, with no keyboard until the field is tapped; its field
+ * asks `focusAsDrawn`). On a touch screen the box takes focus as it is drawn, since its field does not: the control
+ * that was pressed is gone by then, and focus left on the page's body sends the next Tab, and a screen reader, back
+ * to the top of the page. Under a mouse the field has focus and this does nothing.
+ */
+export const editorBox = { tabIndex: -1, ref: focusBoxOnTouch } as const;
+
+/** The kit's one phone width (kit.css, 900px), where its Sheet and its Menu rise from the bottom edge. */
+export function onAPhone(): boolean {
+  return mediaSays("(max-width: 900px)");
+}
+
+/** What a touch handler is handed, as far as keeping it needs to know. */
+interface Touched {
+  stopPropagation?: () => void;
+}
+
+/**
+ * A gesture's handlers, keeping each touch to themselves. What is drawn on the document's body is still the child, to
+ * React, of whatever drew it, so its touch reaches that one's handlers too: a pull on a menu opened from inside a
+ * sheet, a drawer or an open thread was read by the sheet, the drawer or the thread as well.
+ */
+export function keepTouch<H extends object>(handlers: H): H {
+  const kept: Record<string, unknown> = {};
+  for (const [name, handle] of Object.entries(handlers)) {
+    kept[name] =
+      typeof handle === "function"
+        ? (e: Touched) => {
+            e.stopPropagation?.();
+            (handle as (e: Touched) => void)(e);
+          }
+        : handle;
+  }
+  return kept as H;
 }
 
 /** The ref that plays an overlay out as React lets go of it (data-bits `leaving`), one per key. */

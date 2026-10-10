@@ -13,7 +13,7 @@
  * of a filed line in a2p-refile.ts, and the status read in a2p-sync.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import type { Database, Json } from "../packages/db.js";
 import {
   answerObject,
   runA2PSaga,
@@ -29,6 +29,7 @@ import {
   type ProviderAccount,
 } from "../packages/channels.js";
 import {
+  MIN_MS,
   formatPhoneDisplay,
   industryOf,
   businessRecordProblems,
@@ -43,6 +44,7 @@ import { logger } from "../log.js";
 import { tenantDb } from "../packages/db.js";
 import { env } from "../env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
+import { factsOf } from "./line-resume.js";
 
 export type Db = SupabaseClient<Database>;
 export type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -193,6 +195,64 @@ export interface RegisterResult {
 }
 
 /**
+ * How long a filing holds its line (`facts.a2p_filing_until`): longer than any door or sweep that files runs, so a
+ * filing that died holding it frees the line by itself for the next press or the next hour.
+ */
+const A2P_FILING_LEASE_MS = 10 * MIN_MS;
+const LEASE_FACT = "a2p_filing_until";
+
+/** Whether another filing holds this line now. */
+function filingUnderWay(line: LineRow, nowMs: number): boolean {
+  const until = factsOf(line)[LEASE_FACT];
+  return typeof until === "string" && Date.parse(until) > nowMs;
+}
+
+/** The answer to a filing that found another under way: the wait it is, in the words a wait on the carriers is said in. */
+function filingInProgress(state: A2PState): RegisterResult {
+  return {
+    ok: false,
+    pending: true,
+    error: "registration_pending",
+    detail: "This line's registration is being filed right now. It shows here as soon as the carriers have it.",
+    state,
+    smsState: "registering",
+  };
+}
+
+/**
+ * The filing takes its line before the saga's first call: the row says `registering`, and which registration, and
+ * holds the filing's lease -- only if it is still the row this filing read. Two presses of Register, or an owner's
+ * press and the sweep filing the held campaign, each read the row before either wrote; each ran the saga from it and
+ * each bought a profile and a brand (a fee paid twice), and the one that failed wrote `failed` over the one that
+ * filed. Now the second finds the row moved (its `updated_at`) or held, writes nothing, and says the filing is under
+ * way. Answers the row as taken, or null.
+ */
+async function takeFiling(db: Db, o: Filing, record: BusinessRecord): Promise<LineRow | null> {
+  const now = Date.now();
+  // reg_sole_prop is written HERE, with reg_mock, and never derived later: an
+  // owner who incorporates and types their new tax id would otherwise read
+  // back as a standard brand while the carriers still hold the narrow one --
+  // promising throughput the line does not have.
+  const { data, error } = await tenantDb(db, o.line.tenant_id)
+    .from("lines")
+    .update({
+      sms_state: "registering",
+      reg_mock: o.mock,
+      reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
+      last_error: null,
+      state_since: new Date(now).toISOString(),
+      facts: { ...factsOf(o.line), [LEASE_FACT]: new Date(now + A2P_FILING_LEASE_MS).toISOString() },
+    })
+    .eq("id", o.line.id)
+    .eq("updated_at", o.line.updated_at)
+    // And held by no other filing, asked in the same statement: the lease is the claim, whatever the row read said.
+    .or(`facts->>${LEASE_FACT}.is.null,facts->>${LEASE_FACT}.lt.${new Date(now).toISOString()}`)
+    .select("*");
+  if (error) throw new Error(`taking the line for its filing: ${error.message}`);
+  return data?.[0] ?? null;
+}
+
+/**
  * Run the registration for one line. `mock` uses Twilio's free test
  * registry: nothing is charged, nothing routes, and it expires in thirty
  * days — which is how this path is walked before a customer pays.
@@ -223,6 +283,9 @@ export async function registerLine(
   },
 ): Promise<RegisterResult> {
   const state = a2pStateFrom(o.line);
+  // Another filing of this line is under way (a second press of Register, the sweep filing the held campaign): it is
+  // answered as the wait it is, before the pre-flight could write over the row that filing holds.
+  if (filingUnderWay(o.line, Date.now())) return filingInProgress(state);
   const ready = filingPrerequisites(o.line, state);
   if (!ready.ok) return ready;
   const refused = await preflightRefusal(db, o, state);
@@ -233,8 +296,13 @@ export async function registerLine(
   // guide; our primary profile is referenced by sid, never moved.
   const sub = await lineAccount(db, o.line).catch(() => null);
   if (!sub) return { ok: false, error: "no_line_credentials", state, smsState: o.line.sms_state };
-  const ports = filingPorts(db, o, { ...ready, sub, record });
-  return settleFiling(db, o, await runFiling(db, o, state, ports));
+  const taken = await takeFiling(db, o, record);
+  if (!taken) return filingInProgress(state);
+  const filing = { ...o, line: taken };
+  const facts = factsOf(taken);
+  const ports = filingPorts(db, filing, { ...ready, sub, record, facts });
+  const result = await runA2PSaga(state, ports);
+  return settleFiling(db, filing, result, facts);
 }
 
 /** What `registerLine` is asked to file, as its callers pass it. */
@@ -337,14 +405,11 @@ const COLUMN_OF: Partial<Record<keyof A2PState, string>> = {
   campaignSid: "campaign_sid",
 };
 
-/** The saga's save: each receipt to its column, or into the row's facts, of which this filing keeps its own copy. */
-function receiptSaver(db: Db, line: LineRow): A2PPorts["save"] {
-  const facts = (
-    line.facts && typeof line.facts === "object" && !Array.isArray(line.facts)
-      ? { ...(line.facts as Record<string, unknown>) }
-      : {}
-  ) as Record<string, unknown>;
-
+/**
+ * The saga's save: each receipt to its column, or into the row's facts, of which this filing keeps its own copy
+ * (`facts`, the row as the filing took it, its lease in it, which the settle writes back without the lease).
+ */
+function receiptSaver(db: Db, line: LineRow, facts: Record<string, unknown>): A2PPorts["save"] {
   return async (patch) => {
     const row: Record<string, unknown> = {};
     let touchedFacts = false;
@@ -373,7 +438,14 @@ function receiptSaver(db: Db, line: LineRow): A2PPorts["save"] {
 function filingPorts(
   db: Db,
   o: Filing,
-  f: { sub: ProviderAccount; record: BusinessRecord; primary: string; email: string; messagingServiceSid: string },
+  f: {
+    sub: ProviderAccount;
+    record: BusinessRecord;
+    primary: string;
+    email: string;
+    messagingServiceSid: string;
+    facts: Record<string, unknown>;
+  },
 ): A2PPorts {
   const { sub, record, primary, email } = f;
   const ports: A2PPorts = {
@@ -407,40 +479,27 @@ function filingPorts(
     // that ever files something bigger should turn it back on with its eyes
     // open rather than inherit it by silence.
     skipVetting: true,
-    save: receiptSaver(db, o.line),
+    save: receiptSaver(db, o.line, f.facts),
   };
   return ports;
 }
 
-/** The filing itself: the row says `registering`, and which registration, before the saga's first call. */
-async function runFiling(db: Db, o: Filing, state: A2PState, ports: A2PPorts): Promise<A2PResult> {
-  const record = ports.record;
-  // reg_sole_prop is written HERE, with reg_mock, and never derived later: an
-  // owner who incorporates and types their new tax id would otherwise read
-  // back as a standard brand while the carriers still hold the narrow one --
-  // promising throughput the line does not have.
-  await tenantDb(db, o.line.tenant_id)
-    .from("lines")
-    .update({
-      sms_state: "registering",
-      reg_mock: o.mock,
-      reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
-      last_error: null,
-      state_since: new Date().toISOString(),
-    })
-    .eq("id", o.line.id);
-  const result = await runA2PSaga(state, ports);
-  return result;
-}
-
-/** Where the filing ended, written to the row and the log, and answered. */
-async function settleFiling(db: Db, o: Filing, result: A2PResult): Promise<RegisterResult> {
+/** Where the filing ended, written to the row and the log, and answered; the line's lease given back with it. */
+async function settleFiling(
+  db: Db,
+  o: Filing,
+  result: A2PResult,
+  facts: Record<string, unknown>,
+): Promise<RegisterResult> {
   const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
   // A campaign that cannot be filed until the carriers finish with the brand
   // is a WAIT: everything asked for was accepted. The row says "waiting on
   // carriers", carries no error, and the next status check files it.
   const waiting = !result.ok && result.pending;
   const smsState = result.ok || waiting ? "registering" : "failed";
+  // The receipts as this filing kept them, without its lease: the next press or the next hour may file again.
+  const kept = { ...facts };
+  delete kept[LEASE_FACT];
   await tenantDb(db, o.line.tenant_id)
     .from("lines")
     .update({
@@ -448,6 +507,7 @@ async function settleFiling(db: Db, o: Filing, result: A2PResult): Promise<Regis
       reg_step: result.ok ? null : result.step,
       last_error: result.ok || waiting ? null : result.error,
       state_since: new Date().toISOString(),
+      facts: kept as Json,
     })
     .eq("id", o.line.id);
   if (result.ok)

@@ -2,16 +2,19 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
+import { appointmentWordOf, journeyOf, journeyStageOf, type JourneyStageId } from "../../packages/contracts/src/index";
 import { messagesOffered, momentSlots, type TemplatesRead } from "./offered";
 
 /**
  * Campaigns' home (canvas A, "Lifecycle") on a real workspace: the page that replaced the Playbooks list.
  *
  * The route renders the real page, not the Coming Soon card or the mockup's six invented campaigns: the moments are the
- * workspace's own playbooks and their pools, the tiles are what its runs and its People say, and the composer, in a sheet
- * from the side, offers the moments with who each reaches today. A playbook is `campaigns/moment:<id>`, and every old address
- * (`#/outbound`, `#/outbound/<id>`, `/playbooks`) lands on the home for ever. Nothing is made here: the workspace keeps no test
- * playbook, and the composer is cancelled.
+ * journey the workspace follows, with every campaign in the ledger under them, the tiles are what its runs and its People
+ * say, and the composer, in a sheet from the side, offers the moments with who each reaches today. A campaign is
+ * `campaigns/moment:<id>`, and the ledger's group `campaigns/in:<group>`; every old address (`#/outbound`, `#/outbound/<id>`,
+ * `/playbooks`) lands on the home for ever. Nothing is made here: the workspace keeps one campaign once Ask's seed is applied
+ * (`tooling/scripts/ops/e2e-workspace.mjs`), a PAUSED Win-back on silence that Ask's evals change, and none before; nothing
+ * here resumes, renames or pauses it, every count and state is read from the API's answer, and the composer is cancelled.
  */
 const INVENTED = [
   "Birthday offer",
@@ -44,12 +47,32 @@ test.describe("Campaigns' home on a real workspace", () => {
     expect(pb.status()).toBe(200);
     expect(tpl.status()).toBe(200);
     expect(cfg.status()).toBe(200);
-    const body = (await pb.json()).data as { playbooks: { id: string; state: string }[]; deals_on: boolean };
+    const body = (await pb.json()).data as {
+      playbooks: { id: string; state: string; trigger: string }[];
+      deals_on: boolean;
+      calendar?: string | null;
+      appointment_word?: string | null;
+    };
     const read = (await tpl.json()).data as TemplatesRead;
     const bookingLink = !!(await cfg.json()).data.config?.brain?.booking_link;
 
-    // The rail is the five moments around a customer (four where deals are off, 0006), each covered or not.
-    await expect(home.getByTestId("cmh-stage")).toHaveCount(body.deals_on ? 5 : 4);
+    // The rail is the journey this business follows (journeyOf, spec §4.8), worked out from the answer the page reads, as
+    // the page works it out (playbooks/surface.ts): four moments, or five where deals are on or a follow-up is held; a
+    // stage a campaign stands on always draws.
+    const held = new Set(
+      body.playbooks.map((p) => journeyStageOf(p.trigger)).filter((id): id is JourneyStageId => id !== null),
+    );
+    const journey = journeyOf({
+      calendarOn: (body.calendar ?? "none") !== "none",
+      dealsOn: body.deals_on,
+      word: appointmentWordOf({ stored: body.appointment_word ?? null, sellsBy: body.deals_on ? "proposal" : null }),
+      held,
+    });
+    await expect(home.getByTestId("cmh-stage")).toHaveCount(journey.length);
+    // In the journey's order, each by its word-free id.
+    expect(
+      await home.getByTestId("cmh-stage").evaluateAll((els) => els.map((el) => el.getAttribute("data-stage"))),
+    ).toEqual(journey.map((s) => s.id));
     const text = await home.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
     // Where the workspace stands on its channels, said once at the rail's head (8 Oct 2026): the channels the readiness
@@ -94,19 +117,28 @@ test.describe("Campaigns' home on a real workspace", () => {
         await expect(marks).toHaveCount(0);
       }
     }
+    // Every campaign the workspace keeps is a row of the ledger under the moments, once (spec §4.3); a reach-out's steps
+    // are its chain's one row, by its root, which the chains' own read draws. A paused one says so (or that it runs nothing
+    // here, where its moment cannot run: contracts rowStatusOf), and its act is Resume, never pressed here.
+    for (const p of body.playbooks.filter((x) => !["lead_first", "after_step"].includes(x.trigger))) {
+      const row = home.locator(`[data-testid="cmh-row"][data-row="${p.id}"]`);
+      await expect(row).toHaveCount(1);
+      if (p.state === "paused") await expect(row).toHaveAttribute("data-state", /^(paused|not_here)$/);
+    }
     // The three tiles stand once their surfaces have landed: who can hear you, what is coming, what came back.
     await expect(home.getByTestId("cmh-reach")).toBeVisible();
     await expect(home.getByTestId("cmh-coming")).toBeVisible();
     await expect(home.getByTestId("cmh-results")).toBeVisible();
-    // A run waiting on the owner is approved or skipped where it waits (8 Oct 2026): its line in Coming up carries the
-    // acts, Approve unless the verb would refuse it (its day has passed), and then Skip alone. Read here, never pressed:
-    // the workspace keeps no test run, and one that happens to wait is the nightly's own to send or not.
-    const waiting = home.getByTestId("cmh-coming-line").filter({ has: page.getByTestId("cmh-waiting-acts") });
+    // A run waiting on the owner is approved or skipped on its row (decision 14: one decision per run per screen): Approve
+    // unless the verb would refuse it (its day has passed), and then Skip alone. Read here, never pressed: the workspace
+    // keeps no test run, and one that happens to wait is the nightly's own to send or not. Coming up keeps its time.
+    const waiting = home.getByTestId("cmh-row").filter({ has: page.getByTestId("cmh-waiting-acts") });
     for (let i = 0; i < (await waiting.count()); i++) {
-      const line = waiting.nth(i);
-      await expect(line).toHaveAttribute("data-kind", "run");
-      await expect(line.getByTestId("cmh-approve").or(line.getByTestId("cmh-skip")).first()).toBeVisible();
+      const row = waiting.nth(i);
+      await expect(row).toHaveAttribute("data-state", "waiting");
+      await expect(row.getByTestId("cmh-approve").or(row.getByTestId("cmh-skip")).first()).toBeVisible();
     }
+    await expect(home.getByTestId("cmh-coming").getByTestId("cmh-waiting-acts")).toHaveCount(0);
 
     // New message opens the composer in a sheet from the side, on Send once; Every time a moment comes is the playbook
     // composer: the moments behind its moment, each with who it reaches today; the messages that fit it, or the honest
@@ -200,30 +232,78 @@ test.describe("Campaigns' home on a real workspace", () => {
   });
 
   /**
-   * The rail is five columns, and five columns need about 1100px of page: under that the moments stand down a line (a container
-   * rule on the home, campaigns.css), and a "Turn on · 3 tomorrow" wraps inside its card. Between a phone's 900px and a wide
-   * desk nothing may run out of the rail, or off the page. Geometry, so it is measured in a real browser.
+   * The ledger's group is the address's own (decision 11 of the spec of 9 October 2026): `campaigns/in:<group>`, a word-free
+   * id, narrows the ledger to a moment; its card wears the chosen state, and pressed again it lets go by replacing the
+   * address, never pushing. Every row it shows is the moment's, or none matches and the ledger says so. Nothing is
+   * changed: the press is the card's body, which only filters.
    */
-  test("the home draws inside its page from 901 to 1440px: the rail stands down the line where five columns no longer fit", async ({
+  test("the ledger's group is the address's own: a moment's card narrows it and lets go, replacing the address, never pushing", async ({
+    page,
+  }) => {
+    await page.goto("/#/campaigns/in:quiet");
+    await expect(page).toHaveURL(atRoute(/^campaigns\/in:quiet$/));
+    const home = page.getByTestId("campaigns-home");
+    await expect(home).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const card = home.locator('[data-testid="cmh-stage"][data-stage="quiet"]');
+    await expect(card).toHaveAttribute("data-chosen", "true");
+    await expect(card.getByTestId("cmh-stage-press")).toHaveAttribute("aria-pressed", "true");
+    // Every row shown is the moment's, or nothing matches and the ledger says so.
+    const groups = home.getByTestId("cmh-ledger").getByTestId("cmh-group");
+    const rows = home.getByTestId("cmh-row");
+    if ((await rows.count()) === 0) await expect(home.getByTestId("cmh-ledger-none")).toBeVisible();
+    else expect(await groups.evaluateAll((els) => els.map((el) => el.getAttribute("data-group")))).toEqual(["quiet"]);
+    const depth = await page.evaluate(() => history.length);
+    await card.getByTestId("cmh-stage-press").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns$/));
+    expect(await page.evaluate(() => history.length), "let go by a replace, no entry added").toBe(depth);
+    await expect(card).not.toHaveAttribute("data-chosen", "true");
+  });
+
+  /**
+   * The rail keeps one line at every desk width (J3 of the spec of 9 October 2026): five columns need about 1100px of page,
+   * and under that the rail scrolls across inside its pane, a moment snapping to its edge. Between a phone's 900px and a
+   * wide desk nothing may run out of the pane (the rail and the ledger under it), or off the page. Geometry, so it is
+   * measured in a real browser. Read-only: nothing is pressed.
+   */
+  test("the home draws inside its page from 901 to 1440px: the moments keep one line, and the rail scrolls across where they no longer fit", async ({
     page,
   }) => {
     await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("campaigns-home")).toBeVisible();
-    for (const width of [901, 1000, 1100, 1200, 1330, 1440]) {
+    // 1280 to 1440 is where the ledger's six columns stand side by side under the sidebar: nothing of a row may be clipped.
+    for (const width of [901, 1000, 1100, 1200, 1280, 1330, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const rail = page.getByTestId("cmh-rail");
       await expect(rail).toBeVisible();
+      const tops = await rail
+        .getByTestId("cmh-stage")
+        .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+      expect(new Set(tops).size, `${width}px: the moments stand on one line`).toBe(1);
       const runOut = await rail.evaluate((el) => {
         const edge = el.getBoundingClientRect();
+        // Inside a scroller of the pane's own (the rail, the tool line) a part past its edge is reached by scrolling.
+        const scrolled = (n: Element) => {
+          for (let p = n.parentElement; p && p !== el; p = p.parentElement) {
+            const o = getComputedStyle(p).overflowX;
+            if (o === "auto" || o === "scroll") return true;
+          }
+          return false;
+        };
         return [...el.querySelectorAll<HTMLElement>("*")]
+          .filter((n) => !scrolled(n))
           .filter((n) => {
             const box = n.getBoundingClientRect();
             return box.width > 0 && (box.right > edge.right + 1 || box.left < edge.left - 1);
           })
           .map((n) => n.className || n.tagName);
       });
-      expect(runOut, `${width}px: parts of the rail run out of it`).toEqual([]);
+      expect(runOut, `${width}px: parts of the pane run out of it`).toEqual([]);
+      const line = await rail
+        .locator(".cmh-rail")
+        .evaluate((ol) => ({ wider: ol.scrollWidth > ol.clientWidth + 1, overflow: getComputedStyle(ol).overflowX }));
+      if (line.wider) expect(line.overflow, `${width}px: a rail wider than its pane scrolls across`).toBe("auto");
       const over = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
@@ -266,5 +346,27 @@ test.describe("Campaigns' home on a real workspace", () => {
       h && r && Math.abs(Math.round(h.x) - Math.round(r.x)) <= 1,
       `the head starts at ${h?.x} and the rail at ${r?.x}`,
     ).toBe(true);
+  });
+
+  /**
+   * Ask's door in the head (the moment spec, A1): a quiet button wearing the three, between the Library and New message,
+   * from 721px up (campaigns.css `.cmh-ask`); under it the shell's ✦ is the door. It opens Ask on Campaigns, whose field
+   * asks in Campaigns' own words (A3). Nothing is written: no turn is sent.
+   */
+  test("Ask's door stands in the head from 721px up and opens Ask on Campaigns' own words; under it the shell's ✦ is the door", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/#/campaigns");
+    await page.waitForLoadState("networkidle");
+    const door = page.getByTestId("cmh-ask");
+    await expect(door).toBeVisible();
+    await door.click();
+    await expect(page.getByTestId("ask-line")).toBeVisible();
+    await expect(page.getByTestId("ask-input")).toHaveAttribute("placeholder", "Describe what should go out, and when");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("ask-line")).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByTestId("cmh-ask")).toBeHidden();
   });
 });

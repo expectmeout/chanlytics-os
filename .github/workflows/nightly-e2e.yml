@@ -220,6 +220,7 @@ jobs:
     needs: [suite, e2e]
     if: ${{ always() && !inputs.credential_free_only }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       issues: write

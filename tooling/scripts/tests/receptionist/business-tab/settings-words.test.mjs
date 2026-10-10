@@ -567,7 +567,7 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
   const pause = byTestId(tree, "aut-pause");
   assert.ok(cap && pause, "REGRESSION: no dial for either limit");
   const active = (group) =>
-    all(group, (n) => n.type === "button" && String(n.props.className).split(" ").includes("active")).map((n) =>
+    all(group, (n) => n.type === "button" && n.props.role === "radio" && n.props["aria-checked"] === true).map((n) =>
       textOf(n),
     );
   assert.deepEqual(active(cap), ["20"], "an unset cap shows the default");
@@ -604,7 +604,7 @@ test("a settings control is named by the row it sits in: what the row hands it l
   const element = (drawn) => (typeof drawn.type === "function" ? element(drawn.rendered) : drawn);
   const controls = (tab, name) =>
     all(settings(tab), (n) => n.type?.name === "SetRow").flatMap((row) => {
-      const label = find(row.rendered, (n) => n.props?.className === "set-row-label")?.props.id;
+      const label = find(row.rendered, (n) => n.props?.className === "rec-row-key")?.props.id;
       return all(row.rendered, (n) => n.type?.name === name).map((clone) => ({
         label,
         drawn: element(clone.type(clone.props)),
@@ -616,7 +616,7 @@ test("a settings control is named by the row it sits in: what the row hands it l
     const dials = controls("autonomy", "SetDial");
     assert.ok(dials.length > 0, "the autonomy pane's dials");
     for (const { label, drawn } of dials) {
-      assert.equal(drawn.props.role, "group");
+      assert.equal(drawn.props.role, "radiogroup");
       assert.equal(drawn.props["aria-labelledby"], label, "a dial is announced by its row's words");
       for (const own of ["value", "options", "onChange", "gate", "phone", "label", "data-gated"])
         assert.ok(!(own in drawn.props), `the group never carries ${own}`);

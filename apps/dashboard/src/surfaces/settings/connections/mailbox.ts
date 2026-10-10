@@ -22,7 +22,7 @@ interface MailboxApi {
 
 export const mailbox: MailboxApi = {
   create: ({ localPart, fromName }) =>
-    api()("POST mailboxes", { body: { local_part: localPart, from_name: fromName } }),
+    api()("POST mailboxes", { body: { local_part: localPart, from_name: fromName }, once: true }),
   rename: (id, fromName) => api()("PUT mailboxes/[id]", { params: { id }, body: { from_name: fromName } }),
   whyNotALocalPart,
   whyNotAFromName,

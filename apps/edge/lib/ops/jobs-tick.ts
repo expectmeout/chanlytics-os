@@ -13,23 +13,24 @@
  * it: jobs are claimed one at a time, in CLAIM_SLOTS slots side by side, for
  * the first CLAIM_FOR_MS, a looping handler yields at YIELD_AT_MS, and a
  * claim's lease outlives the whole function (ops-hygiene.test.mjs holds that
- * last one to the ceiling).
+ * last one to the ceiling). Each is measured from the moment the door was
+ * reached (sweepDoor's `started`), as the ceiling is.
  */
 import { json, refuse } from "../http.js";
 import { errField } from "../log.js";
 import { alertFor } from "./job-alert.js";
-import { waCredentialsForTenant } from "../tenant-runtime.js";
+import { whatsappWireForTenant } from "../tenant-runtime.js";
 import { smsSenderForTenant } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
-import { isWireUnavailable, whatsappWire } from "../packages/core.js";
+import { isWireUnavailable } from "../packages/core.js";
 import { pageOperator } from "./page-operator.js";
 import { provisionLineJob } from "../lines/line-provision-job.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
 import { expoPush } from "./push.js";
 import { replyReader } from "../reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
-import { answerText } from "../sms/inbound-text.js";
+import { answerInboundJob } from "../whatsapp/answer-later.js";
 import {
   runTick,
   claimNext,
@@ -48,6 +49,7 @@ import {
   LEAD_YIELD_AT_MS,
   LEASE_SECONDS,
   RELAY_LIMIT,
+  type ClaimedJob,
 } from "../packages/jobs.js";
 import { relayEvents } from "../packages/db.js";
 import type { SweepTick } from "./sweep-door.js";
@@ -79,7 +81,11 @@ function replyLateBody(worstMs: number): string {
   );
 }
 
-export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
+/** The operator's pager, for a failure that is the platform's (ledger PAGES_THE_PLATFORM): never an owner's bell. */
+const pagerOf = (db: SweepTick["db"]) => (key: string, subject: string, body: string) =>
+  pageOperator({ db }, key, subject, body);
+
+export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
     // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
     // claims. A relay that fails is said and costs the tick nothing else: the next knock, or the poll, drains it.
@@ -95,11 +101,12 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
         dispatch: async (job, deadline) => {
           // The job's wires, bound here where the credentials are: the
           // TENANT's WhatsApp credentials, never the environment's (a second
-          // business's reply must not leave from the first one's number), and
-          // the texting line's sender when the workspace has one. Null on
-          // either is a refusal at the door, not a guess; a read that FAILED
-          // is neither (core whatsappWire, WireUnavailable): the reply waits
-          // for a heartbeat that can read the vault. Email's provider key
+          // business's reply must not leave from the first one's number), each
+          // send from the number its person last wrote to where the workspace
+          // has two (whatsappWireForTenant), and the texting line's sender when
+          // the workspace has one. Null on either is a refusal at the door, not
+          // a guess; a read that FAILED is neither (core WireUnavailable): the
+          // reply waits for a heartbeat that can read the vault. Email's provider key
           // is the deployment's, so its wire is bound to the tenant's MAILBOX:
           // it sends a frozen request only when that request leaves as this
           // workspace, and a workspace without a mailbox has no email line.
@@ -118,19 +125,28 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
           const wire = {
-            whatsapp: whatsappWire(await waCredentialsForTenant(db, job.tenant_id)),
+            whatsapp: await whatsappWireForTenant(db, job.tenant_id),
             sms:
               line === null || isWireUnavailable(line)
                 ? line
                 : (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body),
             ...(email !== undefined ? { email } : {}),
           };
-          return dispatchJob(
+          // The job as its handler holds it. What the handler says of it (that it spoke: ledger markSpoke) is carried
+          // back to the claim once it returns or throws, where the ledger judges a retry from it.
+          const claimed: ClaimedJob = {
+            id: job.id,
+            tenant_id: job.tenant_id,
+            kind: job.kind,
+            payload: (job.payload ?? {}) as Record<string, unknown>,
+            attempts: job.attempts,
+          };
+          const ran = dispatchJob(
             {
               db,
               wire,
               alert: alertFor(db, job),
-              page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+              page: pagerOf(db),
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
               provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
@@ -141,8 +157,9 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
               replies: replyReader(db),
               // The reading of a booking tool's notice: the model, the spend and the person it is for.
               bookings: bookingReader(db),
-              // A text its door recorded and acknowledged, answered here (decision 0031, Phase 2).
-              inbound: { answer: (claimed) => answerText(db, claimed) },
+              // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
+              // WhatsApp message of a workspace the edge names for it (Phase 3).
+              inbound: { answer: (claimed) => answerInboundJob(db, claimed) },
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.
               schedule: async (kind, dueAt, payload) => {
@@ -153,14 +170,11 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
                 scheduleJobOnce(db, { tenantId: job.tenant_id, kind, dueAt, payload }),
               deadline,
             },
-            {
-              id: job.id,
-              tenant_id: job.tenant_id,
-              kind: job.kind,
-              payload: (job.payload ?? {}) as Record<string, unknown>,
-              attempts: job.attempts,
-            },
+            claimed,
           );
+          return ran.finally(() => {
+            if (claimed.spoke_at) job.spoke_at = claimed.spoke_at;
+          });
         },
         complete: (job) => completeJob(db, job),
         fail: (job, reason) => failJob(db, job, reason),
@@ -169,11 +183,16 @@ export async function tickJobs({ db, L }: SweepTick): Promise<Response> {
         deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
         settle: (job, certain) => settleJob(db, job, certain),
         alert: (job, news) => alertFor(db, job)(news),
+        page: pagerOf(db),
         log: L,
         now: Date.now,
         random: Math.random,
       },
       {
+        // The tick's clock is the door's: the key's read and the relay above (up to RELAY_LIMIT events) are inside the
+        // function's sixty seconds, so they are inside the claim window and every deadline too. Started after them, a
+        // send begun at the yield ran past the ceiling by as long as they took.
+        startedAt: started,
         claimForMs: CLAIM_FOR_MS,
         slots: CLAIM_SLOTS,
         yieldAtMs: YIELD_AT_MS,

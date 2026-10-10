@@ -20,6 +20,9 @@ import {
   serverNotificationRows,
   setupSteps,
   unreadCount,
+  activityDoor,
+  activityLines,
+  zoneDayKey,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -408,30 +411,27 @@ test("workspace.activity answers Settings › Activity's lines over GET activity
     const { out, isError } = await ask(w, { action: "activity", ...input }, "owner", ACT_NOW);
     assert.equal(isError, false, JSON.stringify(out));
     const page = (await load(readerContext(ctxOf(w), { tenantId: A, role: "owner" }, ACT_NOW), activity, filter)).data;
-    const lines = page.rows
-      .filter((r) => !isActivityMoney(r))
-      .map((r) => {
-        const who = r.actor_user_id
-          ? (page.actors[r.actor_user_id] ?? "A member")
-          : r.actor_type === "ai"
-            ? "Receptionist"
-            : r.source === "event"
-              ? ""
-              : "System";
-        const open =
-          r.subject_type === "contact"
-            ? `clients/${r.subject_id}`
-            : r.subject_type === "conversation"
-              ? `inbox/th-${r.subject_id}`
-              : r.subject_type === "call"
-                ? `conversations/cv-${r.subject_id}`
-                : null;
-        return {
-          when: clockStamp(Date.parse(r.at), TZ, ACT_NOW.getTime()),
-          what: who ? `${who} · ${r.text}` : r.text,
-          open,
-        };
-      });
+    // The page's own lines (contracts activityLines): none of this world's rows fold, so each is a row.
+    const lines = activityLines(
+      page.rows.filter((r) => !isActivityMoney(r)),
+      (at) => zoneDayKey(Date.parse(at), TZ),
+    ).map(({ row: r, count }) => {
+      assert.equal(count, 1);
+      const who = r.actor_user_id
+        ? (page.actors[r.actor_user_id] ?? "A member")
+        : r.actor_type === "ai"
+          ? "Receptionist"
+          : r.source === "event"
+            ? ""
+            : "System";
+      const about = page.subjects[`${r.subject_type}:${r.subject_id}`];
+      const said = about ? `${r.text} · ${about}` : r.text;
+      return {
+        when: clockStamp(Date.parse(r.at), TZ, ACT_NOW.getTime()),
+        what: who ? `${who} · ${said}` : said,
+        open: activityDoor(r),
+      };
+    });
     assert.deepEqual(out, {
       route: "admin/activity",
       activity: lines,
@@ -489,16 +489,17 @@ test("workspace.activity pages without a gap or a repeat: past the thirty it say
   const T0 = Date.parse("2026-09-12T15:00:00Z");
   const at = (i) => new Date(T0 - i * 60_000).toISOString();
   const K = (i) => `33333333-3333-4333-8333-${String(i).padStart(12, "0")}`;
-  // 20 calls, then 80 entries about money filling the rest of the reader's first page of a hundred, then 40 calls.
+  // 20 failed sends, then 80 entries about money filling the rest of the reader's first page of a hundred, then 40
+  // failed sends: a kind that never folds (a failure is its own news), so a line is a row and each is said by its door.
   const events = [];
   for (let i = 0; i < 140; i++) {
     const money = i >= 20 && i < 100;
     events.push({
       id: `x${String(i).padStart(3, "0")}`,
       tenant_id: A,
-      kind: money ? "partner.earned" : "call.recorded",
-      category: money ? "billing" : "call",
-      subject_type: money ? "tenant" : "call",
+      kind: money ? "partner.earned" : "message.send_failed",
+      category: money ? "billing" : "message",
+      subject_type: money ? "tenant" : "conversation",
       subject_id: money ? A : K(i),
       data: {},
       created_at: at(i),
@@ -518,11 +519,57 @@ test("workspace.activity pages without a gap or a repeat: past the thirty it say
     if (!out.next_cursor) break;
     cursor = out.next_cursor;
   }
-  const calls = events.filter((e) => e.category === "call").map((e) => `conversations/cv-${e.subject_id}`);
-  assert.deepEqual(said, calls, "every call once, newest first: no gap, no repeat");
+  const sends = events.filter((e) => e.category === "message").map((e) => `inbox/th-${e.subject_id}`);
+  assert.deepEqual(said, sends, "every failed send once, newest first: no gap, no repeat");
   assert.deepEqual(
     cursors,
     [`${at(99)}|e-x099`, `${at(129)}|e-x129`, null],
     "the reader's page end where the rest was money; the thirtieth line said; none at the end",
   );
+});
+
+test("workspace.activity says a burst of one kind once, with how many, as the page folds it: thirty lines are the rows that fold to them, and the next read goes on from the last of those", async () => {
+  const T0 = Date.parse("2026-09-12T15:00:00Z");
+  const at = (i) => new Date(T0 - i * 1000).toISOString();
+  const K = (i) => `33333333-3333-4333-8333-${String(i).padStart(12, "0")}`;
+  const events = [];
+  // Sixty calls recorded inside a minute, newest; then forty failed sends behind them.
+  for (let i = 0; i < 100; i++) {
+    const call = i < 60;
+    events.push({
+      id: `y${String(i).padStart(3, "0")}`,
+      tenant_id: A,
+      kind: call ? "call.recorded" : "message.send_failed",
+      category: call ? "call" : "message",
+      subject_type: call ? "call" : "conversation",
+      subject_id: K(i),
+      data: {},
+      created_at: at(i),
+    });
+  }
+  const w = activityWorld();
+  w.tables.decisions = [];
+  w.tables.events = events;
+  const first = (await ask(w, { action: "activity" }, "owner", ACT_NOW)).out;
+  assert.equal(first.activity.length, 30, "thirty lines");
+  assert.deepEqual(
+    [first.activity[0].what, first.activity[0].times, first.activity[0].open],
+    ["60 calls were recorded", 60, null],
+    "REGRESSION: a burst was thirty identical lines; it is one, with its count, and opens none of its rows",
+  );
+  assert.equal(first.activity[1].open, `inbox/th-${K(60)}`, "and the rows behind it are said one by one");
+  assert.equal(
+    first.next_cursor,
+    `${at(88)}|e-y088`,
+    "after the eighty-ninth row: sixty in the fold and twenty-nine after",
+  );
+  const second = (await ask(w, { action: "activity", cursor: first.next_cursor }, "owner", ACT_NOW)).out;
+  assert.deepEqual(
+    [second.activity.length, second.activity[0].open, second.next_cursor],
+    [11, `inbox/th-${K(89)}`, null],
+    "the eleven left, from the row after it",
+  );
+  const named = (await ask(w, { action: "activity", kind: "call.recorded" }, "owner", ACT_NOW)).out;
+  assert.equal(named.activity.length, 30, "asked for by name, its rows are said one by one");
+  assert.equal(named.activity[0].times, undefined);
 });

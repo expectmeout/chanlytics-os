@@ -1235,6 +1235,14 @@ const byId = (root, id) => {
   });
   return hit;
 };
+/** The box a kit field drew (the walk expands the field into its <input>), which takes the change event. */
+const inputById = (root, id) => {
+  let hit = null;
+  walk(root, (n) => {
+    if (!hit && n.type === "input" && n.props?.["data-testid"] === id) hit = n;
+  });
+  return hit;
+};
 /** Every attention row the pane drew, in order, as the props it handed the shared component. */
 const attnRows = (root) => {
   const out = [];
@@ -1428,18 +1436,18 @@ test("finding a workspace by name or slug, because that is what a support call s
   const page = mount(Pane);
   await page.settle();
   assert.equal(attnRows(page.tree).length, 2);
-  page.type(byId(page.tree, "platform-find"), "marisa");
+  page.type(inputById(page.tree, "platform-find"), "marisa");
   assert.deepEqual(
     attnRows(page.tree).map((r) => r.props.name),
     ["Marisa's Beauty Salon"],
   );
-  page.type(byId(page.tree, "platform-find"), "harbor-mov");
+  page.type(inputById(page.tree, "platform-find"), "harbor-mov");
   assert.deepEqual(
     attnRows(page.tree).map((r) => r.props.name),
     ["Harbor Moving"],
     "the slug matches too",
   );
-  page.type(byId(page.tree, "platform-find"), "zzz");
+  page.type(inputById(page.tree, "platform-find"), "zzz");
   assert.equal(attnRows(page.tree).length, 0);
   assert.match(textOf(page.tree), /Nothing matches/);
 });

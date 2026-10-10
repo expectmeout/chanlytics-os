@@ -613,7 +613,7 @@ test("REGRESSION (B19): People's table is titled for everyone and its first colu
     "REGRESSION: All customers",
   );
   assert.equal(
-    textOf(find(tree, (n) => n.type === "th" && n.props?.className?.includes("sortable"))).replace(/[▲▼]/g, ""),
+    textOf(find(tree, (n) => n.type === "th" && n.props?.className?.includes("sortable"))).replace(/[▲▼↕]/g, ""),
     "Person",
     "REGRESSION: Customer",
   );
@@ -1699,7 +1699,7 @@ test("a person's page names the runs that reached them and what came of each -- 
     [
       // Each says the wire it went by, or would have: a person on three channels knows where to look.
       ["b-queued", "Autumn offer", "Broadcast · Email · Waiting to send", "plain", "broadcasts/run:b-queued"],
-      ["b-win", "Win-back", "Playbook · WhatsApp · Replied", "ok", "broadcasts/run:b-win"],
+      ["b-win", "Win-back", "Campaign · WhatsApp · Replied", "ok", "broadcasts/run:b-win"],
       // A run made before runs had channels went by WhatsApp, and says so.
       ["b-spring", "Spring offer", "Broadcast · WhatsApp · Sent", "plain", "broadcasts/run:b-spring"],
       ["b-held", "Summer offer", "Broadcast · Text · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
@@ -1736,7 +1736,7 @@ test("a run's row on a person's page says Replied only for their own words: not 
 test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -- every one read 'You', a playbook's run among them", () => {
   const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
   const who = (id) => vm.timeline.find((i) => i.id === `m-${id}`)?.who;
-  assert.equal(who("mb-win"), "The Win-back playbook");
+  assert.equal(who("mb-win"), "The Win-back campaign");
   assert.equal(who("mb-spring"), "A broadcast (Spring offer)");
   assert.equal(who("m-team"), "Your team", "the row does not say which member sent it");
   assert.equal(who("m1"), "Daniela", "their own words are theirs");
@@ -1746,7 +1746,7 @@ test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -
     m.id === "mb-win" ? { ...m, meta: null } : m,
   );
   const again = toPersonVM(bare, ZONE, new Date(NOW));
-  assert.equal(again.timeline.find((i) => i.id === "m-mb-win")?.who, "The Win-back playbook");
+  assert.equal(again.timeline.find((i) => i.id === "m-mb-win")?.who, "The Win-back campaign");
   // A playbook whose name has its own article keeps one, here and in the Inbox (messageAuthor).
   const offer = ours("mb-offer", iso(D), {
     source: "broadcast",
@@ -1755,8 +1755,8 @@ test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -
   });
   assert.equal(
     contracts.messageAuthor(offer).words,
-    "The month's offer playbook",
-    "REGRESSION: the The month's offer playbook",
+    "The month's offer campaign",
+    "REGRESSION: the The month's offer campaign",
   );
 });
 
@@ -1915,7 +1915,7 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
   const rows = all(draw(), (n) => n.props?.["data-testid"] === "person-campaign");
   assert.equal(rows.length, 5);
   assert.ok(
-    textOf(rows[1]).includes("Win-back") && textOf(rows[1]).includes("Playbook · WhatsApp · Replied"),
+    textOf(rows[1]).includes("Win-back") && textOf(rows[1]).includes("Campaign · WhatsApp · Replied"),
     textOf(rows[1]),
   );
   press(rows[1]);

@@ -16,7 +16,7 @@
  * reports, notifications and live.
  */
 
-import { clearSurfaceCache } from "./surface-cache";
+import { sealSurfaceCache } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { read } from "./api";
 import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
@@ -206,7 +206,8 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       // everything boots again under the right name.
       const here = getActiveWorkspace();
       if (here && here !== slug) {
-        clearSurfaceCache();
+        // Sealed: a read landing before the page unloads is of the address being left (surface-cache.ts).
+        sealSurfaceCache();
         window.location.replace(addressInWorkspace(slug, window.location));
         return;
       }
@@ -233,7 +234,9 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
  * state from globals at mount, so the surfaces would need bespoke re-seeding to
  * swap tenant underneath them — and getting that wrong shows one business's
  * threads under another's name, which is the single worst thing this app can
- * do. Clearing the cache first is what makes the reload cold.
+ * do. Clearing the cache first is what makes the reload cold, and sealing it is
+ * what keeps it cold: a read landing before the page unloads went back into the
+ * tab under the workspace being left (surface-cache.ts sealSurfaceCache).
  *
  * `knownSlug` when the caller has it and the page's own list may not. A
  * workspace created a moment ago is not in __WORKSPACES yet; addressed by its
@@ -250,7 +253,7 @@ export function switchWorkspace(id: string, knownSlug?: string, after = ""): voi
   const slug = target?.slug ?? knownSlug ?? id;
   const here = getActiveWorkspace();
   if (here === slug || here === id) return;
-  clearSurfaceCache();
+  sealSurfaceCache();
   rememberWorkspace(slug);
   window.location.assign(workspaceHref(slug, after));
 }

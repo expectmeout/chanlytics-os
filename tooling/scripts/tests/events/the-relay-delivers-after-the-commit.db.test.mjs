@@ -2,8 +2,9 @@
  * A fact's event reaches its subscribers after the commit (00334, decision 0032), on a real Postgres.
  *
  * events_outbox_copy writes one outbox row per event of a subscribed kind, in the event's own transaction; relay_events
- * drains the outbox under skip locked with no cursor, writes one delivery per unpaused subscriber and one event_deliver
- * job each, keyed so a second relay writes none, and takes the row off; an outbox row asks for the tick; a failed
+ * drains the outbox under skip locked with no cursor, writes one delivery per subscriber (a paused one's waits, paused,
+ * until a re-drive: 00390) and one event_deliver job for each other, keyed so a second relay writes none, and takes the
+ * row off; an outbox row asks for the tick; a failed
  * delivery is re-driven; and the day's roll keeps relay lag. The subscription used here is the suite's own, on a kind
  * the product writes rarely, made before and removed after, so no other suite's events ride on it. Runs against the
  * database `supabase start` builds on this machine, never production; the wake's case goes through the CLI in a
@@ -193,7 +194,7 @@ test(
 );
 
 test(
-  "a paused subscription copies nothing new and keeps what was delivered; a failed delivery is re-driven with a fresh job",
+  "a paused subscription keeps what it would have been handed, and a re-drive replays it; a failed delivery is re-driven with a fresh job",
   { skip },
   async () => {
     const t = await workspace("pause");
@@ -203,9 +204,13 @@ test(
       await db.from("event_subscriptions").update({ paused: true }).eq("kind", KIND).eq("subscriber", SUBSCRIBER),
       "pause",
     );
+    let held;
     try {
-      const quiet = await event(t, KIND);
-      assert.deepEqual(await outbox([quiet.id]), [], "paused: no outbox row");
+      held = await event(t, KIND);
+      assert.equal((await outbox([held.id])).length, 1, "paused, the event is still copied (decision 0032, 4; 00390)");
+      await relay();
+      const [waiting] = await deliveries([held.id]);
+      assert.deepEqual([waiting.state, waiting.job_id], ["paused", null], "its delivery waits, paused, with no job");
       assert.equal((await deliveries([e.id])).length, 1, "the earlier delivery stays");
     } finally {
       ok(
@@ -213,6 +218,11 @@ test(
         "resume",
       );
     }
+    // Resumed, the re-drive schedules what waited.
+    assert.ok(ok(await db.rpc("event_deliveries_redrive", { p_subscriber: SUBSCRIBER })) >= 1, "re-driven");
+    const [replayed] = await deliveries([held.id]);
+    assert.equal(replayed.state, "scheduled");
+    assert.ok(replayed.job_id, "with a job of its own");
     // The handler's verdict, as it would write it, then the re-drive.
     const [d] = await deliveries([e.id]);
     ok(await db.from("jobs").update({ state: "canceled" }).eq("id", d.job_id), "the old job is out of the way");
@@ -228,7 +238,11 @@ test(
     assert.equal(again.state, "scheduled");
     assert.equal(again.last_error, null);
     assert.notEqual(again.job_id, d.job_id, "a fresh job");
-    assert.equal((await jobsFor(t)).filter((j) => j.state === "scheduled").length, 1);
+    assert.equal(
+      (await jobsFor(t)).filter((j) => j.state === "scheduled").length,
+      2,
+      "the paused one replayed and the failed one re-driven, each its own job",
+    );
   },
 );
 

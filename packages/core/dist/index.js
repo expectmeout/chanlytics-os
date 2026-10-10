@@ -13,7 +13,6 @@ import {
   isOfferByEmail as isOfferByEmail3,
   mayMessageFor,
   outreachRefusalOf,
-  passesHandoverPause,
   purposeOfTemplate
 } from "../../contracts/dist/index.js";
 import {
@@ -49,6 +48,17 @@ function assertFrozenFor(d) {
   throw new Error(
     `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
   );
+}
+
+// src/deliver-hold.ts
+import { passesHandoverPause } from "../../contracts/dist/index.js";
+function heldByThread(d, f, nowMs, kind) {
+  const ownCall = f.control?.kind === "call" && !!d.onCall && f.control.ref === d.onCall;
+  const held = !!f.control && nowMs < new Date(f.control.until).getTime() && !ownCall;
+  if (kind === "draft" && held) return "human_has_it";
+  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
+  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
+  return null;
 }
 
 // src/deliver-text.ts
@@ -158,6 +168,8 @@ async function putOnWire(wire, d, asReply, now) {
   const sent = await send(d.to, {
     body: d.body,
     template: d.template,
+    // Which of a workspace's numbers this person wrote to is read by the thread, on a wire that holds two.
+    conversationId: d.conversationId,
     // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
     // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
     // is, whatever its template's category says. Anything else keeps the purpose it asked with.
@@ -188,7 +200,7 @@ async function wireFacts({ db, emailOffers }, d) {
   const row = data;
   return {
     pausedUntil: row.paused_until ?? null,
-    control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
+    control: row.control_kind && row.control_until ? { kind: row.control_kind, ref: row.control_ref ?? null, until: row.control_until } : null,
     contactId: row.contact_id ?? null,
     contact: row.contacts ?? {
       consent: null,
@@ -291,13 +303,6 @@ function refusalFor(d, f, nowMs, o) {
   if (f.tenantStatus === "paused") return "paused";
   return heldByThread(d, f, nowMs, kind);
 }
-function heldByThread(d, f, nowMs, kind) {
-  const held = !!f.control && nowMs < new Date(f.control.until).getTime();
-  if (kind === "draft" && held) return "human_has_it";
-  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
-  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
-  return null;
-}
 async function overtakenByHuman(db, d) {
   const { data: mine, error: mineErr } = await db.from("messages").select("created_at").eq("id", d.messageId).eq("tenant_id", d.tenantId).maybeSingle();
   if (mineErr) throw new Error(`deliver: cannot read message ${d.messageId}: ${mineErr.message}`);
@@ -366,12 +371,7 @@ async function deliver(ports, d) {
   const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply", ports.now);
   if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
-      await recordCarrierOptOut(ports.db, {
-        tenantId: d.tenantId,
-        contactId: facts.contactId,
-        channel: d.channel,
-        previous: facts.contact.consent
-      });
+      await recordCarrierOptOut(ports.db, { tenantId: d.tenantId, contactId: facts.contactId, channel: d.channel });
     return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
   }
   if (sent.ok) {
@@ -473,33 +473,23 @@ import { AppError } from "../../contracts/dist/index.js";
 var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
 async function takeOver(ports, cmd) {
   const { conv } = cmd;
-  const untilMs = ports.now() + await ports.pauseMs(conv.tenant_id);
-  const paused_until = new Date(untilMs).toISOString();
-  if (!await ports.claim(conv.id, paused_until, cmd.userId)) {
+  const paused_until = new Date(ports.now() + await ports.pauseMs(conv.tenant_id)).toISOString();
+  const done = await ports.takeOver(conv.tenant_id, conv.id, paused_until);
+  if (!done) {
     throw new AppError("conflict", "Could not take this thread over \u2014 reload and try again.", 409);
   }
-  await ports.takeControl(
-    conv.tenant_id,
-    conv.id,
-    cmd.userId,
-    Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1e3)))
-  );
-  const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "take_over", { paused_until });
-  return { state: "needs_human", paused_until, decision_id, withdrawn_drafts };
+  return { state: "needs_human", paused_until, decision_id: done.decision_id, withdrawn_drafts: done.withdrawn_drafts };
 }
 
 // src/conversations/hand-back.ts
 import { AppError as AppError2 } from "../../contracts/dist/index.js";
 async function handBack(ports, cmd) {
   const { conv } = cmd;
-  if (!await ports.release(conv.id)) {
+  const done = await ports.handBack(conv.tenant_id, conv.id);
+  if (!done) {
     throw new AppError2("conflict", "Could not hand this thread back \u2014 reload and try again.", 409);
   }
-  await ports.letControlGo(conv.tenant_id, conv.id, cmd.userId);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "hand_back");
-  await ports.resolveEscalation(conv.id, decision_id);
-  return { state: "open", decision_id };
+  return { state: "open", decision_id: done.decision_id };
 }
 
 // src/conversations/snooze.ts
@@ -560,11 +550,9 @@ import { AppError as AppError7 } from "../../contracts/dist/index.js";
 async function cancelSend(ports, cmd) {
   const { msg } = cmd;
   if (msg.status !== "queued") throw new AppError7("conflict", "Too late \u2014 this message has already been sent.");
-  if (!await ports.cancelQueued(msg.id))
-    throw new AppError7("conflict", "Too late \u2014 this message went out while you were canceling it.");
-  await ports.cancelJob(msg.tenant_id, msg.id);
-  const decision_id = await ports.record(msg.tenant_id, "message", msg.id, "cancel_send");
-  return { status: "canceled", decision_id };
+  const called = await ports.callBack(msg.tenant_id, msg.id);
+  if (!called) throw new AppError7("conflict", "Too late \u2014 this message went out while you were canceling it.");
+  return { status: "canceled", decision_id: called.decision_id };
 }
 
 // src/conversations/reply.ts
@@ -787,7 +775,7 @@ async function queueReply(ports, cmd, facts) {
       ...cmd.starts ? { starts: true } : {}
     });
   } catch (e) {
-    await ports.cancelOrphan(message_id);
+    await ports.cancelOrphan(conv.tenant_id, message_id);
     throw e;
   }
   return { receipt, templateName: template?.name ?? null };
@@ -856,10 +844,7 @@ async function beginConversation(ports, cmd) {
     () => ({ note_kept: false, note_id: null })
   ) : { note_kept: null, note_id: null };
   if (cmd.then !== "receptionist") return { ...receipt, conversation_id: conv.id, handed_back: false, ...noted };
-  const handed_back = await handBack(ports.handBack, {
-    conv: { ...conv, paused_until: null },
-    userId: cmd.userId
-  }).then(
+  const handed_back = await handBack(ports.handBack, { conv: { ...conv, paused_until: null } }).then(
     () => true,
     () => false
   );
@@ -915,6 +900,7 @@ async function sendQueued(ports, cmd) {
     );
   const resumes = resumesOf(p);
   const starts = p.starts === true && (msg.sender ?? "human") === "human";
+  if (!await ports.claim(p.message_id)) return;
   let out;
   try {
     out = await ports.deliver({
@@ -945,9 +931,9 @@ async function sendQueued(ports, cmd) {
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e) {
-    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e);
-    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e);
-    else throw e;
+    if (!isWireUnavailableError(e) && !isNotTakenError(e)) throw e;
+    await ports.release(p.message_id);
+    await resendLater(ports, cmd, channel, e);
     return;
   }
   if (out.outcome !== "failed") return;
@@ -1388,9 +1374,8 @@ import {
   messageHolds,
   nextOpenMoment as nextOpenMoment2,
   parseParamSpecs,
-  purposeOfTemplate as purposeOfTemplate3,
   resolveParams as resolveParams2,
-  triggerOf,
+  triggerOf as triggerOf2,
   versionsOf as versionsOf2,
   whatsappStoppedRunWords,
   wireFailure
@@ -1402,11 +1387,14 @@ import {
   allowanceRoom,
   emailFoot,
   emailFootHtml,
+  enrolPurpose,
   heldByAllowance,
   isOfferByEmail as isOfferByEmail4,
   messageAboutOfTrigger,
+  purposeOfTemplate as purposeOfTemplate3,
   renderOwnVersion,
   renderTemplate as renderTemplate2,
+  triggerOf,
   versionWords,
   versionsOf
 } from "../../contracts/dist/index.js";
@@ -1430,8 +1418,16 @@ var broadcastEmailId = (i) => {
 };
 
 // src/messages/broadcast-channels.ts
+function purposeAtTheDoor(trigger, message) {
+  const category = message?.category ?? null;
+  return trigger === null ? purposeOfTemplate3(category) : enrolPurpose(triggerOf(trigger)?.cls, { category });
+}
 function channelOf(r) {
   return r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp";
+}
+function startsInTime(cmd, r, now) {
+  const by = cmd.startBy?.[channelOf(r)];
+  return by === void 0 || now <= by;
 }
 function rowFacts(r) {
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
@@ -1814,6 +1810,7 @@ async function sendOne(w, r) {
   if (!queued) return skip("send_failed");
   const out = await ports.deliver(made.delivery).catch(async (e) => {
     if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
+    if (isWireUnavailableError(e)) return { outcome: "not_taken", status: 0 };
     await withdrawQueued(ports, b, made.delivery);
     throw new ThrownAtTheDoor(e);
   });
@@ -1865,8 +1862,8 @@ async function sendBroadcastBatch(ports, cmd) {
     });
     return;
   }
-  const purpose = message?.purpose ?? purposeOfTemplate3(void 0);
   const trigger = audienceTrigger3(b.audience);
+  const purpose = purposeAtTheDoor(trigger, message);
   const offers = isOfferByEmail5({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger2(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
@@ -1898,9 +1895,12 @@ async function sendBroadcastBatch(ports, cmd) {
     }
   };
   let begun = 0;
+  let yielded = false;
   for (const [i, r] of batch.entries()) {
     if (unreadable) break;
     if (begun > 0 && ports.now() >= cmd.deadline) break;
+    yielded = !startsInTime(cmd, r, ports.now());
+    if (yielded) break;
     begun += 1;
     let verdict;
     try {
@@ -1914,7 +1914,7 @@ async function sendBroadcastBatch(ports, cmd) {
     if (verdict !== "go on") return backOff(ports, b, cmd, { ...verdict, timezone: facts.timezone });
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
-  await afterTheBatch(w, batch.length);
+  await afterTheBatch(w, yielded ? 0 : batch.length);
 }
 async function afterTheBatch(w, picked) {
   const { ports, b, cmd } = w;
@@ -1951,7 +1951,7 @@ async function outsideTheHours(ports, b, cmd, timezone) {
   const open = nextOpenMoment2(timezone, new Date(ports.now()));
   if (!open.moved) return false;
   const waited = (cmd.waits ?? 0) > 0 || (cmd.stalls ?? 0) > 0;
-  const dayBound = triggerOf(audienceTrigger3(b.audience) ?? "")?.kind === "visit";
+  const dayBound = triggerOf2(audienceTrigger3(b.audience) ?? "")?.kind === "visit";
   if (waited || dayBound) await stopAfterHours(ports, b, waited);
   else await ports.scheduleNext(b.id, open.at);
   return true;
@@ -2118,18 +2118,29 @@ function replyPosture(f) {
 function effectiveReplyMode(posture, personMode) {
   return personMode || posture.replyMode;
 }
+function unattendedHold(f) {
+  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) return "human_has_it";
+  if (f.sentToday >= f.dailyCap) return "daily_cap";
+  if (f.workspacePaused) return "paused";
+  if (f.bookingHeld) return "booking_needs_a_person";
+  if (!speaksUnattended(f.mode)) return "policy_hold";
+  return null;
+}
 
 // src/messages/outbound-gate.ts
 function outboundGate(f) {
   const may = mayMessageFor2(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
   if (!may.ok) return { allowed: false, refusal: may.reason };
-  if (f.paused) return { allowed: false, refusal: "paused" };
-  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) {
-    return { allowed: false, refusal: "human_has_it" };
-  }
-  if (f.bookingHeld) return { allowed: false, refusal: "booking_needs_a_person" };
-  if (!speaksUnattended(f.replyMode)) return { allowed: false, refusal: "policy_hold" };
-  if (f.sentToday >= f.dailyCap) return { allowed: false, refusal: "daily_cap" };
+  const hold = unattendedHold({
+    pausedUntilMs: f.pausedUntilMs,
+    nowMs: f.nowMs,
+    sentToday: f.sentToday,
+    dailyCap: f.dailyCap,
+    workspacePaused: f.paused === true,
+    bookingHeld: f.bookingHeld,
+    mode: f.replyMode
+  });
+  if (hold) return { allowed: false, refusal: hold };
   return { allowed: true, refusal: null };
 }
 function refusalScript(refusal, phoneDisplay) {
@@ -2335,19 +2346,20 @@ async function pastTheMonth(ports, people, trigger, purpose) {
 // src/campaigns/assemble.ts
 var assembleLog = logger5();
 async function assembleRun(ports, cmd) {
-  let id;
+  let made;
   try {
-    id = await ports.assemble(cmd.broadcast, cmd.recipients, cmd.sendAt);
+    made = await ports.assemble(cmd.broadcast, cmd.recipients, cmd.sendAt, cmd.decision);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  if (cmd.held.length === 0) return { ok: true, id, unheld: 0 };
+  const { id, decisionId } = made;
+  if (cmd.held.length === 0) return { ok: true, id, decisionId, unheld: 0 };
   try {
     await ports.holdRecipients(id, [...cmd.held], MONTH_ALLOWANCE_REASON);
-    return { ok: true, id, unheld: 0 };
+    return { ok: true, id, decisionId, unheld: 0 };
   } catch (e) {
     assembleLog.error("campaign_hold_unwritten", { broadcast_id: id, unheld: cmd.held.length, error: errField4(e) });
-    return { ok: true, id, unheld: cmd.held.length };
+    return { ok: true, id, decisionId, unheld: cmd.held.length };
   }
 }
 
@@ -2365,12 +2377,12 @@ import {
   playbookListRef,
   playbookRunReach,
   playbookStopBy,
-  enrolPurpose,
+  enrolPurpose as enrolPurpose2,
   messageAboutOfTrigger as messageAboutOfTrigger3,
   proposalFactsFor,
   readyForMessage,
   touchesAfterRun,
-  triggerOf as triggerOf2,
+  triggerOf as triggerOf3,
   triggerOffered,
   vetoRunNotice,
   visitFactsFor,
@@ -2433,7 +2445,7 @@ async function allowed(r, message) {
   });
   if (stop) return { ended: await r.off(stop) };
   if (await r.ports.alreadyRan(p.id, r.runFor)) return { ended: await r.off("already_ran_today", { record: false }) };
-  const trig = triggerOf2(p.trigger);
+  const trig = triggerOf3(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
     return { ended: await withoutCalendar(r) };
   let listIds = null;
@@ -2494,7 +2506,7 @@ async function pastTheRoom(r, message, drawn, goesAt) {
       id: person.id,
       channel: drawn.channelOf[person.id] ?? "whatsapp"
     }));
-    const purpose = enrolPurpose(triggerOf2(r.p.trigger)?.cls, message);
+    const purpose = enrolPurpose2(triggerOf3(r.p.trigger)?.cls, message);
     const month = { monthSent: (channel) => r.ports.monthSent(channel, goesAt) };
     return { held: (await pastTheMonth(month, people, r.p.trigger, purpose)).map((person) => person.id) };
   } catch (e) {
@@ -2503,7 +2515,7 @@ async function pastTheRoom(r, message, drawn, goesAt) {
 }
 function recipientFacts(r, goesAt) {
   const { p, ctx } = r;
-  const trig = triggerOf2(p.trigger);
+  const trig = triggerOf3(p.trigger);
   const theirs = theirVisitTest(ctx.people);
   return (person) => {
     if (trig?.kind === "deal") return proposalFactsFor(p.trigger, person);
@@ -2520,36 +2532,40 @@ function touchEnrolled(r, goesAt, eligible, held) {
   const skipped = new Set(held);
   r.ctx.touches = touchesAfterRun(
     r.ctx.touches,
-    { playbookId: r.p.id, at: goesAt.getTime(), followUp: triggerOf2(r.p.trigger)?.kind === "deal" },
+    { playbookId: r.p.id, at: goesAt.getTime(), followUp: triggerOf3(r.p.trigger)?.kind === "deal" },
     // With the proposal's link a follow-up carries to each (their deal is the proposal it is about, 0029).
     eligible.filter((person) => !skipped.has(person.id)).map((person) => ({ id: person.id, deal: person.deal?.id ?? null, link: person.deal?.proposal?.url ?? null }))
   );
 }
-async function sayTheRun(run, made) {
-  const { ports, p, ctx, by, mode, channels } = run;
-  const { n, at } = made;
-  if (!at) {
-    await ports.notify(
-      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
-      made.madeId
-    );
-    return;
-  }
-  await ports.decide({
-    broadcastId: made.madeId,
+function decisionOf(run, send) {
+  const { p, by, mode, channels } = run;
+  return {
     by,
     payload: {
       playbook_id: p.id,
       playbook: p.name,
       mode,
-      recipients: n,
+      recipients: send.n,
       channels: [...channels],
-      scheduled_for: at.toISOString(),
+      scheduled_for: send.at.toISOString(),
       run_now: by.kind === "user",
-      ...made.movedFrom ? { moved_from: made.movedFrom } : {}
+      ...send.movedFrom ? { moved_from: send.movedFrom } : {}
     }
-  });
+  };
+}
+async function sayTheRun(run, made) {
+  const { ports, p, ctx, by, mode } = run;
+  const { n, at } = made;
+  if (!at) {
+    await ports.notify(
+      // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
+      // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
+      `Campaign \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
+      made.madeId
+    );
+    return;
+  }
   if (mode === "veto" && by.kind !== "user") {
     const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
     await ports.notify(told.subject, told.body, made.madeId).catch(() => void 0);
@@ -2626,11 +2642,14 @@ async function runPlaybook(ports, cmd) {
       channel: channelOf2[person.id] ?? "whatsapp"
     })),
     sendAt: open ? open.at : null,
-    held: past.held
+    held: past.held,
+    // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
+    // until a person approves it.
+    decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
   touchEnrolled(run, goesAt, eligible, past.held);
-  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null, movedFrom });
+  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null });
   await record({
     mode,
     eligible: n,
@@ -2684,7 +2703,7 @@ async function templateValues(ports, cmd) {
     if (!spec)
       throw new AppError11(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, a visit's time or service, or a proposal's link."
+        "Each value is typed text, their first name, the business name, the booking link, the booked time or service, or a proposal's link."
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -2698,7 +2717,7 @@ async function templateValues(ports, cmd) {
       if ((spec.kind === "visit_when" || spec.kind === "visit_service") && !cmd.visits) {
         throw new AppError11(
           "validation",
-          "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service."
+          "Only a reminder the day before or the check the day after can fill in the booked time or service."
         );
       }
       if (spec.kind === "proposal_link" && !cmd.proposal) {
@@ -2707,6 +2726,10 @@ async function templateValues(ports, cmd) {
       specs.push(spec);
     }
   }
+  await refuseWithoutBookingLink(ports, specs);
+  return { message, specs };
+}
+async function refuseWithoutBookingLink(ports, specs) {
   if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
     throw new AppError11(
       "conflict",
@@ -2714,7 +2737,6 @@ async function templateValues(ports, cmd) {
       409
     );
   }
-  return { message, specs };
 }
 
 // src/campaigns/create-broadcast.ts
@@ -2842,6 +2864,24 @@ async function createBroadcast(ports, cmd) {
     label,
     ...kept ? { list: kept } : {}
   };
+  const decision = {
+    by: { kind: "user", userId: cmd.userId },
+    payload: {
+      name,
+      template: `${message.name}/${message.language}`,
+      category: message.category,
+      // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+      audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
+      channels: [...how.channels],
+      values: specs.map(paramLabel),
+      recipients: enrolled.length,
+      scheduled_for: when.toISOString(),
+      ...movedFrom ? { moved_from: movedFrom } : {},
+      // As a playbook's run records it: how many the month holds. The hold is its own write after the run, and one that
+      // could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
+      ...allowanceRecord(past.length, 0)
+    }
+  };
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -2859,26 +2899,14 @@ async function createBroadcast(ports, cmd) {
     },
     recipients: enrolled.map((e) => ({ contact_id: e.row.id, facts: null, channel: e.channel })),
     sendAt: when,
-    held: past.map((p) => p.id)
+    held: past.map((p) => p.id),
+    decision
   });
   if (!made.ok) {
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
     throw new AppError12("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
   }
-  const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
-    name,
-    template: `${message.name}/${message.language}`,
-    category: message.category,
-    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
-    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
-    channels: [...how.channels],
-    values: specs.map(paramLabel),
-    recipients: enrolled.length,
-    scheduled_for: when.toISOString(),
-    ...movedFrom ? { moved_from: movedFrom } : {},
-    // As a playbook's run records it: how many the month holds, and how many of those the write left queued (held at the wire).
-    ...allowanceRecord(past.length, made.unheld)
-  });
+  if (made.decisionId === null) throw new Error("createBroadcast: the run's door answered without its decision");
   return {
     id: made.id,
     name,
@@ -2889,7 +2917,7 @@ async function createBroadcast(ports, cmd) {
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
     held_for_allowance: past.length - made.unheld,
-    decision_id
+    decision_id: made.decisionId
   };
 }
 
@@ -2904,7 +2932,8 @@ import {
   runApprovalRefusal
 } from "../../contracts/dist/index.js";
 var approveLog = logger7();
-var STRANDED_WORDS = "The send could not be scheduled, and the run could not be put back to wait for you. If it still says scheduled once its time has passed, it is marked not sent and you are told.";
+var NOT_APPROVED_WORDS = "The send could not be scheduled. The run is still waiting; try again.";
+var MOVED_WORDS = "This run just changed state; look again.";
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError13("conflict", "This run is not waiting for approval.", 409);
@@ -2915,29 +2944,18 @@ async function approveRun(ports, cmd) {
   const late = runApprovalRefusal(b, { today: localDate2(tz, cmd.now), sendsOn: localDate2(tz, open.at) });
   if (late) throw new AppError13("conflict", late, 409);
   const at = open.at;
-  if (!await ports.release(b.id, at)) throw new AppError13("conflict", "This run just changed state; look again.", 409);
-  try {
-    await ports.schedule(b.id, at);
-  } catch (e) {
-    approveLog.error("campaign_step_failed", { step: "schedule", broadcast_id: b.id, error: errField6(e) });
-    const held = await ports.hold(b.id).catch((h) => {
-      approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: errField6(h) });
-      return null;
-    });
-    if (held)
-      throw new AppError13("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502);
-    if (held === false) approveLog.error("campaign_step_failed", { step: "hold", broadcast_id: b.id, error: "no row" });
-    throw new AppError13("upstream_meta", STRANDED_WORDS, 502);
-  }
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
-  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
-    name: b.name,
-    playbook_id: b.playbook_id,
-    recipients: b.recipient_count,
-    approved: true,
-    scheduled_for: scheduledFor,
-    ...movedFrom ? { moved_from: movedFrom } : {}
+  const decision_id = await approvedWhole(ports, b, at, {
+    job: true,
+    decision: {
+      name: b.name,
+      playbook_id: b.playbook_id,
+      recipients: b.recipient_count,
+      approved: true,
+      scheduled_for: scheduledFor,
+      ...movedFrom ? { moved_from: movedFrom } : {}
+    }
   });
   return {
     id: b.id,
@@ -2948,18 +2966,31 @@ async function approveRun(ports, cmd) {
     decision_id
   };
 }
+async function approvedWhole(ports, b, at, o) {
+  let id;
+  try {
+    id = await ports.approve(b.id, at, o);
+  } catch (e) {
+    approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: b.id, error: errField6(e) });
+    throw new AppError13("upstream_meta", NOT_APPROVED_WORDS, 502);
+  }
+  if (!id) throw new AppError13("conflict", MOVED_WORDS, 409);
+  return id;
+}
 async function approveReachOut(ports, b, now) {
   const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
   const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
-  if (!await ports.release(b.id, at)) throw new AppError13("conflict", "This run just changed state; look again.", 409);
   const scheduledFor = at.toISOString();
-  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
-    name: b.name,
-    playbook_id: b.playbook_id,
-    recipients: b.recipient_count,
-    approved: true,
-    reach_out: true,
-    scheduled_for: scheduledFor
+  const decision_id = await approvedWhole(ports, b, at, {
+    job: false,
+    decision: {
+      name: b.name,
+      playbook_id: b.playbook_id,
+      recipients: b.recipient_count,
+      approved: true,
+      reach_out: true,
+      scheduled_for: scheduledFor
+    }
   });
   return {
     id: b.id,
@@ -2996,23 +3027,30 @@ import {
   FOLLOW_UP_NEEDS_LINK,
   MOMENTS_RETIRED,
   PLAYBOOK_DEFAULTS,
-  PLAYBOOK_HOURS,
+  PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
-  WIN_BACK_WORDS,
+  PLAYBOOK_PATCH_KEYS,
+  PLAYBOOK_PATCH_WORDS,
+  appointmentWords,
   channelNeverCarries as channelNeverCarries2,
-  enrolPurpose as enrolPurpose2,
+  enrolPurpose as enrolPurpose3,
+  isPlaybookState,
   isWinBack,
   messageFitsMoment,
   messageHolds as messageHolds3,
   messageWhyNot,
   momentOffered,
+  momentReadsCalendar,
   playbookName,
   ruleNeeds,
-  triggerOf as triggerOf3,
+  triggerOf as triggerOf4,
   triggerOffered as triggerOffered2,
-  UUID as UUID3
+  triggerWords,
+  UUID as UUID3,
+  winBackWords
 } from "../../contracts/dist/index.js";
-function int(v, { fallback, min, max, what }) {
+function playbookNumber(field, v, fallback) {
+  const { min, max, what } = PLAYBOOK_LIMITS[field];
   if (v === void 0 || v === null || v === "") return fallback;
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isInteger(n) || n < min || n > max)
@@ -3025,9 +3063,16 @@ async function refuseMoment(ports, trig, existing) {
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError15("validation", retired);
-  const calendarOn = isWinBack(trig.id) ? await ports.calendarOn() : false;
-  if (!momentOffered(trig, { dealsOn, calendarOn }))
-    throw new AppError15("validation", WIN_BACK_WORDS[trig.id]);
+  const calendarOn = momentReadsCalendar(trig) ? await ports.calendarOn() : false;
+  if (momentOffered(trig, { dealsOn, calendarOn })) return;
+  const word = await ports.appointmentWord();
+  if (!isWinBack(trig.id)) throw new AppError15("validation", appointmentWords(word).needsCalendar);
+  const w = winBackWords(word);
+  throw new AppError15("validation", trig.id === "lapsed" ? w.lapsed : w.quiet_30);
+}
+async function defaultLabel(ports, trig, listName) {
+  if (listName) return listName;
+  return trig.kind === "visit" ? triggerWords(trig, await ports.appointmentWord()).label : trig.label;
 }
 async function listOf(ports, trig, body) {
   if (trig.kind !== "saved") return { listName: null, listKey: null, listId: null };
@@ -3038,7 +3083,7 @@ async function listOf(ports, trig, body) {
     if (ruleNeeds(b.rule).includes("viewer"))
       throw new AppError15(
         "validation",
-        `${b.label} is about whoever is looking, and a playbook runs with no one looking. Pick another list.`
+        `${b.label} is about whoever is looking, and a campaign runs with no one looking. Pick another list.`
       );
     return { listName: b.label, listKey, listId: null };
   }
@@ -3060,7 +3105,7 @@ function refuseMessageNoTickHolds(message, channels) {
 }
 function channelsItMayGoBy(asked2, kept, cls, message) {
   const channels = parseChannels(asked2, kept);
-  const purpose = enrolPurpose2(cls, message);
+  const purpose = enrolPurpose3(cls, message);
   const never = channels.map((c) => channelNeverCarries2(c, purpose)).find((words) => words !== null);
   if (never) throw new AppError15("validation", never);
   refuseMessageNoTickHolds(message, channels);
@@ -3068,21 +3113,66 @@ function channelsItMayGoBy(asked2, kept, cls, message) {
 }
 async function checkPlaybookChannels(ports, row, asked2) {
   const message = await readCampaignMessage(ports, row.template_id ?? "");
-  const cls = row.policy_class ?? triggerOf3(row.trigger)?.cls ?? null;
+  const cls = row.policy_class ?? triggerOf4(row.trigger)?.cls ?? null;
   return channelsItMayGoBy(Array.isArray(asked2) ? asked2 : [], row.channels, cls, message);
 }
-async function checkPlaybook(ports, body, existing) {
-  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
-  const trig = typeof body?.trigger === "string" ? triggerOf3(body.trigger) : null;
+function patchName(v) {
+  const name = typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+  if (!name) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameMissing);
+  if (name.length > PLAYBOOK_NAME_MAX)
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameLong(PLAYBOOK_NAME_MAX));
+  return name;
+}
+var patchNumber = (k, v, was) => v === void 0 ? void 0 : playbookNumber(k, v, was);
+async function checkPlaybookPatch(ports, row, asked2) {
+  const keys = Object.keys(asked2).filter((k) => asked2[k] !== void 0);
+  if (keys.length === 0 || keys.some((k) => !PLAYBOOK_PATCH_KEYS.includes(k)))
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
+  if (triggerOf4(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
+    throw new AppError15("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
+  if (asked2.state !== void 0 && !isPlaybookState(asked2.state))
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.state);
+  const next = {
+    state: isPlaybookState(asked2.state) ? asked2.state : void 0,
+    name: asked2.name === void 0 ? void 0 : patchName(asked2.name),
+    run_hour: patchNumber("run_hour", asked2.run_hour, row.run_hour),
+    cap_per_run: patchNumber("cap_per_run", asked2.cap_per_run, row.cap_per_run),
+    gap_days: patchNumber("gap_days", asked2.gap_days, row.gap_days),
+    cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days)
+  };
+  const set = {};
+  const was = {};
+  const differs = (k) => {
+    const to = next[k];
+    if (to === void 0 || to === row[k]) return;
+    set[k] = to;
+    was[k] = row[k];
+  };
+  for (const k of PLAYBOOK_PATCH_KEYS) differs(k);
+  if (set.cadence_days !== void 0 && row.trigger !== "everyone_monthly")
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.cadenceOffer(row.name));
+  if (set.state === "running") {
+    const archived = await ports.archivedList(row);
+    if (archived) throw new AppError15("validation", archived);
+  }
+  return { set, was };
+}
+async function checkPlaybookMoment(ports, body, existing) {
+  const trig = typeof body?.trigger === "string" ? triggerOf4(body.trigger) : null;
   if (!trig)
     throw new AppError15(
       "validation",
-      "Pick what starts it: win-back, the month's offer, a visit tomorrow, a visit yesterday, one of your lists, or a proposal waiting."
+      `Pick what starts it: win-back, the month's offer, ${appointmentWords(await ports.appointmentWord()).startsWith}, one of your lists, or a proposal waiting.`
     );
   if (trig.kind === "reach_out") throw new AppError15("validation", REACH_OUT_IS_NOT_A_MOMENT);
   await refuseMoment(ports, trig, existing);
   const { listName, listKey, listId } = await listOf(ports, trig, body);
   const cls = trig.kind === "saved" && LIST_PLAYBOOK_CLASSES.includes(String(body?.policy_class)) ? body.policy_class : trig.cls;
+  return { trig, cls, listName, listKey, listId };
+}
+async function checkPlaybook(ports, body, existing) {
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { message, specs } = await templateValues(ports, {
     templateId,
@@ -3095,9 +3185,12 @@ async function checkPlaybook(ports, body, existing) {
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
     throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
   return {
-    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
-    // list's own name for a playbook on a list.
-    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, message).slice(0, PLAYBOOK_NAME_MAX),
+    // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
+    // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).
+    name: (name || playbookName({ id: trig.id, label: await defaultLabel(ports, trig, listName) }, message)).slice(
+      0,
+      PLAYBOOK_NAME_MAX
+    ),
     trigger: trig.id,
     list_id: listId,
     list_key: listKey,
@@ -3107,20 +3200,10 @@ async function checkPlaybook(ports, body, existing) {
     template_language: message.language,
     params: specs,
     policy_class: cls,
-    run_hour: int(body?.run_hour, {
-      fallback: PLAYBOOK_DEFAULTS.runHour,
-      min: PLAYBOOK_HOURS.min,
-      max: PLAYBOOK_HOURS.max,
-      what: "The hour"
-    }),
-    cap_per_run: int(body?.cap_per_run, { fallback: PLAYBOOK_DEFAULTS.capPerRun, min: 1, max: 500, what: "The cap" }),
-    gap_days: int(body?.gap_days, { fallback: PLAYBOOK_DEFAULTS.gapDays, min: 7, max: 365, what: "The gap" }),
-    cadence_days: int(body?.cadence_days, {
-      fallback: PLAYBOOK_DEFAULTS.cadenceDays,
-      min: 1,
-      max: 90,
-      what: "The cadence"
-    }),
+    run_hour: playbookNumber("run_hour", body?.run_hour, PLAYBOOK_DEFAULTS.runHour),
+    cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun),
+    gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
+    cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
     channels
   };
 }
@@ -36804,13 +36887,24 @@ function hasContact(place) {
 function probeYield(members) {
   return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(m)).length);
 }
+var centsDown = (usd) => Math.floor(usd * 100 + 1e-6);
 function runCaps(plan, perTerm, reservedLeftUsd) {
   const wants = perTerm.map((n) => estimateRoundUsd({ ...plan, terms: [plan.terms[0] ?? ""] }, "main", n));
-  const sum = wants.reduce((a, b) => a + b, 0);
   const left = Math.max(0, reservedLeftUsd);
-  if (left < MAPS_CAP_FLOOR_USD) return wants.map(() => 0);
+  let room = Math.floor(centsDown(left) / centsDown(MAPS_CAP_FLOOR_USD));
+  const runs = perTerm.map((n) => {
+    if (n <= 0 || room <= 0) return false;
+    room -= 1;
+    return true;
+  });
+  const sum = wants.reduce((a, w, i) => a + (runs[i] ? w : 0), 0);
   const scale = sum > left && sum > 0 ? left / sum : 1;
-  return wants.map((w) => Math.max(MAPS_CAP_FLOOR_USD, Math.round(w * scale * 100) / 100));
+  const caps = wants.map((w, i) => runs[i] ? Math.max(MAPS_CAP_FLOOR_USD, Math.round(w * scale * 100) / 100) : 0);
+  if (centsDown(caps.reduce((a, c) => a + c, 0)) <= centsDown(left)) return caps;
+  const spare = centsDown(left) - caps.filter((c) => c > 0).length * centsDown(MAPS_CAP_FLOOR_USD);
+  const above = wants.map((w, i) => runs[i] ? Math.max(0, w - MAPS_CAP_FLOOR_USD) : 0);
+  const share = Math.min(1, spare / 100 / (above.reduce((a, b) => a + b, 0) || 1));
+  return above.map((x, i) => runs[i] ? (centsDown(MAPS_CAP_FLOOR_USD) + Math.floor(x * share * 100)) / 100 : 0);
 }
 
 // src/leads/question.ts
@@ -36901,6 +36995,11 @@ var wasJudged = (m) => {
   const j = m.judgment;
   return !!j && typeof j === "object" && j.answer !== null && j.answer !== void 0;
 };
+async function heldBack(p, tenantId) {
+  if (!await p.db.leadSearchesOn(tenantId)) return "paused";
+  if (!await p.db.maySpend(tenantId)) return "may_not_spend";
+  return null;
+}
 
 // src/leads/runner/start.ts
 import { APIFY_RUN_END_EVENTS } from "../../channels/dist/index.js";
@@ -37423,12 +37522,29 @@ async function rejudgeProbe(p, round) {
 }
 
 // src/leads/runner/start.ts
+async function runsToStart(p, roundId, phase, ask, caps) {
+  const wanted = [];
+  const untried = [];
+  for (const [i, term] of ask.terms.entries()) {
+    const places = ask.perTerm[i] ?? 0;
+    const cap = caps[i] ?? 0;
+    if (places <= 0) continue;
+    if (cap <= 0) {
+      untried.push({ term, kind: "no_room" });
+      continue;
+    }
+    const id = await runIdFor(roundId, phase, term);
+    wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places, cap });
+  }
+  return { wanted, untried };
+}
 async function startRound(p, roundId, owner, resume = false) {
   const round = await p.db.round(roundId);
   if (!round || round.state === "ended") return { kind: "not_open" };
-  if (!await p.db.leadSearchesOn(round.tenant_id)) {
+  const held = await heldBack(p, round.tenant_id);
+  if (held) {
     await p.db.roundEnd(round.id, "paused");
-    return { kind: "paused" };
+    return { kind: held };
   }
   const leftUsd = round.cost_reserved_usd - round.cost_usd;
   if (leftUsd <= 0) {
@@ -37450,14 +37566,8 @@ async function startRound(p, roundId, owner, resume = false) {
     const dropTerm = round.answered === "keep" ? round.question?.dropTerm ?? null : null;
     ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
   }
-  const caps = runCaps(plan, ask.perTerm, leftUsd);
-  const wanted = [];
-  for (const [i, term] of ask.terms.entries()) {
-    if (ask.perTerm[i] <= 0 || caps[i] <= 0) continue;
-    const id = await runIdFor(round.id, phase, term);
-    wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
-  }
-  if (!wanted.length) return { kind: "started", phase, runs: [] };
+  const { wanted, untried } = await runsToStart(p, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
+  if (!wanted.length) return { kind: "started", phase, runs: untried };
   const rows = await p.db.runsEnsure(
     wanted.map((w) => ({
       id: w.id,
@@ -37502,7 +37612,7 @@ async function startRound(p, roundId, owner, resume = false) {
     }
   }
   if (outcomes.length && outcomes.every((o) => o.kind === "refused")) await p.db.roundEnd(round.id, "source_failed");
-  return { kind: "started", phase, runs: outcomes };
+  return { kind: "started", phase, runs: [...outcomes, ...untried] };
 }
 
 // src/leads/runner/check.ts
@@ -37519,7 +37629,8 @@ async function check(p, roundId, batch, owner, again = null) {
   const named = again ? new Set(again.leadIds) : null;
   const all = checkable(await p.db.membersOfRound(round.id)).filter((m) => !named || named.has(m.lead_id));
   const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
-  if (!await p.db.leadSearchesOn(round.tenant_id)) {
+  const held = await heldBack(p, round.tenant_id);
+  if (held) {
     if (slice.length)
       await p.db.checkCommit(
         round.id,
@@ -37529,7 +37640,7 @@ async function check(p, roundId, batch, owner, again = null) {
         false
       );
     if (!again) await p.db.roundEnd(round.id, "paused");
-    return { kind: "paused" };
+    return { kind: held };
   }
   if (!slice.length) {
     if (batch === 0 && round.state === "checking" && !again) await p.db.checkCommit(round.id, null, [], 0, true);
@@ -37998,7 +38109,7 @@ function isThreadUnknown(s) {
 // src/inbound/consent.ts
 function resolveConsent(i) {
   if (i.optOutNow) return { optedOut: true, source: "this_message" };
-  if (i.optInNow) return { optedOut: false, source: "this_message" };
+  if (i.optInNow && !i.takenAgain) return { optedOut: false, source: "this_message" };
   if (i.recorded !== null) return { optedOut: i.recorded, source: "record" };
   return { optedOut: false, source: "none" };
 }
@@ -38036,11 +38147,6 @@ var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 function ageVerdict(timestampS, now = Date.now()) {
   const ageMs = timestampS ? now - Number(timestampS) * 1e3 : 0;
   return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
-}
-function threadVerdict(thread, maxRepliesDay, now = Date.now()) {
-  if (now < thread.pausedUntil) return "paused";
-  if (thread.replies.length >= maxRepliesDay) return "ratecap";
-  return "ok";
 }
 function holdPlan(replyMode, replyLimits, brainMeta) {
   let delayMs = replyDelayMs(replyMode, replyLimits);
@@ -38304,7 +38410,9 @@ async function firstGates(at) {
     // result (packages/db ingest.ts) — "readers must treat absence as 'nothing
     // on record', never as a block" — and a row carrying neither read as
     // `false`, an affirmative "they are opted in".
-    recorded: ing && (ing.consent !== void 0 || ing.dnc !== void 0) ? isOptedOutContact2(ing) : null
+    recorded: ing && (ing.consent !== void 0 || ing.dnc !== void 0) ? isOptedOutContact2(ing) : null,
+    // A message already held (a text's answer job, a redelivery) said its START when it was first taken in.
+    takenAgain: ing?.is_new === false
   });
   const optedOut = consent.optedOut;
   if (optedOut) {
@@ -38429,8 +38537,19 @@ async function offersNoteFor(at) {
     return null;
   }
 }
-async function lateOrConfirmed(at, bodyText) {
-  const { raw, sink, tell, n, L, channel, brainCfg, rt, send } = at;
+async function offersTakenBack(at) {
+  const { db, tenantId, ing, ports, L } = at;
+  if (ing?.is_new !== false || !db || !tenantId || !ing.contact_id) return false;
+  try {
+    const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
+    return answer?.marketingConsent === "opted_out";
+  } catch (e) {
+    L.warn("lead_context_unavailable", { error: errField8(e) });
+    return false;
+  }
+}
+async function tooLate(at) {
+  const { raw, sink, tell, n, L } = at;
   const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
   if (age === "stale") {
     const asked2 = sink.escalate(
@@ -38440,14 +38559,24 @@ async function lateOrConfirmed(at, bodyText) {
     await Promise.all([
       asked2,
       tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 arrived too late to answer automatically)", "late message"),
-      processedAfter(sink, asked2, "none")
+      processedAfter(sink, asked2, "none"),
+      ...n.media ? [sink.media(n)] : []
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
     return;
   }
   if (age === "late") L.info("wa_late_but_answering", { age_ms: ageMs });
+  return GO;
+}
+async function confirmedYes(at, bodyText) {
+  const { sink, tell, n, L, channel, brainCfg, rt, send } = at;
   if (n.optIn || n.optInMarketing && channel === "whatsapp") {
     const purpose = n.optInMarketing ? "marketing" : "conversational";
+    if (n.optInMarketing && await offersTakenBack(at)) {
+      L.info("wa_opt_in_confirmed", { purpose, channel, sent: false, why: "offers_taken_back" });
+      await processedAfter(sink, null, "none");
+      return;
+    }
     const filed = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
     const offers = n.optInMarketing ? null : await offersNoteFor(at);
     const words = offers ? `${filed} ${offers}` : filed;
@@ -38491,13 +38620,21 @@ async function heldForThePerson(at, bodyText) {
     replyMode,
     personMode
   } = at;
-  const gate = threadVerdict(thread, maxRepliesDay);
-  if (gate === "paused") {
+  const held = unattendedHold({
+    pausedUntilMs: thread.pausedUntil,
+    nowMs: Date.now(),
+    sentToday: thread.replies.length,
+    dailyCap: maxRepliesDay,
+    workspacePaused: !!rt?.paused,
+    bookingHeld: false,
+    mode: replyMode
+  });
+  if (held === "human_has_it") {
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
     await sink.processed(handledOf(SET_ASIDE));
     return;
   }
-  if (gate === "ratecap") {
+  if (held === "daily_cap") {
     L.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
     const asked2 = sink.escalate(
       "rate_cap",
@@ -38510,8 +38647,21 @@ async function heldForThePerson(at, bodyText) {
     ]);
     return;
   }
+  if (held === "paused") {
+    L.info("wa_skip_workspace_paused");
+    const asked2 = sink.escalate(
+      "paused",
+      "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
+    );
+    await Promise.all([
+      asked2,
+      tell(bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
+      processedAfter(sink, asked2, "none")
+    ]);
+    return;
+  }
   const tokenCap = tokenCapOf(replyLimits);
-  if (tokenCap > 0 && db && tenantId) {
+  if (held === null && tokenCap > 0 && db && tenantId) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
@@ -38527,20 +38677,7 @@ async function heldForThePerson(at, bodyText) {
       return;
     }
   }
-  if (rt?.paused) {
-    L.info("wa_skip_workspace_paused");
-    const asked2 = sink.escalate(
-      "paused",
-      "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
-    );
-    await Promise.all([
-      asked2,
-      tell(bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
-      processedAfter(sink, asked2, "none")
-    ]);
-    return;
-  }
-  if (!brainCfg || !speaksUnattended(replyMode)) {
+  if (held !== null || !brainCfg) {
     const hold = holdCopy({
       brainCfg,
       personMode,
@@ -38848,10 +38985,11 @@ async function answerInbound(input, ports) {
   if (!kept) return;
   const at = { ...cx, ...kept, ...await modeInForce(cx, kept.ing) };
   if (await firstGates(at) !== GO) return;
+  if (await tooLate(at) !== GO) return;
   const seen = seeingOf(at);
   if (await unreadableGate(at, seen) !== GO) return;
   const bodyText = wordsOf(at, seen);
-  if (await lateOrConfirmed(at, bodyText) !== GO) return;
+  if (await confirmedYes(at, bodyText) !== GO) return;
   if (await heldForThePerson(at, bodyText) !== GO) return;
   const shown = await photoOf(at, seen);
   if (!shown) return;
@@ -38900,8 +39038,16 @@ function bookingPageLinkedFrom(html, pageUrl) {
 }
 
 // src/subscribers.ts
+var BOOKS = /* @__PURE__ */ new Set(["added", "confirmed", "moved"]);
 var SUBSCRIBERS = {
   audit: async () => {
+  },
+  reach_out_booked: async (event2, ports) => {
+    if (event2.kind !== "appointment.changed" || event2.subject_type !== "appointment" || !event2.subject_id) return;
+    const data = event2.data && typeof event2.data === "object" && !Array.isArray(event2.data) ? event2.data : {};
+    const { change, source } = data;
+    if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
+    await ports.bookedFromAppointment(event2.tenant_id, event2.subject_id);
   }
 };
 export {
@@ -38978,6 +39124,8 @@ export {
   check,
   checkPlaybook,
   checkPlaybookChannels,
+  checkPlaybookMoment,
+  checkPlaybookPatch,
   checkable,
   cleanPlace,
   collect,
@@ -39022,6 +39170,7 @@ export {
   outboundGate,
   parseChannels,
   photoUserText,
+  playbookNumber,
   probeAsk,
   probeYield,
   provisionLine,
@@ -39034,6 +39183,7 @@ export {
   reconcileUnknownRuns,
   recordInbound,
   refusalScript,
+  refuseWithoutBookingLink,
   rejudgeProbe,
   replyPosture,
   replyToConversation,
@@ -39060,7 +39210,6 @@ export {
   templatePurpose,
   templateValues,
   termsShortOf,
-  threadVerdict,
   toBase64,
   unreadableThread,
   wake,

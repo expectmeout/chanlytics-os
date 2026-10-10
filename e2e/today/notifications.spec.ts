@@ -14,6 +14,48 @@ test.describe("The bell on a real workspace", () => {
     await signIn(page);
   });
 
+  /**
+   * The bell closes once (9 Oct 2026, Ruben: "it kind of flickers to close"). The popover React lets go of is put back
+   * as a still copy and played out, and above a phone's width that copy kept the popover's own entrance, so it came in
+   * again from nothing for 180ms after it had gone. Sampled a frame at a time through the browser's own compositor, the
+   * copy's opacity may only fall. The press on the bell lands on the wash over the page, as a pointer's does.
+   */
+  test("the bell closes by fading out once: its leaving copy never comes back in", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const bell = page.getByRole("button", { name: /^Notifications/ });
+    await bell.click();
+    await expect(page.getByRole("dialog", { name: "Notifications" })).toBeVisible();
+    await page.waitForTimeout(400);
+    await page.evaluate(() => {
+      const w = window as unknown as { __ops: number[]; __stop: boolean };
+      w.__ops = [];
+      w.__stop = false;
+      const loop = () => {
+        const copy = document.querySelector('.tbn-pop[data-leaving="true"]');
+        if (copy) w.__ops.push(+getComputedStyle(copy).opacity);
+        if (!w.__stop) requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    });
+    const box = (await bell.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(page.getByRole("dialog", { name: "Notifications" })).toHaveCount(0);
+    await page.waitForTimeout(700);
+    const ops = await page.evaluate(() => {
+      const w = window as unknown as { __ops: number[]; __stop: boolean };
+      w.__stop = true;
+      return w.__ops;
+    });
+    expect(ops.length, "the copy was played out, and seen").toBeGreaterThan(1);
+    expect(ops[0], "it begins where the popover stood, whole").toBeGreaterThan(0.9);
+    for (let i = 1; i < ops.length; i += 1)
+      expect(ops[i], `frame ${i} of ${ops.length}: ${ops.map((o) => o.toFixed(2)).join(" ")}`).toBeLessThanOrEqual(
+        ops[i - 1] + 0.001,
+      );
+    await expect(page.locator(".tbn-pop")).toHaveCount(0);
+  });
+
   test("opens on the real feed with the device-alert switch, and nothing invented", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");

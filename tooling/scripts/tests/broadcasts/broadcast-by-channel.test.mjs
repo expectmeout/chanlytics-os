@@ -22,7 +22,7 @@ import { middayZone } from "../shared/_midday-zone.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = (pkg) => pathToFileURL(path.join(here, `../../../../packages/${pkg}/dist/index.js`)).href;
 const { dispatchJob } = await import(dist("jobs"));
-const { emailSender } = await import(dist("core"));
+const { emailSender, WireUnavailableError } = await import(dist("core"));
 
 const TID = "11111111-1111-4111-8111-111111111111";
 const DOMAIN = "mail.example.com";
@@ -263,7 +263,7 @@ test("one batch, three channels: WhatsApp's template, the text version with its 
     [
       "Hi Cy, your visit is tomorrow at 2:00 PM.",
       "",
-      "You're getting this because of your visit with Marisa's.",
+      "You're getting this because of your appointment with Marisa's.",
       // The foot now says how to stop these emails: they carry no unsubscribe link.
       "Reply STOP to stop these emails.",
       "Marisa's · 12 Main St, Springfield",
@@ -325,6 +325,83 @@ test("an email is sent by the time the tick can still wait for it: a batch that 
   assert.ok(late > 9_000 && late <= 11_000, `a send begun at the yield point is given about 11 s, was ${late}`);
   // A tick with room to spare gives the provider call its own bound.
   assert.equal(await askedOf(Date.now() + 40_000), 15_000);
+});
+
+test("a WhatsApp send or a text is never started when its wire's own timeout would end past the room the tick keeps: the person stays queued, the next batch is placed at once, and no stall is counted", async () => {
+  // WhatsApp's send and a text's are one try each under the provider's fifteen seconds, which nothing shortens: begun
+  // just before the yield, one ran to the ceiling itself, with nothing left to record that it went (jobs startByAt).
+  const run = async (yieldInMs, recipients, contacts = people()) => {
+    const t = world({ contacts, broadcast_recipients: recipients });
+    const w = context(t);
+    w.ctx.deadline = Date.now() + yieldInMs;
+    try {
+      await dispatchJob(w.ctx, JOB);
+    } finally {
+      w.restore();
+    }
+    return { t, w };
+  };
+  for (const channel of ["whatsapp", "sms"]) {
+    const late = await run(1_000, [recipient(channel === "whatsapp" ? "k1" : "k2", channel)]);
+    assert.deepEqual(
+      [late.w.wa.length, late.w.sms.length],
+      [0, 0],
+      `REGRESSION: a ${channel} send begun a second before the yield ran past the function`,
+    );
+    assert.equal(late.t.broadcast_recipients[0].state, "queued", "never claimed, so never 'outcome unknown'");
+    assert.deepEqual(
+      late.w.later.map(([kind, dueAt, payload]) => [kind, dueAt.getTime() <= Date.now(), payload]),
+      [["broadcast_send", true, { broadcast_id: "b1" }]],
+      "the next batch, due now, and not a stall: nothing failed to be read",
+    );
+  }
+  // An email is bounded by what is left of the function (sendBy), so it still goes at that moment; the WhatsApp person
+  // after it (a batch goes in the order of its people's ids) is the next batch's.
+  const mixed = await run(
+    1_000,
+    [recipient("k3", "email"), recipient("k4", "whatsapp")],
+    [...people(), person("k4", { phone_e164: "+15551230004", display_name: "Di Prima" })],
+  );
+  assert.equal(mixed.w.posted.length, 1, "the email left");
+  assert.deepEqual(
+    mixed.t.broadcast_recipients.map((r) => [r.contact_id, r.state]),
+    [
+      ["k3", "sent"],
+      ["k4", "queued"],
+    ],
+  );
+  assert.equal(mixed.w.wa.length, 0);
+  // With the wire's timeout and the settle still inside the room (the yield ten seconds away), both go.
+  const early = await run(10_000, [recipient("k1", "whatsapp"), recipient("k2", "sms")]);
+  assert.deepEqual([early.w.wa.length, early.w.sms.length], [1, 1]);
+  assert.deepEqual(
+    early.t.broadcast_recipients.map((r) => r.state),
+    ["sent", "sent"],
+  );
+});
+
+test("a WhatsApp wire that could not be bound at the send (the number a person wrote to, of a workspace's two) gives the person back to the queue: nothing left, so never 'outcome unknown'", async () => {
+  const t = world({ broadcast_recipients: [recipient("k1", "whatsapp")] });
+  const w = context(t);
+  // The job runner's wire reads at each send which number the person wrote to, and that number's credentials.
+  w.ctx.wire.whatsapp = async () => {
+    throw new WireUnavailableError("whatsapp", "vault unavailable");
+  };
+  try {
+    await dispatchJob(w.ctx, JOB);
+  } finally {
+    w.restore();
+  }
+  assert.deepEqual(
+    t.broadcast_recipients.map((r) => [r.contact_id, r.state, r.reason]),
+    [["k1", "queued", "not_taken"]],
+    "REGRESSION: the claim stood as outcome unknown for a message that never left",
+  );
+  assert.equal(t.broadcasts[0].state, "sending", "the run waits, as for a provider it could not reach");
+  assert.deepEqual(
+    w.later.map(([kind, , payload]) => [kind, payload]),
+    [["broadcast_send", { broadcast_id: "b1", waits: 1 }]],
+  );
 });
 
 test("a resumed run never sends an email twice: the row it already sent is found by the run's id, and the person is marked from it", async () => {

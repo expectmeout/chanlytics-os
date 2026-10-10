@@ -1,6 +1,6 @@
 /**
- * Campaigns' cards: a broadcast, a playbook that sends on its own, the channels a playbook goes by, and a playbook's run
- * that waits for a person.
+ * Campaigns' cards: a broadcast, a playbook that sends on its own, the channels a playbook goes by, a playbook that
+ * exists changed in place (paused, resumed, renamed or retimed), and a playbook's run that waits for a person.
  */
 import {
   CONSENT_CHANNELS,
@@ -8,10 +8,12 @@ import {
   channelsWords,
   type ConsentChannel,
 } from "../consent/consent-channels";
-import { LIFECYCLE_TOAST, channelsGoesByWords } from "../playbooks/lifecycle-words";
+import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
+import { PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";
+import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS } from "../shell/campaign-rooms";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -19,6 +21,7 @@ import {
   idIn,
   rec,
   refuseWith,
+  wasIn,
   type ProposalCall,
   type ProposalSpec,
 } from "./spec";
@@ -40,6 +43,39 @@ export function proposalChannelsWords(
   if (carrying.length < 2) return goes;
   return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
 }
+
+/**
+ * Why a new campaign's card is not made (propose_campaign's action playbook), said to the model with what to do about
+ * it. `from` is the call that names what the workspace holds, its messages and its lists, as the tool calls it.
+ */
+export const PLAYBOOK_CARD_REFUSALS = {
+  /** A typed slot the proposal gave no words for: a question for the person. */
+  typedSlot: (label: string): string =>
+    `this template takes typed words for “${label}”; ask the person what to say there, then propose again with params`,
+  value:
+    "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+  plainText: "every typed value must be plain text under 1024 characters, without line breaks",
+  /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
+  starterHidden: (title: string, from: string): string =>
+    `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
+  starterUnsent: (title: string, from: string): string =>
+    `the “${title}” starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
+  hiddenTemplate: (from: string): string =>
+    `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
+  noList: (from: string): string => `no such list; ${from} names them`,
+  uncounted: (list: string, why: string): string => `${list} can't be counted right now: ${why}`,
+  /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
+  twin: (name: string): string =>
+    `“${name}” already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
+  followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
+  /** The week's breath: every message sent this week, a member's own too, holds its person, so the count waits on it. */
+  weekUnread: "who was messaged this week could not be read just now; say so, and try again in a moment",
+  trigger: (triggers: readonly string[]): string => `trigger must be one of ${triggers.join(", ")}`,
+  listToken: (from: string): string =>
+    `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
+  templateId: (from: string): string =>
+    `template_id must be an id ${from} returned, or omitted for the trigger's starter`,
+} as const;
 
 /**
  * The channels a card's payload names, as the commit hands them to its route: only when the proposal named some, so a
@@ -97,7 +133,8 @@ export const playbookSpec: ProposalSpec = {
       // On a list (decision 0009): the list it names, and whether it sends an offer or a win-back.
       ...(pl.list_key ? { list_key: pl.list_key } : pl.list_id ? { list_id: pl.list_id } : {}),
       ...(pl.list_key || pl.list_id ? { policy_class: pl.policy_class } : {}),
-      template_id: pl.template_id,
+      // A starter named and no message (A0): the route files the starter, then starts the playbook on it.
+      ...(pl.starter_key && !pl.template_id ? { starter_key: pl.starter_key } : { template_id: pl.template_id }),
       params: Array.isArray(pl.params) ? pl.params : [],
       run_hour: pl.run_hour,
       cap_per_run: pl.cap_per_run,
@@ -106,8 +143,13 @@ export const playbookSpec: ProposalSpec = {
       ...channelsNamed(pl),
     },
   }),
+  // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
   receipt: ({ payload: pl }, data) =>
-    `Playbook “${rec(data).name ?? asText(pl.name)}” is running — its next run is under Coming up in Campaigns`,
+    `Campaign “${rec(data).name ?? asText(pl.name)}” is running — its next run is under Coming up in Campaigns${
+      rec(rec(data).starter).status === "submitted"
+        ? " · its starter's WhatsApp version is with WhatsApp for review"
+        : ""
+    }`,
   undo: {
     label: () => "Delete it — nothing will run",
     window: "ten_minutes",
@@ -115,7 +157,15 @@ export const playbookSpec: ProposalSpec = {
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
     receipt: () => "Deleted — nothing will run",
   },
-  open: () => "outbound",
+  // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
+  // commit kept for the undo, as the list card opens the list it made; before then the composer on its moment, where the
+  // whole of it can be set by hand ("Open in the composer"), and the home where the card names no moment.
+  open: ({ payload }, outcome) => {
+    const id = idIn(rec(outcome?.undo), "playbook_id");
+    if (id) return `campaigns/moment:${id}`;
+    const trigger = idIn(payload, "trigger");
+    return trigger ? `campaigns/new:moment:${trigger}` : "outbound";
+  },
 };
 
 /** The channels a payload names, in the product's order: what a card's commit and its receipt read; none where it names none. */
@@ -143,13 +193,15 @@ export const playbookChannelsSpec: ProposalSpec = {
   // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
   // after it that the run which waits keeps the channels it was made with, where one does.
   receipt: ({ payload: pl }) =>
-    LIFECYCLE_TOAST.channels(asText(pl.name) || "The playbook", channelsIn(pl.channels), pl.run_waits === true)
+    LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true)
       .map((part) => (typeof part === "string" ? part : part.b))
       .join(""),
   undo: {
     label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
     window: "ten_minutes",
-    record: (p) => ({ playbook_id: p.payload.playbook_id, was: p.payload.was }),
+    // The channels the route found when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => ({ playbook_id: p.payload.playbook_id, was: wasIn(data, "channels") ?? p.payload.was }),
     call: (u) => {
       const was = channelsIn(u.was);
       return was.length === 0 || !asText(u.playbook_id)
@@ -159,6 +211,80 @@ export const playbookChannelsSpec: ProposalSpec = {
     receipt: () => "Its channels are as they were",
   },
   // Its drawer on Campaigns' home, where the Goes by row shows what it goes by now.
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  },
+};
+
+/** What a change card's commit sends: the fields it changes, and nothing else of the playbook. */
+const patchIn = (pl: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== undefined && pl[k] !== null).map((k) => [k, pl[k]]));
+
+/**
+ * The undo of a pause: it resumes the campaign under its class's mode, so where the card read that mode as `auto` it says
+ * in full that the campaign sends on its own, in the Resume ask's own sentence (LIFECYCLE_WORDS.ledger.resume.auto,
+ * decision 7). Any other mode adds nothing, and a card made where the mode could not be read (`mode` null) claims none.
+ */
+const resumeUndoLabel = (mode: unknown): string =>
+  mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
+
+/** One of the drawer's sentences (LIFECYCLE_TOAST) as a receipt's words. */
+const toastWords = (parts: ReturnType<typeof LIFECYCLE_TOAST.changed>): string =>
+  parts.map((part) => (typeof part === "string" ? part : part.b)).join("");
+
+/**
+ * A playbook changed in place from a card (the moment spec §4.9 A5): paused, resumed, renamed, or a new hour, cap, gap or
+ * cadence. The commit is the playbook's own PUT with what changes ALONE: the server judges it against the playbook as it
+ * stands then (core checkPlaybookPatch) and writes it with its line in the ledger (change_playbook), so a card approved
+ * after somebody edited the playbook puts nothing of an older copy back. Its undo is the same PUT with what the route
+ * found (`was`), never the card's reading. A pause leaves a run that waits waiting (D8): the card said so, and a skip is
+ * a second card. Its receipt is the drawer's sentence: paused, resumed or changed.
+ */
+export const playbookChangeSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    const body = patchIn(pl);
+    if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return { route: "PUT playbooks/[id]", params: { id }, body };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(rec(data).name ?? pl.name ?? pl.playbook_name) || LIFECYCLE_TOAST.nameless;
+    if (pl.state === "paused") return toastWords(LIFECYCLE_TOAST.paused(name));
+    if (pl.state === "running") return toastWords(LIFECYCLE_TOAST.resumed(name));
+    return toastWords(LIFECYCLE_TOAST.changed(name));
+  },
+  undo: {
+    label: ({ payload }) =>
+      payload.state === "paused"
+        ? resumeUndoLabel(payload.mode)
+        : payload.state === "running"
+          ? "Pause it again"
+          : "Put it back",
+    window: "ten_minutes",
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
+    // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody
+    // made the same change first) answers it empty: no undo, which would undo theirs.
+    record: (p, data) => {
+      const was = rec(data).was;
+      if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
+      return {
+        playbook_id: p.payload.playbook_id,
+        was: was && typeof was === "object" ? was : p.payload.was,
+        decision_id: decisionOf(data),
+      };
+    },
+    call: (u) => {
+      const was = patchIn(rec(u.was));
+      return !asText(u.playbook_id) || Object.keys(was).length === 0
+        ? refuseWith(PROPOSAL_WORDS.noUndo)
+        : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };
+    },
+    receipt: () => "It is as it was",
+  },
+  // Its drawer on Campaigns, where its state, clock and name are.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
     return id ? `campaigns/moment:${id}` : "outbound";

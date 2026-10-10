@@ -556,7 +556,7 @@ test("the words in the Inbox's search come back after a refresh, in this tab onl
       }),
     );
   };
-  const box = (tree) => find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input");
+  const box = (tree) => find(tree, (n) => n.props?.["data-testid"] === "inbox-search");
   try {
     box(draw()).props.onChange({ target: { value: "friday" } });
     assert.equal(box(draw()).props.value, "friday", "a refresh brings the words back");

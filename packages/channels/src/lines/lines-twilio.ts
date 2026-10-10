@@ -29,7 +29,11 @@ export type TwilioHttp = (
 const API = "https://api.twilio.com/2010-04-01";
 const TRUNKING = "https://trunking.twilio.com/v1";
 const MESSAGING = "https://messaging.twilio.com/v1";
-const TWILIO_TIMEOUT_MS = 15000;
+/**
+ * The longest one call to Twilio waits unless its caller says: a text's send is one try under it, and the job runner
+ * starts one only while it still ends inside its function (jobs ledger startByAt).
+ */
+export const TWILIO_TIMEOUT_MS = 15000;
 
 export const twilioUrls = {
   subaccounts: `${API}/Accounts.json`,

@@ -165,7 +165,7 @@ export const campaignDto = () => ({
 export const CALENDAR = { calendar: "ok", days: 7, asked: 8, booked: 3 };
 
 /** Deals as the bridge publishes them where deals are off or none was ever recorded: the section is not drawn. */
-export const NO_DEALS = toDealReportVM(null, "7 days");
+export const NO_DEALS = toDealReportVM(null, "in the last 7 days");
 /** A report as the route answers it (dealReport, 0008), for the bridge's own view model: the round trip. */
 export const dealsDto = (over = {}) => ({
   any: true,
@@ -198,7 +198,7 @@ export const DEALS = toDealReportVM(
     ],
     reasons: [{ reason: "price", count: 1 }],
   }),
-  "7 days",
+  "in the last 7 days",
 );
 /** `profile` is the workspace's hours as the surface reads them: null could not be read, `{}` was read and holds none. */
 export const surface = ({
@@ -216,6 +216,10 @@ export const surface = ({
     booking: toBookingReportVM(booking),
     deals,
     facts: reportFacts(vm, cm),
+    // What it is of, as the override publishes it (surfaces/reports/surface.ts): the range, its one name, and the
+    // period by name, which days a member picked have none of.
+    range: "7d",
+    key: "7d",
     period: "7d",
     days: 7,
     fetchedAt: 1,
@@ -369,5 +373,5 @@ export const reviewsDto = (over = {}) => ({
   ...over,
 });
 
-/** The Reviews read as the surface holds it (reviews-surface.ts): the fold of an answer, and the period it is of. */
-export const reviewsHeld = (dto, period = "7d") => ({ vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }), period });
+/** The Reviews read as the surface holds it (reviews-surface.ts): the fold of an answer, and the range it is of, by its one name. */
+export const reviewsHeld = (dto, key = "7d") => ({ vm: toReviewsReportVM(dto, { nowMs: REVIEWS_NOW }), key });

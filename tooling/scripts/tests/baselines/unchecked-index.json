@@ -21,7 +21,6 @@
   "apps/dashboard/src/server/ask/tools/act/thread-verb.ts": 1,
   "apps/dashboard/src/server/ask/tools/offer.ts": 1,
   "apps/dashboard/src/server/ask/tools/read/calls.ts": 4,
-  "apps/dashboard/src/server/ask/tools/read/settings.ts": 2,
   "apps/dashboard/src/server/ask/tools/read/threads.ts": 4,
   "apps/dashboard/src/server/ask/tools/registry.ts": 10,
   "apps/dashboard/src/server/ask/voice-door.ts": 5,
@@ -123,6 +122,5 @@
   "packages/core/src/leads/mark-image.ts": 19,
   "packages/core/src/leads/mark.ts": 3,
   "packages/core/src/leads/runner/mark-places.ts": 2,
-  "packages/core/src/leads/runner/rejudge.ts": 1,
-  "packages/core/src/leads/runner/start.ts": 4
+  "packages/core/src/leads/runner/rejudge.ts": 1
 }

@@ -3,7 +3,7 @@
  * decision 0015): plain functions of the page's state (`s`), called in the order JSX made them, so every component draws in
  * its place and keeps its state there.
  */
-import { canDo, gate, navigate } from "../../legacy-verbs";
+import { navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
@@ -22,6 +22,7 @@ import { PeopleStanding } from "../rail/standing";
 import { PeopleAddSheet, PeopleListActSheet } from "../sheets/list-sheets";
 import { AddPersonButton } from "../sheets/add-person";
 import { PeopleColumnsMenu } from "../table/columns-menu";
+import { PeopleFileActs } from "./file-acts";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
 import {
@@ -260,7 +261,7 @@ export function peopleAct(s: PeopleState) {
   );
 }
 
-/** A desktop's controls: the search, Import, the file of everyone, and the Columns menu (Add a person is the page's act). */
+/** A desktop's controls: the search, the Columns menu, and Import and Export as words (Add a person is the page's act). */
 function peopleDeskControls(s: PeopleState) {
   const {
     searchRef,
@@ -274,6 +275,7 @@ function peopleDeskControls(s: PeopleState) {
     exportName,
     colOptions,
     pickColumn,
+    layout,
   } = s;
   return (
     <div className="cl-controls">
@@ -284,36 +286,15 @@ function peopleDeskControls(s: PeopleState) {
       <div className="cl-controls-right">
         {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
-        <PeopleColumnsMenu options={colOptions} onPick={pickColumn} />
-        {/* The canvas (P1) folds the file acts under one ⋯ after Columns: Import (a client list as a file, read in the
-            browser, counted, then written in parts of fifty, import/import-sheet.tsx), and Export CSV (everyone, from
-            the route: owner only) with its gate or the reason it is held. */}
-        <Menu
-          label="More"
-          trigger={moreButton({ title: "More", testid: "people-file-menu" })}
-          groups={menuGroups([
-            ...(canExport ? [{ label: "Import", icon: "download", onClick: () => setImportOpen(true) }] : []),
-            !canDo("export")
-              ? { label: "Export CSV", icon: "external", gate: gate("export") }
-              : exportBlocked
-                ? // A list that can't be counted has no file to take, and the item says why when it is pressed (the reason is
-                  // contracts' own: a list's unknown words, or the list that isn't here), not only on hover.
-                  {
-                    label: "Export CSV",
-                    icon: "external",
-                    title: exportBlocked,
-                    onClick: () => plFlash({ msg: exportBlocked }),
-                  }
-                : {
-                    label: "Export CSV",
-                    icon: "external",
-                    title: exportName
-                      ? `Download the people on ${exportName} as a CSV file`
-                      : "Download everyone as a CSV file",
-                    // The route answers as an attachment, so the page stays where it is (as Leads' export does).
-                    onClick: () => window.open(exportHref, "_self"),
-                  },
-          ])}
+        <PeopleColumnsMenu options={colOptions} onPick={pickColumn} layout={layout} />
+        {/* The file acts stand beside Columns as words: Import and Export (file-acts.tsx). */}
+        <PeopleFileActs
+          canImport={canExport}
+          onImport={() => setImportOpen(true)}
+          exportBlocked={exportBlocked}
+          exportHref={exportHref}
+          exportName={exportName}
+          flash={plFlash}
         />
       </div>
     </div>
@@ -333,6 +314,7 @@ function peopleScroll(s: PeopleState) {
     listStep,
     rowBudget,
     columns,
+    layout,
     cellCtx,
     canEditLists,
     canExport,
@@ -410,6 +392,7 @@ function peopleScroll(s: PeopleState) {
         }}
         scrolled={scrolledX}
         onScrolled={setScrolledX}
+        layout={layout}
         busy={searching}
         empty={peopleTableEmpty(s)}
       />
@@ -552,6 +535,7 @@ export function peopleScreen(s: PeopleState) {
     bulkSheet,
     setBulkSheet,
     shownIds,
+    fileColumns,
     addOpen,
     addDraft,
     setAddDraft,
@@ -621,6 +605,7 @@ export function peopleScreen(s: PeopleState) {
             sheet={phone ? bulkSheet : null}
             onSheet={setBulkSheet}
             onSelectAll={() => setSel(new Set(shownIds))}
+            fileColumns={fileColumns}
           />
         )}
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under), last in the tree. Its switch is

@@ -70,8 +70,48 @@ const both = (harbor, bayside) => [
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
 const inA = `?workspace=${A}`;
+/**
+ * `record_deal` (00357) over a test's own `deal_record`, for a database in memory: the door as the test fakes it,
+ * called with what the move names under the door's own argument names, then the record_deal decision as the caller's,
+ * written to `tables.decisions` with the fields the function writes; the door's answer with the decision's id beside
+ * it. A move the door refuses leaves no decision, as the function's one transaction does.
+ */
+const withDealDoor = (tables, rpcs) =>
+  !rpcs.deal_record
+    ? rpcs
+    : {
+        ...rpcs,
+        record_deal: (a) => {
+          const door = rpcs.deal_record({
+            p_contact_id: a.p_contact_id,
+            p_stage: a.p_stage,
+            ...Object.fromEntries(Object.entries(a.p_move ?? {}).map(([k, v]) => [`p_${k}`, v])),
+          });
+          if (!door || door.error || !door.deal) return door;
+          const decisions = (tables.decisions ??= []);
+          const decision = {
+            id: `decision-${decisions.length + 1}`,
+            tenant_id: (tables.contacts ?? []).find((c) => c.id === a.p_contact_id)?.tenant_id ?? null,
+            subject_type: "deal",
+            subject_id: door.deal.id,
+            verb: "record_deal",
+            actor_type: "user",
+            actor_user_id: USER,
+            payload: {
+              contact_id: a.p_contact_id,
+              stage: a.p_stage,
+              from: door.from ?? null,
+              service: door.deal.service ?? null,
+              ...(a.p_via ? { via: a.p_via } : {}),
+            },
+            undo_of: a.p_undo_of ?? null,
+          };
+          decisions.push(decision);
+          return { ...door, decision_id: decision.id, undo_dropped: false };
+        },
+      };
 const ctxFor = (tables, params = {}, rpcs = {}) => ({
-  supabase: fakeDb(tables, {}, rpcs),
+  supabase: fakeDb(tables, {}, withDealDoor(tables, rpcs)),
   userId: USER,
   email: "ada@example.com",
   params,
@@ -487,9 +527,11 @@ test("an erasure hands the Ask scrub, the kept deliveries' scrub and the notes' 
   );
 });
 
-test("details: an operator where the person lives, a name or notes or both, trimmed, through the two doors; an erased person is a 404", async () => {
+test("details: an operator where the person lives, a name or notes or both, trimmed, through the two doors, the answer saying what the name was; an erased person is a 404", async () => {
   const doors = [];
   const rpcs = {
+    // The person as they stand before the name's door runs (people_list narrowed to them): what the answer says it was.
+    people_list: (a) => [{ id: a.p_contact_id, display_name: "Ada L.", email: null }],
     set_person_name: (a) => {
       doors.push(["name", a]);
       return { name: a.p_name || null };
@@ -520,7 +562,8 @@ test("details: an operator where the person lives, a name or notes or both, trim
     send("PUT", { name: "  Ada Lovelace  ", notes: " Sees Sofia " }),
     ctxFor(tables, { id: P2 }, rpcs),
   );
-  assert.deepEqual(out, { contact_id: P2, name: "Ada Lovelace", notes: "Sees Sofia" });
+  // What the name was rides back, for an undo that puts back what was there at this write; notes carry none.
+  assert.deepEqual(out, { contact_id: P2, name: "Ada Lovelace", notes: "Sees Sofia", was: { name: "Ada L." } });
   assert.deepEqual(doors, [
     ["name", { p_contact_id: P2, p_name: "Ada Lovelace" }],
     ["notes", { p_contact_id: P2, p_notes: "Sees Sofia" }],
@@ -532,7 +575,13 @@ test("details: an operator where the person lives, a name or notes or both, trim
 test("details: an email address is judged by the one normalizer before the door opens, stored in its spelling, cleared by an empty string, and the door's own refusal for a second person with it is a 409 in the owner's words", async () => {
   const doors = [];
   const taken = { code: "23505", message: "Another person here already has that address." };
+  let onFile = "old@example.com";
   const rpcs = {
+    // The person as they stand before the address's door runs: read after the address is judged, never before.
+    people_list: (a) => {
+      doors.push("read");
+      return [{ id: a.p_contact_id, display_name: null, email: onFile }];
+    },
     set_person_email: (a) => {
       doors.push(a);
       if (a.p_email === "taken@example.com") {
@@ -562,13 +611,22 @@ test("details: an email address is judged by the one normalizer before the door 
     });
   }
   assert.equal(doors.length, 0, "no door was opened for a refusal");
-  assert.deepEqual(await put({ email: "  Ana@Example.COM " }), { contact_id: P2, email: "ana@example.com" });
+  assert.deepEqual(await put({ email: "  Ana@Example.COM " }), {
+    contact_id: P2,
+    email: "ana@example.com",
+    was: { email: "old@example.com" },
+  });
   assert.deepEqual(
     doors,
-    [{ p_contact_id: P2, p_email: "ana@example.com" }],
-    "the door is handed the stored spelling, not the typed one",
+    ["read", { p_contact_id: P2, p_email: "ana@example.com" }],
+    "what it was is read first, then the door is handed the stored spelling, not the typed one",
   );
-  assert.deepEqual(await put({ email: "" }), { contact_id: P2, email: null }, "an empty string clears");
+  onFile = "ana@example.com";
+  assert.deepEqual(
+    await put({ email: "" }),
+    { contact_id: P2, email: null, was: { email: "ana@example.com" } },
+    "an empty string clears, and the answer says what it held",
+  );
   await assert.rejects(put({ email: "taken@example.com" }), (e) => {
     assert.equal(e.code, "conflict");
     assert.equal(e.status, 409);
@@ -922,6 +980,45 @@ test("everyone is read a page at a time, each just past the last row's place, an
     { p_tenant_id: A, p_offset: 1000 },
     { p_tenant_id: A, p_offset: 2000 },
   ]);
+});
+
+test("each person's receptionist mode past a thousand people with one of their own, and the workspace's wherever its row was written: the policies are read a page at a time", async () => {
+  const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
+  const world = kept(1500);
+  const polId = (i) => `99999999-0000-4000-8000-${String(i).padStart(12, "0")}`;
+  // 1,100 people with a mode of their own, written before the workspace's own row: one select answers a thousand rows
+  // (PostgREST's max_rows), which held neither the workspace's row nor the last hundred people's.
+  const policies = [
+    ...Array.from({ length: 1100 }, (_, i) => ({ id: polId(i + 1), ...pol(A, "contact", world.idOf(i + 1), "never") })),
+    { id: polId(5000), ...pol(A, null, null, "veto") },
+  ];
+  const tables = {
+    memberships: both("owner", "owner"),
+    policies,
+    tenants: [],
+    tenant_config: [],
+    contacts: world.contacts,
+  };
+  const modes = new Map(
+    (await everyone(ctxFor(tables, {}, { people_list: world.people_list }), A)).map((p) => [
+      p.id,
+      p.effective_reply_mode,
+    ]),
+  );
+  assert.equal(modes.get(world.idOf(1)), "never", "their own");
+  assert.equal(modes.get(world.idOf(1050)), "never", "their own, past the thousandth row");
+  assert.equal(modes.get(world.idOf(1200)), "veto", "the workspace's, for someone with none of their own");
+  // People's own page reads them the same way.
+  const second = await contacts.GET.run(
+    get(`${inA}&offset=1000`),
+    ctxFor(tables, {}, { people_list: kept(1500, { places: false }).people_list }),
+  );
+  const onPage = new Map(second.people.map((p) => [p.id, p.effective_reply_mode]));
+  assert.deepEqual(
+    [onPage.get(world.idOf(1050)), onPage.get(world.idOf(1200))],
+    ["never", "veto"],
+    "on the page past the first",
+  );
 });
 
 test("the receptionist's mode for many: owners, ours and not erased, the same policy row and ledger verb per person", async () => {
@@ -1685,7 +1782,7 @@ test("deal: the door answers the deal the person's People row shows now -- an op
   // Their deals could not be read: the write still answers, with no row to move until People is read again.
   const faulty = {
     ...ctxFor(tables, { id: P2 }, rpcs),
-    supabase: fakeDb(tables, { "deals.select": { message: "statement timeout" } }, rpcs),
+    supabase: fakeDb(tables, { "deals.select": { message: "statement timeout" } }, withDealDoor(tables, rpcs)),
   };
   out = await deal.POST.run(send("POST", { stage: "won", deal_id: D2, version: 2, amount_cents: 70_000 }), faulty);
   assert.deepEqual([out.deal.id, out.current], [D2, null]);

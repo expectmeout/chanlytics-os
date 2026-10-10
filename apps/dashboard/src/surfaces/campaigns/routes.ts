@@ -7,7 +7,7 @@
  * its rooms, Sent (the shell's `broadcasts`) and the Library (`messages`, the path's `templates`); the old Playbooks list,
  * `outbound`, lands on the home (contracts doorOf). Every crumb's first word, Campaigns, goes back to the home.
  */
-import { CAMPAIGN_ROOMS } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { parseHome } from "./home/address";
 
@@ -27,11 +27,12 @@ export function campaignsChrome({ param }: { param: string | null }): { crumbs: 
   const playbooks = surfaceValue("playbooks");
   const chains = surfaceValue("reach_outs");
   const rows = playbooks ? playbooks.rows : [];
-  // A playbook's name, or a reach-out's, once the surfaces hold it: an address names either by its id.
+  // A playbook's name, or a reach-out's, once the surfaces hold it: an address names either by its id. Before, the word
+  // the drawer's head says of a campaign the page does not hold yet.
   const nameOf = (id: string): string =>
     rows.find((p) => p.id === id)?.name ??
     (Array.isArray(chains) ? chains : []).find((c) => c.root_id === id)?.name ??
-    "Playbook";
+    LIFECYCLE_WORDS.ledger.kicker;
   const open = at.moment;
   const named = open ? nameOf(open) : null;
   const editing = at.compose && at.compose.mode === "every" ? at.compose.edit : null;

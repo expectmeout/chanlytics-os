@@ -24,7 +24,8 @@ import { GET_YES_HASH, expectLeaksWellFormed, expectQrInView } from "../signals"
  * The send screen says it too: nobody on the audience it opens on has said yes
  * to offers. The send has been its own screen since #758 and the QR's card is on
  * the ledger, so its "the phrase and QR below" pointed at nothing. Its door
- * closes the send and lands on the QR.
+ * closes the send and lands on the QR. Where no channel ticked can carry the
+ * message at all, the line says that and is no door.
  */
 async function sendScreenDoorLandsOnTheQr(page: Page): Promise<void> {
   await page.goto("/#/broadcasts");
@@ -34,7 +35,23 @@ async function sendScreenDoorLandsOnTheQr(page: Page): Promise<void> {
   const nobody = page.getByTestId("bc-nobody");
   await expect(nobody).toBeVisible();
   await expect(nobody).not.toContainText("below");
-  await nobody.getByRole("button", { name: /get their yes/i }).click();
+  const door = nobody.getByTestId("bc-nobody-door");
+  if (!(await door.count())) {
+    // Since a message goes by the channels it ticks, the line says first when none of them can carry this message
+    // (an offer to US numbers while Meta holds marketing there, a text, which carries no offers, email before its
+    // campaigns domain): a yes would change nothing, so the line is no door, and each channel says why beside its
+    // tick. The suite's workspace is in that state while Meta's hold lasts; the door itself is run in the node suite
+    // (broadcasts.test.mjs), and Today's and People's doors to the same QR are pressed above.
+    await expect(nobody).toHaveText(/None of the channels ticked can carry this message yet/);
+    // The row says why, for each channel that cannot carry it (under its tick on a touch screen, on hover and to a
+    // screen reader on a desk: the words are in the row either way).
+    const whys = page.getByTestId("bc-via").locator(".cm-sr");
+    await expect(whys.first()).toBeAttached();
+    await expect(whys.first()).not.toBeEmpty();
+    return;
+  }
+  await expect(door).toHaveText(/get their yes/i);
+  await door.click();
   await expect(page.getByTestId("bc-composer")).toHaveCount(0);
   await expectQrInView(page);
 }
@@ -93,7 +110,9 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     await expectQrInView(page);
   });
 
-  test("the send screen's 'nobody has said yes' is a door that closes it and lands on the QR", async ({ page }) => {
+  test("the send screen's 'nobody' line is a door that lands on the QR, or says no channel can carry the message", async ({
+    page,
+  }) => {
     await sendScreenDoorLandsOnTheQr(page);
   });
 
@@ -108,7 +127,9 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
       await expectQrInView(page);
     });
 
-    test("the send screen's door lands the QR on the phone's screen too", async ({ page }) => {
+    test("the send screen's line does the same on a phone: the QR on its screen, or why nothing can be sent", async ({
+      page,
+    }) => {
       await sendScreenDoorLandsOnTheQr(page);
     });
   });

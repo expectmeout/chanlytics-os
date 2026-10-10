@@ -7,7 +7,7 @@
 import { emitEvent } from "../packages/db.js";
 import { listReviews, planProfileSync, reviewParent, type PlacesHttp } from "../packages/channels.js";
 import { autoReplyBell, lensRoute, localDate, type EdgeRefusal } from "../packages/contracts.js";
-import { recordNotification } from "../ops/notify.js";
+import { keepAndPush, recordNotification } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
 import { http } from "./places.js";
@@ -128,8 +128,9 @@ export async function syncProfile(
     .update({ last_synced_at: plan.synced_at, sync_error: null, reviews_complete: plan.complete })
     .eq("tenant_id", conn.tenant_id);
   if (done.error) throw new Error(done.error.message);
+  // A new review reaches the phones too (decision 0040); what the receptionist answered is the bell's line alone.
   for (const b of plan.bells) {
-    await recordNotification(conn.tenant_id, {
+    await keepAndPush(conn.tenant_id, {
       kind: "review",
       title: b.title,
       body: b.body,

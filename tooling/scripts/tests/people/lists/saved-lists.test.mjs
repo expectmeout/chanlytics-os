@@ -174,6 +174,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
       q: "",
       sortBy: "last",
       sortDir: "desc",
+      columns: PL_COLUMNS,
     })
       .map((r) => r.id)
       .sort();
@@ -316,4 +317,12 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   assert.equal(peoplePages.__listRoute, plListRoute, "the People page owns where a list's route lands");
   // The rest is behaviour, tested as such: the shell landing segments/<id> on People (shell-status.test.mjs), no
   // Lists tab on a real workspace (shell-status), a kept list's door and sentence (people-honest).
+});
+
+test("a list archived instead of deleted says why in the reader's words: a campaign runs on it, never a playbook (decision 19)", async () => {
+  const { plArchivedWords } = await importSrc("apps/dashboard/src/surfaces/people/lists/doors.tsx");
+  assert.equal(
+    textOf(plArchivedWords("VIP", { paused: [], readBy: [] })),
+    "VIP is archived, not deleted: a campaign runs on it. It comes back from Archived under your lists.",
+  );
 });

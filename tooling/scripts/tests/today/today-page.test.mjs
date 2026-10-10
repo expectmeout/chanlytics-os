@@ -27,6 +27,7 @@ import {
   stateOf,
   leadQuestionRoute,
   lensRoute,
+  LIFECYCLE_WORDS,
 } from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -259,6 +260,11 @@ const calls = () => [
   }),
 ];
 const busy = () => toTodayVM(metrics(), threads(), escalations(), calls(), NOW);
+/**
+ * The playbooks surface with no playbook, as the app publishes it: its rows, and its shape (9 Oct 2026), whose word the
+ * day's reminders say.
+ */
+const noPlaybooks = () => ({ rows: [], shape: { calendar: "feed", dealsOn: false, word: "appointment" } });
 const quietDay = () =>
   toTodayVM(
     metrics({
@@ -873,7 +879,7 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   set({ __BROADCASTS: undefined });
   failed.add("broadcasts");
   const broke = draw(AgentCommand);
-  assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the playbook runs/);
+  assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the campaign runs/);
   // `rows` above counted the two run rows too (they are AttnRows as well); the runs are a FailedRead now, so what must stand is the queue's own.
   assert.equal(
     all(broke, (n) => classes(n).includes("cl-attn-row")).length,
@@ -907,8 +913,10 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
   assert.equal(buttons(reach, "Approve").length, 0, "no one-tap send of a reach-out from Today");
   assert.equal(buttons(reach, "Open").length, 1, "the row opens the run");
   assert.equal(buttons(reach, "See who's on it").length, 0, "one door, not the same door twice");
-  // A playbook's run keeps its Approve, as before.
+  // A playbook's run keeps its Approve, as before, in the one word every screen says for it (decision 19): with its count.
   assert.equal(buttons(playbook, "Approve").length, 1);
+  assert.equal(textOf(buttons(playbook, "Approve")[0]), LIFECYCLE_WORDS.ledger.approve(3));
+  assert.equal(textOf(buttons(playbook, "Approve")[0]), "Approve · 3 people");
   assert.deepEqual(approvals, [], "nothing was approved by drawing the card");
 });
 
@@ -961,7 +969,7 @@ test("a waiting run whose day has passed is opened from the queue, never approve
   const waiting = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
   assert.equal(buttons(waiting, "Approve").length, 0, "REGRESSION: Approve over a run the verb refuses");
   const w = todayRunWords(rows[0]);
-  assert.deepEqual([w.late.meta, w.late.status], ["Playbook · too late to approve", ["Too late to approve"]]);
+  assert.deepEqual([w.late.meta, w.late.status], ["Campaign · too late to approve", ["Too late to approve"]]);
   const said = textOf(waiting);
   assert.ok(said.includes(w.late.status[0]) && said.includes("that day has passed"), said);
   assert.ok(!said.includes(w.waiting.sentence), "and not that nothing sends until you say so");
@@ -1078,7 +1086,7 @@ test("the day listens for People too: it reads People for a visit that needs som
   // the card drew once with the calendar and never again, so the flag and the glyphs a person's row carries were
   // missing until something else redrew it.
   clear();
-  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
   draw(TodayDay);
   for (const key of ["calendar", "playbooks", "people"]) {
     quiet();
@@ -1094,7 +1102,7 @@ test("the day listens for People too: it reads People for a visit that needs som
 test("each band of Today is drawn again when a surface it draws from lands, and by no other's", () => {
   // The shell drew whole on every surface's read; a band now names the surfaces it draws (useSurface) and moves on those.
   clear();
-  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
   const bands = [
     ["the alert line", HeroBrief, ["today"]],
     ["the day's card", TodayCard, ["today", "reports_headline"]],
@@ -1124,7 +1132,7 @@ test("the day: five rows and a line to the Calendar; a failed calendar read says
   set({
     today: busy(),
     __CALENDAR: calendar([8, 9, 10, 11, 13, 14, 17].map((h) => block(`b${h}`, h, `Slot ${h}`))),
-    __PLAYBOOKS: { rows: [] },
+    __PLAYBOOKS: noPlaybooks(),
   });
   const tree = draw(TodayDay);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "today-day-item").length, 5);
@@ -1145,7 +1153,7 @@ test("a calendar it HAS and could not read says so where the day goes: the feed'
   clear();
   const c = calendar([]);
   c.vm.feed = { ...c.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
-  set({ today: busy(), __CALENDAR: c, __PLAYBOOKS: { rows: [] } });
+  set({ today: busy(), __CALENDAR: c, __PLAYBOOKS: noPlaybooks() });
   const card = byTestId(draw(TodayDay), "today-day-unreadable");
   // REGRESSION: this returned null. A working day and a broken feed drew exactly the same thing — nothing —
   // so a bad calendar address survived two rounds of being looked straight at.
@@ -1201,7 +1209,7 @@ test("the steps due at the head of the day: three at most, the oldest first, eac
   const clock = W.__clock;
   W.__clock = { ...clock, zone: () => ZONE };
   try {
-    set({ today: busy(), __PLAYBOOKS: { rows: [] }, __PEOPLE: { rows, fetchedAt: nowMs } });
+    set({ today: busy(), __PLAYBOOKS: noPlaybooks(), __PEOPLE: { rows, fetchedAt: nowMs } });
     const want = todaySteps(rows, nowMs, ZONE);
     const alone = byTestId(draw(TodayDay), "today-day-steps");
     assert.ok(alone, "no calendar: the panel is the steps alone");
@@ -1624,8 +1632,10 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
     bellRow("needs:th-cv-a", "needs_you", "Ana Reyes needs you", "warn"),
     bellRow("call:k3", "missed_call", "Missed call · +1 (347) 555-0188", "warn", null, "conversations/cv-k3"),
     bellRow("n:1", "review", "1 new rating on Google", "ok"),
-    // The run the queue holds for a word, said again by the bell: the fifth queue kind the away card hides.
+    // The run the queue holds for a word, said again by the bell: the fifth queue kind the away card hides. The bell says
+    // "Campaign" (decision 19); a row kept before that says "Playbook", and is the queue's too.
     bellRow("n:2", "playbook", "Playbook “Win-back” is ready: 3 people", "ok", null, "outbound"),
+    bellRow("n:3", "playbook", "Campaign “Win-back” is ready: 3 people", "ok", null, "outbound"),
   ];
   const api = {
     feed: () => rows,
@@ -1650,10 +1660,10 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
     ["1 new rating on Google"],
     "the handoff's row and the missed call are the queue's",
   );
-  assert.equal(textOf(find(tree, (n) => classes(n).includes("tq-count"))).trim(), "4", "the bell's own number");
+  assert.equal(textOf(find(tree, (n) => classes(n).includes("tq-count"))).trim(), "5", "the bell's own number");
   assert.match(
     textOf(find(tree, (n) => classes(n).includes("tq-foot"))),
-    /3 more in the bell, already in the queue above/,
+    /4 more in the bell, already in the queue above/,
   );
   assert.ok(buttons(tree, "Mark all read").length === 1);
   W.__DEMO_MODE = false;
@@ -1680,7 +1690,7 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
       __PEOPLE: people(),
       __BROADCASTS: broadcasts(),
       __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-      __PLAYBOOKS: { rows: [] },
+      __PLAYBOOKS: noPlaybooks(),
       __clock: W.__clock,
       __notifs: bell,
     },
@@ -1723,7 +1733,7 @@ test("the page is its bands and nothing seeded", () => {
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-    __PLAYBOOKS: { rows: [] },
+    __PLAYBOOKS: noPlaybooks(),
     __notifs: { feed: () => [], onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {}, unread: () => 0 },
   });
   W.__DEMO_MODE = true;
@@ -1925,6 +1935,49 @@ test("Glass brief: Listen reads the brief's own words in Ask's voice, says it is
   }
 });
 
+test("Glass brief: a mouse gone down on Listen asks for the brief's clips before the click lands; a finger going down, which may be a scroll beginning, asks nothing, nor does a press on Stop, nor a bridge that does not warm", () => {
+  clear();
+  set({ today: busy(), headline: headline() });
+  const s = speechStub();
+  const warmed = [];
+  s.stub.warmSpeech = (text, purpose) => warmed.push({ text, purpose });
+  W.__ask = s.stub;
+  globalThis.__ask = s.stub;
+  try {
+    fresh();
+    const tree = again(() => TodayBriefPane());
+    const listen = byTestId(tree, "today-brief-listen");
+    listen.props.onPointerDown({ pointerType: "touch", button: 0 });
+    listen.props.onPointerDown({ pointerType: "mouse", button: 2 });
+    assert.deepEqual(warmed, [], "a touch, or the mouse's other button, asks nothing");
+    listen.props.onPointerDown({ pointerType: "mouse", button: 0 });
+    assert.equal(warmed.length, 1);
+    assert.equal(warmed[0].purpose, "brief");
+    assert.ok(warmed[0].text.startsWith(textOf(byTestId(tree, "today-brief-line"))), "the words the click will read");
+    assert.equal(s.spoken.length, 0, "nothing read: that is the click's");
+    // While it reads, the button is Stop: a press going down on it asks for nothing.
+    press(listen);
+    s.land();
+    const playing = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    playing.props.onPointerDown({ pointerType: "mouse", button: 0 });
+    assert.equal(warmed.length, 1);
+    // A bridge from before the warm: the press still reads, and the pointer going down breaks nothing.
+    delete s.stub.warmSpeech;
+    s.stub.stopSpeaking();
+    const older = byTestId(
+      again(() => TodayBriefPane()),
+      "today-brief-listen",
+    );
+    assert.doesNotThrow(() => older.props.onPointerDown({ pointerType: "mouse", button: 0 }));
+  } finally {
+    delete W.__ask;
+    delete globalThis.__ask;
+  }
+});
+
 test("Glass brief: a clip that could not be made says why beside Listen, in the server's words, and nothing else speaks; the next press tries again", async () => {
   clear();
   set({ today: busy(), headline: headline() });
@@ -2091,7 +2144,7 @@ test("the bento (E3): the strip, the queue's column beside the brief and the bel
     __PEOPLE: people(),
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b9", 9, "Gloss")]),
-    __PLAYBOOKS: { rows: [] },
+    __PLAYBOOKS: noPlaybooks(),
     __notifs: emptyBell(),
   });
   const tree = draw(DashboardA);

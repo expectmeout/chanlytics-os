@@ -81,6 +81,7 @@ const LANE = {
 let db;
 let A;
 let user;
+let ownerSession;
 let root;
 let step;
 let search;
@@ -174,7 +175,7 @@ const tick = async (now = new Date()) => {
 };
 
 before(async () => {
-  if (skip) return;
+  if (skipSheet) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   stubProvider();
   lib = {
@@ -199,8 +200,12 @@ before(async () => {
     db.from("tenants").insert({ slug: `e2e-${stamp}`, name: "Harbor Moving Co", timezone: "America/Chicago" }),
   );
   const email = `owner-${stamp}@fixture-e2e.example`;
-  user = ok(await db.auth.admin.createUser({ email, password: `pw-${stamp}-Aa1!`, email_confirm: true })).user.id;
+  const password = `pw-${stamp}-Aa1!`;
+  user = ok(await db.auth.admin.createUser({ email, password, email_confirm: true })).user.id;
   ok(await db.from("memberships").insert({ tenant_id: A, user_id: user, role: "owner" }));
+  // The owner, signed in: an approval is the member's own door (approve_broadcast, 00353), never the service role's.
+  ownerSession = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  ok(await ownerSession.auth.signInWithPassword({ email, password }));
   ok(await db.from("billing_accounts").upsert({ tenant_id: A, mode: "direct", status: "active" }));
   ok(
     await db
@@ -335,7 +340,7 @@ before(async () => {
 });
 after(async () => {
   globalThis.fetch = realFetch;
-  if (skip) return;
+  if (skipSheet) return;
   if (A) ok(await db.from("tenants").delete().eq("id", A));
   if (user) await db.auth.admin.deleteUser(user);
 });
@@ -363,7 +368,7 @@ const due = async (runId) => {
 
 test(
   "a reach-out, end to end: planned, approved, claimed, sent, read, nudged, bounced, finished, held at its cap",
-  { skip },
+  { skip: skipSheet },
   async () => {
     // 1. The first step's run: planned whole, waiting for its owner, who is told.
     const customer = await leadOf(leads.customer);
@@ -384,8 +389,8 @@ test(
       JSON.stringify(told),
     );
 
-    // 2. Approved, with the dashboard's own ports; its sends made due.
-    const ctx = { supabase: db, userId: user, email: undefined, metadata: {} };
+    // 2. Approved, with the dashboard's own ports on the owner's session; its sends made due.
+    const ctx = { supabase: ownerSession, userId: user, email: undefined, metadata: {} };
     const approved = await lib.approveRun(lib.approveRunPorts(ctx, A), { row: run1, now: new Date() });
     assert.equal(approved.state, "scheduled");
     await due(run1.id);

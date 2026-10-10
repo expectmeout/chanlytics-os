@@ -4,7 +4,7 @@
  * asks and promises.
  */
 import { Fragment } from "react";
-import { CONSENT_CHANNELS, messageAboutOfTrigger } from "@chanlytics/contracts";
+import { CONSENT_CHANNELS, LIFECYCLE_WORDS, messageAboutOfTrigger } from "@chanlytics/contracts";
 import type { ApprovalVM, BroadcastDetailDto, BroadcastDto, PreviewVersions, RunPersonVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -305,7 +305,7 @@ function bcSheetActs(p: {
         <div className="bc-sheet-pair">
           {sheet.canSend && (
             <Button className="bc-second" onClick={() => sheet.onArm(true)} data-testid="bc-sheet-skip">
-              Skip this run
+              {LIFECYCLE_WORDS.ledger.skip}
             </Button>
           )}
           <Button className="bc-second" aria-expanded={seeAll} onClick={onSeeAll} data-testid="bc-sheet-see">
@@ -338,7 +338,7 @@ export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll }: BcSheetProp
     <div className="bc-sheet bc-approval" data-testid="bc-sheet">
       <div className="bc-sheet-body bc-approval-body">
         <div className="bc-sheet-sub">
-          Playbook · {hint} · {avm.goes}
+          Campaign · {hint} · {avm.goes}
         </div>
         {bcSheetReach(avm)}
         {says && bcSheetWords(says, avm)}

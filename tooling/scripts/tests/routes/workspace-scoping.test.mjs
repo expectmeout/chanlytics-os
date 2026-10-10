@@ -228,12 +228,15 @@ test("the server has the last word on which workspace is active", () => {
   );
 });
 
-test("switching workspace clears the cache before it reloads", () => {
+test("switching workspace clears and seals the cache before it reloads", () => {
   // sessionStorage holds real transcripts. Reloading without clearing would
-  // restore the previous business's rows under the new one's name.
+  // restore the previous business's rows under the new one's name; clearing
+  // without sealing let a read landing before the unload write them back.
+  // Run below, in "a workspace created a moment ago".
   const fn = surfaceData.slice(surfaceData.indexOf("export function switchWorkspace"));
+  assert.ok(fn.indexOf("sealSurfaceCache()") >= 0, "sealed, not only cleared");
   assert.ok(
-    fn.indexOf("clearSurfaceCache()") < fn.indexOf("window.location.assign"),
+    fn.indexOf("sealSurfaceCache()") < fn.indexOf("window.location.assign"),
     "the cache must be cleared BEFORE navigating away",
   );
 });
@@ -277,6 +280,12 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
   };
   try {
     const { switchWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+    const cache = await importSrc("apps/dashboard/src/legacy-bridge/surface-cache.ts");
+    // The workspace being left, read and cached, as a reload would paint it.
+    globalThis.window.INBOX_PROBE = { threads: ["harbor-moving's"] };
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    cache.flushSurfaceCache();
+    assert.ok(globalThis.sessionStorage.getItem("chanlytics.surfaces.v1"), "cached");
     switchWorkspace("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "glow-studio");
     assert.deepEqual(
       assigned,
@@ -287,6 +296,15 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
       globalThis.localStorage.getItem("chanlytics.workspace"),
       "glow-studio",
       "and the home returns to the slug, not the id",
+    );
+    assert.equal(globalThis.sessionStorage.getItem("chanlytics.surfaces.v1"), null, "the cache cleared before it left");
+    // A read lands before the page unloads: the runner persists it, as it persists every read, and the hide writes it.
+    cache.snapshotSurface("inbox", ["INBOX_PROBE"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    cache.flushSurfaceCache();
+    assert.equal(
+      globalThis.sessionStorage.getItem("chanlytics.surfaces.v1"),
+      null,
+      "REGRESSION: the workspace left had its rows written back into the tab it was leaving (the sign-out's defect 52)",
     );
   } finally {
     Object.assign(globalThis, saved);
@@ -332,7 +350,8 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // "Something went wrong" — a typo in a URL reading as a server fault.
     assert.match(guards, /export function requireUuid/);
     assert.match(guards, /"not_found"/);
-    for (const what of ["conversation", "contact", "message", "call", "list", "broadcast", "template", "playbook"])
+    // A playbook's loader says "campaign", the word its reader reads (decision 19 of 9 Oct 2026).
+    for (const what of ["conversation", "contact", "message", "call", "list", "broadcast", "template", "campaign"])
       assert.ok(
         verbsSrc.includes('requireUuid(id, "' + what + '")'),
         what + ": checked once at the chokepoint, its loader",

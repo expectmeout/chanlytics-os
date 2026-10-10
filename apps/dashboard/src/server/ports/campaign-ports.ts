@@ -9,10 +9,11 @@
  * Beside the writes, the reads a send is judged by: the message and the booking link, the audience pool (every person,
  * and a built-in or saved list over it) read once, in the workspace's own zone, and the WhatsApp number's health. A
  * release or a cancel puts the broadcast_send job on the ledger, or takes it off (schedule, cancelKindFor), and every
- * act is recorded as a decision.
+ * act is recorded as a decision: a broadcast's and an approval's in the door's own write, a cancel's after it.
  */
 import { AppError, parseTenantConfig } from "@chanlytics/contracts";
 import {
+  approveBroadcast,
   assembleBroadcast,
   campaignMonthSent,
   holdRecipients,
@@ -28,10 +29,12 @@ import type {
   TemplateValuesPorts,
 } from "@chanlytics/core";
 import type { RouteContext } from "../with-route";
+import { log, requestId } from "../log";
 import { changed } from "./core-ports";
 import { recordDecision } from "../verbs";
-import { cancelKindFor, schedule } from "../jobs";
+import { cancelKindFor } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
+import { storedConfigOf } from "../workspace/config-row";
 import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
 import { channelsReadyOf, channelsReadyOrNull, whatsappHealthOf } from "../campaigns/channels-ready";
@@ -41,26 +44,24 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
     // The message the version names, as every row the workspace holds of it on any channel (a message needs no WhatsApp row).
     message: (id) => messageVersionRowsOf(ctx.supabase, tenantId, { id }),
     bookingLink: async () => {
-      const { data } = await ctx.supabase
-        .from("tenant_config")
-        .select("config")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      return parseTenantConfig(data?.config ?? null)?.brain?.booking_link ?? null;
+      // A read that fails is no link, as it always was: the step that needs one says so.
+      const config = await storedConfigOf(ctx.supabase, tenantId).catch(() => null);
+      return parseTenantConfig(config)?.brain?.booking_link ?? null;
     },
   };
 }
 
 /**
- * The run, its people and its job, whole: the one SQL door (00282 assemble_broadcast). It puts the send job on the
- * ledger, which no session may, so it is the service role's, called here after the route's role check (the door) and
- * naming the person who asked; the function itself asks that every person, the template and the playbook are the
- * workspace's, as the insert policies asked of the session.
+ * The run, its people, its job and its decision, whole: the one SQL door (00282 assemble_broadcast, with its decision
+ * since 00381). It puts the send job on the ledger, which no session may, so it is the service role's, called here after
+ * the route's role check (the door) and naming the person who asked, whose decision the send is; the function itself
+ * asks that every person, the template and the playbook are the workspace's, as the insert policies asked of the
+ * session. The decision carries the request's `via` and the undo link it named, as recordDecision's did.
  */
 function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
   return {
-    assemble: (row, recipients, sendAt) =>
-      assembleBroadcast(serviceDb(), {
+    assemble: async (row, recipients, sendAt, decision) => {
+      const made = await assembleBroadcast(serviceDb(), {
         tenantId,
         run: {
           name: row.name,
@@ -92,7 +93,20 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
         },
         recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts, channel: r.channel })),
         sendAt,
-      }),
+        decision: decision
+          ? {
+              actor: decision.by.kind === "user" ? decision.by.userId : null,
+              payload: decision.payload,
+              via: ctx.via ?? null,
+              undoOf: ctx.undoOf ?? null,
+            }
+          : null,
+      });
+      // The undo named a decision this database does not hold (a card kept from a stale tab): the run stands without
+      // the link, and the log says which link was refused, as recordDecision's does.
+      if (made.undoDropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "send_broadcast" });
+      return { id: made.id, decisionId: made.decisionId };
+    },
     // The month's allowance, counted before anyone is enrolled (a function only the service role may call, so it is
     // the route's role check that stands in front of it), and those past it held the moment the run exists (core
     // campaigns/allowance.ts): the send's own check at the wire stays as the backstop. Counted in the month the run opens
@@ -142,7 +156,6 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
       ]);
       return { ready, health };
     },
-    record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
 }
 
@@ -151,30 +164,25 @@ export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRun
     timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
     // Under the session's own RLS, as the zone above is: a member reads their own workspace's row.
     paused: () => workspacePaused(ctx.supabase, tenantId),
-    release: (id, at) =>
-      changed(
-        ctx.supabase
-          .from("broadcasts")
-          .update({ state: "scheduled", scheduled_for: at.toISOString() })
-          .eq("id", id)
-          .eq("state", "pending_approval")
-          .select("id"),
-      ),
-    // Only a run still scheduled is put back, and the verb is told whether it was (a forbidden or failed UPDATE does not
-    // raise: it changes no row).
-    hold: (id) =>
-      changed(
-        ctx.supabase
-          .from("broadcasts")
-          .update({ state: "pending_approval" })
-          .eq("id", id)
-          .eq("state", "scheduled")
-          .select("id"),
-      ),
-    schedule: async (id, at) => {
-      await schedule(tenantId, "broadcast_send", at, { broadcast_id: id });
+    // The member's own door, on their own session (00353): the run released, its job written and the approval recorded
+    // as theirs together, so no service-role write and no put-back. The job carries the request it was approved in,
+    // as every job scheduled while a request is served does (jobs schedule.ts).
+    approve: async (id, at, o) => {
+      const request = requestId();
+      const done = await approveBroadcast(ctx.supabase, {
+        tenantId,
+        broadcastId: id,
+        sendAt: at,
+        job: o.job ? (request ? { request_id: request } : {}) : null,
+        decision: o.decision,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      });
+      // The undo named a decision this database does not hold (a card kept from a stale tab): the approval stands
+      // without the link, and the log says which link was refused, as recordDecision's does.
+      if (done?.undoDropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "send_broadcast" });
+      return done?.decisionId ?? null;
     },
-    record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
 }
 

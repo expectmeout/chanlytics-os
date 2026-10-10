@@ -8,7 +8,7 @@ import { csvCell, HELD_WORDS, stateOf } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { pageClock } from "@/legacy-bridge/zone";
-import type { PeopleRead } from "./types";
+import type { PeopleRead, TableColumn } from "./types";
 
 /** The states an address may still name (state:<x>). Needs you and Waiting on you are lists (decision 0009): their state address opens the list. */
 export const PL_TABS = ["new", "quiet", "active"];
@@ -45,22 +45,25 @@ const PL_OFFERS: Record<string, OffersSaid> = {
 export const offersOf = (marketing: string): OffersSaid => PL_OFFERS[marketing] ?? NOT_ASKED;
 
 /**
- * A selection as a CSV, in its own fixed columns, whatever the Columns menu shows: one cell as contracts spell it
- * (csvCell, the rule the route's export of everyone uses), both consent answers, nothing the schema does not hold.
+ * A file of the people shown, in the columns shown. Who they are always leads it (name, number, address) and so do
+ * whether they may be messaged (the consent, and the answer about offers, which are two), since a list taken out of the app is taken to be written to; after those,
+ * each column on the table that declares what it says in a file (`csv`), in the table's order.
  */
-export const plCsv = (rows: readonly PersonRowVM[]): string => {
-  const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];
+export const plCsv = (
+  rows: readonly PersonRowVM[],
+  columns: readonly Pick<TableColumn<PersonRowVM>, "key" | "csv">[],
+): string => {
+  const identity = ["name", "phone", "email", "offers"];
+  const shown = columns.flatMap((c) => (c.csv && !identity.includes(c.key) ? [c.csv] : []));
+  const head = ["Name", "Phone", "Email", "Consent", "Offers", ...shown.map((c) => c.head)];
   const lines = rows.map((p) =>
     [
       p.name,
       p.phone || "",
       p.email || "",
-      p.stateLabel,
-      p.lastContact.label,
       p.consent.label,
       offersOf(p.consent.marketing)[0],
-      p.nextVisit || "",
-      p.firstContact.label,
+      ...shown.map((c) => c.cell(p)),
     ]
       .map(csvCell)
       .join(","),
@@ -106,6 +109,7 @@ const PL_SORTED_BY: Record<string, string> = {
   last: "last contact",
   visits: "visits",
   offers: "offers",
+  calls: "calls",
 };
 export const plSortedBy = (by: string): string => (PL_SORTED_BY[by] ? `Sorted by ${PL_SORTED_BY[by]}` : "");
 
@@ -195,7 +199,7 @@ export const plFace = (p: {
 });
 
 /** What the search box says it finds, in both of its places: the desktop's placeholder and the phone's bar. */
-export const PL_SEARCH_LABEL = "Search by name or phone";
+export const PL_SEARCH_LABEL = "Search names, numbers and emails";
 
 /** Who the words in the box find, or null for no words, which finds everyone. */
 export const plMatcher = (

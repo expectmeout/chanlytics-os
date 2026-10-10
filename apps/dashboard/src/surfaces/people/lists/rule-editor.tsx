@@ -6,6 +6,7 @@
  */
 import { useState } from "react";
 import { FieldError } from "../../kit/field-error/field-error";
+import { focusAsDrawn } from "../../legacy-verbs";
 import { lists } from "../people-lists";
 import type { Flash, SavedList } from "../types";
 import type { ListDraftOf } from "../rail/new-list";
@@ -73,7 +74,7 @@ export function RuleEditor({ list, flash, onDone }: { list: SavedList; flash: Fl
       ) : (
         <div className="cl-rail-newlist">
           <input
-            autoFocus
+            autoFocus={focusAsDrawn()}
             value={words}
             placeholder="Describe who — “on WhatsApp, and quiet a month”"
             maxLength={300}

@@ -13,7 +13,15 @@ export {
 } from "./lead-searches";
 export type { SearchViewRow } from "./lead-searches";
 export { planFacts } from "./lead-plan-facts";
-export { setStage, bulkStage, checkAgain, eraseLead } from "./lead-work";
+export {
+  setStage,
+  bulkStage,
+  checkAgain,
+  eraseLead,
+  saidLeadKept,
+  saidLeadExcluded,
+  saidLeadPutBack,
+} from "./lead-work";
 export { draftFor } from "./lead-draft";
 export { suggestionsFor, setBusinessLine } from "./lead-suggestions";
 export { exportLeads } from "./lead-export";

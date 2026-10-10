@@ -36,6 +36,7 @@ export {
   CONSENT_PHRASE,
   CONSENT_PHRASE_ES,
   CONVERSATION_PHRASE,
+  CONVERSATIONAL_ASK_TITLE,
 } from "./consent-page";
 export type {
   ConsentPageFacts,

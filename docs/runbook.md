@@ -200,12 +200,7 @@ Pacific/Auckland": the whole suite twelve hours east, where a rule that reads th
 date with no zone, gives the wrong day. A test that reads the wall clock pins it (`t.mock.timers.enable({ apis:
 ["Date"], now })`), and one that builds an instant gives it its offset. **CI runs the two legs only when asked** (Ruben,
 1 Oct 2026: the suite took 27 minutes of every push): on a pull request labelled `suite` (adding the label starts
-`suite.yml`; a later push runs them in `ci.yml`), or by hand from the Actions tab (`workflow_dispatch`). Every other
-pull request runs the tests of what it changed (`tooling/scripts/checks/changed-tests.mjs`: the folders its paths name,
-the rules and ratchets always, the whole suite when the runner or a helper every test loads changed), and the nightly
-runs the whole suite. Every push still gets the typecheck, the lint, the dead-export and format checks, the build and
-the bundle; before a push, run the test files a change touches
-(`node tooling/scripts/checks/test.mjs <file>`, one per command) and the ratchets, never the whole suite on a laptop.
+`suite.yml`; a later push runs them in `ci.yml`), or by hand from the Actions tab (`workflow_dispatch`). Every other pull request runs the tests of what it changed (`tooling/scripts/checks/changed-tests.mjs`: the folders its paths name and the rules and ratchets always, never the whole suite: Ruben, 10 Oct 2026, a push is through CI in under ten minutes), and the nightly runs the whole suite. Every push still gets the typecheck, the lint, the dead-export and format checks, the build and the bundle, in jobs that run side by side. Before a push, `corepack pnpm check:local` runs on the committed branch what CI's lint, hygiene and tests jobs and its typecheck run, and stamps the tree it checked with an empty commit (`Checked-locally: <tree>`); pushed while main has not moved past the branch, CI runs the build and bundle alone (`tooling/scripts/checks/checked-locally.mjs`). Never the whole suite on a laptop.
 
 **What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
 per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
@@ -485,19 +480,23 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
 
 ## What CI proves
 
-| Workflow                                   | On                                                                                                | Proves                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`, Secret scan                      | every pull request and push to main                                                               | No secret in what the pull request adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `ci.yml`, Typecheck                        | same, and a merge queue's commit                                                                  | On a pull request, its title first (`tooling/scripts/checks/pr-title.mjs`); no production dependency with a high or critical advisory (`pnpm audit --prod`; one with no patched version anywhere is ignored by its GHSA under `auditConfig.ignoreGhsas` in a `pnpm-workspace.yaml`, until a fix ships) or under a licence we may not ship (`tooling/scripts/checks/licences.mjs`); `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; dead exports (knip); the formatting check; on a pull request the tests of what it changed (`tooling/scripts/checks/changed-tests.mjs`: the folders its paths name, the rules and ratchets always, the whole suite when the runner or a shared helper changed), and the whole node suite under the `suite` label; the dashboard builds the way Vercel builds it; the workspace route's bundle budget |
-| `ci.yml`, Mobile                           | every pull request, push to main and merge queue's commit                                         | The phone app's types, lint, Expo's doctor (the SDK's patch drift warns) and a Metro bundle for each platform                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `ci.yml`, Node suite, Pacific/Auckland     | a push to a pull request labelled `suite`, and by hand                                            | The node suite with the clock at UTC+12 or +13, where a rule that reads the viewer's zone gives the wrong day. Not required, and not a merge queue's; green since the tests lane (29 tests failed under it on 29 Sep 2026), so a failure fails the run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `ci.yml`, What landed keeps the title rule | every push to main                                                                                | Each commit the push landed: its subject keeps the title rule and carries its `(#N)`, and it is not a merge commit. A break opens an issue, since what landed cannot be undone                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `suite.yml`, Node suite on the label       | the `suite` label added to a pull request                                                         | The whole node suite once, in UTC and in Pacific/Auckland. Its own workflow, so a label starts these two jobs alone and never CI again; not required                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `database.yml`, Migrations replay          | every pull request, push to main and merge queue's commit                                         | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack. It replays only when database paths changed: on a pull request, in its diff; on main, since main's last replay that passed, so a cancelled or failed one is made up by the next push (`tooling/scripts/checks/replay-range.mjs`). On a pull request it also holds the migration ledger to main's: every entry main recorded, unchanged                                                                                                                                                                                                                                                                                                                                                                                               |
-| `nightly-e2e.yml`                          | 09:00 UTC; by hand, the credential-free specs alone (against an address that needs no bypass too) | The node suite with its integration suites against real Postgres (its own job and 45-minute cap), then, whatever it said, the browser suite against production, in the suite's own workspace; Ask's day against its lines. One rolling issue each, saying which half was red and closed by the first green run; the second red run in a row pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `release.yml`                              | every push to main                                                                                | A tag `vYYYY.MM.DD-<sha>` and a release whose note lists the pull requests merged since the tag before it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                   | Production has applied every migration main carries, and nothing main does not; a day's disagreement keeps an issue open and pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `preview-smoke.yml`                        | a dashboard preview ready; off until the variable `PREVIEW_SMOKE` is `1`                          | The credential-free specs against the pull request's preview                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Workflow                                   | On                                                                                                | Proves                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ci.yml`, Secret scan                      | every pull request and push to main                                                               | No secret in what the pull request adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `ci.yml`, Typecheck                        | same, and a merge queue's commit                                                                  | The required check: a gate over parts that run side by side once `What this change needs` has answered (on a pull request, its title first, `tooling/scripts/checks/pr-title.mjs`, and whether the head carries `check:local`'s line for the tree GitHub tests). **Build and bundle**: `dist` matches the sources; typecheck; the dashboard builds the way Vercel builds it; what a workspace loads, held to what the change adds (past its line, a `Bundle: <why>` line in the description) and to the ceilings. **Lint**, which includes the layer boundaries and the edge's env and log rules. **Audit, licences, dead exports and format**: no production dependency with a high or critical advisory (`pnpm audit --prod`; one with no patched version anywhere is ignored by its GHSA under `auditConfig.ignoreGhsas` in a `pnpm-workspace.yaml`, until a fix ships) or under a licence we may not ship (`tooling/scripts/checks/licences.mjs`); dead exports (knip); the formatting check. **Tests of what changed**, on a pull request (`tooling/scripts/checks/changed-tests.mjs`: the folders its paths name, the rules and ratchets always, never the whole suite), and the whole node suite under the `suite` label. A tree checked locally skips lint, hygiene, the tests and the typecheck; the gate fails when a part failed or was cancelled |
+| `ci.yml`, Mobile                           | the same; its steps run only when the change reaches the app (`mobile-paths-changed.mjs`)         | The phone app's types, lint, Expo's doctor (the SDK's patch drift warns) and a Metro bundle for each platform                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `ci.yml`, Node suite, Pacific/Auckland     | a push to a pull request labelled `suite`, and by hand                                            | The node suite with the clock at UTC+12 or +13, where a rule that reads the viewer's zone gives the wrong day. Not required, and not a merge queue's; green since the tests lane (29 tests failed under it on 29 Sep 2026), so a failure fails the run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `ci.yml`, What landed keeps the title rule | every push to main                                                                                | Each commit the push landed: its subject keeps the title rule and carries its `(#N)`, and it is not a merge commit. A break opens an issue, since what landed cannot be undone                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `suite.yml`, Node suite on the label       | the `suite` label added to a pull request                                                         | The whole node suite once, in UTC and in Pacific/Auckland. Its own workflow, so a label starts these two jobs alone and never CI again; not required                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `database.yml`, Migrations replay          | every pull request, push to main and merge queue's commit                                         | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack: on a pull request the ones that lie where its changes name (`changed-tests.mjs --db`), on main and every night all of them. It replays only when database paths changed: on a pull request, in its diff; on main, since main's last replay that passed, so a cancelled or failed one is made up by the next push (`tooling/scripts/checks/replay-range.mjs`). On a pull request it also holds the migration ledger to main's: every entry main recorded, unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `nightly-e2e.yml`                          | 09:00 UTC; by hand, the credential-free specs alone (against an address that needs no bypass too) | The node suite with its integration suites against real Postgres (its own job and 45-minute cap), then, whatever it said, the browser suite against production, in the suite's own workspace; Ask's day against its lines. One rolling issue each, saying which half was red and closed by the first green run; the second red run in a row pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `nightly-evals.yml`                        | 10:00 UTC once the variable `NIGHTLY_EVALS` is `1`, and by hand                                   | The receptionist's regression cases, asked of a sandbox model key (`ANTHROPIC_EVAL_KEY`, never the platform's) and judged against the pass line. Off, the night's run is skipped in grey and no runner starts; on or by hand with no key, it fails and says so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `release.yml`                              | every push to main                                                                                | A tag `vYYYY.MM.DD-<sha>` and a release whose note lists the pull requests merged since the tag before it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `bundle-week.yml`                          | Mondays, and by hand                                                                              | What a workspace loads, main beside main a week before, from the records every push to main keeps; a sum grown past its week's line keeps one issue open, naming the merges                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                   | Production has applied every migration main carries, nothing main does not, and each under the name main's file has (a version both hold under different names is two migrations on one number); a day's disagreement keeps an issue open and pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `migrate.yml`                              | by hand alone (Actions, Run workflow), from main; the press is the approval                       | Main's migrations reach production once main's own CI and Database runs passed on the commit and both apps serve it or a later one: the dry run lists exactly what main carries and production lacks (`tooling/scripts/checks/migration-push.mjs`: no version under two names, nothing production holds that main does not, nothing below production's head), then `supabase db push`, then the compare; the job summary says what was applied. Off until the `production` Environment's three secrets are set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `production-smoke.yml`                     | the edge's production deployment ready, once per merge (it deploys after the dashboard)           | Both hosts answer with the deployed commit (`tooling/scripts/checks/smoke.mjs`), asked up to ten times over five minutes; a commit main has moved past is left to the newer one; a failure opens, or comments on, `Production smoke failed (<sha>)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `preview-smoke.yml`                        | a dashboard preview ready; off until the variable `PREVIEW_SMOKE` is `1`                          | The credential-free specs against the pull request's preview                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Every run on main finishes: a pull request's newer run cancels its older one,
 and each main commit runs in a concurrency group of its own, so no merge goes
@@ -511,21 +510,43 @@ and `Migrations replay, SQL rules hold`. The replay is required because the
 product's safety model lives in the schema, and it is safe to require because
 it reports on every pull request: whether a database path changed is a step
 inside the job, not a filter on the workflow. Renaming either job would leave
-every pull request waiting for a check that never reports.
+every pull request waiting for a check that never reports. `Typecheck` is a gate
+since 10 Oct 2026: it needs every part of `ci.yml`'s check and runs whatever they
+said, so a part may be renamed and the gate may not.
 
 **The settings only Ruben changes** (Settings, Branches, `main`; Settings,
 General), which the workflows are ready for:
 
-- `Require branches to be up to date before merging` (`strict: true`), or a
-  merge queue (both workflows answer `merge_group`): two green pull requests
-  can no longer land a red main together, as they did three times on 28 Sep.
-- `Do not allow bypassing the above settings` (`enforce_admins: true`).
-- `Mobile (typecheck, lint, doctor, bundle)` among the required checks.
+- `Require branches to be up to date before merging` (`strict: true`): two green pull requests can no longer
+  land a red main together, as they did three times on 28 Sep. A merge queue would do the same with no second run
+  (both workflows answer `merge_group`), but a private repository on a personal account is not offered one (read
+  9 Oct 2026). What `strict` costs: every pull request open when another merges must take main in and run CI again,
+  about ten minutes of Actions and two preview builds each time, on an account whose Actions minutes have run out
+  three times. So it waits for CI to be cheaper, or for the repository to move to an organisation that has the queue.
+- `Do not allow bypassing the above settings` (`enforce_admins: true`). With it, nothing merges while Actions is
+  refused for billing, the fix for a broken main included: on once the minutes are no longer a way CI stops.
+- `Mobile (typecheck, lint, doctor, bundle)` among the required checks. It reports on every pull request, in seconds
+  when the change does not reach the app, so it is safe to require.
 - `Require review from Code Owners` once reviews are posted as GitHub reviews
   (`.github/CODEOWNERS`).
 - Squash only: `allow_merge_commit: false` and `allow_rebase_merge: false`,
   with the squash commit's title from the pull request's title
   (`squash_merge_commit_title: PR_TITLE`), so the subject is the checked title.
+  **Set on 9 October 2026**, on Ruben's word (`gh api -X PATCH repos/<owner>/<repo>` with those three fields; it
+  had allowed all three ways to merge, and titled a squash by its commit when there was one).
+
+### Merge safety
+
+In the week of 9 October 2026 main went red twice from pull requests merged before their checks had finished (the
+bundle budget), and two green pull requests summed to a red main once more. Each was a merge Ruben asked to be made
+before CI ended, and each was mended within the hour; the settings that would have refused them are weighed above
+(`strict`, `enforce_admins`), and the repository refuses auto-merge (`gh pr merge --auto` answers "Auto merge is not
+allowed for this repository"). Until one of them is on, two habits stand in for them: a merge made before its checks
+end says first which jobs are still out and runs the cheap ones itself (the bundle check after a build); and the merger
+reads main's next CI run after the merge (`gh run list --branch main --limit 3`), since a red main minutes after a
+merge is that merge's to look at first. A push to main runs CI's checks, the bundle's included; it does not run the
+node tests of what it landed, which the pull request ran, and paying for them twice per merge is what the minutes
+cannot afford.
 
 **The secrets only Ruben sets** (Settings, Secrets and variables, Actions),
 each off until set:
@@ -539,9 +560,19 @@ each off until set:
   runner has no IPv6 and Supabase's direct database host is IPv6 only, so it is
   the project's session-mode pooler string (Connect, Session pooler), with the
   role written `ledger_reader.<project-ref>`.
+- On the Environment `production` (Settings, Environments; it exists, as `Production`, with no rule), its deployment
+  branches limited to `main`, and on it the three secrets `migrate.yml` reads: `SUPABASE_ACCESS_TOKEN` (a personal
+  access token of the Supabase account: Account, Access Tokens), `SUPABASE_PROJECT_REF` (the project's ref: Project
+  Settings, General) and `SUPABASE_DB_PASSWORD` (the database password: Project Settings, Database). As the
+  Environment's and not the repository's, no workflow of a pull request's branch can read them. A required reviewer
+  on it is not offered here (a private repository of a personal account: GitHub offers that to Enterprise), so the
+  approval is the press that starts the run, and nothing starts it but a press. Unset, the workflow's first step says
+  so and applies nothing ("Apply a migration", below).
 - The variable `PREVIEW_SMOKE=1` and the secret
   `VERCEL_AUTOMATION_BYPASS_SECRET` (the dashboard project's Protection Bypass
   for Automation): a preview answers 302 to Vercel's sign-in without it.
+- The secret `ANTHROPIC_EVAL_KEY` (a sandbox model key with a cap of its own, never the platform's) and then the
+  variable `NIGHTLY_EVALS=1`: the nightly evals. The secret first: on with no key, the night fails and says so.
 
 **Branches no pull request holds.** A lane folded into another pull request
 leaves its branch on the remote.
@@ -567,9 +598,16 @@ lists them; deleting one is Ruben's call.
    (exit 0 when both answer as they should, 1 when one does not; a protected preview takes
    `VERCEL_AUTOMATION_BYPASS_SECRET`, and `--allow-unhealthy` takes a 503 from a preview with no database), and
    `node tooling/scripts/ops/golden-edge.mjs --no-secret` probes the edge's public pages and each door refusing a
-   stranger, with `BASE_URL` or a preview's `VERCEL_URL`, holding no secret.
-5. A merge that carried a migration: compare production's ledger with main's,
-   "Apply a migration" step 6. Nothing may be missing.
+   stranger, with `BASE_URL` or a preview's `VERCEL_URL`, holding no secret. `.github/workflows/production-smoke.yml`
+   runs that smoke by itself once per merge, when the edge's production deployment is ready (the edge deploys about
+   three minutes after the dashboard; Vercel names the commit's sha as the deployment's ref), up to ten times over
+   five minutes, and a failure opens, or comments on, the issue `Production smoke failed (<sha>)`: read it before
+   anything else, and "Roll back" says how to promote the previous deployment. A commit main has already moved past
+   is left to the newer commit's own smoke. Nothing checked production after a deploy before October 2026; this step
+   was a command a person ran, or did not.
+5. A merge that carried a migration: the migration was applied before the merge, from the pull request's branch, or
+   is applied now by `.github/workflows/migrate.yml`, started by hand, as its header says ("Apply a migration",
+   below). Either way the compare must find nothing missing.
 
 Each project's variables are listed in its `.env.example`, and a test fails
 when the code reads one the file does not list. Provider keys live on the edge
@@ -1030,8 +1068,9 @@ What trips it:
 
 Each page load in a workspace sends its web vitals when the page is hidden, and the back office's card, "How fast
 the pages are", says the 75th percentile of each over the last seven days (00255). That is the number the bundle's
-ceiling answers to (`check:bundle -- --ceiling js=<bytes> css=<bytes> page=<bytes>`, the line no row under "Rises" crosses;
-the first ceilings, 6 Oct 2026, are provisional, a little over what main measured): LCP for the page drawn, INP for a tap
+ceiling answers to (`check:bundle -- --ceiling js=<bytes> css=<bytes> page=<bytes>`, the line no pull request crosses; set
+on 10 Oct 2026 at 800 KiB for the route's JS, 160 KiB for its CSS and 256 KiB for each page's own, with room for a month's
+work at the rate main grew in early October, read again with these numbers): LCP for the page drawn, INP for a tap
 answered.
 
 1. **Read it** on the back office, or in SQL as the service role: `select * from page_vitals_p75();` gives one row per
@@ -1122,6 +1161,23 @@ The day's numbers are in the back office ("Each workspace's day", `platform_metr
 before); the health sweep pages `answer_rate_zero` when a workspace's customers wrote all day and nobody answered. Who
 played a call's recording is a decision (`open_recording`, one per member per call per hour) on Settings, Activity.
 
+## Answer WhatsApp after the acknowledgement
+
+A WhatsApp message is answered inside Meta's request, under the function's sixty seconds. A workspace named in the
+edge's `WHATSAPP_ANSWERS_AS_JOBS` (workspace ids, comma-separated, or `all`) takes the road a text takes instead:
+the webhook records the message, schedules its answer as an `inbound_answer` job and answers 200, and the job answers
+it (`apps/edge/lib/whatsapp/answer-later.ts`). Unset is the default, and changes nothing.
+
+To try it: name one workspace on the edge's production environment and redeploy the edge (an environment variable is
+read by a new deployment). Write to that workspace's number. In the logs, `wa_inbound` then `wa_answer_taken_up`
+under one request id, and the reply's own lines after it; in the ledger, one `inbound_answer` row for the message,
+`done`. To go back: remove the workspace from the variable and redeploy. A message recorded before the change is
+still answered by its job.
+
+What to watch while it is on: `wa_answer_unscheduled` (the job could not be written: the message is the deadman
+sweep's to hand to a person, within a quarter of an hour), and a reply's lateness on the heartbeat's line
+(`reply_late_ms`), which pages past a minute.
+
 ## Read the jobs ledger
 
 Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's
@@ -1173,7 +1229,11 @@ The practice every lane follows, since migrations began to reach production from
 (28 Sep 2026): production applies a migration once, in number order, and its ledger must end where main's does.
 The CLI keys an applied migration by its version and never reads the file again, so a file numbered below
 production's head applies after the ones above it (an order no replay runs), and an edited or renamed one replays
-differently on the next fresh database than it ran in production.
+differently on the next fresh database than it ran in production. And numbers collide: on 7 October 2026 one session
+pushed its 00346 to production from its branch while another pull request landed a different 00346 on main, which a
+compare by version alone could not see (it was mended the same evening: the ledger row reverted, the first file
+renumbered 00349). So every push is held first to the check below (`migration-push.mjs`), which reads production's
+ledger with each version's name, whoever pushes and from wherever.
 
 1. **Write it** at the number free when it lands: above main's head and above production's
    (`supabase migration list --linked` shows production's). Named for the schema change, re-runnable statements, a
@@ -1190,6 +1250,21 @@ differently on the next fresh database than it ran in production.
    which a folder and a ledger edited together would hide from the test. A number renumbered before it
    lands is recorded again by the same command, which also lets go of the reserved gaps the new number now covers.
 
+   **An index on a table that is always being written** (`messages`, `events`, `calls`, `contacts`,
+   `broadcast_recipients`, `jobs`, `conversations`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
+   not even a `lock_timeout`: a plain build holds every write to the table for as long as it takes, and an index made
+   concurrently cannot share a transaction, which is how the runner sends a file of several statements
+   (`00355_a_person_s_runs_are_found_by_the_person.sql` is the shape; `database/migrations.test.mjs` fails any other).
+   A concurrent build that is interrupted leaves the index behind marked invalid, and `if not exists` then skips it
+   for ever. After the push, ask production for any:
+
+   ```sql
+   select c.relname from pg_index i join pg_class c on c.oid = i.indexrelid where not i.indisvalid;
+   ```
+
+   None is the answer wanted. One named: `drop index concurrently public.<name>;` in the SQL editor, then run the
+   migration's statement again there by hand (the ledger already holds its version, and the file is unchanged).
+
 2. **Replay it locally**: `supabase db reset` (a worktree uses a stack of its own, `project_id` and ports moved, so it
    touches no one else's). Then regenerate what the schema drives, `corepack pnpm gen:schema-sets` and
    `corepack pnpm gen:db-types`, rebuild `dist` if a package changed, and commit the generated files. With the stack
@@ -1198,27 +1273,45 @@ differently on the next fresh database than it ran in production.
    data model or a stale function body in the snapshot, and the Database workflow's replay fails any other drift of the
    snapshot.
 3. **Let CI replay it** from zero and run the database suites against it.
-4. **Apply it to production** just before the merge, from the pull request's branch with `origin/main` merged into
-   it, so the checkout holds every migration main has:
+4. **Before the merge, a migration the new code needs**: a door the dashboard or the edge will call, a column it will
+   read. The apps deploy the moment a merge lands, so this one is applied first, just before the merge, from the pull
+   request's branch with `origin/main` merged into it, so the checkout holds every migration main has, and on Ruben's
+   word for that push. Read production's ledger with its names, hold the dry run to it, then push:
 
    ```bash
-   supabase db push --linked --dry-run   # lists this pull request's migrations and nothing else; anything more, stop
+   supabase db query --linked -o json "select version, name from supabase_migrations.schema_migrations order by version" > prod-ledger.json
+   supabase db push --linked --dry-run > dry-run.txt 2>&1   # lists this pull request's migrations and nothing else
+   node tooling/scripts/checks/migration-push.mjs --dry-run dry-run.txt --production prod-ledger.json
    supabase db push --linked --yes
    ```
 
-   Never `--include-all`: it applies a file below production's head, after the ones above it. If the dry run
-   lists a file below the head, renumber it above, record it again and push again. A migration the new code needs is
-   applied before the merge; one that tightens something the old code still writes (a CHECK, a dropped column, a
-   renamed function) is applied after both apps have deployed. The migration's header says which.
+   `migration-push.mjs` exits 1, and nothing is pushed, for a version production applied under another name than the
+   file of it here (two migrations on one number: write this one again at a free number), a version production holds
+   that this checkout does not (another branch's, applied before it landed: wait for it, or take it in), a file at or
+   below production's head (renumber it above, and record it again), or a file in the dry run's list that is not one
+   this checkout carries and production lacks. Never `--include-all`: it applies a file below production's head after
+   the ones above it.
 
-5. **Merge**, and let both apps deploy.
-6. **Compare** production's ledger with main's:
+5. **After the deploys, every other migration**: one either deploy order serves, or one that tightens something the
+   old code still writes (a CHECK, a dropped column, a renamed function), which must wait until both apps run the code
+   that stopped writing it. Merge, then start `.github/workflows/migrate.yml` by hand (Actions, Migrate production, Run
+   workflow, on `main`; on any other branch it does nothing, and nothing else starts it). The press is the approval:
+   it refuses until main's own CI and Database runs passed on the commit, waits until both apps serve that commit or a
+   later one, then links the project, reads production's ledger with its names, holds the dry run to it with the same
+   `migration-push.mjs`, pushes, and runs the compare of step 6, which must find nothing missing. The job summary says
+   what was applied. The migration's header says which of steps 4 and 5 it takes; the secrets the workflow reads, and
+   their Environment, are in "What CI proves".
+6. **Compare** production's ledger with main's, which the workflow does after its push and anyone can do at any time
+   (in an agent's shell the query's rows come wrapped as `{rows}`, which the compare reads as well):
 
    ```bash
-   supabase migration list --linked | node tooling/scripts/checks/migration-ledger.mjs --compare -
+   supabase db query --linked -o json "select version, name from supabase_migrations.schema_migrations order by version" \
+     | node tooling/scripts/checks/migration-ledger.mjs --compare -
    ```
 
-   It exits 0 when production holds every migration main carries and nothing main does not. Keyed `/api/diag`
+   It exits 0 when production holds every migration main carries, nothing main does not, and each under the name
+   main's file has; 1 naming what is missing, extra, or applied under another name. The versions alone, as
+   `supabase migration list --linked` prints them, are read too, and can show no clash of names. Keyed `/api/diag`
    answers `migrations.head`, which must be main's head. `.github/workflows/migration-ledger.yml` runs the same
    compare every Monday and pages when main has been ahead of production for a day, once Ruben sets
    `SUPABASE_PROD_READ_URL`: a connection string for a role that reads the ledger and nothing else, made once in
@@ -1262,6 +1355,59 @@ while an older build is live:
 4. Promote the current release's deployments back, and confirm `/api/version` answers its commit again.
 
 Rehearsed: never yet (29 Sep 2026). The first rehearsal is Ruben's, with a deploy that carried no migration.
+
+## Restore the database
+
+Written on 8 October 2026 from the architecture review, which found no backup or restore page anywhere in `docs/`.
+**Rehearsed: never yet.** Until it has been, every step below is a plan and every time a guess.
+
+**What a restore brings back, and what it does not.** The database is the system of record: every workspace, person,
+message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the
+clocks (`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings
+and other files (Storage is kept apart from the database's backups), anything a provider holds (a WhatsApp template's
+review, a Twilio line, a Resend domain), or the two apps' environment (Vercel's, listed in each `.env.example`).
+
+**Which backups there are** is a fact of the project's plan. Read on 9 October 2026 with
+`supabase backups list --project-ref <ref> --experimental` (the project's Database, Backups page says the same), and
+to be read again whenever the plan changes:
+
+- Daily backups: one physical backup a night, at about 04:05 UTC, the last seven kept (the nights of 2 to 8 October
+  were there, each complete). Everything since the newest is lost by a restore from it: up to a day.
+- Point-in-time recovery: **off**. So the loss in a bad hour is up to a day of messages and bookings; on, it is
+  minutes. It is the add-on that buys the difference, and the review recommends it for a product whose customers'
+  conversations are its only memory. Turning it on is Ruben's: it is billed.
+- The project is in `us-east-1`.
+
+**When to restore, and when not.** A bad migration is undone by a migration (Roll back, above), and a bad write by a
+script with its backup (Scripts that touch production, below): neither is a restore, and a restore to undo either
+takes every workspace back with it. A restore is for a database that is gone, or wrong in a way nothing narrower
+reaches: a dropped table, a mass update with no backup file, the project lost.
+
+**How.** Prefer a copy to an overwrite, so the damaged database is still there to read and to compare with:
+
+1. **Stop the writers**, so nothing more is written to a database that is about to be left behind, and write down
+   the minute. How is settled at the first rehearsal and written here; it has not been tried. The candidates: pausing
+   each Vercel project from its settings, if the plan offers it (a provider whose webhook is refused sends it again
+   for hours, so a paused edge loses no message that arrives after the restore point); failing that, removing the
+   edge's production domain for the length of the restore.
+2. **Restore to a new project** from the Backups page (a daily backup, or the minute just before the damage with
+   point-in-time recovery), if the plan offers it. In place is the fallback: it overwrites the project, and everything
+   written since the chosen moment is gone the moment it starts.
+3. **Check the copy before anything points at it**: `supabase migration list` against it ends at main's head
+   (`migration-ledger.mjs --compare`); the newest `messages.created_at` and `events.created_at` are the moment
+   chosen; `select count(*) from tenants` is what it was; `cron.job` holds the sweeps and
+   `vault.decrypted_secrets` names the edge's key and base URL.
+4. **Point the apps at it**: both Vercel projects' `SUPABASE_URL` and keys (a new project has new ones), the
+   Supabase Auth settings the old project held (site URL, redirect URLs, the Google provider, the SMTP sender), and
+   the base URL the clocks call (`vault`, 00018: a copy keeps the original's, which is right only when the edge's
+   address did not change). Redeploy both, the edge first.
+5. **Bring the writers back** the way they were stopped, then read `/api/cron/health`, the jobs ledger (Read the
+   jobs ledger, above) for what was due while it was down, and the Inbox of one real workspace.
+6. **Tell the workspaces** what window was lost, in their own words: a message a customer sent in it is gone from
+   the Inbox though the customer still has it on their phone.
+
+**Rehearse it** before it is needed, on a copy that nothing points at: step 2 and step 3 alone, timed. Write the
+date, how long the restore took and what step 3 found here.
 
 **A workspace, not the platform.** The levers in `docs/system-prd.md` S-23:
 silence one receptionist (`tenant_channels.status = 'disabled'`), hold one

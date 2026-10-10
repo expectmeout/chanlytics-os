@@ -309,3 +309,17 @@ export async function appointmentStates(
   }
   return out;
 }
+
+/**
+ * The booking door over one appointment of the record (00389 reach_out_booked_from), the service role's: the lead a
+ * reach-out wrote to, whose address or number the appointment or its person carries, booked after an email left, is
+ * stamped and converted once. How many leads moved. A failure throws.
+ */
+export async function reachOutBookedFrom(db: Db, tenantId: string, appointmentId: string): Promise<number> {
+  const { data, error } = await db.rpc("reach_out_booked_from", {
+    p_tenant_id: tenantId,
+    p_appointment_id: appointmentId,
+  });
+  if (error) throw new Error(`reach_out_booked_from: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}

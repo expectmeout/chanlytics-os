@@ -472,11 +472,8 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     bridge.includes("async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean>"),
     "and a refresh the board can call, fresh on request, saying whether a read landed",
   );
-  const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
-  assert.ok(
-    sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"),
-    "the first read is the window around the business's today",
-  );
+  // The first read is the window around the business's today, asked for by that word: executed in
+  // calendar-cold-boot.test.mjs (the page's half) and calendar-feed.test.mjs (the route's).
   assert.ok(readCode("apps/dashboard/src/server/calendar/calendar-week.ts").includes("const MAX_DAYS = 63;"));
   const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
   assert.ok(

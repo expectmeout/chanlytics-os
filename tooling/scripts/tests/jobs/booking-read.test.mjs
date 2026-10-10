@@ -146,6 +146,11 @@ test("a booking read whole is a visit and a ledger row that names it", async () 
   assert.equal(w.tables.appointment_notices[0].outcome, "booked");
   assert.equal(w.tables.appointment_notices[0].appointment_id, visit.id);
   assert.deepEqual(w.told, []);
+  assert.deepEqual(
+    (w.tables.events ?? []).map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data.source]),
+    [[T, "appointment.booked", "appointment", visit.id, "booking_email"]],
+    "REGRESSION: a visit a booking tool's email put on the calendar was on no ledger an owner reads",
+  );
 });
 
 test("the intake reads the tool the workspace named off its stored config: a proved notice from that tool is one read scheduled, and with another named, or none, no read is", async () => {

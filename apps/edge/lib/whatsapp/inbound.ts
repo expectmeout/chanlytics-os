@@ -10,7 +10,9 @@
  * The signature is unchanged, deliberately. Both doors (api/whatsapp.ts, api/inbound-sms.ts) call it as they did,
  * tooling/scripts/ops/golden-edge.mjs sees the same surface, and the tests that inject a world through setInboundPorts
  * hand in the same object they always have. A text is answered after its acknowledgement (decision 0031, Phase 2): its
- * door records it through recordInboundMessage, and its job answers it through resumeInbound.
+ * door records it through recordInboundMessage, and its job answers it through resumeInbound. A WhatsApp message is
+ * too, for the workspaces the edge names (Phase 3, lib/whatsapp/answer-later.ts): recordWhatsappInbound, then
+ * resumeWhatsappInbound.
  */
 import { normalizeInbound, withCarrierConsent, type WaChangeValue, type WaRawMessage } from "../packages/channels.js";
 import type { IngestResult, RoutedChannel } from "../packages/db.js";
@@ -66,6 +68,39 @@ export async function recordInboundMessage(
   ports: InboundPorts = realPorts(),
 ): Promise<IngestResult | null> {
   return recordInbound(inputOf(m, {}, tenantId, routed, false, carrier), corePorts(ports));
+}
+
+/**
+ * The door's half of a WhatsApp message answered after its acknowledgement (lib/whatsapp/answer-later.ts): the message
+ * recorded, or set aside, and nothing answered. The ingest's row when it waits for its answer; null when it was set
+ * aside, is a redelivery, or there is nowhere to record it. Throws IngestFailed when the write failed.
+ */
+export async function recordWhatsappInbound(
+  m: WaRawMessage,
+  value: WaChangeValue,
+  routed: RoutedChannel,
+  isEnvDefault: boolean,
+  ports: InboundPorts = realPorts(),
+): Promise<IngestResult | null> {
+  return recordInbound(inputOf(m, value, routed.tenantId, routed, isEnvDefault, null), corePorts(ports));
+}
+
+/**
+ * A WhatsApp message taken up again by its job: its door recorded it, so its ingest is a redelivery, and core answers
+ * it while it is unprocessed and no reply names it (answerInbound with `resume`). The job hands in its own ports,
+ * whose sender marks the job as having spoken before Meta is called.
+ */
+export async function resumeWhatsappInbound(
+  m: WaRawMessage,
+  value: WaChangeValue,
+  routed: RoutedChannel,
+  isEnvDefault: boolean,
+  ports: InboundPorts,
+): Promise<void> {
+  return answerInbound(
+    { ...inputOf(m, value, routed.tenantId, routed, isEnvDefault, null), resume: true },
+    corePorts(ports),
+  );
 }
 
 function inputOf(

@@ -6,12 +6,12 @@
  * production guard on this machine, which is itself the proof that nothing
  * is written for a verb that did not happen.
  */
-import { test, beforeEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
+import { PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -33,6 +33,9 @@ const run = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/run/route.
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
+// The ledger is written as the service role (a session may not insert into events): a test that reads it stands one in.
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -61,8 +64,79 @@ const both = (harbor, bayside) => [
   membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"),
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
+/**
+ * `start_playbook` (00357) for a database in memory: the row the function writes from what the caller named (running,
+ * the caller's, a moment, in the workspace named) into `tables.playbooks`, then the start_playbook decision as theirs
+ * in `tables.decisions`; the row's id with the decision's. A database that refuses the row (`refusal`: a check, the
+ * one-follow-up index) refuses the function, and neither is written, as its one transaction leaves it.
+ */
+const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
+  ...rpcs,
+  start_playbook: (a) => {
+    if (refusal) throw Object.assign(new Error(refusal.message), { code: refusal.code });
+    const row = {
+      id: crypto.randomUUID(),
+      tenant_id: a.p_tenant_id,
+      ...a.p_playbook,
+      state: "running",
+      kind: "moment",
+      created_by: USER,
+      created_at: new Date().toISOString(),
+    };
+    (tables.playbooks ??= []).push(row);
+    const decisions = (tables.decisions ??= []);
+    const decision = {
+      id: `decision-${decisions.length + 1}`,
+      tenant_id: a.p_tenant_id,
+      subject_type: "playbook",
+      subject_id: row.id,
+      verb: "start_playbook",
+      actor_type: "user",
+      actor_user_id: USER,
+      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
+      undo_of: a.p_undo_of ?? null,
+    };
+    decisions.push(decision);
+    return { id: row.id, decision_id: decision.id, undo_dropped: false };
+  },
+});
+/**
+ * The `change_playbook` door for a database in memory: the row the caller names in the workspace named, the
+ * columns the set names written, then the decision as theirs -- start_playbook, pause_playbook or change_playbook -- in
+ * `tables.decisions`; the row's id, what each written column held and the decision's id. No such row is P0002, and
+ * nothing is written, as its one transaction leaves it. Of the columns named only those that differ are written, the
+ * verb following the state that moved; where none differs nothing is written and no line: `was` empty, `decision_id`
+ * null (00377's no-op).
+ */
+const withChangeDoor = (tables, rpcs = {}) => ({
+  ...rpcs,
+  change_playbook: (a) => {
+    const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
+    if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
+    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => row[k] !== v));
+    if (Object.keys(set).length === 0) return { id: row.id, was: {}, decision_id: null, undo_dropped: false };
+    const was = Object.fromEntries(Object.keys(set).map((k) => [k, row[k]]));
+    Object.assign(row, set);
+    const decisions = (tables.decisions ??= []);
+    const verb =
+      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
+    const decision = {
+      id: `decision-${decisions.length + 1}`,
+      tenant_id: a.p_tenant_id,
+      subject_type: "playbook",
+      subject_id: row.id,
+      verb,
+      actor_type: "user",
+      actor_user_id: USER,
+      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
+      undo_of: a.p_undo_of ?? null,
+    };
+    decisions.push(decision);
+    return { id: row.id, was, decision_id: decision.id, undo_dropped: false };
+  },
+});
 const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
-  supabase: fakeDb(tables, {}, rpcs, opts),
+  supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), opts),
   userId: USER,
   email: "ada@example.com",
   params,
@@ -152,7 +226,8 @@ test("the seventeen declare their policy: the lists open to every member, every 
   const rw = (rate) => ({ kind: "write", scope: "row", role: "operator", rate, spend: false });
   assert.deepEqual(broadcasts.GET.policy, open);
   assert.deepEqual(templates.GET.policy, open);
-  assert.deepEqual(playbooks.GET.policy, open);
+  // Its numbers are SQL aggregates (00374), so a script that hammers it hammers them: the report routes' bucket.
+  assert.deepEqual(playbooks.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(broadcasts.POST.policy, ws("broadcast"));
   assert.deepEqual(approve.POST.policy, rw("broadcast"));
   assert.deepEqual(cancel.POST.policy, rw("broadcast"));
@@ -514,7 +589,12 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     "runs daily at 10:00 AM",
     "the clock, worded by the route from the playbook's own columns",
   );
-  assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back playbook", "one playbook alone says what it is");
+  assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back campaign", "one campaign alone says what it is");
+  // A refusal with no name to quote says what still uses it in the reader's word (decision 19).
+  assert.equal(
+    C.playbooksStillSending([]),
+    "A campaign still uses this template. Pause it, or give it another, first.",
+  );
   assert.equal(C.templateUseNote(usedBy.winback_offer), "runs daily at 10:00 AM");
   assert.equal(
     usedBy.monthly_offer.playbooks[0].waiting,
@@ -522,7 +602,7 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     "a run pending approval is its playbook waiting on the owner",
   );
   assert.equal(C.templateUseNote(usedBy.monthly_offer), "a run is waiting on you", "which outranks its clock");
-  assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number playbook", "paused, still named plainly");
+  assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number campaign", "paused, still named plainly");
   assert.equal(
     C.templateUseNote(usedBy.save_our_number),
     "paused — nothing goes out",
@@ -998,23 +1078,31 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     playbooks: [pb(K1, A), pb(K2, B)],
     templates: [tpl(T1, B, { name: "winback_offer", category: "marketing" })],
     decisions: [],
+    events: [],
     broadcasts: [],
     broadcast_recipients: [],
   };
+  setServiceClient(fakeDb(tables));
   await refused(playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K1 })), "forbidden", 403);
   await refused(
     playbook.PUT.run(send("PUT", { state: "sleeping" }), ctxFor(tables, { id: K2 })),
     "validation",
     400,
-    "A playbook is running or paused.",
+    PLAYBOOK_PATCH_WORDS.state,
   );
   assert.deepEqual(
     await playbook.PUT.run(send("PUT", { state: "running" }), ctxFor(tables, { id: K2 })),
-    { id: K2, state: "running" },
-    "the same state changes nothing",
+    { id: K2, name: "Win-back", state: "running", was: {}, decision_id: null },
+    "the same state changes nothing, and says so as the door's no-op does",
   );
   const paused = await playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K2 }));
-  assert.deepEqual(paused, { id: K2, state: "paused", decision_id: paused.decision_id });
+  assert.deepEqual(paused, {
+    id: K2,
+    name: "Win-back",
+    state: "paused",
+    was: { state: "running" },
+    decision_id: paused.decision_id,
+  });
   assert.equal(tables.playbooks.find((p) => p.id === K2).state, "paused");
   assert.deepEqual(
     await playbook.PUT.run(
@@ -1024,6 +1112,11 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     { id: K2, name: "Renamed", state: "paused" },
   );
   assert.equal(tables.playbooks.find((p) => p.id === K2).name, "Renamed");
+  assert.deepEqual(
+    tables.events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]),
+    [["playbook.changed", "playbook", K2, { name: "Renamed", by: USER, fields: ["name"] }]],
+    "REGRESSION: the ledger kept a playbook starting and pausing and never that what it sends was changed; a pause is its decision and no edit",
+  );
   await refused(run.POST.run(send("POST"), ctxFor(tables, { id: K1 })), "forbidden", 403);
   await refused(
     run.POST.run(send("POST"), ctxFor(tables, { id: K2 })),
@@ -1031,7 +1124,13 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     502,
     "Running only works on the production dashboard.",
   );
-  await refused(run.POST.run(send("POST"), ctxFor(tables, { id: K9 })), "not_found", 404);
+  await refused(run.POST.run(send("POST"), ctxFor(tables, { id: K9 })), "not_found", 404, "Campaign not found.");
+  await refused(
+    run.POST.run(send("POST"), ctxFor(tables, { id: "not-an-id" })),
+    "not_found",
+    404,
+    "That campaign does not exist.",
+  );
   await refused(playbook.DELETE.run(send("DELETE"), ctxFor(tables, { id: K1 })), "forbidden", 403);
   const gone = await playbook.DELETE.run(send("DELETE"), ctxFor(tables, { id: K2 }));
   assert.deepEqual(gone, { deleted: true, id: K2, decision_id: gone.decision_id });
@@ -1047,7 +1146,7 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     playbook.DELETE.run(send("DELETE"), ctxFor(tables, { id: K2 })),
     "not_found",
     404,
-    "Playbook not found.",
+    "Campaign not found.",
   );
 });
 
@@ -1074,12 +1173,15 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
   };
   const second = {
     ...ctxFor(tables),
-    supabase: fakeDb(tables, {
-      "playbooks.insert": {
-        code: "23505",
-        message: 'duplicate key value violates unique constraint "playbooks_one_follow_up"',
-      },
-    }),
+    supabase: fakeDb(
+      tables,
+      {},
+      withStartDoor(
+        tables,
+        {},
+        { code: "23505", message: 'duplicate key value violates unique constraint "playbooks_one_follow_up"' },
+      ),
+    ),
   };
   await refused(playbooks.POST.run(send("POST", body, inB), second), "conflict", 409, FOLLOW_UP_ONE);
   // The first is made, under its own class.
@@ -1346,12 +1448,15 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
     ],
     tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
     decisions: [],
+    events: [],
   };
+  setServiceClient(fakeDb(tables));
   const rowOf = (id) => tables.playbooks.find((p) => p.id === id);
   const before = { ...rowOf(K1) };
   let ctx = ctxFor(tables, { id: K1 });
   const out = await playbook.PUT.run(send("PUT", { channels: ["email", "whatsapp"] }), ctx);
-  assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running" });
+  // What it went by before this write rides back, for an undo that puts back what was there now.
+  assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running", was: { channels: ["whatsapp"] } });
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "in the product's order");
   assert.deepEqual({ ...rowOf(K1), channels: null }, { ...before, channels: null }, "nothing else of it moved");
   const written = ctx.supabase.seen.filter((s) => s.table === "playbooks" && s.op === "update").map((s) => s.values);
@@ -1360,6 +1465,11 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
   ctx = ctxFor(tables, { id: K1 });
   await playbook.PUT.run(send("PUT", { channels: ["whatsapp", "email"] }), ctx);
   assert.equal(writes(ctx), 0);
+  assert.deepEqual(
+    tables.events.map((e) => [e.kind, e.subject_id, e.data]),
+    [["playbook.changed", K1, { name: "Visit reminder", by: USER, fields: ["channels"] }]],
+    "the change of channels is on the ledger once; the save that changed nothing says nothing",
+  );
   // Judged as a save judges them, by its own class and message: a text carries no offer, and a tick is of the three.
   await refused(
     playbook.PUT.run(send("PUT", { channels: ["whatsapp", "sms"] }), ctxFor(tables, { id: K2 })),
@@ -1367,7 +1477,7 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
     400,
     "Texts carry no offers.",
   );
-  for (const channels of [[], ["fax"], ["email", "fax"], null, "email"]) {
+  for (const channels of [[], ["fax"], ["email", "fax"]]) {
     await refused(
       playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })),
       "validation",
@@ -1375,6 +1485,15 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
       "Pick WhatsApp, text or email to send by.",
     );
   }
+  // Channels that are no list are no body the route takes (PLAYBOOK_PUT_BODY): refused before the check is asked, in one
+  // sentence that says the three bodies, where zod said `Unrecognized key: "channels"` of a key the route does take.
+  for (const channels of [null, "email"])
+    await refused(
+      playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })),
+      "validation",
+      400,
+      "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.",
+    );
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "a refusal writes nothing");
   // A channel named twice is one channel.
   ctx = ctxFor(tables, { id: K1 });
@@ -1402,6 +1521,10 @@ test("a playbook ticks channels: made with them, kept by an edit that names none
       tpl("77777777-7777-4777-8777-777777777778", B, { channel: "email", name: "month_offer", category: "marketing" }),
     ],
     tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    // A calendar is connected: a new reminder is made only where one is (D44).
+    tenant_config: [
+      { tenant_id: B, config: { calendar: { ical_url: "https://calendar.example/bayside.ics" } }, version: 1 },
+    ],
     decisions: [],
   };
   const body = { trigger: "visit_tomorrow", template_id: T1, params: [] };
@@ -1414,10 +1537,11 @@ test("a playbook ticks channels: made with them, kept by an edit that names none
   const row = tables.playbooks.find((p) => p.id === made.id);
   assert.deepEqual(row.channels, ["whatsapp", "email"]);
   assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp", "email"], "the ledger says the channels");
-  // Naming none is WhatsApp alone, and the column is not even named: a database 00298 has not reached takes it as before.
+  // Naming none is WhatsApp alone, and the door is told so: it lands with its migration (00357), long after the column's
+  // (00298), so a start names every column it writes.
   const plain = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
   const before = tables.playbooks.find((p) => p.id === plain.id);
-  assert.ok(!("channels" in before), "WhatsApp alone is the column's default, written as every playbook always was");
+  assert.deepEqual(before.channels, ["whatsapp"], "WhatsApp alone when none is named");
   assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp"]);
   // An offer is by WhatsApp alone.
   await refused(

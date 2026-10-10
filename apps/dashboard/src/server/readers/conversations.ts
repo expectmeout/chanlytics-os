@@ -32,8 +32,8 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
       : base.order("last_message_at", { ascending: false, nullsFirst: false }).limit(100));
     if (error) throw new Error(error.message);
     const ids = (convs ?? []).map((c) => c.id);
-    let byConv = new Map<string, MessageDto[]>();
-    if (ids.length) {
+    const messagesOf = async (): Promise<Map<string, MessageDto[]>> => {
+      if (!ids.length) return new Map();
       // One read, bounded by what it answers (00258): each thread's newest hundred through the thread's own index,
       // then the newest four thousand of those, the id breaking ties, as one list PostgREST's thousand rows do not
       // cut. Paged by OFFSET, this read every message the hundred threads ever had and sorted them for each page, up
@@ -46,21 +46,29 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
         p_most: MESSAGES_MAX,
       });
       if (merr) throw new Error(merr.message);
-      byConv = groupMessages(messageRowsOf(data));
+      const grouped = groupMessages(messageRowsOf(data));
       // newest_messages answers twelve columns and messages.error is not one of them: the few failed messages in the
       // answer are asked for theirs, so a failed bubble can say why (contracts sendFailureWords). None failed, no read.
-      const failed = [...byConv.values()].flatMap((list) => list.filter((m) => m.status === "failed").map((m) => m.id));
+      const failed = [...grouped.values()].flatMap((list) =>
+        list.filter((m) => m.status === "failed").map((m) => m.id),
+      );
       if (failed.length) {
         const said = new Map((await failedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
-        for (const list of byConv.values()) for (const m of list) if (said.has(m.id)) m.error = said.get(m.id);
+        for (const list of grouped.values()) for (const m of list) if (said.has(m.id)) m.error = said.get(m.id);
       }
-    }
-    // The reader's own reading of each person here (00349), so a row can say it is new to them.
-    const seenOf = await seenOfPeople(
-      rc.ctx,
-      tenantId,
-      (convs ?? []).flatMap((c) => (c.contacts?.id ? [c.contacts.id] : [])),
-    );
+      return grouped;
+    };
+    // The threads' messages beside the reader's own reading of each person here (00349, so a row can say it is new to
+    // them): both follow from the threads and neither from the other. One after the other, the Inbox, Conversations and
+    // Today each stood behind a round trip more than they asked for (9 Oct 2026).
+    const [byConv, seenOf] = await Promise.all([
+      messagesOf(),
+      seenOfPeople(
+        rc.ctx,
+        tenantId,
+        (convs ?? []).flatMap((c) => (c.contacts?.id ? [c.contacts.id] : [])),
+      ),
+    ]);
     const conversations: ConversationDto[] = (convs ?? []).map((c) =>
       toConversationDto(c, byConv.get(c.id) ?? [], userId, c.contacts?.id ? seenOf(c.contacts.id) : {}),
     );

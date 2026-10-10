@@ -421,6 +421,38 @@ test("REGRESSION (D14): an appointment opens as a dialog named by its title; Esc
   assert.equal(range(), "Sep 14 – 20", "with nothing open the arrows move the board again");
 });
 
+test("on a phone a pull down on an open appointment lets it go, as a sheet's does; a short drag keeps it, and a desk pulls nothing", () => {
+  // On a phone the card stands at the screen's foot, and Close, the wash and Escape were its only ways out (Ruben,
+  // 8 October 2026: everything that rises from the bottom edge goes back down by a pull).
+  fresh();
+  let tree = page();
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  const el = { dataset: {} };
+  const pull = (dy) => {
+    const panel = byTestId(tree, "cal-panel");
+    panel.props.onTouchStart({ touches: [{ clientX: 180, clientY: 300 }], currentTarget: el, target: null });
+    panel.props.onTouchEnd({ changedTouches: [{ clientX: 184, clientY: 300 + dy }], currentTarget: el });
+    tree = page();
+  };
+  pull(140);
+  assert.ok(byTestId(tree, "cal-panel"), "on a desk the card stands in the page's middle, and nothing is pulled");
+  globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
+  try {
+    tree = page();
+    pull(40);
+    assert.ok(byTestId(tree, "cal-panel"), "a short drag keeps it");
+    pull(140);
+    assert.equal(
+      byTestId(tree, "cal-panel"),
+      null,
+      "REGRESSION: a pull down did nothing to a card at the screen's foot",
+    );
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+});
+
 /**
  * An appointment's dialog, its controls in the order Tab walks them, for a consultation that is over, for someone in
  * People with no proposal since and no thread to text the booking link into, where deals are on and the deal sheet is
@@ -1495,9 +1527,11 @@ test("a window the board has read paints at once on the way back, and is read ag
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
-      seen.push(q.from);
+      // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      seen.push(w.from);
       await new Promise((r) => parked.push(r));
-      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -1541,6 +1575,72 @@ test("a window the board has read paints at once on the way back, and is read ag
   } finally {
     stop();
     await release();
+    Object.assign(globalThis.window, {
+      location: was.location,
+      fetch: was.fetch,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+      __CALENDAR: was.cal,
+    });
+  }
+});
+
+test("REGRESSION: two moves whose reads overlap land as the second, and neither says it could not read the days -- the first, its answer dropped, put the span back under the second, whose own answer was then dropped too", async () => {
+  const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { calendarOverride, getCalendarSpan, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
+  const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
+  setCalendarSpan(null);
+  const parked = [];
+  const was = {
+    location: globalThis.window.location,
+    fetch: globalThis.window.fetch,
+    ws: globalThis.window.__WORKSPACES,
+    active: globalThis.window.__ACTIVE_WORKSPACE,
+    cal: globalThis.window.__CALENDAR,
+  };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => {
+      const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      await new Promise((r) => parked.push(r));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  const release = async () => {
+    for (let i = 0; i < 40; i += 1) {
+      while (parked.length) parked.shift()();
+      await pause();
+    }
+  };
+  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
+  const stop = startSurfaces([calendarOverride], () => () => {});
+  try {
+    await release();
+    // Two windows this tab has never read, so each move waits on its read; the second asked while the first is out.
+    const first = "2027-03-01";
+    const second = "2027-05-03";
+    const toFirst = realVerbs.goTo(first, 63);
+    await pause();
+    const toSecond = realVerbs.goTo(second, 63);
+    await pause();
+    assert.equal(parked.length, 2, "both reads are out at once");
+    await release();
+    assert.equal(await toFirst, true, "REGRESSION: the first move said its days could not be read");
+    assert.equal(await toSecond, true, "REGRESSION: and so did the second, though every read landed");
+    assert.equal(getCalendarSpan().from, second, "REGRESSION: the first move put the span back under the second");
+    assert.equal(shown(), second, "the board shows the weeks asked for last");
+  } finally {
+    stop();
+    await release();
+    setCalendarSpan(null);
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
@@ -1619,9 +1719,11 @@ test("a window read ahead is held and paints at once when the board gets there; 
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
-      seen.push(q.from);
+      // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      seen.push(w.from);
       await new Promise((r) => parked.push(r));
-      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });

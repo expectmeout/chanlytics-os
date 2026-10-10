@@ -28,15 +28,20 @@
  * checksum, 2 when the ref cannot be read, and 0 when main has no ledger yet.
  *
  * And whether production has what main has: production's ledger in, as `supabase migration list` prints it (with
- * `--linked`, or `--db-url` for the database SUPABASE_PROD_READ_URL names), as one version a line, or as a JSON array:
+ * `--linked`, or `--db-url` for the database SUPABASE_PROD_READ_URL names), as one version a line, as a JSON array of
+ * versions, or, with the names, as the rows of `select version, name from supabase_migrations.schema_migrations`
+ * (`supabase db query --linked -o json "…"`, or a table whose header names the columns):
  *
  *   supabase migration list --linked | node tooling/scripts/checks/migration-ledger.mjs --compare -
- *   node tooling/scripts/checks/migration-ledger.mjs --compare prod-ledger.txt --hours 24
+ *   node tooling/scripts/checks/migration-ledger.mjs --compare prod-ledger.json --hours 24
  *
  * It exits 0 when production holds every migration main has and nothing main lacks, 1 when main has held one
- * production lacks for `--hours` or longer (24 by default) or production holds one main does not, and 2 when the
- * input could not be read. The release steps in docs/runbook.md run it; so does the weekly workflow
- * (.github/workflows/migration-ledger.yml), once SUPABASE_PROD_READ_URL is set.
+ * production lacks for `--hours` or longer (24 by default), production holds one main does not, or, when the names
+ * are given, production applied a version under another name than main's file of that version (two migrations took
+ * one number: production ran the one that is not on main, and will never run main's, since the CLI keys an applied
+ * migration by its version alone), and 2 when the input could not be read. The release steps in docs/runbook.md run
+ * it; so do the weekly workflow (.github/workflows/migration-ledger.yml), once SUPABASE_PROD_READ_URL is set, and
+ * migrate.yml after each push.
  */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -55,6 +60,9 @@ const NOTE =
 
 /** A migration file's version: the digits before the first underscore, as the CLI keys it. */
 export const versionOf = (file) => file.split("_")[0];
+
+/** A migration file's name as the CLI records it beside the version: what lies between the version and `.sql`. */
+export const nameOf = (file) => file.replace(/^\d+_/, "").replace(/\.sql$/, "");
 
 /** The sha256 of a migration's text, its line endings read as LF, so a Windows checkout hashes as CI does. */
 export const checksum = (text) => createHash("sha256").update(text.replace(/\r\n/g, "\n")).digest("hex");
@@ -224,34 +232,84 @@ export function ledgerAgainstBase(ledger, base) {
 /** A cell of the CLI's table as a value: since 2.116 each is drawn in backticks, and an empty one as "` `". */
 const cellOf = (cell) => cell.replace(/`/g, "").trim();
 
+/** A line of a table: its cells are split by a pipe, or the box character the CLI draws one with. */
+const CELL_WALL = /[|\u2502]/;
+
 /**
- * The versions production has applied, from what `supabase migration list` prints: its table (the Remote column), the
- * object it prints when it runs under an agent (`{ migrations: [{ local, remote, time }] }`, since 2.116, when AI_AGENT
- * or CLAUDECODE is set), one version a line, or a JSON array. Throws when nothing in the text is a version.
+ * What production has applied, each version with its name (null where the input carries none), from what the CLI
+ * prints or a query answers: `supabase migration list`'s table (the Remote column), the object it prints when it runs
+ * under an agent (`{ migrations: [{ local, remote, time }] }`, since 2.116, when AI_AGENT or CLAUDECODE is set), one
+ * version a line, a JSON array of versions, or the rows of `select version, name from
+ * supabase_migrations.schema_migrations`, as `supabase db query -o json` prints them (`[{ version, name }]`) or as a
+ * table whose header names the columns. Throws when nothing in the text is a version.
  */
 export function parseProductionLedger(text) {
   const trimmed = String(text ?? "").trim();
-  let versions;
-  if (trimmed.startsWith("[")) versions = JSON.parse(trimmed).map(String);
+  let rows;
+  if (trimmed.startsWith("[")) rows = JSON.parse(trimmed).map(rowOf);
   else if (trimmed.startsWith("{")) {
-    const listed = JSON.parse(trimmed).migrations;
-    if (!Array.isArray(listed)) throw new Error("production's ledger is an object with no migrations list");
-    versions = listed.map((m) => String(m?.remote ?? "").trim());
-  } else
-    versions = trimmed
-      .split(/\r?\n/)
-      .map((line) => cellOf(/[|\u2502]/.test(line) ? (line.split(/[|\u2502]/)[1] ?? "") : line));
-  versions = versions.filter((v) => /^\d+$/.test(v));
-  if (!versions.length) throw new Error("no version in production's ledger: nothing to compare");
-  return new Set(versions);
+    const read = JSON.parse(trimmed);
+    // `db query -o json` in an agent's shell wraps its rows as {boundary, warning, rows}; on a runner they are bare.
+    if (Array.isArray(read.rows)) rows = read.rows.map(rowOf);
+    else if (Array.isArray(read.migrations))
+      rows = read.migrations.map((m) => ({ version: String(m?.remote ?? "").trim(), name: null }));
+    else throw new Error("production's ledger is an object with no rows and no migrations list");
+  } else rows = tableRows(trimmed);
+  const production = new Map();
+  for (const { version, name } of rows) if (/^\d+$/.test(version)) production.set(version, name || null);
+  if (!production.size) throw new Error("no version in production's ledger: nothing to compare");
+  return production;
 }
 
-/** Main's migrations production lacks, and production's that main does not carry. */
+/** A JSON element as a row: a version alone, or an object with its version (or the list's `remote`) and its name. */
+const rowOf = (e) =>
+  e && typeof e === "object"
+    ? { version: String(e.version ?? e.remote ?? "").trim(), name: String(e.name ?? "").trim() || null }
+    : { version: String(e).trim(), name: null };
+
+/**
+ * The rows of a table, or of a list with one version a line: the version from the column a header names `Remote` or
+ * `version` (the second column when no header says, as `migration list` draws it), the name from the column a header
+ * names `name`, and none when no header names one.
+ */
+function tableRows(text) {
+  const lines = text.split(/\r?\n/);
+  let versionAt = 1;
+  let nameAt = -1;
+  for (const line of lines) {
+    if (!CELL_WALL.test(line)) continue;
+    const cells = line.split(CELL_WALL).map((c) => cellOf(c).toLowerCase());
+    const remote = cells.indexOf("remote");
+    const version = cells.indexOf("version");
+    if (remote < 0 && version < 0) continue;
+    versionAt = remote >= 0 ? remote : version;
+    nameAt = cells.indexOf("name");
+    break;
+  }
+  return lines.map((line) => {
+    if (!CELL_WALL.test(line)) return { version: cellOf(line), name: null };
+    const cells = line.split(CELL_WALL).map(cellOf);
+    return { version: cells[versionAt] ?? "", name: nameAt >= 0 ? (cells[nameAt] ?? "") : "" };
+  });
+}
+
+/**
+ * Main's migrations production lacks, production's versions main does not carry, and the versions both hold under
+ * different names (a clash: two migrations took one number, and production ran the one that is not on main).
+ * `production` is what parseProductionLedger returns, or a set of versions alone, which can show no clash.
+ */
 export function compare(folder, production) {
-  const main = new Set(folder.map((m) => m.version));
+  const named = production instanceof Map ? production : new Map([...production].map((v) => [v, null]));
+  const main = new Map(folder.map((m) => [m.version, m]));
+  const clashes = [];
+  for (const [version, name] of named) {
+    const m = main.get(version);
+    if (m && name && name !== nameOf(m.file)) clashes.push({ version, main: m.file, production: name });
+  }
   return {
-    mainAhead: folder.filter((m) => !production.has(m.version)).map((m) => m.file),
-    productionAhead: [...production].filter((v) => !main.has(v)).sort(),
+    mainAhead: folder.filter((m) => !named.has(m.version)).map((m) => m.file),
+    productionAhead: [...named.keys()].filter((v) => !main.has(v)).sort(),
+    clashes,
   };
 }
 
@@ -286,12 +344,21 @@ function landedEntries(root) {
   }
 }
 
-/** The comparison as sentences, and whether it is an alarm: main ahead for `hours` or longer, or production ahead. */
-export function compareReport({ mainAhead, productionAhead }, ageHours, hours) {
+/**
+ * The comparison as sentences, and whether it is an alarm: main ahead for `hours` or longer, production ahead, or a
+ * version both hold under different names.
+ */
+export function compareReport({ mainAhead, productionAhead, clashes = [] }, ageHours, hours) {
   const lines = [];
   let alarm = false;
-  if (!mainAhead.length && !productionAhead.length)
+  if (!mainAhead.length && !productionAhead.length && !clashes.length)
     lines.push("Production has applied every migration main carries, and nothing main does not.");
+  for (const c of clashes) {
+    alarm = true;
+    lines.push(
+      `Production applied ${c.version} as ${c.production}, and main carries it as ${c.main}: two migrations took one number. Production ran the one that is not on main and will never run main's, since the CLI keys an applied migration by its version. Write each as a new migration at a free number: main's, so production runs it; production's, so every replay has it.`,
+    );
+  }
   if (mainAhead.length) {
     lines.push(`Production lacks ${mainAhead.length} migration${mainAhead.length === 1 ? "" : "s"} main carries:`);
     for (const file of mainAhead) {

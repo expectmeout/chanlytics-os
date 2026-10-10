@@ -1,7 +1,7 @@
 import { read, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
 import { campaignReport } from "@/server/readers/campaign-report";
-import { ReportQuery, reportDaysFor } from "@/server/readers/report";
+import { ReportQuery, reportWindowFor } from "@/server/readers/report";
 
 /**
  * GET /api/v1/reports/campaigns?period=7d|30d|90d|month — what the offers earned.
@@ -16,6 +16,6 @@ export const GET = read({
   query: ReportQuery,
   handle: async ({ ctx, member, input }) => {
     const rc = readerContext(ctx, member);
-    return (await load(rc, campaignReport, { days: await reportDaysFor(rc, input) })).data;
+    return (await load(rc, campaignReport, await reportWindowFor(rc, input))).data;
   },
 });

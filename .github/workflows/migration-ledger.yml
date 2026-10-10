@@ -4,10 +4,12 @@ name: Production's migrations
 # does not. Production took migrations from branches, below main's head and out
 # of order, and nothing compared what it applied with main (the scorecard's
 # defect 59). tooling/scripts/checks/migration-ledger.mjs compares production's
-# ledger, read with the Supabase CLI, with main's folder: a migration main has
-# carried for a day that production lacks, or a version production holds that
-# main does not, keeps one issue open and pages the platform through the edge's
-# pager door; agreement closes the issue.
+# ledger, read with the Supabase CLI as each version with its name, with main's
+# folder: a migration main has carried for a day that production lacks, a
+# version production holds that main does not, or a version both hold under
+# different names (two migrations took one number, October 2026), keeps one
+# issue open and pages the platform through the edge's pager door; agreement
+# closes the issue. migrate.yml runs the same compare after each push it makes.
 #
 # It needs to read production, which CI never does by rule, so it is off until
 # Ruben sets the secret SUPABASE_PROD_READ_URL: a Postgres connection string for
@@ -31,6 +33,7 @@ jobs:
   compare:
     name: Production's ledger against main's
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       PROD_READ_URL: ${{ secrets.SUPABASE_PROD_READ_URL }}
     steps:
@@ -56,8 +59,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          supabase migration list --db-url "$PROD_READ_URL" > prod-ledger.txt 2> prod-ledger.err
-          node tooling/scripts/checks/migration-ledger.mjs --compare prod-ledger.txt --hours 24 > ledger.txt 2>&1
+          supabase db query --db-url "$PROD_READ_URL" -o json "select version, name from supabase_migrations.schema_migrations order by version" > prod-ledger.json 2> prod-ledger.err
+          node tooling/scripts/checks/migration-ledger.mjs --compare prod-ledger.json --hours 24 > ledger.txt 2>&1
           code=$?
           cat ledger.txt
           echo "code=$code" >> "$GITHUB_OUTPUT"

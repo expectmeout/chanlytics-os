@@ -7,7 +7,7 @@
  * activityWords); the page only reads them out. A person is found by name or
  * number through the People route, then filtered by id.
  */
-import { activityTone, personName, type ActivityPageDto } from "@chanlytics/contracts";
+import { activityTone, personName, type ActivityFamily, type ActivityPageDto } from "@chanlytics/contracts";
 import { api } from "./api";
 import type { ApiResult } from "../client/api";
 import { readCache } from "./read-cache";
@@ -15,12 +15,21 @@ import { workspaceZone } from "./zone";
 
 /** The last answer per set of filters, so coming back to the tab paints at once. */
 const pages = readCache<ApiResult<ActivityPageDto>>("activity", (r) => r.ok);
-const keyOf = (f: ActivityFilters) => [f.person ?? "", f.kind ?? "", f.day ?? "", f.cursor ?? ""].join("|");
+const keyOf = (f: ActivityFilters) =>
+  [f.person, f.kind, f.family, f.only, f.actor, f.day, f.from, f.to, f.cursor].map((v) => v ?? "").join("|");
 
 export interface ActivityFilters {
   person?: string;
   kind?: string;
+  /** Every kind of one family, or only what went wrong: the kind box's two wider answers. */
+  family?: ActivityFamily;
+  only?: "problems";
+  /** Who did it: a member's user id, `receptionist` or `system`. */
+  actor?: string;
   day?: string;
+  /** A span of days by the workspace's clock, both ends included. */
+  from?: string;
+  to?: string;
   /** Where the last page ended, as that page's `next_cursor` gave it. */
   cursor?: string;
 }
@@ -33,12 +42,8 @@ export const activity = {
     pages.through(keyOf(f), async () => {
       const [r] = await Promise.all([
         api()("GET activity", {
-          query: {
-            ...(f.person ? { person: f.person } : {}),
-            ...(f.kind ? { kind: f.kind } : {}),
-            ...(f.day ? { day: f.day } : {}),
-            ...(f.cursor ? { cursor: f.cursor } : {}),
-          },
+          // Only what was asked for: a filter left alone is no parameter at all.
+          query: Object.fromEntries(Object.entries(f).filter(([, v]) => !!v)),
         }),
         workspaceZone().catch(() => null),
       ]);

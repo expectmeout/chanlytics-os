@@ -319,10 +319,12 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  */
 export const LIMITED_TREES = [
   "packages/db/src",
+  "packages/contracts/src/activity",
   "packages/contracts/src/ai",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/consent",
   "packages/contracts/src/google",
+  "packages/contracts/src/journey",
   "packages/contracts/src/lines",
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",

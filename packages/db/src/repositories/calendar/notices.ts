@@ -49,20 +49,24 @@ export async function appointmentNoticesOf(
   db: Db,
   tenantId: string,
 ): Promise<{ tool: string | null; last_at: string | null; held: number }> {
-  const latest = await db
-    .from("appointment_notices")
-    .select("tool, received_at")
-    .eq("tenant_id", tenantId)
-    .in("outcome", ["booked", "changed", "cancelled"])
-    .order("received_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Together: neither needs the other, and each is a round trip the Calendar's board waits on (9 Oct 2026: its read
+  // spent 180 ms on the server for a workspace with no calendar, every one of seven round trips after the one before).
+  const [latest, held] = await Promise.all([
+    db
+      .from("appointment_notices")
+      .select("tool, received_at")
+      .eq("tenant_id", tenantId)
+      .in("outcome", ["booked", "changed", "cancelled"])
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("appointment_notices")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("outcome", "held"),
+  ]);
   if (latest.error) throw new Error(`appointment_notices_latest: ${latest.error.message}`);
-  const held = await db
-    .from("appointment_notices")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("outcome", "held");
   if (held.error) throw new Error(`appointment_notices_held: ${held.error.message}`);
   return { tool: latest.data?.tool ?? null, last_at: latest.data?.received_at ?? null, held: held.count ?? 0 };
 }

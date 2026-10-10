@@ -7,10 +7,13 @@
  * (business/saver.ts).
  */
 import { useEffect, useState } from "react";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { RecordTip } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
-import { askAbout, canDo, gate, hrefOf, navigate, refusalToast, showTip, type LegacyFlash } from "../../legacy-verbs";
+import { askAbout, canDo, gate, hrefOf, navigate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { BtCreateCard } from "../business/create";
 import { brokenConfigWords, settingsNow, setupApi, setupNow } from "../business/shell";
 import { BusinessTab } from "../business/tab";
@@ -61,15 +64,10 @@ export function WorkspaceData() {
                 Download (JSON)
               </a>
             )}
-            <button
-              type="button"
-              className="set-mark"
-              data-tip={DATA_HOLDS}
-              aria-label={`What the file holds: ${DATA_HOLDS.charAt(0).toLowerCase()}${DATA_HOLDS.slice(1)}`}
-              onClick={(e) => showTip(e.currentTarget)}
-            >
-              <Icon name="info" size={12} />
-            </button>
+            <RecordTip
+              text={DATA_HOLDS}
+              label={`What the file holds: ${DATA_HOLDS.charAt(0).toLowerCase()}${DATA_HOLDS.slice(1)}`}
+            />
           </span>
         }
       />
@@ -114,9 +112,9 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
   };
   return (
     <>
-      <section className="fl-card set-card">
-        <div className="fl-card-head">
-          <h2 className="fl-card-title">Business</h2>
+      <section className="rec-card set-card">
+        <div className="rec-card-head">
+          <h2 className="rec-card-title">Business</h2>
         </div>
         <FailedRead kind="card" title={W.title} body={W.body} testid="settings-broken">
           <ul className="set-broken-issues">
@@ -129,15 +127,14 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
               {W.requested(repairAsked, Date.now())}
             </span>
           ) : (
-            <button
-              type="button"
-              className="btn btn-sm"
+            <Button
+              size="sm"
               onClick={() => void askRepair()}
               data-testid="settings-broken-ask"
               {...gate("approve", "ask for a repair")}
             >
               {W.ask}
-            </button>
+            </Button>
           )}
         </FailedRead>
       </section>
@@ -152,16 +149,17 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
  */
 function DemoBusiness() {
   return (
-    <section className="fl-card set-card">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">Business</h2>
+    <section className="rec-card set-card">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">Business</h2>
         {/* The mockup's compose flow asks an assistant to update details it has no way to write. */}
-        <button
-          className="btn btn-ghost btn-sm"
+        <Button
+          size="sm"
+          variant="quiet"
           onClick={() => askAbout({ mode: "compose", prompt: "Update our business details: " })}
         >
           <Icon name="edit" size={11} /> Edit
-        </button>
+        </Button>
       </div>
       <div className="cl-prof-attr-list">
         <div className="cl-prof-attr">
@@ -176,13 +174,9 @@ function DemoBusiness() {
           <span className="cl-prof-attr-key">Hours</span>
           <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             Mon–Sun · 9:00 AM – 6:00 PM
-            <button
-              className="cl-bucket-link"
-              title="Availability rules live on the Calendar"
-              onClick={() => navigate("calendar")}
-            >
+            <LinkButton title="Availability rules live on the Calendar" onClick={() => navigate("calendar")}>
               Edit on Calendar <Icon name="arrow-right" size={10} />
-            </button>
+            </LinkButton>
           </span>
         </div>
         <div className="cl-prof-attr">

@@ -172,6 +172,104 @@ a.btn {
   border: 1px solid var(--line);
 }
 
+/* ---------- Search — the capsule a list is searched from (kit/search/search.tsx) ----------
+   People's phone search, the one the Inbox's list wears too (10 Oct 2026): a 38px capsule on an inset's fill with its
+   ring and depth, the glyph 15px and the words in the dim ink at the page's size. At rest on a phone it is a button
+   saying what it finds; pressed, it is the field, 16px on a phone so the phone never zooms into it, with Cancel beside
+   it. Its focus is a box's (--focus-field-edged: the capsule has no border of its own). The page places it (the room
+   round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the touch
+   floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.search > .search-rest,
+.search > .search-box {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-base);
+}
+.search > .search-rest {
+  text-align: left;
+  cursor: pointer;
+}
+.search-rest > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search .icon {
+  flex: none;
+}
+.search > .search-box:focus-within {
+  box-shadow: var(--focus-field-edged), var(--surface-inset-depth);
+}
+.search > .search-box > input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+.search-box > input::placeholder {
+  color: var(--ink-faint);
+}
+.search-box > input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search-box > .search-clear {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  min-height: 0;
+  margin-right: -10px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.search-cancel {
+  flex: none;
+  height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .search > .search-box > input {
+    font-size: var(--field-text-touch);
+  }
+}
+
 /* ---------- Badges: one shape per job ----------
    docs/superpowers/specs/2026-09-23-one-badge-system-design.md. Four shapes, one size each (the spec's pill and its
    quiet state are both .pill); no page keeps its own.
@@ -534,6 +632,18 @@ a.chip:focus-visible {
   font-size: 10.5px;
   color: var(--ink-dim);
 }
+/* A second line UNDER the words (MoreMenu `metaBelow`): what a choice gives, read before it is pressed (Team's roles,
+   each with what it may do). At the end of the line, a sentence crowded the words it described until they overlapped. */
+.more-item-two {
+  flex-wrap: wrap;
+  row-gap: 1px;
+}
+.more-item-two > .more-item-meta {
+  flex-basis: 100%;
+}
+.more-item-two > .icon ~ .more-item-meta {
+  padding-left: 27px;
+}
 .more-item.danger {
   color: var(--danger);
 }
@@ -588,6 +698,29 @@ a.chip:focus-visible {
 .pop-place > .more-menu {
   position: static;
 }
+/* The kit's popover and date picker come and go as the house's overlays do (components.css, "HOW THINGS COME AND GO"):
+   they appeared and vanished in one frame, and a pick that closed one read as harsh (Ruben, 10 Oct 2026). In from their
+   control (Base UI's --transform-origin), a few percent small and faded up; out the same way, easing at both ends, so the
+   eye follows it back to the control. Only opacity and scale move, and Base UI keeps the popup until they have. Nothing
+   moves under reduced motion. */
+.pop-place > .panel-pop[role="dialog"] {
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    scale var(--duration-base) var(--ease-out);
+}
+.pop-place > .panel-pop[role="dialog"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  scale: 0.97;
+}
+.pop-place > .panel-pop[role="dialog"][data-ending-style] {
+  transition-timing-function: var(--ease-in-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-place > .panel-pop[role="dialog"] {
+    transition: none;
+  }
+}
 /* An item that opens a page of its own is a link (the kit's Menu, "a door is a link"): no underline, as a link that
    is a button has none. */
 a.more-item {
@@ -605,7 +738,19 @@ a.more-item {
     inset: auto 0 0 0 !important;
     transform: none !important;
   }
-  .pop-place > .more-menu {
+  /* The house's MoreMenu (Settings' filters and rows) is the same sheet (10 Oct 2026: a phone's menu is a bottom action
+     sheet, always), drawn on the document's body there (more-menu.tsx, `data-sheet`) so no card that isolates its
+     layers holds it under the tab bar. */
+  .more-menu[data-sheet] {
+    position: fixed;
+    inset: auto 0 0 0;
+    min-width: 0;
+    transform-origin: bottom center;
+  }
+  .more-backdrop[data-sheet] {
+    background: var(--surface-veil);
+  }
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
@@ -614,7 +759,7 @@ a.more-item {
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
   }
-  .pop-place > .more-menu::before {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet])::before {
     content: "";
     display: block;
     width: 36px;
@@ -623,14 +768,14 @@ a.more-item {
     border-radius: var(--radius-full);
     background: var(--line-strong);
   }
-  .pop-place > .more-menu .more-item {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item {
     min-height: 52px;
     padding: 0 12px;
     gap: 14px;
     border-radius: var(--radius-lg);
     font-size: var(--text-md);
   }
-  .pop-place > .more-menu .more-item .icon {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item .icon {
     width: 18px;
     height: 18px;
   }
@@ -645,7 +790,7 @@ a.more-item {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pop-place > .more-menu {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
     animation: none;
   }
 }
@@ -793,8 +938,9 @@ a.more-item {
   border-radius: var(--radius-sm);
 }
 .confirm-typed:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-field);
 }
 .confirm-typed::placeholder {
   color: var(--ink-faint);
@@ -948,8 +1094,6 @@ a.more-item {
   z-index: 250;
   max-height: min(340px, 72vh);
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
 }
 
 /* ---------- Toast (usePPToast) — the one flash, in four tones ----------
@@ -1874,9 +2018,11 @@ a.more-item {
   max-width: none;
   display: flex;
   flex-direction: column;
-  background: var(--bg-raised);
+  /* A sheet is the solid that pops (tokens.css, --surface-pop-fill), as the kit's Sheet is: one ground for every
+     sheet and dialog, where this one spelled the same colour as the raised ground with the older shadow. */
+  background: var(--surface-pop-fill);
   border-left: 1px solid var(--line-strong);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--surface-pop-depth);
 }
 /* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
 .rec-sheet:focus {
@@ -1997,9 +2143,11 @@ a.more-item {
   font-size: var(--text-base);
   color: var(--ink);
 }
+/* A box that holds the keys: its hairline in the accent and a soft wash around it (tokens.css, --focus-field), over
+   the specular edge it keeps. One line; the keyboard's ring over an accent border was two. */
 .rec-input:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
   border-color: var(--accent);
 }
 .rec-input[aria-invalid="true"] {
@@ -2034,7 +2182,7 @@ textarea.rec-input {
   background: var(--bg-raised);
 }
 .rec-input-group:focus-within {
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
   border-color: var(--accent);
 }
 .rec-input-group[data-invalid="true"] {
@@ -2316,12 +2464,15 @@ textarea.rec-input {
   padding-top: 6px;
 }
 
-/* ---------- A month of a range: the days a period covers, on a month ---------- */
-/* The date picker's head and weekdays over the same six weeks, with nothing to press but the arrows. The days of the range
-   are one band across each week, round where the range or the week begins and ends, in the hairline's colour, the quiet
-   track a switch at rest and a meter's rest are drawn in: the inset's fill was white on the light side's white pop, and no
-   band was drawn there (7 Oct 2026). Its first day and its last are the lozenge a picked tab wears. A day of the month
-   before or after is the dim ink, in the band or out of it, and today the accent's ink. */
+/* ---------- A month to choose a range from: its days one band, each a day that presses ---------- */
+/* The date picker's head and weekdays over the same six weeks, with its button in each cell (day-range-picker.tsx). The
+   days of the range are one band across each week, round where the range or the week begins and ends, in the
+   hairline's colour, the quiet track a switch at rest and a meter's rest are drawn in: the inset's fill was white on
+   the light side's white pop, and no band was drawn there (7 Oct 2026). Its first day and its last are the lozenge a
+   picked tab wears. A day of the month before or after is the dim ink, in the band or out of it, and today the
+   accent's ink. The cell keeps the band and its ends' lozenge, the button the pointer's hover and the keyboard's ring.
+   A cell takes its button's height: a touch screen's 44px floor grows the button, and a cell held at 36 let one
+   week's days lie over the next's. */
 .date-pick-month {
   display: flex;
   flex-direction: column;
@@ -2330,7 +2481,28 @@ textarea.rec-input {
   justify-self: stretch;
   display: grid;
   place-items: center;
-  height: 36px;
+  min-height: 36px;
+}
+/* A press anywhere on a cell is its day's (range-press.ts, 10 Oct 2026): the button fills the cell, so no room between
+   two days is dead, and the round inside it is what the hover, the lozenge and the keyboard's ring are drawn on. A
+   double tap is two taps, never a zoom, and a drag across the days selects none of their numbers. */
+.date-pick-month .date-pick-grid {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.date-pick-month .date-pick-day {
+  justify-self: stretch;
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  min-height: 36px;
+  border-radius: 0;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.date-pick-month .date-pick-day:focus-visible .date-pick-num {
+  box-shadow: var(--focus-ring);
 }
 .date-pick-cell[data-in] {
   background: var(--line);
@@ -2348,6 +2520,11 @@ textarea.rec-input {
 .date-pick-cell[data-outside] .date-pick-num {
   color: var(--ink-dim);
 }
+/* A day of the month before or after, inside the range: a step up from the faint ink, so the band's fill under it
+   does not take it under the kit's 4.5. */
+.date-pick-cell[data-in][data-outside] .date-pick-num {
+  color: var(--ink-muted);
+}
 .date-pick-cell[data-today] .date-pick-num {
   color: var(--accent-ink);
   font-weight: var(--weight-semibold);
@@ -2357,8 +2534,28 @@ textarea.rec-input {
   box-shadow: var(--selected-depth);
   font-weight: var(--weight-semibold);
 }
-.date-pick-cell:is([data-start], [data-end]):not([data-today]) .date-pick-num {
+/* Today among them: the date picker gives a chosen day the ink over today's accent (above), and here today's accent
+   on the end's lozenge read 4.42:1 on a phone in the dark (the gallery's check 6, 9 Oct 2026); a band that ends today
+   says so by ending. */
+.date-pick-cell:is([data-start], [data-end]) .date-pick-num {
   color: var(--ink);
+}
+/* A day that cannot be chosen (one to come, or too far to be the other end) is the faint ink and answers no pointer. */
+.date-pick-day[aria-disabled="true"] {
+  cursor: default;
+}
+.date-pick-day[aria-disabled="true"] .date-pick-num {
+  background: none;
+  color: var(--ink-faint);
+}
+/* What is chosen so far, under the grid: one quiet line, with the room of two kept so the month never changes height
+   as it speaks. */
+.date-pick-hint {
+  min-height: calc(2 * var(--leading-normal, 1.45) * 1em);
+  margin: 0;
+  padding: 8px 6px 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
 }
 
 /* ---------- A combobox: a box over a list that narrows as you type ---------- */
@@ -2373,7 +2570,7 @@ textarea.rec-input {
   overflow: hidden;
 }
 .rec-combo:focus-within {
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
   border-color: var(--accent);
 }
 .rec-combo-field {
@@ -2491,18 +2688,29 @@ select.rec-input {
   text-overflow: ellipsis;
   cursor: pointer;
 }
+/* Its open list is the browser's own, and Chrome draws it on the box's own fill: over Glass's translucent control that
+   was the device's white list under the page's light ink, and no option could be read but the one a pointer was on
+   (Settings › Activity, 8 Oct 2026; the theme's color-scheme reaches the list only where the box's fill is opaque).
+   The options take the pop layer's ground and the ink, as the kit's Select draws its list on the panel's pop. A phone
+   draws its own picker, which follows the color-scheme and reads none of this. */
+select.rec-input :is(option, optgroup) {
+  background-color: var(--surface-pop-fill);
+  color: var(--ink);
+}
 /* The kit's picker (surfaces/kit/picker/): the same list, richer. Its options in groups under a heading in the small
    capitals' ink; an option's glyph before its words and a line under them; a search at the list's top over a hairline;
    what is said when nothing matches; and a line under the list for what is not offered. */
 .rec-combo-pop > .rec-combo-field {
   height: var(--control-h-md);
 }
-/* Its search takes a key with the accent's line round the row, drawn inside it: the record kit's box draws the ring
-   (.rec-combo:focus-within), and here there is no box, and the pop's flush panel clips anything drawn outside it. */
+/* Its search takes a key with the accent's hairline round the row, drawn inside it: the record kit's box draws its own
+   (.rec-combo:focus-within), and here there is no box, and the pop's flush panel clips anything drawn outside it. It
+   holds the keys for as long as the list is open, so the line is a hairline: at 2px it was the loudest thing in the
+   list. */
 .rec-combo-pop > .rec-combo-field:focus-within {
   border-radius: inherit;
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 /* What none matching says always stands between the search and the list (Base UI's Empty stays in the page, to be
    heard), so the hairline is the list's under it. */
@@ -2726,8 +2934,27 @@ select.rec-input {
 .link-btn-danger {
   color: var(--danger);
 }
+/* Words of a line that are its door (a list row's name, where the row is the press and the name its link): they take
+   the size, weight and ink of where they stand, never the quiet link's small words, and no underline; a block, so a
+   long name ends in an ellipsis, which the link's flex box cannot draw. */
+.link-btn-inherit {
+  display: block;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .link-btn:hover {
   color: var(--ink);
+}
+/* Words that take where they stand's ink keep that ink under any hover: the quiet link's hover above outranked the
+   variant's `inherit`, and a name lost its line's ink. What the variant promises, not a hover style, so it holds under a
+   touch too, which keeps `:hover` on the last thing tapped (touch-hover.test.mjs). */
+.link-btn-inherit:hover {
+  color: inherit;
 }
 
 /* ---------- Face: a person, a lead, a conversation, as initials in a circle ----------
@@ -2848,6 +3075,17 @@ a.list-row {
   align-self: start;
 }
 .list-row:not(:has(> .list-row-said)) > .list-row-face {
+  grid-row: 1 / span 2;
+}
+/* A row that is a thing of a kind, not someone (a campaign on Campaigns' phone list): the kit's mark in the face's
+   column, centred in it, neutral always (the badges' rule: a mark is a row's kind). */
+.list-row-mark {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: start;
+  justify-self: center;
+}
+.list-row:not(:has(> .list-row-said)) > .list-row-mark {
   grid-row: 1 / span 2;
 }
 .list-row-name {
@@ -3354,6 +3592,18 @@ a.list-row {
 .btn-danger {
   box-shadow: none;
 }
+/* A press drawn as text: an area of a page's words that is one press (Campaigns' moment card, whose caps, figure and
+   unit narrow the ledger), not a control's label. No gap of a button's between its parts, a text's weight and tracking
+   and never a control's, its height its words', which wrap: a button's gap made the card 12 to 18px taller, and its
+   weight set every word of the card in bold. The quiet kind is the one drawn as text (button.tsx's ButtonSize); after
+   the kinds, so a text's weight holds over whatever weight a kind sets. */
+.btn-text {
+  gap: 0;
+  height: auto;
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-normal);
+  white-space: normal;
+}
 
 /* ---- The segmented capsule and the stage capsule (inbox3.py segmented; deals3.py stage_capsule) ----
    A choice of a few is one capsule, the picked segment the lozenge: the selected fill with its specular edge and a
@@ -3523,15 +3773,27 @@ a.list-row {
 }
 
 /* ---- What pops over the page (every canvas's popover) ----
-   An action menu is glass, as the control layer's capsules are (Ruben, 2 Oct 2026: "glassy"): its fill and sheen, its
-   blur, and its specular edge and depth in place of the menu's own shadow, so the page's light shows through it. The
-   roles fall back to a solid fill and no blur where the reader asks for less transparency. */
-.more-menu {
+   One glass for everything that pops, written once: an action menu (Menu, MoreMenu) and a panel that pops from a
+   control (the Select's list, the Combobox's and the Picker's, the date picker's month, a popover). The control
+   layer's sheen, its blur, and its specular edge and depth in place of a shadow or a hairline (Ruben, 2 Oct 2026:
+   "glassy"; 8 Oct, of Settings › Activity's lists: "the same glassy feel… without just the stroke"), on the pop's own
+   ground, --surface-pop-glass (tokens.css): dense enough that neither the page's colour nor a log's coloured lines show
+   through, light enough to read as glass (10 Oct 2026). Menus stood on the control layer's 8.5% and lists on 88%, two
+   looks for one job. The roles fall back to a solid fill and no blur where the reader asks for less transparency. */
+.more-menu,
+.panel-pop {
   border: 0;
-  background-color: var(--surface-control-fill);
+  background-color: var(--surface-pop-glass);
   background-image: var(--surface-control-sheen);
   backdrop-filter: var(--surface-control-blur);
   box-shadow: var(--surface-control-depth);
+}
+/* What pops and scrolls (a long menu, a select's list) wears one scrollbar: thin, in the line's strong ink, on
+   nothing. A list without it took the page's 10px bar, whose border is the page's ground: a dark box on the glass. */
+.more-menu,
+.rec-combo-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 /* An item lifts as a lozenge in the accent's soft tint, its glyph turning to the accent, under a pointer, a key or a
    finger. A phone's hover sticks to what the finger last touched, but the menu closes on the press, so it is never
@@ -3562,9 +3824,30 @@ a.list-row {
 .more-item.danger:focus-visible .icon {
   color: var(--danger-ink);
 }
+/* A list's options lift as a menu's items do: a lozenge in the accent's soft tint under a pointer or a key, inside the
+   list's own margin so the wash never meets the glass's edge. The house's hover was an opaque ground, a dark patch on
+   glass, and the one walked to looked no different from the one chosen but for its weight. */
+.rec-combo-pop > .rec-combo-list {
+  padding: 6px;
+}
+.rec-combo-pop .rec-combo-opt {
+  border-radius: var(--radius-lg);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.rec-combo-pop .rec-combo-opt[data-highlighted] {
+  background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .rec-combo-pop .rec-combo-opt:hover {
+    background: var(--accent-soft);
+  }
+}
 
 /* ---- A sheet, and the glass foot bar (campaigns3.py foot and composer, C2; deals3.py, the deal's pane, D2) ----
-   On a desk a side sheet stands clear of the window's edges at a pane's corner, opaque as what pops over the page is,
+   On a desk a side sheet stands clear of the window's edges at a pane's corner, opaque (what pops over the page is
+   near-opaque glass, --surface-pop-glass; a sheet is the solid itself),
    over the page's wash; on a phone it rises from the bottom edge at the same corner. Its foot is a capsule of the
    control layer's glass, standing clear of the sheet's edges: its line, then its acts at the canvases' height. The
    rows scroll above it, never under it, and it stands on the sheet's opaque ground, so it has nothing to blur. It
@@ -3636,6 +3919,77 @@ footer.rec-sheet-foot .btn {
 .rec-sheet-foot[data-asking="true"] .confirm-words {
   padding: 0 10px;
 }
+/* On a phone, and from the kit's 900px, where a sheet is the width of the screen or near it, Save and Cancel are an equal pair
+   across its foot, as the foot's question already is: two short buttons at the left of a capsule a thumb wide left
+   more than half of it empty, and the foot changed shape when it asked. The foot's line, and a line of the page's,
+   stand over the pair, so the two buttons are always the foot's last row. A name too long for half the foot ("Import 12
+   and check their addresses") takes the row, and the other button the row under it: never cut, never shrunk. The one
+   that is not the act is the plain button, as the question's No is (above): a quiet one, half the width, read as a
+   word adrift.
+
+   A foot of a page's own (a composer's Cancel and Send, at the foot's end on a desk) names its row of acts with
+   `data-foot-pair` and is laid out the same from the width a sheet of the kit's rises at: its line over the pair, and
+   the filled act first, where Save is, whichever way the row is written. The attribute is named twice so
+   that a page's own rule for its row on a desk (a class, written after the kit's) does not outrank the pair. */
+@media (max-width: 900px) {
+  .rec-sheet-foot:where(:has(> .rec-foot)) {
+    padding: 6px;
+  }
+  .rec-sheet-foot:where(:has(> .rec-foot)) > :where(:not(.rec-foot, .confirm)) {
+    padding: 8px 10px 0;
+  }
+  .rec-sheet-foot > .rec-foot {
+    gap: 8px;
+  }
+  .rec-sheet-foot > .rec-foot .btn {
+    flex: 1 1 calc(50% - 4px);
+    min-width: max-content;
+    max-width: 100%;
+    justify-content: center;
+  }
+  .rec-sheet-foot > .rec-foot .rec-foot-note {
+    flex: 1 1 100%;
+    order: -1;
+    padding: 8px 10px 2px;
+    text-align: left;
+  }
+  :where(.rec-sheet-foot > .rec-foot) .btn-ghost:where(:not(.danger)) {
+    background: var(--secondary-fill);
+    border-color: var(--line);
+    color: var(--ink);
+  }
+}
+@media (max-width: 900px) {
+  .rec-sheet-foot:where(:has([data-foot-pair])) {
+    padding: 6px;
+  }
+  [data-foot-pair][data-foot-pair] {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  [data-foot-pair][data-foot-pair] > .btn {
+    flex: 1 1 calc(50% - 4px);
+    min-width: max-content;
+    max-width: 100%;
+    justify-content: center;
+    border-radius: var(--control-radius);
+  }
+  [data-foot-pair][data-foot-pair] > .btn-primary {
+    order: -1;
+  }
+  [data-foot-pair][data-foot-pair] > :where(:not(.btn, .confirm)) {
+    flex: 1 1 100%;
+    order: -2;
+    padding: 8px 10px 2px;
+  }
+  [data-foot-pair][data-foot-pair] > :where(:not(.btn)):empty {
+    display: none;
+  }
+}
 
 /* ---- The composer's rows (campaigns3.py, the compact composer C2; deals3.py, the deal's pane D2) ----
    A composer's rows are a pane's: the key in the third ink, the rule between them the edge (the roles'), and the
@@ -3665,8 +4019,26 @@ footer.rec-sheet-foot .btn {
 .token[data-popup-open] {
   background: var(--selected-fill);
 }
+/* A select's box is pressed, not typed in, so it answers a pointer as a button and the picker's token do: it lifts to
+   the selected fill under one, and holds it while its list is open (Base UI says data-popup-open; a box that opens the
+   house's menu says aria-expanded alone). It stood still, a stroke round its words. Under a pointer alone: a touch
+   screen keeps :hover on the last thing tapped. */
+.rec-select {
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.rec-select:is([data-popup-open], [aria-expanded="true"]) {
+  background: var(--selected-fill);
+}
+@media (hover: hover) {
+  .rec-select:hover {
+    background: var(--selected-fill);
+  }
+}
 .token:focus-visible {
-  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+  border-color: var(--accent);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
 }
 textarea.rec-input,
 .rec-combo[data-open="true"] {
@@ -3692,7 +4064,8 @@ textarea.rec-input,
    (.input input, above), and the capsule's hairline turning a step darker was all that said where the key stood. */
 .input:focus-within {
   outline: none;
-  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+  border-color: var(--accent);
+  box-shadow: var(--focus-field), var(--surface-inset-depth);
 }
 
 /* ---- Counts as text (liquid_lite.py count_text; liquid.py count) ----
@@ -3987,6 +4360,17 @@ textarea.rec-input,
   color: var(--ink-dim);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+/* A ratio of some, but too few (its count above none and under the minimum, the reports lenses spec D9) is read in the dim
+   ink, and says how few under the line under it: the number is still said, never hidden, and a thin figure is not a tone.
+   Of none there is no ratio to grey: the figure's own line says why. */
+.figure.is-thin .figure-value {
+  color: var(--ink-dim);
+}
+.figure-n {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--ink-dim);
 }
 /* On a phone a figure is half a strip, and the period before was cut short beside the number ("none the 7 days befo…"):
    it wraps there instead, at two lines at most, as the line under it does (7 Oct 2026). */

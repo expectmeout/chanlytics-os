@@ -23,6 +23,7 @@ export {
   ASK_CAPS,
   ASK_THREAD_VERBS,
   ASK_UNDO_MS,
+  askCardLapsed,
   ASK_SURFACES,
   ASK_SCOPE_KINDS,
 } from "./ask";
@@ -40,7 +41,15 @@ export type {
 } from "./ask";
 export { detectLanguage, ASK_LANGUAGES } from "./ask-language";
 export type { AskLanguage } from "./ask-language";
-export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO } from "./answer-text";
+export {
+  cleanAnswer,
+  isUngrounded,
+  sameQuestion,
+  navigateLabel,
+  FOLLOWUP_ECHO,
+  claimsWrite,
+  unquoted,
+} from "./answer-text";
 export { askJump, askPages, ASK_PAGES } from "./ask-jump";
 export type { JumpEntry } from "./ask-jump";
 export { buildAskSuggestions } from "./ask-suggestions";

@@ -81,6 +81,8 @@ test("the alert is the shape a send that fails at the wire raises: one function 
     {
       queued: async () => ({ status: "queued", body: "See you at 3", channel: "whatsapp", sender: "human" }),
       purposeOf: async () => "conversational",
+      claim: async () => true,
+      release: async () => {},
       deliver: async () => ({
         outcome: "failed",
         reason: "no_credentials",

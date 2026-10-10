@@ -2,7 +2,8 @@
  * push_send, run over the fake database and a recording push port: the readers of a kept row (the one it is
  * addressed to, else every member), their phones, one message each with the reader's bell number, the tickets kept for
  * one push_receipts job, a phone the service says is gone forgotten (in the ticket, or in the receipt a quarter of an
- * hour on), and a transport that fails thrown so the ledger tries again.
+ * hour on), a receipts job the ledger refused said on the log and never thrown, and a transport that fails thrown so
+ * the ledger tries again.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,6 +11,20 @@ import { fakeDb } from "../_fake-db.mjs";
 import { dispatchJob } from "../../../../packages/jobs/src/handlers.ts";
 import { RETRY_WAITS_MS } from "../../../../packages/jobs/src/ledger.ts";
 import { PUSH_RECEIPTS_AFTER_MS } from "../../../../packages/contracts/src/today/push.ts";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+
+/** The logger's lines (one JSON object per console call) written while `fn` ran, and what it answered. */
+async function logged(fn) {
+  const lines = [];
+  const real = { log: console.log, warn: console.warn, error: console.error };
+  for (const k of Object.keys(real)) console[k] = (...args) => lines.push(args);
+  try {
+    const answer = await fn();
+    return { answer, lines: lines.map(logLineOf).filter(Boolean) };
+  } finally {
+    Object.assign(console, real);
+  }
+}
 
 const T = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
@@ -35,9 +50,9 @@ function world(over = {}) {
   const db = fakeDb({
     notifications: [row(over.notification)],
     memberships: [
-      { user_id: "u1", tenant_id: T, role: "owner" },
-      { user_id: "u2", tenant_id: T, role: "staff" },
-      { user_id: "u9", tenant_id: OTHER, role: "owner" },
+      { user_id: "u1", tenant_id: T, role: "owner", push_off: over.pushOff?.u1 ?? [] },
+      { user_id: "u2", tenant_id: T, role: "staff", push_off: over.pushOff?.u2 ?? [] },
+      { user_id: "u9", tenant_id: OTHER, role: "owner", push_off: [] },
     ],
     push_devices: devices,
   });
@@ -154,14 +169,20 @@ test("a note left for one member is counted on that member's badge alone", async
   assert.equal(badgeOf("tok-u2"), 2, "u2: the workspace's row and their own note");
 });
 
-test("a receipts job the ledger refuses does not make the alert leave twice", async () => {
+test("a receipts job the ledger refuses does not make the alert leave twice, and is said rather than swallowed", async () => {
   const { db } = world();
   const p = port();
   const refusing = async () => {
     throw new Error("jobs_kind_check");
   };
-  assert.equal(await dispatchJob(ctx(db, { push: p.push, schedule: refusing }), job), "done");
+  const { answer, lines } = await logged(() => dispatchJob(ctx(db, { push: p.push, schedule: refusing }), job));
+  assert.equal(answer, "done");
   assert.equal(p.sent.length, 3, "sent once, and the job is done, not retried");
+  assert.deepEqual(
+    lines.filter((l) => l.event === "push_receipts_schedule_failed").map((l) => [l.level, fieldsOf(l)]),
+    [["error", { tenant_id: T, job: "j1", tickets: 3, error: "jobs_kind_check" }]],
+    "one line, under the name alerting greps for: the phones whose receipts will not be read, and why",
+  );
 });
 
 test("push_receipts forgets the phones their receipts say are gone and leaves every other answer alone", async () => {
@@ -270,4 +291,55 @@ test("a transport that fails throws, so the ledger tries again; a runtime withou
   await assert.rejects(dispatchJob(ctx(world().db, { push: p.push }), job), /push_rejected 503/);
   await assert.rejects(dispatchJob(ctx(world().db, {}), job), /push_send: this runtime holds no push transport/);
   assert.deepEqual(RETRY_WAITS_MS.push_send, [2 * 60_000, 10 * 60_000], "two minutes, then ten, before the row fails");
+});
+
+// Decision 0040: a member who turned a kind off for their phones (memberships.push_off, 00372) is left out of its
+// push; everyone else is told as before, and before the column exists everyone is told.
+test("a member who turned a kind off for their phones is not told it; the rest of the workspace is (0040)", async () => {
+  const { db } = world({ pushOff: { u1: ["handoff"] } });
+  const p = port();
+  await dispatchJob(ctx(db, { push: p.push }), job);
+  assert.deepEqual(
+    p.sent.map((m) => m.to),
+    ["tok-u2"],
+    "u1's two phones stay quiet",
+  );
+  // Another kind still reaches u1.
+  const other = world({ notification: { kind: "call" }, pushOff: { u1: ["handoff"] } });
+  const q = port();
+  await dispatchJob(ctx(other.db, { push: q.push }), job);
+  assert.deepEqual(q.sent.map((m) => m.to).sort(), ["tok-u1-a", "tok-u1-b", "tok-u2"]);
+});
+
+test("a note's one reader who turned notes off for their phones is told nothing, and the job is done (0040)", async () => {
+  const { db } = world({
+    notification: { kind: "note_for_you", recipient_user_id: "u2" },
+    pushOff: { u2: ["note_for_you"] },
+  });
+  const p = port();
+  assert.equal(await dispatchJob(ctx(db, { push: p.push }), job), "done");
+  assert.deepEqual(p.sent, []);
+});
+
+test("before 00372 there is no push_off to read, and every member is told as before (either deploy order)", async () => {
+  const { db } = world();
+  // The real database answers a column it does not have with 42703; the in-memory one is told to.
+  const from = db.from.bind(db);
+  db.from = (table) => {
+    const q = from(table);
+    if (table !== "memberships") return q;
+    const select = q.select.bind(q);
+    q.select = (cols, ...rest) => {
+      if (String(cols).includes("push_off")) {
+        const refused = { data: null, error: { code: "42703", message: "column memberships.push_off does not exist" } };
+        const chain = { eq: () => chain, in: () => chain, then: (ok, ko) => Promise.resolve(refused).then(ok, ko) };
+        return chain;
+      }
+      return select(cols, ...rest);
+    };
+    return q;
+  };
+  const p = port();
+  await dispatchJob(ctx(db, { push: p.push }), job);
+  assert.deepEqual(p.sent.map((m) => m.to).sort(), ["tok-u1-a", "tok-u1-b", "tok-u2"]);
 });

@@ -474,11 +474,32 @@ test(
     assert.equal(rep.no_angle, 1);
     const dom = rep.domains.find((d) => d.host === `back-${stamp}.example`);
     assert.deepEqual([dom.state, dom.sent, dom.delivered, dom.bounced, dom.complained], ["verified", 5, 4, 1, 0]);
-    refusedWith(
-      await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 14 }),
-      "22023",
-      REACH_OUT_REFUSALS.period,
+    // A period is any count of days a report reads, 1 to 90 (00359): it refused all but 7, 30 and 90, so the month so
+    // far read nothing of the reach-outs. None and more than ninety are still refused, in contracts' words.
+    assert.equal(ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 14 })).days, 14);
+    for (const days of [0, 91])
+      refusedWith(
+        await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: days }),
+        "22023",
+        REACH_OUT_REFUSALS.period,
+      );
+    // The window's last day (00359): none named, today and a day to come are the read above; a window that ended before
+    // anything was written says its last day and counts nothing of what came after it.
+    const today = rep.today;
+    const dayBefore = (k) => new Date(Date.parse(`${today}T00:00:00Z`) - k * 86_400_000).toISOString().slice(0, 10);
+    for (const end of [today, dayBefore(-3)]) {
+      const same = ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 7, p_end: end }));
+      assert.deepEqual(same.totals, rep.totals, `named ${end}: the days to today, as it always read`);
+      assert.equal(same.end, today, `named ${end}: it ends today, never on a day that has not come`);
+    }
+    const earlier = ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 7, p_end: dayBefore(30) }));
+    assert.deepEqual([earlier.end, earlier.today, earlier.days], [dayBefore(30), today, 7]);
+    assert.equal(earlier.totals.written, 0, "REGRESSION: a window counted everything written since its first day");
+    assert.equal(
+      earlier.series.reduce((t, d) => t + d.written, 0),
+      0,
     );
+    assert.equal(earlier.series.at(-1).day, dayBefore(30), "its days end on its last day");
     refusedWith(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: B, p_days: 7 }), "P0002");
     refusedWith(await as.viewer.c.rpc("reach_out_search_lines", { p_tenant_id: B, p_search_id: w.s }), "P0002");
     refusedWith(await as.stranger.c.rpc("reach_out_search_lines", { p_tenant_id: A, p_search_id: w.s }), "P0002");
@@ -672,7 +693,7 @@ test(
       has_function_privilege('service_role', f, 'execute') as service,
       (select p.prosecdef from pg_proc p where p.oid = f::regprocedure) as definer
     from unnest(array[
-      'public.reach_out_report(uuid, int)',
+      'public.reach_out_report(uuid, int, date)',
       'public.reach_out_search_lines(uuid, uuid)',
       'public.reach_out_lead_timeline(uuid, uuid)',
       'public.reach_out_lead_stop(uuid)',

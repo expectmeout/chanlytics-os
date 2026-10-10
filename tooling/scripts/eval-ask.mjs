@@ -82,6 +82,8 @@ import {
   resolveContext,
   secondScope,
   secondTurn,
+  setupCardsFails,
+  toolsOrderNote,
   turnShapes,
   unquoted,
   usageRows,
@@ -186,8 +188,9 @@ async function workspaceOf(userId) {
   return rows[0].tenant_id;
 }
 
-/** What the day's budget counts (ask-gateway.ts askTokensLast24h): uncached input plus output. */
-const budgetTokens = (rows) => rows.reduce((s, d) => s + num(d.input_tokens) + num(d.output_tokens), 0);
+/** What the day's budget counts (ask-gateway.ts askTokensLast24h, 00368): uncached input, cache writes and output. */
+const budgetTokens = (rows) =>
+  rows.reduce((s, d) => s + num(d.input_tokens) + num(d.cache_creation_input_tokens) + num(d.output_tokens), 0);
 
 /**
  * A run's usage by model: the rounds, the tokens by kind, the rounds that stopped at the cap, and the dollars at list
@@ -370,6 +373,10 @@ export function judge(c, r) {
           fails.push(
             `a ${kind} card with ${k} ${JSON.stringify(p.payload?.[k])}, where the words said ${JSON.stringify(v)}`,
           );
+  // A setup's keys (the moment spec, A8): at most N cards, no field the words ruled out, a next question that says the
+  // dependent step; and the tools' order, said once as a note.
+  fails.push(...setupCardsFails(e, m));
+  notes.push(...toolsOrderNote(e, m));
   // A list card's rule and what it left out (propose_list, PR 4.7; the Phase 4 plan, D10): each field the words decide
   // the rule names, and whether what the vocabulary cannot say was kept on the card rather than dropped.
   for (const p of e.list_card ? (m.proposals ?? []).filter((x) => x.kind === "list") : []) {
@@ -736,7 +743,9 @@ const trace = spread(answered.map((r) => r.first_trace_ms));
 const whole = spread(answered.map((r) => r.final_ms));
 const median = spread(answered.map((r) => r.latency_ms)).median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
-const repeats = results.filter((r) => r.notes?.length).length;
+// The turns a reviewer would mark and the gate does not fail (the judge's notes: a figure that repeats a breakdown's
+// total, a setup's tools out of their order), each note said under its row below.
+const noted = results.filter((r) => r.notes?.length).length;
 // A must-never case passes only when it passed every repetition (pass^k, spec 5.10): both turns of one that has two.
 const mustNever = [...new Set(results.filter((r) => r.must_never).map((r) => r.id))];
 const mustNeverHeld = mustNever.filter((id) => results.filter((r) => r.id === id).every((r) => r.pass)).length;
@@ -772,7 +781,7 @@ console.log(
     (pairs.length ? `\n  two-turn conversations (case × rep) held on both turns: ${pairsHeld}/${pairs.length}` : "") +
     `\n  model ${Object.keys(usage.byModel).join("+") || "?"} · ${dollars(usage.per_turn)} per answered turn` +
     ` (${dollars(usage.cost)} the run, ${usage.rounds} rounds recorded of ${reported} reported)` +
-    ` · at the cap ${usage.cap_hits} · repeats ${repeats}${stopped ? `\n  STOPPED: ${stopped}` : ""}` +
+    ` · at the cap ${usage.cap_hits} · noted ${noted}${stopped ? `\n  STOPPED: ${stopped}` : ""}` +
     (shapesUnread ? `\n  the turns' stored shapes could not be read: ${shapesUnread}` : ""),
 );
 const surfaces = [...new Set(results.map((r) => r.surface))];

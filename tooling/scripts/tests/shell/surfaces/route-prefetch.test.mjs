@@ -13,7 +13,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "@chanlytics/contracts";
+import {
+  routePrefetchScript,
+  PREFETCH_SLOT,
+  PREFETCH_READS,
+  REPORT_PERIOD_DEFAULT,
+  REPORT_PERIOD_IDS,
+  REPORT_PERIOD_STORAGE,
+} from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
@@ -108,11 +115,11 @@ test("on People's list the head starts its three reads beside who is looking, as
       PEOPLE_LIST("harbor"),
       route,
     );
-  // Leads is its own surface, and a person's page reads the person first.
-  for (const route of ["people/leads", "people/leads:s-abc", "clients/leads"])
+  // Leads is its own surface: the scope alone opens on its own list, never People's rows (a view it names is below).
+  for (const route of ["people/leads", "clients/leads"])
     assert.deepEqual(
       headRuns({ pathname: `/w/harbor/${route}`, hash: "" }).calls.map(([u]) => u),
-      ["/api/v1/workspaces?workspace=harbor"],
+      opensOn("harbor", "leads"),
       route,
     );
   // Parked under the URL the client reads, each once.
@@ -131,6 +138,16 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["live", "live"],
     ["lists", "segments"],
     ["segments", "segments"],
+    // Leads' own scope of People, by the product's word and the shell's.
+    ["people/leads", "leads"],
+    ["clients/leads", "leads"],
+    ["calendar", "calendar"],
+    // Every lens of Reports draws from the one report.
+    ["reports", "reports"],
+    ["reports/bookings", "reports"],
+    // Campaigns' home, and a moment open over it: the same page.
+    ["campaigns", "campaigns"],
+    ["campaigns/new", "campaigns"],
     ["broadcasts", "broadcasts"],
     ["playbooks", "outbound"],
     ["outbound", "outbound"],
@@ -165,14 +182,98 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     );
 });
 
-test("a page that opens on what only the tab knows, or one nobody named, starts who is looking alone; off a workspace page nothing is", () => {
-  // The Calendar's weeks are the business's, Reports' period the tab's, Leads' list the view it remembers.
+test("on an address that says days Reports is read over them, by their first and last day, whatever period the device keeps; anything else after a lens is the period's", () => {
+  const DAYS = "2026-09-01~2026-09-20";
+  const over = (route, saved = "7d") =>
+    headRuns({
+      pathname: `/w/acme/${route}`,
+      hash: "",
+      globals: { localStorage: { getItem: (k) => (k === REPORT_PERIOD_STORAGE ? saved : null) } },
+    }).calls.map(([u]) => u);
+  const days = [
+    "/api/v1/workspaces?workspace=acme",
+    "/api/v1/reports?from=2026-09-01&to=2026-09-20&workspace=acme",
+    "/api/v1/reports/campaigns?from=2026-09-01&to=2026-09-20&workspace=acme",
+    "/api/v1/reports/reach-outs?from=2026-09-01&to=2026-09-20&workspace=acme",
+  ];
+  // A link someone sent: the Overview over the days, a lens over them, and with nothing kept on the device at all.
+  assert.deepEqual(
+    over(`reports/${DAYS}`),
+    days,
+    "REGRESSION: the head read the device's period, and the page read the days after it",
+  );
+  assert.deepEqual(over(`reports/people:${DAYS}`), days);
+  assert.deepEqual(over(`reports/reviews:${DAYS}`, null), days);
+  // The address the frame has not moved yet says them in the hash.
+  assert.deepEqual(
+    headRuns({
+      pathname: "/w/acme",
+      hash: `#/reports/people:${DAYS}`,
+      globals: { localStorage: { getItem: () => "90d" } },
+    }).calls.map(([u]) => u),
+    days,
+  );
+  // A lens alone, and words that are not days, are read over the period kept.
+  const kept = days.map((u) => u.replace("from=2026-09-01&to=2026-09-20", "period=7d"));
+  for (const route of ["reports/people", "reports/people:30d", "reports/2026-09-01", "reports/people:2026-09-01~x"])
+    assert.deepEqual(over(route), kept, route);
+});
+
+test("Reports is read over the period this device last picked, as the page reads it; a period nobody offers is the default's", () => {
+  const over = (saved) =>
+    headRuns({
+      pathname: "/w/acme/reports",
+      hash: "",
+      globals: { localStorage: { getItem: (k) => (k === REPORT_PERIOD_STORAGE ? saved : null) } },
+    }).calls.map(([u]) => u);
+  for (const period of REPORT_PERIOD_IDS)
+    assert.deepEqual(
+      over(period),
+      [
+        "/api/v1/workspaces?workspace=acme",
+        `/api/v1/reports?period=${period}&workspace=acme`,
+        `/api/v1/reports/campaigns?period=${period}&workspace=acme`,
+        `/api/v1/reports/reach-outs?period=${period}&workspace=acme`,
+      ],
+      period,
+    );
+  assert.ok(REPORT_PERIOD_IDS.length > 1 && REPORT_PERIOD_IDS.includes(REPORT_PERIOD_DEFAULT));
+  // Nothing kept, something another build kept, storage that throws: thirty days, which is what the page falls back to.
+  for (const saved of [null, "", "1y", "constructor"]) assert.deepEqual(over(saved), opensOn("acme", "reports"), saved);
+  assert.deepEqual(
+    headRuns({
+      pathname: "/w/acme/reports",
+      hash: "",
+      globals: {
+        localStorage: {
+          getItem: () => {
+            throw new Error("storage is off");
+          },
+        },
+      },
+    }).calls.map(([u]) => u),
+    opensOn("acme", "reports"),
+  );
+  // The device's period is Reports' alone: the Campaigns' sends are counted over their own thirty days whatever it is.
+  const other = REPORT_PERIOD_IDS.find((p) => p !== REPORT_PERIOD_DEFAULT);
+  assert.deepEqual(
+    headRuns({
+      pathname: "/w/acme/broadcasts",
+      hash: "",
+      globals: { localStorage: { getItem: () => other } },
+    }).calls.map(([u]) => u),
+    opensOn("acme", "broadcasts"),
+  );
+});
+
+test("a page that opens on what only the page can work out, or one nobody named, starts who is looking alone; off a workspace page nothing is", () => {
+  // A day the Calendar's address names is read by the weeks around that day, and a view of Leads the address names
+  // (a search, a list, a class) by that view: each is the page's own arithmetic, and the head guesses at neither.
   for (const route of [
-    "calendar",
     "calendar/2026-10-02",
-    "reports",
-    "people/leads",
+    "people/leads:s-abc",
     "clients/leads:s-1",
+    "clients/leads:l-kept",
     "nowhere",
     "constructor",
   ])
@@ -403,7 +504,14 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/live/surface.ts`)).liveOverride,
       (await importSrc(`${S}/surfaces/campaigns/broadcasts/surface.ts`)).broadcastsOverride,
       (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
+      (await importSrc(`${S}/surfaces/campaigns/home/results-surface.ts`)).campaignResultsOverride,
+      (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
+      (await importSrc(`${S}/surfaces/calendar/surface.ts`)).calendarOverride,
+      (await importSrc(`${S}/surfaces/reports/surface.ts`)).reportsOverride,
+      (await importSrc(`${S}/surfaces/leads/surface.ts`)).leadsOverride,
+      // Who is looking: Reports' strip waits for it (ROUTE_WAITS), and its read is every page's.
+      (await importSrc(`${S}/legacy-bridge/surface-data.ts`)).workspaceOverride,
     ].map((o) => [o.key, o]),
   );
   const settle = async () => {
@@ -411,9 +519,15 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   };
   // Settings is a page of panes, each drawn from the settings surface: asked about one of them.
   const paramOf = { admin: "workspace" };
+  // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
+  // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS); and
+  // Campaigns' home draws Sent's runs, its own 30 days (campaign_results) and the reach-outs' chains.
+  const alsoDrawn = { today: ["calendar"], campaigns: ["broadcasts", "campaign_results", "reach_outs"] };
+  for (const [route, drawn] of Object.entries(alsoDrawn))
+    for (const k of drawn) assert.ok(registry.ROUTE_DRAWS[route].includes(k), `${route} draws ${k} beside its own`);
   for (const route of Object.keys(PREFETCH_READS)) {
     const own = registry.routeSurfaceFor(route, paramOf[route] ?? null);
-    const keys = [own, ...(registry.ROUTE_WAITS[route] ?? [])];
+    const keys = [own, ...(registry.ROUTE_WAITS[route] ?? []), ...(alsoDrawn[route] ?? [])];
     assert.ok(
       keys.every((k) => overrides[k]),
       `${route}: every surface it opens on is run here (${keys.join(", ")})`,
@@ -428,5 +542,92 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     const head = opensOn("harbor", route).slice(1).sort();
     assert.deepEqual(head, theirs, `${route}: the head starts what ${keys.join(" and ")} ask for first`);
   }
+  // Reports over days a member picked, which only its address says: the head reads the address as the page's surface
+  // does, so the two spell one read (first day, then last) and the surface's own takes what the head started.
+  for (const route of ["reports/2026-09-01~2026-09-20", "reports/people:2026-09-01~2026-09-20"]) {
+    win.location.pathname = `/w/harbor/${route}`;
+    api().forget();
+    asked.length = 0;
+    for (const k of ["reports", "workspace"]) void overrides[k].apply().catch(() => {});
+    await settle();
+    const theirs = [...new Set(asked)].filter((u) => !u.startsWith("/api/v1/workspaces")).sort();
+    const head = headRuns({ pathname: win.location.pathname, hash: "" })
+      .calls.map(([u]) => u)
+      .slice(1)
+      .sort();
+    assert.equal(head.length, 3, `${route}: the report, the offers' and the reach-outs'`);
+    assert.deepEqual(head, theirs, `${route}: the head starts what Reports asks for over the days`);
+  }
+  win.location.pathname = "/w/harbor";
   api().forget();
+});
+
+test("every page there is says what it opens on: a page that arrives without its reads is a red build", async () => {
+  // The Calendar, Reports, Leads and Campaigns' home had no entry, each for a reason that read well and cost half a
+  // second (9 Oct 2026). A page that truly cannot say its first read from the address is named here with why.
+  const NONE = {};
+  const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const pages = [...new Set(Object.keys(registry.ROUTE_SURFACE).map((route) => route.split("/")[0]))];
+  assert.ok(pages.length > 10, "the pages are read from the registry");
+  for (const page of pages)
+    assert.ok(
+      Object.hasOwn(PREFETCH_READS, page) !== Object.hasOwn(NONE, page),
+      `${page}: either what it opens on (contracts PREFETCH_READS) or why it cannot say (here), and never both`,
+    );
+  for (const page of Object.keys(NONE)) assert.ok(pages.includes(page), `${page} is a page`);
+});
+
+/* ------------------------------ what the page did not take ------------------------------ */
+
+test("REGRESSION: what the head started and the page's own reads did not take is let go of once they are in -- Leads' list in Fit order, untaken by a tab that last read another order, answered the owner's pick of Fit minutes later", async () => {
+  const LEADS_FIT = "/api/v1/leads?list=all&sort=fit&dir=asc&limit=500&workspace=acme";
+  const fetched = [];
+  const win = {
+    fetch: async (url) => {
+      fetched.push(url);
+      return json({ ok: true, data: { rows: [{ id: "read now" }] } });
+    },
+    location: { pathname: "/w/acme/people/leads", search: "", hash: "", assign() {}, replace() {}, reload() {} },
+    sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() {
+      return true;
+    },
+    // What the head started as the document began: the list in Fit order, as every Leads page opens on.
+    [PREFETCH_SLOT]: {
+      [LEADS_FIT]: Promise.resolve(json({ ok: true, data: { rows: [{ id: "from the first second" }] } })),
+    },
+  };
+  globalThis.window = win;
+  globalThis.sessionStorage = win.sessionStorage;
+  globalThis.localStorage = win.localStorage;
+  globalThis.document ??= { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+  const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
+  const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  api().forget();
+  // The page's own read is the order this tab last read (leadsBootView): not the head's URL, which it never takes.
+  const leads = {
+    key: "leads",
+    apply: async () =>
+      void (await api()("GET leads", { query: { list: "all", sort: "found", dir: "desc", limit: "500" } })),
+  };
+  const stop = startSurfaces([leads], () => () => {});
+  try {
+    for (let i = 0; i < 20; i += 1) await new Promise((r) => setTimeout(r, 0));
+    assert.ok(
+      fetched.some((u) => u.includes("sort=found")),
+      "the page's own read asked the server",
+    );
+    api().forget();
+    // Minutes on, the owner sorts by Fit.
+    const r = await api()("GET leads", { query: { list: "all", sort: "fit", dir: "asc", limit: "500" } });
+    assert.equal(r.ok, true);
+    assert.equal(r.data.rows[0].id, "read now", "REGRESSION: answered from what the document's head read as it began");
+    assert.ok(fetched.includes(LEADS_FIT), "the server was asked");
+  } finally {
+    stop();
+    api().forget();
+  }
 });

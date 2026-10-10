@@ -18,6 +18,8 @@ export interface BillingBody {
   email?: string;
   /** Where Checkout comes back to: a place on contracts' closed list, or Billing. */
   return?: unknown;
+  /** The member the dashboard acted for, where its token names none (admin-auth.ts personFor). */
+  user_id?: string;
 }
 
 /** The ops past status, each over the workspace's row. */
