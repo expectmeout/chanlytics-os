@@ -74,8 +74,8 @@ import { cardSays } from "./says";
  */
 const UNNAMED_GOES_BY = NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? "every one" : "the first one";
 
-/** What a run does under each mode, in the card's words. */
-const MODE_WORDS: Record<string, string> = {
+/** What a run does under each mode, in the card's words (also the change card's, act/playbook-change.ts). */
+export const MODE_WORDS: Record<string, string> = {
   auto: "each run sends on its own",
   veto: `each run sends ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it`,
   ask: "each run waits for you on Today",

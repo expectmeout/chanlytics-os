@@ -8,7 +8,7 @@
  * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
  * beside its mode, an operator's two beside an owner's one; PR 4.5 gave inbox its search; PR 4.7 added propose_list,
  * an operator's (twenty for an owner), gave propose_campaign a waiting run's approval (run), and made
- * propose_thread_verb's words true for every role. What the model is sent is frozen per role in
+ * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change). What the model is sent is frozen per role in
  * fixtures/ask-tools-4-7.json, and every other tool reads to every role as fixtures/ask-tools-4-6.json froze it (which
  * PR 4.6 and PR 4.5 held to fixtures/ask-tools-4-3.json, and PR 4.3 to PR 3.4's, for the tools each did not change --
  * inbox too, less its search); the rest is held as structure: the order, the four prefixes, the flattened
@@ -369,12 +369,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
   const tool = (role, name) => toApiTools(role, true).find((t) => t.name === name);
   assert.deepEqual(
     ROLES.map((role) => tool(role, "propose_campaign")?.input_schema.properties.action.enum ?? null),
-    // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches.
+    // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches; 9
+    // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles.
     [
       null,
-      ["broadcast", "playbook", "run", "channels"],
-      ["broadcast", "playbook", "run", "channels"],
-      ["broadcast", "playbook", "run", "channels"],
+      ["broadcast", "playbook", "run", "channels", "change"],
+      ["broadcast", "playbook", "run", "channels", "change"],
+      ["broadcast", "playbook", "run", "channels", "change"],
     ],
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
@@ -428,7 +429,22 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // action's stand between the playbook's and the tail.
     const before = was(role, "propose_campaign");
     const now = tool(role, "propose_campaign");
-    const { broadcast_id: _b, verb: _v, playbook_id: playbookId, channels, ...fields } = now.input_schema.properties;
+    const {
+      broadcast_id: _b,
+      verb: _v,
+      playbook_id: playbookId,
+      channels,
+      state: _s,
+      gap_days: _g,
+      cadence_days: _c,
+      ...fields
+    } = now.input_schema.properties;
+    // 9 Oct 2026: the change action's own three fields; its name, run_hour and cap_per_run are the playbook's, one shape.
+    assert.deepEqual(
+      [_s, _g, _c].map(shapeOf),
+      [{ type: "string", enum: ["running", "paused"] }, { type: "number" }, { type: "number" }],
+      `${role}: change's own three fields`,
+    );
     assert.deepEqual(shapeOf(playbookId), { type: "string" }, `${role}: playbook_id, the channels action's own field`);
     assert.deepEqual(channels, CHANNELS, `${role}: channels, one optional list of the three, for both actions`);
     assert.equal(now.input_schema.required.includes("channels"), false, `${role}: and never required`);
@@ -437,11 +453,12 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       lessRetired(before.input_schema).properties,
     );
     assert.deepEqual(
-      now.input_examples.filter((ex) => ex.action !== "run" && ex.action !== "channels"),
+      now.input_examples.filter((ex) => !["run", "channels", "change"].includes(ex.action)),
       before.input_examples,
     );
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.run.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.channels.words} `), role);
+    assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.change.words} `), role);
   }
 });
 

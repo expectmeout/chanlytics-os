@@ -1202,7 +1202,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
       ["propose_autonomy", []],
-      ["propose_campaign", ["broadcast", "playbook", "run", "channels"]],
+      ["propose_campaign", ["broadcast", "playbook", "run", "channels", "change"]],
       ["propose_deal", []],
       ["propose_lead_search", []],
       ["propose_list", []],
