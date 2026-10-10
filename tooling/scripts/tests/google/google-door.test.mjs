@@ -1437,7 +1437,11 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   const tables = world({
     google_listings: [listingRow()],
     google_connections: [connRow()],
-    google_reviews: [reviewRow(R1)],
+    // Rosa's, which Google still lists, and one it took down since the last read (decision 0036, 00392).
+    google_reviews: [
+      reviewRow(R1),
+      reviewRow("99999999-9999-4999-8999-999999999999", { review_id: "g-gone", author: "Dana", body: "Taken down." }),
+    ],
   });
   const creds = new Map([
     [A, { refresh_token: "rt-1", access_token: "at-stale", expires_at: Date.now() - 60_000, scope: SCOPE }],
@@ -1530,10 +1534,14 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     [[A, "rt-1", "at-new"]],
     "the fresh access token goes back through the vault door, for next time",
   );
-  assert.deepEqual(tables.google_reviews.map((r) => [r.review_id, r.origin, r.author]).sort(), [
-    ["g-1", "profile", "Rosa"],
-    ["g-3", "profile", "Luis"],
-  ]);
+  assert.deepEqual(
+    tables.google_reviews.map((r) => [r.review_id, r.origin, r.author]).sort(),
+    [
+      ["g-1", "profile", "Rosa"],
+      ["g-3", "profile", "Luis"],
+    ],
+    "a read that listed every review: Dana's, which Google no longer shows, is gone from the mirror",
+  );
   assert.equal(
     tables.google_reviews.find((r) => r.review_id === "g-1").id,
     R1,
@@ -1559,6 +1567,9 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
 
   // A location with more reviews than the pages the sync may read: the list does not end, and the record says it is not whole.
+  tables.google_reviews.push(
+    reviewRow("88888888-8888-4888-8888-888888888888", { review_id: "g-older", author: "Eli", body: "Years ago." }),
+  );
   net = wired((req) => {
     const u = req.url.split("?")[0];
     if (u === TOKEN_URL)
@@ -1581,6 +1592,10 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     tables.google_connections[0].reviews_complete,
     false,
     "Google's list had a page left when the pages ran out: the record is the newest reviews, not every one",
+  );
+  assert.ok(
+    tables.google_reviews.some((r) => r.review_id === "g-older"),
+    "a read that did not reach the oldest lets none go: Eli's may still be on Google",
   );
 });
 

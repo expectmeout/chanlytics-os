@@ -3124,6 +3124,12 @@ interface ProfileSyncPlan {
      * read ran out: the reviews on record are then every one Google lists (google_connections.reviews_complete).
      */
     complete: boolean;
+    /**
+     * Whether the reviews on record that this read did not list may go (decision 0036, 00392): only after a complete read
+     * that holds reviews, or one Google says holds none. A complete read with no reviews and no count is a page that came
+     * back without its list, never a location that lost them all.
+     */
+    prune: boolean;
 }
 declare function planProfileSync(before: ProfileBefore, known: ReadonlyMap<string, KnownReview>, page: GbpReviewsPage, day: string, nowMs: number): ProfileSyncPlan;
 

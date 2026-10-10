@@ -52,7 +52,7 @@ unnamed durations                    63   in 33 files
 event-shaped clocks                   9   of the registered clocks (invariant 6)
 tables with more than one writer     57   387 writers among them
 doors writing a record with no event   68   writing 77 tables (invariant 2)
-personal columns with no erasure strategy    8   in 3 tables
+personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          35   in 11 files
 literal style values                919   in 22 stylesheets
 primitives outside the kit         1734   selectors naming 720 classes

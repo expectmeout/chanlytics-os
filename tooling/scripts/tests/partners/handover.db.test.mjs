@@ -147,6 +147,14 @@ test(
     ]);
     const twice = await owner.client.rpc("handover_accept", { p_tenant: made.id });
     assert.equal(twice.error?.code, "55000");
+    // The address it was handed to goes as it is accepted (00392): the one who accepted still hears it has its owner,
+    // and anyone else that nothing waits for them there.
+    const row = ok(
+      await db.from("partner_tenants").select("handover_email, handover_accepted_by").eq("tenant_id", made.id).single(),
+    );
+    assert.deepEqual(row, { handover_email: null, handover_accepted_by: owner.userId });
+    const strangers = await stranger.client.rpc("handover_accept", { p_tenant: made.id });
+    assert.equal(strangers.error?.code, "P0002", "an accepted workspace is no stranger's to learn of");
     const after_ = await partner.client.rpc("partner_handover_resend", { p_tenant: made.id, p_email: owner.email });
     assert.equal(after_.error?.code, "55000", "nothing to send once it has its owner");
     const kinds = ok(await db.from("events").select("kind").eq("tenant_id", made.id).like("kind", "partner.handover%"));

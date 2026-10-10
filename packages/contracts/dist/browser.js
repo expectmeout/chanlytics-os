@@ -15468,6 +15468,12 @@ var RETENTION_DAYS = {
   leads_untouched_blanked: 180,
   /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30,
+  /** The finder's judgment of a batch of places, with its reason for each (purge_leads, 00140; decision 0036). */
+  lead_judgments: 180,
+  /** A Google review the mirror has not seen for this long; a complete read drops one Google no longer lists at once (purge_google_reviews, 00392; decision 0036). */
+  google_reviews: 90,
+  /** A team invitation accepted or taken back, with the address it was sent to (purge_invitations, 00392; decision 0036). */
+  invitations_closed: 30,
   /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
@@ -15497,7 +15503,7 @@ var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 var forDays = (n) => n === 1 ? "a day" : `${n} days`;
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days, and the finder's reasons for a batch of places are removed after ${d.lead_judgments}. A Google review is kept while Google shows it: one it no longer lists is removed at the next full read, and any review is removed ${d.google_reviews} days after we last saw it. A team invitation that was accepted or taken back is removed ${d.invitations_closed} days later, with the address it was sent to, and the address a workspace was handed over to is cleared once its new owner accepts. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -37181,6 +37187,71 @@ function platformDaysWords(rows2) {
   const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
   return { day, sentence: sentence2, lines };
 }
+var heldToNothing = (why) => ({ promise: false, why });
+var PLATFORM_NUMBERS = {
+  messages_in: heldToNothing("what customers sent, by channel"),
+  messages_out: heldToNothing("what left, by channel"),
+  asks: heldToNothing("the customers' messages; with answered, the answer rate, whose alarm is answer_rate_zero"),
+  answered: heldToNothing("the customers' messages anyone answered"),
+  replies_answered: heldToNothing("the receptionist's replies sent at once"),
+  replies_held: heldToNothing("the receptionist's replies held for a person: the hold rate, invariant 11's"),
+  replies_handed_off: heldToNothing("the receptionist's replies that handed the thread to a person"),
+  brain_p95_ms: {
+    promise: true,
+    most: 1e4,
+    unit: "ms",
+    alarm: true,
+    why: "the receptionist's model answers within ten seconds, at the 95th percentile"
+  },
+  provider_failures: heldToNothing(
+    "a provider's verdict on a send, by what it came to: a number's, read beside what left"
+  ),
+  tokens: heldToNothing("the model's tokens"),
+  handled: heldToNothing("how the customers' messages ended"),
+  topics: heldToNothing("what the customers asked about"),
+  ai_tokens: heldToNothing("the model's tokens by purpose"),
+  ai_usd: heldToNothing("the model's cost by purpose, at list price"),
+  voice_usd: heldToNothing("the calls' cost"),
+  job_lag_ms: {
+    promise: true,
+    most: { "0": 1e4, "1": 3e4, "2": 5 * MIN_MS },
+    otherwise: 5 * MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a reply's job is claimed within ten seconds of its time, a waiting person's within thirty, bulk within five minutes, at the 95th percentile"
+  },
+  first_answer_ms: {
+    promise: true,
+    most: { email: 15 * MIN_MS },
+    otherwise: 3e4,
+    unit: "ms",
+    alarm: false,
+    why: "a customer has a first answer within thirty seconds on a text channel and fifteen minutes by email, at the 95th percentile, whoever answers: the workspace's wait, a person's answer in it, so shown and not paged"
+  },
+  duplicate_sends: {
+    promise: true,
+    most: 0,
+    unit: "count",
+    alarm: true,
+    why: "nobody is sent the same words twice (invariant 4)"
+  },
+  dead_letters: { promise: true, most: {}, otherwise: 0, unit: "count", alarm: true, why: "no job dies" },
+  relay_lag_ms: {
+    promise: true,
+    most: 15e3,
+    unit: "ms",
+    alarm: true,
+    why: "an event reaches its subscribers' deliveries within fifteen seconds, at the 95th percentile"
+  },
+  intake_lag_ms: {
+    promise: true,
+    most: {},
+    otherwise: MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a provider's delivery is kept within a minute of the provider's own clock, at the 95th percentile"
+  }
+};
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {

@@ -4339,8 +4339,10 @@ begin
     from public.partner_tenants pt
    where pt.tenant_id = p_tenant and pt.origin = 'handover'
    for update;
-  -- Not found, and not "not yours": whether a workspace waits for an address is its addressee's to know.
-  if v_row.tenant_id is null or v_email is null or v_row.handover_email <> v_email then
+  -- Not found, and not "not yours": whether a workspace waits for an address is its addressee's to know. Once accepted
+  -- the address is gone (00392), and the one who accepted is the only other who hears more.
+  if v_row.tenant_id is null or v_email is null
+     or (v_row.handover_email is distinct from v_email and v_row.handover_accepted_by is distinct from v_user) then
     raise exception 'There is no workspace waiting for you there.' using errcode = 'P0002';
   end if;
   select p.user_id into v_by from public.partners p where p.id = v_row.partner_id;
@@ -4361,7 +4363,7 @@ begin
   values (p_tenant, v_user, 'owner')
   on conflict (user_id, tenant_id) do update set role = 'owner';
   update public.partner_tenants pt
-     set handover_accepted_at = now(), handover_accepted_by = v_user
+     set handover_accepted_at = now(), handover_accepted_by = v_user, handover_email = null
    where pt.tenant_id = p_tenant;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant, 'partner.handover_accepted', 'workspace', 'tenant', p_tenant,
@@ -4375,7 +4377,7 @@ end $$;
 -- Name: FUNCTION handover_accept(p_tenant uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.handover_accept(p_tenant uuid) IS 'The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: the first, with billing and the team. Never the partner who set it up; never after it was declined or expired.';
+COMMENT ON FUNCTION public.handover_accept(p_tenant uuid) IS 'The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: the first, with billing and the team. Never the partner who set it up; never after it was declined or expired. The address is cleared as it is accepted (00392).';
 
 
 --
@@ -14376,6 +14378,47 @@ COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence 
 
 
 --
+-- Name: purge_google_reviews(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_google_reviews(p_keep interval DEFAULT '90 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total   integer := 0;
+  v_n       integer;
+  v_tenants uuid[] := '{}';
+  v_some    uuid[];
+begin
+  loop
+    with gone as (
+      delete from public.google_reviews r
+       where r.id in (select g.id from public.google_reviews g where g.last_seen_at < now() - p_keep limit 1000)
+      returning r.tenant_id
+    )
+    select array_agg(distinct tenant_id), count(*) into v_some, v_n from gone;
+    v_total := v_total + v_n;
+    v_tenants := v_tenants || coalesce(v_some, '{}');
+    exit when v_n < 1000;
+  end loop;
+  -- A connection that lost a review here no longer holds every review Google lists: the lens says so.
+  update public.google_connections c
+     set reviews_complete = false
+   where c.tenant_id = any (v_tenants) and c.reviews_complete;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_google_reviews(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_google_reviews(p_keep interval) IS 'Nightly. Deletes a mirrored Google review not seen for 90 days (contracts RETENTION_DAYS.google_reviews; decision 0036), a thousand at a time, and marks the connections it touched incomplete; a complete read drops one Google no longer lists the same day. Answers how many.';
+
+
+--
 -- Name: purge_idempotency_keys(interval); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14404,6 +14447,47 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.purge_idempotency_keys(p_keep interval) IS 'Nightly. Deletes the keys writes were answered under (cards, replies, requests) a day after their claim (contracts RETENTION_DAYS.idempotency_keys; decision 0035), a thousand at a time. Answers how many.';
+
+
+--
+-- Name: purge_invitations(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_invitations(p_keep interval DEFAULT '30 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    -- Accepted or taken back, the later of the two when a race wrote both; never an open or an expired one.
+    with gone as (
+      delete from public.invitations i
+       where i.id in (select c.id from public.invitations c
+                       where greatest(c.accepted_at, c.revoked_at) < now() - p_keep limit 1000)
+      returning i.id
+    ), said as (
+      update public.decisions d
+         set payload = d.payload - 'email'
+       where d.subject_type = 'invitation' and d.subject_id in (select id from gone) and d.payload ? 'email'
+      returning d.id
+    )
+    select (select count(*) from gone) into v_n;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_invitations(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_invitations(p_keep interval) IS 'Nightly. Deletes a team invitation 30 days after it was accepted or taken back (contracts RETENTION_DAYS.invitations_closed; decision 0036), and the address it was sent to from the decisions that recorded it, a thousand at a time. Open and expired invitations stay. Answers how many.';
 
 
 --
@@ -24254,7 +24338,7 @@ CREATE TABLE public.partner_tenants (
     handover_accepted_by uuid,
     handover_declined_at timestamp with time zone,
     invited_by uuid,
-    CONSTRAINT partner_tenants_handover_check CHECK ((((origin = ANY (ARRAY['link'::text, 'invite'::text])) AND (handover_email IS NULL) AND (handover_sent_at IS NULL) AND (handover_expires_at IS NULL) AND (handover_accepted_at IS NULL) AND (handover_declined_at IS NULL)) OR ((origin = 'handover'::text) AND (handover_email IS NOT NULL) AND (handover_email = lower(handover_email)) AND (handover_sent_at IS NOT NULL) AND (handover_expires_at IS NOT NULL)))),
+    CONSTRAINT partner_tenants_handover_check CHECK ((((origin = ANY (ARRAY['link'::text, 'invite'::text])) AND (handover_email IS NULL) AND (handover_sent_at IS NULL) AND (handover_expires_at IS NULL) AND (handover_accepted_at IS NULL) AND (handover_declined_at IS NULL)) OR ((origin = 'handover'::text) AND ((handover_email IS NOT NULL) OR (handover_accepted_at IS NOT NULL)) AND ((handover_email IS NULL) OR (handover_email = lower(handover_email))) AND (handover_sent_at IS NOT NULL) AND (handover_expires_at IS NOT NULL)))),
     CONSTRAINT partner_tenants_origin_check CHECK ((origin = ANY (ARRAY['link'::text, 'handover'::text, 'invite'::text]))),
     CONSTRAINT partner_tenants_standing_check CHECK ((standing = ANY (ARRAY['qualified'::text, 'review'::text, 'disqualified'::text])))
 );
@@ -24285,7 +24369,7 @@ COMMENT ON COLUMN public.partner_tenants.origin IS 'How the partner came to this
 -- Name: COLUMN partner_tenants.handover_email; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.partner_tenants.handover_email IS 'The address the workspace is handed to (0016), lower case. Only its owner by that address may accept it.';
+COMMENT ON COLUMN public.partner_tenants.handover_email IS 'The address a workspace is handed to (0016), lower case; cleared once its new owner accepts (00392), kept while it waits, is declined or expires, so the partner may send it again.';
 
 
 --
@@ -34266,11 +34350,27 @@ GRANT ALL ON FUNCTION public.purge_events(p_keep interval) TO service_role;
 
 
 --
+-- Name: FUNCTION purge_google_reviews(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_google_reviews(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_google_reviews(p_keep interval) TO service_role;
+
+
+--
 -- Name: FUNCTION purge_idempotency_keys(p_keep interval); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.purge_idempotency_keys(p_keep interval) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.purge_idempotency_keys(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION purge_invitations(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_invitations(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_invitations(p_keep interval) TO service_role;
 
 
 --

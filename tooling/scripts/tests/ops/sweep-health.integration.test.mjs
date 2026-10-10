@@ -48,6 +48,8 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00315 added 'channel_quality', the six-hourly read of each WhatsApp number's rating.
   // 00336 added 'purge_provider_events', the nightly purge of the deliveries the intake ledger keeps a week.
   // 00340 added 'purge_idempotency_keys', the nightly purge of the keys writes were answered under, a day on.
+  // 00392 added 'purge_google_reviews' and 'purge_invitations', the nightly purges of a review the mirror has not seen
+  // for its days and of an invitation closed a month.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -70,7 +72,9 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "purge_ask",
       "purge_cron_history",
       "purge_events",
+      "purge_google_reviews",
       "purge_idempotency_keys",
+      "purge_invitations",
       "purge_jobs",
       "purge_leads",
       "purge_notifications",
@@ -146,7 +150,9 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "purge_ask",
     "purge_cron_history",
     "purge_events",
+    "purge_google_reviews",
     "purge_idempotency_keys",
+    "purge_invitations",
     "purge_jobs",
     "purge_leads",
     "purge_notifications",
