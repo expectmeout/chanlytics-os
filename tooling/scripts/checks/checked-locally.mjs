@@ -5,7 +5,7 @@
  * Ruben, 10 Oct 2026: a push should be through CI in under ten minutes, and a change already green locally should skip
  * CI's own run of the same checks. So `corepack pnpm check:local` runs, on the committed tree, what ci.yml's lint,
  * hygiene and tests jobs and the build job's typecheck run: the packages' build and dist against it, typecheck, lint,
- * dead exports, formatting, the production audit and licences, and the tests of what the branch changes against
+ * dead exports, the formatting of what it changes, the production audit and licences, and the tests of what it changes against
  * origin/main. When every one passes it commits nothing but a line naming the tree: an empty commit whose message
  * carries `Checked-locally: <tree>`. Pushed, ci.yml's scope job finds the line on the pull request's head and those
  * jobs are skipped. The build and the bundle still run (what a workspace loads is compared with main's own build, which
@@ -23,6 +23,7 @@
  * In --ci the answer is never an exit code: a git that fails is a crash, and the run goes red rather than skip.
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -78,14 +79,39 @@ function ci() {
   console.log(`checked=${answer.checked}`);
 }
 
-/** What the laptop runs, in the order a failure is cheapest to learn: each a name, and a command for the shell. */
+/**
+ * The formatting of what the branch changes. CI's check reads the whole tree of a fresh checkout, which main keeps
+ * clean; a laptop's tree also holds files no checkout has (what git's own exclude list hides is not hidden from
+ * Prettier), so here it reads the files the branch changes from origin/main, a few dozen to a command. Prettier's
+ * own ignore file still holds; a file it has no parser for is skipped.
+ */
+export function formatOfChanged() {
+  const prettier = path.join(
+    path.dirname(createRequire(import.meta.url).resolve("prettier/package.json")),
+    "bin/prettier.cjs",
+  );
+  const files = git("diff", "--name-only", "--diff-filter=d", "origin/main", "HEAD").split("\n").filter(Boolean);
+  for (let i = 0; i < files.length; i += 40) {
+    const run = spawnSync(process.execPath, [prettier, "--check", "--ignore-unknown", ...files.slice(i, i + 40)], {
+      cwd: ROOT,
+      stdio: "inherit",
+    });
+    if (run.status !== 0) return run.status ?? 1;
+  }
+  return 0;
+}
+
+/**
+ * What the laptop runs, in the order a failure is cheapest to learn: each a name, and a command for the shell or a
+ * function that answers an exit status.
+ */
 export const LOCAL_CHECKS = [
   ["the packages' build", 'corepack pnpm --filter "./packages/*" build'],
   ["dist matches the sources", "git diff --exit-code --stat -- packages/*/dist"],
   ["typecheck", "corepack pnpm -r typecheck"],
   ["lint", "corepack pnpm lint"],
   ["dead exports", "corepack pnpm check:dead-exports"],
-  ["formatting", "corepack pnpm format:check"],
+  ["the formatting of what the branch changes", formatOfChanged],
   ["no production dependency with a high or critical advisory", "corepack pnpm audit --prod --audit-level high"],
   ["production licences", "corepack pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs"],
   ["the tests of what the branch changes", "node tooling/scripts/checks/changed-tests.mjs origin/main HEAD"],
@@ -109,10 +135,11 @@ function stamp() {
     );
   }
   const tree = git("rev-parse", "HEAD^{tree}").trim();
-  for (const [name, command] of LOCAL_CHECKS) {
+  for (const [name, check] of LOCAL_CHECKS) {
     console.error(`\ncheck:local: ${name}`);
-    const run = spawnSync(command, { cwd: ROOT, shell: true, stdio: "inherit" });
-    if (run.status !== 0) refuse(`${name} failed, so nothing is stamped`);
+    const status =
+      typeof check === "function" ? check() : spawnSync(check, { cwd: ROOT, shell: true, stdio: "inherit" }).status;
+    if (status !== 0) refuse(`${name} failed, so nothing is stamped`);
   }
   if (uncommitted() || git("rev-parse", "HEAD^{tree}").trim() !== tree)
     refuse("a check changed the tree it checked: commit what it wrote and run again");

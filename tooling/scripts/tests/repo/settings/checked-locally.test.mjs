@@ -9,7 +9,14 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { LOCAL_CHECKS, TRAILER, decide, readMerge, stampedTree } from "../../../checks/checked-locally.mjs";
+import {
+  LOCAL_CHECKS,
+  TRAILER,
+  decide,
+  formatOfChanged,
+  readMerge,
+  stampedTree,
+} from "../../../checks/checked-locally.mjs";
 
 const TREE = "a".repeat(40);
 
@@ -110,13 +117,15 @@ test("the laptop runs what the skipped jobs run, the tests against origin/main",
     "corepack pnpm -r typecheck",
     "corepack pnpm lint",
     "corepack pnpm check:dead-exports",
-    "corepack pnpm format:check",
     "corepack pnpm audit --prod --audit-level high",
     "corepack pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs",
     "node tooling/scripts/checks/changed-tests.mjs origin/main HEAD",
+    // The formatting of what the branch changes: a laptop's tree holds files a checkout has not, which CI's
+    // whole-tree check would read (10 Oct 2026: the plan's own ignored notes failed it).
+    formatOfChanged,
   ])
     assert.ok(
       LOCAL_CHECKS.some(([, c]) => c === command),
-      `${command} (have: ${names})`,
+      `${typeof command === "function" ? command.name : command} (have: ${names})`,
     );
 });
