@@ -287,7 +287,8 @@ const rangeSays = (tree) => [
 ];
 /** The month days are picked on, and a day reached in one press, by its test id. */
 const month = (tree) => find(seen(tree), (n) => n.type === DayRangePicker);
-const shortcut = (tree, id) => find(seen(tree), (n) => n.props?.["data-testid"] === `period-${id}`);
+/** The days reached in one press: a track of their own under the periods', drawn as it is. */
+const otherDays = (tree) => find(seen(tree), (n) => n.type === Segmented && n.props.label === "Other days");
 /**
  * A run in which the shell's own move is followed, as the frame follows it: the address says the route a pick sent it
  * to, and the page is drawn at it. `moves` holds each move and whether it took its entry's place. Each run is a
@@ -779,21 +780,26 @@ test("the date range is a capsule that says what the page is on, and opens the f
   assert.equal(textOf(byTestId(pop, "reports-period-range")), "Aug 29 – Sep 4", "the days in words");
   assert.match(textOf(cls(pop, "rpt-when-said")), /^Last 7 days · .+ time$/, "the period and the zone the days follow");
   assert.equal(
-    textOf(byTestId(pop, "reports-period-before")),
-    "Compared with Aug 22 – Aug 28",
-    "and the days every figure is read against: the same number before them",
+    byTestId(pop, "reports-period-before"),
+    null,
+    "the days every figure is compared with are the figures' own to say (Ruben, 10 Oct 2026: not needed here)",
   );
-  // The days reached in one press, worked out from the business's today (Friday 4 September): none is the page's.
+  // The days reached in one press, worked out from the business's today (Friday 4 September), on a track drawn as the
+  // periods' is: none is the page's.
+  const other = otherDays(tree);
   assert.deepEqual(
-    ["yesterday", "last-week", "last-month"].map((id) => {
-      const b = shortcut(tree, id);
-      return [textOf(b), b.props["aria-pressed"]];
-    }),
+    other.props.options.map((o) => [o.value, o.label, o.testid]),
     [
-      ["Yesterday", false],
-      ["Last week", false],
-      ["Last month", false],
+      ["yesterday", "Yesterday", "period-yesterday"],
+      ["last-week", "Last week", "period-last-week"],
+      ["last-month", "Last month", "period-last-month"],
     ],
+  );
+  assert.equal(other.props.value, "", "none of them is the page's");
+  assert.deepEqual(
+    [c.props.className, other.props.className],
+    ["rpt-when-presets", "rpt-when-presets"],
+    "the two tracks are laid out alike",
   );
   // And the month days are picked on: the period's own days drawn on it, none after today, ninety at most.
   const picker = month(tree);
@@ -849,7 +855,6 @@ test("days picked on the month move the address and are read by their first and 
       tree = redraw();
       assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "the days landed");
       assert.deepEqual(rangeSays(tree), ["Date range: 7 days, Aug 22 – Aug 28", "Aug 22 – 28", "7 days"]);
-      assert.equal(textOf(byTestId(seen(tree), "reports-period-before")), "Compared with Aug 15 – Aug 21");
       assert.deepEqual(
         [month(tree).props.from, month(tree).props.to, month(tree).props.today],
         ["2026-08-22", "2026-08-28", "2026-09-04"],
@@ -876,16 +881,15 @@ test("a day reached in one press is days like any picked: Yesterday is the day b
   await inPeriodTest("answer", () =>
     followingMoves(async () => {
       let tree = page();
-      press(shortcut(tree, "yesterday"));
+      otherDays(tree).props.onValueChange("yesterday");
       for (let i = 0; i < 12; i++) await settle();
       assert.deepEqual(moves, [["reports/2026-09-03~2026-09-03", false]]);
       assert.deepEqual(period.asked, ["2026-09-03~2026-09-03"]);
       redraw();
       tree = redraw();
       assert.deepEqual(rangeSays(tree), ["Date range: Yesterday, Sep 3", "Yesterday", "Sep 3"]);
-      assert.equal(shortcut(tree, "yesterday").props["aria-pressed"], true, "and its press is drawn as chosen");
-      assert.equal(shortcut(tree, "last-week").props["aria-pressed"], false);
-      assert.equal(chosen(tree), undefined);
+      assert.equal(otherDays(tree).props.value, "yesterday", "and it is drawn as chosen, on its own track");
+      assert.equal(chosen(tree), undefined, "and no period is");
     }),
   );
 });

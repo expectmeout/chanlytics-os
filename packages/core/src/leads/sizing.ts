@@ -9,8 +9,9 @@
  *     left out and hold a way to reach them (a phone that dials, or a candidate email: decision 0010), never the Qualified
  *     share, and never under 5%; a probe that judged nothing counts as 20%.
  *   - runCaps: one dollar cap per run: the estimate for its places, every cap scaled down when the sum would pass what
- *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and none at all when less than
- *     that floor is left: the round then starts nothing.
+ *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and only as many runs as the
+ *     reserve holds a floor for, in the plan's order: the caps together never pass it, and with less than one floor
+ *     left the round starts nothing.
  */
 import {
   LEAD_PROBE_PLACES,
@@ -65,20 +66,40 @@ export function probeYield(members: { class: LeadMemberClass; phone: string | nu
   return yieldOf(members.length, members.filter((m) => m.class !== "excluded" && hasContact(m)).length);
 }
 
+/** Dollars as whole cents, read down, so a sum of caps is never a rounding over what it is held to. */
+const centsDown = (usd: number) => Math.floor(usd * 100 + 1e-6);
+
 /**
  * One cap per run: the estimate for its places (with the estimate's own
  * room); when the sum would pass what the round still has reserved, every
  * cap is scaled to fit. The actor refuses a cap under $0.50, so none goes
- * under it.
+ * under it -- and the caps together never pass what is left: the floor is a
+ * floor on each run, so the round starts only as many runs as the reserve
+ * holds a floor for, the terms in the plan's order, and a term past them gets
+ * nothing (0), which its caller starts no run for. A term asked for no places
+ * takes no run's room.
  */
 export function runCaps(plan: LeadSearchPlan, perTerm: number[], reservedLeftUsd: number): number[] {
   const wants = perTerm.map((n) => estimateRoundUsd({ ...plan, terms: [plan.terms[0] ?? ""] }, "main", n));
-  const sum = wants.reduce((a, b) => a + b, 0);
   const left = Math.max(0, reservedLeftUsd);
   // The floor is a floor on a cap, never a licence to spend what the round has
   // not reserved: with less left than one run's floor, every term gets nothing
-  // and the round starts nothing (runner startRound).
-  if (left < MAPS_CAP_FLOOR_USD) return wants.map(() => 0);
+  // and the round starts nothing (runner startRound); with room for two, a
+  // third term waits.
+  let room = Math.floor(centsDown(left) / centsDown(MAPS_CAP_FLOOR_USD));
+  const runs = perTerm.map((n) => {
+    if (n <= 0 || room <= 0) return false;
+    room -= 1;
+    return true;
+  });
+  const sum = wants.reduce((a, w, i) => a + (runs[i] ? w : 0), 0);
   const scale = sum > left && sum > 0 ? left / sum : 1;
-  return wants.map((w) => Math.max(MAPS_CAP_FLOOR_USD, Math.round(w * scale * 100) / 100));
+  const caps = wants.map((w, i) => (runs[i] ? Math.max(MAPS_CAP_FLOOR_USD, Math.round(w * scale * 100) / 100) : 0));
+  if (centsDown(caps.reduce((a, c) => a + c, 0)) <= centsDown(left)) return caps;
+  // The floors and the rounding took it past the reserve: each run its floor, and what is left over the floors shared
+  // by what each wants above its own, read down to the cent.
+  const spare = centsDown(left) - caps.filter((c) => c > 0).length * centsDown(MAPS_CAP_FLOOR_USD);
+  const above = wants.map((w, i) => (runs[i] ? Math.max(0, w - MAPS_CAP_FLOOR_USD) : 0));
+  const share = Math.min(1, spare / 100 / (above.reduce((a, b) => a + b, 0) || 1));
+  return above.map((x, i) => (runs[i] ? (centsDown(MAPS_CAP_FLOOR_USD) + Math.floor(x * share * 100)) / 100 : 0));
 }

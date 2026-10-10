@@ -3,6 +3,7 @@
  * and G14): which gates stop it, what it is told about whom it is answering, and how long a job must have left to try.
  * The draft is text kept on the reading (reach_out_replies.draft), never a message row: nothing sends it but a person.
  */
+import { fencedInline, promptSafeName } from "../ai/fence";
 import { clipAtWord } from "../conversations/message-words";
 
 /**
@@ -49,13 +50,17 @@ export function draftRefusal(f: {
   return null;
 }
 
-/** Another's words on one line, clipped: a business name or an email is never a paragraph of the note. */
+/** The reach-out's words or its signature on one line, clipped: an email is never a paragraph of the note. */
 const flatClip = (v: string | null | undefined, max: number): string => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
 
 /**
  * Who the receptionist is answering, as the brain's separate lead block (generateReply's leadNote): an email to a
  * business that wrote back to the owner's reach-out, what the reach-out said, the shape an email takes, and whom it is
  * signed by. For not now, one line of thanks and nothing else. Their own reply is the message it answers, not this.
+ *
+ * The business's name is theirs, not the owner's: the lead's listing, as the finder read it from Places. The note is a
+ * system block (the brain's whoNote), so the name is one as a prompt may show one and fenced as the name they call
+ * themselves (contracts ai/fence.ts), and a listing that names itself an instruction says nothing to the model.
  */
 export function leadReplyNote(p: {
   business: string;
@@ -65,7 +70,8 @@ export function leadReplyNote(p: {
   signedBy: string | null;
   kind: "answer" | "thanks";
 }): string {
-  const business = flatClip(p.business, 120) || "a business";
+  const name = promptSafeName(p.business);
+  const business = name ? fencedInline("profile_name", name) : "a business";
   const answered = flatClip(p.answered, 600);
   const signedBy = flatClip(p.signedBy, 60);
   return [

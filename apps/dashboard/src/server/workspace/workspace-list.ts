@@ -239,8 +239,12 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
     .eq("id", member.tenantId)
     .select(patch.sells_by ? WORKSPACE_COLUMNS : OLDER_COLUMNS)) as unknown as {
     data: Partial<WorkspaceRow>[] | null;
-    error: { message: string } | null;
+    error: { message: string; code?: string } | null;
   };
+  // A zone this server's Intl knows and the database does not (00365 refuses one written, as creation always did) is
+  // the owner's to choose again, in the words a zone nobody knows is refused in, not a failure of ours.
+  if (error?.code === "22023" && patch.timezone)
+    throw new AppError("validation", `${patch.timezone} is not a timezone this system knows.`);
   if (error) throw new Error(error.message);
   // A forbidden UPDATE comes back successful with zero rows in this stack, so
   // the row count IS the permission check. Without this an owner whose policy

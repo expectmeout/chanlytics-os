@@ -70,7 +70,7 @@ import { erasedBeforeCall } from "../erased.js";
 import { upsertEscalation } from "../packages/jobs.js";
 import { frameGuardrail, offersBookingLink, pauseMsOf, MIN_MS } from "../packages/contracts.js";
 import { env } from "../env.js";
-import { retellSigned } from "./voice-door-auth.js";
+import { keptUrl, retellSigned } from "./voice-door-auth.js";
 import { logger, errField } from "../log.js";
 import { planCallEvent, callNotice, type CallAbout, type CallEventPlan, type CallStep } from "./call-event.js";
 
@@ -593,7 +593,7 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
     provider: "retell",
     id: `${event}:${n.retellCallId}`,
     door: "/api/retell-webhook",
-    url: request.url,
+    url: keptUrl(request),
     tenantId: routed?.tenantId ?? null,
     headers: signatureHeaders(request, ["x-retell-signature"]),
     body: raw,

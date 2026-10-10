@@ -64,8 +64,9 @@ Each shippable on its own, in either deploy order.
 - **The second step has its own page, `/verify`.** The middleware sends a signed-in person away from `/login`, and a
   session that owes its code is signed in, so the sign-in page cannot ask for it. After a password or an email code,
   the page asks Supabase Auth where to land (`pathAfterSignIn`); after Google, the callback does
-  (`landingAfter`, `oauth-callback.ts`). A session that owes nothing is sent straight in from `/verify`. The page has
-  sign-out and says what to do without the phone.
+  (`landingAfter`, `oauth-callback.ts`). Either way the workspace and the route the sign-in carried (`?w=` and the
+  fragment, `sign-in-return.ts`) ride on through `/verify` and in. A session that owes nothing is sent straight in from
+  `/verify`. The page has sign-out and says what to do without the phone.
 - **Enrolment is a row on Settings › Partner** (`PartnerSecondFactor`): off says why and offers it; setting up shows
   the QR code and the key; the first code turns it on. A setup begun and never finished is cleared before the next.
   Supabase does not say ahead of time whether the project allows TOTP, so the row appears, and a project with it

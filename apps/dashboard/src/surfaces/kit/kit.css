@@ -534,6 +534,18 @@ a.chip:focus-visible {
   font-size: 10.5px;
   color: var(--ink-dim);
 }
+/* A second line UNDER the words (MoreMenu `metaBelow`): what a choice gives, read before it is pressed (Team's roles,
+   each with what it may do). At the end of the line, a sentence crowded the words it described until they overlapped. */
+.more-item-two {
+  flex-wrap: wrap;
+  row-gap: 1px;
+}
+.more-item-two > .more-item-meta {
+  flex-basis: 100%;
+}
+.more-item-two > .icon ~ .more-item-meta {
+  padding-left: 27px;
+}
 .more-item.danger {
   color: var(--danger);
 }
@@ -587,6 +599,29 @@ a.chip:focus-visible {
 }
 .pop-place > .more-menu {
   position: static;
+}
+/* The kit's popover and date picker come and go as the house's overlays do (components.css, "HOW THINGS COME AND GO"):
+   they appeared and vanished in one frame, and a pick that closed one read as harsh (Ruben, 10 Oct 2026). In from their
+   control (Base UI's --transform-origin), a few percent small and faded up; out the same way, easing at both ends, so the
+   eye follows it back to the control. Only opacity and scale move, and Base UI keeps the popup until they have. Nothing
+   moves under reduced motion. */
+.pop-place > .panel-pop[role="dialog"] {
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    scale var(--duration-base) var(--ease-out);
+}
+.pop-place > .panel-pop[role="dialog"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  scale: 0.97;
+}
+.pop-place > .panel-pop[role="dialog"][data-ending-style] {
+  transition-timing-function: var(--ease-in-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-place > .panel-pop[role="dialog"] {
+    transition: none;
+  }
 }
 /* An item that opens a page of its own is a link (the kit's Menu, "a door is a link"): no underline, as a link that
    is a button has none. */

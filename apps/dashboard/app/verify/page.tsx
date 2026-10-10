@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { SECOND_FACTOR_WORDS } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import AuthShell from "@/auth/AuthShell";
+import { signInReturnOf } from "@/auth/sign-in-return";
 import { confirmEnrolment, secondStep, startEnrolment, verifyFactor, type Enrolment } from "@/auth/second-factor";
 
 /**
@@ -22,7 +23,8 @@ const W = SECOND_FACTOR_WORDS;
 type Supabase = ReturnType<typeof createClient>;
 type Phase = "reading" | "code" | "enrol";
 
-const inside = () => window.location.assign("/" + window.location.hash);
+// In, with the return the sign-in carried here: the workspace and the route (sign-in-return.ts).
+const inside = () => window.location.assign("/" + signInReturnOf(window.location));
 
 export default function VerifyPage() {
   const supabase = createClient();

@@ -363,15 +363,18 @@ export type EmailLeftAsWhy =
  * status 0 means "never reached Meta", which is distinct from any HTTP status. Both are providerFetch's now, which
  * also says what the send came to: Graph's "not now" (graphThrottled) left nothing, so it is `retryable` whatever
  * its HTTP status.
+ *
+ * One try, under this bound and nothing shorter: the job runner starts a send only while the bound still ends inside its
+ * function (jobs ledger startByAt).
  */
-const SEND_TIMEOUT_MS = 15_000;
+export const WHATSAPP_SEND_TIMEOUT_MS = 15_000;
 
 async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
   const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-    timeoutMs: SEND_TIMEOUT_MS,
+    timeoutMs: WHATSAPP_SEND_TIMEOUT_MS,
     // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
     breaker: "count",
   });

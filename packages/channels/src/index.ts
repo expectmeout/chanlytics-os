@@ -30,6 +30,7 @@ export {
   sendText,
   sendTemplate,
   fetchMediaBytes,
+  WHATSAPP_SEND_TIMEOUT_MS,
 } from "./whatsapp";
 export type {
   WaConfig,
@@ -158,7 +159,14 @@ export type {
   SmsSendResult,
   ReceivedText,
 } from "./lines/lines";
-export { twilioProvider, twilioUrls, TwilioError, fetchTwilio, twilioRequest } from "./lines/lines-twilio";
+export {
+  twilioProvider,
+  twilioUrls,
+  TwilioError,
+  fetchTwilio,
+  twilioRequest,
+  TWILIO_TIMEOUT_MS,
+} from "./lines/lines-twilio";
 export type { TwilioAnswer, TwilioHttp } from "./lines/lines-twilio";
 export { dryProvider } from "./lines/lines-dry";
 export type { DryCall, DryProvider } from "./lines/lines-dry";

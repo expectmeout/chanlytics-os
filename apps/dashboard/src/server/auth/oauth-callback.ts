@@ -1,4 +1,5 @@
 import { SECOND_FACTOR_PATH, factorStepNeeded, type AssuranceLevels, lineOrNull } from "@chanlytics/contracts";
+import { signInReturnOf } from "@/auth/sign-in-return";
 
 /**
  * The provider's return, decided without a network: what to exchange, and
@@ -82,9 +83,15 @@ export function callbackPlan(q: {
 /**
  * Where a browser whose code exchanged lands: where the plan said, unless the account has an authenticator its new
  * session has not shown (decision 0013). Google is the first factor, never the second, so that session shows its code
- * on the second step's page before it lands anywhere. An assurance level that could not be read lands as planned: the
- * partner door asks again.
+ * on the second step's page before it lands anywhere, and goes on from there with what the plan carried: the workspace
+ * the link named and its route (`/verify?w=acme#/inbox/th-1`), read back from the plan's landing by the one reader the
+ * password's and the code's landing use on the sign-in page's address (sign-in-return.ts signInReturnOf), so the
+ * workspace is checked as a workspace's name and nothing else of the query rides on. It used to go to the second step
+ * alone, and the member landed on the home of the workspace this browser used last, not on the link they followed. An
+ * assurance level that could not be read lands as planned: the partner door asks again.
  */
 export function landingAfter(to: string, aal: AssuranceLevels | null | undefined): string {
-  return factorStepNeeded(aal) ? SECOND_FACTOR_PATH : to;
+  if (!factorStepNeeded(aal)) return to;
+  // safeNext again, since anyone may call this: a path on this site, which a URL always parses.
+  return SECOND_FACTOR_PATH + signInReturnOf(new URL(safeNext(to), HERE));
 }

@@ -931,6 +931,57 @@ test("the send: the approved template on the workspace's own WhatsApp number and
   });
 });
 
+test("the call's own hold on the caller's thread does not stop the link it sends: the caller held by this call is sent it, and one held by a person or by another call is told a person has it", async () => {
+  // The inbound door takes the caller's thread for the length of the call (inbound-call.ts, 00132). The link this
+  // call's agent sends lands in that thread, and held against its own call it was refused at the wire: the agent said
+  // "a person is on it and will follow up" to a caller nobody was on with.
+  const w = world();
+  const until = iso(Date.now() + 600_000);
+  const hold = (thread, kind, ref) =>
+    Object.assign(thread, {
+      control_kind: kind,
+      control_by: kind === "person" ? "u-held" : null,
+      control_ref: ref,
+      control_until: until,
+    });
+  const mine = w.number();
+  const a = w.person(mine);
+  const theirs = w.number();
+  const b = w.person(theirs);
+  const busy = w.number();
+  const c = w.person(busy);
+  w.open();
+  await listening(async (log) => {
+    const ask = w.ask(mine);
+    hold(a.thread, "call", ask.call.call_id);
+    assert.equal(await spoken(await knock(ask)), SENT, "this call's own hold: the link goes");
+    assert.deepEqual(
+      w.tables.messages.map((m) => [m.conversation_id, m.status, m.meta.call_id]),
+      [[a.thread.id, "sent", ask.call.call_id]],
+      "into the thread the call holds",
+    );
+
+    hold(b.thread, "call", "call_somebody_elses");
+    hold(c.thread, "person", null);
+    for (const [from, why] of [
+      [theirs, "another call's hold"],
+      [busy, "a person's hold"],
+    ]) {
+      assert.equal(await spoken(await knock(w.ask(from))), refusalScript("human_has_it", PUBLISHED), why);
+    }
+    assert.deepEqual(
+      log.fields("retell_fn_refused_at_wire").map((f) => f.reason),
+      ["human_has_it", "human_has_it"],
+      "refused at the wire, where the hold is read",
+    );
+    assert.deepEqual(
+      w.left().graph.map((g) => g.body.to),
+      [mine.slice(1)],
+      "only the caller this call holds was sent anything",
+    );
+  });
+});
+
 test("the daily cap counts this thread's voice sends of the last day: a thread with three is told to check its WhatsApp, yesterday's and a broadcast's do not count, and the send the door records is the one it counts next", async () => {
   const w = world();
   const busy = w.number();

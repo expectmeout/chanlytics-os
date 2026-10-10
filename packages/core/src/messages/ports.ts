@@ -216,7 +216,9 @@ export interface BroadcastBatchPorts {
   /**
    * An email written as the queued row its request was frozen for, before it is sent (deliver assertFrozenFor), and only
    * once its person is claimed, so a claim that is lost or fails leaves no row behind: "written" when this call made it,
-   * else the row that was already there under that id and how it stands. A write that fails throws.
+   * else the row that was already there under that id and how it stands. The row queued is claimed for the wire
+   * (messages.sending_at, as sendQueued claims a reply's), so nothing that calls a send back takes it while the provider
+   * answers. A write that fails throws.
    */
   queueEmail(row: {
     id: string;
@@ -230,8 +232,9 @@ export interface BroadcastBatchPorts {
   }): Promise<{ status: string }>;
   /**
    * An email written and never sent, because the provider did not take it (a send handed back) or the door threw before
-   * the wire: withdrawn while it is still queued (a row the door settled is left as it settled it), so nothing is left
-   * queued for a sweep to call lost, or counted against the month. Best effort: the caller logs a failure and goes on.
+   * the wire: its claim given back and the row withdrawn while it is still queued (a row the door settled is left as it
+   * settled it), so nothing is left queued for a sweep to call lost, or counted against the month. Best effort: the
+   * caller logs a failure and goes on.
    */
   withdrawEmail(messageId: string): Promise<void>;
   /**
@@ -332,4 +335,11 @@ export interface BroadcastBatchCommand extends BatchCarry {
   tenantId: string;
   broadcastId: string;
   deadline: number;
+  /**
+   * Epoch ms, by channel: the latest moment a send on that wire may start (jobs ledger startByAt). A wire whose send no
+   * ceiling bounds (WhatsApp's, a text's) runs its own timeout whole, and one begun too late outlived the function. A
+   * person whose wire's moment has passed is left queued for the next batch, the first person of a batch too, and
+   * the batch is not a stall. A channel with none may start until the deadline.
+   */
+  startBy?: Partial<Record<Channel, number>>;
 }

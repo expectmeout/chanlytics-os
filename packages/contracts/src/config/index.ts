@@ -25,8 +25,17 @@ export {
   pauseMsOf,
 } from "./policy";
 export type { SpokenRule, SpokenBreach, SpokenTurn, SpokenGuardVerdict, WaWindow, HeldLineKind } from "./policy";
-export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./workspace-config/role-perms";
-export type { Role } from "./workspace-config/role-perms";
+export { ROLES, ROLE_PERMS, ROLE_SAYS, TEAM_ROLES, roleSays, roleTable } from "./workspace-config/role-perms";
+export type { Role, RoleSays, RoleTableRow } from "./workspace-config/role-perms";
+export {
+  ALERT_ADDRESSES_MAX,
+  ALERT_ADDRESSES_MIN,
+  ALERT_REFUSED_WORDS,
+  alertAddressesOf,
+  memberGetsAlerts,
+  withAlertAddress,
+} from "./workspace-config/alerts";
+export type { AlertRefusal } from "./workspace-config/alerts";
 export {
   policyClassOfIntent,
   policyClassLabel,

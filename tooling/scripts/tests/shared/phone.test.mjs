@@ -41,6 +41,23 @@ test("normalizePhone, pinned by value so the four layers can be compared", () =>
   assert.equal(normalizePhone(null), null);
 });
 
+test("a leading + is the country code, written: the digits after it are never given a +1, and only a bare ten digits is North American", () => {
+  // The "+" was stripped with the punctuation before the length was read, so any ten-digit number from elsewhere
+  // became an American one -- the booking link texted to a stranger in the US, a broadcast missing the person whose
+  // number WhatsApp had stored whole. Sequential digits, nobody's number.
+  assert.equal(normalizePhone("+4791234567"), "+4791234567", "ten digits after a + are the whole number");
+  assert.equal(normalizePhone("+65 9123 4567"), "+6591234567", "however it is spaced");
+  assert.equal(normalizePhone("  +4791234567 "), "+4791234567", "a + after spaces is still the first thing written");
+  assert.equal(normalizePhone("4791234567"), "+14791234567", "the same ten digits bare are North American, as before");
+  assert.equal(normalizePhone("+1 646 555 0175"), "+16465550175", "a + and eleven digits, as before");
+  assert.equal(normalizePhone("(646) 555-0175"), "+16465550175", "a national number typed with its punctuation");
+  assert.equal(normalizePhone("+12345"), null, "a + does not make a short code a number");
+  assert.equal(normalizePhone("+1234567890123456"), null, "nor sixteen digits");
+  // Nothing that was a number stops being one: only what a + is followed by changes, so the two callers that fail
+  // open when a number will not parse (below) are handed nothing new.
+  assert.equal(whyNotAPhone("+4791234567"), null);
+});
+
 test("the door says WHICH kind of not-a-number it was given", () => {
   // One sentence for every refusal told an owner looking at a short code on
   // their own screen that "a phone number is needed".

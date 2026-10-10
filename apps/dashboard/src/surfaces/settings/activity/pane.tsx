@@ -79,17 +79,21 @@ function firstPaint(): LogState {
     : NOTHING_READ;
 }
 
-export function PaneActivity() {
+/** Where the log opens: the whole of it, or the part of the product an address names (`activity/team`: Team's door). */
+const openingOf = (family: string | null | undefined): Narrowing =>
+  family && isActivityFamily(family) ? { ...NO_NARROWING, pick: `family:${family}` } : NO_NARROWING;
+
+export function PaneActivity({ family = null }: { family?: string | null } = {}) {
   // The log is an owner's (GET activity asks for one): the same reach as taking the workspace's data away, so it asks
   // the export gate, which narrows under an owner's View-as as the signed-in role it asked before did not.
   const may = canDo("export");
-  const [n, setN] = useState<Narrowing>(NO_NARROWING);
+  const [n, setN] = useState<Narrowing>(() => openingOf(family));
   // On a phone the boxes wait behind the head's one control until asked for.
   const [asking, setAsking] = useState(false);
   // What this tab read last time, painted at once. The read below replaces it inside the time this pane used to spend
   // showing a reader nothing: on the salon's log it was 763ms of empty pane on the first visit and 433ms on the fifth,
   // for a hundred rows that had not changed.
-  const [st, setSt] = useState<LogState>(firstPaint);
+  const [st, setSt] = useState<LogState>(() => (openingOf(family) === NO_NARROWING ? firstPaint() : NOTHING_READ));
 
   // Each read is numbered, and an answer that is not the latest one asked for lands nowhere: a slow first page cannot
   // replace the filter picked after it.

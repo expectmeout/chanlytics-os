@@ -1038,11 +1038,17 @@ test("an open invitation's menu offers no role: there is no membership row to ch
   const tree = settings("team");
   const menus = all(tree, (n) => typeof n.type === "function" && Array.isArray(n.props?.items));
   const labels = (m) => m.props.items.map((i) => i.header || i.label || (i.divider ? "—" : "")).filter(Boolean);
-  const member = menus.find((m) => labels(m).includes("Remove"));
-  const invitation = menus.find((m) => labels(m).includes("Revoke invite"));
-  assert.ok(member && invitation, "a member's menu and an invitation's");
-  assert.ok(labels(member).includes("Role"), "a member's role can change");
-  assert.deepEqual(labels(invitation), ["Revoke invite"], "an invitation's cannot");
+  const member = menus.find((m) => labels(m).includes("Remove from team…"));
+  const role = menus.find((m) => labels(m).includes("Role"));
+  const invitation = menus.find((m) => labels(m).includes("Revoke invitation…"));
+  assert.ok(member && role && invitation, "a member's menu, its role's picker and an invitation's menu");
+  assert.deepEqual(
+    labels(role).filter((l) => l !== "Role"),
+    ["Owner", "Operator", "Viewer"],
+    "a member's role can change, to the roles Team hands out",
+  );
+  assert.deepEqual(labels(invitation), ["Revoke invitation…"], "an invitation's cannot");
+  assert.equal(byTestId(tree, "team-role-inv-sam"), null, "and no picker stands on the invitation's row");
 });
 
 test("a team read that failed is said, with the server's role kept; a roster read says You by the signed-in email", () => {

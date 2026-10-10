@@ -6156,6 +6156,7 @@ export type Database = {
         Args: { p_amount_cents: number; p_currency: string; p_id: string }
         Returns: boolean
       }
+      billing_may_spend: { Args: { p_tenant_id: string }; Returns: boolean }
       calendars_due: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
@@ -6609,6 +6610,10 @@ export type Database = {
         Returns: string
       }
       lead_erase: { Args: { p_lead_id: string }; Returns: Json }
+      lead_estimate_ceiling: {
+        Args: { p_count: number; p_kind: string; p_terms?: number }
+        Returns: number
+      }
       lead_export_mark: {
         Args: { p_ids: string[]; p_tenant_id: string }
         Returns: number
@@ -6796,6 +6801,7 @@ export type Database = {
         Returns: undefined
       }
       lead_site_key: { Args: { p_host: string }; Returns: string }
+      lead_spend_refusal: { Args: { p_tenant_id: string }; Returns: Json }
       lead_suppression_hash: {
         Args: { p_tenant_id: string; p_value: string }
         Returns: string
@@ -7641,7 +7647,11 @@ export type Database = {
         Returns: string
       }
       put_google_credentials: {
-        Args: { p_secret: Json; p_tenant_id: string }
+        Args: {
+          p_if_refresh_token?: string
+          p_secret: Json
+          p_tenant_id: string
+        }
         Returns: string
       }
       put_line_credentials: {
@@ -8362,6 +8372,24 @@ export type Database = {
         }
         Returns: Json
       }
+      team_invite_renew: {
+        Args: {
+          p_actor: string
+          p_invitation_id: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_invite_renew_withdraw: {
+        Args: {
+          p_decision_id: string
+          p_invitation_id: string
+          p_tenant_id: string
+          p_was: string
+        }
+        Returns: undefined
+      }
       team_invite_withdraw: {
         Args: { p_invitation_id: string; p_tenant_id: string }
         Returns: undefined
@@ -8375,6 +8403,10 @@ export type Database = {
           p_user_id: string
           p_via?: string
         }
+        Returns: Json
+      }
+      team_leave: {
+        Args: { p_actor: string; p_tenant_id: string; p_via?: string }
         Returns: Json
       }
       team_owner_or_refuse: {
@@ -8405,6 +8437,26 @@ export type Database = {
       team_take_turn: {
         Args: { p_actor: string; p_tenant_id: string }
         Returns: undefined
+      }
+      tenant_config_read: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          config: Json
+          feed_hidden: boolean
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }[]
+      }
+      tenant_config_write: {
+        Args: { p_config: Json; p_tenant_id: string; p_version: number }
+        Returns: {
+          outcome: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }[]
       }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }

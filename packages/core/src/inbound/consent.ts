@@ -24,6 +24,12 @@ export interface ConsentInputs {
    * is no record at all.
    */
   recorded: boolean | null;
+  /**
+   * THIS message was already held when it was taken in now (the ingest's
+   * `is_new` false): a text's answer job, a redelivery. Its START was written
+   * when it was first taken in, and nothing now (00361). Absent: a new message.
+   */
+  takenAgain?: boolean;
 }
 
 export type ConsentSource = "this_message" | "record" | "none";
@@ -41,8 +47,12 @@ export function resolveConsent(i: ConsentInputs): ConsentDecision {
 
   // 2. An explicit START is the documented way back, and it must work whatever
   //    the record says — the one state a customer cannot otherwise escape by
-  //    any action of their own.
-  if (i.optInNow) return { optedOut: false, source: "this_message" };
+  //    any action of their own. On the take that wrote it: a START taken in
+  //    again wrote nothing, and the record holds its yes and whatever the
+  //    person said since, so the record decides (3). A START, then a STOP,
+  //    then the START's answer run late is held by the STOP: no confirmation
+  //    the door would refuse, and no "the customer said yes" for a person.
+  if (i.optInNow && !i.takenAgain) return { optedOut: false, source: "this_message" };
 
   // 3. Postgres owns consent. When it answered, its answer is final.
   if (i.recorded !== null) return { optedOut: i.recorded, source: "record" };

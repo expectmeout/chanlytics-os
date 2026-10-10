@@ -9,7 +9,8 @@ import {
   verifyCodeWords,
 } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
-import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
+import { sealSurfaceCache } from "@/legacy-bridge/surface-cache";
+import { signInReturnOf } from "@/auth/sign-in-return";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
@@ -56,7 +57,7 @@ export default function LoginPage() {
         <h1>{stage === "code" ? "Check your email" : "Welcome back"}</h1>
         <p>{signInLead(form)}</p>
 
-        {stage === "password" && <GoogleSignIn next={() => "/" + window.location.hash} />}
+        {stage === "password" && <GoogleSignIn next={() => "/" + signInReturnOf(window.location)} />}
 
         {stage === "password"
           ? signInPasswordForm(form, signInWithPassword, sendCode)
@@ -140,16 +141,16 @@ function signInArrival(setEmail: (email: string) => void, setError: (error: stri
   const q = new URLSearchParams(window.location.search);
   if (q.get("error") === "oauth") {
     setError(SIGNUP_WORDS.googleFailed);
-    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    window.history.replaceState(null, "", window.location.pathname + signInReturnOf(window.location));
   }
   const e = q.get("email");
   if (e) {
     setEmail(e);
-    // ...and the hash, like the branch above it. landed() navigates to
-    // "/" + window.location.hash, so dropping it here sent anyone arriving
-    // from /signup or a reset link -- both of which build `?email=` URLs --
-    // to the home surface instead of the thread they were sent to.
-    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    // ...and the return, like the branch above it: the workspace and the hash.
+    // landed() navigates to "/" with them, so dropping the hash here sent
+    // anyone arriving from /signup or a reset link -- both of which build
+    // `?email=` URLs -- to the home surface instead of the thread they were sent to.
+    window.history.replaceState(null, "", window.location.pathname + signInReturnOf(window.location));
   }
 }
 
@@ -157,12 +158,13 @@ type SignInClient = ReturnType<typeof createClient>;
 
 function signInLanding(supabase: SignInClient) {
   /** In, whichever door opened, or to the second step first when the account has an authenticator (0013). Deep
-   *  links survive: the browser carries the hash through the middleware's redirect, and a full navigation re-runs it. */
+   *  links survive: the browser carries the hash through the middleware's redirect, the gate the workspace
+   *  (sign-in-return.ts), and a full navigation re-runs it. */
   return async function landed() {
     // Whoever signs in next must not inherit the previous account's cached
     // conversations. Sign-out already clears this; sign-in is the other half.
-    clearSurfaceCache();
-    window.location.assign((await pathAfterSignIn(supabase)) + window.location.hash);
+    sealSurfaceCache();
+    window.location.assign((await pathAfterSignIn(supabase)) + signInReturnOf(window.location));
   };
 }
 

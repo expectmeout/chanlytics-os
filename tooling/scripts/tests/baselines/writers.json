@@ -1,6 +1,6 @@
 {
   "ai_usage": 2,
-  "appointments": 2,
+  "appointments": 3,
   "ask_voice_sessions": 2,
   "billing_accounts": 2,
   "billing_events": 2,
@@ -18,7 +18,7 @@
   "google_listing_days": 4,
   "google_listings": 4,
   "google_reviews": 5,
-  "invitations": 5,
+  "invitations": 7,
   "jobs": 17,
   "lead_counters": 10,
   "lead_judgments": 2,
@@ -32,7 +32,7 @@
   "leads": 22,
   "lines": 12,
   "mailboxes": 6,
-  "memberships": 11,
+  "memberships": 12,
   "messages": 22,
   "notification_marks": 2,
   "notification_reads": 2,
@@ -55,6 +55,6 @@
   "segment_members": 3,
   "templates": 10,
   "tenant_channels": 7,
-  "tenant_config": 3,
+  "tenant_config": 4,
   "tenants": 4
 }

@@ -193,7 +193,7 @@
     "@typescript-eslint/no-base-to-string": 2
   },
   "apps/dashboard/src/server/export/export-bundle.ts": {
-    "@typescript-eslint/unbound-method": 4
+    "@typescript-eslint/unbound-method": 3
   },
   "apps/dashboard/src/server/export/export.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
@@ -291,9 +291,6 @@
   },
   "apps/dashboard/src/surfaces/settings/connections/row.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1
-  },
-  "apps/dashboard/src/surfaces/settings/team/team.tsx": {
-    "jsx-a11y-x/no-autofocus": 1
   },
   "apps/dashboard/src/surfaces/setup/first-run/hooks.tsx": {
     "react-hooks/exhaustive-deps": 1

@@ -526,6 +526,10 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
     "member.left",
     (p, base) => joinBits(base, [textAt(p, "how") === "account_deleted" ? "deleted their account" : null]),
   ],
+  // Team's Resend renews an invitation and emails it again (00371 team_invite_renew); a member's own Leave is a removal
+  // by their own hand (team_leave). Each is said as what happened, not as a second invitation or a removal by somebody.
+  ["invite", (p, base) => (p.resent === true ? "Sent an invitation again" : base)],
+  ["remove_member", (p, base) => (p.left === true ? "Left the team" : base)],
   ["call.recorded", callRecordedWords],
   ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
   ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],

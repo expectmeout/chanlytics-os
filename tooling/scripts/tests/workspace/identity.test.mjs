@@ -137,7 +137,12 @@ test("the wiring: one profile row per account, written by its owner only, read b
 
   // A person names themselves on Profile: drawn in settings-owner-panes.test.mjs ("your name is a row on Profile"). The
   // Team card is TSX (surfaces/settings/team, decision 0015 step 11), and reads the same words as the chip.
-  const team = readCode("apps/dashboard/src/surfaces/settings/team/team.tsx");
+  // Its roster is read in people.ts (the redesign of 9 Oct 2026) and drawn by the card's modules.
+  const team = readCode(
+    "apps/dashboard/src/surfaces/settings/team/people.ts",
+    "apps/dashboard/src/surfaces/settings/team/team.tsx",
+    "apps/dashboard/src/surfaces/settings/team/rows.tsx",
+  );
   assert.ok(
     team.includes("memberWords({ email: m.email, display_name: m.displayName })"),
     "the roster reads the same words",

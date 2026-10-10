@@ -1,6 +1,6 @@
-import { AppError, PeopleExportQuerySchema, parseListToken } from "@chanlytics/contracts";
+import { AppError, PeopleExportQuerySchema, parseListToken, type PersonRowDto } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { everyone } from "@/server/people/people";
+import { everyoneOnce } from "@/server/people/people";
 import { tenantFacts } from "@/server/tenant";
 import { audiencePool, poolList } from "@/server/people/audience";
 import { channelsReadyOrNull } from "@/server/campaigns/channels-ready";
@@ -27,10 +27,18 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const { name, timezone } = await tenantFacts(ctx.supabase, member.tenantId);
     const now = new Date();
-    // everyone(), not listPeople(): one call is capped at 1000 in the database,
+    // Everyone, not listPeople(): one call is capped at 1000 in the database,
     // and a CSV that stops there is indistinguishable from a complete one --
     // on the export whose ledger row says a full copy of the list was taken.
-    let people: Awaited<ReturnType<typeof everyone>>;
+    // And each of them once (everyoneOnce), not everyone(): someone who writes
+    // while the pages are read moves past the cursor, and a file has no next
+    // pass to read them on. A list is counted over the same people.
+    const all = async () => {
+      const rows: PersonRowDto[] = [];
+      for await (const page of everyoneOnce(ctx, member.tenantId)) rows.push(...page);
+      return rows;
+    };
+    let people: PersonRowDto[];
     let list: { token: string; name: string } | null = null;
     const ref = input.list ? parseListToken(input.list) : null;
     if (ref && input.list) {
@@ -41,6 +49,7 @@ export const GET = read({
         timezone,
         now,
         await channelsReadyOrNull(ctx, member.tenantId, { withPause: false }),
+        { people: all },
       );
       const found = await poolList(ctx, member.tenantId, pool, ref);
       if (!found) throw new AppError("not_found", "That list isn't here.", 404);
@@ -50,7 +59,7 @@ export const GET = read({
       people = pool.people.filter((p) => ids.has(p.id));
       list = { token: input.list, name: found.label };
     } else {
-      people = await everyone(ctx, member.tenantId);
+      people = await all();
     }
     log.info("export.people", {
       user: ctx.userId,

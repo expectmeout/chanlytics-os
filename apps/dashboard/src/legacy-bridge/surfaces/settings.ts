@@ -310,5 +310,8 @@ export const settingsOverride: SurfaceOverride = {
       team: w.__TEAM ?? null,
       invites: w.__TEAM_INVITES ?? null,
     });
+    // The policy chips listen for this and nothing else (the kit's PolicyChip): one drawn before the modes were read
+    // says none (policy-store.ts), and went on saying none until a mode was next changed by hand.
+    window.dispatchEvent(new CustomEvent("policy:changed"));
   },
 };

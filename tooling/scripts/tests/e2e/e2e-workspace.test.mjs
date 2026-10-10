@@ -818,6 +818,7 @@ test("the Google sweep reaches the seed only a day on, and then writes its failu
     fresh: 0,
     counted: 0,
     failed: 2,
+    remaining: 0,
   });
   assert.deepEqual(
     wire,
