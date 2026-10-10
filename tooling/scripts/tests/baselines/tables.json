@@ -138,7 +138,7 @@
   "apps/edge/lib/lines/lines.ts::rpc": 2,
   "apps/edge/lib/lines/registrations-sweep.ts": 4,
   "apps/edge/lib/notes.ts::rpc": 2,
-  "apps/edge/lib/ops/answer-silence.ts::rpc": 1,
+  "apps/edge/lib/ops/day-watch.ts::rpc": 1,
   "apps/edge/lib/ops/diagnostic.ts": 4,
   "apps/edge/lib/ops/diagnostic.ts::rpc": 3,
   "apps/edge/lib/ops/health-sweep.ts::rpc": 3,

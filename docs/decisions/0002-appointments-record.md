@@ -1,6 +1,6 @@
 # 0002 · An appointments record
 
-**Status:** built in part, 7 October 2026 (`docs/plans/2026-10-07-bookings-arrive-by-email.md`, migration 00345):
+**Status:** decided, its open questions answered on 10 October 2026 (below); built in part, 7 October 2026 (`docs/plans/2026-10-07-bookings-arrive-by-email.md`, migration 00345):
 the table (step 1, with a `booking_email` source and the client's name, number and address on the row), its first
 writer (a booking tool's notice, read by the `booking_read` job: the `booking_tool` door of step 7, arriving by email
 rather than a signed webhook), the board drawing its rows, and a caller's own visit said from them. Then step 2
@@ -453,3 +453,32 @@ refuses in words a caller can hear, and the Setup row says so.
 5. **May the receptionist create a `proposed` row** — a hold it offered and the
    customer has not confirmed? This note says no. It is the one place where
    "never books" and "useful" pull apart.
+
+### Answered, 10 October 2026
+
+Ruben: "review and go with the best suggestions for chanlytics". Each answer as recommended, read against `ef0aea36a`.
+
+1. **Neither source wins whole.** A booking tool is the word for what was booked: the client, the service, the staff,
+   the status. The feed is the word for busy time. One visit is the same client starting within fifteen minutes
+   (`SAME_VISIT_MS`, the board's rule in `withoutVisitsRowsDraw`); beyond that both rows stand. A reader that says yes or
+   no per person (Reports' booking line, People's "booked") is untouched by a visit held twice; a series that counts
+   visits applies the fifteen-minute rule in its SQL when it is built. Distinct `(contact_id, starts_at)` is not used: a
+   person not yet matched has no id, and a clock's drift defeats it.
+2. **No backfill script, and nothing to upload.** The sync already keeps ninety days back of what the feed holds
+   (`seasonHorizon`), from its first run (7 to 9 October 2026); a booking tool's notices begin when they began. A report
+   whose window starts before the workspace's first row says "since we started keeping these", from the earliest row.
+   Step 3 is dropped.
+3. **An operator or above** says `kept`, `missed` or `cancelled`, through a `route()` write that records a decision, as
+   consent, a deal and a note are. A mistaken `kept` and `missed` may be corrected one into the other through that door
+   alone, `appointments_guard` changed to allow that one move (it refuses it today); every other end stays final. **The sweep never stores `kept`:** attendance the database cannot
+   support is not written. A visit past its end and neither missed nor cancelled is read, and worded, as past.
+4. **`missed` reaches no customer by itself.** It holds the after-the-visit moment and any reminder (`appointmentHolds`
+   already treats it as off), and it becomes a field of a list's rule, so an owner may run a win-back moment on it under
+   the promotional class (`reengage`), asked or vetoed by default. No new class.
+5. **Yes, as a request no one can take for a booking.** The receptionist may write a `proposed` row with
+   `source = 'receptionist'`, an expiry, a clock that cancels it when unanswered, and a decision; an owner's confirm moves
+   it to `booked`. It is built only after the board and the readers draw a request as "Requested" and count only
+   `booked` and `kept` as booked, and the guardrail's words become "take the time down and say a person will confirm"
+   (Ruben's approval of 9 October 2026: the receptionist may request a booking, never confirm one).
+
+The readers lane is next for this note: steps 4, 5 and 8 together, with the answers above (0046, lane A, step 3).

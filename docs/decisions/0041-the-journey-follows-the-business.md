@@ -2,7 +2,7 @@
 
 **Status:** Decided on 9 October 2026 by Ruben, with "A moment holds many campaigns"
 (`docs/superpowers/specs/2026-10-09-a-moment-holds-many-campaigns-design.md`, §4.8, decisions 40 to 49). Steps J1 to J3
-built on the branch `campaigns/a-moment-holds-many`, not yet merged; J4 is a lane of its own. Context written against
+built on the branch `campaigns/a-moment-holds-many`, merged with #1535 on 10 October 2026; J4 is a lane of its own. Context written against
 commit `7ff179717` (main, 9 October 2026), the rest checked against the branch's code on 10 October 2026. Where this
 note and the code disagree, the code wins.
 
