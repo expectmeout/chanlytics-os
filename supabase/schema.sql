@@ -844,6 +844,31 @@ COMMENT ON FUNCTION public.broadcast_recipients_guard() IS 'queued -> sent|skipp
 
 
 --
+-- Name: broadcast_recipients_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.broadcast_recipients_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if NEW.erased_at is not null and OLD.erased_at is null then
+    update public.broadcast_recipients r
+       set facts = null
+     where r.tenant_id = NEW.tenant_id and r.contact_id = NEW.id and r.facts is not null;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION broadcast_recipients_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.broadcast_recipients_on_erase() IS 'When a person is erased, the words each run kept for them (a visit''s time, service and calendar key, a proposal''s link) are cleared; the row keeps its state and reason, which the run''s counts read (00383).';
+
+
+--
 -- Name: broadcasts_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5165,6 +5190,15 @@ begin
   update public.lead_search_members
      set judgment = '{}'::jsonb, reason = '', blanked_at = coalesce(blanked_at, now())
    where lead_id = p_lead_id;
+  -- What a reach-out wrote from the lead's record, and the checker's note on it (00383). The send keeps its state, its
+  -- reason and the digest of the words it checked.
+  update public.reach_out_sends
+     set opening = null, angle = null, hold_detail = null
+   where lead_id = p_lead_id and (opening is not null or angle is not null or hold_detail is not null);
+  -- A preference's example copied from this lead (00383).
+  update public.lead_preferences
+     set example = null
+   where from_lead_id = p_lead_id and example is not null;
   return v_n;
 end $$;
 
@@ -5173,7 +5207,7 @@ end $$;
 -- Name: FUNCTION lead_blank(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00383), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
 
 
 --
@@ -27202,6 +27236,13 @@ CREATE TRIGGER contacts_erase_clears_proposal BEFORE UPDATE OF erased_at ON publ
 
 
 --
+-- Name: contacts contacts_erase_clears_run_words; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_clears_run_words AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.broadcast_recipients_on_erase();
+
+
+--
 -- Name: contacts contacts_erase_leaves_lists; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -31191,6 +31232,14 @@ GRANT ALL ON FUNCTION public.billing_may_spend(p_tenant_id uuid) TO service_role
 REVOKE ALL ON FUNCTION public.broadcast_recipients_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.broadcast_recipients_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.broadcast_recipients_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION broadcast_recipients_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.broadcast_recipients_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.broadcast_recipients_on_erase() TO service_role;
 
 
 --

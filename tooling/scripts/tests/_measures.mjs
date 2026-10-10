@@ -235,10 +235,13 @@ const MANY_WRITERS_BY_DESIGN = new Set(["events", "decisions", "sweep_status"]);
 
 /**
  * A writer that only removes what age or an erasure takes, which reaches its tables by design: a purge, a scrub, the
- * erasure's own legs. 0036's registry is what holds those, not this count.
+ * erasure's own legs (erase_contact, and the triggers its tombstone fires, `<table>_erase_on_contact` and
+ * `<column>_on_erase`), and lead_blank, the one function retention and erasure blank a lead through. 0036's registry is
+ * what holds those, not this count.
  */
 const takesAway = (who) =>
-  /^(purge_|erase_)|scrub/.test(who) || /^apps\/dashboard\/src\/server\/people\/(erasure|erase-contact)\.ts$/.test(who);
+  /^(purge_|erase_)|scrub|(_erase_on_contact|_on_erase)\(\)$|^lead_blank\(\)$/.test(who) ||
+  /^apps\/dashboard\/src\/server\/people\/(erasure|erase-contact)\.ts$/.test(who);
 
 /**
  * Each table and who writes it: every source module whose supabase-js chain writes it (_ast.mjs tablesWrittenIn), and

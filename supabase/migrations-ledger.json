@@ -384,6 +384,7 @@
     "00379_a_queued_message_is_withdrawn_by_one_door.sql": "0bcdbf72be138189a96cc57b253092a17afe215ba9908b9eac077da3c92caf51",
     "00380_an_escalation_is_opened_with_its_event.sql": "96c9a28586c369a5240e5d41ceffe917077294a8688f8bfc8224704fe07ca025",
     "00381_a_booking_reaches_its_reach_out_through_its_event.sql": "bbb3311670e442b6ea59c68a4ad88b9aaede2bcb50f2af9a6650701a39271525",
-    "00382_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "b838ba482cb1dfa801e1330442b08913bad687e301cea59e7f9f271e77c275d4"
+    "00382_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "b838ba482cb1dfa801e1330442b08913bad687e301cea59e7f9f271e77c275d4",
+    "00383_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "d1ca63855033970a873c591a3a5a2ebfd8320c713a857f86a88b890ecbb789dc"
   }
 }

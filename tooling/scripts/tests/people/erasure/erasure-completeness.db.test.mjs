@@ -165,7 +165,7 @@ async function seed() {
     control_ref: WORDS,
     control_until: new Date(Date.now() + 3_600_000).toISOString(),
   });
-  await insert("messages", {
+  const message = await insert("messages", {
     tenant_id: T,
     conversation_id: conversation,
     contact_id: A,
@@ -189,6 +189,24 @@ async function seed() {
     details: WORDS,
     state: "open",
   });
+  // Their reply to a reach-out, read: it hangs on their message and their thread.
+  ok(
+    await db.from("reach_out_replies").insert({
+      message_id: message,
+      tenant_id: T,
+      conversation_id: conversation,
+      contact_id: A,
+      claim: "person",
+      intent: "question",
+      summary: WORDS,
+      refer_to: WORDS,
+      plan: { words: WORDS },
+      draft: WORDS,
+      draft_state: "written",
+      draft_why: `${PHONE} ${EMAIL}`,
+    }),
+    "reach_out_replies",
+  );
   await insert("calls", {
     tenant_id: T,
     retell_call_id: `call-${DIGITS}-${RUN}`,
@@ -277,17 +295,24 @@ async function seed() {
   ])
     await insert("events", { tenant_id: T, kind, category: "contact", subject_type: "contact", subject_id: A, data });
   // Jobs: one finished with the number, one finished with the address (the scrub by key), one scheduled naming them
-  // (erase_contact cancels and scrubs it). A finished row is reached through the guard's own moves.
+  // (erase_contact cancels and scrubs it), each with a provider's refusal that quotes them. A finished row is reached
+  // through the guard's own moves.
   const due = new Date(Date.now() + 3_600_000).toISOString();
   for (const payload of [
     { to_phone: PHONE, body: WORDS },
     { to_email: EMAIL, body: WORDS },
   ]) {
-    const id = await insert("jobs", { tenant_id: T, kind: "outbound_send", due_at: due, payload });
+    const id = await insert("jobs", { tenant_id: T, kind: "outbound_send", due_at: due, payload, last_error: WORDS });
     ok(await db.from("jobs").update({ state: "fired" }).eq("id", id), "fire");
     ok(await db.from("jobs").update({ state: "done" }).eq("id", id), "finish");
   }
-  await insert("jobs", { tenant_id: T, kind: "outbound_send", due_at: due, payload: { contact_id: A, body: WORDS } });
+  await insert("jobs", {
+    tenant_id: T,
+    kind: "outbound_send",
+    due_at: due,
+    payload: { contact_id: A, body: WORDS },
+    last_error: WORDS,
+  });
 
   const search = await insert("lead_searches", {
     tenant_id: T,
@@ -344,6 +369,73 @@ async function seed() {
     reason: WORDS.slice(0, 120),
     counted: false,
   });
+  // A preference copied from the lead (00140), and a reach-out's run: the email it wrote the lead, from the lead's
+  // record, and the person's own row in it, with the words the run kept for them (a visit's, a proposal's link).
+  await insert("lead_preferences", { tenant_id: T, kind: "chain", example: WORDS, from_lead_id: lead });
+  const template = await insert("templates", {
+    tenant_id: T,
+    channel: "email",
+    source: "chanlytics",
+    name: `needle_${RUN}`,
+    language: "en",
+    category: "marketing",
+    meta_status: "approved",
+    components: [{ type: "BODY", text: "Hi {{business}}." }],
+  });
+  const root = await insert("playbooks", {
+    tenant_id: T,
+    kind: "reach_out",
+    policy_class: "outreach",
+    gap_minutes: 5,
+    template_id: template,
+    template_name: `needle_${RUN}`,
+    template_language: "en",
+    params: [],
+    name: "Needle reach-out",
+    trigger: "lead_first",
+    lead_search_id: search,
+    state: "running",
+    signed_by: "Sam",
+  });
+  const run = await insert("broadcasts", {
+    tenant_id: T,
+    name: "Needle reach-out · sent",
+    template_id: template,
+    template_name: `needle_${RUN}`,
+    template_language: "en",
+    audience: { kind: "reach_out", root_id: root, step_id: root },
+    state: "sent",
+    scheduled_for: new Date().toISOString(),
+    playbook_id: root,
+  });
+  ok(
+    await db.from("reach_out_sends").insert({
+      id: crypto.randomUUID(),
+      tenant_id: T,
+      broadcast_id: run,
+      playbook_id: root,
+      root_id: root,
+      lead_id: lead,
+      contact_id: A,
+      state: "sent",
+      send_at: new Date().toISOString(),
+      sent_at: new Date().toISOString(),
+      opening: WORDS,
+      angle: `Ada ${DIGITS}`,
+      hold_detail: WORDS,
+    }),
+    "reach_out_sends",
+  );
+  ok(
+    await db.from("broadcast_recipients").insert({
+      tenant_id: T,
+      broadcast_id: run,
+      contact_id: A,
+      channel: "email",
+      facts: { visit_when: WORDS, proposal_link: URL_WITH },
+    }),
+    "broadcast_recipients",
+  );
 
   // Their own note goes with them; a note about someone else that carries their number and address is scrubbed in place.
   await insert("person_notes", {
@@ -363,7 +455,12 @@ async function seed() {
     source: "page",
   });
 
-  const thread = await insert("ask_threads", { tenant_id: T, user_id: U, title: "A question" });
+  const thread = await insert("ask_threads", {
+    tenant_id: T,
+    user_id: U,
+    title: WORDS,
+    scope: { kind: "person", id: A, label: WORDS },
+  });
   await insert("ask_messages", { thread_id: thread, tenant_id: T, user_id: U, role: "user", content: { text: WORDS } });
 
   const pe = `pe-${RUN}`;
@@ -433,6 +530,15 @@ test(
     assert.deepEqual([lead.mark_path, lead.business_name], [null, ""], "the lead is blanked, its mark with it");
     const [{ n: threads }] = query(`select count(*)::int as n from public.conversations where contact_id = '${A}'`);
     assert.equal(threads, 0, "the thread, with the call that held it, went with the person");
+    // A run's rows are its counts: kept, with only the words gone.
+    const [send] = query(`select state, opening, angle from public.reach_out_sends where tenant_id = '${T}'`);
+    assert.deepEqual(
+      send,
+      { state: "sent", opening: null, angle: null },
+      "the reach-out's send is kept, its words gone",
+    );
+    const [row] = query(`select facts from public.broadcast_recipients where tenant_id = '${T}'`);
+    assert.equal(row.facts, null, "the run's row for them is kept, the words it kept for them gone");
 
     // Someone else's record is kept, with only the needles gone.
     const [note] = query(`select body from public.person_notes where contact_id = '${B}'`);

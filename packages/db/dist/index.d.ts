@@ -10078,6 +10078,9 @@ declare function migrationHead(db: Db$x): Promise<MigrationHead>;
  *   scrubbed      the column is overwritten, or the row deleted, by the named legs, by the person's id or by needle;
  *   digest        kept only as a keyed hash an erasure cannot reverse (00263);
  *   by_age        removed by a retention clock within contracts' RETENTION_DAYS, which the privacy page states;
+ *   with_workspace the workspace's own record that can name someone it is not serving: its owner, a member, its payer,
+ *                 the representative its filing names. An erasure is of a person the workspace serves and does not
+ *                 reach it; it leaves with the workspace, within the 30 days the privacy page states;
  *   not_personal  holds nothing of a person, said once.
  *
  * Which columns can hold words is the schema's: text, json and their arrays, in a table that names `tenant_id`, its
@@ -10086,6 +10089,9 @@ declare function migrationHead(db: Db$x): Promise<MigrationHead>;
  * "personal columns with no erasure strategy" (docs/debt.md) hold the count to fall, so a new column arrives with its
  * strategy. messages.body and messages.template_vars are counted on purpose: a message is immutable by trigger (00326),
  * so a person's words in someone else's thread stay until an exception to that is costed (Ruben, 6 October 2026).
+ * Counted too, each waiting on a word (decision 0036, open questions): a Google review's reviewer, words and reply,
+ * which no erasure can reach (nothing joins a review to a person, and a name is not a key) and no clock removes; and a
+ * lead batch's judgment, which purge_leads removes at 180 days with no RETENTION_DAYS key of its own to say so.
  */
 
 /** The legs an erasure runs, each where it is written. */
@@ -10097,8 +10103,9 @@ declare const ERASURE_LEGS: {
     readonly email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)";
     readonly proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared";
     readonly deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared";
-    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, its keys kept as digests";
-    readonly jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten";
+    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00383), its keys kept as digests";
+    readonly recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00383)";
+    readonly jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared";
     readonly ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)";
     readonly deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)";
     readonly notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)";
@@ -10117,6 +10124,8 @@ type ErasureStrategy = {
 } | {
     readonly kind: "by_age";
     readonly days: keyof typeof RETENTION_DAYS;
+} | {
+    readonly kind: "with_workspace";
 } | {
     readonly kind: "not_personal";
 };
