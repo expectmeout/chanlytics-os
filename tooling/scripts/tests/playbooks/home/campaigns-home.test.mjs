@@ -19,6 +19,7 @@ import {
   textOf,
   press,
   settle,
+  unmount,
 } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
@@ -59,6 +60,7 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
+const { useLedgerOnScreen } = await import(`${SRC}/surfaces/campaigns/home/ask-on-campaigns.tsx`);
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { playbooks: verbs } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
@@ -1463,4 +1465,62 @@ test("Campaigns' own 30 days are one read of each report over its own period, ea
     console.error = errorWas;
     setSurfaceValue("campaign_results", undefined);
   }
+});
+
+test("what Ask is told the ledger shows (the moment spec, A2): its rows in order, forty at most, a one-off send as its run, the receptionist, the call's text, a reach-out and an offer not made left out, and the view they are under", () => {
+  const row = (id, kind, name, status = "on") => ({ id, kind, name, status });
+  const rows = [
+    row("receptionist", "receptionist", "The receptionist", "always"),
+    row("call_text", "call_text", "The call's text", "always"),
+    row("p1", "playbook", "Win-back"),
+    row("c1", "chain", "Movers in Austin"),
+    row("everyone_monthly", "offer", "The month's offer", "off"),
+    row("b1", "sent_once", "Monday offer", "off"),
+    row("l1", "list", "Past clients", "paused"),
+    ...Array.from({ length: 45 }, (_, i) => row(`p${i + 2}`, "playbook", `Campaign ${i + 2}`)),
+  ];
+  const told = (view) => {
+    delete globalThis.window.__askOnScreen;
+    again(() => useLedgerOnScreen(view));
+    return globalThis.window.__askOnScreen;
+  };
+  const said = told({ status: "needs", group: "quiet", query: "win", visibleRows: rows });
+  assert.equal(said.key, "campaigns");
+  assert.deepEqual(said.ids.slice(0, 4), ["p1", "run:b1", "l1", "p2"]);
+  assert.equal(said.ids.length, contracts.ASK_CONTEXT_MAX_ROWS);
+  assert.deepEqual(said.labels.slice(0, 3), ["Win-back", "Monday offer", "Past clients"]);
+  assert.equal(said.view, "playbooks:needs:in:quiet:search");
+  assert.equal(told({ status: "all", group: null, query: "  ", visibleRows: [] }).view, "playbooks:all");
+  assert.deepEqual(
+    told({ status: "paused", group: "lists", query: "", visibleRows: [] }).view,
+    "playbooks:paused:in:lists",
+  );
+});
+
+test("the page tells Ask the rows its ledger draws, in its order, under the group its address names; taken back when it goes", () => {
+  fresh();
+  surfaces();
+  delete globalThis.window.__askOnScreen;
+  const drawnIds = (tree) => allBy(tree, "cmh-row").map((r) => r.props["data-row"]);
+  const plain = (id) => id.replace(/^run:/, "");
+  const check = (tree, view) => {
+    const s = globalThis.window.__askOnScreen;
+    assert.equal(s.key, "campaigns");
+    assert.equal(s.view, view);
+    const drawn = drawnIds(tree);
+    assert.ok(s.ids.length > 0, "the ledger's campaigns are told");
+    assert.deepEqual(
+      s.ids.map(plain),
+      drawn.filter((id) => s.ids.map(plain).includes(id)),
+      "only rows the ledger draws, in its order",
+    );
+    for (const r of allBy(tree, "cmh-row").filter((n) => n.props["data-kind"] === "playbook"))
+      assert.ok(s.ids.includes(r.props["data-row"]), `the drawn campaign ${r.props["data-row"]} is told`);
+  };
+  check(page(), "playbooks:all");
+  fresh();
+  surfaces();
+  check(page("in:quiet"), "playbooks:all:in:quiet");
+  unmount();
+  assert.equal(globalThis.window.__askOnScreen, null, "taken back when the ledger goes");
 });

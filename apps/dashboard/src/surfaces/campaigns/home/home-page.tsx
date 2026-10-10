@@ -28,6 +28,7 @@ import { useCmPhone } from "../parts/split";
 import type { PlaybookCardVM } from "../playbooks/surface";
 import { ReachOutSheet } from "../reach-out/sheet";
 import { composeRoute, momentRoute, parseHome } from "./address";
+import { useLedgerOnScreen } from "./ask-on-campaigns";
 import type { HomeAddress } from "./address";
 import { MomentDrawer } from "./drawer";
 import { Ledger } from "./ledger/ledger";
@@ -221,9 +222,10 @@ function useApproval(flash: Flash, canAct: boolean, onDecided: (id: string) => v
 }
 
 /**
- * The ledger as the page holds it, once: its view (what the screen shows; Ask's door reads its rows), the row marks (a
- * row decided in place keeps its place until the filter changes, and settles; an arrival is washed), the keys over the
- * rows the screen shows, and focus coming back to the row, or the card, a sheet was opened from.
+ * The ledger as the page holds it, once: its view (what the screen shows, and what Ask is told is on screen:
+ * ask-on-campaigns.tsx), the row marks (a row decided in place keeps its place until the filter changes, and settles; an
+ * arrival is washed), the keys over the rows the screen shows, and focus coming back to the row, or the card, a sheet
+ * was opened from.
  */
 function useLedgerPage(
   home: LifecycleHome,
@@ -235,6 +237,7 @@ function useLedgerPage(
   const marks = useRowMarks(sheetOpen);
   const settled = marks.mark && marks.mark.kind === "settled" ? marks.mark.id : null;
   const view = useLedgerView(home.ledger, { group: at.group, onGroup: at.nav.narrow, phone: at.phone, keep: settled });
+  useLedgerOnScreen(view);
   useLetGo(`${view.status}|${view.group ?? ""}|${view.query}`, marks.clear);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const ids = view.visibleRows.map((r) => r.id);

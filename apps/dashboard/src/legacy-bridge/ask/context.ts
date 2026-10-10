@@ -32,7 +32,7 @@ type Provider = (w: ContextGlobals, route: Route) => Provided;
 
 /** What a page that holds its rows in state says it drew (D3): its key, the ids in its order, and its view. */
 export interface OnScreen {
-  key: "inbox" | "people" | "pipeline" | "calendar";
+  key: "inbox" | "people" | "pipeline" | "calendar" | "campaigns";
   ids: string[];
   view?: string | null;
   /** The names the rows show, beside their ids, so the words can name one; kept in the tab. */
@@ -143,9 +143,22 @@ const reports: Provider = () => {
   return { view: shown.period === null ? shown.key : String(shown.days), rows: [] };
 };
 
-/** Campaigns is its home, whose rows are the playbooks, and two rooms, Sent and the Library: the page is the view, and its rows are that page's. */
+/**
+ * Campaigns is its home, whose rows are the ledger's (or, before it draws, the playbooks), and two rooms, Sent and the
+ * Library: the page is the view, and its rows are that page's.
+ */
 const campaigns: Provider = (w, route) => {
-  if (route.page === "outbound" || route.page === "campaigns")
+  if (route.page === "outbound" || route.page === "campaigns") {
+    // The ledger says what it shows (surfaces/campaigns/home/ask-on-campaigns.tsx): its rows in its order, forty at most,
+    // a one-off send's run spelled `run:<id>`, under the view it is set to. Before it has drawn, the playbooks the surface
+    // read.
+    if (w.__askOnScreen?.key === "campaigns") {
+      const got = drawn(w, "campaigns", "playbook");
+      return {
+        view: got.view ?? "playbooks",
+        rows: got.rows.map((r): Row => (r.id.startsWith("run:") ? { ...r, kind: "run", id: r.id.slice(4) } : r)),
+      };
+    }
     return {
       view: "playbooks",
       rows: arr<{ id: string; name?: string }>(w.__PLAYBOOKS?.rows).map((p) => ({
@@ -154,6 +167,7 @@ const campaigns: Provider = (w, route) => {
         label: p.name,
       })),
     };
+  }
   if (route.page === "broadcasts")
     return {
       view: "broadcasts",

@@ -163,23 +163,38 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
   return { rows, aggregate: `messages: ${all.length}, ${approved} approved` };
 }
 
-/** Campaigns: the tab is the page (legacy-bridge/ask/context.ts), and its rows are that tab's. */
+/**
+ * The home's rows (a view of `playbooks`, then the ledger's status, group and search): its campaigns as
+ * campaigns.playbooks says them, then its one-off sends as Sent's rows say them, each a row a citation names.
+ */
+async function ledgerRows(rc: ReaderContext, ctx: Parameters<Provider>[1]) {
+  const runs = idsOf(ctx, "run").map((r) => r.id);
+  const [pb, sent] = await Promise.all([
+    playbookContextRows(
+      rc,
+      idsOf(ctx, "playbook").map((r) => r.id),
+    ),
+    runs.length ? broadcastRows(rc, runs) : null,
+  ]);
+  return { rows: [...pb.rows, ...(sent?.rows ?? [])], aggregate: pb.aggregate };
+}
+
+/**
+ * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs or the Library's messages, whichever the
+ * page is (legacy-bridge/ask/context.ts), and its rows are that page's.
+ */
 export const campaigns: Provider = async (rc, ctx) => {
-  const got =
-    ctx.view === "playbooks"
-      ? await playbookContextRows(
+  const got = ctx.view?.startsWith("playbooks")
+    ? await ledgerRows(rc, ctx)
+    : ctx.view === "broadcasts"
+      ? await broadcastRows(
           rc,
-          idsOf(ctx, "playbook").map((r) => r.id),
+          idsOf(ctx, "run").map((r) => r.id),
         )
-      : ctx.view === "broadcasts"
-        ? await broadcastRows(
-            rc,
-            idsOf(ctx, "run").map((r) => r.id),
-          )
-        : await templateRows(
-            rc,
-            idsOf(ctx, "template").map((r) => r.id),
-          );
+      : await templateRows(
+          rc,
+          idsOf(ctx, "template").map((r) => r.id),
+        );
   return {
     rows: got.rows,
     aggregate: aggregateOf([`${pageWithView(ctx)}: ${got.rows.length} on screen`, got.aggregate]),

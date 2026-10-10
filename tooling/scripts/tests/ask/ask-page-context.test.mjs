@@ -176,6 +176,41 @@ test("Reports: the period; Campaigns: the tab's own rows; Settings: the pane; St
   assert.equal(ctx({}, "start/phone").view, "phone");
 });
 
+test("Campaigns' home sends the rows its ledger shows and the view they are under (the moment spec, A2): a campaign as a playbook, a one-off send as its run; the playbooks the surface read only before the ledger has drawn; a drawer open is the scope", () => {
+  const g = {
+    __askOnScreen: {
+      key: "campaigns",
+      ids: [U(1), `run:${U(2)}`],
+      labels: ["Win back", "Monday offer"],
+      view: "playbooks:needs",
+    },
+    __PLAYBOOKS: { rows: [{ id: U(9), name: "An older read" }] },
+  };
+  const out = ctx(g, "campaigns");
+  assert.deepEqual(
+    [out.surface, out.view, out.rows],
+    [
+      "campaigns",
+      "playbooks:needs",
+      [
+        { kind: "playbook", id: U(1) },
+        { kind: "run", id: U(2) },
+      ],
+    ],
+  );
+  assert.ok(!JSON.stringify(out).includes("Monday offer"), "the labels stay in the tab");
+  // A row's name in the words is the row asked about: a campaign is a scope now.
+  assert.deepEqual(ctx(g, "campaigns", "Why is Win back waiting?").focus, {
+    kind: "playbook",
+    id: U(1),
+    label: "Win back",
+  });
+  // Another page's on-screen is not believed: before the ledger draws, the surface's read stands in.
+  const before = ctx({ ...g, __askOnScreen: { key: "people", ids: [U(3)], labels: [], view: null } }, "campaigns");
+  assert.deepEqual([before.view, before.rows], ["playbooks", [{ kind: "playbook", id: U(9) }]]);
+  assert.deepEqual(ctx(g, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
+});
+
 test("forty rows at most, kind and id only -- a row's name never leaves the tab -- and a global in a shape no provider knows gives none rather than a throw", () => {
   const ids = Array.from({ length: 55 }, (_, i) => U(i + 1));
   const c = ctx({ __askOnScreen: { key: "people", ids, labels: ids.map((_, i) => `P${i}`) } }, "clients");

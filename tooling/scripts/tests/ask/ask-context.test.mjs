@@ -790,6 +790,32 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   );
   assert.match(textOf(pb.blocks[0]), /^Campaigns, playbooks: 1 on screen · playbooks: 1, 1 running/);
 
+  // The home's ledger (the moment spec, A2): its view says its status, group and search; its rows are its campaigns and
+  // its one-off sends, each as its own page says it, and each a row a citation names.
+  const ledger = await buildContext(
+    rcIn(ctxFor(t)),
+    page(
+      "campaigns",
+      [
+        { kind: "playbook", id: PB1 },
+        { kind: "run", id: BC1 },
+      ],
+      { route: "campaigns", view: "playbooks:needs:in:quiet" },
+    ),
+  );
+  assert.deepEqual(
+    ledger.blocks.map((x) => x.source),
+    ["page://campaigns", `playbook://${PB1}`, `run://${BC1}`],
+  );
+  assert.match(textOf(ledger.blocks[0]), /^Campaigns, playbooks:needs:in:quiet: 2 on screen · playbooks: 1, 1 running/);
+  assert.deepEqual(
+    ledger.refs.slice(1).map((r) => [r.kind, r.id]),
+    [
+      ["playbook", PB1],
+      ["broadcast", BC1],
+    ],
+  );
+
   const bc = await buildContext(
     rcIn(ctxFor(t)),
     page("campaigns", [{ kind: "run", id: BC1 }], { route: "broadcasts", view: "broadcasts" }),
