@@ -5744,14 +5744,29 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-spine {
   padding: var(--space-1) 0 var(--space-2);
 }
+/* A moment's head on the phone: its node, its caps, its figure or its words, and at its end a state or a door. The end
+   stands on the head's line where it fits and takes a line of its own, at the right, where it does not (seen on the rig
+   at 375px, 10 Oct: Reach-outs' "Find businesses to write to" left "No campaign yet" 33px, its words running into the
+   door), so the words between keep one line. */
 .cmh-spine-head {
   position: relative;
-  display: grid;
-  grid-template-columns: 28px auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 2px var(--space-2);
   min-height: 44px;
   padding: var(--space-2) var(--space-3);
+}
+.cmh-spine-head > * {
+  flex: none;
+}
+.cmh-spine-head > :nth-child(3) {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+.cmh-spine-head > :last-child {
+  margin-left: auto;
 }
 .cmh-spine-head > .cmh-node {
   width: 28px;
