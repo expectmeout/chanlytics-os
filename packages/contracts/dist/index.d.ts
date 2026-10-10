@@ -32211,6 +32211,8 @@ interface WorkspacePartnerVM {
     canInvite: boolean;
     /** "Take it back": while an invitation waits for its answer. */
     canWithdraw: boolean;
+    /** The partner is on the team now; false for one removed or gone, and wherever there is no partner. */
+    seated: boolean;
 }
 declare function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs?: number): WorkspacePartnerVM;
 /** A workspace asking the partner, as its row on their pane says it. */

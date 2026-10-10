@@ -190,9 +190,9 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
     <>
       <div className="tbn-backdrop" role="presentation" onClick={onClose} />
       {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe,
-          leaving). A popover under the bell on a wider screen, where neither moves it. */}
+          leaving). A popover under the bell on a wider screen, where neither moves it: the kit's pop panel, the glass. */}
       <div
-        className="tbn-pop"
+        className="tbn-pop panel panel-pop panel-flush"
         role="dialog" aria-modal="true"
         aria-label="Notifications"
         ref={window.dialogRef ? window.dialogRef("bell") : undefined}

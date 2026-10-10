@@ -139,7 +139,11 @@ export function ChartTooltip({ x, width, children }: { x: number | null; width: 
   if (x == null || !children) return null;
   const side = ckTipSide(x, width);
   return (
-    <div className={`ck-tip ${side}`} style={side === "pin" ? undefined : { left: `${x}px` }} role="presentation">
+    <div
+      className={`ck-tip ${side} panel panel-pop`}
+      style={side === "pin" ? undefined : { left: `${x}px` }}
+      role="presentation"
+    >
       {children}
     </div>
   );

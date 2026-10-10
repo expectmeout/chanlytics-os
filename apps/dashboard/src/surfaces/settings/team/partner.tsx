@@ -1,19 +1,39 @@
 /**
- * Settings › Team, its last row: the workspace's partner, or asking one by their code (decision 0020), moved from the
+ * Settings › Team, its last group: the workspace's partner, or asking one by their code (decision 0020), moved from the
  * card of its own it was under the team (partner/team-card.tsx). One card now says who has access, a partner among them.
  *
  * The owner's alone: for anyone else the read is refused and nothing is drawn, and an owner previewing another role sees
- * what that role does. The row says where things stand (a partner, an invitation waiting, declined or expired) with its
- * one act; with nobody asked it offers "Ask a partner", which opens the code's field and says what a partner is.
+ * what that role does. A group of its own under the people, as the invitations waiting are, and drawn as their rows are:
+ * a disc, where things stand (nobody yet, an invitation waiting, declined or expired, a partner) with the sentence under
+ * it, and the one act. It was a label-and-value row under the roles' row, the one row of the card in another grammar
+ * (Ruben, 10 Oct 2026). With nobody asked it offers "Ask a partner", which opens the code's field and says what a partner
+ * is.
  */
 import { useEffect, useState, type SyntheticEvent } from "react";
-import type { WorkspacePartnerVM } from "@chanlytics/contracts";
+import type { WorkspacePartnerState, WorkspacePartnerVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
+import { Face } from "../../kit/face/face";
+import { Icon } from "../../kit/icon/icon";
 import { RecordField } from "../../kit/record/field";
-import { RecordRow } from "../../kit/record/row";
 import { gate, type LegacyFlash } from "../../legacy-verbs";
 import { partnerVerbs } from "../partner/surface";
+
+/**
+ * Where things stand, in a few words: the row's name. The sentence under it is contracts' (workspacePartnerVM). A partner
+ * removed or gone is still the workspace's one partner (the state `partner`, not seated): "Former partner", never "Your".
+ */
+const PARTNER_STATE_WORDS: Record<WorkspacePartnerState, string> = {
+  none: "No partner yet",
+  waiting: "Invitation waiting",
+  declined: "Invitation declined",
+  expired: "Invitation expired",
+  partner: "Your partner",
+};
+const partnerWords = (vm: WorkspacePartnerVM): string =>
+  vm.state === "partner" && !vm.seated ? "Former partner" : PARTNER_STATE_WORDS[vm.state];
+/** What a partner is, under "No partner yet": the field's own intro says the rest once it is opened. */
+const PARTNER_NONE_LINE = "Someone who sets up and runs your receptionist with you.";
 
 interface PartnerState {
   vm: WorkspacePartnerVM | null;
@@ -137,36 +157,48 @@ export function PartnerRow({ flash, previewing }: { flash: (f: LegacyFlash) => v
     }
     setAgain((n) => n + 1);
   };
-  const act = vm.canWithdraw
-    ? {
-        label: busy ? W.withdrawing : W.withdraw,
-        onClick: () => {
-          if (!busy) void withdraw();
-        },
-        gate: gate("team", "take back the invitation"),
-        testid: "team-partner-withdraw",
-      }
-    : vm.canInvite && !asking
-      ? {
-          label: vm.state === "none" ? "Ask a partner" : "Ask again",
-          onClick: () => setAsking(true),
-          testid: "team-partner-open",
-        }
-      : null;
+  const act = vm.canWithdraw ? (
+    <Button
+      size="sm"
+      variant="quiet"
+      onClick={() => {
+        if (!busy) void withdraw();
+      }}
+      aria-busy={busy || undefined}
+      aria-describedby="team-partner-note"
+      data-testid="team-partner-withdraw"
+      {...gate("team", "take back the invitation")}
+    >
+      {busy ? W.withdrawing : W.withdraw}
+    </Button>
+  ) : vm.canInvite && !asking ? (
+    <Button
+      size="sm"
+      variant="quiet"
+      onClick={() => setAsking(true)}
+      aria-describedby="team-partner-note"
+      data-testid="team-partner-open"
+    >
+      {vm.state === "none" ? "Ask a partner" : "Ask again"}
+    </Button>
+  ) : null;
+  // A partner on the team is somebody here, as a member is; anything else is somebody not, drawn as an invitation is.
+  const here = vm.state === "partner" && vm.seated;
   return (
     <div className="set-team-partner" data-testid="team-partner">
-      <RecordRow
-        id="team-partner-status"
-        label="Partner"
-        value={
-          vm.sentence ? (
-            <span data-testid={`team-partner-${vm.state}`}>{vm.sentence}</span>
-          ) : (
-            "None yet. A partner sets up and runs your receptionist with you."
-          )
-        }
-        act={act}
-      />
+      <h3 className="set-team-group">Partner</h3>
+      {/* Drawn by the team row's rules, and never a member: it has no data-me, and the tests that count the card's
+          people read a class that starts with set-team-row. */}
+      <div className={`set-team-partner-row set-team-row${here ? "" : " pending"}`} data-testid="team-partner-row">
+        <Face className="set-team-face" glyph={<Icon name={here ? "check" : "users"} size={13} />} />
+        <span className="set-team-body">
+          <span className="set-team-name">{partnerWords(vm)}</span>
+          <span className="set-team-note" id="team-partner-note" data-testid={`team-partner-${vm.state}`}>
+            {vm.sentence ?? PARTNER_NONE_LINE}
+          </span>
+        </span>
+        {act && <span className="set-team-partner-act">{act}</span>}
+      </div>
       {vm.canInvite && asking ? (
         <PartnerAsk
           code={code}

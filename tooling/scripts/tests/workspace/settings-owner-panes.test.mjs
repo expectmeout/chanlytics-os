@@ -565,7 +565,7 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
   await new Promise((r) => setTimeout(r, 300));
   await flush();
   tree = settle("activity");
-  assert.equal(byTestId(tree, "act-person-matches").props.className, "more-menu align-left solid");
+  assert.equal(byTestId(tree, "act-person-matches").props.className, "more-menu align-left");
   press(buttonSaying(tree, "Ana Ruiz"));
   tree = settle("activity");
   assert.equal(A.asked[A.asked.length - 1].person, "c-ana", "and the log is read for them");
@@ -601,9 +601,9 @@ test("what kind of thing is two short lists -- the part of the product, then its
     "REGRESSION (8 Oct): the house's menu, the glass the sidebar's menus are; the browser's own list drew itself in the system's colours, whatever the look",
   );
   assert.deepEqual(
-    [menu.props.solid, menu.props.escape, menu.props.btnClass],
-    [true, true, "rec-input rec-select"],
-    "REGRESSION (9 Oct): on the pop's ground, so the log's coloured lines do not show through; against the window, so it is as wide as its words; from the kit's box",
+    [menu.props.escape, menu.props.btnClass],
+    [true, "rec-input rec-select"],
+    "REGRESSION (9 Oct): against the window, so it is as wide as its words; from the kit's box (its ground is every pop's, kit.css)",
   );
   assert.deepEqual(
     menu.props.items.filter((i) => i.checked).map((i) => i.label),
@@ -1084,13 +1084,11 @@ test("an open invitation's menu offers no role: there is no membership row to ch
   assert.equal(byTestId(tree, "team-role-inv-sam"), null, "and no picker stands on the invitation's row");
 });
 
-test("a team read that failed is said, with the server's role kept; a roster read says You by the signed-in email", () => {
-  // Only the team read failed: the settings read still gave the caller's role, so an owner keeps View-as, and nobody is
-  // invented -- no rows, no menus, no Invite over a roster that could not be read.
+test("a team read that failed is said, and nobody is invented; a roster read says You by the signed-in email", () => {
+  // Only the team read failed: no rows, no menus, no Invite over a roster that could not be read, whoever reads it.
   workspace("owner", { __TEAM: null, __TEAM_INVITES: null });
   let tree = settings("team");
   assert.ok(byTestId(tree, "team-failed"), "the one failed read");
-  assert.ok(byTestId(tree, "team-viewas"), "an owner, as the server says, keeps View-as");
   assert.equal(
     all(tree, (n) => String(n.props?.className || "").startsWith("set-team-row")).length,
     0,
@@ -1099,7 +1097,8 @@ test("a team read that failed is said, with the server's role kept; a roster rea
   assert.equal(buttonSaying(tree, "Invite"), null, "no Invite over a roster that could not be read");
   workspace("operator", { __TEAM: null, __TEAM_INVITES: null });
   tree = settings("team");
-  assert.equal(byTestId(tree, "team-viewas"), null, "an operator, as the server says, has none");
+  assert.ok(byTestId(tree, "team-failed"), "an operator's too");
+  assert.equal(buttonSaying(tree, "Invite"), null, "and no Invite for them either");
   // A roster read: You is the row whose address is the signed-in one, and only that row.
   workspace("owner");
   tree = settings("team");

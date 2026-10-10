@@ -275,6 +275,8 @@
      lightened it; a record's sheet the whole scrim, nearly three times as dark; the bell and a menu none (Ruben, 7 Oct
      2026). --surface-scrim itself fades the page behind a desk's side sheet. */
   --surface-veil: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
+  /* The wash behind a sheet or a dialog: the scrim on a desk, the veil on a phone (below, at 900px). */
+  --surface-wash: var(--surface-scrim);
   /* Where the three pools of light stand (the canvases' glow). They stand still here; on a desk each is a layer of its
      own that a transform moves (components.css, .pg-light): moving these, which every element inherits, styled the
      whole page again on every frame. */
@@ -442,13 +444,14 @@
   --surface-pop-depth:
     inset 0 1px 0 oklch(1 0 0 / 0.95), 0 18px 44px -14px oklch(0.274 0.063 274 / 0.3),
     0 1px 2px oklch(0.274 0.063 274 / 0.08);
-  /* What pops from a control (the kit's Panel in its pop: a list, a month, a popover) wears the control layer's lit
-     glass (the sheen, the specular edge and the depth) on this ground: the pop's fill at 88%, over a blur. An action
-     menu's own glass is the control layer's 8.5% to 50%, which holds over the sidebar's plain light; over a log's rows
-     it let the amber and the red of the lines under it through as a brown smear (Settings › Activity, 8 Oct 2026), the
-     fault the pop's opaque ground was set to keep out. Where there is no blur to be had, or less transparency is asked
-     for, it is the solid (below). */
-  --surface-pop-glass: color-mix(in oklab, var(--surface-pop-fill) 88%, transparent);
+  /* Everything that pops over the page (an action menu, a select's list, a combobox, a picker, a month, a popover)
+     wears the control layer's lit glass (the sheen, the specular edge and the depth) on this one ground: the pop's fill
+     at 72%, over the control layer's blur. Menus stood on the control layer's own 8.5% to 50%, which let the page's
+     colour through (the Calendar's coral button glowed in its Settings menu) and the amber and red of a log's lines as
+     a brown smear (Settings › Activity, 8 Oct 2026); lists stood on 88%, which read as a flat dark box. One ground
+     between them for both (Ruben, 10 Oct 2026: "less transparent… just not as opaque/dark"). Where there is no blur to
+     be had, or less transparency is asked for, it is the solid (below). */
+  --surface-pop-glass: color-mix(in oklab, var(--surface-pop-fill) 72%, transparent);
   --surface-scrim: oklch(0.959 0.005 275 / 0.5);
 
   /* The live call's island: always dark, as the hardware it borrows from, in both themes, with its own ink and coral. */
@@ -706,7 +709,15 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 @media (max-width: 900px) {
   :root, [data-theme] {
     --gutter-page: 16px;
+    --surface-wash: var(--surface-veil);
   }
+}
+/* Every native select's open list is the browser's own, drawn on the box's fill: on a clear or translucent box that was
+   the device's white list under the page's light ink. Its options take the pop's ground and the ink, as the kit's
+   Select draws its list (kit.css says the same for its own box, select.rec-input). A phone draws its own picker. */
+select :is(option, optgroup) {
+  background-color: var(--surface-pop-fill);
+  color: var(--ink);
 }
 /* On a phone a page is one column: a view travels its own width (--view-travel, above), and a finger walks its strip. */
 @media (max-width: 720px) {

@@ -233,7 +233,7 @@ const SbMenu = ({ menu, side = "down", label, testid, children }) => {
   if (!menu.open) return null;
   const drawn = (
     <>
-      <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
+      <div className="more-backdrop" role="presentation" data-sb-wash={sbBeside() ? "beside" : "foot"} onClick={(e) => { e.stopPropagation(); menu.close(); }} />
       <div className="more-menu sb-menu" role="menu" aria-label={label} {...sbMenuPull(menu)} data-sb-place={sbBeside() ? "beside" : "foot"} style={sbMenuStyle(menu.rect, { side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
         {children}
       </div>

@@ -36,6 +36,7 @@ import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/li
 import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
 import { DayRangePicker } from "../../../../apps/dashboard/src/surfaces/kit/datepicker/day-range-picker.tsx";
 import { Panel } from "../../../../apps/dashboard/src/surfaces/kit/panel/panel.tsx";
+import { Search } from "../../../../apps/dashboard/src/surfaces/kit/search/search.tsx";
 import { ViewTabs } from "../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx";
 import { cx } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
@@ -1111,5 +1112,52 @@ test("ViewTabs draws the gallery's Tab strip family: links on one capsule, the h
       ["a", "stabs-tab", undefined],
     ],
     "a view has an address: a tab is a link, never a button",
+  );
+});
+
+/** A search, as a page hands it: what it finds, its words, and whether it is open. */
+const searchOf = (props) =>
+  h(Search, {
+    label: "Search names, numbers and emails",
+    value: "",
+    onChange() {},
+    open: false,
+    onOpen() {},
+    testid: "people-phone-search",
+    ...props,
+  });
+
+/** The gallery's Search family, entry by entry. */
+const SEARCHES = {
+  search: () => searchOf({ rests: true }),
+  "search-open": () => searchOf({ rests: true, open: true, value: "Sam" }),
+  "search-desk": () => searchOf({ rests: false, label: "Search by name or message", testid: "inbox-search" }),
+};
+
+test("Search draws the gallery's Search family: the capsule at rest, the field with its clear and Cancel, the desk's field", () => {
+  assert.deepEqual(parting(FAMILIES, "Search", SEARCHES), HELD);
+  const rest = drawn(searchOf({ rests: true, className: "pp-lookup" }));
+  assert.equal(rest.props.className, "search pp-lookup", "the page's layout class comes last");
+  const [button] = rest.props.children.flat().filter(Boolean);
+  assert.equal(button.props["data-testid"], "people-phone-search-open");
+  fresh();
+  let opened = false;
+  const pressed = drawn(searchOf({ rests: true, onOpen: (o) => (opened = o) }));
+  press(pressed.props.children.flat().filter(Boolean)[0]);
+  assert.equal(opened, true, "a press on the capsule asks for the field");
+  let words = "x";
+  let shut = null;
+  const open = drawn(
+    searchOf({ rests: true, open: true, value: "Sam", onChange: (q) => (words = q), onOpen: (o) => (shut = o) }),
+  );
+  const cancel = open.props.children.flat().filter(Boolean).at(-1);
+  assert.equal(cancel.props["data-testid"], "people-phone-search-cancel");
+  press(cancel);
+  assert.deepEqual([words, shut], ["", false], "Cancel empties the field and rests it");
+  const desk = drawn(searchOf({ rests: false, value: "Sam" }));
+  assert.equal(
+    desk.props.children.flat().filter(Boolean).length,
+    1,
+    "on a desk the field stands alone, with no Cancel",
   );
 });
