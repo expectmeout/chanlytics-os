@@ -372,6 +372,7 @@
     "00367_a_number_written_with_its_plus_keeps_its_country.sql": "942dcecfb0acc64a64c0d1dc5e60c445d1b2518b752c1a8af1a7c0e6e7fb8417",
     "00368_ask_counts_the_cache_it_writes.sql": "e5cea2bbae66c91c86d8ffb6ca8dd4ebfc90e87498fd127e0e79a3f218b4a6be",
     "00369_a_broadcast_s_email_is_claimed_as_it_is_written.sql": "3b4fcf4cfe6f3a3b1f53b6db8742a19bbd605577f634a337c82434f8a2ad1e84",
-    "00370_a_partner_s_share_is_read_by_the_owner_alone.sql": "0f5725104586d6fd55c0c9da19e7fe82fd571a2687f15aab947c14732ec1401d"
+    "00370_a_partner_s_share_is_read_by_the_owner_alone.sql": "0f5725104586d6fd55c0c9da19e7fe82fd571a2687f15aab947c14732ec1401d",
+    "00371_a_member_may_leave_and_an_invitation_is_sent_again.sql": "45451bad4e81406329cd13830e21ec060c17c3fe6d43afcd212f9cc3ed4502e9"
   }
 }

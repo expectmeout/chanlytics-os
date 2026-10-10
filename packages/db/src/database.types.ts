@@ -8372,6 +8372,24 @@ export type Database = {
         }
         Returns: Json
       }
+      team_invite_renew: {
+        Args: {
+          p_actor: string
+          p_invitation_id: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_invite_renew_withdraw: {
+        Args: {
+          p_decision_id: string
+          p_invitation_id: string
+          p_tenant_id: string
+          p_was: string
+        }
+        Returns: undefined
+      }
       team_invite_withdraw: {
         Args: { p_invitation_id: string; p_tenant_id: string }
         Returns: undefined
@@ -8385,6 +8403,10 @@ export type Database = {
           p_user_id: string
           p_via?: string
         }
+        Returns: Json
+      }
+      team_leave: {
+        Args: { p_actor: string; p_tenant_id: string; p_via?: string }
         Returns: Json
       }
       team_owner_or_refuse: {

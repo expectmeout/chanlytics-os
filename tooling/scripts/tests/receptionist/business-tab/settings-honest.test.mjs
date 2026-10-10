@@ -416,18 +416,21 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   press(buttonSaying(tree, "Add"));
   assert.match(textOf(toasts.at(-1)?.msg), /email address/);
   assert.equal(toasts.at(-1)?.tone, "warn", "the alert address check");
-  // An invitation.
+  // An invitation: the address that is not one is said under its box (the redesign of 9 Oct 2026), and nothing is
+  // sent or toasted as sent.
   tree = settings("team");
+  const before = toasts.length;
   press(buttonSaying(tree, "Invite"));
   tree = again("team");
   type(
-    find(tree, (n) => n.type === "input" && n.props.type === "email"),
+    find(tree, (n) => n.type === "input" && n.props["data-testid"] === "team-invite-email"),
     "nobody",
   );
   tree = again("team");
-  press(buttonSaying(tree, "Send invite"));
-  assert.match(textOf(toasts.at(-1)?.msg), /email/);
-  assert.equal(toasts.at(-1)?.tone, "warn", "the invitation's address check");
+  press(buttonSaying(tree, "Send invitation"));
+  tree = again("team");
+  assert.match(textOf(find(tree, (n) => String(n.props?.className || "").includes("field-error"))), /email address/);
+  assert.equal(toasts.length, before, "no toast says it went: the invitation's address check");
 });
 
 // REGRESSION (S18): removing a service or a note can be undone, as a shift and a closure can -- it could not.

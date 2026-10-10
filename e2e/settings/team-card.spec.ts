@@ -35,7 +35,7 @@ test.describe("the Team card", () => {
 
     await page.getByRole("button", { name: "Invite", exact: true }).click();
     await page.getByPlaceholder("teammate@email.com").fill("e2e-intercepted@example.invalid");
-    await page.getByRole("button", { name: "Send invite" }).click();
+    await page.getByRole("button", { name: "Send invitation" }).click();
 
     await expect.poll(() => seen.length, { timeout: 10_000 }).toBe(1);
     expect(seen[0].method).toBe("POST");
@@ -67,17 +67,19 @@ test.describe("the Team card", () => {
     // the settings override, not by the first render, and counting too early
     // silently skipped this test rather than failing it.
     await page.locator(".set-team-row").first().waitFor({ timeout: 20_000 });
-    // Only rows for OTHER members carry a menu; the signed-in row has none.
-    const menus = page.locator(".set-team-row button.btn-icon");
-    const count = await menus.count();
+    // Only rows for OTHER members carry a role picker; the signed-in row says its role in words.
+    const pickers = page.locator('.set-team-row [data-testid^="team-role-"]');
+    const count = await pickers.count();
     test.skip(count === 0, "this workspace has no other member to change");
-    await menus.first().click();
-    // Inside the menu, not the row behind it — a role badge reading "Viewer"
-    // would otherwise be a perfectly plausible thing to click by accident.
-    await page
-      .locator(".more-menu")
-      .getByRole("menuitem", { name: /Viewer/ })
-      .click();
+    await pickers.first().click();
+    // Inside the menu, not the row behind it. A role other than the one held, and not Owner, which asks first.
+    const menu = page.locator(".more-menu");
+    const viewer = menu.getByRole("menuitemradio", { name: /^Viewer/ });
+    const pick =
+      (await viewer.getAttribute("aria-checked")) === "true"
+        ? menu.getByRole("menuitemradio", { name: /^Operator/ })
+        : viewer;
+    await pick.click();
 
     await expect.poll(() => seen.length, { timeout: 10_000 }).toBe(1);
     expect(seen[0].method).toBe("PATCH");

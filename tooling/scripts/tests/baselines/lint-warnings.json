@@ -292,9 +292,6 @@
   "apps/dashboard/src/surfaces/settings/connections/row.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1
   },
-  "apps/dashboard/src/surfaces/settings/team/team.tsx": {
-    "jsx-a11y-x/no-autofocus": 1
-  },
   "apps/dashboard/src/surfaces/setup/first-run/hooks.tsx": {
     "react-hooks/exhaustive-deps": 1
   },

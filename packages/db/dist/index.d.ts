@@ -9198,6 +9198,24 @@ type Database = {
                 };
                 Returns: Json;
             };
+            team_invite_renew: {
+                Args: {
+                    p_actor: string;
+                    p_invitation_id: string;
+                    p_tenant_id: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            team_invite_renew_withdraw: {
+                Args: {
+                    p_decision_id: string;
+                    p_invitation_id: string;
+                    p_tenant_id: string;
+                    p_was: string;
+                };
+                Returns: undefined;
+            };
             team_invite_withdraw: {
                 Args: {
                     p_invitation_id: string;
@@ -9212,6 +9230,14 @@ type Database = {
                     p_role: string;
                     p_tenant_id: string;
                     p_user_id: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            team_leave: {
+                Args: {
+                    p_actor: string;
+                    p_tenant_id: string;
                     p_via?: string;
                 };
                 Returns: Json;
@@ -19004,6 +19030,24 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             };
             Returns: Json;
         };
+        team_invite_renew: {
+            Args: {
+                p_actor: string;
+                p_invitation_id: string;
+                p_tenant_id: string;
+                p_via?: string;
+            };
+            Returns: Json;
+        };
+        team_invite_renew_withdraw: {
+            Args: {
+                p_decision_id: string;
+                p_invitation_id: string;
+                p_tenant_id: string;
+                p_was: string;
+            };
+            Returns: undefined;
+        };
         team_invite_withdraw: {
             Args: {
                 p_invitation_id: string;
@@ -19018,6 +19062,14 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 p_role: string;
                 p_tenant_id: string;
                 p_user_id: string;
+                p_via?: string;
+            };
+            Returns: Json;
+        };
+        team_leave: {
+            Args: {
+                p_actor: string;
+                p_tenant_id: string;
                 p_via?: string;
             };
             Returns: Json;

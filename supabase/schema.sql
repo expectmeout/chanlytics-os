@@ -8340,9 +8340,12 @@ begin
   -- auth.users.email is stored lowercased, but the caller's input is not
   -- guaranteed to be, and a case mismatch here would re-create the bug this
   -- function exists to fix: a known account read as new.
+  -- Confirmed (00371): an account an invitation made and nobody has opened is
+  -- not one to seat without asking; that address is invited, and emailed.
   select u.id into v_id
     from auth.users u
    where lower(u.email) = lower(btrim(p_email))
+     and (u.email_confirmed_at is not null or u.phone_confirmed_at is not null)
    limit 1;
 
   return v_id;
@@ -19465,6 +19468,72 @@ COMMENT ON FUNCTION public.team_invite(p_tenant_id uuid, p_actor uuid, p_email t
 
 
 --
+-- Name: team_invite_renew(uuid, uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_invite_renew(p_tenant_id uuid, p_actor uuid, p_invitation_id uuid, p_via text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_inv   public.invitations%rowtype;
+  v_audit jsonb;
+begin
+  perform public.team_owner_or_refuse(p_tenant_id, p_actor);
+  select * into v_inv from public.invitations i
+   where i.tenant_id = p_tenant_id and i.id = p_invitation_id and i.accepted_at is null and i.revoked_at is null
+   for update;
+  if v_inv.id is null then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  -- Seven days, as a new invitation has (00012's default).
+  update public.invitations set expires_at = now() + interval '7 days' where id = v_inv.id;
+  v_audit := public.team_decision(p_tenant_id, p_actor, 'invitation', v_inv.id, 'invite',
+                                  jsonb_build_object('email', v_inv.email, 'role', v_inv.role, 'resent', true),
+                                  p_via, null);
+  return jsonb_build_object('invitation_id', v_inv.id, 'email', v_inv.email, 'role', v_inv.role,
+                            'was', v_inv.expires_at) || v_audit;
+end $$;
+
+
+--
+-- Name: FUNCTION team_invite_renew(p_tenant_id uuid, p_actor uuid, p_invitation_id uuid, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_invite_renew(p_tenant_id uuid, p_actor uuid, p_invitation_id uuid, p_via text) IS 'An owner sends an open invitation again (00371): seven more days and an invite decision with resent, in one transaction, before the mail; team_invite_renew_withdraw takes both back when the mail cannot go. Service role, as team_invite.';
+
+
+--
+-- Name: team_invite_renew_withdraw(uuid, uuid, uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_invite_renew_withdraw(p_tenant_id uuid, p_invitation_id uuid, p_decision_id uuid, p_was timestamp with time zone) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- Only an invitation still open is put back: one accepted or revoked meanwhile is somebody's. And only while it
+  -- holds the expiry THIS renewal set: team_invite_renew sets now() + 7 days and its decision's created_at is that same
+  -- now(), so a later renewal (another owner's, whose mail went) has moved the expiry on and its days stand.
+  update public.invitations set expires_at = p_was
+   where tenant_id = p_tenant_id and id = p_invitation_id and accepted_at is null and revoked_at is null
+     and expires_at = (select d.created_at + interval '7 days' from public.decisions d
+                        where d.id = p_decision_id and d.tenant_id = p_tenant_id);
+  -- The renewal's own decision, and no other: the first invitation's stays. After the update, which reads it.
+  delete from public.decisions
+   where tenant_id = p_tenant_id and id = p_decision_id and subject_type = 'invitation'
+     and subject_id = p_invitation_id and verb = 'invite' and payload ->> 'resent' = 'true';
+end $$;
+
+
+--
+-- Name: FUNCTION team_invite_renew_withdraw(p_tenant_id uuid, p_invitation_id uuid, p_decision_id uuid, p_was timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_invite_renew_withdraw(p_tenant_id uuid, p_invitation_id uuid, p_decision_id uuid, p_was timestamp with time zone) IS 'A renewal whose mail could not go, taken back (00371): the expiry it had and its resent decision, in one transaction. The expiry goes back only while the invitation still holds the one this renewal set: a later renewal''s expiry stands.';
+
+
+--
 -- Name: team_invite_withdraw(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -19525,6 +19594,50 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text) IS 'An owner adds an existing account at a role (00277): the membership and its invite decision in one transaction; an account already on the team is already_member. Service role: the account''s id is the platform''s lookup''s.';
+
+
+--
+-- Name: team_leave(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_leave(p_tenant_id uuid, p_actor uuid, p_via text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_member public.memberships%rowtype;
+  v_owners integer;
+  v_audit  jsonb;
+begin
+  select * into v_member from public.memberships m
+   where m.tenant_id = p_tenant_id and m.user_id = p_actor
+   for update;
+  if v_member.id is null then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  -- The team's turn (00277 team_take_turn's lock, without its owner check: any member may leave), then the count.
+  perform pg_advisory_xact_lock(hashtextextended('memberships_keep_an_owner:' || p_tenant_id::text, 0));
+  if v_member.role = 'owner' then
+    select count(*) into v_owners from public.memberships m where m.tenant_id = p_tenant_id and m.role = 'owner';
+    if v_owners <= 1 then
+      raise exception 'last_owner' using errcode = 'P0001';
+    end if;
+  end if;
+  delete from public.memberships where id = v_member.id;
+  -- Carrying the role they held, as team_remove's does: the membership row is gone.
+  v_audit := public.team_decision(p_tenant_id, p_actor, 'membership', v_member.id, 'remove_member',
+                                  jsonb_build_object('removed_user_id', v_member.user_id, 'had_role', v_member.role,
+                                                     'left', true),
+                                  p_via, null);
+  return jsonb_build_object('left', true) || v_audit;
+end $$;
+
+
+--
+-- Name: FUNCTION team_leave(p_tenant_id uuid, p_actor uuid, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_leave(p_tenant_id uuid, p_actor uuid, p_via text) IS 'A member leaves a workspace (00371): the membership and a remove_member decision with left, in one transaction; the last owner stays (last_owner). Service role: the route passes the session''s verified user as p_actor.';
 
 
 --
@@ -33404,6 +33517,22 @@ GRANT ALL ON FUNCTION public.team_invite(p_tenant_id uuid, p_actor uuid, p_email
 
 
 --
+-- Name: FUNCTION team_invite_renew(p_tenant_id uuid, p_actor uuid, p_invitation_id uuid, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_invite_renew(p_tenant_id uuid, p_actor uuid, p_invitation_id uuid, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_invite_renew(p_tenant_id uuid, p_actor uuid, p_invitation_id uuid, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION team_invite_renew_withdraw(p_tenant_id uuid, p_invitation_id uuid, p_decision_id uuid, p_was timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_invite_renew_withdraw(p_tenant_id uuid, p_invitation_id uuid, p_decision_id uuid, p_was timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_invite_renew_withdraw(p_tenant_id uuid, p_invitation_id uuid, p_decision_id uuid, p_was timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION team_invite_withdraw(p_tenant_id uuid, p_invitation_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -33417,6 +33546,14 @@ GRANT ALL ON FUNCTION public.team_invite_withdraw(p_tenant_id uuid, p_invitation
 
 REVOKE ALL ON FUNCTION public.team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION team_leave(p_tenant_id uuid, p_actor uuid, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_leave(p_tenant_id uuid, p_actor uuid, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_leave(p_tenant_id uuid, p_actor uuid, p_via text) TO service_role;
 
 
 --
