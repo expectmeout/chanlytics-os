@@ -354,7 +354,7 @@ async function usageMonth(db, tenantId, month) {
   }));
 }
 
-// src/billing-events.ts
+// src/billing/events.ts
 async function keepInvoiceAmount(db, eventId, amountCents, currency) {
   const { data, error } = await db.rpc("billing_event_keep_amount", {
     p_id: eventId,
@@ -362,6 +362,20 @@ async function keepInvoiceAmount(db, eventId, amountCents, currency) {
     p_currency: currency
   });
   if (error) throw new Error(`billing_event_keep_amount: ${error.message}`);
+  return data === true;
+}
+
+// src/billing/account.ts
+async function applyBilling(db, p) {
+  const row = {};
+  for (const [k, v] of Object.entries(p.row)) if (v !== void 0) row[k] = v;
+  const { data, error } = await db.rpc("billing_apply", {
+    p_tenant_id: p.tenantId,
+    p_row: row,
+    ...p.expect ? { p_expect: { ...p.expect } } : {},
+    ...p.tenantStatus ? { p_tenant_status: p.tenantStatus } : {}
+  });
+  if (error) throw new Error(`billing_apply: ${error.message}`);
   return data === true;
 }
 
@@ -1094,17 +1108,15 @@ async function ingestInbound(db, p) {
   return out;
 }
 async function recordCarrierOptOut(db, p) {
-  const { data, error } = await db.from("contacts").update({
-    consent: "opted_out",
-    dnc: true,
-    consent_source: CARRIER_CONSENT_SOURCE,
-    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
-  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  const { data, error } = await db.rpc("record_provider_stop", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_purpose: "conversational",
+    p_channel: p.channel,
+    p_source: CARRIER_CONSENT_SOURCE
+  });
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
-  if (!data || data.length === 0) return false;
-  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
-  return true;
+  return data === true;
 }
 async function markProcessed(db, tenantId, messageId) {
   const { error } = await db.rpc("mark_processed", {
@@ -1425,15 +1437,6 @@ async function mailboxFor(db, to) {
   return data;
 }
 async function ingestInboundEmail(db, p) {
-  const known = await db.from("contacts").select("id").eq("tenant_id", p.tenantId).eq("email", p.address).is("erased_at", null).is("merged_into_contact_id", null).maybeSingle();
-  if (known.error) throw new Error(`ingest_email: cannot read who has this address: ${known.error.message}`);
-  if (known.data) {
-    const { error } = await db.from("contact_identities").upsert(
-      { tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address },
-      { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true }
-    );
-    if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
-  }
   let optIn = p.optIn ?? false;
   if (optIn) {
     const held = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.receivedId).limit(1);
@@ -1455,12 +1458,6 @@ async function ingestInboundEmail(db, p) {
     optOut: p.optOut ?? false,
     optIn
   });
-  {
-    const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
-    if (error && error.code !== "23505")
-      throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
-  }
   if (p.fromThemProven && !out.processed) {
     const { error } = await db.from("contacts").update({ email_suppressed_at: null, email_suppressed_reason: null }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).eq("email", p.address).eq("email_suppressed_reason", "hard_bounce");
     if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
@@ -1659,25 +1656,16 @@ async function recordWhatsAppOffersStop(db, p) {
   if (sent.error) throw new Error(`reading the message WhatsApp refused (${p.externalId}): ${sent.error.message}`);
   const contactId = sent.data?.contact_id;
   if (!contactId) return false;
-  const who = await db.from("contacts").select("marketing_consent, erased_at").eq("id", contactId).eq("tenant_id", p.tenantId).maybeSingle();
-  if (who.error) throw new Error(`reading contact ${contactId} for WhatsApp's stop: ${who.error.message}`);
-  if (!who.data || who.data.erased_at || who.data.marketing_consent === "opted_out") return false;
-  const { data, error } = await db.from("contacts").update({
-    marketing_consent: "opted_out",
-    marketing_consent_source: WHATSAPP_CONSENT_SOURCE,
-    marketing_consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
-  }).eq("id", contactId).eq("tenant_id", p.tenantId).neq("marketing_consent", "opted_out").select("id");
-  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
-  if (!data || data.length === 0) return false;
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", contactId, {
-    purpose: "marketing",
-    consent: "opted_out",
-    previous: who.data.marketing_consent,
-    source: WHATSAPP_CONSENT_SOURCE,
-    channel: "whatsapp",
-    message_external_id: p.externalId
+  const { data, error } = await db.rpc("record_provider_stop", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: contactId,
+    p_purpose: "marketing",
+    p_channel: "whatsapp",
+    p_source: WHATSAPP_CONSENT_SOURCE,
+    p_message_external_id: p.externalId
   });
-  return true;
+  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
+  return data === true;
 }
 async function recordLateCarrierOptOut(db, p) {
   const sent = await db.from("messages").select("contact_id, conversation_id, direction, channel, created_at").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
@@ -1696,12 +1684,7 @@ async function recordLateCarrierOptOut(db, p) {
   if (!who.data || who.data.erased_at) return "no_person";
   if (who.data.consent === "opted_out") return "already_stopped";
   if (who.data.consent_updated_at && who.data.consent_updated_at > text2.created_at) return "newer_answer";
-  const wrote = await recordCarrierOptOut(db, {
-    tenantId: p.tenantId,
-    contactId,
-    channel: "sms",
-    previous: who.data.consent
-  });
+  const wrote = await recordCarrierOptOut(db, { tenantId: p.tenantId, contactId, channel: "sms" });
   return wrote ? "recorded" : "already_stopped";
 }
 
@@ -2125,6 +2108,23 @@ async function handRun(db, p) {
   if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
   const r = data ?? {};
   return { made: r.made ?? 0, already: r.already ?? 0 };
+}
+async function saveReachOutChain(db, p) {
+  const { data, error } = await db.rpc("reach_out_save", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_chain: p.chain,
+    p_decision: p.decision?.payload ?? null,
+    ...p.decision?.via ? { p_via: p.decision.via } : {},
+    ...p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}
+  });
+  if (error) return { data: null, error: { code: error.code, message: error.message } };
+  const saved = data;
+  if (!saved || typeof saved.root_id !== "string")
+    return { data: null, error: { message: "reach_out_save: no chain" } };
+  if (p.decision && typeof saved.decision_id !== "string")
+    return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
+  return { data: saved, error: null };
 }
 async function runsWaitingOf(db, tenantId) {
   const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
@@ -3319,14 +3319,23 @@ async function hasNewerCopy(db, tenantId, job) {
   return (data?.length ?? 0) > 0;
 }
 async function assembleBroadcast(db, args) {
+  const { decision } = args;
   const { data, error } = await db.rpc("assemble_broadcast", {
     p_tenant: args.tenantId,
     p_run: args.run,
     p_recipients: args.recipients,
-    ...args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {}
+    p_decision: decision?.payload ?? null,
+    ...args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {},
+    ...decision?.actor ? { p_actor: decision.actor } : {},
+    ...decision?.via ? { p_via: decision.via } : {},
+    ...decision?.undoOf ? { p_undo_of: decision.undoOf } : {}
   });
-  if (error || !data) throw new Error(error?.message ?? "broadcast not created");
-  return data;
+  if (error) throw new Error(error.message);
+  if (data === null || typeof data !== "object" || Array.isArray(data) || typeof data.id !== "string")
+    throw new Error("broadcast not created");
+  const decisionId = typeof data.decision_id === "string" ? data.decision_id : null;
+  if (decision && decisionId === null) throw new Error("assemble_broadcast: the door answered without its decision");
+  return { id: data.id, decisionId, undoDropped: data.undo_dropped === true };
 }
 var NO_SUCH_COLUMN = /* @__PURE__ */ new Set(["PGRST204", "42703"]);
 async function claimQueuedSend(db, tenantId, messageId) {
@@ -3439,6 +3448,40 @@ async function holdsReplyTurn(db, conversationId, messageId) {
   const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
   if (error) throw new Error(`holds_reply_turn: ${error.message}`);
   return data !== false;
+}
+async function takeOverThread(db, p) {
+  const { data, error } = await db.rpc("conversation_take_over", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_paused_until: p.pausedUntil,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.paused_until !== "string" || typeof data.withdrawn_drafts !== "number")
+    throw new Error("conversation_take_over: the door answered without its decision");
+  return {
+    pausedUntil: data.paused_until,
+    withdrawnDrafts: data.withdrawn_drafts,
+    decisionId: id,
+    undoDropped: data.undo_dropped === true
+  };
+}
+async function handBackThread(db, p) {
+  const { data, error } = await db.rpc("conversation_hand_back", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string" || typeof data.resolved_escalations !== "number")
+    throw new Error("conversation_hand_back: the door answered without its decision");
+  return { decisionId: id, resolvedEscalations: data.resolved_escalations, undoDropped: data.undo_dropped === true };
 }
 
 // src/repositories/control-plane.ts
@@ -4539,6 +4582,7 @@ export {
   addressesSuppressed,
   aiFailuresHour,
   answeredReachOutEmail,
+  applyBilling,
   applyDomainCheck,
   applyReplyReading,
   appointmentByClientStart,
@@ -4634,6 +4678,7 @@ export {
   getTenantConfig,
   getTenantConfigAsMember,
   getWorkspacePartner,
+  handBackThread,
   handRun,
   hasNewerCopy,
   heldNoticeDue,
@@ -4792,6 +4837,7 @@ export {
   runGoesByOthers,
   runSending,
   runsWaitingOf,
+  saveReachOutChain,
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
@@ -4841,6 +4887,7 @@ export {
   syncFeedAppointments,
   takeCheckAttempt,
   takeIdempotencyKey,
+  takeOverThread,
   takeReplyRead,
   templateIdOf,
   templateStatusOf,

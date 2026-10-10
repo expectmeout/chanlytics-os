@@ -24,7 +24,8 @@ var MAX_ATTEMPTS = 3;
 var MAX_RESUMES = 5;
 var RELAY_LIMIT = 500;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
-var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["inbound_answer"]);
+var TOLD_ELSEWHERE = /* @__PURE__ */ new Set(["inbound_answer", "event_deliver"]);
+var PAGES_THE_PLATFORM = /* @__PURE__ */ new Set(["event_deliver"]);
 var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 function verdictFor(job) {
   if (job.attempts <= 1) return "run";
@@ -964,6 +965,29 @@ async function bookingRead(ctx, job) {
   }
 }
 
+// src/delivery-page.ts
+function carried(payload, key) {
+  const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const v = p[key];
+  return typeof v === "string" && v ? v : "unknown";
+}
+function deliveryPageKey(job) {
+  return `event_deliver_failed:${carried(job.payload, "subscriber")}`;
+}
+function deliveryPage(job, reason, wreckage = null) {
+  const named2 = (key) => carried(job.payload, key);
+  return {
+    subject: "A change was not passed on to what reads it",
+    body: [
+      `The delivery of event ${named2("event_id")} (${named2("kind")}) to the ${named2("subscriber")} subscriber failed for good in workspace ${job.tenant_id}: ${reason}.`,
+      wreckage,
+      "The delivery row says what the subscriber was handed and why it stopped. The owner was not told: the fault is the platform's, not theirs. Newest first:\n\n  select event_id, subscriber, kind, state, attempts, last_error, updated_at from event_deliveries where state = 'failed' order by updated_at desc limit 20;",
+      "Once the subscriber is mended, event_deliveries_redrive('<subscriber>') schedules every failed delivery of it again; an event the ledger no longer holds cannot be delivered, and its row stays failed as the record.",
+      `Reference: job ${job.id} (event_deliver).`
+    ].filter(Boolean).join("\n\n")
+  };
+}
+
 // src/handlers.ts
 async function outboundSend(ctx, job) {
   await sendQueued(
@@ -1144,7 +1168,13 @@ async function pushSend(ctx, job) {
       await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
         tickets: tickets.map((t) => ({ id: t.id, to: t.to }))
       });
-    } catch {
+    } catch (e) {
+      logger6().error("push_receipts_schedule_failed", {
+        tenant_id: job.tenant_id,
+        job: job.id,
+        tickets: tickets.length,
+        error: e instanceof Error ? e.message : String(e)
+      });
     }
   }
 }
@@ -1226,7 +1256,28 @@ async function eventDeliver(ctx, job) {
   }
   const event = await eventOfDelivery(ctx.db, job.tenant_id, named2.eventId);
   if (!event) {
-    await settle("failed", "the ledger no longer holds the event");
+    const why = "the ledger no longer holds the event";
+    await settle("failed", why);
+    logger6().error("event_deliver_event_gone", {
+      tenant_id: job.tenant_id,
+      job: job.id,
+      event_id: named2.eventId,
+      subscriber: named2.subscriber,
+      kind: named2.kind
+    });
+    if (ctx.page) {
+      try {
+        const page = deliveryPage(job, why);
+        await ctx.page(deliveryPageKey(job), page.subject, page.body);
+      } catch (e) {
+        logger6().error("job_page_failed", {
+          tenant_id: job.tenant_id,
+          job: job.id,
+          kind: job.kind,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
     return;
   }
   if (!subscriberNamed(named2.subscriber)) throw new Error(`event_deliver: no subscriber named ${named2.subscriber}`);
@@ -1554,6 +1605,14 @@ async function conclude(ports, job, reason, certain, end) {
     attempts: job.attempts,
     reason
   });
+  if (PAGES_THE_PLATFORM.has(job.kind)) {
+    try {
+      const page = deliveryPage(job, reason, wreckage);
+      await ports.page(deliveryPageKey(job), page.subject, page.body);
+    } catch (e) {
+      ports.log.error("job_page_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
+    }
+  }
   if (TOLD_ELSEWHERE.has(job.kind)) return;
   try {
     const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });

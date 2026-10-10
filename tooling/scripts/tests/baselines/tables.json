@@ -79,7 +79,7 @@
   "apps/dashboard/src/server/platform/platform.ts::rpc": 4,
   "apps/dashboard/src/server/platform/vitals.ts::rpc": 2,
   "apps/dashboard/src/server/ports/campaign-ports.ts": 1,
-  "apps/dashboard/src/server/ports/core-ports.ts": 12,
+  "apps/dashboard/src/server/ports/core-ports.ts": 10,
   "apps/dashboard/src/server/public/business-page.ts": 4,
   "apps/dashboard/src/server/public/consent-page.ts": 3,
   "apps/dashboard/src/server/public/unsubscribe.ts": 2,

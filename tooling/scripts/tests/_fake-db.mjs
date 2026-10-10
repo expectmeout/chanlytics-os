@@ -724,7 +724,7 @@ function resolvePersonIn(tables, args, insertRow) {
  * door (the carrier's 21610 at the wire), the status door (the same, told late) and the receipts door (WhatsApp's
  * 131050) run their real code over it: the row's own answer is the event's `previous`; a person already stopped, or
  * erased, is left as they are and the door answers false; the message the provider refused rides on the event when
- * named. The SQL itself is proved on a stack in consent/a-provider-s-stop-is-one-write.db.test.mjs. Not modelled:
+ * named. The SQL itself is proved on a stack in consent/stops/a-provider-s-stop-is-one-write.db.test.mjs. Not modelled:
  * 00297's trigger, which empties the channels the answer covered from the event.
  */
 function recordProviderStopIn(tables, args, insertRow) {

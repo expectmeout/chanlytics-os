@@ -18872,9 +18872,10 @@ escalation: EscalationDto | null, tz: string, now?: Date): ConversationVM;
  *
  * `conversations.state` is written by the dashboard's thread ports, db's inbound pauses and SQL's sweeps. This table is
  * every move of the thread by name: the states it may start from, the state it ends in, and what else it writes. A
- * TypeScript writer builds its update with `conversationPatch`; the last three are SQL's own (the function each
- * names), written by hand to agree with this and run against it on a real database
- * (tests/conversations/state/conversation-moves.db.test.mjs). A few SQL doors of another subject clear a thread's
+ * TypeScript writer builds its update with `conversationPatch`; `take_over` and `hand_back` (the member's two doors,
+ * 00378) and the last three (the function each names) are SQL's own, written by hand to agree with this and run
+ * against it on a real database (tests/conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs and
+ * tests/conversations/state/conversation-moves.db.test.mjs). A few SQL doors of another subject clear a thread's
  * assignee as a side effect (a partner's pause, a member's departure); they are not moves of the thread.
  *
  * A column's value is cleared (`null`) or comes from the move's input: `until` (the pause or the snooze's end),
@@ -18885,7 +18886,7 @@ escalation: EscalationDto | null, tz: string, now?: Date): ConversationVM;
 type MoveColumn = "paused_until" | "snooze_until" | "assignee_user_id" | "last_message_at";
 type MoveInputName = "until" | "user" | "now";
 declare const CONVERSATION_MOVES: {
-    /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs. */
+    /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs (conversation_take_over, 00378). */
     readonly take_over: {
         readonly from: readonly ("open" | "needs_human" | "snoozed" | "archived")[];
         readonly to: "needs_human";
@@ -18906,7 +18907,7 @@ declare const CONVERSATION_MOVES: {
             readonly last_message_at: "now";
         };
     };
-    /** The receptionist resumes: nothing paused, snoozed or claimed. */
+    /** The receptionist resumes: nothing paused, snoozed or claimed (conversation_hand_back, 00378). */
     readonly hand_back: {
         readonly from: readonly ("open" | "needs_human" | "snoozed" | "archived")[];
         readonly to: "open";

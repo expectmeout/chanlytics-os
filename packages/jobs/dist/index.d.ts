@@ -613,6 +613,11 @@ interface TickPorts {
     /** Never throws: a write that failed comes back as a row with its error. */
     settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
     alert(job: LedgerRow, news: JobNews): Promise<void>;
+    /**
+     * The platform's own pager (the edge's pageOperator: one page per condition per window), for a failure that is the
+     * platform's and never an owner's (ledger PAGES_THE_PLATFORM).
+     */
+    page(key: string, subject: string, body: string): Promise<unknown>;
     log: TickLog;
     now(): number;
     /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */

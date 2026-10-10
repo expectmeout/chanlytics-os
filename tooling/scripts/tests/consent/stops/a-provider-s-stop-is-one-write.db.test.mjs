@@ -16,12 +16,12 @@ import { createClient } from "@supabase/supabase-js";
 import {
   CARRIER_CONSENT_SOURCE,
   WHATSAPP_CONSENT_SOURCE,
-} from "../../../../packages/contracts/src/people/person-consent.ts";
-import { ingestInbound, recordCarrierOptOut } from "../../../../packages/db/src/repositories/ingest.ts";
+} from "../../../../../packages/contracts/src/people/person-consent.ts";
+import { ingestInbound, recordCarrierOptOut } from "../../../../../packages/db/src/repositories/ingest.ts";
 import {
   recordLateCarrierOptOut,
   recordWhatsAppOffersStop,
-} from "../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
+} from "../../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

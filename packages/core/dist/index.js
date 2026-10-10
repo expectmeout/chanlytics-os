@@ -371,12 +371,7 @@ async function deliver(ports, d) {
   const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply", ports.now);
   if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
-      await recordCarrierOptOut(ports.db, {
-        tenantId: d.tenantId,
-        contactId: facts.contactId,
-        channel: d.channel,
-        previous: facts.contact.consent
-      });
+      await recordCarrierOptOut(ports.db, { tenantId: d.tenantId, contactId: facts.contactId, channel: d.channel });
     return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
   }
   if (sent.ok) {
@@ -478,33 +473,23 @@ import { AppError } from "../../contracts/dist/index.js";
 var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
 async function takeOver(ports, cmd) {
   const { conv } = cmd;
-  const untilMs = ports.now() + await ports.pauseMs(conv.tenant_id);
-  const paused_until = new Date(untilMs).toISOString();
-  if (!await ports.claim(conv.id, paused_until, cmd.userId)) {
+  const paused_until = new Date(ports.now() + await ports.pauseMs(conv.tenant_id)).toISOString();
+  const done = await ports.takeOver(conv.tenant_id, conv.id, paused_until);
+  if (!done) {
     throw new AppError("conflict", "Could not take this thread over \u2014 reload and try again.", 409);
   }
-  await ports.takeControl(
-    conv.tenant_id,
-    conv.id,
-    cmd.userId,
-    Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1e3)))
-  );
-  const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "take_over", { paused_until });
-  return { state: "needs_human", paused_until, decision_id, withdrawn_drafts };
+  return { state: "needs_human", paused_until, decision_id: done.decision_id, withdrawn_drafts: done.withdrawn_drafts };
 }
 
 // src/conversations/hand-back.ts
 import { AppError as AppError2 } from "../../contracts/dist/index.js";
 async function handBack(ports, cmd) {
   const { conv } = cmd;
-  if (!await ports.release(conv.id)) {
+  const done = await ports.handBack(conv.tenant_id, conv.id);
+  if (!done) {
     throw new AppError2("conflict", "Could not hand this thread back \u2014 reload and try again.", 409);
   }
-  await ports.letControlGo(conv.tenant_id, conv.id, cmd.userId);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "hand_back");
-  await ports.resolveEscalation(conv.id, decision_id);
-  return { state: "open", decision_id };
+  return { state: "open", decision_id: done.decision_id };
 }
 
 // src/conversations/snooze.ts
@@ -861,10 +846,7 @@ async function beginConversation(ports, cmd) {
     () => ({ note_kept: false, note_id: null })
   ) : { note_kept: null, note_id: null };
   if (cmd.then !== "receptionist") return { ...receipt, conversation_id: conv.id, handed_back: false, ...noted };
-  const handed_back = await handBack(ports.handBack, {
-    conv: { ...conv, paused_until: null },
-    userId: cmd.userId
-  }).then(
+  const handed_back = await handBack(ports.handBack, { conv: { ...conv, paused_until: null } }).then(
     () => true,
     () => false
   );
@@ -2355,19 +2337,20 @@ async function pastTheMonth(ports, people, trigger, purpose) {
 // src/campaigns/assemble.ts
 var assembleLog = logger5();
 async function assembleRun(ports, cmd) {
-  let id;
+  let made;
   try {
-    id = await ports.assemble(cmd.broadcast, cmd.recipients, cmd.sendAt);
+    made = await ports.assemble(cmd.broadcast, cmd.recipients, cmd.sendAt, cmd.decision);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  if (cmd.held.length === 0) return { ok: true, id, unheld: 0 };
+  const { id, decisionId } = made;
+  if (cmd.held.length === 0) return { ok: true, id, decisionId, unheld: 0 };
   try {
     await ports.holdRecipients(id, [...cmd.held], MONTH_ALLOWANCE_REASON);
-    return { ok: true, id, unheld: 0 };
+    return { ok: true, id, decisionId, unheld: 0 };
   } catch (e) {
     assembleLog.error("campaign_hold_unwritten", { broadcast_id: id, unheld: cmd.held.length, error: errField4(e) });
-    return { ok: true, id, unheld: cmd.held.length };
+    return { ok: true, id, decisionId, unheld: cmd.held.length };
   }
 }
 
@@ -2545,8 +2528,24 @@ function touchEnrolled(r, goesAt, eligible, held) {
     eligible.filter((person) => !skipped.has(person.id)).map((person) => ({ id: person.id, deal: person.deal?.id ?? null, link: person.deal?.proposal?.url ?? null }))
   );
 }
+function decisionOf(run, send) {
+  const { p, by, mode, channels } = run;
+  return {
+    by,
+    payload: {
+      playbook_id: p.id,
+      playbook: p.name,
+      mode,
+      recipients: send.n,
+      channels: [...channels],
+      scheduled_for: send.at.toISOString(),
+      run_now: by.kind === "user",
+      ...send.movedFrom ? { moved_from: send.movedFrom } : {}
+    }
+  };
+}
 async function sayTheRun(run, made) {
-  const { ports, p, ctx, by, mode, channels } = run;
+  const { ports, p, ctx, by, mode } = run;
   const { n, at } = made;
   if (!at) {
     await ports.notify(
@@ -2556,20 +2555,6 @@ async function sayTheRun(run, made) {
     );
     return;
   }
-  await ports.decide({
-    broadcastId: made.madeId,
-    by,
-    payload: {
-      playbook_id: p.id,
-      playbook: p.name,
-      mode,
-      recipients: n,
-      channels: [...channels],
-      scheduled_for: at.toISOString(),
-      run_now: by.kind === "user",
-      ...made.movedFrom ? { moved_from: made.movedFrom } : {}
-    }
-  });
   if (mode === "veto" && by.kind !== "user") {
     const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
     await ports.notify(told.subject, told.body, made.madeId).catch(() => void 0);
@@ -2646,11 +2631,14 @@ async function runPlaybook(ports, cmd) {
       channel: channelOf2[person.id] ?? "whatsapp"
     })),
     sendAt: open ? open.at : null,
-    held: past.held
+    held: past.held,
+    // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
+    // until a person approves it.
+    decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
   touchEnrolled(run, goesAt, eligible, past.held);
-  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null, movedFrom });
+  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null });
   await record({
     mode,
     eligible: n,
@@ -2862,6 +2850,24 @@ async function createBroadcast(ports, cmd) {
     label,
     ...kept ? { list: kept } : {}
   };
+  const decision = {
+    by: { kind: "user", userId: cmd.userId },
+    payload: {
+      name,
+      template: `${message.name}/${message.language}`,
+      category: message.category,
+      // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+      audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
+      channels: [...how.channels],
+      values: specs.map(paramLabel),
+      recipients: enrolled.length,
+      scheduled_for: when.toISOString(),
+      ...movedFrom ? { moved_from: movedFrom } : {},
+      // As a playbook's run records it: how many the month holds. The hold is its own write after the run, and one that
+      // could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
+      ...allowanceRecord(past.length, 0)
+    }
+  };
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -2879,26 +2885,14 @@ async function createBroadcast(ports, cmd) {
     },
     recipients: enrolled.map((e) => ({ contact_id: e.row.id, facts: null, channel: e.channel })),
     sendAt: when,
-    held: past.map((p) => p.id)
+    held: past.map((p) => p.id),
+    decision
   });
   if (!made.ok) {
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
     throw new AppError12("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
   }
-  const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
-    name,
-    template: `${message.name}/${message.language}`,
-    category: message.category,
-    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
-    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
-    channels: [...how.channels],
-    values: specs.map(paramLabel),
-    recipients: enrolled.length,
-    scheduled_for: when.toISOString(),
-    ...movedFrom ? { moved_from: movedFrom } : {},
-    // As a playbook's run records it: how many the month holds, and how many of those the write left queued (held at the wire).
-    ...allowanceRecord(past.length, made.unheld)
-  });
+  if (made.decisionId === null) throw new Error("createBroadcast: the run's door answered without its decision");
   return {
     id: made.id,
     name,
@@ -2909,7 +2903,7 @@ async function createBroadcast(ports, cmd) {
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
     held_for_allowance: past.length - made.unheld,
-    decision_id
+    decision_id: made.decisionId
   };
 }
 

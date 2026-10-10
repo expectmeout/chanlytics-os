@@ -339,10 +339,23 @@ interface Thread {
 interface ThreadPorts {
     /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
     pauseMs(tenantId: TenantId): Promise<number>;
-    /** needs_human, paused until, snooze cleared, claimed by the user. True iff a row changed. */
-    claim(conversationId: string, untilIso: string, userId: string): Promise<boolean>;
-    /** open, pause and snooze cleared, unassigned. True iff a row changed. */
-    release(conversationId: string): Promise<boolean>;
+    /**
+     * A person takes the thread, whole (00378): needs_human, paused until, snooze cleared, theirs; the live hold on who
+     * is speaking; the receptionist's held drafts withdrawn; and the take_over decision, in one transaction. Null iff no
+     * row changed: the thread moved while they looked, and nothing was written.
+     */
+    takeOver(tenantId: TenantId, conversationId: string, untilIso: string): Promise<{
+        withdrawn_drafts: number;
+        decision_id: string;
+    } | null>;
+    /**
+     * The thread handed back, whole (00378): open with nothing paused, snoozed or claimed; this person's hold let go
+     * (somebody else's is left alone); the hand_back decision; and the open escalation resolved by it, in one
+     * transaction. Null iff no row changed, and then nothing was written.
+     */
+    handBack(tenantId: TenantId, conversationId: string): Promise<{
+        decision_id: string;
+    } | null>;
     /** snoozed until; pause and assignee cleared. True iff a row changed. */
     snooze(conversationId: string, untilIso: string): Promise<boolean>;
     /** open with the snooze cleared, only while still snoozed. True iff a row changed. */
@@ -358,8 +371,6 @@ interface ThreadPorts {
      * hold we could not take is not a hold we have.
      */
     takeControl(tenantId: TenantId, conversationId: string, userId: string, seconds: number): Promise<void>;
-    /** This person's hold, let go. Somebody else's is left alone. */
-    letControlGo(tenantId: TenantId, conversationId: string, userId: string): Promise<void>;
     /** The receptionist's held drafts on the thread withdrawn, rows then jobs; how many. */
     withdrawDrafts(tenantId: TenantId, conversationId: string): Promise<number>;
     /** The open escalation on the thread resolved by this decision, when there is one. */
@@ -383,7 +394,7 @@ interface CancelSendPorts {
     record: ThreadPorts["record"];
 }
 
-type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now">;
+type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "takeOver" | "now">;
 /**
  * The longest a person's hold lasts without being renewed.
  *
@@ -391,7 +402,9 @@ type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "claim" | "takeControl" | "wi
  * workspace may set that to a week. How long a person is actually on a thread
  * is a different question and a shorter one, and a hold that outlives the
  * person holding it is the defect this fact was added to end -- so the pause
- * window is the ceiling, and a day is the ceiling on that.
+ * window is the ceiling, and a day is the ceiling on that. The take-over's own
+ * door keeps the same ceiling (00378, over 00132's claim); a reply's hold is
+ * taken here (reply.ts).
  */
 declare const PERSON_CONTROL_MAX_S: number;
 interface TakeOverResult {
@@ -403,14 +416,12 @@ interface TakeOverResult {
 /** Take over: pause the receptionist, claim the thread. The open escalation stays open (§4). */
 declare function takeOver(ports: TakeOverPorts, cmd: {
     conv: Pick<Thread, "id" | "tenant_id" | "phone_e164">;
-    userId: string;
 }): Promise<TakeOverResult>;
 
-type HandBackPorts = Pick<ThreadPorts, "release" | "letControlGo" | "record" | "resolveEscalation">;
+type HandBackPorts = Pick<ThreadPorts, "handBack">;
 /** Hand back: the receptionist resumes; the open escalation resolves (§4). */
 declare function handBack(ports: HandBackPorts, cmd: {
     conv: Pick<Thread, "id" | "tenant_id" | "phone_e164" | "paused_until">;
-    userId: string;
 }): Promise<{
     state: "open";
     decision_id: string;
@@ -1952,12 +1963,34 @@ interface NewRecipient {
     /** The channel the run reaches them on, picked once at enrolment (contracts reachFor): `broadcast_recipients.channel`. */
     channel: string;
 }
+/** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
+type RunBy = {
+    kind: "system";
+} | {
+    kind: "user";
+    userId: string;
+};
+/**
+ * Whose decision a run's send is, and what the ledger keeps of it: a member's (a broadcast's composer, a Run now) or the
+ * system's (the sweep's, under the mode the owner chose). Written with the run, in its transaction.
+ */
+interface AssembleDecision {
+    by: RunBy;
+    payload: Json;
+}
+/** The run made: its id, and its decision's when one was asked for (null for a run that waits for a person). */
+interface AssembledRun {
+    id: string;
+    decisionId: string | null;
+}
 interface AssemblePorts {
     /**
-     * The run, its people and its send job when `sendAt` is set, written whole in one transaction (00282
-     * assemble_broadcast): the run's id back, or a throw, and then nothing was written.
+     * The run, its people, its send job when `sendAt` is set and the send_broadcast decision on it when `decision` is
+     * given, written whole in one transaction (00373 assemble_broadcast): the run's id back with the decision's, or a
+     * throw, and then nothing was written. A run that waits for a person is made with no decision: its approval is its
+     * decision (ApproveRunPorts).
      */
-    assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null): Promise<string>;
+    assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null, decision: AssembleDecision | null): Promise<AssembledRun>;
     /**
      * How many campaign emails or texts the workspace sent on this channel in the calendar month `at` falls in, in its zone,
      * that left, may have left or wait to go (packages/db campaignMonthSent): what that month's allowance has spent (contracts
@@ -1983,14 +2016,18 @@ interface AssembleCommand {
      * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
      */
     held: readonly string[];
+    /** Whose decision the send is, kept with the run; none for a run that waits for a person. */
+    decision: AssembleDecision | null;
 }
 /**
- * The run made (its id), or why not. `unheld` is how many of the people to hold at enrolment could not be written as held:
- * they are queued, and the send holds them at the wire, so nothing is lost; the run's record says so.
+ * The run made (its id, and its decision's when one was asked for), or why not. `unheld` is how many of the people to
+ * hold at enrolment could not be written as held: they are queued, and the send holds them at the wire, so nothing is
+ * lost; the run's record says so.
  */
 type Assembled = {
     ok: true;
     id: string;
+    decisionId: string | null;
     unheld: number;
 } | {
     ok: false;
@@ -2057,13 +2094,6 @@ interface RunContext {
     /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
     pace: DealPaceVM | null;
 }
-/** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
-type RunBy = {
-    kind: "system";
-} | {
-    kind: "user";
-    userId: string;
-};
 type RunOutcome = 
 /** Sent: when it really goes, and the moment asked for when the hours moved it to nine (else null). */
 {
@@ -2106,12 +2136,6 @@ interface RunPlaybookPorts extends AssemblePorts {
     alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
     /** The run recorded: the event, and the playbook's last run. Never throws. */
     record(playbookId: string, runFor: string, at: Date, data: Record<string, unknown>): Promise<void>;
-    /** The ledger: whose decision the send was. */
-    decide(d: {
-        broadcastId: string;
-        by: RunBy;
-        payload: Record<string, unknown>;
-    }): Promise<void>;
     /**
      * The owner told that a run waits for them, or goes by itself unless they stop it, with the run it is about: the bell's
      * row and the phone open THAT run, where its Approve, Skip and Stop are. It named none, and opened Campaigns' home.
@@ -2178,7 +2202,6 @@ interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
         ready: ChannelsReady;
         health: NumberHealth | null;
     }>;
-    record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }
 interface CreateBroadcastCommand {
     userId: string;
@@ -2210,12 +2233,14 @@ interface CancelBroadcastPorts {
 }
 
 /**
- * A run's assembly, the one implementation: the broadcast row, the people on it and the send job when the plan sends
- * now or later, in one transaction (00282 assemble_broadcast). All three are written or none is, so no run is left
- * with no people, and no people with no job to send to them; a function that dies halfway leaves nothing to clean up.
- * It was three writes with a compensating fail between them, and a death between two left a broadcast that showed as
- * scheduled and that nothing would ever send. The caller decides what a failure means to whoever asked: the sweep
- * counts it, a person is told.
+ * A run's assembly, the one implementation: the broadcast row, the people on it, the send job when the plan sends now
+ * or later, and the decision to send when one is given, in one transaction (00282 assemble_broadcast, with its
+ * decision since 00373). All are written or none is, so no run is left with no people, no people with no job to send
+ * to them, and no run sending with nothing in the ledger saying who said so; a function that dies halfway leaves
+ * nothing to clean up. It was three writes with a compensating fail between them, then the ledger's line after, and a
+ * death between two left a broadcast that showed as scheduled and that nothing would ever send, or one the route
+ * answered with a 500 that a person presses again. The caller decides what a failure means to whoever asked: the
+ * sweep counts it, a person is told.
  *
  * Whom the month's allowance already holds (`cmd.held`) is written as held once the run exists, not before: the run's
  * people are enrolled whole and the held are skipped in their own write, so a write that fails leaves them queued and
@@ -2302,8 +2327,8 @@ interface BroadcastReceipt {
     moved_from: string | null;
     /**
      * How many of the people enrolled the month's allowance already holds, as written on the run (allowance.ts): held and
-     * said so. A hold that could not be written is not counted: that person is queued and held at the wire, and the ledger's
-     * decision says so (`hold_unwritten`).
+     * said so. A hold that could not be written is not counted: that person is queued and held at the wire, and the log
+     * says so (`campaign_hold_unwritten`); the ledger's line says how many the month holds.
      */
     held_for_allowance: number;
     decision_id: string;
@@ -2347,7 +2372,7 @@ declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, me
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. The ledger records the decision to send. The body is judged here, in
+ * wire. The ledger records the decision to send, in the run's own write. The body is judged here, in
  * sentences for the person composing: the values are judged against the message
  * the workspace holds, which no schema knows.
  */
@@ -4311,4 +4336,4 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
 type Subscriber = (event: DeliveredEvent) => Promise<void>;
 declare const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>>;
 
-export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BeginAsk, type BeginCommand, type BeginPorts, type BeginReceipt, type BookingNoticePorts, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, beginConversation, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkPlaybookChannels, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, mayBegin, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };
+export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssembleDecision, type AssemblePorts, type Assembled, type AssembledRun, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BeginAsk, type BeginCommand, type BeginPorts, type BeginReceipt, type BookingNoticePorts, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, beginConversation, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkPlaybookChannels, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, mayBegin, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };

@@ -6138,16 +6138,39 @@ export type Database = {
       }
       ask_for_tick: { Args: never; Returns: boolean }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
-      assemble_broadcast: {
-        Args: {
-          p_recipients: Json
-          p_run: Json
-          p_send_at?: string
-          p_tenant: string
-        }
-        Returns: string
-      }
+      assemble_broadcast:
+        | {
+            Args: {
+              p_actor?: string
+              p_decision: Json
+              p_recipients: Json
+              p_run: Json
+              p_send_at?: string
+              p_tenant: string
+              p_undo_of?: string
+              p_via?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_recipients: Json
+              p_run: Json
+              p_send_at?: string
+              p_tenant: string
+            }
+            Returns: string
+          }
       automated_send: { Args: { p_meta: Json }; Returns: boolean }
+      billing_apply: {
+        Args: {
+          p_expect?: Json
+          p_row: Json
+          p_tenant_id: string
+          p_tenant_status?: string
+        }
+        Returns: boolean
+      }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
@@ -6266,9 +6289,28 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
+      conversation_hand_back: {
+        Args: {
+          p_conversation_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       conversation_open: {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: string
+      }
+      conversation_take_over: {
+        Args: {
+          p_conversation_id: string
+          p_paused_until: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
       }
       create_mailbox: {
         Args: { p_from_name: string; p_local_part: string; p_tenant_id: string }
@@ -7972,10 +8014,22 @@ export type Database = {
         Returns: Json
       }
       reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
-      reach_out_save: {
-        Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
-        Returns: Json
-      }
+      reach_out_save:
+        | {
+            Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_chain: Json
+              p_decision: Json
+              p_tenant_id: string
+              p_undo_of?: string
+              p_user_id: string
+              p_via?: string
+            }
+            Returns: Json
+          }
       reach_out_search_lines: {
         Args: { p_search_id: string; p_tenant_id: string }
         Returns: Json
@@ -8078,6 +8132,17 @@ export type Database = {
           p_via?: string
         }
         Returns: Json
+      }
+      record_provider_stop: {
+        Args: {
+          p_channel: string
+          p_contact_id: string
+          p_message_external_id?: string
+          p_purpose: string
+          p_source: string
+          p_tenant_id: string
+        }
+        Returns: boolean
       }
       recording_opened: { Args: { p_call_id: string }; Returns: boolean }
       relay_events: { Args: { p_limit?: number }; Returns: number }
