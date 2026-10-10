@@ -1,9 +1,10 @@
 /**
- * What the kit's ListRow takes, proved where the compiler reads it (list-row.tsx): a face and the name, and what
- * trails, what was said, the facts and a note where a page has them; what trails, and the said line where it is the
- * page's own element, are drawn by the page with the class the row hands it; an address, written so or known only as
- * the page runs, makes the row a link, whose ref holds a link. A row with no face, a face of nobody, facts that are not
- * a list, what trails as words, children and a ref of the other element stop compiling.
+ * What the kit's ListRow takes, proved where the compiler reads it (list-row.tsx): a face, or a row's kind as the kit's
+ * mark, and the name, and what trails, what was said, the facts and a note where a page has them; what trails, and the
+ * said line where it is the page's own element, are drawn by the page with the class the row hands it; an address,
+ * written so or known only as the page runs, makes the row a link, whose ref holds a link. A row with no face or mark,
+ * a face of nobody, a face and a mark both, a mark that is words, facts that are not a list, what trails as words,
+ * children and a ref of the other element stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -43,15 +44,21 @@ function _listRowTakes(
   });
   // The said line as the page's own element, with the class the row hands it.
   ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", said: line });
+  // A thing of a kind: the kit's mark holding its glyph, in the face's column.
+  ListRow({ mark: line("icon"), name: "Win-back", facts: ["Quiet or lapsed"] });
   // A row with a page of its own: a link, with a link's ref.
   ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", href: "/w/studio/#/clients", ref: link });
   // Chosen as the page runs: its face, and its address, a link where there is one and a div where not.
   ListRow({ face: now.glyph ? { glyph: now.glyph } : { initials: "AR" }, name: "Aisha Rahman", href: now.href });
 
-  // @ts-expect-error a row's first column is its face
+  // @ts-expect-error a row's first column is its face or its mark
   ListRow({ name: "Aisha Rahman", facts: [] });
   // @ts-expect-error the face is the kit's, and stands for someone
   ListRow({ face: {}, name: "Aisha Rahman" });
+  // @ts-expect-error a row's first column is a face or a mark, never both
+  ListRow({ face: { initials: "AR" }, mark: line("icon"), name: "Aisha Rahman" });
+  // @ts-expect-error a mark is the kind's glyph, an element, never words
+  ListRow({ mark: "bell", name: "Win-back" });
   // @ts-expect-error the facts are a list, each a line's flex item
   ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", facts: "2 h ago" });
   // @ts-expect-error what trails is the page's element, drawn with the class the row hands it

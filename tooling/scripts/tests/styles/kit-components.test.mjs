@@ -523,10 +523,13 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
   assert.deepEqual(keysOf(known), ["aria-hidden", "className"]);
 });
 
-/** A person's row, as the gallery draws it, with what was said or not, a note or not, and an address or none. */
-const row = ({ said = true, note = false, href = undefined } = {}) =>
+/**
+ * A person's row, as the gallery draws it, with what was said or not, a note or not, an address or none, and a row's
+ * kind as its mark instead of a face.
+ */
+const row = ({ said = true, note = false, href = undefined, mark = false } = {}) =>
   h(ListRow, {
-    face: { initials: "AR" },
+    ...(mark ? { mark: glyph() } : { face: { initials: "AR" } }),
     name: "Aisha Rahman",
     end: (place) => h("span", { className: cx("pill pill-warn", place) }, "Needs you"),
     said: said ? "asked about Saturday" : undefined,
@@ -536,14 +539,15 @@ const row = ({ said = true, note = false, href = undefined } = {}) =>
   });
 
 /**
- * The gallery's List row family, entry by entry: the three shapes and a row with a page of its own, then two of the
- * shapes again at a phone's width.
+ * The gallery's List row family, entry by entry: the three shapes, a row with a page of its own, and a row whose first
+ * column is its kind (a campaign on Campaigns' phone list).
  */
 const LIST_ROWS = {
   "list-row": () => row(),
   "list-row-two": () => row({ said: false }),
   "list-row-note": () => row({ note: true }),
   "list-row-door": () => row({ note: true, href: "#kit" }),
+  "list-row-mark": () => row({ said: false, mark: true }),
 };
 
 test("ListRow draws the gallery's List row family, and the page's own elements where the row takes them", () => {
@@ -589,6 +593,12 @@ test("ListRow draws the gallery's List row family, and the page's own elements w
   assert.equal(door.type, "a", "a door is a link");
   assert.equal(door.props.className, "list-row");
   assert.deepEqual(keysOf(door), ["className", "href", "ref"]);
+  const kind = drawn(h(ListRow, { mark: glyph(), name: "Win-back", facts: ["Quiet or lapsed"] }));
+  assert.equal(
+    spell(settle(drawnSkeleton(kind))),
+    "div.list-row(span.list-row-mark.mark[aria-hidden=true](svg.icon) div.list-row-name div.list-row-facts(span))",
+    "a row's kind stands in the face's column as the kit's mark, neutral, hidden from a screen reader",
+  );
 });
 
 /** A chart's parts, as SegmentBar is given its rows: a share, and a series colour. */

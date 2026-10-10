@@ -243,12 +243,14 @@ const PHOTO =
   "fill='%23e5e5e5'/%3E%3C/svg%3E";
 
 /**
- * A person's row on a phone, as the kit draws it, with a line of words said or not, a note under it or not, and as a
- * link to their page or not.
+ * A person's row on a phone, as the kit draws it, with a line of words said or not, a note under it or not, as a link to
+ * their page or not, and a row whose first column is its kind (the kit's mark) instead of someone's face.
  */
-const listRow = ({ said = true, note = false, door = false } = {}) =>
+const listRow = ({ said = true, note = false, door = false, mark = false } = {}) =>
   (door ? `<a class="list-row" href="#kit">` : `<div class="list-row">`) +
-  `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>` +
+  (mark
+    ? `<span class="mark list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
+    : `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>`) +
   `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
   (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
@@ -1738,12 +1740,14 @@ export const FAMILIES = [
       "kit.css's list row (step 2.2): a face, the lines beside it and what trails, on the row tokens every list on a " +
       "phone shares: three lines, two (nothing said, so the face spans two), a line of its own under the facts, and " +
       "a row with a page of its own, a link that keeps the row's colours with no underline. People's and Leads' phone " +
-      "rows draw it (surfaces/people/cells/row-card.tsx).",
+      "rows draw it (surfaces/people/cells/row-card.tsx); and a row whose first column is its kind, the kit's mark in " +
+      "the face's place (Campaigns' phone list, surfaces/campaigns/home/ledger/ledger-phone.tsx).",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },
       { id: "list-row-note", html: listRow({ note: true }) },
       { id: "list-row-door", html: listRow({ note: true, door: true }) },
+      { id: "list-row-mark", html: listRow({ said: false, mark: true }) },
     ],
   },
   {

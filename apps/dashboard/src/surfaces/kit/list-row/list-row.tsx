@@ -1,9 +1,10 @@
 /**
  * The kit's list row (kit.css, "List row"): People's row on a phone, which every list's row copies part for part. The
- * face beside up to three lines: the name, and what trails it, on the first; what was said on the second; the facts on
- * the third; and a line of its own under them where a page has one more thing to say. The lines after the first take
- * the grid's next rows, so the row draws them in that order, and a line with nothing to say is not drawn. What each
- * line says is the page's. `className` is for the page's layout, and comes last; the ref reaches the element.
+ * face, or the row's kind as the kit's mark, beside up to three lines: the name, and what trails it, on the first; what
+ * was said on the second; the facts on the third; and a line of its own under them where a page has one more thing to
+ * say. The lines after the first take the grid's next rows, so the row draws them in that order, and a line with
+ * nothing to say is not drawn. What each line says is the page's. `className` is for the page's layout, and comes last;
+ * the ref reaches the element.
  *
  * A row with a page of its own is a link to it, given `href` (the shell's "a door is a link", data-bits `routeDoor`),
  * which kit.css draws in the row's colours with no underline. What a press on any other row does (select it, open a
@@ -13,7 +14,7 @@
  * It draws what the gallery's List row family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
  * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
  */
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactElement, ReactNode } from "react";
 import type { FaceProps } from "../face/face";
 import { Face } from "../face/face";
 import { cx } from "../variants";
@@ -24,10 +25,14 @@ const drawsSomething = (node: ReactNode) => node !== undefined && node !== null 
 /** Words, which the row draws in an element of its own; anything else is an element the page drew. */
 const isWords = (node: ReactNode) => typeof node === "string" || typeof node === "number";
 
+/**
+ * Who or what the row is, in its first column: the kit's face, for a person, a lead or a conversation; or, for a row
+ * that is a thing of a kind (a campaign), the kit's mark holding the kind's glyph (the Icon), neutral always.
+ */
+type ListRowFirst = { face: FaceProps; mark?: undefined } | { mark: ReactElement; face?: undefined };
+
 /** The row's lines, which are its props: it takes no children. */
-type ListRowLines = {
-  /** Who the row is: the kit's face, in the row's first column. */
-  face: FaceProps;
+type ListRowLines = ListRowFirst & {
   /** The first line. */
   name: ReactNode;
   /**
@@ -76,12 +81,24 @@ function factsLine(facts: readonly ReactNode[]) {
   );
 }
 
-/** A row of a list: its face, its lines, and what trails its name; a link where it has an address. */
-export function ListRow({ face, name, end, said, facts = [], note, className, ...element }: ListRowProps) {
+/** The first column: the face, or the kind's mark. */
+function firstOf(first: ListRowFirst) {
+  if (first.mark !== undefined) {
+    return (
+      <span className="mark list-row-mark" aria-hidden="true">
+        {first.mark}
+      </span>
+    );
+  }
+  return <Face {...first.face} className={cx("list-row-face", first.face.className)} />;
+}
+
+/** A row of a list: its face or its kind, its lines, and what trails its name; a link where it has an address. */
+export function ListRow({ face, mark, name, end, said, facts = [], note, className, ...element }: ListRowProps) {
   const classes = cx("list-row", className);
   const lines = (
     <>
-      <Face {...face} className={cx("list-row-face", face.className)} />
+      {firstOf(mark !== undefined ? { mark } : { face })}
       <div className="list-row-name">{name}</div>
       {end?.("list-row-end")}
       {saidLine(said)}

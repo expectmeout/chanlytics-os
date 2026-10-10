@@ -2913,6 +2913,17 @@ a.list-row {
 .list-row:not(:has(> .list-row-said)) > .list-row-face {
   grid-row: 1 / span 2;
 }
+/* A row that is a thing of a kind, not someone (a campaign on Campaigns' phone list): the kit's mark in the face's
+   column, centred in it, neutral always (the badges' rule: a mark is a row's kind). */
+.list-row-mark {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: start;
+  justify-self: center;
+}
+.list-row:not(:has(> .list-row-said)) > .list-row-mark {
+  grid-row: 1 / span 2;
+}
 .list-row-name {
   grid-column: 2;
   grid-row: 1;
