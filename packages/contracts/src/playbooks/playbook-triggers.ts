@@ -195,6 +195,9 @@ export function vetoRunNotice(name: string, people: number, when: string): { sub
 
 export const PLAYBOOK_NAME_MAX = 80;
 
+/** A campaign the caller cannot see, or one that is gone: every door's 404 for one, in the word a person reads (D19). */
+export const CAMPAIGN_NOT_FOUND = "Campaign not found.";
+
 /** What a moment's doors say when handed a reach-out's step: the one refusal, in one place. */
 export const REACH_OUT_IS_NOT_A_MOMENT =
   "A reach-out is made on its own sheet, from a search's leads, not among the moments.";

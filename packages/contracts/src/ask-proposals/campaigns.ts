@@ -216,9 +216,11 @@ export const playbookChangeSpec: ProposalSpec = {
     label: ({ payload }) =>
       payload.state === "paused" ? "Resume it" : payload.state === "running" ? "Pause it again" : "Put it back",
     window: "ten_minutes",
-    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none.
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none. A
+    // route that wrote nothing (somebody made the same change first) answers it empty: no undo, which would undo theirs.
     record: (p, data) => {
       const was = rec(data).was;
+      if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
       return { playbook_id: p.payload.playbook_id, was: was && typeof was === "object" ? was : p.payload.was };
     },
     call: (u) => {

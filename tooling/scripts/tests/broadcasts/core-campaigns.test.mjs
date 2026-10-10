@@ -2146,3 +2146,24 @@ test("a playbook on a message with no WhatsApp row keeps the ticks that cannot s
     MESSAGE_MOMENT_WORDS.offer_on_texts,
   );
 });
+
+test("a booking-link slot needs a link on file, by one rule a message's values and a starter card both ask (core refuseWithoutBookingLink), and the link is read only where a slot asks for it", async () => {
+  const { refuseWithoutBookingLink } = await importSrc("packages/core/src/campaigns/template-values.ts");
+  let asked = 0;
+  const ports = (link) => ({
+    bookingLink: async () => {
+      asked += 1;
+      return link;
+    },
+  });
+  await refused(
+    refuseWithoutBookingLink(ports(null), [{ kind: "first_name" }, { kind: "booking_link" }]),
+    "conflict",
+    409,
+    "This message takes the booking link, and none is on file. Add it in Settings › Business first.",
+  );
+  await refuseWithoutBookingLink(ports("https://example.com/book"), [{ kind: "booking_link" }]);
+  asked = 0;
+  await refuseWithoutBookingLink(ports(null), [{ kind: "first_name" }, { kind: "business_name" }]);
+  assert.equal(asked, 0, "no slot for it, no read");
+});

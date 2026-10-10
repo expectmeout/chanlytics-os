@@ -2729,6 +2729,10 @@ async function templateValues(ports, cmd) {
       specs.push(spec);
     }
   }
+  await refuseWithoutBookingLink(ports, specs);
+  return { message, specs };
+}
+async function refuseWithoutBookingLink(ports, specs) {
   if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
     throw new AppError11(
       "conflict",
@@ -2736,7 +2740,6 @@ async function templateValues(ports, cmd) {
       409
     );
   }
-  return { message, specs };
 }
 
 // src/campaigns/create-broadcast.ts
@@ -39166,6 +39169,7 @@ export {
   reconcileUnknownRuns,
   recordInbound,
   refusalScript,
+  refuseWithoutBookingLink,
   rejudgeProbe,
   replyPosture,
   replyToConversation,

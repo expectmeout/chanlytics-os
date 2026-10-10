@@ -27,6 +27,7 @@
 import {
   AppError,
   CONSENT_CHANNELS,
+  FOLLOW_UP_ONE,
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
   OWN_VERSION_CHANNELS,
@@ -56,8 +57,15 @@ import {
   type StarterTemplate,
   type triggerOf,
 } from "@chanlytics/contracts";
-import { parseChannels, playbookNumber } from "@chanlytics/core";
-import { messageVersionRowsOf, templateStatusOf, templatesNamed, whatsappChannelFacts } from "@chanlytics/db";
+import { parseChannels, playbookNumber, refuseWithoutBookingLink } from "@chanlytics/core";
+import {
+  followUpOnFile,
+  messageVersionRowsOf,
+  templateStatusOf,
+  templatesNamed,
+  whatsappChannelFacts,
+} from "@chanlytics/db";
+import { templateValuePorts } from "@/server/ports/campaign-ports";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
 import { checkPlaybookMomentInput } from "@/server/campaigns/playbooks";
@@ -285,7 +293,9 @@ async function momentLabel(ctx: RouteContext, tenantId: string, trig: Trigger): 
  * The channels a starter's message holds the moment it is filed, of those its purpose may go by (contracts
  * channelNeverCarries): a version already on file that it holds (contracts messageHolds: WhatsApp's approved, an email's
  * or a text's), and the email and text versions the starter writes, which are filed at once. A WhatsApp version sent for
- * review holds nothing until WhatsApp approves it. With whether the workspace has a number to make one for.
+ * review holds nothing until WhatsApp approves it. With whether the workspace has a number to make one for, and whether
+ * the WhatsApp version on file, where there is one, may yet send: one WhatsApp refused, paused or disabled, or one this
+ * product cannot send whole, never will.
  */
 async function heldAtOnce(ctx: RouteContext, tenantId: string, starter: StarterTemplate, purpose: AskedPurpose) {
   const [rows, line] = await Promise.all([
@@ -299,7 +309,33 @@ async function heldAtOnce(ctx: RouteContext, tenantId: string, starter: StarterT
       ? starterEmailText(starter, STARTER_LANGUAGE) !== null
       : c === "sms" && starterSmsText(starter, STARTER_LANGUAGE) !== null;
   const atOnce = CONSENT_CHANNELS.filter((c) => channelNeverCarries(c, purpose) === null && (held?.[c] || writes(c)));
-  return { atOnce, number: line !== null };
+  const wa = onFile?.versions.whatsapp ?? null;
+  const whatsappMaySend = !wa || (wa.blocked === null && (wa.status === "approved" || wa.status === "pending"));
+  return { atOnce, number: line !== null, whatsappMaySend };
+}
+
+/**
+ * The channels a starter's campaign goes by (checkStarterPlaybook): those named, else those its message holds at once and
+ * WhatsApp where there is a number and its version may yet send, its people there held until WhatsApp approves it. Refused
+ * where it would go by none its message holds at once: WhatsApp named where there is no number says a number is needed
+ * (no approval is coming), and otherwise that it waits for WhatsApp, with where it could go at once.
+ */
+function starterChannels(
+  title: string,
+  named: ConsentChannel[] | null,
+  held: Awaited<ReturnType<typeof heldAtOnce>>,
+): ConsentChannel[] {
+  const { atOnce, number, whatsappMaySend } = held;
+  const channels =
+    named ?? CONSENT_CHANNELS.filter((c) => atOnce.includes(c) || (c === "whatsapp" && number && whatsappMaySend));
+  if (channels.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
+  if (channels.some((c) => atOnce.includes(c))) return channels;
+  if (channels.includes("whatsapp") && !number) throw new AppError("validation", LIBRARY_WORDS.writeNeedsNumber);
+  const could = atOnce.filter((c) => !channels.includes(c));
+  throw new AppError(
+    "validation",
+    LIBRARY_STARTER_WORDS.waitsForWhatsApp(title, channelsWords(channels), could.length ? channelsWords(could) : null),
+  );
 }
 
 /**
@@ -322,6 +358,10 @@ export async function checkStarterPlaybook(
   known?: ZoneAndSettings,
 ): Promise<StarterJudged> {
   const { trig, cls } = await checkPlaybookMomentInput(ctx, tenantId, body, known);
+  // One proposal follow-up a workspace (00167 playbooks_one_follow_up): the index is the database's last word, said here
+  // first, so a second's starter is never filed and nothing of it reaches Meta.
+  if (trig.kind === "deal" && (await followUpOnFile(ctx.supabase, tenantId, trig.id)))
+    throw new AppError("conflict", FOLLOW_UP_ONE, 409);
   const key = typeof body.starter_key === "string" ? body.starter_key : "";
   const starter = startersForTrigger(trig.id).find((s) => s.key === key && !s.retired);
   if (!starter)
@@ -331,31 +371,15 @@ export async function checkStarterPlaybook(
   const fit = messageFitsMoment(cls, starter.category);
   if (!fit.ok) throw new AppError("validation", fit.words);
   for (const k of NUMBERS) playbookNumber(k, body[k], PLAYBOOK_LIMITS[k].min);
+  const params = defaultParamSpecs({ name: starter.name, variables: [] });
+  // A booking-link slot needs a link on file, as a message's values are held to it (core refuseWithoutBookingLink).
+  await refuseWithoutBookingLink(templateValuePorts(ctx, tenantId), params);
   const purpose = enrolPurpose(cls, { category: starter.category });
   const named = body.channels === undefined || body.channels === null ? null : parseChannels(body.channels);
   const never = (named ?? []).map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
   if (never) throw new AppError("validation", never);
-  const { atOnce, number } = await heldAtOnce(ctx, tenantId, starter, purpose);
-  const channels = named ?? CONSENT_CHANNELS.filter((c) => atOnce.includes(c) || (c === "whatsapp" && number));
-  if (channels.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
-  if (!channels.some((c) => atOnce.includes(c))) {
-    const could = atOnce.filter((c) => !channels.includes(c));
-    throw new AppError(
-      "validation",
-      LIBRARY_STARTER_WORDS.waitsForWhatsApp(
-        starter.title,
-        channelsWords(channels),
-        could.length ? channelsWords(could) : null,
-      ),
-    );
-  }
-  return {
-    starter,
-    params: defaultParamSpecs({ name: starter.name, variables: [] }),
-    cls,
-    channels,
-    atOnce,
-  };
+  const held = await heldAtOnce(ctx, tenantId, starter, purpose);
+  return { starter, params, cls, channels: starterChannels(starter.title, named, held), atOnce: held.atOnce };
 }
 
 /**
@@ -389,8 +413,15 @@ export async function withStarterMessage(
   });
   const message = campaignMessageOf(rows, judged.starter.name, STARTER_LANGUAGE);
   const holds = message ? messageHolds(message) : null;
-  if (!result || !message || !judged.channels.some((c) => holds?.[c]))
-    throw new AppError("conflict", LIBRARY_STARTER_WORDS.notAdded, 409);
+  if (!result || !message || !judged.channels.some((c) => holds?.[c])) {
+    // Where its WhatsApp version did reach WhatsApp, that version is in the Library, in review, and the words say so.
+    const reached = result?.status === "submitted" || result?.status === "synced";
+    throw new AppError(
+      "conflict",
+      reached ? LIBRARY_STARTER_WORDS.notAddedSentForReview : LIBRARY_STARTER_WORDS.notAdded,
+      409,
+    );
+  }
   return {
     body: { ...rest, template_id: message.anchor.id, params: judged.params, channels: judged.channels },
     starter: { key, status: result.status, meta_status: result.meta_status },

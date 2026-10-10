@@ -65,15 +65,23 @@ const tables = (over = {}) => ({
   events: [],
   ...over,
 });
-/** The change_playbook door in memory, as the route calls it: what each field held answered, the row changed. */
+/**
+ * The change_playbook door in memory, as 00376 writes it and the route calls it: of the columns named only those that
+ * differ written, the line's verb following the state that moved, what each held answered; nothing that differs is no
+ * write and no line (`was` empty, `decision_id` null).
+ */
 const changeDoor = (rows) => ({
   change_playbook: (a) => {
     const p = rows.playbooks.find((x) => x.id === a.p_playbook_id && x.tenant_id === a.p_tenant_id);
     if (!p) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const was = Object.fromEntries(Object.keys(a.p_set).map((k) => [k, p[k]]));
-    Object.assign(p, a.p_set);
+    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => p[k] !== v));
+    if (Object.keys(set).length === 0) return { id: p.id, was: {}, decision_id: null, undo_dropped: false };
+    const was = Object.fromEntries(Object.keys(set).map((k) => [k, p[k]]));
+    Object.assign(p, set);
     const id = `d${rows.decisions.length + 1}`;
-    rows.decisions.push({ id, verb: a.p_set.state ? `${a.p_set.state}` : "change_playbook" });
+    const verb =
+      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
+    rows.decisions.push({ id, verb });
     return { id: p.id, was, decision_id: id, undo_dropped: false };
   },
 });
@@ -184,4 +192,28 @@ test("a change is refused in words before any card: not an id, not this workspac
   // A field only another action takes is refused by the registry, so a change card never quietly becomes another.
   assert.match(said(await change({ state: "paused", trigger: "lapsed" })), /trigger/);
   assert.ok(REACH_OUT_IS_NOT_A_MOMENT);
+});
+
+test("a card approved after somebody else made the same change writes nothing, and offers no undo of what it did not do", async () => {
+  const rows = tables();
+  const p = (await change({ state: "paused" }, rows)).proposal;
+  // A teammate pauses it from the drawer before the card's Approve.
+  rows.playbooks[0].state = "paused";
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const approved = await sendTo(rows, spec.commit(p, { settings: null }));
+  assert.deepEqual([approved.state, approved.was, approved.decision_id], ["paused", {}, null]);
+  assert.deepEqual(rows.decisions, [], "no line for a change that changed nothing");
+  assert.equal(
+    spec.undo.record(p, approved, { settings: null }),
+    null,
+    "no undo: a resume now would undo the teammate",
+  );
+  // Its pause, approved while it still ran, is one line, its verb the state that moved.
+  rows.playbooks[0].state = "running";
+  const paused = await sendTo(rows, spec.commit(p, { settings: null }));
+  assert.deepEqual(
+    rows.decisions.map((d) => d.verb),
+    ["pause_playbook"],
+  );
+  assert.deepEqual(spec.undo.record(p, paused, { settings: null }), { playbook_id: PB, was: { state: "running" } });
 });

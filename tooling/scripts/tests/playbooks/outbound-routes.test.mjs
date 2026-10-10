@@ -104,22 +104,22 @@ const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
  * The `change_playbook` door for a database in memory: the row the caller names in the workspace named, the
  * columns the set names written, then the decision as theirs -- start_playbook, pause_playbook or change_playbook -- in
  * `tables.decisions`; the row's id, what each written column held and the decision's id. No such row is P0002, and
- * nothing is written, as its one transaction leaves it.
+ * nothing is written, as its one transaction leaves it. Of the columns named only those that differ are written, the
+ * verb following the state that moved; where none differs nothing is written and no line: `was` empty, `decision_id`
+ * null (00376's no-op).
  */
 const withChangeDoor = (tables, rpcs = {}) => ({
   ...rpcs,
   change_playbook: (a) => {
     const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
     if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const was = Object.fromEntries(Object.keys(a.p_set).map((k) => [k, row[k]]));
-    Object.assign(row, a.p_set);
+    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => row[k] !== v));
+    if (Object.keys(set).length === 0) return { id: row.id, was: {}, decision_id: null, undo_dropped: false };
+    const was = Object.fromEntries(Object.keys(set).map((k) => [k, row[k]]));
+    Object.assign(row, set);
     const decisions = (tables.decisions ??= []);
     const verb =
-      a.p_set.state === "running"
-        ? "start_playbook"
-        : a.p_set.state === "paused"
-          ? "pause_playbook"
-          : "change_playbook";
+      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
     const decision = {
       id: `decision-${decisions.length + 1}`,
       tenant_id: a.p_tenant_id,
@@ -1092,8 +1092,8 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
   );
   assert.deepEqual(
     await playbook.PUT.run(send("PUT", { state: "running" }), ctxFor(tables, { id: K2 })),
-    { id: K2, name: "Win-back", state: "running", was: {} },
-    "the same state changes nothing",
+    { id: K2, name: "Win-back", state: "running", was: {}, decision_id: null },
+    "the same state changes nothing, and says so as the door's no-op does",
   );
   const paused = await playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K2 }));
   assert.deepEqual(paused, {
@@ -1485,9 +1485,15 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
       "Pick WhatsApp, text or email to send by.",
     );
   }
-  // Channels that are no list are no body the route takes (PLAYBOOK_PUT_BODY): refused before the check is asked.
+  // Channels that are no list are no body the route takes (PLAYBOOK_PUT_BODY): refused before the check is asked, in one
+  // sentence that says the three bodies, where zod said `Unrecognized key: "channels"` of a key the route does take.
   for (const channels of [null, "email"])
-    await refused(playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })), "validation", 400);
+    await refused(
+      playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })),
+      "validation",
+      400,
+      "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.",
+    );
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "a refusal writes nothing");
   // A channel named twice is one channel.
   ctx = ctxFor(tables, { id: K1 });

@@ -83,6 +83,19 @@ export async function templateValues(
       specs.push(spec);
     }
   }
+  await refuseWithoutBookingLink(ports, specs);
+  return { message, specs };
+}
+
+/**
+ * A booking-link slot needs a link on file: refused in words where none is, and the link read only where a slot asks
+ * for it. The one rule a message's values (templateValues) and a starter card (the dashboard's checkStarterPlaybook,
+ * before anything is filed) are held to.
+ */
+export async function refuseWithoutBookingLink(
+  ports: Pick<TemplateValuesPorts, "bookingLink">,
+  specs: readonly ParamSpec[],
+): Promise<void> {
   if (specs.some((s) => s.kind === "booking_link") && !(await ports.bookingLink())) {
     throw new AppError(
       "conflict",
@@ -90,5 +103,4 @@ export async function templateValues(
       409,
     );
   }
-  return { message, specs };
 }

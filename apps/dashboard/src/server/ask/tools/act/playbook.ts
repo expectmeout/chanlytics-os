@@ -46,7 +46,7 @@ import {
   type StarterTemplate,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
-import { listPolicies, runningTwins } from "@chanlytics/db";
+import { followUpOnFile, listPolicies, runningTwins } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead, sellsByOf } from "../../../people/deals";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
@@ -335,18 +335,13 @@ type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
 /** The proposal follow-up (0006): only where deals are on, and one per workspace (00167); its refusal, or null. */
 async function followUpRefusal(t: ToolContext, trig: Trigger): Promise<string | null> {
   if (trig.kind !== "deal") return null;
+  // The one-follow-up index's reading (db followUpOnFile), the one a starter's route asks too.
   const [sellsBy, one] = await Promise.all([
     sellsByOf(t.ctx, t.tenantId),
-    t.ctx.supabase
-      .from("playbooks")
-      .select("id")
-      .eq("tenant_id", t.tenantId)
-      .eq("trigger", trig.id)
-      .limit(1)
-      .maybeSingle(),
+    followUpOnFile(t.ctx.supabase, t.tenantId, trig.id),
   ]);
   if (!triggerOffered(trig, dealsAreOn(sellsBy))) return FOLLOW_UP_NEEDS_DEALS;
-  return one.data ? FOLLOW_UP_ONE : null;
+  return one ? FOLLOW_UP_ONE : null;
 }
 
 /** The list a new playbook runs on, where it runs on one, and the class it sends under there, as its body names them. */

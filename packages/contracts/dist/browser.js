@@ -3045,6 +3045,7 @@ function vetoRunNotice(name, people, when) {
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
+var CAMPAIGN_NOT_FOUND = "Campaign not found.";
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
@@ -10150,7 +10151,12 @@ var LIBRARY_STARTER_WORDS = {
    */
   waitsForWhatsApp: (title, on, could) => could ? `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.` : `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
   /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
-  notAdded: "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library."
+  notAdded: "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library.",
+  /**
+   * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
+   * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
+   */
+  notAddedSentForReview: "The starter's WhatsApp version went to WhatsApp for review and is in the Library, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice."
 };
 var BROADCAST_WORDS = {
   tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
@@ -10643,9 +10649,11 @@ var playbookChangeSpec = {
   undo: {
     label: ({ payload }) => payload.state === "paused" ? "Resume it" : payload.state === "running" ? "Pause it again" : "Put it back",
     window: "ten_minutes",
-    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none.
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none. A
+    // route that wrote nothing (somebody made the same change first) answers it empty: no undo, which would undo theirs.
     record: (p, data) => {
       const was = rec(data).was;
+      if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
       return { playbook_id: p.payload.playbook_id, was: was && typeof was === "object" ? was : p.payload.was };
     },
     call: (u) => {
@@ -37247,6 +37255,7 @@ export {
   CAMPAIGNS_RESULTS_PERIOD,
   CAMPAIGN_EMAIL_TAG,
   CAMPAIGN_MONTH_ALLOWANCE,
+  CAMPAIGN_NOT_FOUND,
   CAMPAIGN_ROOMS,
   CAPABILITY_KINDS,
   CARRIERS,

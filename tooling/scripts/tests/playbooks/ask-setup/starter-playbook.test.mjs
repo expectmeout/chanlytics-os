@@ -14,7 +14,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import {
+  FOLLOW_UP_ONE,
   LIBRARY_STARTER_WORDS,
+  LIBRARY_WORDS,
   appointmentWordOf,
   channelNeverCarries,
   channelsWords,
@@ -46,6 +48,7 @@ const inB = `?workspace=${B}`;
 const WIN_BACK = startersForTrigger("quiet_30").find((s) => !s.retired);
 const REMINDER = startersForTrigger("visit_tomorrow").find((s) => !s.retired);
 const OFFER = startersForTrigger("everyone_monthly").find((s) => !s.retired);
+const FOLLOW_UP = startersForTrigger("proposal_waiting").find((s) => !s.retired);
 
 /** A template row as the table holds it. */
 const tpl = (id, over = {}) => ({
@@ -115,7 +118,16 @@ function stubMeta(tables) {
   return { calls, restore: () => (globalThis.fetch = real) };
 }
 
-/** The doors a new playbook and a starter's versions go through, over the same tables (their SQL is proved on Postgres). */
+/** The doors this file makes refuse, by name: a database that could not write a starter's version just then. */
+let failing = new Set();
+const refusesNow = (door) => {
+  if (failing.has(door)) throw Object.assign(new Error("could not write the version just now"), { code: "XX000" });
+};
+
+/**
+ * The doors a new playbook and a starter's versions go through, over the same tables (their SQL is proved on Postgres).
+ * start_playbook holds the database's one-follow-up index (00167 playbooks_one_follow_up) as Postgres does.
+ */
 function doors(tables) {
   let next = 900;
   const version = (a, over) => {
@@ -134,11 +146,19 @@ function doors(tables) {
     session: {
       // A version beside the message's rows: its category and values are the message's.
       save_template_version: (a) => {
+        refusesNow("save_template_version");
         const source = tables.templates.find((t) => t.tenant_id === a.p_tenant_id && t.name === a.p_name);
         if (!source) throw Object.assign(new Error("Message not found."), { code: "P0002" });
         return version(a, { category: source.category, variables: source.variables });
       },
       start_playbook: (a) => {
+        if (
+          a.p_playbook.trigger === "proposal_waiting" &&
+          tables.playbooks.some((p) => p.tenant_id === a.p_tenant_id && p.trigger === "proposal_waiting")
+        )
+          throw Object.assign(new Error('duplicate key value violates unique constraint "playbooks_one_follow_up"'), {
+            code: "23505",
+          });
         const row = {
           id: crypto.randomUUID(),
           tenant_id: a.p_tenant_id,
@@ -162,7 +182,12 @@ function doors(tables) {
       },
     },
     // The first version of a message with no row: the service role's door, as the member it acts for.
-    service: { create_message_version: (a) => version(a, { category: a.p_category, variables: a.p_variables }) },
+    service: {
+      create_message_version: (a) => {
+        refusesNow("create_message_version");
+        return version(a, { category: a.p_category, variables: a.p_variables });
+      },
+    },
   };
 }
 
@@ -200,6 +225,7 @@ afterEach(() => {
 });
 /** The world, its doors, and Meta stubbed: what `post` sends a body into. */
 function open(over) {
+  failing = new Set();
   tables = world(over);
   const d = doors(tables);
   setServiceClient(fakeDb(tables, {}, d.service));
@@ -334,4 +360,83 @@ test("a starter card the route would refuse files nothing: a number out of bound
     "nothing filed, nothing started",
   );
   assert.deepEqual(meta.calls, [], "nothing reached Meta");
+});
+
+test("a second proposal follow-up is refused before anything is filed, in the words the database's one-follow-up index is said in: nothing reaches Meta", async () => {
+  const one = {
+    id: "88888888-8888-4888-8888-888888888881",
+    tenant_id: B,
+    kind: "moment",
+    name: "Proposal follow-up",
+    trigger: "proposal_waiting",
+    state: "running",
+  };
+  const post = open({
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago", sells_by: "proposal" }],
+    playbooks: [one],
+  });
+  await refused(post({ trigger: "proposal_waiting", starter_key: FOLLOW_UP.key }), "conflict", 409, FOLLOW_UP_ONE);
+  assert.deepEqual(
+    [tables.templates, tables.playbooks, tables.decisions],
+    [[], [one], []],
+    "nothing filed, nothing started",
+  );
+  assert.deepEqual(meta.calls, [], "nothing reached Meta");
+});
+
+test("a starter whose WhatsApp version Meta took and whose other versions could not be filed starts nothing, and says its WhatsApp version is in the Library for review; the next press sends nothing to Meta again", async () => {
+  const post = open();
+  failing.add("save_template_version");
+  await refused(
+    post({ trigger: "quiet_30", starter_key: WIN_BACK.key }),
+    "conflict",
+    409,
+    LIBRARY_STARTER_WORDS.notAddedSentForReview,
+  );
+  assert.equal(meta.calls.length, 1, "Meta took the WhatsApp version");
+  assert.deepEqual(
+    tables.templates.map((t) => [t.name, t.channel, t.meta_status]),
+    [[WIN_BACK.name, "whatsapp", "pending"]],
+    "in the Library, in review",
+  );
+  assert.deepEqual(tables.playbooks, [], "nothing started");
+  // Pressed again once the version can be written: the WhatsApp version is on file, so Meta is not asked twice.
+  failing.clear();
+  const made = await post({ trigger: "quiet_30", starter_key: WIN_BACK.key });
+  assert.equal(made.starter.status, "exists");
+  assert.equal(meta.calls.length, 1, "no second submission");
+  assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["whatsapp", "email"]);
+  // A starter whose WhatsApp version was never sent says the first words: nothing is in review.
+  const quiet = open({ tenant_channels: [] });
+  failing.add("create_message_version");
+  await refused(
+    quiet({ trigger: "quiet_30", starter_key: WIN_BACK.key }),
+    "conflict",
+    409,
+    LIBRARY_STARTER_WORDS.notAdded,
+  );
+});
+
+test("WhatsApp named alone where there is no number is refused in the words that say a number is needed, never that WhatsApp's approval is to come; nothing is filed", async () => {
+  const post = open({ tenant_channels: [] });
+  await refused(
+    post({ trigger: "quiet_30", starter_key: WIN_BACK.key, channels: ["whatsapp"] }),
+    "validation",
+    400,
+    LIBRARY_WORDS.writeNeedsNumber,
+  );
+  assert.deepEqual([tables.templates, tables.playbooks, meta.calls], [[], [], []]);
+});
+
+test("no channel named: a WhatsApp version on file that WhatsApp refused, paused or disabled will never send, so the campaign goes by what holds it and not by WhatsApp", async () => {
+  for (const meta_status of ["rejected", "paused", "disabled"]) {
+    const post = open({ templates: [starterRow(T1, WIN_BACK, { meta_status })] });
+    const made = await post({ trigger: "quiet_30", starter_key: WIN_BACK.key });
+    assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["email"], meta_status);
+    assert.deepEqual(meta.calls, [], `${meta_status}: nothing asked of Meta`);
+  }
+  // One in review still goes by WhatsApp, its people held until WhatsApp approves it.
+  const post = open({ templates: [starterRow(T1, WIN_BACK, { meta_status: "pending" })] });
+  const made = await post({ trigger: "quiet_30", starter_key: WIN_BACK.key });
+  assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["whatsapp", "email"]);
 });

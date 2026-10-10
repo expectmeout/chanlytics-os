@@ -45,22 +45,21 @@ const operator = [
   { user_id: USER, tenant_id: B, role: "operator", tenants: { slug: "bayside" }, created_at: "2026-01-01" },
 ];
 /**
- * The `change_playbook` door in memory, for a playbook's pause or resume: the columns named written, then the
- * decision as theirs, and what each held answered; no such row is P0002 and nothing is written.
+ * The `change_playbook` door in memory, for a playbook's pause or resume: of the columns named those that differ written,
+ * then the decision as theirs, its verb the state that moved, and what each held answered; nothing that differs is no
+ * write and no line (`was` empty, `decision_id` null); no such row is P0002 and nothing is written.
  */
 const changeDoor = (tables) => ({
   change_playbook: (a) => {
     const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
     if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const was = Object.fromEntries(Object.keys(a.p_set).map((k) => [k, row[k]]));
-    Object.assign(row, a.p_set);
+    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => row[k] !== v));
+    if (Object.keys(set).length === 0) return { id: row.id, was: {}, decision_id: null, undo_dropped: false };
+    const was = Object.fromEntries(Object.keys(set).map((k) => [k, row[k]]));
+    Object.assign(row, set);
     const decisions = (tables.decisions ??= []);
     const verb =
-      a.p_set.state === "running"
-        ? "start_playbook"
-        : a.p_set.state === "paused"
-          ? "pause_playbook"
-          : "change_playbook";
+      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
     decisions.push({
       id: `decision-${decisions.length + 1}`,
       tenant_id: a.p_tenant_id,

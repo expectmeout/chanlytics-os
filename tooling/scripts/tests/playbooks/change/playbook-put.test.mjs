@@ -74,19 +74,22 @@ const world = (over = {}) => ({
   ...over,
 });
 
-/** The change_playbook door in memory: the columns named written, the decision as theirs, what each held answered. */
+/**
+ * The change_playbook door in memory, as 00376 writes it: the row as it stands then, of the columns named only those that
+ * differ written, the decision as theirs, its verb following the state that moved, and what each held answered; where
+ * nothing differs (a second press that lands after the first), nothing written and no line: `was` empty, `decision_id`
+ * null.
+ */
 const changeDoor = (tables) => ({
   change_playbook: (a) => {
     const p = tables.playbooks.find((x) => x.id === a.p_playbook_id && x.tenant_id === a.p_tenant_id);
     if (!p) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const was = Object.fromEntries(Object.keys(a.p_set).map((k) => [k, p[k]]));
-    Object.assign(p, a.p_set);
+    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => p[k] !== v));
+    if (Object.keys(set).length === 0) return { id: p.id, was: {}, decision_id: null, undo_dropped: false };
+    const was = Object.fromEntries(Object.keys(set).map((k) => [k, p[k]]));
+    Object.assign(p, set);
     const verb =
-      a.p_set.state === "running"
-        ? "start_playbook"
-        : a.p_set.state === "paused"
-          ? "pause_playbook"
-          : "change_playbook";
+      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
     const decision = {
       id: `decision-${tables.decisions.length + 1}`,
       tenant_id: a.p_tenant_id,
@@ -165,11 +168,37 @@ test("a change in place: judged against the row as it stands, written with its l
   // A pause is pause_playbook; the same state again is nothing written.
   const paused = await put(tables, K2, { state: "paused" });
   assert.deepEqual([paused.state, paused.was], ["paused", { state: "running" }]);
-  assert.deepEqual(await put(tables, K2, { state: "paused" }), { id: K2, name: "Win-back", state: "paused", was: {} });
+  // The no-op answers as the door's does: `was` empty and `decision_id` there, null.
+  assert.deepEqual(await put(tables, K2, { state: "paused" }), {
+    id: K2,
+    name: "Win-back",
+    state: "paused",
+    was: {},
+    decision_id: null,
+  });
   assert.deepEqual(
     tables.decisions.map((d) => d.verb),
     ["change_playbook", "change_playbook", "pause_playbook"],
   );
+});
+
+test("two Pauses at once: one line in the ledger, both answer paused, and the one that changed nothing says so as the door does (was empty, decision_id null)", async () => {
+  const tables = world();
+  setServiceClient(fakeDb(tables));
+  const both = await Promise.all([put(tables, K2, { state: "paused" }), put(tables, K2, { state: "paused" })]);
+  assert.deepEqual(
+    tables.decisions.map((d) => d.verb),
+    ["pause_playbook"],
+    "one pause, one line",
+  );
+  assert.deepEqual(
+    both.map((x) => x.state),
+    ["paused", "paused"],
+  );
+  const [wrote, nothing] = [...both].sort((x, y) => Object.keys(y.was).length - Object.keys(x.was).length);
+  assert.deepEqual([wrote.was, typeof wrote.decision_id], [{ state: "running" }, "string"]);
+  assert.deepEqual([nothing.was, nothing.decision_id], [{}, null]);
+  assert.equal(tables.playbooks.find((x) => x.id === K2).state, "paused");
 });
 
 test("a change is refused in the product's words before anything is written: a state it does not have, a number out of bounds, a name past 80, a cadence off the month's offer, a resume on an archived list", async () => {

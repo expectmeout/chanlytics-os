@@ -8,6 +8,7 @@
 import {
   AppError,
   asTenantId,
+  CAMPAIGN_NOT_FOUND,
   REACH_OUT_REFUSALS,
   REPLY_UNDO_REFUSALS,
   isPersonsWords,
@@ -437,7 +438,7 @@ async function loadPlaybook(ctx: RouteContext, id: string) {
     .eq("id", playbookId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new AppError("not_found", "Campaign not found.", 404);
+  if (!data) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   return data;
 }
 export const playbookScope = row((ctx, params) => loadPlaybook(ctx, String(params.id ?? "")));

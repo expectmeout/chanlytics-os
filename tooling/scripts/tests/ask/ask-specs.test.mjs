@@ -761,6 +761,9 @@ test("a playbook's change from a card (A5): its own PUT with what it changes and
     body: { name: "Spring win-back", run_hour: 11 },
   });
   assert.deepEqual(spec.undo.record(p, {}, TAB).was, CHANGE.was);
+  // A route that wrote nothing (somebody made the same change first) answers an empty `was`: no undo is offered, since one
+  // would undo what somebody else did.
+  assert.equal(spec.undo.record(p, { was: {}, decision_id: null }, TAB), null);
   assert.deepEqual(spec.undo.call({ playbook_id: "pb1", was: {} }, TAB_AFTER), { refused: PROPOSAL_WORDS.noUndo });
   assert.equal(spec.undo.receipt({}), "It is as it was");
   assert.equal(spec.open(p, null), "campaigns/moment:pb1", "its drawer");

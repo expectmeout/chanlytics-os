@@ -12,6 +12,7 @@
 import { z } from "zod";
 import {
   AppError,
+  CAMPAIGN_NOT_FOUND,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
   isPlaybookState,
@@ -44,37 +45,55 @@ import type { RouteContext } from "@/server/with-route";
 /** The playbook a playbookScope route acts on, as the scope read it. */
 type PlaybookRow = Awaited<ReturnType<typeof playbookScope.load>>;
 
+/**
+ * What a body that is none of the three is refused in: one sentence that names them, where zod said the first key of the
+ * nearest one it did not take (`Unrecognized key: "channels"` of channels that were no list).
+ */
+const PUT_BODY_WORDS =
+  "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.";
+/** Each body's own refusal of a key it does not take: the union's sentence, since the key may be another body's. */
+const ONE_OF_THREE = {
+  error: (issue: { code: string }) => (issue.code === "unrecognized_keys" ? PUT_BODY_WORDS : undefined),
+};
+
 /** A change in place (the moment spec §4.9 A5): any of the six, and no other key. Core judges each value, in words. */
-const PATCH_BODY = z.strictObject({
-  state: z.string().optional(),
-  name: z.string().optional(),
-  run_hour: z.number().optional(),
-  cap_per_run: z.number().optional(),
-  gap_days: z.number().optional(),
-  cadence_days: z.number().optional(),
-});
+const PATCH_BODY = z.strictObject(
+  {
+    state: z.string().optional(),
+    name: z.string().optional(),
+    run_hour: z.number().optional(),
+    cap_per_run: z.number().optional(),
+    gap_days: z.number().optional(),
+    cadence_days: z.number().optional(),
+  },
+  ONE_OF_THREE,
+);
 /** The channels it goes by, alone (the drawer's Goes by row, Ask's channels card). */
-const CHANNELS_BODY = z.strictObject({ channels: z.array(z.string()) });
+const CHANNELS_BODY = z.strictObject({ channels: z.array(z.string()) }, ONE_OF_THREE);
 /** The whole playbook (the composer's Save changes): re-checked as a new one is, in its own words. */
-const WHOLE_BODY = z.strictObject({
-  name: z.string().nullable().optional(),
-  trigger: z.string(),
-  list_id: z.string().nullable().optional(),
-  list_key: z.string().nullable().optional(),
-  policy_class: z.string().nullable().optional(),
-  template_id: z.string(),
-  params: z.array(z.unknown()).optional(),
-  channels: z.array(z.string()).optional(),
-  run_hour: z.number().optional(),
-  cap_per_run: z.number().optional(),
-  gap_days: z.number().optional(),
-  cadence_days: z.number().optional(),
-});
+const WHOLE_BODY = z.strictObject(
+  {
+    name: z.string().nullable().optional(),
+    trigger: z.string(),
+    list_id: z.string().nullable().optional(),
+    list_key: z.string().nullable().optional(),
+    policy_class: z.string().nullable().optional(),
+    template_id: z.string(),
+    params: z.array(z.unknown()).optional(),
+    channels: z.array(z.string()).optional(),
+    run_hour: z.number().optional(),
+    cap_per_run: z.number().optional(),
+    gap_days: z.number().optional(),
+    cadence_days: z.number().optional(),
+  },
+  ONE_OF_THREE,
+);
 /**
  * What PUT playbooks/:id takes (decision D26): exactly one of the three, strict, so a key no body names is refused, never
- * ignored. Declared on the route, so docs/api.md says it; on the server alone, so no page's bundle carries it.
+ * ignored, and refused in one sentence that names the three (PUT_BODY_WORDS). Declared on the route, so docs/api.md says
+ * it; on the server alone, so no page's bundle carries it.
  */
-export const PLAYBOOK_PUT_BODY = z.union([PATCH_BODY, CHANNELS_BODY, WHOLE_BODY]);
+export const PLAYBOOK_PUT_BODY = z.union([PATCH_BODY, CHANNELS_BODY, WHOLE_BODY], { error: PUT_BODY_WORDS });
 /** Not exported: only this module reads it, and knip counts an export nothing else imports (dead-exports.json). */
 type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
 
@@ -147,12 +166,13 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
 async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, p: PlaybookRow) {
   const read = await playbookForChange(ctx.supabase, p.tenant_id, p.id);
   // A member reads it: the word lane 3 gave the campaign's own refusals.
-  if (!read) throw new AppError("not_found", "Campaign not found.", 404);
+  if (!read) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   // The table's check holds a state to the two; one it does not know is no row a change is judged against.
   if (!isPlaybookState(read.state)) throw new Error(`playbook ${p.id} holds a state the check does not: ${read.state}`);
   const row = { ...read, state: read.state };
   const { set, was } = await checkPlaybookPatch({ archivedList: (r) => archivedListRefusal(ctx, r) }, row, asked);
-  if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {} };
+  // Nothing differs: nothing written and no line, answered as the door answers its own no-op (was empty, decision_id null).
+  if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {}, decision_id: null };
   const name = set.name ?? row.name;
   const wrote = await writePlaybookChange(ctx.supabase, {
     tenantId: p.tenant_id,
@@ -193,7 +213,7 @@ async function changeTheOldWay(
 
 /** A change the database refused: not there (P0002: another workspace's, or one the role may not change), else as it came. */
 function playbookChangeError(error: { code?: string; message: string }): Error {
-  return error.code === "P0002" ? new AppError("not_found", "Campaign not found.", 404) : new Error(error.message);
+  return error.code === "P0002" ? new AppError("not_found", CAMPAIGN_NOT_FOUND, 404) : new Error(error.message);
 }
 
 /**
@@ -265,7 +285,7 @@ export async function deletePlaybook(ctx: RouteContext, p: PlaybookRow) {
   if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_REFUSALS.notHere, 409);
   const { error, count } = await removePlaybook(ctx.supabase, id);
   if (error) throw new Error(error.message);
-  if (!count) throw new AppError("not_found", "Campaign not found.", 404);
+  if (!count) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   const decisionId = await recordDecision(ctx, p.tenant_id, "playbook", id, "pause_playbook", {
     name: p.name,
     deleted: true,

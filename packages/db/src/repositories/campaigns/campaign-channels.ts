@@ -184,6 +184,23 @@ export async function runningTwins(
 }
 
 /**
+ * Whether this workspace already has a playbook on the proposal follow-up's moment (`trigger`), in any state: what the
+ * database's one-follow-up index (00167 playbooks_one_follow_up) holds a workspace to one of, read before a second is
+ * proposed (Ask's card) or a starter is filed for one (POST playbooks), so the index is the last word and never the first.
+ * Under the caller's row security. Throws on a failed read.
+ */
+export async function followUpOnFile(db: Db, tenantId: string, trigger: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("playbooks")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("trigger", trigger)
+    .limit(1);
+  if (error) throw new Error(`follow_up_on_file: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/**
  * Whether a read failed because the database has not reached the migration that adds a channel column it named: a
  * person's `consent_channels` and `marketing_channels` (00297), or a recipient's `channel` (00298). Postgres's 42703,
  * "column ... does not exist", read by its words as readLeadContext reads it. The caller reads again without the

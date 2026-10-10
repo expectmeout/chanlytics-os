@@ -996,6 +996,11 @@ async function runningTwins(db, tenantId, on) {
   if (error) throw new Error(`running_twins: ${error.message}`);
   return (data ?? []).filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey).map((p) => ({ id: p.id, name: p.name }));
 }
+async function followUpOnFile(db, tenantId, trigger) {
+  const { data, error } = await db.from("playbooks").select("id").eq("tenant_id", tenantId).eq("trigger", trigger).limit(1);
+  if (error) throw new Error(`follow_up_on_file: ${error.message}`);
+  return (data ?? []).length > 0;
+}
 function noChannelColumns(error) {
   return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
@@ -4671,6 +4676,7 @@ export {
   failedMessageErrors,
   finishableRuns,
   firstReplies,
+  followUpOnFile,
   followUpTouchesSince,
   forgetActivityTokens,
   forgetNotification,

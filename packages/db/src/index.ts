@@ -241,6 +241,7 @@ export {
   playbookForChannels,
   playbookForChange,
   runningTwins,
+  followUpOnFile,
   queuedRecipients,
   runGoesByOthers,
   campaignMonthSent,

@@ -129,6 +129,12 @@ export const LIBRARY_STARTER_WORDS = {
   /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
   notAdded:
     "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library.",
+  /**
+   * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
+   * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
+   */
+  notAddedSentForReview:
+    "The starter's WhatsApp version went to WhatsApp for review and is in the Library, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice.",
 } as const;
 
 /** What a broadcast is, said where a page defines it (the Sent room's standing line, on hover): one message, and where it goes. */
