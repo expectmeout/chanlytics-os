@@ -23,7 +23,9 @@ import {
   standingFromConfig,
   standingNeedsRead,
   toChannelVM,
+  tryItLink,
   waMeDigits,
+  waMeLink,
 } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-10-06T15:00:00Z");
@@ -534,9 +536,12 @@ test("a connected WhatsApp row says nothing of what WhatsApp costs (the Connect 
   for (const r of rows.filter((x) => x.kind !== "whatsapp")) assert.deepEqual(r.notes, [], r.kind);
 });
 
-test("a connected number nobody has written to yet says how to try it from a phone, built from its number; once a message has arrived, or when the row is off, waits on the owner, needs attention or has no number, it says nothing of the kind", () => {
+test("a connected number nobody has written to yet says how to try it from a phone, as a link to press built from its number; the row says it itself for the number's first day, and a number that waits on its owner's card says it too; once a message has arrived, or when the row is off, needs attention or has no number, it says nothing of the kind", () => {
+  // 8 October 2026: an owner took a number that had just connected for one that had not, since WhatsApp on their phone still
+  // said "invite". The note was plain words behind the row's press, and a new account (no card yet) did not say it at all.
   const TRY = {
-    text: "Try it from your phone: wa.me/13055550188 — if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.",
+    text: "Try it from your phone with this link, not by searching your contacts: it opens the chat even while WhatsApp there still says the number isn't on WhatsApp.",
+    link: { label: "wa.me/13055550188", href: "https://wa.me/13055550188?text=Hi" },
   };
   const unwritten = { last_inbound_at: null };
   assert.deepEqual(whatsappRow(channel(null, unwritten)).notes, [TRY]);
@@ -546,27 +551,67 @@ test("a connected number nobody has written to yet says how to try it from a pho
     [TRY, notVerified("2,000")],
     "the way to try it first, then what Meta holds (the tier Meta gave, no rating read yet)",
   );
+  // Its first day: the row says it without being asked. After it, and for a row whose clock reads ahead of ours, it is
+  // explanation again, behind the press beside the row's name.
+  const HOUR = 60 * MIN;
+  const connected = (ms) => whatsappRow(channel(null, { ...unwritten, created_at: ago(ms) })).notes;
+  assert.deepEqual(connected(2 * MIN), [{ ...TRY, live: true }], "a number that connected two minutes ago");
+  assert.deepEqual(connected(23 * HOUR), [{ ...TRY, live: true }], "still its first day");
+  assert.deepEqual(connected(25 * HOUR), [TRY], "the day after: there to be asked for, no longer said");
+  assert.deepEqual(connected(-5 * MIN), [TRY], "a row made in the future is no new number");
   assert.deepEqual(whatsappRow(channel(null)).notes, [], "a message has arrived");
-  assert.deepEqual(whatsappRow(channel(null, { ...unwritten, status: "disabled" })).notes, [], "off");
-  assert.ok(
-    !whatsappRow(channel(BLOCKED, unwritten)).notes.some((n) => n.text === TRY.text),
-    "waiting on the owner: the row says the one thing to do",
+  assert.deepEqual(
+    whatsappRow(channel(null, { ...unwritten, created_at: ago(2 * MIN), last_inbound_at: ago(MIN) })).notes,
+    [],
   );
+  assert.deepEqual(whatsappRow(channel(null, { ...unwritten, status: "disabled" })).notes, [], "off");
+  // A new account has no card yet, so its row waits on its owner from the moment it connects: the way to try it is said
+  // there too, first, since Meta lets the number answer a customer who writes first. A number Meta reports BLOCKED answers
+  // nobody, whether over the card or anything else, so it is not one to try.
+  const newAccount = { ...AVAILABLE, has_payment_method: false };
+  const waiting = whatsappRow(channel(newAccount, { ...unwritten, created_at: ago(2 * MIN) }));
+  assert.equal(waiting.stateWords, "Waiting on you");
+  assert.deepEqual(waiting.notes[0], { ...TRY, live: true });
+  for (const [standing, words] of [
+    [BLOCKED, "Waiting on you"],
+    [RESTRICTED, "Needs attention"],
+  ]) {
+    const stopped = whatsappRow(channel(standing, { ...unwritten, created_at: ago(2 * MIN) }));
+    assert.equal(stopped.stateWords, words);
+    assert.ok(
+      !stopped.notes.some((n) => n.text === TRY.text),
+      `${words}, BLOCKED: a number Meta has stopped is not one to try`,
+    );
+  }
+  // A number connected again keeps its row, and with it the row's birth: its first day runs from the connection's own
+  // stamp, and a row no connection has stamped falls back to its birth.
+  const again = (connectedAgo) =>
+    whatsappRow(channel(null, { ...unwritten, created_at: ago(30 * 24 * HOUR), connected_at: ago(connectedAgo) }))
+      .notes;
+  assert.deepEqual(again(2 * MIN), [{ ...TRY, live: true }], "connected again two minutes ago");
+  assert.deepEqual(again(25 * HOUR), [TRY], "connected again yesterday");
   assert.deepEqual(
     whatsappRow(channel(null, { ...unwritten, quality: "RED", quality_event: "FLAGGED" })).notes,
     [],
     "flagged: needs attention",
   );
   assert.deepEqual(whatsappRow(channel(null, { ...unwritten, number_e164: null })).notes, [], "no number, no link");
-  assert.match(
-    whatsappRow(channel(null, { ...unwritten, number_e164: "+442079460958" })).notes[0].text,
-    /^Try it from your phone: wa\.me\/442079460958 — /,
+  assert.deepEqual(
+    whatsappRow(channel(null, { ...unwritten, number_e164: "+442079460958" })).notes[0].link,
+    { label: "wa.me/442079460958", href: "https://wa.me/442079460958?text=Hi" },
     "any country's number, digits only",
   );
+  // The toast a connection ends with opens the same link.
+  assert.equal(tryItLink("+1 (305) 555-0188"), TRY.link.href);
+  assert.equal(tryItLink(null), null);
 });
 
 test("a wa.me link takes a number's digits, no plus, spaces or brackets, from the number as E.164 or as it is shown; too few digits is no link", () => {
   assert.equal(waMeDigits("+13055550188"), "13055550188");
   assert.equal(waMeDigits("+1 (305) 555-0188"), "13055550188");
   for (const none of [null, undefined, "", "12", "+1 305", "abc"]) assert.equal(waMeDigits(none), null, String(none));
+  // The link itself: the chat on that number, with words ready to send where there are any.
+  assert.equal(waMeLink("+1 (305) 555-0188"), "https://wa.me/13055550188");
+  assert.equal(waMeLink("+13055550188", "Hi there"), "https://wa.me/13055550188?text=Hi%20there");
+  assert.equal(waMeLink("12", "Hi"), null);
 });
