@@ -921,7 +921,15 @@ test("cards only: the cards are the Do, said in a sentence, in English and Spani
   );
   const es = answerForCards([{ title: "a" }, { title: "b" }], "es");
   assert.equal(es.say.headline, "2 tarjetas para revisar.");
-  assert.equal(es.say.detail, "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas.");
+  // Several cards are several presses (the moment spec, A7): a setup's cards are each approved apart.
+  assert.equal(
+    es.say.detail,
+    "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas.",
+  );
+  assert.equal(
+    answerForCards([{ title: "a" }, { title: "b" }], "en").say.detail,
+    "Each is its own press: approve, change or dismiss each one; nothing happens until you do.",
+  );
   assert.equal(es.language, "es");
 });
 

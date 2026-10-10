@@ -3,8 +3,6 @@
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": 2,
   "apps/dashboard/src/legacy/demo/pages/segments.jsx": 4,
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": 1,
-  "apps/dashboard/src/server/ask/prompt.ts": 1,
-  "apps/dashboard/src/server/ask/tools/act/playbook.ts": 1,
   "apps/dashboard/src/server/leads/lead-draft.ts": 1,
   "apps/dashboard/src/server/new-conversation/person-draft.ts": 1,
   "apps/dashboard/src/server/people/lists.ts": 1,

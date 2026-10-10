@@ -12092,7 +12092,7 @@ function answerForCards(cards, language) {
     n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`,
     language
   );
-  a.say.detail = n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas." : "Approve, change or dismiss each: nothing happens until you do.";
+  a.say.detail = n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do.";
   return a;
 }
 function failedAnswer(sentenceText, language) {

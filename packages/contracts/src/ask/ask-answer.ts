@@ -732,8 +732,8 @@ export function answerForCards(cards: ReadonlyArray<Pick<AskProposal, "title">>,
         ? "Apruébala, cámbiala o descártala: nada pasa hasta que lo hagas."
         : "Approve it, change it or dismiss it: nothing happens until you do."
       : es
-        ? "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas."
-        : "Approve, change or dismiss each: nothing happens until you do.";
+        ? "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas."
+        : "Each is its own press: approve, change or dismiss each one; nothing happens until you do.";
   return a;
 }
 

@@ -1692,3 +1692,44 @@ test("the speed pass, four: the page's data before the words needs no second rea
     "a message to many is a broadcast or one reply per thread",
   );
 });
+
+test("on Campaigns the turn's words say what a sentence there is: a campaign to propose, a change on its id, results from the rows; after an approval, read campaigns again; and the rules carry the setup rule (the moment spec, A2 and A4)", async () => {
+  const { turnWords, ASK_RULES, ASK_DEFINITIONS } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/prompt.ts")).href
+  );
+  const facts = {
+    role: "owner",
+    personLabel: "ada@example.com (owner)",
+    scope: null,
+    surface: "campaigns",
+    language: "en",
+    timezone: "America/New_York",
+    closures: [],
+    now: new Date(NOW),
+  };
+  const w = turnWords(facts);
+  assert.ok(w.includes("They are on Campaigns,"), w);
+  assert.ok(w.includes("is action change on its playbook_id"), w);
+  assert.ok(w.includes("their numbers are the last 30 days"), w);
+  assert.ok(!w.includes("They are on the campaigns page."), "the line, never the bare page");
+  assert.ok(!turnWords({ ...facts, surface: "today" }).includes("They are on Campaigns,"));
+  // A card approved since the last answer sends Ask back to the reads; one dismissed, failed or undone does not.
+  const since = [{ id: "p-1", title: "Campaign: Win-back", state: "done", receipt: "running", atMs: 1 }];
+  assert.ok(turnWords({ ...facts, since }).includes("read campaigns with action playbooks again, never the shape"));
+  for (const state of ["dismissed", "failed", "undone"])
+    assert.ok(!turnWords({ ...facts, since: [{ ...since[0], state }] }).includes("never the shape"), state);
+  const rule = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
+  assert.ok(rule, "the setup rule");
+  assert.ok(rule.includes("Only batch tool calls that are independent of each other."));
+  assert.ok(rule.includes("never that anything is set up, started or running"));
+  assert.ok(
+    ASK_RULES.indexOf(rule) === ASK_RULES.findIndex((r) => r.startsWith("A proposal is one card.")) + 1,
+    "after the rule that a proposal is one card",
+  );
+  // Words a person of any trade reads: the glossary's appointment, never a salon's visit.
+  assert.ok(ASK_DEFINITIONS.playbook.includes("by appointments where a calendar is connected"));
+  assert.ok(!/\bvisits?\b/.test(ASK_DEFINITIONS.playbook), ASK_DEFINITIONS.playbook);
+  // D19: the person reads Ask's answers, so Ask says the word the pages say, on every page (the definition is read on
+  // every turn; the Campaigns line only on Campaigns).
+  assert.ok(ASK_DEFINITIONS.playbook.includes("say campaign, never playbook"), ASK_DEFINITIONS.playbook);
+});
