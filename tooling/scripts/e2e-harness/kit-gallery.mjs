@@ -929,6 +929,37 @@ export const FAMILIES = [
     ],
   },
   {
+    family: "Search",
+    about:
+      "The capsule a list is searched from, Search (surfaces/kit/search/search.tsx), People's and the Inbox's: at rest on " +
+      "a phone a button saying what it finds; pressed, the field (16px on a phone) with its words, their clear and " +
+      "Cancel beside it; on a desk the field alone, at the page's size.",
+    entries: [
+      {
+        id: "search",
+        html:
+          `<div class="search"><button type="button" class="search-rest" aria-label="Search names, numbers and emails">` +
+          `${icon("search", 15)}<span>Search names, numbers and emails</span></button></div>`,
+      },
+      {
+        id: "search-open",
+        html:
+          `<div class="search" tabindex="-1"><label class="search-box">${icon("search", 15)}` +
+          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="Sam" ` +
+          `placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails">` +
+          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label>` +
+          `<button type="button" class="search-cancel">Cancel</button></div>`,
+      },
+      {
+        id: "search-desk",
+        html:
+          `<div class="search"><label class="search-box">${icon("search", 15)}` +
+          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="" ` +
+          `placeholder="Search by name or message" aria-label="Search by name or message"></label></div>`,
+      },
+    ],
+  },
+  {
     family: "Chip",
     about:
       "A name: a list, a person, a service. A hairline and no fill; one that opens is a button or a link; one that comes off carries its ×; one whose name outruns its column wraps.",
@@ -1076,12 +1107,12 @@ export const FAMILIES = [
           `</div></div>`,
       },
       {
-        id: "more-menu-solid",
+        id: "more-menu-select",
         stage: "pop",
         html:
           `<div class="more-wrap"><button type="button" class="rec-input rec-select" aria-haspopup="menu" aria-expanded="true">All activity ${icon("chevron-down", 10)}</button>` +
           `<div class="more-backdrop"></div>` +
-          `<div class="more-menu align-left solid" role="menu">` +
+          `<div class="more-menu align-left" role="menu">` +
           `<button class="more-item" role="menuitemradio" aria-checked="true">${icon("check", 13)}<span class="more-item-label">All activity</span></button>` +
           `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">What went wrong or was stopped</span></button>` +
           `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">Conversations</span></button>` +

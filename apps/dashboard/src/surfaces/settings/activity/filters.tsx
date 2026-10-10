@@ -112,10 +112,9 @@ function List<V extends string>({ label, value, options, onPick, testid }: ListP
       title={`${label}: ${said}`}
       btnClass="rec-input rec-select"
       align="left"
-      // Against the window, so the menu is as wide as its words under a box that is not; and on the pop's ground, so
-      // the log's coloured lines do not show through it.
+      // Against the window, so the menu is as wide as its words under a box that is not. Its ground is every pop's,
+      // dense enough that the log's coloured lines do not show through it (kit.css).
       escape
-      solid
       testid={testid}
     />
   );
@@ -266,7 +265,7 @@ function PersonBox({ n, set }: { n: Narrowing; set: (over: Partial<Narrowing>) =
         data-testid="act-person-q"
       />
       {matches.length > 0 && (
-        <div className="more-menu align-left solid" data-testid="act-person-matches">
+        <div className="more-menu align-left" data-testid="act-person-matches">
           {matches.map((m) => (
             <button
               key={m.id}

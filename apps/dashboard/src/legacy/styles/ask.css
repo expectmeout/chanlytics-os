@@ -8,7 +8,8 @@
 /* ---- The scrim and the panel: 720 wide, 80 from the top (the band is taller than the old bar), the page visible
    under it, no blur (the Stage's spec, 4.1) ---- */
 .ask-overlay.ask-line-scrim {
-  background: color-mix(in oklab, var(--bg-sunken) 64%, transparent);
+  /* The wash every sheet and dialog stands over on a desk (tokens.css; the phone's is the veil). */
+  background: var(--surface-scrim);
   /* blur(0), not none: the build drops a `none` written beside its -webkit- twin (mobile.css does the same). */
   backdrop-filter: blur(0);
   padding: 80px 24px 48px; align-items: flex-start;
@@ -16,7 +17,6 @@
 .ask-modal.ask-line {
   max-width: var(--measure-prose); max-height: calc(100vh - 128px); max-height: calc(100dvh - 128px);
   display: flex; flex-direction: column; overflow: hidden;
-  border-color: var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
 }
 /* It fades in and rises 4px; a phone's takeover fades in as the whole screen instead (the phone block, below). */
 @media (min-width: 721px) { .ask-modal.ask-line { animation: line-in 160ms var(--ease-out); } }

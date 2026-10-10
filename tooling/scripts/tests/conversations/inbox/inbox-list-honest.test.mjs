@@ -543,13 +543,17 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
     [0, -1, -1],
     "with none of these open, the first row keeps the list reachable",
   );
-  const search = find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input");
-  assert.equal(search.props["aria-label"], "Search conversations");
+  const search = find(tree, (n) => n.props?.["data-testid"] === "inbox-search");
+  assert.equal(
+    search.props["aria-label"],
+    search.props.placeholder,
+    "the field is named by what it finds (the kit's Search)",
+  );
   search.props.onChange({ target: { value: "ro" } });
   tree = draw();
   assert.equal(
-    find(tree, (n) => n.props?.className === "ix-search-clear").props["aria-label"],
-    "Clear search",
+    find(tree, (n) => n.props?.className === "search-clear").props["aria-label"],
+    "Clear the search",
     "REGRESSION: the clear was an unnamed icon",
   );
 });

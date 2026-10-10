@@ -50,12 +50,11 @@ test.describe("identity on a real workspace", () => {
       await expect(page.locator(".user-chip .name")).toHaveText("Ruben Test");
       await expect(page.locator(".user-chip .avatar")).toHaveText("RT");
       // The roster is the Team tab's; it is painted by the settings override,
-      // so wait for a row before reading the one that says You.
+      // so wait for a row before reading your own. Your row is the one marked
+      // data-me: "you" is in the partner row's sentence too.
       await page.goto("/#/admin/team");
       await page.locator(".set-team-row").first().waitFor({ timeout: 20_000 });
-      await expect(page.locator(".set-team-row").filter({ hasText: "You" }).locator(".set-team-name")).toContainText(
-        "Ruben Test",
-      );
+      await expect(page.locator('.set-team-row[data-me="true"] .set-team-name')).toContainText("Ruben Test");
       const cleared = await put("");
       expect(cleared.status).toBe(200);
       await page.reload();

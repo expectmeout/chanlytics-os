@@ -172,6 +172,104 @@ a.btn {
   border: 1px solid var(--line);
 }
 
+/* ---------- Search — the capsule a list is searched from (kit/search/search.tsx) ----------
+   People's phone search, the one the Inbox's list wears too (10 Oct 2026): a 38px capsule on an inset's fill with its
+   ring and depth, the glyph 15px and the words in the dim ink at the page's size. At rest on a phone it is a button
+   saying what it finds; pressed, it is the field, 16px on a phone so the phone never zooms into it, with Cancel beside
+   it. Its focus is a box's (--focus-field-edged: the capsule has no border of its own). The page places it (the room
+   round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the touch
+   floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.search > .search-rest,
+.search > .search-box {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--text-base);
+}
+.search > .search-rest {
+  text-align: left;
+  cursor: pointer;
+}
+.search-rest > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search .icon {
+  flex: none;
+}
+.search > .search-box:focus-within {
+  box-shadow: var(--focus-field-edged), var(--surface-inset-depth);
+}
+.search > .search-box > input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+.search-box > input::placeholder {
+  color: var(--ink-faint);
+}
+.search-box > input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search-box > .search-clear {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  min-height: 0;
+  margin-right: -10px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.search-cancel {
+  flex: none;
+  height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .search > .search-box > input {
+    font-size: var(--field-text-touch);
+  }
+}
+
 /* ---------- Badges: one shape per job ----------
    docs/superpowers/specs/2026-09-23-one-badge-system-design.md. Four shapes, one size each (the spec's pill and its
    quiet state are both .pill); no page keeps its own.
@@ -640,7 +738,19 @@ a.more-item {
     inset: auto 0 0 0 !important;
     transform: none !important;
   }
-  .pop-place > .more-menu {
+  /* The house's MoreMenu (Settings' filters and rows) is the same sheet (10 Oct 2026: a phone's menu is a bottom action
+     sheet, always), drawn on the document's body there (more-menu.tsx, `data-sheet`) so no card that isolates its
+     layers holds it under the tab bar. */
+  .more-menu[data-sheet] {
+    position: fixed;
+    inset: auto 0 0 0;
+    min-width: 0;
+    transform-origin: bottom center;
+  }
+  .more-backdrop[data-sheet] {
+    background: var(--surface-veil);
+  }
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
@@ -649,7 +759,7 @@ a.more-item {
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
   }
-  .pop-place > .more-menu::before {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet])::before {
     content: "";
     display: block;
     width: 36px;
@@ -658,14 +768,14 @@ a.more-item {
     border-radius: var(--radius-full);
     background: var(--line-strong);
   }
-  .pop-place > .more-menu .more-item {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item {
     min-height: 52px;
     padding: 0 12px;
     gap: 14px;
     border-radius: var(--radius-lg);
     font-size: var(--text-md);
   }
-  .pop-place > .more-menu .more-item .icon {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item .icon {
     width: 18px;
     height: 18px;
   }
@@ -680,7 +790,7 @@ a.more-item {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pop-place > .more-menu {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
     animation: none;
   }
 }
@@ -984,8 +1094,6 @@ a.more-item {
   z-index: 250;
   max-height: min(340px, 72vh);
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
 }
 
 /* ---------- Toast (usePPToast) — the one flash, in four tones ----------
@@ -1910,9 +2018,11 @@ a.more-item {
   max-width: none;
   display: flex;
   flex-direction: column;
-  background: var(--bg-raised);
+  /* A sheet is the solid that pops (tokens.css, --surface-pop-fill), as the kit's Sheet is: one ground for every
+     sheet and dialog, where this one spelled the same colour as the raised ground with the older shadow. */
+  background: var(--surface-pop-fill);
   border-left: 1px solid var(--line-strong);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--surface-pop-depth);
 }
 /* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
 .rec-sheet:focus {
@@ -3663,21 +3773,27 @@ a.list-row {
 }
 
 /* ---- What pops over the page (every canvas's popover) ----
-   An action menu is glass, as the control layer's capsules are (Ruben, 2 Oct 2026: "glassy"): its fill and sheen, its
-   blur, and its specular edge and depth in place of the menu's own shadow, so the page's light shows through it. The
-   roles fall back to a solid fill and no blur where the reader asks for less transparency. */
-.more-menu {
+   One glass for everything that pops, written once: an action menu (Menu, MoreMenu) and a panel that pops from a
+   control (the Select's list, the Combobox's and the Picker's, the date picker's month, a popover). The control
+   layer's sheen, its blur, and its specular edge and depth in place of a shadow or a hairline (Ruben, 2 Oct 2026:
+   "glassy"; 8 Oct, of Settings › Activity's lists: "the same glassy feel… without just the stroke"), on the pop's own
+   ground, --surface-pop-glass (tokens.css): dense enough that neither the page's colour nor a log's coloured lines show
+   through, light enough to read as glass (10 Oct 2026). Menus stood on the control layer's 8.5% and lists on 88%, two
+   looks for one job. The roles fall back to a solid fill and no blur where the reader asks for less transparency. */
+.more-menu,
+.panel-pop {
   border: 0;
-  background-color: var(--surface-control-fill);
+  background-color: var(--surface-pop-glass);
   background-image: var(--surface-control-sheen);
   backdrop-filter: var(--surface-control-blur);
   box-shadow: var(--surface-control-depth);
 }
-/* A menu that opens over rows of coloured words (MoreMenu `solid`: Settings › Activity's lists over its log) stands
-   on the pop's near-opaque ground (tokens.css, --surface-pop-glass), under the same sheen, blur and edge: the menu's
-   own glass let the amber and the red of the lines behind it through as a smear. */
-.more-menu.solid {
-  background-color: var(--surface-pop-glass);
+/* What pops and scrolls (a long menu, a select's list) wears one scrollbar: thin, in the line's strong ink, on
+   nothing. A list without it took the page's 10px bar, whose border is the page's ground: a dark box on the glass. */
+.more-menu,
+.rec-combo-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 /* An item lifts as a lozenge in the accent's soft tint, its glyph turning to the accent, under a pointer, a key or a
    finger. A phone's hover sticks to what the finger last touched, but the menu closes on the press, so it is never
@@ -3707,19 +3823,6 @@ a.list-row {
 .more-item.danger:active .icon,
 .more-item.danger:focus-visible .icon {
   color: var(--danger-ink);
-}
-/* A panel that pops from a control (the Select's list, the Combobox's and the Picker's, the date picker's month, a
-   popover) is lit as the menu is: the control layer's sheen, its blur, and its specular edge and depth, with no
-   hairline. It stood flat inside a stroke, a plain box among the menus it opens beside (Ruben, 8 Oct 2026, of Settings
-   › Activity's lists: "the same glassy feel… without just the stroke"). Its ground is the pop's own near-opaque glass
-   (tokens.css, --surface-pop-glass), not the menu's: the menu's let a log's coloured lines through. Both fall back as
-   the roles do. */
-.panel-pop {
-  border-width: 0;
-  background-color: var(--surface-pop-glass);
-  background-image: var(--surface-control-sheen);
-  backdrop-filter: var(--surface-control-blur);
-  box-shadow: var(--surface-control-depth);
 }
 /* A list's options lift as a menu's items do: a lozenge in the accent's soft tint under a pointer or a key, inside the
    list's own margin so the wash never meets the glass's edge. The house's hover was an opaque ground, a dark patch on

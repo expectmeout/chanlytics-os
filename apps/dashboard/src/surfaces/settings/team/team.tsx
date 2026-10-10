@@ -2,10 +2,10 @@
  * Settings › Team: who has access to this workspace, and as what (moved from legacy/pages/settings.jsx, decision 0015
  * step 11; redesigned 9 Oct 2026). Settings' page draws it as the Partner pane's Team (partner/team-card.tsx).
  *
- * The people first: the members, you at the top, then the invitations waiting to be taken. Under them the roles, with
- * Compare and an owner's Preview as, then the workspace's partner, so one card says who has access. View as stood at
- * the top as large as the roster and read like a filter on it; it is a menu on the roles' row now, and while it is on,
- * the shell's status line says so on every page.
+ * The people first: the members, you at the top, then the invitations waiting to be taken, then the workspace's partner,
+ * a group of its own, so one card says who has access. At the foot, what each role can do (roles.tsx). The head is the
+ * card's name, its count and Invite: Activity stood beside Invite and Preview as on the roles' row, and both are gone
+ * from the card (Ruben, 10 Oct 2026; Settings › Activity keeps the team's changes).
  *
  * The real roster and its open invitations, from the settings read (the seam's `team` and `invites`). It rendered four
  * invented colleagues once -- and put YOU beside one of them, on a real owner's own settings page -- and a failed read
@@ -23,16 +23,13 @@ import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import {
-  actingRole,
   canDo,
   gate,
   gateTitle,
   meNow,
   navigate,
   onRolesChanged,
-  routeDoor,
   viewAsRole,
   type LegacyFlash,
 } from "../../legacy-verbs";
@@ -41,25 +38,20 @@ import { alertsHeldFor, saveAlerts, teamActs, teamConfigOf } from "./acts";
 import { TeamInvite } from "./invite";
 import { PartnerRow } from "./partner";
 import { isLastOwner, ownersOf, teamPeopleOf } from "./people";
-import { RolesRow } from "./roles";
+import { RolesFoot } from "./roles";
 import { inviteRow, memberRow, type RowActs, type TeamAsk } from "./rows";
 import { PersonSheet } from "./sheet";
 
 type Flash = (f: LegacyFlash) => void;
 
-/** The card's head: its name, how many people (or that they could not be read), Activity and Invite. */
-function teamHead(o: { count: string; activity: boolean; invite: ReactNode }): ReactNode {
+/** The card's head: its name, how many people (or that they could not be read), and Invite. */
+function teamHead(o: { count: string; invite: ReactNode }): ReactNode {
   return (
     <div className="rec-card-head">
       <h2 className="rec-card-title" id="set-team-title">
         Team
       </h2>
       <span className="rec-card-sub">{o.count}</span>
-      {o.activity && (
-        <LinkButton {...routeDoor("admin/activity/team")} className="set-team-history" data-testid="team-activity">
-          <Icon name="clock" size={12} /> Activity
-        </LinkButton>
-      )}
       {o.invite}
     </div>
   );
@@ -97,9 +89,7 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
     now: Date.now(),
   });
   const everyone = [...members, ...waiting];
-  // The caller's REAL role decides what they may do; View-as previews a narrower one, and can only ever narrow. When
-  // only the TEAM read failed, the settings read still gave the caller's real role.
-  const serverRole = (read.settings && read.settings.role) || actingRole();
+  // A preview the role store holds narrows what the card offers, as every gate reads it.
   const previewing = viewAsRole();
   const canManage = canDo("team");
   const acts = teamActs({ read, flash, everyone, ask, setAsk, setBusy, resending, setResending });
@@ -142,7 +132,6 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
     <section className="rec-card set-card set-team" data-testid="set-team" aria-labelledby="set-team-title">
       {teamHead({
         count: countWords(members.length, waiting.length, failed),
-        activity: canDo("export"),
         // Invite is the card's act, so a role that may not invite sees it gated, saying why when pressed, instead of a
         // card with no act at all.
         invite:
@@ -192,20 +181,19 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
         </>
       )}
 
-      <RolesRow
-        isOwner={serverRole === "owner"}
-        previewing={previewing && previewing !== "owner" ? previewing : null}
-        withPartner={members.some((m) => m.role === "partner")}
-      />
-
       <PartnerRow flash={flash} previewing={!!previewing && previewing !== "owner"} />
 
-      {!canManage && !failed && (
-        <p className="set-team-ask-owner" data-testid="team-gated">
-          {gateTitle("team", "change the team")}
-          {askWho ? ` Ask ${askWho}.` : null}
-        </p>
-      )}
+      <RolesFoot
+        withPartner={members.some((m) => m.role === "partner")}
+        note={
+          !canManage && !failed ? (
+            <p className="set-team-ask-owner" data-testid="team-gated">
+              {gateTitle("team", "change the team")}
+              {askWho ? ` Ask ${askWho}.` : null}
+            </p>
+          ) : null
+        }
+      />
 
       {open && <PersonSheet person={open} k={k} onClose={() => setSheet(null)} />}
     </section>
