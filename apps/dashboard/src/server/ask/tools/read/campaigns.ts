@@ -361,7 +361,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
 const RUN_CAP = { people: 20, replies: 10 };
 
 /**
- * A broadcast as the Broadcasts page's row says it (contracts toBroadcastVM): its name, whether a playbook or a person
+ * A broadcast as the Broadcasts page's row says it (contracts toBroadcastVM): its name, whether a campaign or a person
  * sent it, its audience and template, its state in the page's words -- a run waiting for a person to approve it said
  * as such -- when, and what its messages earned.
  */
@@ -371,7 +371,8 @@ function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
     broadcast_id: b.id,
     route: `broadcasts/run:${b.id}`,
     name: b.name,
-    by: b.playbook_id ? "a playbook" : "a person",
+    // A person reads "campaign", never "playbook" (decision 19), and the model repeats what the row says.
+    by: b.playbook_id ? "a campaign" : "a person",
     audience: b.audience.label,
     template: b.template_name,
     state: vm.stateLabel,
@@ -473,7 +474,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the broadcasts",
       words:
-        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Waiting on you, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
+        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a campaign or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Waiting on you, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
       run: readBroadcasts,
     }),
     broadcast: readAction({

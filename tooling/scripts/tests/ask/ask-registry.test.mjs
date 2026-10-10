@@ -117,6 +117,12 @@ const PLAYBOOK_CHANNELS_WORDS = [
   "its message (template), its clock and next run,",
   "its message (template), the channels it goes by now (channels), its clock and next run,",
 ];
+/**
+ * 10 Oct 2026 (the final review of "a moment holds many campaigns"): a broadcast row's `by` says "a campaign" where it
+ * said "a playbook" (a person reads "campaign", decision 19, and the model repeats the row), so the sentence that names
+ * the field says the same word. The one phrase, once.
+ */
+const BROADCAST_BY_WORDS = ["whether a playbook or a person sent it", "whether a campaign or a person sent it"];
 /** 9 Oct 2026 (the moment spec, A6, D35): each playbook says its last 30 days, where it said what its runs earned. */
 const PLAYBOOK_RESULTS_WORDS = [
   "its list when it runs on one, what its runs earned,",
@@ -410,8 +416,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
     // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; (lane 1, T11): a message, where it said
-    // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by;
-    // nothing else it says moved.
+    // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by; (10
+    // Oct 2026) a broadcast sent by a campaign; nothing else it says moved.
     assert.equal(
       tool(role, "campaigns").description,
       MESSAGE_WORDS.reduce(
@@ -422,7 +428,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
         // Said over the message words above ("its message (template)"), so after them.
       )
         .replace(...PLAYBOOK_CHANNELS_WORDS)
-        .replace(...PLAYBOOK_RESULTS_WORDS),
+        .replace(...PLAYBOOK_RESULTS_WORDS)
+        .replace(...BROADCAST_BY_WORDS),
       role,
     );
     assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);

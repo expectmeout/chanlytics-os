@@ -10843,6 +10843,7 @@ var playbookChannelsSpec = {
   }
 };
 var patchIn = (pl) => Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && pl[k] !== null).map((k) => [k, pl[k]]));
+var resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
 var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
 var playbookChangeSpec = {
   needs: "operator",
@@ -10860,7 +10861,7 @@ var playbookChangeSpec = {
     return toastWords(LIFECYCLE_TOAST.changed(name));
   },
   undo: {
-    label: ({ payload }) => payload.state === "paused" ? "Resume it" : payload.state === "running" ? "Pause it again" : "Put it back",
+    label: ({ payload }) => payload.state === "paused" ? resumeUndoLabel(payload.mode) : payload.state === "running" ? "Pause it again" : "Put it back",
     window: "ten_minutes",
     // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
     // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody
@@ -28316,8 +28317,8 @@ function channelMarksOf(p, templates, ready) {
     return { channel: c, word: VERSION_CHANNEL_WORDS[c], state: stand === "could" && !message ? "off" : stand };
   });
 }
-function chainMarksOf(ready) {
-  const waits = ready !== null && (!ready.email.ready || ready.paused === true);
+function chainMarksOf(ready, workspacePaused) {
+  const waits = workspacePaused || ready !== null && !ready.email.ready;
   return CONSENT_CHANNELS.map((c) => ({
     channel: c,
     word: VERSION_CHANNEL_WORDS[c],
@@ -28527,7 +28528,7 @@ function chainRow(c, at3) {
     tone: waitingRun ? "warn" : paused ? "plain" : "ok",
     needs: "none",
     needsWords: W.chainNeeds,
-    channels: chainMarksOf(at3.ready),
+    channels: chainMarksOf(at3.ready, workspacePausedOf(at3.input)),
     people: { n: null, unit: W.businesses },
     results: chainResultsOf(c.root_id, at3.input.chains),
     next: waitingRun ? { words: LIFECYCLE_WORDS.coming.waiting, atMs: at3.input.nowMs } : paused ? { words: "Paused", atMs: null } : NO_NEXT,

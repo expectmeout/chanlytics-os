@@ -17,7 +17,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { PROPOSAL_SPECS, PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } = await import("@chanlytics/contracts");
+const { LIFECYCLE_WORDS, PROPOSAL_SPECS, PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } =
+  await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const playbookRoute = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
@@ -148,9 +149,18 @@ test("a pause says the run that waits stays waiting; a resume says its class's m
   };
   const pause = await change({ state: "paused" }, tables({ broadcasts: [waiting] }));
   assert.equal(pause.isError, false, pause.result);
-  assert.deepEqual([pause.proposal.title, pause.proposal.undo], ["Pause: Win-back", "Resume it"]);
+  // Its undo resumes it, under its class's mode: auto here, said in full in the Resume ask's own sentence (D7).
+  assert.deepEqual(
+    [pause.proposal.title, pause.proposal.undo],
+    ["Pause: Win-back", `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}`],
+  );
+  assert.equal(pause.proposal.payload.mode, "auto");
   assert.equal(pause.proposal.summary, `${PLAYBOOK_PATCH_WORDS.paused} · ${PLAYBOOK_PATCH_WORDS.pausedWaits(12)}`);
   assert.equal(pause.proposal.payload.run_waits, true);
+  // A pause needs no mode, so one whose mode could not be read is still a card; its undo claims no mode.
+  const unknown = await change({ state: "paused" }, tables(), { "policies.select": { message: "the read failed" } });
+  assert.equal(unknown.isError, false, unknown.result);
+  assert.deepEqual([unknown.proposal.undo, unknown.proposal.payload.mode], ["Resume it", null]);
   // With no run waiting, a pause says what it does and nothing of a run.
   const quiet = await change({ state: "paused" });
   assert.equal(quiet.proposal.summary, PLAYBOOK_PATCH_WORDS.paused);

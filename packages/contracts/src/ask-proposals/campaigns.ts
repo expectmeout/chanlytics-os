@@ -8,7 +8,7 @@ import {
   channelsWords,
   type ConsentChannel,
 } from "../consent/consent-channels";
-import { LIFECYCLE_TOAST, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
+import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
 import { PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
@@ -187,6 +187,14 @@ export const playbookChannelsSpec: ProposalSpec = {
 const patchIn = (pl: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== undefined && pl[k] !== null).map((k) => [k, pl[k]]));
 
+/**
+ * The undo of a pause: it resumes the campaign under its class's mode, so where the card read that mode as `auto` it says
+ * in full that the campaign sends on its own, in the Resume ask's own sentence (LIFECYCLE_WORDS.ledger.resume.auto,
+ * decision 7). Any other mode adds nothing, and a card made where the mode could not be read (`mode` null) claims none.
+ */
+const resumeUndoLabel = (mode: unknown): string =>
+  mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
+
 /** One of the drawer's sentences (LIFECYCLE_TOAST) as a receipt's words. */
 const toastWords = (parts: ReturnType<typeof LIFECYCLE_TOAST.changed>): string =>
   parts.map((part) => (typeof part === "string" ? part : part.b)).join("");
@@ -216,7 +224,11 @@ export const playbookChangeSpec: ProposalSpec = {
   },
   undo: {
     label: ({ payload }) =>
-      payload.state === "paused" ? "Resume it" : payload.state === "running" ? "Pause it again" : "Put it back",
+      payload.state === "paused"
+        ? resumeUndoLabel(payload.mode)
+        : payload.state === "running"
+          ? "Pause it again"
+          : "Put it back",
     window: "ten_minutes",
     // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
     // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody

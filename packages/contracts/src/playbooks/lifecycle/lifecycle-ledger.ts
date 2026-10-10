@@ -112,10 +112,11 @@ export function channelMarksOf(
 
 /**
  * A reach-out's mark: it goes by email alone, which its own sheet judges. On where the workspace can send email, or
- * that was not read; waits where it cannot, or the workspace is paused.
+ * that was not read; waits where it cannot, or the workspace is paused (`workspacePaused`: either surface's readiness,
+ * workspacePausedOf, the one pause every row and Coming up read).
  */
-function chainMarksOf(ready: ChannelsReady | null): LifecycleChannelMark[] {
-  const waits = ready !== null && (!ready.email.ready || ready.paused === true);
+function chainMarksOf(ready: ChannelsReady | null, workspacePaused: boolean): LifecycleChannelMark[] {
+  const waits = workspacePaused || (ready !== null && !ready.email.ready);
   return CONSENT_CHANNELS.map((c) => ({
     channel: c,
     word: VERSION_CHANNEL_WORDS[c],
@@ -407,7 +408,7 @@ function chainRow(
     tone: waitingRun ? "warn" : paused ? "plain" : "ok",
     needs: "none",
     needsWords: W.chainNeeds,
-    channels: chainMarksOf(at.ready),
+    channels: chainMarksOf(at.ready, workspacePausedOf(at.input)),
     people: { n: null, unit: W.businesses },
     results: chainResultsOf(c.root_id, at.input.chains),
     next: waitingRun

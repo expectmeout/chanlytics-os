@@ -457,6 +457,18 @@ test("a reach-out's mark: it goes by email alone, on where the workspace can sen
   assert.deepEqual(mark(ready({ whatsapp: true, email: true, paused: true })), ["off", "off", "waits"]);
   // The readiness not read: nothing says it cannot.
   assert.deepEqual(mark(null), ["off", "off", "on"]);
+  // The two surfaces disagree (one read before billing paused the workspace): the pause is either surface's
+  // (workspacePausedOf), as every other row and Coming up read it, so the mark waits whichever surface says it.
+  const marks = (pbReady, bcReady) =>
+    home({ playbooks: playbooks({ ready: pbReady }), broadcasts: broadcasts({ ready: bcReady }), reachOuts: [chain] })
+      .ledger.groups.flatMap((g) => g.rows)
+      .find((r) => r.id === "ro-1")
+      .channels.map((m) => m.state);
+  const open = ready({ whatsapp: true, email: true });
+  const pausedHere = ready({ whatsapp: true, email: true, paused: true });
+  assert.deepEqual(marks(open, pausedHere), ["off", "off", "waits"], "the broadcasts surface says paused");
+  assert.deepEqual(marks(pausedHere, open), ["off", "off", "waits"], "the playbooks surface says paused");
+  assert.deepEqual(marks(null, pausedHere), ["off", "off", "waits"], "one unread, the other paused");
 });
 
 test("where the readiness is unread and the counts predate the channels, the home says nothing of them", () => {

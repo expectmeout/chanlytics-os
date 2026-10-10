@@ -26,6 +26,7 @@ import {
   MEMBERSHIP_ROLES,
   PROPOSAL_GATE,
   LIFECYCLE_TOAST,
+  LIFECYCLE_WORDS,
   PROPOSAL_SPECS,
   PROPOSAL_WORDS,
   ROLE_PERMS,
@@ -757,6 +758,13 @@ test("a playbook's change from a card (A5): its own PUT with what it changes and
     [spec.undo.label(p), spec.undo.label(pause), spec.undo.label(resume), spec.undo.window],
     ["Put it back", "Resume it", "Pause it again", "ten_minutes"],
   );
+  // Undoing a pause resumes it under its class's mode (D7): where the card read that mode as auto, the undo says in full
+  // that it sends on its own, in the Resume ask's own sentence; any other mode says nothing more, and a card made where
+  // the mode could not be read (null) claims none.
+  const pausedUnder = (mode) => spec.undo.label(card("playbook_change", { ...pause.payload, mode }));
+  assert.equal(pausedUnder("auto"), `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}`);
+  assert.equal(pausedUnder("ask"), "Resume it");
+  assert.equal(pausedUnder(null), "Resume it");
   // The undo puts back what the route found when it wrote (its `was`), the card's copy only where a route answers none.
   // And the ledger row the change wrote, which its undo names (undo_of).
   const kept = spec.undo.record(p, { was: { name: "Spring win-back", run_hour: 11 }, decision_id: "d-change" }, TAB);

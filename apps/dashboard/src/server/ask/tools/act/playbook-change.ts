@@ -79,20 +79,21 @@ async function proposePlaybookChange(
   if (Object.keys(set).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.same(row.name));
   // The table's check holds the class to the set (playbooks.policy_class).
   const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
-  // The mode its runs go under, read only for a resume, the one card that says it (D7: under auto a resume sends
-  // unattended). A read that fails makes no card: the card would say a mode it does not know.
-  const policies = set.state === "running" ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];
-  if (!policies)
+  // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends unattended), and for a
+  // pause, whose undo resumes it and says it the same way. A resume whose read fails makes no card: the card would say a
+  // mode it does not know. A pause needs none, so it is still a card, and its undo claims no mode (`mode` null).
+  const policies = set.state ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];
+  if (!policies && set.state === "running")
     return refuse(
       `the sending mode of “${cls}” could not be read just now, so a resume cannot say what its runs would do; say so, and try again in a moment`,
     );
   // A class with no row of its own runs under ask, as a run reads it (core run-playbook).
-  const mode = policies.find((r) => r.class === row.policy_class)?.mode ?? "ask";
+  const mode = policies ? (policies.find((r) => r.class === row.policy_class)?.mode ?? "ask") : null;
   const waits = row.waiting ? row.waiting.recipient_count : null;
   return propose({
     kind: "playbook_change",
     title: PLAYBOOK_PATCH_WORDS.title(set, row.name),
-    summary: changeParts(set, was, { cls, mode, waits }).join(" · "),
+    summary: changeParts(set, was, { cls, mode: mode ?? "ask", waits }).join(" · "),
     payload: {
       playbook_id: row.id,
       playbook_name: row.name,
@@ -100,6 +101,8 @@ async function proposePlaybookChange(
       was,
       run_waits: row.waiting !== null,
       timezone: t.timezone,
+      // A pause's undo resumes it: the mode it would resume under, as read now (contracts playbookChangeSpec's undo).
+      ...(set.state === "paused" ? { mode } : {}),
     },
   });
 }

@@ -1148,6 +1148,10 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
       "and the address becomes the page's own, in place, so Back does not land on it again",
     );
     assert.ok(shows(mount("#/soon/fleet").tree, "ComingSoon"), "a page kept for the demo still says so");
+    // What it says a person reads: "campaigns", never "playbooks" (decision 19).
+    const soon = find(mount("#/soon/fleet").tree, (n) => typeof n.type === "function" && n.type.name === "ComingSoon");
+    const blurb = textOf(find(soon.type(soon.props), (n) => n.props?.className === "soon-blurb"));
+    assert.equal(blurb, "Deep management for every agent: autonomy, campaigns, performance.");
     tree = mount("#/soon/nope").tree;
     assert.ok(
       shows(tree, "NotFound") && !shows(tree, "ComingSoon"),
