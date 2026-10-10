@@ -66,6 +66,7 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
         quality_at: s("quality_at"),
         standing: standingFromConfig(cfg.standing),
         standing_read_at: s("standing_read_at"),
+        connected_at: s("connected_at"),
       };
     });
     return { data: { channels }, rows: [], stamp: stamp() };

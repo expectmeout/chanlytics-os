@@ -168,6 +168,7 @@ export { lineReleaseAfterDays, billingEndedAt, lineReleaseStep, lineReleaseDay, 
 export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords, numberHealthWithStanding } from "./lines/number-standing";
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
+export { tryItLink } from "./lines/whatsapp-try-it";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge";
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES, callActivityStart, callActivityPropsOf } from "./mobile/live-activity";
 export { todayWidgetSnapshot, parseTodayWidgetSnapshot } from "./mobile/widget";
@@ -263,7 +264,7 @@ export { zoneDayKey, clockTime, clockHour, clockDate, clockDateYear, clockShort,
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./shared/csv";
 export { EDGE_ERROR_CODES } from "./shared/edge-errors";
 export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./shared/email-address";
-export { optInPurposeOf, optInLink, waMeDigits, TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, IDENTITY_ASSURANCES, CONVERSATION_STATES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES, MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, EVENT_SUBSCRIBERS, JOB_STATES, WABA_FIELDS, EVENT_KINDS, OPT_OUT_PATTERN, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, SMS_OPT_OUT_PATTERN, OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS, ACTOR_TYPES, TEMPLATE_STATUSES } from "./shared/enums";
+export { optInPurposeOf, optInLink, waMeDigits, waMeLink, TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, IDENTITY_ASSURANCES, CONVERSATION_STATES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES, MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, EVENT_SUBSCRIBERS, JOB_STATES, WABA_FIELDS, EVENT_KINDS, OPT_OUT_PATTERN, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, SMS_OPT_OUT_PATTERN, OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS, ACTOR_TYPES, TEMPLATE_STATUSES } from "./shared/enums";
 export { ok, err } from "./shared/envelope";
 export { ERROR_CODES, AppError } from "./shared/errors";
 export { escapeHtml } from "./shared/html";

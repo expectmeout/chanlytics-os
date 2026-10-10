@@ -17,10 +17,10 @@ import type { ConnectionNote } from "../lines/connection-note";
 import { codeNotes, type LineCodeDto } from "../lines/line-codes";
 import { standingNotes, standingRow } from "../lines/number-standing";
 import { whatsappCostNotes } from "../lines/whatsapp-cost";
+import { tryItNotes } from "../lines/whatsapp-try-it";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
 import type { LineDto, SetupDto } from "./setup";
 import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
-import { waMeDigits } from "../shared/enums";
 import { agoWords, HOUR_MS } from "../shared/time";
 import { checkedWords, connectionWords, listingLine } from "../google/google";
 import { formatPhoneDisplay } from "../shared/phone";
@@ -383,21 +383,6 @@ function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
 
-/**
- * What a connected number says until a customer has written to it: how to try it from a phone. WhatsApp keeps its own record of which
- * numbers are on WhatsApp, and a number registered a moment ago can read "isn't on WhatsApp" for an hour (6 October); opening its
- * wa.me link forces a fresh lookup, and the chat opens. The link's digits are waMeDigits's, the one place that says them.
- */
-function tryItNotes(wa: ChannelVM): ConnectionNote[] {
-  const digits = waMeDigits(wa.number);
-  if (!digits || wa.lastInboundMs !== null) return [];
-  return [
-    {
-      text: `Try it from your phone: wa.me/${digits} — if WhatsApp says the number isn't on WhatsApp yet, open this link instead of searching your contacts.`,
-    },
-  ];
-}
-
 /** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
 const LIBRARY: ConnectionVerb = { label: "Library", to: "messages", who: "operator" };
 
@@ -409,7 +394,7 @@ const LIBRARY: ConnectionVerb = { label: "Library", to: "messages", who: "operat
  * says one daily limit, the quality webhook's once Meta has sent one, else the tier the standing read: in the sentence where
  * the rating is known, in the verification's note where it is not. A switched-off number says nothing of Meta's.
  */
-function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: ChannelVM): Draft {
+function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: ChannelVM, nowMs: number): Draft {
   const row = { ...base, detail: wa.number };
   if (!wa.on) return { ...row, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
   const limit = wa.messagingLimit ?? wa.standing?.limit ?? null;
@@ -423,7 +408,13 @@ function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: Cha
         stateWords: stood.stateWords,
         sentence: stood.sentence,
         verb: stood.act ? { label: stood.act.label, to: stood.act.href, href: stood.act.href, who: "owner" } : null,
-        notes: standingNotes(standing, { limitSaid: false }),
+        // A number Meta lets send still answers the customer who writes first while it waits on its owner's card (Meta
+        // holds back only what the business starts), and a new account waits so the moment it connects: the way to try it
+        // is said here too. A BLOCKED number answers nobody, so it is not one to try (standingRow says the same of it).
+        notes: [
+          ...(standing.can_send === "BLOCKED" ? [] : tryItNotes(wa, nowMs)),
+          ...standingNotes(standing, { limitSaid: false }),
+        ],
       };
   }
   const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit });
@@ -437,7 +428,7 @@ function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: Cha
     verb: LIBRARY,
     // How to try it from a phone, first, on a row nobody has written to yet; then what Meta holds that the owner can act on.
     notes: [
-      ...(flagged ? [] : tryItNotes(wa)),
+      ...(flagged ? [] : tryItNotes(wa, nowMs)),
       ...standingNotes(standing, { limitSaid: h.tone !== "unknown" && h.limitPerDay !== null }),
     ],
   };
@@ -446,7 +437,7 @@ function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: Cha
 /** WhatsApp: the channel row when there is one; Meta's door when there is not. */
 function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): Draft {
   const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
-  if (wa) return whatsappNumberRow(base, wa);
+  if (wa) return whatsappNumberRow(base, wa, nowMs);
   if (i.whatsapp === undefined) {
     return {
       ...base,
