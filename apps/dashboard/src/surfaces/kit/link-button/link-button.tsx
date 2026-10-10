@@ -13,15 +13,21 @@ import type { PressAct, PressDoor } from "../press";
 import { Press } from "../press";
 import { cx, variants } from "../variants";
 
-const linkButtonClasses = variants({ base: "link-btn", variants: { tone: { danger: "link-btn-danger" } } });
+const linkButtonClasses = variants({
+  base: "link-btn",
+  variants: { tone: { danger: "link-btn-danger" }, size: { line: "link-btn-line" } },
+});
 
-/** Quiet words: their one tone, and an act or a door (../press.tsx). */
-export type LinkButtonProps = { tone?: "danger" } & (PressAct | PressDoor);
+/**
+ * Quiet words: their one tone, their size, and an act or a door (../press.tsx). Its own size is a line's acts' small
+ * words; `line` is the line's own, where the words are a line's door (a list row's name, its link to what it opens).
+ */
+export type LinkButtonProps = { tone?: "danger"; size?: "line" } & (PressAct | PressDoor);
 
 /** Quiet words that act, or open a page where they have an address. */
-export function LinkButton({ tone, className, children, ...element }: LinkButtonProps) {
+export function LinkButton({ tone, size, className, children, ...element }: LinkButtonProps) {
   return (
-    <Press {...element} className={cx(linkButtonClasses({ tone }), className)}>
+    <Press {...element} className={cx(linkButtonClasses({ tone, size }), className)}>
       {children}
     </Press>
   );

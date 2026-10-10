@@ -32,7 +32,7 @@ export function RowName({ r, acts }: { r: LifecycleRow; acts: LedgerActs }) {
   const door = r.open ? acts.door(r.open) : null;
   if (!door) return <span className="cmh-row-name">{r.name}</span>;
   return (
-    <LinkButton {...door} className="cmh-row-name" data-row-open data-testid="cmh-row-open">
+    <LinkButton {...door} size="line" className="cmh-row-name" data-row-open data-testid="cmh-row-open">
       {r.name}
       {r.kind === "call_text" ? <Icon name="chevron" size={12} /> : null}
     </LinkButton>

@@ -156,10 +156,11 @@ interface HeadProps {
   g: LifecycleGroup;
   stage: LifecycleStage | null;
   acts: LedgerActs;
+  W: LifecycleLedger["words"];
 }
 
 /** A group's head: a moment's node on the line (its glyph or clock or check, caps, figure, state, or Turn on), or a group off the line. */
-function PhoneHead({ g, stage, acts }: HeadProps) {
+function PhoneHead({ g, stage, acts, W }: HeadProps) {
   const turnOn = g.add && g.rows.length === 0 ? g.add : null;
   return (
     <div
@@ -177,7 +178,7 @@ function PhoneHead({ g, stage, acts }: HeadProps) {
       <span className="cmh-group-caps">{g.caps}</span>
       {stage ? (
         <span className="cmh-figure tabular" data-testid="cmh-people">
-          {stage.people === null ? "—" : stage.people}
+          {stage.people === null ? W.dash : stage.people}
         </span>
       ) : (
         <span className="cmh-dim">{g.meta}</span>
@@ -204,7 +205,8 @@ interface PhoneRowProps {
 /**
  * One row: the kit's ListRow wearing its group's glyph as a mark, the whole row its press, its state once (its pill, in
  * the phone's words, or Resume where it is paused), its one line (contracts ledgerPhoneLine), and what it decides under
- * it at its whole width.
+ * it at its whole width. A row with nothing to say in the phone's words (the call's text while its templates are unread
+ * or failed) wears no pill, never an empty one.
  */
 function PhoneRow({ r, g, W, acts, mark }: PhoneRowProps) {
   const resume = r.act && r.act.kind === "resume" ? r.act : null;
@@ -227,9 +229,9 @@ function PhoneRow({ r, g, W, acts, mark }: PhoneRowProps) {
         end={(place) =>
           resume ? (
             <ResumePress act={resume} ask={ask} gated={acts.gated} className={`${place} cmh-row-resume`} />
-          ) : (
+          ) : r.phoneWords ? (
             <StatePill kind="tone" value={r.tone} label={r.phoneWords} className={place} />
-          )
+          ) : null
         }
         said={ledgerPhoneLine(r, g.caps)}
         facts={[<ChannelMarks key="by" marks={r.channels} />, resultsWords(r, W).words]}
@@ -317,7 +319,7 @@ export function LedgerPhone({ home, view, acts, mark, searchRef }: LedgerPhonePr
             aria-label={g.caps}
             data-testid="cmh-group"
           >
-            <PhoneHead g={g} stage={stageOf(g.id)} acts={acts} />
+            <PhoneHead g={g} stage={stageOf(g.id)} acts={acts} W={W} />
             {g.rows.map((r) => (
               <PhoneRow
                 key={markOf(r.id) === "arrived" ? `${r.id}:arrived` : r.id}

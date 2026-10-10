@@ -98,6 +98,8 @@ interface StageProps {
   s: LifecycleStage;
   acts: RailActs;
   resume: ResumeOf | null;
+  /** What a cell says where nobody counted: the ledger's own word for it, never a dash typed here. */
+  dash: string;
 }
 
 /**
@@ -105,7 +107,7 @@ interface StageProps {
  * narrows the ledger to the moment, and lets go pressed again (decision 12: the body filters, the name opens). The
  * lead's name, the door to its drawer, and Turn on stand beside it, never inside it: a button holds no button.
  */
-function Stage({ s, acts, resume }: StageProps) {
+function Stage({ s, acts, resume, dash }: StageProps) {
   const chosen = acts.chosen === s.id;
   // The name is a door where the moment's act opens something: its lead's drawer, or, for a moment of the appointment
   // with no calendar ("Needs your calendar", decision 44), the calendar's setting.
@@ -122,6 +124,7 @@ function Stage({ s, acts, resume }: StageProps) {
     >
       <Button
         variant="quiet"
+        size="fit"
         className="cmh-stage-press"
         aria-pressed={chosen}
         onClick={() => acts.onChoose(chosen ? null : s.id)}
@@ -129,7 +132,7 @@ function Stage({ s, acts, resume }: StageProps) {
       >
         <span className="cmh-caps">{s.caps}</span>
         <span className="cmh-figure tabular" data-testid="cmh-people">
-          {s.people === null ? "—" : s.people}
+          {s.people === null ? dash : s.people}
         </span>
         <span className="cmh-unit">{s.unit}</span>
         {/* The summary where the moment holds two or more ("3 campaigns · 2 on · 1 paused"); one campaign's summary is
@@ -214,7 +217,7 @@ export function Rail({ home, acts, children }: { home: LifecycleHome; acts: Rail
           data-own-drag
         >
           {rail.stages.map((s) => (
-            <Stage key={s.id} s={s} acts={acts} resume={leadResume(home, s)} />
+            <Stage key={s.id} s={s} acts={acts} resume={leadResume(home, s)} dash={home.ledger.words.dash} />
           ))}
         </ol>
       ) : null}

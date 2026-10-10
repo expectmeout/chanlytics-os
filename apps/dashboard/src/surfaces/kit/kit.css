@@ -2824,6 +2824,19 @@ select.rec-input :is(option, optgroup) {
 .link-btn-danger {
   color: var(--danger);
 }
+/* Words of a line that are its door (a list row's name, where the row is the press and the name its link): the line's
+   own size, weight and ink, never the quiet link's small words, and no underline; a block, so a long name ends in an
+   ellipsis, which the link's flex box cannot draw. */
+.link-btn-line {
+  display: block;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .link-btn:hover {
   color: var(--ink);
 }
@@ -3454,6 +3467,17 @@ a.list-row {
 .btn-icon.btn-lg {
   width: var(--control-h-lg);
   padding: 0;
+}
+/* A press the size of the words it holds, which keep their own type: an area of a page's words that is one press
+   (Campaigns' moment card, whose caps, figure and unit narrow the ledger), not a control's label. No gap of a button's
+   between its parts, no weight or tracking of one, its height its words', which wrap: a button's gap made the card
+   12 to 18px taller, and its weight set every word of the card in bold. */
+.btn-fit {
+  gap: 0;
+  height: auto;
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-normal);
+  white-space: normal;
 }
 .btn-primary {
   font-weight: var(--weight-semibold);

@@ -230,7 +230,9 @@ function useLedgerPage(
   address: HomeAddress,
   at: { group: string | null; nav: Nav; phone: boolean },
 ) {
-  const marks = useRowMarks();
+  // A sheet over the ledger: the drawer, or a composer (a reach-out's sheet among them, at the composer's address).
+  const sheetOpen = address.moment !== null || address.compose !== null;
+  const marks = useRowMarks(sheetOpen);
   const settled = marks.mark && marks.mark.kind === "settled" ? marks.mark.id : null;
   const view = useLedgerView(home.ledger, { group: at.group, onGroup: at.nav.narrow, phone: at.phone, keep: settled });
   useLetGo(`${view.status}|${view.group ?? ""}|${view.query}`, marks.clear);
@@ -245,7 +247,7 @@ function useLedgerPage(
     focusSearch: () => searchRef.current?.focus(),
     narrowed: view.filtered,
     clearOne: view.clearOne,
-    sheetOpen: address.moment !== null || address.compose !== null,
+    sheetOpen,
   });
   // The rows the screen shows, so focus has a row to go to when the opener is gone (the row now at its index, else the
   // last, else the search).
@@ -365,6 +367,7 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
         onSaved={(d, changed) => {
           nav.close();
           composerDone(flash)(d, changed);
+          // Held until no sheet stands (useRowMarks): a change made from a drawer closes back to it first.
           if (d.id) ledger.marks.arrive(d.id);
         }}
       />

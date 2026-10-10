@@ -567,8 +567,8 @@ const railHome = (stages, groups = []) => ({
   },
   head: { channels: null },
   failed: { counts: null },
-  // The ledger's groups, as far as the rail reads them: a paused moment's Resume is its lead row's own act.
-  ledger: { groups },
+  // The ledger's groups, as far as the rail reads them: a paused moment's Resume is its lead row's own act; and its words.
+  ledger: { groups, words: WORDS },
 });
 const railActs = (chosen = null) => {
   const did = [];
@@ -1100,6 +1100,8 @@ test("a campaign the composer just saved arrives: the sheet closes, the toast sa
   find(tree, (n) => n.type === PlaybookComposer).props.onDone({ id: "pb-sample-winback", name: "Win-back" }, true);
   assert.deepEqual(replaced, ["campaigns"], "the sheet a link arrived at closes to the home");
   assert.match(textOf(toasts.at(-1).msg), /Win-back changed/);
+  // The home drawn with no sheet over it marks the arrival, and the draw after it wears the mark, as React draws again.
+  page();
   const row = allBy(page(), "cmh-row").find((r) => r.props["data-row"] === "pb-sample-winback");
   assert.equal(row.props["data-arrived"], "true");
   assert.deepEqual(
@@ -1211,4 +1213,92 @@ test("on a desk the drawer's foot is empty when nothing waits: Pause stands in i
   const running = page("moment:pb-sample-winback");
   assert.equal(byTestId(running, "pb-pause-foot"), null);
   assert.match(textOf(byTestId(running, "pb-pause")), /Pause/);
+});
+
+/* ------------------------------------------- a change saved from the drawer ------------------------------------------- */
+
+const { PlaybookPane } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/playbooks/card-detail.tsx");
+
+test("a change saved from a row's drawer is scrolled to and washed once the last sheet closes, never behind it; saved again, it is washed again", () => {
+  surfaces();
+  fresh();
+  const log = [];
+  globalThis.document.querySelector = documentOf(log);
+  const ID = "pb-sample-winback";
+  const rowIn = (tree) => allBy(tree, "cmh-row").find((r) => r.props["data-row"] === ID);
+  const scrolls = () => log.filter(([what, sel]) => what === "scroll" && sel === `[data-row="${ID}"]`).length;
+  // Each address drawn twice: an effect's change is drawn on the next draw, as React draws again after it.
+  const at = (param) => (page(param), page(param));
+  const saveFromTheDrawer = () => {
+    press(byTestId(rowIn(at(null)), "cmh-row-open"));
+    let tree = at(`moment:${ID}`);
+    assert.equal(rowIn(tree).props["data-arrived"], undefined, "a drawer opened lets go of the row's last arrival");
+    find(tree, (n) => n.type === PlaybookPane).props.onEdit({ id: ID });
+    tree = at(`new:edit:${ID}`);
+    find(tree, (n) => n.type === PlaybookComposer).props.onDone({ id: ID, name: "Win-back" }, true);
+    // Saved: the composer goes back to the drawer the change was made from, and the row behind it is left as it was.
+    tree = at(`moment:${ID}`);
+    assert.equal(rowIn(tree).props["data-arrived"], undefined, "never washed behind the drawer");
+    sheetOf(tree).props.onClose();
+    return at(null);
+  };
+  let home = saveFromTheDrawer();
+  assert.equal(rowIn(home).props["data-arrived"], "true", "the last sheet closed: the row is washed");
+  assert.equal(scrolls(), 1, "and scrolled to, once");
+  assert.equal(toasts.length, 1);
+  assert.match(textOf(toasts[0].msg), /Win-back changed/);
+  home = saveFromTheDrawer();
+  assert.equal(rowIn(home).props["data-arrived"], "true", "saved again, washed again");
+  assert.equal(scrolls(), 2, "and scrolled to again");
+  assert.deepEqual(said, [["back"], ["back"], ["back"], ["back"]], "each sheet closed back to what stood under it");
+});
+
+test("a moment whose people were not counted says the ledger's own dash, on the desk's card and on a phone's head", () => {
+  fresh();
+  // A word of the test's own for the dash: the card and the head read the ledger's, and type none of their own.
+  const words = { ...WORDS, dash: "not counted" };
+  const home = { ...railHome([stageOf("before", { people: null })]), ledger: { groups: [], words } };
+  const desk = again(() => h(Rail, { home, acts: railActs() }));
+  assert.equal(textOf(byTestId(card(desk, "before"), "cmh-people")).trim(), "not counted");
+  fresh();
+  const phone = phoneHome({ ...NINE(), words });
+  phone.rail = {
+    ...phone.rail,
+    stages: phone.rail.stages.map((s) => (s.id === "before" ? { ...s, people: null } : s)),
+  };
+  const head = allBy(drawPhone(phone).draw(), "cmh-group-head").find((x) => x.props["data-group"] === "before");
+  assert.equal(textOf(byTestId(head, "cmh-people")).trim(), "not counted");
+});
+
+test("a card's press and a row's name are the kit's own variants: the press the size of its words, the name its line's door", () => {
+  fresh();
+  const desk = again(() => h(Rail, { home: railHome([stageOf("before")]), acts: railActs() }));
+  const toggle = byTestId(card(desk, "before"), "cmh-stage-press");
+  assert.deepEqual(
+    [toggle.props.variant, toggle.props.size],
+    ["quiet", "fit"],
+    "its words keep their own type (kit.css)",
+  );
+  fresh();
+  const phone = drawPhone(phoneHome(NINE())).draw();
+  const name = byTestId(
+    allBy(phone, "cmh-row").find((r) => r.props["data-row"] === "pb-a"),
+    "cmh-row-open",
+  );
+  assert.equal(name.props.size, "line", "the row's name in its line's size, weight and ink (kit.css)");
+});
+
+test("the phone's own words are the ones it says: its head's name, and no word left from the rail it no longer draws", () => {
+  assert.deepEqual(Object.keys(contracts.LIFECYCLE_WORDS.phone), ["moments"]);
+});
+
+test("on a phone a row with no state in the phone's words draws no pill: the call's text while its templates are unread", () => {
+  fresh();
+  const tree = drawPhone(phoneHome(NINE())).draw();
+  const pillOf = (id) => {
+    const row = allBy(tree, "cmh-row").find((r) => r.props["data-row"] === id);
+    return find(row, (n) => n.props?.className === "list-row-end" && "label" in n.props);
+  };
+  assert.equal(pillOf("call_text"), null, "no pill with nothing on it");
+  assert.equal(pillOf("pb-a").props.label, "daily 9:00 AM", "a row with its words keeps its pill");
 });

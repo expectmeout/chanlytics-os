@@ -840,7 +840,7 @@ export const FAMILIES = [
   {
     family: "Button",
     about:
-      "The button: secondary, primary, quiet and danger; small, and a glyph alone; a link drawn as one; off; refused by a role.",
+      "The button: secondary, primary, quiet and danger; small, and a glyph alone; the size of the words it holds, in their own type; a link drawn as one; off; refused by a role.",
     entries: [
       {
         id: "btn",
@@ -869,6 +869,10 @@ export const FAMILIES = [
         html:
           `<button type="button" class="btn btn-icon" aria-label="More">${icon("more", 14)}</button> ` +
           `<button type="button" class="btn btn-icon btn-sm" aria-label="Close">${icon("x", 12)}</button>`,
+      },
+      {
+        id: "btn-fit",
+        html: `<button type="button" class="btn btn-fit btn-ghost" aria-pressed="false">Visit reminder: 12 people, 3 campaigns, 2 on and 1 paused</button>`,
       },
       { id: "btn-link", html: `<a class="btn" href="#kit">${icon("copy", 13)}Download the QR code</a>` },
       {
@@ -1659,7 +1663,8 @@ export const FAMILIES = [
       "kit.css's quiet link button (step 2.2): words that act with no ground, as Confirm's No and a line's acts draw " +
       "them, its danger form, and words that open a page, a link that keeps the browser's underline in the words' " +
       "colour, as the house's quiet links draw one. Each beside the rule it reproduces (.cl-bucket-link), which the " +
-      "spec holds it equal to.",
+      "spec holds it equal to. And a line's door: a list row's name in the line's own size, weight and ink, cut with " +
+      "an ellipsis.",
     entries: [
       {
         id: "link-btn",
@@ -1690,6 +1695,10 @@ export const FAMILIES = [
         id: "src-cl-bucket-link-door",
         source: "styles/components.css:1882",
         html: `<a class="cl-bucket-link" href="#kit">Open the listing${icon("arrow-right", 10)}</a>`,
+      },
+      {
+        id: "link-btn-line",
+        html: `<a class="link-btn link-btn-line" href="#kit">Win-back, for everyone quiet for 30 days with nothing booked</a>`,
       },
     ],
   },

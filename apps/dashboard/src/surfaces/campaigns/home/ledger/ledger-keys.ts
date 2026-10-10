@@ -231,30 +231,50 @@ export type RowMark = { id: string; kind: "settled" | "arrived" } | null;
 /**
  * The page's marks: one row at a time, the last one marked, until it is let go of (`clear`). An arrival is only marked
  * here: a campaign just made has no row until the playbooks are read again, so it is scrolled to when its row is drawn
- * (`useArrivalLands`).
+ * (`useArrivalLands`). `sheetOpen`: whether a sheet stands over the ledger. A campaign saved from a sheet is held until
+ * none does (a change made from a row's drawer closes back to that drawer): marked behind it, its row was scrolled to and
+ * washed where nobody saw it, and nothing moved as the drawer closed (spec 2026-10-09 §4.6). A sheet opened over an
+ * arrival lets go of it: the row is drawn plain behind the sheet, so the next arrival, the same campaign saved again, is
+ * drawn anew and washed again.
  */
-export function useRowMarks(): {
+export function useRowMarks(sheetOpen: boolean): {
   mark: RowMark;
   settle: (id: string) => void;
   arrive: (id: string) => void;
   clear: () => void;
 } {
   const [mark, setMark] = useState<RowMark>(null);
+  const [held, setHeld] = useState<string | null>(null);
+  useEffect(() => {
+    if (sheetOpen) {
+      if (mark && mark.kind === "arrived") setMark(null);
+      return;
+    }
+    if (held === null) return;
+    setHeld(null);
+    setMark({ id: held, kind: "arrived" });
+  }, [sheetOpen, held]); // eslint-disable-line react-hooks/exhaustive-deps -- a sheet's coming and going, and a save, alone say when
   const settle = (id: string) => {
     setMark({ id, kind: "settled" });
     focusRowOpener(id);
   };
-  const arrive = (id: string) => setMark({ id, kind: "arrived" });
-  return { mark, settle, arrive, clear: () => setMark(null) };
+  return { mark, settle, arrive: setHeld, clear: () => setMark(null) };
 }
 
-/** An arrival is scrolled to, and its name takes the focus, once, the first draw its row is among the rows shown. */
+/**
+ * An arrival is scrolled to, and its name takes the focus, once, the first draw its row is among the rows shown. Let go
+ * of, it lands again when it is given again: the same campaign saved a second time.
+ */
 export function useArrivalLands(mark: RowMark, ids: readonly string[]): void {
   const landed = useRef<string | null>(null);
   const arrived = mark && mark.kind === "arrived" ? mark.id : null;
   const here = arrived !== null && ids.includes(arrived);
   useEffect(() => {
-    if (!here || arrived === null || landed.current === arrived) return;
+    if (arrived === null) {
+      landed.current = null;
+      return;
+    }
+    if (!here || landed.current === arrived) return;
     landed.current = arrived;
     bringRowToView(arrived);
   }, [arrived, here]);

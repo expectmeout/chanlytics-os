@@ -24901,8 +24901,6 @@ declare const LIFECYCLE_WORDS: {
     };
     readonly phone: {
         readonly moments: "Moments";
-        readonly also: "Also";
-        readonly turnOn: "Turn on";
     };
     readonly channels: {
         readonly goesBy: "Goes by";

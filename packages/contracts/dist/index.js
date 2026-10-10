@@ -7715,7 +7715,7 @@ var LIFECYCLE_WORDS = {
       surface: "broadcasts"
     }
   },
-  phone: { moments: "Moments", also: "Also", turnOn: "Turn on" },
+  phone: { moments: "Moments" },
   // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
   channels: {
     goesBy: "Goes by",

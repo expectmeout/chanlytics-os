@@ -409,7 +409,7 @@ test("focus never scrolls a phone: a sheet reached by its address gives nothing 
   again(() => useFocusComesHome(null, ids));
   assert.deepEqual(did, [], "nothing is focused, and nothing scrolls, for a row the person never saw");
   fresh();
-  again(() => useRowMarks()).settle("r1");
+  again(() => useRowMarks(false)).settle("r1");
   assert.deepEqual(
     did,
     [["focus", "name:r1", "still"]],
@@ -434,6 +434,26 @@ test("the keys' cursor and an arrival are brought into view, the least scroll th
     ["focus", "name:r2", "still"],
     ["scroll", "row:r2", "nearest"],
   ]);
+  globalThis.document.querySelector = () => null;
+});
+
+test("an arrival waits for its row: drawn without it nothing moves, drawn with it it lands, once; let go of and given again, it lands again", () => {
+  const did = pageOf({ rows: ["r1", "r2", "r3"] });
+  fresh();
+  const mark = { id: "r3", kind: "arrived" };
+  again(() => useArrivalLands(mark, ["r1", "r2"]));
+  assert.deepEqual(did, [], "its row is not drawn yet (the playbooks not read again): nothing is focused or scrolled");
+  again(() => useArrivalLands(mark, ["r1", "r2", "r3"]));
+  assert.deepEqual(did, [
+    ["focus", "name:r3", "still"],
+    ["scroll", "row:r3", "nearest"],
+  ]);
+  again(() => useArrivalLands(mark, ["r1", "r2", "r3"]));
+  again(() => useArrivalLands({ ...mark }, ["r3", "r1", "r2"]));
+  assert.equal(did.length, 2, "exactly once, however often the page draws");
+  again(() => useArrivalLands(null, ["r1", "r2", "r3"]));
+  again(() => useArrivalLands(mark, ["r1", "r2", "r3"]));
+  assert.equal(did.length, 4, "the mark let go of, the same campaign saved again lands again");
   globalThis.document.querySelector = () => null;
 });
 

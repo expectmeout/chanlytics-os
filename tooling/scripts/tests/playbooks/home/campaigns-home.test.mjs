@@ -457,6 +457,11 @@ test("an approval the server refuses is said in the server's words, and the line
       assert.equal(toasts[0].tone, "danger");
       assert.equal(textOf(toasts[0].msg), "That run was already approved.");
       assert.equal(byTestId(waitingLine(page()), "cmh-approve").props.disabled, false, "nothing stays busy");
+      assert.equal(
+        waitingLine(page()).props["data-settled"],
+        undefined,
+        "a refused act settles no row: nothing changed",
+      );
     },
   );
 });
@@ -857,6 +862,7 @@ test("a templates read that failed is said in the call's text's place, with a Re
     "plain",
     "and its row wears no amber for a library it did not read",
   );
+  assert.doesNotMatch(textOf(callText), /No message/, "nor says the message is missing, which nobody read");
   assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
   assert.equal(allBy(tree, "cmh-stage").length, 4, "the rest of the page is drawn, and current");
   pressed(failed.retry);
