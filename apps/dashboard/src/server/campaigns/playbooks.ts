@@ -22,7 +22,13 @@ import {
   type PlaybookTotalsDto,
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
-import { checkPlaybook, checkPlaybookChannels, type PlaybookInput } from "@chanlytics/core";
+import {
+  checkPlaybook,
+  checkPlaybookChannels,
+  checkPlaybookMoment,
+  type CheckPlaybookPorts,
+  type PlaybookInput,
+} from "@chanlytics/core";
 import {
   followUpTouchesSince,
   listRow,
@@ -472,34 +478,49 @@ export async function checkPlaybookInput(
   existing: { trigger: string; channels?: string[] | null } | null,
   known?: ZoneAndSettings,
 ): Promise<PlaybookInput> {
-  return checkPlaybook(
-    {
-      ...templateValuePorts(ctx, tenantId),
-      // A list of this workspace, read under row security: another workspace's list is no list.
-      listName: async (id) => {
-        const list = await listRow(ctx.supabase, id);
-        if (!list || list.tenant_id !== tenantId) return null;
-        // An archived list is off People's rail (00169): a playbook is put on it again once it is restored.
-        if (list.archived_at) throw new AppError("validation", archivedListWords(list.name, "run"));
-        // A rule about whoever is looking can't be counted with no one looking: refused in words, never a run that
-        // skips every day.
-        if (ruleNeedsViewer(list.rule)) throw new AppError("validation", viewerListWords(list.name));
-        return list.name;
-      },
-      // How its customers buy (0008): a proposal follow-up is made only where deals are on (0006).
-      dealsOn: async () => dealsAreOn(await sellsByOf(ctx, tenantId)),
-      // Whether a calendar is connected: an address in the settings, or one the settings lost (calendarOf), which is the
-      // page's calendar state not being "none" (peopleVisits) -- the feed is not fetched for it.
-      calendarOn: async () => {
-        const c = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
-        return !!c.url || c.lostCalendar;
-      },
-      // What the workspace calls an appointment, worked out where businessShape works it out (readers/facts.ts
-      // appointmentWordFor): a refusal's words, and a new campaign's name on an appointment moment. Read only when one
-      // of them is said.
-      appointmentWord: async () => appointmentWordFor(await sellsByOf(ctx, tenantId)),
+  return checkPlaybook(playbookCheckPorts(ctx, tenantId, known), body, existing);
+}
+
+/**
+ * A new playbook's moment, its list and its class, judged as checkPlaybookInput judges them (core checkPlaybookMoment,
+ * over the same ports): what a starter card is held to before its starter is filed (starter-templates.ts
+ * checkStarterPlaybook), so a refusal comes before anything reaches Meta.
+ */
+export async function checkPlaybookMomentInput(
+  ctx: RouteContext,
+  tenantId: string,
+  body: Record<string, unknown> | null,
+  known?: ZoneAndSettings,
+) {
+  return checkPlaybookMoment(playbookCheckPorts(ctx, tenantId, known), body, null);
+}
+
+/** What a playbook's check reads of this workspace, beyond its message's: its lists, its deals, its calendar, its word. */
+function playbookCheckPorts(ctx: RouteContext, tenantId: string, known?: ZoneAndSettings): CheckPlaybookPorts {
+  return {
+    ...templateValuePorts(ctx, tenantId),
+    // A list of this workspace, read under row security: another workspace's list is no list.
+    listName: async (id) => {
+      const list = await listRow(ctx.supabase, id);
+      if (!list || list.tenant_id !== tenantId) return null;
+      // An archived list is off People's rail (00169): a playbook is put on it again once it is restored.
+      if (list.archived_at) throw new AppError("validation", archivedListWords(list.name, "run"));
+      // A rule about whoever is looking can't be counted with no one looking: refused in words, never a run that
+      // skips every day.
+      if (ruleNeedsViewer(list.rule)) throw new AppError("validation", viewerListWords(list.name));
+      return list.name;
     },
-    body,
-    existing,
-  );
+    // How its customers buy (0008): a proposal follow-up is made only where deals are on (0006).
+    dealsOn: async () => dealsAreOn(await sellsByOf(ctx, tenantId)),
+    // Whether a calendar is connected: an address in the settings, or one the settings lost (calendarOf), which is the
+    // page's calendar state not being "none" (peopleVisits) -- the feed is not fetched for it.
+    calendarOn: async () => {
+      const c = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
+      return !!c.url || c.lostCalendar;
+    },
+    // What the workspace calls an appointment, worked out where businessShape works it out (readers/facts.ts
+    // appointmentWordFor): a refusal's words, and a new campaign's name on an appointment moment. Read only when one
+    // of them is said.
+    appointmentWord: async () => appointmentWordFor(await sellsByOf(ctx, tenantId)),
+  };
 }

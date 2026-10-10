@@ -8075,7 +8075,19 @@ var LIBRARY_STARTER_WORDS = {
   versionsFailed: (n, why) => `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
   waitsForNumber: "WhatsApp versions wait for a number",
   /** The route's refusal when the channels it is asked for are none it knows. */
-  pickAChannel: "Pick at least one channel: WhatsApp, email or text."
+  pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
+  /** A new campaign named by a starter that is not its moment's own, or by no starter the set has (A0). */
+  notThisMoment: (moment) => `That starter is not one \u201C${moment}\u201D goes by: name the moment's own starter, or a message from the Library.`,
+  /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
+  takesOwnWords: (title) => `The \u201C${title}\u201D starter takes words of its own: write them in the composer and start it there.`,
+  /**
+   * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
+   * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
+   * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).
+   */
+  waitsForWhatsApp: (title, on, could) => could ? `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.` : `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
+  /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
+  notAdded: "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library."
 };
 var BROADCAST_WORDS = {
   tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."

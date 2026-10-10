@@ -37,6 +37,8 @@ import {
   playbookWriteError,
 } from "@/server/campaigns/playbooks";
 import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
+import { withStarterMessage } from "@/server/campaigns/starter-templates";
+import type { Member } from "@/server/route";
 import type { RouteContext } from "@/server/with-route";
 
 /** The playbook a playbookScope route acts on, as the scope read it. */
@@ -81,10 +83,15 @@ type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
  * (checkPlaybookInput, in its own words, so the body is this verb's to read), then started with its line in the
  * ledger in one transaction (00357 start_playbook). The door runs on the member's own session, so the table's policy
  * judges the row as it judged the insert this replaced, and a start that cannot be recorded starts nothing: no
- * playbook sends with nobody on record as having started it, and a person who presses Start again makes one.
+ * playbook sends with nobody on record as having started it, and a person who presses Start again makes one. A body
+ * naming `starter_key` and no message is judged whole, then files that starter (withStarterMessage: a refused one files
+ * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`).
  */
-export async function startNewPlaybook(ctx: RouteContext, req: Request, tenantId: string) {
-  const body = (await jsonBody(req)) as Record<string, unknown> | null;
+export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
+  const tenantId = member.tenantId;
+  // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
+  const asked = (await jsonBody(req)) as Record<string, unknown> | null;
+  const { body, starter } = await withStarterMessage(ctx, member, asked);
   const v = await checkPlaybookInput(ctx, tenantId, body, null);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
     tenantId,
@@ -118,7 +125,7 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, tenantId
   });
   if (error) throw playbookWriteError(error);
   if (!made) throw new Error("playbook not created");
-  return { id: made.id, name: v.name, state: "running", decision_id: made.decisionId };
+  return { id: made.id, name: v.name, state: "running", decision_id: made.decisionId, ...(starter ? { starter } : {}) };
 }
 
 /** PUT playbooks/:id's three bodies, each to its own verb: the whole playbook, its channels alone, or a change in place. */

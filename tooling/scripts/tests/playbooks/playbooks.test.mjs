@@ -566,6 +566,8 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
           : []),
         // A playbook made, changed or removed moves what People's rows say of it (their follow-up, W3).
         ...(["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]"].includes(k) ? ["people"] : []),
+        // One made on a starter files its message too (A0): the Library, and the Inbox's templates, read again.
+        ...(k === "POST playbooks" ? ["settings", "inbox"] : []),
       ],
       `${k}: every write re-fetches both surfaces`,
     );

@@ -165,7 +165,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST broadcasts": runs,
   "POST broadcasts/[id]/approve": runsAndChains,
   "POST broadcasts/[id]/cancel": runsAndChains,
-  "POST playbooks": runsAndPeople,
+  // A playbook named by a starter files its message too (A0): the Library and the Inbox's templates move with it.
+  "POST playbooks": () => [...runsAndPeople(), ...templates()],
   "PUT playbooks/[id]": () => [...runsAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,

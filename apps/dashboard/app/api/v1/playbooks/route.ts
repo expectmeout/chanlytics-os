@@ -15,7 +15,14 @@ import { playbooks } from "@/server/readers/playbooks";
  *      whether deals are on here (`deals_on`, 0008): the proposal follow-up is
  *      offered, and counted by the workspace's pace, only where they are (0006).
  * POST /api/v1/playbooks — { name?, trigger, template_id, params, run_hour?,
- *      cap_per_run?, gap_days?, cadence_days?, channels? }. Owner or operator.
+ *      cap_per_run?, gap_days?, cadence_days?, channels? }, or `starter_key`
+ *      in place of `template_id`: the playbook is judged whole, and only
+ *      where it goes by a channel the starter's message holds at once (an
+ *      email or text version, or a WhatsApp version already approved) is
+ *      that starter added as the composer's one press adds it (its WhatsApp
+ *      version goes to Meta for review where there is a number), then the
+ *      playbook goes by it, named no channels on those and on WhatsApp, and
+ *      the answer's `starter` says what became of it. Owner or operator.
  *      Checked the way the send route checks a broadcast (checkPlaybookInput,
  *      in its own words, so the body is its verb's to read, startNewPlaybook);
  *      starts running, and the ledger records the start in the same
@@ -38,5 +45,12 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "playbook",
-  handle: ({ ctx, req, member }) => startNewPlaybook(ctx, req, member.tenantId),
+  handle: ({ ctx, req, member }) => startNewPlaybook(ctx, req, member),
 });
+
+/**
+ * A playbook named by a starter submits that starter's WhatsApp version to Meta before it starts (A0): a round trip to
+ * the edge and on to Meta, which the platform's default time may not hold, and a run killed there loses the answer that
+ * says what was submitted. The starter route's room, for the same call.
+ */
+export const maxDuration = 60;

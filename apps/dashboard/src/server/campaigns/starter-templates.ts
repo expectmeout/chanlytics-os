@@ -19,6 +19,10 @@
  * second click never replaces a person's own words; one that cannot be filed is said in its `versions` entry and stops
  * nothing else. The page reads the counts: what was submitted, synced in, already on file and failed at WhatsApp, how
  * many versions were written or could not be, and how many starters' WhatsApp version was skipped.
+ *
+ * A new campaign may name one starter in place of a message (POST playbooks with `starter_key`, the moment spec's A0):
+ * it is judged whole before anything is filed (checkStarterPlaybook, which Ask's starter card runs too), and only where
+ * it goes by a channel the starter's message holds at once is the starter filed by the same code (withStarterMessage).
  */
 import {
   AppError,
@@ -26,25 +30,51 @@ import {
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
   OWN_VERSION_CHANNELS,
+  PLAYBOOK_LIMITS,
+  campaignMessageOf,
+  channelNeverCarries,
+  channelsWords,
   dealsAreOn,
+  defaultParamSpecs,
+  enrolPurpose,
+  messageFitsMoment,
+  messageHolds,
+  startersForTrigger,
   startersOffered,
   starterDraft,
+  starterEmailText,
+  starterSmsText,
   starterText,
   templateComponents,
+  triggerWords,
   validateTemplateDraft,
+  type AskedPurpose,
   type ConsentChannel,
   type OwnVersionChannel,
+  type ParamSpec,
+  type PlaybookPolicyClass,
   type StarterTemplate,
+  type triggerOf,
 } from "@chanlytics/contracts";
-import { templateStatusOf, templatesNamed, whatsappChannelFacts } from "@chanlytics/db";
+import { parseChannels, playbookNumber } from "@chanlytics/core";
+import { messageVersionRowsOf, templateStatusOf, templatesNamed, whatsappChannelFacts } from "@chanlytics/db";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
+import { checkPlaybookMomentInput } from "@/server/campaigns/playbooks";
 import { fileStarterVersions, startersFiled, type StarterVersionResult } from "@/server/campaigns/template-versions";
+import type { ZoneAndSettings } from "@/server/calendar/people-visits";
 import { sellsByOf } from "@/server/people/deals";
+import { appointmentWordFor } from "@/server/readers/facts";
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 
 type Outcome = "submitted" | "exists" | "synced" | "failed" | "skipped";
+
+/** A moment, as contracts triggerOf reads one. */
+type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
+
+/** The language a new campaign's starter is filed in: English, as the composer's one press adds it. */
+const STARTER_LANGUAGE = "en_US";
 
 interface StarterResult {
   key: string;
@@ -74,37 +104,51 @@ async function starterChannelsOf(ctx: RouteContext, tenantId: string, asked: unk
   return { whatsapp, number, own };
 }
 
+/** What the starter set is asked for: the starters by key, their languages, and the channels to write them on. */
+interface StartersAsked {
+  keys?: unknown;
+  languages?: unknown;
+  channels?: unknown;
+}
+
 export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
+  return fileStarters(ctx, member.tenantId, ((await jsonBody(req)) as StartersAsked | null) ?? {});
+}
+
+/**
+ * The starter set, filed for a workspace: the route's body (above), and a new campaign's one starter (withStarterMessage).
+ * Everything the route did, with the workspace by its id. Not exported: only this module files starters.
+ */
+async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersAsked) {
   const SAID: Record<string, string> = {
     preview: "Adding templates only works on the production dashboard.",
     no_channel: LIBRARY_WORDS.writeNeedsNumber,
     no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
     no_token: "Chanlytics has no access token for this number yet.",
   };
-  const body = (await jsonBody(req)) as { keys?: unknown; languages?: unknown; channels?: unknown } | null;
   // The set this workspace is offered: a starter it is not offered is not filed, asked for or not.
-  const offered = startersOffered(dealsAreOn(await sellsByOf(ctx, member.tenantId)));
-  const keys = Array.isArray(body?.keys)
+  const offered = startersOffered(dealsAreOn(await sellsByOf(ctx, tenantId)));
+  const keys = Array.isArray(body.keys)
     ? body.keys.filter((k): k is string => typeof k === "string")
     : offered.map((s) => s.key);
-  const languages = Array.isArray(body?.languages)
+  const languages = Array.isArray(body.languages)
     ? body.languages.filter((l): l is string => typeof l === "string")
-    : ["en_US"];
+    : [STARTER_LANGUAGE];
   const wanted = offered
     .filter((s) => keys.includes(s.key))
     .flatMap((s) => languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })));
   if (wanted.length === 0)
     throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
-  const { whatsapp, number, own } = await starterChannelsOf(ctx, member.tenantId, body?.channels);
+  const { whatsapp, number, own } = await starterChannelsOf(ctx, tenantId, body.channels);
 
-  const rows = await templatesNamed(ctx.supabase, member.tenantId, [...new Set(wanted.map((w) => w.s.name))]);
+  const rows = await templatesNamed(ctx.supabase, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
   const onFile = (name: string, language: string) =>
     rows.find((r) => r.name === name && r.language === language) ?? null;
 
   // The email and text versions already here: a second click leaves each as it is.
-  const filed = await startersFiled(ctx, member.tenantId, [...new Set(wanted.map((w) => w.s.name))]);
+  const filed = await startersFiled(ctx, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
   // The email and text versions asked for: beside a WhatsApp version where there is one, else the first begins the message.
-  const versionsOf = (s: StarterTemplate, l: string) => fileStarterVersions(ctx, member.tenantId, s, l, filed, own);
+  const versionsOf = (s: StarterTemplate, l: string) => fileStarterVersions(ctx, tenantId, s, l, filed, own);
 
   const results: StarterResult[] = [];
   let synced = false;
@@ -133,7 +177,7 @@ export async function addStarterTemplates(ctx: RouteContext, req: Request, membe
       continue;
     }
     const v = check.value;
-    const r = await createTemplate(member.tenantId, ctx.userId, {
+    const r = await createTemplate(tenantId, ctx.userId, {
       name: v.name,
       language: v.language,
       category: v.category,
@@ -149,10 +193,10 @@ export async function addStarterTemplates(ctx: RouteContext, req: Request, membe
     if (r.reason === "meta_refused" && ALREADY_AT_META.test(r.detail ?? "")) {
       // The number's account already holds it: bring it here instead of refusing.
       if (!synced) {
-        await syncTemplates(member.tenantId, ctx.userId);
+        await syncTemplates(tenantId, ctx.userId);
         synced = true;
       }
-      const now = await templateStatusOf(ctx.supabase, member.tenantId, s.name, l);
+      const now = await templateStatusOf(ctx.supabase, tenantId, s.name, l);
       results.push(
         now
           ? { ...base, status: "synced", meta_status: now.meta_status, versions: await versionsOf(s, l) }
@@ -203,5 +247,152 @@ export async function addStarterTemplates(ctx: RouteContext, req: Request, membe
     versions_saved: countVersions("saved"),
     versions_existing: countVersions("exists"),
     versions_failed: countVersions("failed"),
+  };
+}
+
+/* ---- A new campaign named by a starter (A0) ---- */
+
+/** A new campaign's starter, filed: what became of its WhatsApp version, which the card's receipt says. Not exported. */
+interface StarterFiled {
+  key: string;
+  status: Outcome;
+  meta_status: string | null;
+}
+
+/** A starter card judged whole, before anything is filed (checkStarterPlaybook). */
+interface StarterJudged {
+  starter: StarterTemplate;
+  /** Its slots, filled with the starter's own sources (contracts defaultParamSpecs, the starter's slots in English). */
+  params: ParamSpec[];
+  cls: PlaybookPolicyClass;
+  /** The channels the campaign goes by: those named, or, named none, those held at once and WhatsApp where there is a number. */
+  channels: ConsentChannel[];
+  /** The channels its message holds the moment it is filed: on any other of `channels`, its runs hold people until it does. */
+  atOnce: ConsentChannel[];
+}
+
+/** The four whole numbers a campaign names, each held to its bounds before anything is filed. */
+const NUMBERS = ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const;
+
+/** A moment's name as a refusal says it: an appointment moment's in the workspace's own word (readers/facts.ts). */
+async function momentLabel(ctx: RouteContext, tenantId: string, trig: Trigger): Promise<string> {
+  return trig.kind === "visit"
+    ? triggerWords(trig, appointmentWordFor(await sellsByOf(ctx, tenantId))).label
+    : trig.label;
+}
+
+/**
+ * The channels a starter's message holds the moment it is filed, of those its purpose may go by (contracts
+ * channelNeverCarries): a version already on file that it holds (contracts messageHolds: WhatsApp's approved, an email's
+ * or a text's), and the email and text versions the starter writes, which are filed at once. A WhatsApp version sent for
+ * review holds nothing until WhatsApp approves it. With whether the workspace has a number to make one for.
+ */
+async function heldAtOnce(ctx: RouteContext, tenantId: string, starter: StarterTemplate, purpose: AskedPurpose) {
+  const [rows, line] = await Promise.all([
+    messageVersionRowsOf(ctx.supabase, tenantId, { name: starter.name, language: STARTER_LANGUAGE }),
+    whatsappChannelFacts(ctx.supabase, tenantId),
+  ]);
+  const onFile = campaignMessageOf(rows, starter.name, STARTER_LANGUAGE);
+  const held = onFile ? messageHolds(onFile) : null;
+  const writes = (c: ConsentChannel) =>
+    c === "email"
+      ? starterEmailText(starter, STARTER_LANGUAGE) !== null
+      : c === "sms" && starterSmsText(starter, STARTER_LANGUAGE) !== null;
+  const atOnce = CONSENT_CHANNELS.filter((c) => channelNeverCarries(c, purpose) === null && (held?.[c] || writes(c)));
+  return { atOnce, number: line !== null };
+}
+
+/**
+ * A new campaign named by a starter, judged whole before anything is filed (the moment spec's A0, D23): a WhatsApp version
+ * sent to Meta cannot be taken back, so every refusal the card could meet comes first, in the words a new campaign is
+ * refused in. Its moment, list and class as a new campaign's (checkPlaybookMomentInput, core checkPlaybookMoment: the
+ * moment offered here, contracts momentOffered); the starter is that moment's own and still offered, takes no words of its
+ * own, and its kind of message fits the class (contracts messageFitsMoment); its numbers keep their bounds (core
+ * playbookNumber); a channel it names is one its purpose carries (contracts channelNeverCarries). And it goes by a channel
+ * its message holds at once (heldAtOnce): a WhatsApp version in review carries nothing until WhatsApp approves it, so a
+ * campaign on that alone is refused and nothing is filed. Named none, it goes by the channels held at once and by WhatsApp
+ * where there is a number, its people there held until WhatsApp approves, as a run holds the people on any channel not
+ * ready yet. POST playbooks runs it before it files (withStarterMessage); Ask's starter card is to run it at the card,
+ * one judgement, and exports it then (knip counts an export nothing imports).
+ */
+async function checkStarterPlaybook(
+  ctx: RouteContext,
+  tenantId: string,
+  body: Record<string, unknown>,
+  known?: ZoneAndSettings,
+): Promise<StarterJudged> {
+  const { trig, cls } = await checkPlaybookMomentInput(ctx, tenantId, body, known);
+  const key = typeof body.starter_key === "string" ? body.starter_key : "";
+  const starter = startersForTrigger(trig.id).find((s) => s.key === key && !s.retired);
+  if (!starter)
+    throw new AppError("validation", LIBRARY_STARTER_WORDS.notThisMoment(await momentLabel(ctx, tenantId, trig)));
+  if (starterText(starter, STARTER_LANGUAGE).slots.some((s) => s.kind === "text"))
+    throw new AppError("validation", LIBRARY_STARTER_WORDS.takesOwnWords(starter.title));
+  const fit = messageFitsMoment(cls, starter.category);
+  if (!fit.ok) throw new AppError("validation", fit.words);
+  for (const k of NUMBERS) playbookNumber(k, body[k], PLAYBOOK_LIMITS[k].min);
+  const purpose = enrolPurpose(cls, { category: starter.category });
+  const named = body.channels === undefined || body.channels === null ? null : parseChannels(body.channels);
+  const never = (named ?? []).map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
+  if (never) throw new AppError("validation", never);
+  const { atOnce, number } = await heldAtOnce(ctx, tenantId, starter, purpose);
+  const channels = named ?? CONSENT_CHANNELS.filter((c) => atOnce.includes(c) || (c === "whatsapp" && number));
+  if (channels.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
+  if (!channels.some((c) => atOnce.includes(c))) {
+    const could = atOnce.filter((c) => !channels.includes(c));
+    throw new AppError(
+      "validation",
+      LIBRARY_STARTER_WORDS.waitsForWhatsApp(
+        starter.title,
+        channelsWords(channels),
+        could.length ? channelsWords(could) : null,
+      ),
+    );
+  }
+  return {
+    starter,
+    params: defaultParamSpecs({ name: starter.name, variables: [] }),
+    cls,
+    channels,
+    atOnce,
+  };
+}
+
+/**
+ * A new campaign named by a starter's key and no message (Ask's first-day card, the moment spec's A0, D23): judged whole
+ * first (checkStarterPlaybook: a refused card files nothing and asks nothing of Meta), then the starter is added as the
+ * composer's one press adds it (fileStarters: in English, on the channels the campaign goes by), then the campaign goes by
+ * that message, its slots filled with the starter's own sources. A starter that could not be filed so its message holds
+ * one of those channels starts nothing (a version a database refused). A body with a message of its own, or with no key,
+ * is the body as it came, and no starter is filed.
+ */
+export async function withStarterMessage(
+  ctx: RouteContext,
+  member: Member,
+  asked: Record<string, unknown> | null,
+): Promise<{ body: Record<string, unknown> | null; starter: StarterFiled | null }> {
+  const key = typeof asked?.starter_key === "string" ? asked.starter_key : "";
+  if (!asked || !key || (typeof asked.template_id === "string" && asked.template_id))
+    return { body: asked, starter: null };
+  const { starter_key: _key, ...rest } = asked;
+  // Every check that could refuse the card, before anything is filed: nothing reaches Meta for a card that is refused.
+  const judged = await checkStarterPlaybook(ctx, member.tenantId, asked);
+  const filed = await fileStarters(ctx, member.tenantId, {
+    keys: [key],
+    languages: [STARTER_LANGUAGE],
+    channels: judged.channels,
+  });
+  const result = filed.results.find((r) => r.key === key && r.language === STARTER_LANGUAGE) ?? null;
+  const rows = await messageVersionRowsOf(ctx.supabase, member.tenantId, {
+    name: judged.starter.name,
+    language: STARTER_LANGUAGE,
+  });
+  const message = campaignMessageOf(rows, judged.starter.name, STARTER_LANGUAGE);
+  const holds = message ? messageHolds(message) : null;
+  if (!result || !message || !judged.channels.some((c) => holds?.[c]))
+    throw new AppError("conflict", LIBRARY_STARTER_WORDS.notAdded, 409);
+  return {
+    body: { ...rest, template_id: message.anchor.id, params: judged.params, channels: judged.channels },
+    starter: { key, status: result.status, meta_status: result.meta_status },
   };
 }
