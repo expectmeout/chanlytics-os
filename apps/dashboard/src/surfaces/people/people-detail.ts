@@ -413,6 +413,7 @@ export async function recordDeal(
   return api()("POST contacts/[id]/deal", {
     params: { id },
     body,
+    once: true,
     // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
     // people_list's rule), which goes onto the row at once, and People and Reports are read again behind it, so the
     // sheet closes when the server takes the move rather than once every person has been read again. Not the deal it

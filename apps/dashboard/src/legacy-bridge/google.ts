@@ -115,13 +115,13 @@ export const googleOverride: SurfaceOverride = {
 
 /** An answer to a review, on Google. Operators and owners. */
 export async function replyToReview(id: string, comment: string): Promise<{ ok: boolean; message: string }> {
-  const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment } });
+  const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment }, once: true });
   return { ok: r.ok, message: r.ok ? "" : r.message };
 }
 
 /** The receptionist's draft of a reply, for the composer. Nothing is posted. Refused under Never, with the words for it. */
 export async function draftReply(id: string): Promise<{ ok: boolean; text: string; message: string }> {
-  const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {} });
+  const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {}, once: true });
   if (!r.ok) return { ok: false, text: "", message: r.message };
   return { ok: typeof r.data.text === "string", text: r.data.text ?? "", message: "" };
 }

@@ -576,6 +576,7 @@ export async function draftForLead(
     params: { id },
     body: input,
     refresh: false,
+    once: true,
   });
 }
 /**

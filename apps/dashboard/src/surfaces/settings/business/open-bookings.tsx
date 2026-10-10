@@ -132,6 +132,7 @@ const BtoBookingsNoAddress = ({ suggested, name }: { suggested: string | null; n
     try {
       const r = await api()("POST mailboxes", {
         body: { local_part: suggested.slice(0, suggested.indexOf("@")), from_name: name },
+        once: true,
       });
       // Made: the Calendar is read again (refresh-map.ts), and the address stands here with its Copy.
       if (!r.ok) setProblem(r.message);

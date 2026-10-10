@@ -29,7 +29,7 @@ type VerbResult = ApiResult<unknown>;
  * whisper is used when it fits, which may be a later turn.
  */
 export async function whisperCall(callId: string, text: string, trigger = false): Promise<VerbResult> {
-  return api()("POST calls/[id]/whisper", { params: { id: callId }, body: { text, trigger } });
+  return api()("POST calls/[id]/whisper", { params: { id: callId }, body: { text, trigger }, once: true });
 }
 
 /** End the call in progress: the caller is cut off, and the ledger says who did it. */
@@ -95,7 +95,7 @@ export function composedPrompt(
  * lands.
  */
 async function teamInvite(email: string, role: "operator" | "viewer"): Promise<VerbResult> {
-  return api()("POST team/invite", { body: { email, role } });
+  return api()("POST team/invite", { body: { email, role }, once: true });
 }
 
 async function teamSetRole(membershipId: string, role: string): Promise<VerbResult> {
