@@ -33,19 +33,32 @@ async function logged(fn) {
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 
-/** A world with one event, its subscription and the delivery the relay wrote. */
+/** The kind each subscriber reads, and an event of it: an appointment kept on the record for reach_out_booked. */
+const READS = {
+  audit: { kind: "message.received", category: "message", subject_type: null, subject_id: null, data: {} },
+  reach_out_booked: {
+    kind: "appointment.changed",
+    category: "appointment",
+    subject_type: "appointment",
+    subject_id: "a-1",
+    data: { change: "added", source: "booking_email", starts_at: "2026-10-12T15:00:00Z" },
+  },
+};
+
+/** A world with one event, its subscription and the delivery the relay wrote; the booking door counts its calls. */
 function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) {
+  const read = READS[subscriber] ?? READS.audit;
+  const kind = read.kind;
+  const booked = [];
   const tables = {
-    events: withEvent ? [rows.event({ id: E, tenant_id: T, kind: "message.received", category: "message" })] : [],
-    event_subscriptions: [
-      { kind: "message.received", subscriber, lane: 2, paused, created_at: "2026-10-06T00:00:00Z" },
-    ],
+    events: withEvent ? [rows.event({ id: E, tenant_id: T, ...read })] : [],
+    event_subscriptions: [{ kind, subscriber, lane: 2, paused, created_at: "2026-10-06T00:00:00Z" }],
     event_deliveries: [
       {
         event_id: E,
         subscriber,
         tenant_id: T,
-        kind: "message.received",
+        kind,
         event_at: "2026-10-06T00:00:00Z",
         state: "scheduled",
         job_id: null,
@@ -56,7 +69,17 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
       },
     ],
   };
-  const db = fakeDb(tables);
+  // The booking door over one appointment (00381): what it was asked, and one lead moved.
+  const db = fakeDb(
+    tables,
+    {},
+    {
+      reach_out_booked_from: ({ p_tenant_id, p_appointment_id }) => {
+        booked.push([p_tenant_id, p_appointment_id]);
+        return 1;
+      },
+    },
+  );
   // The platform's pager, recorded: a delivery's failure is never an owner's (ledger PAGES_THE_PLATFORM).
   const pages = [];
   const ctx = {
@@ -71,9 +94,9 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
     id: "j-1",
     tenant_id: T,
     kind: "event_deliver",
-    payload: { event_id: E, subscriber, kind: "message.received", lane: "2" },
+    payload: { event_id: E, subscriber, kind, lane: "2" },
   };
-  return { tables, ctx, job, pages, delivery: () => tables.event_deliveries[0] };
+  return { tables, ctx, job, pages, booked, delivery: () => tables.event_deliveries[0] };
 }
 
 test("the audit subscriber runs and the delivery is done, counted once", async () => {
@@ -166,5 +189,18 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
     const twice = JSON.parse(JSON.stringify(w.tables));
     twice.event_deliveries[0].attempts = 1; // the delivery counts its runs; everything else is the same
     assert.equal(JSON.stringify(twice), once, `${subscriber}: a second run changes nothing but the count`);
+  }
+});
+
+test("reach_out_booked hands the booking door the appointment its event names, and only for a change that books", async () => {
+  const w = world({ subscriber: "reach_out_booked" });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.deepEqual(w.booked, [[T, "a-1"]], "the appointment of the event, in its workspace");
+  assert.equal(w.delivery().state, "done");
+  for (const change of ["cancelled", "vanished"]) {
+    const quiet = world({ subscriber: "reach_out_booked" });
+    quiet.tables.events[0].data = { change, source: "booking_email", starts_at: "2026-10-12T15:00:00Z" };
+    assert.equal(await dispatchJob(quiet.ctx, quiet.job), "done");
+    assert.deepEqual(quiet.booked, [], `${change}: books nobody`);
   }
 });

@@ -232,7 +232,8 @@ import {
   getTenantConfig,
   claimQueuedSend as claimQueuedSend2,
   releaseQueuedSend as releaseQueuedSend2,
-  membersPushedFor
+  membersPushedFor,
+  reachOutBookedFrom
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -1256,8 +1257,11 @@ async function eventDeliver(ctx, job) {
   }
   if (!subscriberNamed(named2.subscriber)) throw new Error(`event_deliver: no subscriber named ${named2.subscriber}`);
   const subscriber = SUBSCRIBERS[named2.subscriber];
+  const ports = {
+    bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId)
+  };
   try {
-    await subscriber(event);
+    await subscriber(event, ports);
   } catch (e) {
     await settle("failed", e instanceof Error ? e.message : String(e));
     throw e;

@@ -309,6 +309,40 @@ end $$;
 
 
 --
+-- Name: appointments_note_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_note_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_change text;
+begin
+  if tg_op = 'INSERT' then
+    v_change := case when new.status = 'cancelled' then 'cancelled' else 'added' end;
+  elsif new.status = 'cancelled' and old.status is distinct from 'cancelled' then
+    v_change := 'cancelled';
+  elsif new.starts_at is distinct from old.starts_at then
+    v_change := 'moved';
+  else
+    return null;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (new.tenant_id, 'appointment.changed', 'appointment', 'appointment', new.id,
+          jsonb_build_object('change', v_change, 'source', new.source, 'starts_at', new.starts_at));
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_note_change(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} for each write of an appointment the feed''s door did not make (00381), in the same transaction: added, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
+
+
+--
 -- Name: appointments_scrub(uuid, uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14587,6 +14621,48 @@ COMMENT ON FUNCTION public.reach_out_booked(p_tenant_id uuid, p_seen jsonb) IS '
 
 
 --
+-- Name: reach_out_booked_from(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_seen jsonb;
+begin
+  select coalesce(jsonb_agg(x.seen), '[]'::jsonb) into v_seen
+    from (
+      select jsonb_build_object(x.what, x.address, 'start', to_char(a.starts_at at time zone 'UTC',
+                                                                    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) as seen
+        from public.appointments a
+        left join public.contacts c on c.tenant_id = a.tenant_id and c.id = a.contact_id and c.erased_at is null
+        cross join lateral (values
+          ('email', lower(nullif(btrim(a.client_email), ''))),
+          ('phone', nullif(btrim(a.client_phone), '')),
+          ('email', lower(nullif(btrim(c.email), ''))),
+          ('phone', nullif(btrim(c.phone_e164), ''))
+        ) x(what, address)
+       where a.tenant_id = p_tenant_id and a.id = p_appointment_id
+         and a.status in ('booked', 'kept') and a.vanished_at is null
+         and x.address is not null
+         and not (x.what = 'email' and public.member_has_address(p_tenant_id, x.address))
+    ) x;
+  if jsonb_array_length(v_seen) = 0 then
+    return 0;
+  end if;
+  return public.reach_out_booked(p_tenant_id, v_seen);
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid) IS 'The booking door (reach_out_booked) over one appointment of the record (00381), booked or kept and not vanished: its client''s address and number and its person''s, each with its start, the business''s own addresses left out. Answers how many leads moved. The service role''s; the reach_out_booked subscriber calls it.';
+
+
+--
 -- Name: reach_out_chain_report(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -26965,6 +27041,13 @@ CREATE TRIGGER appointments_guard BEFORE UPDATE ON public.appointments FOR EACH 
 
 
 --
+-- Name: appointments appointments_note_change; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_note_change AFTER INSERT OR UPDATE ON public.appointments FOR EACH ROW WHEN ((new.source <> 'calendar_feed'::text)) EXECUTE FUNCTION public.appointments_note_change();
+
+
+--
 -- Name: appointments appointments_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30990,6 +31073,14 @@ GRANT ALL ON FUNCTION public.appointments_guard() TO service_role;
 
 
 --
+-- Name: FUNCTION appointments_note_change(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_note_change() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_note_change() TO service_role;
+
+
+--
 -- Name: FUNCTION appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
 --
 
@@ -33441,6 +33532,14 @@ GRANT ALL ON FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uu
 
 REVOKE ALL ON FUNCTION public.reach_out_booked(p_tenant_id uuid, p_seen jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_booked(p_tenant_id uuid, p_seen jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointment_id uuid) TO service_role;
 
 
 --

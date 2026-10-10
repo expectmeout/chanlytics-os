@@ -16649,7 +16649,7 @@ var JOB_KINDS = [
    */
   "inbound_answer"
 ];
-var EVENT_SUBSCRIBERS = ["audit"];
+var EVENT_SUBSCRIBERS = ["audit", "reach_out_booked"];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
   "phone_number_quality_update",

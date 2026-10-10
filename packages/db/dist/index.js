@@ -4629,6 +4629,14 @@ async function appointmentStates(db, tenantId, keys) {
   }
   return out;
 }
+async function reachOutBookedFrom(db, tenantId, appointmentId) {
+  const { data, error } = await db.rpc("reach_out_booked_from", {
+    p_tenant_id: tenantId,
+    p_appointment_id: appointmentId
+  });
+  if (error) throw new Error(`reach_out_booked_from: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
 
 // src/repositories/calendar/notices.ts
 async function appointmentNoticeOf(db, tenantId, noticeId) {
@@ -4889,6 +4897,7 @@ export {
   queuedOutcomes,
   queuedRecipients,
   reachOutAudience,
+  reachOutBookedFrom,
   reachOutDayDue,
   reachOutFollowers,
   reachOutPerson,

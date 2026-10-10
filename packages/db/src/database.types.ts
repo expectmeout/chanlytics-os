@@ -7770,6 +7770,10 @@ export type Database = {
         Args: { p_seen: Json; p_tenant_id: string }
         Returns: number
       }
+      reach_out_booked_from: {
+        Args: { p_appointment_id: string; p_tenant_id: string }
+        Returns: number
+      }
       reach_out_chain_report: {
         Args: { p_root_id: string; p_tenant_id: string }
         Returns: Json

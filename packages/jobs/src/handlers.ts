@@ -36,6 +36,7 @@ import {
   templatePurpose,
   type SendQueuedCommand,
   SUBSCRIBERS,
+  type SubscriberPorts,
 } from "@chanlytics/core";
 import {
   ingestInboundEmail,
@@ -55,6 +56,7 @@ import {
   claimQueuedSend,
   releaseQueuedSend,
   membersPushedFor,
+  reachOutBookedFrom,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -491,8 +493,12 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // dispatchJob let the job through only for a subscriber this build knows.
   if (!subscriberNamed(named.subscriber)) throw new Error(`event_deliver: no subscriber named ${named.subscriber}`);
   const subscriber = SUBSCRIBERS[named.subscriber];
+  // What a subscriber acts through: this job's database, behind the verbs it needs.
+  const ports: SubscriberPorts = {
+    bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId),
+  };
   try {
-    await subscriber(event);
+    await subscriber(event, ports);
   } catch (e) {
     await settle("failed", e instanceof Error ? e.message : String(e));
     throw e;

@@ -510,6 +510,7 @@ export {
   contactIdByEmail,
   syncFeedAppointments,
   appointmentStates,
+  reachOutBookedFrom,
 } from "./repositories/calendar/appointments";
 export type {
   AppointmentRow,

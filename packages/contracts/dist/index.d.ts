@@ -913,9 +913,10 @@ type JobKind = (typeof JOB_KINDS)[number];
 /**
  * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's
  * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
- * relay's lag is measured on real traffic before any subscriber that acts arrives.
+ * relay's lag is measured on real traffic; `reach_out_booked` hands a booking on the appointments record to the
+ * booking door (00381), the first that acts.
  */
-declare const EVENT_SUBSCRIBERS: readonly ["audit"];
+declare const EVENT_SUBSCRIBERS: readonly ["audit", "reach_out_booked"];
 type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 /**
  * `fired` means CLAIMED, not finished: claim_due_jobs() sets it with a lease,
