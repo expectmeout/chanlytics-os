@@ -3,8 +3,9 @@
  * over whatever client the caller holds (the session's, so RLS decides what a member reads). A read that fails throws;
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
- * google/google-reviews-ledger.db.test.mjs over a real database. It alone answers null where the database does not have
- * its function yet (00350 is applied after the dashboard deploys).
+ * google/google-reviews-ledger.db.test.mjs over a real database. It and the Receptionist lens's series
+ * (`receptionist_series`, 00380) alone answer null where the database does not have their function yet (00350 and 00380
+ * are applied after the dashboard deploys).
  *
  * Each reads a window: a count of days and the day they end on (00359). Days that end today name no day, which is the
  * call every one of these was before, so a database without 00359 reads a period as it always did; only days that ended
@@ -13,7 +14,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ReportWindowNotReadable, campaignSeries, reachOutReport, reportSeries, reviewsLedger } from "@chanlytics/db";
+import {
+  ReportWindowNotReadable,
+  campaignSeries,
+  reachOutReport,
+  receptionistSeries,
+  reportSeries,
+  reviewsLedger,
+} from "@chanlytics/db";
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** A database that answers a function by name and keeps what it was asked. */
@@ -153,4 +161,40 @@ test("a database that does not have the reviews' ledger yet (00350 not applied) 
     /report_series: Could not find the function/,
     "the series is the report's own: a database without it is a failure, not a lens that draws less",
   );
+});
+
+test("receptionistSeries asks receptionist_series for the window, naming the last day only when it is not today", async () => {
+  const { db, asked } = dbWith({
+    receptionist_series: { data: { days: 30 }, error: null },
+  });
+  assert.deepEqual(await receptionistSeries(db, W, live(30)), { days: 30 });
+  await receptionistSeries(db, W, ended(20, "2026-09-20"));
+  assert.deepEqual(asked, [
+    ["receptionist_series", { p_tenant_id: W, p_days: 30 }],
+    ["receptionist_series", { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" }],
+  ]);
+});
+
+test("receptionistSeries is null where the database does not have the function yet (00380 not applied), and throws for any other failure", async () => {
+  const gone = "Could not find the function public.receptionist_series(p_days, p_tenant_id) in the schema cache";
+  for (const code of ["PGRST202", "42883"]) {
+    const missing = dbWith({ receptionist_series: { data: null, error: { message: gone, code } } }).db;
+    assert.equal(await receptionistSeries(missing, W, live(30)), null, code);
+    assert.equal(
+      await receptionistSeries(missing, W, ended(20, "2026-09-20")),
+      null,
+      `${code}: a window that names a day too`,
+    );
+  }
+  for (const code of ["XX000", "42501", "08006", undefined])
+    for (const window of [live(30), ended(20, "2026-09-20")])
+      await assert.rejects(
+        receptionistSeries(
+          dbWith({ receptionist_series: { data: null, error: { message: "boom", code } } }).db,
+          W,
+          window,
+        ),
+        /^Error: receptionist_series: boom$/,
+        `${code}`,
+      );
 });

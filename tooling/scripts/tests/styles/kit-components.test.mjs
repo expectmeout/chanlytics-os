@@ -724,6 +724,7 @@ const FIGURES = {
     }),
   "figure-door-act": () =>
     h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", door: { onClick } }),
+  "figure-thin": () => h(Figure, { label: "Customer messages", value: "62%", meta: "on 6 of 7 days", n: 3, minN: 5 }),
 };
 
 test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {
@@ -750,6 +751,42 @@ test("Figure draws the gallery's Figure family: a term and its definitions, the 
   const act = numberOf({ onClick }).rendered;
   assert.deepEqual([act.type, act.props.type, act.props.className], ["button", "button", "figure-door"]);
   assert.equal(drawn(h(Figure, { label: "Calls", value: "3" })).props.children[1].props.children[0], "3");
+  // A ratio of some, but too few, is greyed and says so (the reports lenses spec, D9): above none and under the minimum,
+  // and only where both are named. Of none there is no ratio to grey.
+  assert.equal(
+    drawn(h(Figure, { label: "Calls", value: "3", n: 5, minN: 5 })).props.className,
+    "figure",
+    "at the minimum it is read",
+  );
+  assert.equal(drawn(h(Figure, { label: "Calls", value: "3", n: 4, minN: 5 })).props.className, "figure is-thin");
+  assert.deepEqual(rows({ n: 4, minN: 5 }), ["figure-label", "figure-value", "figure-n"]);
+  assert.deepEqual(rows({ n: 4 }), ["figure-label", "figure-value"], "no minimum named, none applies");
+  assert.deepEqual(rows({ n: null, minN: 5 }), ["figure-label", "figure-value"], "no count, nothing to grey");
+  assert.equal(
+    drawn(h(Figure, { label: "Calls", value: "—", n: 0, minN: 5 })).props.className,
+    "figure",
+    "of none there is no ratio: its dash and its line say why, and nothing is greyed",
+  );
+  assert.deepEqual(rows({ n: 0, minN: 5 }), ["figure-label", "figure-value"], "and no line says it is of none");
+  const thin = drawn(h(Figure, { label: "Calls", value: "3", n: 1, minN: 5 }))
+    .props.children.filter(Boolean)
+    .at(-1);
+  assert.equal(thin.props.className, "figure-n");
+  assert.equal(
+    textOf(thin),
+    "only 1, too few to read",
+    "the words are the figure's own: how few, and that it is too few",
+  );
+  assert.equal(
+    drawn(h(Figure, { label: "Calls", value: "3", n: 2, minN: 5, className: "rpt-cell" })).props.className,
+    "figure is-thin rpt-cell",
+    "the page's layout class stays last",
+  );
+  assert.deepEqual(
+    rows({ meta: "no calls", n: 2, minN: 5 }),
+    ["figure-label", "figure-value", "figure-meta", "figure-n"],
+    "the count's line comes after the line under the number",
+  );
 });
 
 /**

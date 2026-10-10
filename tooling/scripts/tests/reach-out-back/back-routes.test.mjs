@@ -98,12 +98,17 @@ test("each route declares its policy: every member reads, an operator stops, the
 
 test("GET reports/reach-outs asks its function for the workspace's period, and refuses any other", async () => {
   const d = doors();
-  const out = await report.GET.run(get("&days=7"), ctxFor(tables("viewer"), {}, d.rpcs));
+  const out = await report.GET.run(get("&period=7d"), ctxFor(tables("viewer"), {}, d.rpcs));
   assert.deepEqual(out.report, { days: 30, has_reach_out: true, chains: [] });
   assert.deepEqual(d.asked, [["reach_out_report", { p_tenant_id: A, p_days: 7 }]]);
   await report.GET.run(get(), ctxFor(tables("viewer"), {}, d.rpcs));
   assert.deepEqual(d.asked.at(-1)[1], { p_tenant_id: A, p_days: 30 }, "thirty by default");
-  await refused(report.GET.run(get("&days=14"), ctxFor(tables("viewer"), {}, d.rpcs)), "validation", 400);
+  await refused(
+    report.GET.run(get("&period=14d"), ctxFor(tables("viewer"), {}, d.rpcs)),
+    "validation",
+    400,
+    'period: Invalid option: expected one of "7d"|"30d"|"90d"|"month"',
+  );
 });
 
 test("GET reach-outs/leads answers a search's lines, or one lead's story, and asks for exactly one", async () => {

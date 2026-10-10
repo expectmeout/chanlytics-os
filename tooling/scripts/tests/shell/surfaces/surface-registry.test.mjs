@@ -351,21 +351,31 @@ test("People resolves to its override for the list; a profile deep link waits on
   assert.equal(registry.routeSurfaceFor("clients", "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c"), "workspace");
 });
 
-test("a lens that names its draws is asked before its page, as the gate asks for a pane: Reviews draws its own read, no other lens of Reports does", () => {
+test("a lens that names its draws is asked before its page, as the gate asks for a pane: Reviews and Receptionist draw their own reads, no other lens of Reports does", () => {
   const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
   assert.deepEqual(registry.routeDrawsFor("reports", "reviews"), ["reports_reviews"]);
   assert.deepEqual(registry.ROUTE_DRAWS["reports/reviews"], ["reports_reviews"], "the one row that says it");
+  assert.deepEqual(registry.routeDrawsFor("reports", "receptionist"), ["reports_receptionist"]);
+  assert.deepEqual(registry.ROUTE_DRAWS["reports/receptionist"], ["reports_receptionist"], "the one row that says it");
   // Reports' other lenses, and the Overview, draw nothing beside the page's own read; the gate still waits for that one.
-  for (const lens of [undefined, null, "people", "pipeline", "campaigns", "receptionist"])
+  for (const lens of [undefined, null, "people", "pipeline", "campaigns"])
     assert.deepEqual(registry.routeDrawsFor("reports", lens), [], String(lens));
   assert.equal(registry.routeSurfaceFor("reports", "reviews"), "reports");
+  assert.equal(registry.routeSurfaceFor("reports", "receptionist"), "reports");
   assert.deepEqual(registry.routeSurfaces("reports", "reviews"), ["workspace", "reports", "reports_reviews"]);
+  assert.deepEqual(registry.routeSurfaces("reports", "receptionist"), ["workspace", "reports", "reports_receptionist"]);
   assert.deepEqual(registry.routeSurfaces("reports"), ["workspace", "reports"]);
   // The days a member picked ride in the param (contracts lensRoute): the lens is what is classified and fed, whatever
   // days it is over, and days alone are the Overview's.
   const DAYS = "2026-09-01~2026-09-20";
   assert.deepEqual(registry.routeDrawsFor("reports", `reviews:${DAYS}`), ["reports_reviews"]);
   assert.deepEqual(registry.routeSurfaces("reports", `reviews:${DAYS}`), ["workspace", "reports", "reports_reviews"]);
+  assert.deepEqual(registry.routeDrawsFor("reports", `receptionist:${DAYS}`), ["reports_receptionist"]);
+  assert.deepEqual(registry.routeSurfaces("reports", `receptionist:${DAYS}`), [
+    "workspace",
+    "reports",
+    "reports_receptionist",
+  ]);
   for (const param of [DAYS, `people:${DAYS}`, `campaigns:${DAYS}`]) {
     assert.equal(registry.routeSurfaceFor("reports", param), "reports", param);
     assert.deepEqual(registry.routeDrawsFor("reports", param), [], param);

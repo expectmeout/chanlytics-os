@@ -8,6 +8,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
 import { DEALS, campaignDto, cday, reviewsDto, reviewsGoogle, reviewsHeld, surface } from "../_report-world.mjs";
+import { ownHeld } from "../receptionist/_receptionist-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -17,11 +18,62 @@ const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
-const { bookedTileOf, metricWordsOf, toGoogleVM, REPLY_WINDOW_WORDS, DELIVERY_RECEIPTS_WORDS } =
-  await import("@chanlytics/contracts");
+const {
+  bookedTileOf,
+  metricWordsOf,
+  toGoogleVM,
+  toReceptionistReportVM,
+  MISSED_CALL_TOUCH_WORDS,
+  REPLY_WINDOW_WORDS,
+  DELIVERY_RECEIPTS_WORDS,
+} = await import("@chanlytics/contracts");
 after(() => forgetStanding());
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
+/** The Receptionist lens's own figures (contracts reports/receptionist/), folded from a small week with the hours said. */
+const receptionistTiles = () => {
+  const mix = { total: 0, by_reason: {} };
+  const handover = { n: 2, replied: { n: 2, median_s: 300 }, settled: { n: 1, median_s: 900 } };
+  const dto = {
+    timezone: "America/New_York",
+    today: "2026-09-07",
+    days: 7,
+    series: {
+      timezone: "America/New_York",
+      today: "2026-09-07",
+      days: 7,
+      hold: {
+        now: {
+          total: 0,
+          sent: 0,
+          canceled: 0,
+          steered: 0,
+          overtaken: 0,
+          person_first: 0,
+          waiting: 0,
+          other: 0,
+          low_confidence: 0,
+        },
+        before: { total: 0, sent: 0 },
+      },
+      topics: { of: 0, stamped: 0, by_intent: {} },
+      languages: { of: 0, stamped: 0, by_language: {} },
+      blocked: mix,
+      call_endings: mix,
+      handover: { now: handover, before: handover },
+      missed: {
+        now: { n: 3, touched: 2, pending: 0, unknown: 0 },
+        before: { n: 0, touched: 0, pending: 0, unknown: 0 },
+      },
+      after_hours: [{ d: "2026-09-06", q: 44, n: 2, a: 1 }],
+      links: { sent: 0, booked: null, calendar: "none" },
+      stuck: { waiting: 1, oldest_at: "2026-09-07T13:00:00Z", callbacks: 0, capped: false },
+    },
+    profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
+  };
+  const vm = toReceptionistReportVM(dto, { nowMs: NOW });
+  return [...vm.handover, vm.missed, vm.closed, ...vm.stuck];
+};
 /** A listing as the edge reads it (the shape of tests/google/google.test.mjs's own), with one review. */
 const GOOGLE = {
   ready: { places: true, profile: false },
@@ -79,11 +131,12 @@ const held = reviewsHeld;
 const PUBLIC_LISTING = held(reviewsDto({ days: 7, google: GOOGLE, ledger: null }));
 /** Harbor Studio with its Business Profile synced: the reviews on record are counted. */
 const PROFILE_SYNCED = held(reviewsDto({ days: 7, google: reviewsGoogle() }));
-const draw = (lens, R, reviews = PUBLIC_LISTING) => {
+const draw = (lens, R, reviews = PUBLIC_LISTING, own = ownHeld()) => {
   workspace();
   keepReportPeriod("7d");
   setSurfaceValue("reports", R);
   setSurfaceValue("reports_reviews", reviews);
+  setSurfaceValue("reports_receptionist", own);
   fresh();
   return ReportsPage({ pathname: `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}` });
 };
@@ -104,12 +157,13 @@ test("every figure the reports build names a metric that has words, and no two m
     ...R.campaigns.tiles,
     ...toGoogleVM(GOOGLE, { days: 7, until: null }, NOW, "UTC").tiles,
     ...reviews.tiles,
+    ...receptionistTiles(),
   ];
   const metrics = [...new Set(tiles.map((t) => t.metric))];
   assert.equal(
     metrics.length,
-    19,
-    "the receptionist's six, booked, the campaigns' five, Google's four and the three more the profile's reviews add",
+    26,
+    "the receptionist's six, booked, the campaigns' five, Google's four, the three more the profile's reviews add and the seven the Receptionist lens's own read adds",
   );
   for (const m of metrics) {
     const words = metricWordsOf(m);
@@ -121,6 +175,43 @@ test("every figure the reports build names a metric that has words, and no two m
 test("the words that cite a window cite the constant the report counts by, not a second spelling of it", () => {
   assert.ok(metricWordsOf("replied_share").includes(REPLY_WINDOW_WORDS), REPLY_WINDOW_WORDS);
   assert.ok(metricWordsOf("delivered_share").includes(DELIVERY_RECEIPTS_WORDS), DELIVERY_RECEIPTS_WORDS);
+  assert.ok(metricWordsOf("missed_calls_answered").includes(MISSED_CALL_TOUCH_WORDS), MISSED_CALL_TOUCH_WORDS);
+  // Said once and read twice, in the words the figure's own line uses ("under an hour old"): the definition, character for character.
+  assert.equal(
+    metricWordsOf("missed_calls_answered"),
+    `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or the receptionist reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call the receptionist placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
+  );
+});
+
+test("a definition uses the word the figure's own line uses: calls that connected, handovers that wanted a message", () => {
+  assert.match(metricWordsOf("calls"), /^Calls to the receptionist that connected\. /);
+  assert.match(metricWordsOf("handover_first_reply"), /, over the handovers that wanted a message, /);
+  for (const m of ["calls", "handover_first_reply"])
+    assert.doesNotMatch(metricWordsOf(m), /someone spoke on/, `${m}: one word for a call that connected`);
+});
+
+test("the Receptionist lens's seven figures name a metric each, and each metric says what is not counted", () => {
+  const ids = [
+    "handover_first_reply",
+    "handover_settled",
+    "missed_calls_answered",
+    "answered_while_closed",
+    "waiting_on_you",
+    "call_backs",
+    "replies_held_back",
+  ];
+  const tiles = receptionistTiles();
+  assert.deepEqual(
+    tiles.map((t) => t.metric),
+    ids,
+    "the figures, in the order the lens draws them",
+  );
+  for (const id of ids) {
+    const words = metricWordsOf(id);
+    assert.match(words, /\bnot counted\b/, `${id}: says what is not counted`);
+    assert.ok(words.length > 80 && words.endsWith("."), `${id}: a sentence of words`);
+  }
+  assert.equal(new Set(ids.map(metricWordsOf)).size, ids.length, "each says what only it counts");
 });
 
 test("the Overview's strip draws each figure with its words over the label", () => {
@@ -130,6 +221,32 @@ test("the Overview's strip draws each figure with its words over the label", () 
     ["customer_messages", "calls", "new_people", "booked", "handovers"],
   );
   for (const f of strip) assert.equal(f.tip, metricWordsOf(f.metric), `${f.metric}: what is counted, and what is not`);
+});
+
+test("the Receptionist lens's strip against before, its steps after a reply and what is stuck each draw their figures with their words over the label", () => {
+  const tree = draw("receptionist", surface({ deals: DEALS }));
+  const strips = {
+    "receptionist-strip": ["customer_messages", "answered_share", "reply_median", "handovers"],
+    "receptionist-figures": [
+      "handover_first_reply",
+      "handover_settled",
+      "missed_calls_answered",
+      "answered_while_closed",
+    ],
+    "receptionist-stuck": ["waiting_on_you", "call_backs", "replies_held_back"],
+  };
+  for (const [id, metrics] of Object.entries(strips)) {
+    const strip = byTestId(tree, id);
+    assert.ok(strip, `${id}: the strip stands on the lens`);
+    const drawn = figures(strip).map(said);
+    assert.deepEqual(
+      drawn.map((f) => f.metric),
+      metrics,
+      `${id}: its figures, in the order the lens draws them`,
+    );
+    for (const f of drawn)
+      assert.equal(f.tip, metricWordsOf(f.metric), `${f.metric}: what is counted, and what is not`);
+  }
 });
 
 test("the Campaigns lens draws who said yes and who asked to stop, each with the period before in counts and its words", () => {

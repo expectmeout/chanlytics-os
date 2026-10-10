@@ -91,6 +91,12 @@ const REPORT_CAMPAIGNS_WORDS =
  */
 const REPORT_REVIEWS_WORDS =
   "campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for";
+/**
+ * 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): report says the Receptionist lens after the Reviews lens: the one
+ * sentence, and nothing else it says moved. It opens with the Reviews sentence it follows, which it replaces whole.
+ */
+const REPORT_RECEPTIONIST_WORDS =
+  "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Receptionist lens is in receptionist, as the page says it: what became of the replies held before they went out (hold), what customers asked about (topics), the languages the receptionist wrote in where it wrote in more than one, how the calls someone spoke on ended, the booking link and how many of the people it went to have booked since (link), your first reply after a handover and the time to settle one (handover), the missed calls answered within an hour (missed), what came while the business was closed and how many of those the receptionist answered (closed), and what is stuck now (stuck: who waits on you, call-backs, the replies held back), with held_back giving the reasons the send door refused a reply; receptionist says available false where the database does not keep these numbers yet, and error where they could not be read.";
 const RUN_CHANNEL_WORDS = [
   "how many were sent, the share of those delivered and read, and how many replied,",
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
@@ -336,7 +342,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens and the Reviews lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -380,7 +386,11 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       was(role, "report")
         .description.replace("the median and p90 reply time,", `the median and p90 reply time ${REPORT_HOLD_WORDS},`)
         .replace("and the Deals section where deals are on.", REPORT_CAMPAIGNS_WORDS)
-        .replace("campaigns says error where its numbers could not be read. Call it for", REPORT_REVIEWS_WORDS),
+        .replace("campaigns says error where its numbers could not be read. Call it for", REPORT_REVIEWS_WORDS)
+        .replace(
+          "reviews says linked false where no Google listing is linked, and error where its numbers could not be read.",
+          REPORT_RECEPTIONIST_WORDS,
+        ),
       role,
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);

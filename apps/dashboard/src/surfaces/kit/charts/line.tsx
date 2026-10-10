@@ -75,7 +75,7 @@ function lineValues<D extends ChartRow>(
 }
 
 /** The y axis: a clean scale over the values, its ticks without the reference's own, and each tick's label. */
-function lineAxis(
+export function lineAxis(
   values: number[],
   props: {
     scale?: "count" | "seconds";
@@ -160,14 +160,16 @@ function priorMarks(before: Array<number | null>, x: (i: number) => number, f: F
   });
 }
 
-/** The reference: a labelled hairline across the plot. */
-function referenceLine(reference: { value: number; label: string }, f: Frame, width: number) {
+/** The reference: a hairline across the plot, labelled on it where it is given a label (a plot whose marks land on the line says its label elsewhere). */
+export function referenceLine(reference: { value: number; label?: string }, f: Frame, width: number) {
   return (
     <g className="ck-ref">
       <line x1={f.L} x2={width - f.R} y1={f.y(reference.value)} y2={f.y(reference.value)} />
-      <text x={width - f.R} y={f.y(reference.value) - 5} textAnchor="end">
-        {reference.label}
-      </text>
+      {reference.label !== undefined && (
+        <text x={width - f.R} y={f.y(reference.value) - 5} textAnchor="end">
+          {reference.label}
+        </text>
+      )}
     </g>
   );
 }

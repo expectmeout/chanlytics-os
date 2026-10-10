@@ -27,6 +27,7 @@ import { peopleOverride } from "@/surfaces/people/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
+import { forgetReceptionist, receptionistOverride } from "@/surfaces/reports/receptionist-surface";
 import { forgetReviews, reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "@/surfaces/today/surface";
@@ -37,10 +38,22 @@ import { googleOverride } from "./google";
 import { leadsOverride } from "@/surfaces/leads/surface";
 import { setupOverride } from "@/surfaces/setup/surface";
 import { refreshSurfaces } from "./surface-runner";
+import { ownsTheScreen } from "./surface-registry";
+import { routeOnScreen } from "./workspace";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { repliesOverride } from "./reach-out/replies";
 
-const thread = () => [inboxOverride, conversationsOverride, todayOverride];
+// What the Receptionist lens says is made wrong by writes the live feed does not tell it of: a verb on a conversation (only the
+// conversation changes, and a reply or a resolved escalation moves "waiting on you"), the zone (its days), the hours and the closures
+// ("while you were closed"). Its read is forgotten, as a template written is for the Inbox, and read as the lens comes on screen; where
+// the lens is on screen already, nothing else would read it, so it is read again at once.
+const receptionist = (): SurfaceOverride[] => {
+  forgetReceptionist();
+  return typeof window !== "undefined" && ownsTheScreen("reports_receptionist", routeOnScreen())
+    ? [receptionistOverride]
+    : [];
+};
+const thread = () => [inboxOverride, conversationsOverride, todayOverride, ...receptionist()];
 const people = () => [peopleOverride];
 // What a thread says of its person: their name, number, address and proposal link, and whether they said yes or asked
 // to stop (thread-dto.ts `contact`). An edit of those re-reads the threads with People, as a delete always did.
@@ -85,6 +98,16 @@ const google = () => {
 };
 const billing = () => [billingOverride, setupOverride];
 const settings = () => [settingsOverride];
+// Settings carries the version the next save sends, and Today, the Calendar and Setup state the workspace's facts; the hours and the
+// closures a save holds are the lens's "while you were closed". The one list for the two writes that carry them, so they cannot drift.
+const settingsWrite = () => [
+  settingsOverride,
+  todayOverride,
+  calendarOverride,
+  setupOverride,
+  ...readiness(),
+  ...receptionist(),
+];
 
 /** Exported for the tests that hold a verb to its surfaces by running this, not by reading a courier. */
 export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
@@ -197,16 +220,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // states the workspace's facts; hours, closures, rules and services are the
   // Calendar's too.
   // Name, hours, services, the hand-off number and the calendar feed are Setup rows too. The business's postal address is
-  // saved here as well, and an offer by email is closed without it: the composers' Send by row and People's reach follow.
-  "PUT settings": () => [settingsOverride, todayOverride, calendarOverride, setupOverride, ...readiness()],
-  // The first receptionist is a settings write too, from what is known: the same surfaces read again.
-  "POST settings/receptionist": () => [
-    settingsOverride,
-    todayOverride,
-    calendarOverride,
-    setupOverride,
-    ...readiness(),
-  ],
+  // saved here as well, and an offer by email is closed without it: the composers' Send by row and People's reach follow. The hours and
+  // the closures are what the Receptionist lens's "while you were closed" counts by (settingsWrite).
+  "PUT settings": settingsWrite,
+  // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read again.
+  "POST settings/receptionist": settingsWrite,
   // A booking email held for a look, read again or dismissed (00345): the Calendar's read carries the held list and its
   // count, which the Business tab's fold and the board's card both draw from, so the list says what is left at once.
   "POST calendar/notices/[id]/read-again": () => [calendarOverride],
@@ -219,10 +237,18 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
   // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
   // is also where Today's period line counts its days from: the headline is read again too, and the Reviews lens's read, which
-  // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen.
+  // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen; so is the Receptionist
+  // lens's, whose days are the zone's too.
   "PATCH workspaces": () => {
     forgetReviews();
-    return [settingsOverride, peopleOverride, reportsOverride, reportsHeadlineOverride, todayOverride];
+    return [
+      settingsOverride,
+      peopleOverride,
+      reportsOverride,
+      reportsHeadlineOverride,
+      todayOverride,
+      ...receptionist(),
+    ];
   },
   "POST team/invite": settings,
   "POST team/invite/[id]/resend": settings,

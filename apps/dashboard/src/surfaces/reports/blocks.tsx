@@ -11,7 +11,6 @@ import {
   BOOKED_NEEDS_A_LINK,
   CALENDAR_SETTING_ROUTE,
   bookedTileOf,
-  metricWordsOf,
   plural,
   type BookingReportVM,
   type CampaignSourceVM,
@@ -19,6 +18,7 @@ import {
   type ReportStripTile,
   type ReportVM,
 } from "@chanlytics/contracts";
+import { metricWordsOf } from "@chanlytics/contracts/report-lens";
 import { listRoute, openBookingTool, routeDoor } from "../legacy-verbs";
 import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
@@ -169,7 +169,9 @@ export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
 /**
  * A tile as the kit's figure: its value, the period before in counts beside it, its line under it, and over its label the
  * words for what it counts (contracts metricWordsOf), named by its metric. Every strip of the page draws its tiles with it,
- * so a figure says the same on every lens; the grid, the dividers and the padding are the page's.
+ * so a figure says the same on every lens; the grid, the dividers and the padding are the page's. A tile that names a work
+ * page (`door`) opens it from its number, and a ratio of too few (`n` under `minN`) is greyed and says how few, as the kit's
+ * figure draws both.
  */
 export function RptFigure({ t }: { t: ReportStripTile }) {
   return (
@@ -181,7 +183,33 @@ export function RptFigure({ t }: { t: ReportStripTile }) {
       change={t.compare}
       meta={t.meta}
       definition={metricWordsOf(t.metric)}
+      n={t.n}
+      minN={t.minN}
+      door={t.door ? routeDoor(t.door) : undefined}
     />
+  );
+}
+
+/**
+ * A strip of figures: the page's list of terms, each tile the kit's figure (RptFigure); the grid, the dividers and the padding
+ * are the page's (reports.css, `.rpt-figures`), and `className` places the strip among the lens's other cards. `testid` names
+ * the strip for the tests that find it.
+ */
+export function RptStrip({
+  tiles,
+  className,
+  testid,
+}: {
+  tiles: ReportStripTile[];
+  className?: string;
+  testid?: string;
+}) {
+  return (
+    <dl className={className ? `rpt-figures ${className}` : "rpt-figures"} data-testid={testid}>
+      {tiles.map((t) => (
+        <RptFigure key={t.id} t={t} />
+      ))}
+    </dl>
   );
 }
 
@@ -193,13 +221,7 @@ export function RptTiles({ vm, booking }: { vm: ReportVM; booking: BookingReport
   const tiles = [by.messages, by.calls, by.people, bookedTileOf(booking), by.needed].filter(
     (t): t is ReportStripTile => !!t,
   );
-  return (
-    <dl className="rpt-figures" data-testid="reports-tiles">
-      {tiles.map((t) => (
-        <RptFigure key={t.id} t={t} />
-      ))}
-    </dl>
-  );
+  return <RptStrip tiles={tiles} testid="reports-tiles" />;
 }
 
 /** Who asked and still has no time on the calendar: the share's other side, and the door to People's own list of them. */

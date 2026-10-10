@@ -5,11 +5,13 @@ import {
   dealsAreOn,
   fixedDaysOf,
   headlineOf,
+  isReceptionistSeriesDto,
   isReportDto,
   isReviewsLedgerDto,
   monthDaysAt,
   parseTenantConfigResult,
   plural,
+  receptionistDtoOf,
   REPORT_PERIOD_IDS,
   reportDaysCount,
   reportDaysRefusal,
@@ -22,21 +24,36 @@ import {
   type BookingReportDto,
   type DealReportDto,
   type PersonRowDto,
+  type ReceptionistDto,
+  type ReceptionistSeriesDto,
   type ReportDto,
   type ReportHeadlineDto,
   type ReportPeriodId,
   type ReportProfile,
   type ReviewsReportDto,
 } from "@chanlytics/contracts";
-import { ReportWindowNotReadable, reportSeries, reviewsLedger, type ReportWindow } from "@chanlytics/db";
+import {
+  ReportWindowNotReadable,
+  receptionistSeries,
+  reportSeries,
+  reviewsLedger,
+  type ReportWindow,
+} from "@chanlytics/db";
 import { googleReadiness } from "../connections/google";
-import { everyone } from "../people/people";
-import { bookingReport } from "../calendar/people-visits";
+import { bookingReport, linksBooked } from "../calendar/people-visits";
 import { dealReport } from "../people/deals";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import { googleReader } from "./connections";
+import { everyone as everyoneRead } from "./everyone";
 import * as facts from "./facts";
 import { log } from "@/server/log";
+
+/**
+ * Everyone in People, as the turn holds them (readers/everyone.ts): the booking line, the deals and the booking link's people
+ * all count from this one read, so a report (and an Ask turn that reads it) asks People once.
+ */
+const everyoneOf = (rc: ReaderContext): Promise<PersonRowDto[]> =>
+  load(rc, everyoneRead, undefined).then((r) => r.data);
 
 /**
  * Asked, then booked over the window: the one conversion line, from everyone in People and the calendar. Never fatal: a feed that
@@ -75,6 +92,24 @@ async function bookingOf(
 }
 
 /**
+ * The workspace's hours and closures, which Reports' while-you-were-closed counts against (spec A2): the turn's config,
+ * which the booking line already read, parsed as the calendar parses it, without its log line. Null is a profile that
+ * could not be read (no row, a config the parser refuses, a read that failed): the report then says nothing of the
+ * hours. A config read whole that keeps none is an empty profile, which is how the report knows the workspace has not
+ * set them. The report and the Receptionist lens both read it here: one derivation.
+ */
+async function profileOf(rc: ReaderContext): Promise<ReportProfile | null> {
+  return load(rc, facts.config, undefined)
+    .then((s) => {
+      const parsed = s.data ? parseTenantConfigResult(s.data.config) : null;
+      if (!parsed?.ok) return null;
+      const { hours, closures } = parsed.config.brain?.profile ?? {};
+      return { ...(hours && { hours }), ...(closures && { closures }) };
+    })
+    .catch(() => null);
+}
+
+/**
  * GET reports, as the route answers it: the receptionist's numbers day by day for one of the four periods (the route
  * refuses any other), then the booking line and the deals beside them -- the route's body, moved here whole, so the
  * Reports page and Ask's report tool read the same rows the same way. One SECURITY INVOKER function computes the series
@@ -102,7 +137,7 @@ export const report: Reader<
     const series = windowRead(reportSeries(ctx.supabase, tenantId, window));
     // Asked, then booked — the one conversion line, from the calendar. Read once: the deals below say where the new
     // clients came from out of the same rows.
-    const people = everyone(ctx, tenantId);
+    const people = everyoneOf(rc);
     const bookingRead = bookingOf(rc, window, people);
     // The deals of the period and the stock (0004), only where deals are on (0008) and a deal was recorded. Never
     // fatal either: a table that cannot be read costs the section, and People that cannot be read cost only the line
@@ -116,19 +151,7 @@ export const report: Reader<
     const report = (await series) as unknown as ReportDto;
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
     const [booking, deals] = await Promise.all([bookingRead, dealsRead]);
-    // The workspace's hours and closures, which Reports' while-you-were-closed counts against (spec A2): the turn's
-    // config, which the booking line above already read, parsed as the calendar parses it, without its log line. Null
-    // is a profile that could not be read (no row, a config the parser refuses, a read that failed): the report then
-    // says nothing of the hours. A config read whole that keeps none is an empty profile, which is how the report
-    // knows the workspace has not set them.
-    const profile: ReportProfile | null = await load(rc, facts.config, undefined)
-      .then((s) => {
-        const parsed = s.data ? parseTenantConfigResult(s.data.config) : null;
-        if (!parsed?.ok) return null;
-        const { hours, closures } = parsed.config.brain?.profile ?? {};
-        return { ...(hours && { hours }), ...(closures && { closures }) };
-      })
-      .catch(() => null);
+    const profile = await profileOf(rc);
     return {
       data: { report, booking, deals, profile },
       rows: [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${plural(days, "day")}` }],
@@ -151,7 +174,7 @@ export const reportHeadline: Reader<{ period: ReportPeriodId }, { headline: Repo
     const { days } = window;
     const [answer, booking] = await Promise.all([
       reportSeries(rc.ctx.supabase, rc.tenantId, window),
-      bookingOf(rc, window, everyone(rc.ctx, rc.tenantId)),
+      bookingOf(rc, window, everyoneOf(rc)),
     ]);
     if (!isReportDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
     return {
@@ -174,8 +197,6 @@ export const ReportQuery = z.object({
   from: z.string().optional(),
   /** Its last day, today at the latest, no more than ninety days from `from`. */
   to: z.string().optional(),
-  /** What the pages sent before `period` existed: read until 19 October 2026 (contracts report-periods.ts, and the day is held by tests/reports/periods/report-periods.test.mjs). */
-  days: z.string().optional(),
 });
 
 /** The period a request names, or the request's refusal in words: it is the window every report route reads, said once. */
@@ -284,5 +305,93 @@ export const reviewsReport: Reader<ReportWindow, ReviewsReportDto> = {
       rows: [],
       stamp: stamp(),
     };
+  },
+};
+
+/**
+ * Of the people sent the booking link, how many have booked since: People read once, narrowed to the people the link went
+ * to, and counted against the calendar by the one rule "asked, then booked" counts by (linksBooked). Never fatal: a read
+ * that fails is `unavailable` (logged, as the booking line's is), and a calendar that cannot say (`none`, `unavailable`)
+ * leaves `booked` null, never 0. The zone and the settings are the turn's, as bookingOf takes them. Days that ended before
+ * today are `ended` with nothing read, for the reason the booking line gives (bookingOf): People and the calendar are as
+ * they stand now, and say nothing true of a link that went weeks ago. More people sent the link than the database lists
+ * (`total` counts them all, `people` is capped) is `ok` with `booked` null and nothing read: a count of the listed
+ * alone would understate who booked, and the lens then says how many were sent and nothing of how many booked. No link
+ * sent is none booked of none, with nothing read: there is no one to find.
+ */
+async function linksOf(
+  rc: ReaderContext,
+  window: ReportWindow,
+  links: ReceptionistSeriesDto["links"],
+): Promise<{ calendar: BookingReportDto["calendar"]; booked: number | null }> {
+  if (window.end !== null) return { calendar: "ended", booked: null };
+  if (links.total > links.people.length) return { calendar: "ok", booked: null };
+  if (links.people.length === 0) return { calendar: "ok", booked: 0 };
+  const linked = new Set(links.people.map((p) => p.c));
+  try {
+    const [people, zone, settings] = await Promise.all([
+      everyoneOf(rc),
+      load(rc, facts.facts, undefined),
+      load(rc, facts.config, undefined),
+    ]);
+    const known = { timezone: zone.data.timezone, config: settings.data?.config ?? null };
+    const found = await linksBooked(
+      rc.ctx,
+      rc.tenantId,
+      people.filter((p) => linked.has(p.id)),
+      links.people,
+      rc.now,
+      known,
+    );
+    return { calendar: found.calendar, booked: found.calendar === "ok" ? found.booked : null };
+  } catch (e) {
+    log.error("booking_report_failed", {
+      tenant_id: rc.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { calendar: "unavailable", booked: null };
+  }
+}
+
+/**
+ * GET reports/receptionist, as the route answers it: what the receptionist did over `days`, which one SECURITY INVOKER
+ * function counts in the workspace's own zone (receptionistSeries: the held replies, the topics and languages, the
+ * calls, the handovers, when people write, the booking links sent and what is open now), and beside it the hours the
+ * workspace keeps (the report's own profile, profileOf). Contracts' receptionistDtoOf makes the route's answer of the
+ * two: who waits on the person looking is decided there, by the one rule (standingOfThread), and the people sent the link
+ * are counted here (linksOf) against what the calendar could say. The two reads are independent, so they are made
+ * together. A function that answers nothing is the page's 404, in its words; a read that fails is the route's failure.
+ * A database that does not have the function yet (00380 is applied on the owner's word, after the dashboard deploys)
+ * answers null for a period and for picked days alike: the answer is then the window the route was asked with no series,
+ * the lens draws its kept cards and none of its own parts (Ask's answer says `{ available: false }`), and the log says
+ * `receptionist_series_missing` once a read. No row of its own: it is drawn on the Reports page, which `report` names.
+ */
+export const receptionistReport: Reader<ReportWindow, ReceptionistDto> = {
+  name: "receptionistReport",
+  async read(rc, window) {
+    // The workspace's zone is asked for with the other two, so a database without the function costs no round trip after
+    // them; only that answer waits on it (a membership's turn holds it already). A failed read of it is handled here and
+    // costs a database that has the function nothing: the booking link's own read asks again, and a failure is not kept.
+    const zone = load(rc, facts.facts, undefined);
+    zone.catch(() => undefined);
+    const [answer, profile] = await Promise.all([
+      receptionistSeries(rc.ctx.supabase, rc.tenantId, window),
+      profileOf(rc),
+    ]);
+    const nowMs = rc.now.getTime();
+    if (answer === null) {
+      log.warn("receptionist_series_missing", { tenant_id: rc.tenantId });
+      const timezone = (await zone).data.timezone;
+      const head = {
+        timezone,
+        today: zoneDayKey(nowMs, timezone),
+        ...(window.end !== null && { end: window.end }),
+        days: window.days,
+      };
+      return { data: receptionistDtoOf(null, { booked: null, profile, head, nowMs }), rows: [], stamp: stamp() };
+    }
+    if (!isReceptionistSeriesDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
+    const booked = await linksOf(rc, window, answer.links);
+    return { data: receptionistDtoOf(answer, { booked, profile, head: answer, nowMs }), rows: [], stamp: stamp() };
   },
 };

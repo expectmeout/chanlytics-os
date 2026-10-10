@@ -33,7 +33,20 @@ export type ReportMetric =
   | "newest_review"
   | "reviews_written"
   | "reviews_answered"
-  | "review_reply_time";
+  | "review_reply_time"
+  | "handover_first_reply"
+  | "handover_settled"
+  | "missed_calls_answered"
+  | "answered_while_closed"
+  | "waiting_on_you"
+  | "call_backs"
+  | "replies_held_back";
+
+/**
+ * The fewest a ratio is of for it to say anything (the reports lenses spec, D9): a share or a median of fewer than this is
+ * greyed and says how few it is of. One number for every lens; the reviews' reply time keeps its own, smaller, minimum.
+ */
+export const REPORT_MIN_N = 5;
 
 export interface ReportTileVM {
   id: string;
@@ -49,6 +62,12 @@ export interface ReportTileVM {
   spark: number[];
   /** The period before, in counts ("up from 99"); null when there is nothing to compare with. */
   compare: string | null;
+  /** The work page the number opens, as a route ("inbox"): the people or the messages it counts. Set where there is one. */
+  door?: string;
+  /** What a ratio is of (the replies a median was counted over); set on a ratio, with `minN`, and on no count. */
+  n?: number;
+  /** The fewest `n` that say anything (REPORT_MIN_N): a ratio of fewer is greyed on the page. */
+  minN?: number;
 }
 
 /** A duration in an owner's words (durationWords), or a dash where there is none. */
@@ -119,6 +138,7 @@ const messagesTile: ReportTile = ({ days, current, points, tot, prev, noun, rang
   delta: deltaOf(tot.in, prev.in, true, noun),
   spark: points.map((p) => p.in),
   compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
+  door: "conversations",
 });
 
 const answeredTile: ReportTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
@@ -134,6 +154,9 @@ const answeredTile: ReportTile = ({ points, tot, noun, answeredTotal, aiShare, p
   delta: pointsDelta(aiShare, prevShare, noun),
   spark: points.map((p) => p.ai),
   compare: null,
+  // A share of the messages that wanted an answer: of few, it says nothing (the page greys it).
+  n: answeredTotal,
+  minN: REPORT_MIN_N,
 });
 
 const replyTile: ReportTile = ({ sortedReply, median, p90, hold }) => ({
@@ -148,6 +171,9 @@ const replyTile: ReportTile = ({ sortedReply, median, p90, hold }) => ({
   delta: null,
   spark: [],
   compare: null,
+  // A median of the replies counted: of few, it says nothing (the page greys it).
+  n: sortedReply.length,
+  minN: REPORT_MIN_N,
 });
 
 const neededTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
@@ -159,6 +185,7 @@ const neededTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadA
   delta: deltaOf(tot.escalations, prev.escalations, false, noun),
   spark: points.map((p) => p.escalations),
   compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
+  door: "inbox",
 });
 
 const callsTile: ReportTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
@@ -195,12 +222,20 @@ export const REPORT_TILES: readonly ReportTile[] = [
   peopleTile,
 ];
 
-/** What the page's strip draws of a tile: its figure, its words, and the period before beside it. */
-export type ReportStripTile = Pick<ReportTileVM, "id" | "metric" | "label" | "value" | "meta" | "compare">;
+/** What the page's strip draws of a tile: its figure, its words, the period before beside it, and the page it opens and the count it is of where it has them. */
+export type ReportStripTile = Pick<
+  ReportTileVM,
+  "id" | "metric" | "label" | "value" | "meta" | "compare" | "door" | "n" | "minN"
+>;
+
+/** What the Booked tile says, under its dash, for days that ended before today: the reason booking-report's BOOKED_NEEDS_TODAY gives, in a tile's few words. */
+export const BOOKED_ENDED_META = "not counted for days that have ended: visits are counted as they stand now";
 
 /** Booked, from the calendar: a count where one was read, and why there is none where not (moved from the page's strip). */
 export function bookedTileOf(booking: BookingReportVM | null): ReportStripTile {
   const tile = { id: "booked", metric: "booked", label: "Booked", compare: null } as const;
+  // Days that ended before today are never counted (visits are counted as they stand now): that is not a missing link.
+  if (booking?.calendar === "ended") return { ...tile, value: "—", meta: BOOKED_ENDED_META };
   if (booking && booking.present)
     return {
       ...tile,

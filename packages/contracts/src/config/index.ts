@@ -187,11 +187,11 @@ export {
   brainMetaOf,
   replyWhy,
   BRAIN_INTENTS,
-  INTENT_LABELS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
   CONFIDENCE_STEPS,
 } from "./brain";
+export { INTENT_LABELS } from "./intent-labels";
 export { parseBrainOutput, BrainOutputSchema } from "./brain-schema";
 export type { BrainIntent, BrainMeta, BrainStamp, ReplyWhyVM } from "./brain";
 export type { BrainOutput } from "./brain-schema";

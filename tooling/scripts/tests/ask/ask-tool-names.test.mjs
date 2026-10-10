@@ -40,6 +40,7 @@ const {
   PROPOSAL_SPECS,
   momentOffered,
   roleAtLeast,
+  toReceptionistReportVM,
   toReviewsReportVM,
 } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
@@ -308,6 +309,41 @@ const quiet = {
   escalations: 1,
   new_contacts: 0,
 };
+/**
+ * What receptionist_series answers (00380) for a quiet period: nothing held, said, handed over or missed, no message while
+ * closed and no booking link sent. `over` is what a case puts in it.
+ */
+function quietReceptionist({ p_days: days }, over = {}) {
+  const hold = {
+    total: 0,
+    sent: 0,
+    canceled: 0,
+    steered: 0,
+    overtaken: 0,
+    person_first: 0,
+    waiting: 0,
+    other: 0,
+    low_confidence: 0,
+  };
+  const handover = { n: 0, replied: { n: 0, median_s: null }, settled: { n: 0, median_s: null } };
+  const missed = { n: 0, touched: 0, pending: 0, unknown: 0 };
+  return {
+    timezone: TZ,
+    today: dayKey(NOW.getTime()),
+    days,
+    hold: { now: hold, before: { total: 0, sent: 0 } },
+    topics: { of: 0, stamped: 0, by_intent: {} },
+    languages: { of: 0, stamped: 0, by_language: {} },
+    blocked: { total: 0, by_reason: {} },
+    call_endings: { total: 0, by_reason: {} },
+    handover: { now: handover, before: handover },
+    missed: { now: missed, before: missed },
+    after_hours: [],
+    links: { total: 0, people: [] },
+    stuck: { open: [] },
+    ...over,
+  };
+}
 const RPCS = {
   people_list: (a) => (a?.p_contact_id && a.p_contact_id !== P1 ? [] : [rosaRow]),
   metrics_summary: () => ({
@@ -371,6 +407,8 @@ const RPCS = {
     waiting_total: 0,
     waiting: [],
   }),
+  // The Receptionist lens's read, which the report reads beside the series (readers/report.ts receptionistReport): a quiet period.
+  receptionist_series: (a) => quietReceptionist(a),
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
   lead_niche_prior: () => null,
 };
@@ -474,8 +512,8 @@ const CASES = [
 const withoutId = (s) => s.replace(/"id":"p-[0-9a-f-]{36}",?/g, "").replace(/,?"made_at":"[^"]+"/g, "");
 
 /** One call over a fresh copy of the workspace: what the model read, the trace line or the card, and the reads made. */
-async function answer(name, input, role = "owner") {
-  const supabase = fakeDb(tables(), {}, RPCS);
+async function answer(name, input, role = "owner", rpcs = RPCS) {
+  const supabase = fakeDb(tables(), {}, rpcs);
   const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
   const t = newToolContext(ctx, A, role, TZ, NOW);
   let out;
@@ -577,6 +615,64 @@ const withReviewReads = (reads) => [
   "google_listing_days.select",
   "policies.select",
 ];
+
+/**
+ * 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): the report says the Receptionist lens after the Reviews lens, from
+ * the lens's own read (readers/report.ts receptionistReport): the database's receptionist_series, and the hours the report's
+ * booking line already read. This world's period is quiet, so it says the page's words for each part with nothing in it
+ * (its hours, Monday and Saturday, count the messages that came while it was closed: none came), and the read is one rpc
+ * more: no booking link was sent, so nobody is read for it (the people the link went to are read only where there were any).
+ */
+const QUIET_FOLD = toReceptionistReportVM(
+  {
+    timezone: TZ,
+    today: dayKey(NOW.getTime()),
+    days: 7,
+    series: {
+      ...quietReceptionist({ p_days: 7 }),
+      links: { sent: 0, booked: null, calendar: "none" },
+      stuck: { waiting: 0, oldest_at: null, callbacks: 0, capped: false },
+    },
+    // This world keeps hours on Monday and Saturday: a message that came while it was closed is counted, and none did.
+    profile: { hours: { mon: { open: "09:00", close: "17:00" }, sat: { open: "09:00", close: "17:00" } } },
+  },
+  { nowMs: NOW.getTime() },
+);
+const QUIET_RECEPTIONIST_SAID = {
+  hold: { empty: QUIET_FOLD.hold.empty },
+  topics: { empty: QUIET_FOLD.topics.empty },
+  languages: null,
+  // A mix with nothing in it says the page's own empty words, as hold and topics do.
+  call_endings: { empty: QUIET_FOLD.callEndings.empty },
+  link: QUIET_FOLD.link.line,
+  handover: [
+    {
+      label: "Your first reply after a handover",
+      value: "—",
+      meta: "nothing was handed over in this period",
+      change: null,
+    },
+    { label: "Time to settle a handover", value: "—", meta: "nothing was handed over in this period", change: null },
+  ],
+  missed: {
+    label: "Missed calls answered within an hour",
+    value: "—",
+    meta: "no call went unanswered at the phone",
+    change: null,
+  },
+  closed: { value: QUIET_FOLD.closed.value, meta: QUIET_FOLD.closed.meta },
+  stuck: [
+    { label: "Waiting on you", value: "0", meta: "nobody is waiting for you" },
+    { label: "Call-backs", value: "0", meta: "no call-back is waiting" },
+    { label: "Replies held back", value: "0", meta: "none were held at the door in this period" },
+  ],
+  held_back: [],
+};
+function withReceptionist(result) {
+  const said = JSON.parse(result);
+  return said.error ? result : JSON.stringify({ ...said, receptionist: QUIET_RECEPTIONIST_SAID });
+}
+const withReceptionistReads = (reads) => [...reads, "rpc:receptionist_series"];
 
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
@@ -789,7 +885,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withReviews(withCampaigns(withHold(result)));
+    if (NAMES[old] === "report") result = withReceptionist(withReviews(withCampaigns(withHold(result))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
@@ -892,7 +988,8 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // the reader does not count as the person's own, so the draft that reaches the read makes it. Its bytes are unchanged.
     const readsOurWire = NAMES[old] === "propose_reply.draft" && withSeen.includes("messages.select");
     const withOurWire = readsOurWire ? [...withSeen, "messages.select"] : withSeen;
-    const reads = NAMES[old] === "report" ? withReviewReads(withOurWire) : withOurWire;
+    // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
+    const reads = NAMES[old] === "report" ? withReceptionistReads(withReviewReads(withOurWire)) : withOurWire;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, result)
@@ -908,4 +1005,22 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`,
     );
   }
+});
+
+test("the report finds the people its booking link went to only where the link went to someone, and reads People once either way: the turn's one read (readers/everyone.ts), filtered", async () => {
+  const peopleReads = (reads) => reads.filter((r) => r === "rpc:people_list").length;
+  const none = await answer("report", { days: 7 });
+  assert.equal(none.isError, false, none.result);
+  assert.equal(peopleReads(none.reads), 1, "no link sent: nobody to find");
+  assert.equal(none.reads.filter((r) => r === "rpc:receptionist_series").length, 1, "the lens's read, once");
+
+  const link = (a) => quietReceptionist(a, { links: { total: 1, people: [{ c: P1, at: ago(DAY) }] } });
+  const sent = await answer("report", { days: 7 }, "owner", { ...RPCS, receptionist_series: link });
+  assert.equal(sent.isError, false, sent.result);
+  assert.equal(peopleReads(sent.reads), 1, "a link sent to Rosa: People is read whole once, then filtered to her");
+  // This workspace keeps no calendar link: the calendar cannot say who booked, and the line says why, never a count.
+  assert.equal(
+    JSON.parse(sent.result).receptionist.link,
+    "1 person was sent the booking link. Add a calendar link under Settings › Business to see who booked.",
+  );
 });

@@ -1,9 +1,9 @@
 /**
- * The report functions Reports reads (00251, 00304, 00241, 00350): the receptionist's series, the campaigns', the reviews'
- * and the reach-outs', each over a period of days and the period before it. The one place they are called by name; the
- * dashboard asks on the session client, so RLS decides what a member reads (`report_series`, `campaign_series` and
- * `reviews_ledger` are SECURITY INVOKER; `reach_out_report` is a definer that checks the member again). A read that
- * fails throws: "we could not read" is never "none".
+ * The report functions Reports reads (00251, 00304, 00241, 00350, 00380): the receptionist's series, the campaigns', the
+ * reviews', the Receptionist lens's and the reach-outs', each over a period of days and the period before it. The one
+ * place they are called by name; the dashboard asks on the session client, so RLS decides what a member reads
+ * (`report_series`, `campaign_series`, `reviews_ledger` and `receptionist_series` are SECURITY INVOKER; `reach_out_report`
+ * is a definer that checks the member again). A read that fails throws: "we could not read" is never "none".
  *
  * Each reads a WINDOW (00360): a count of days, and the day they end on. A period by name ends on the workspace's today
  * and names no day, which is the call every one of these was before 00360, so a database that has not run it yet reads a
@@ -72,6 +72,24 @@ export async function reviewsLedger(db: Db, tenantId: string, window: ReportWind
   if (error) {
     if (isMissingDoor(error)) return null;
     throw new Error(`reviews_ledger: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * The receptionist's numbers for the Receptionist lens, over the window and the period before it (`receptionist_series`,
+ * 00380): the answered and handed-over counts, the speed, the missed calls and what came of them, day by day. Null is a
+ * database that does not have the function yet: the dashboard deploys at the merge and 00380 goes to production on the
+ * owner's word (either order works), so for that window every read answers it and the lens draws its kept cards and none of
+ * its own parts (the function itself never answers null). A window that names its last day is the same answer, for the
+ * same reason: the one function takes the last day, so a database without it has no function at all. Any other failure
+ * throws.
+ */
+export async function receptionistSeries(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+  const { data, error } = await db.rpc("receptionist_series", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`receptionist_series: ${error.message}`);
   }
   return data;
 }

@@ -3,10 +3,12 @@
  * is counted, and what is not). One definition per metric id (report-tiles.ts), and `Record` makes a figure with no
  * definition a compile error, so the page never says a number it has not said the meaning of (the lenses spec, §7). The
  * words follow the SQL each figure is read from: `report_series` and `metrics_summary` (00304, with 00303's connected call,
- * first moment and first reply), `campaign_series` (00329), Google's own count (google.ts) and the reviews on record (review-report.ts). Where a window is a number
- * of days, it is the constant the report counts by, never a second spelling of it.
+ * first moment and first reply), `campaign_series` (00329), `receptionist_series` (00380), Google's own count (google.ts) and
+ * the reviews on record (review-report.ts). Where a window is a number of days (or an hour), it is the constant the report
+ * counts by, never a second spelling of it.
  */
 import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/run-words";
+import { MISSED_CALL_TOUCH_WORDS } from "./receptionist/receptionist-record";
 import type { ReportMetric } from "./report-tiles";
 
 const METRIC_WORDS: Record<ReportMetric, string> = {
@@ -19,7 +21,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   handovers:
     "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
   calls:
-    "Calls to the receptionist that someone spoke on. A call that rang out or dropped before anyone spoke is not counted.",
+    "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people:
     "People whose first message, in either direction, or first connected call fell in this period. People brought in with their history, people who asked to be forgotten, and people with no message or call yet are not counted.",
   booked:
@@ -45,6 +47,19 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
     "Of the reviews written in this period, how many have a reply on Google, from you or the receptionist. A review with no reply yet is not answered. A reply counts as the receptionist's where the last reply Chanlytics recorded under the review was its own; every other reply is yours, written here or on Google.",
   review_reply_time:
     "The middle time from a review being written to its reply, over this period's reviews that have one. A reply you changed later counts from the change. It needs three replies to be said.",
+  handover_first_reply:
+    "The middle time from the receptionist handing a conversation to you, over the handovers that wanted a message, to the first message a person sent in it that went out. A handover for an opt-out or a call-back (which wants none), one nobody has replied to yet, and a message the system sent are not counted.",
+  handover_settled:
+    "The middle time from the receptionist handing a conversation to you to its being settled, over this period's handovers that have been. A handover for an opt-out or a call-back, one still open, and one settled before settling was recorded are not counted.",
+  missed_calls_answered: `Of the people who rang in this period and found nobody (the call never connected, or reached voicemail), how many you or the receptionist reached within ${MISSED_CALL_TOUCH_WORDS}, by a message that went out or a call that got through. A person counts once, at their first such call; a call the receptionist placed, a person whose call is under ${MISSED_CALL_TOUCH_WORDS} old, and a call with no caller on record are not counted.`,
+  answered_while_closed:
+    "Of the customer messages that came in while your opening hours and closures say you were closed, how many the receptionist answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
+  waiting_on_you:
+    "Conversations the receptionist flagged for a person that nobody has taken, as of now, whatever period is picked. One you or a teammate has taken over, and one put aside until later, are not counted.",
+  call_backs:
+    "Of the conversations waiting on you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
+  replies_held_back:
+    "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or playbook message the door held are not counted.",
 };
 
 /** The words over a figure's label: what it counts and what it leaves out. */

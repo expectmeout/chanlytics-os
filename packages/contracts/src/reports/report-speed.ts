@@ -48,10 +48,14 @@ interface HoldReply {
 /** One reply against its own hold: sent with none, as it ended, or later, with how far past it went. */
 type HoldClass = { kind: "unheld" } | { kind: "atEnd" } | { kind: "later"; past: number };
 
+/** The seconds a reply was held; none for a reply sent with no hold, a hold that is not a number or a negative one. The one reading of "has a hold". */
+const heldSeconds = (r: HoldReply): number => (r.hold !== undefined && r.hold > 0 ? r.hold : 0);
+
 /** The one rule for how far past its hold a reply went; the counts, the line and the bars all read this. */
 function classOf(r: HoldReply): HoldClass {
-  if (r.hold === undefined || !(r.hold > 0)) return { kind: "unheld" };
-  const past = r.s - r.hold;
+  const hold = heldSeconds(r);
+  if (!hold) return { kind: "unheld" };
+  const past = r.s - hold;
   return past > HOLD_SLACK_S ? { kind: "later", past } : { kind: "atEnd" };
 }
 
@@ -161,6 +165,9 @@ const endedWithHold = (hold: HoldCounts): boolean => hold.atEnd >= hold.later;
 const againstHold = (hold: HoldCounts): string =>
   endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
 
+/** How many of the replies went out the way `againstHold` says: as the hold ended, or later than it. */
+const heldCount = (hold: HoldCounts): number => (endedWithHold(hold) ? hold.atEnd : hold.later);
+
 /**
  * How fast, beside the hero: against the hold where most replies waited one, since the setting is not the
  * receptionist's speed. Where most replies had no hold, the hold says nothing of them and the median does. The
@@ -169,7 +176,48 @@ const againstHold = (hold: HoldCounts): string =>
 export function heroSpeed(replies: number, medianLabel: string, hold: ReportHoldVM | null): string {
   if (!replies) return "";
   if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
-  return ` ${endedWithHold(hold) ? hold.atEnd : hold.later} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+  return ` ${heldCount(hold)} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+}
+
+/**
+ * The tail of the Receptionist lens's head ("13 of 17 messages answered without you, 8 as your 1-minute hold ended."): how
+ * many replies went out against the hold, by the hero's own test and tie-break. Nothing where there is no hold or most replies
+ * had none, since the setting then says nothing of the receptionist's speed.
+ */
+export function receptionistSpeed(hold: ReportHoldVM | null): string {
+  return hold && waitedHold(hold) ? `, ${heldCount(hold)} ${againstHold(hold)}` : "";
+}
+
+/** The most dots the reply plot is given: the latest replies, so a busy period's payload and its drawing stay small. */
+const REPLY_DOTS_MOST = 500;
+
+/**
+ * One reply as the dot plot draws it: the day it was asked, and the seconds it went out past its own hold. `held` says it had a
+ * hold: a reply sent with none is not past anything, its `past` is the whole time it took.
+ */
+export interface ReplyDotVM {
+  day: string;
+  past: number;
+  held: boolean;
+}
+
+/**
+ * Each reply's seconds past its own hold (a reply that went out before its hold ended is on the line, 0), in the order given
+ * and in whole seconds, the last `most` of them. A reply with no hold counts from the question, and is not `held`. Empty for
+ * a report from before the replies were listed.
+ */
+export function replyDotsOf(
+  replies: readonly (HoldReply & { day: string })[] | undefined,
+  most = REPLY_DOTS_MOST,
+): ReplyDotVM[] {
+  const dots = (replies ?? [])
+    .filter((r) => Number.isFinite(r.s))
+    .map((r) => ({
+      day: r.day,
+      past: Math.round(Math.max(0, r.s - heldSeconds(r))),
+      held: heldSeconds(r) > 0,
+    }));
+  return dots.slice(Math.max(0, dots.length - most));
 }
 
 /** How fast the receptionist replied, as a sentence says it: the median, or the hold's words where most replies waited one. */

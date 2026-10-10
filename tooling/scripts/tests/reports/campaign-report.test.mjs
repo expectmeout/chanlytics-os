@@ -198,23 +198,19 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
     params: {},
   });
   const week = await route.GET.run(
-    new Request(`http://localhost/api/v1/reports/campaigns?days=7&workspace=${W}`),
+    new Request(`http://localhost/api/v1/reports/campaigns?period=7d&workspace=${W}`),
     ctx(),
   );
   assert.deepEqual([week, asked], [{ report: { days: 7 } }, [{ p_tenant_id: W, p_days: 7 }]]);
   await assert.rejects(
-    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?days=45&workspace=${W}`), ctx()),
-    (e) => e.status === 400 && e.message === "period must be 7d, 30d, 90d or month.",
+    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=14d&workspace=${W}`), ctx()),
+    (e) => e.status === 400 && e.message === 'period: Invalid option: expected one of "7d"|"30d"|"90d"|"month"',
     "the same periods as the receptionist's report",
   );
   assert.deepEqual(
     await route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=90d&workspace=${W}`), ctx()),
     { report: { days: 90 } },
     "one period parameter: `period` names the window",
-  );
-  await assert.rejects(
-    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?period=14d&workspace=${W}`), ctx()),
-    (e) => e.status === 400,
   );
   // What the surface does with this read (its own request, null where it fails) and what the Campaigns lens draws from it are
   // executed, not read as text: reports/lenses/reports-lens-page.test.mjs and shell/empty-failed.test.mjs.

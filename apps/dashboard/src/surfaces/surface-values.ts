@@ -17,6 +17,7 @@
  */
 import type { ReportsSurface } from "./reports/surface";
 import type { ReviewsSurface } from "./reports/reviews-surface";
+import type { ReceptionistSurface } from "./reports/receptionist-surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
@@ -39,6 +40,8 @@ export interface SurfaceValues {
   reports_headline: ReportHeadlineVM;
   /** The Reviews lens's own read, folded once: its figures and cards, and the sentence at its head (reports/reviews-surface.ts). It follows the period (reports/period-surface.ts). */
   reports_reviews: ReviewsSurface;
+  /** The Receptionist lens's own read, as the route gave it: the page folds it (reports/receptionist-surface.ts). It follows the period (reports/period-surface.ts). */
+  reports_receptionist: ReceptionistSurface;
   google: GoogleSurface;
   inbox: InboxSurface;
   conversations: ConversationsSurface;
@@ -168,6 +171,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   reports: true,
   reports_headline: true,
   reports_reviews: true,
+  reports_receptionist: true,
   google: true,
   inbox: true,
   conversations: true,

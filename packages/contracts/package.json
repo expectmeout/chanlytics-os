@@ -22,6 +22,11 @@
       "import": "./dist/report-window.js",
       "default": "./dist/report-window.js"
     },
+    "./report-lens": {
+      "types": "./dist/report-lens.d.ts",
+      "import": "./dist/report-lens.js",
+      "default": "./dist/report-lens.js"
+    },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {

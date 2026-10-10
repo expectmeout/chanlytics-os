@@ -118,6 +118,7 @@ const SURFACE_EVENTS = [
   ["reports", "surface:reports"],
   ["reports_headline", "surface:reports_headline"],
   ["reports_reviews", "surface:reports_reviews"],
+  ["reports_receptionist", "surface:reports_receptionist"],
   ["people", "surface:clients"],
   ["calendar", "surface:calendar"],
   ["playbooks", "surface:playbooks"],

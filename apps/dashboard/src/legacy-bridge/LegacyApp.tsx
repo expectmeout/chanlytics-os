@@ -44,6 +44,7 @@ import { peopleOverride } from "@/surfaces/people/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
 import { reviewsOverride } from "@/surfaces/reports/reviews-surface";
+import { receptionistOverride } from "@/surfaces/reports/receptionist-surface";
 import { SURFACE_ROUTES } from "@/surfaces/routes";
 import { liveOverride } from "@/surfaces/live/surface";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
@@ -165,6 +166,8 @@ const SURFACES = [
   reportsHeadlineOverride,
   // The Reviews lens's own read, folded once: its figures, its cards and its head (surfaces/reports/reviews-surface.ts).
   reviewsOverride,
+  // The Receptionist lens's own read, as the route gave it: the page folds it (surfaces/reports/receptionist-surface.ts).
+  receptionistOverride,
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
@@ -204,6 +207,7 @@ const SURFACE_LABELS: Record<string, string> = {
   reports: "Reports",
   reports_headline: "Today's period",
   reports_reviews: "Reviews",
+  reports_receptionist: "Receptionist",
   live: "Calls",
   calendar: "Calendar",
 };
