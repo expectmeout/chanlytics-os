@@ -24,8 +24,9 @@ import {
   zoneDayKey,
   POLICY_MODES,
   POLICY_MODE_WORDS,
-  NOTIFICATION_KIND_GROUPS,
-  NOTIFICATION_PANE_WORDS,
+  ALERT_TOPICS,
+  ALERT_PANE_WORDS,
+  alertGrid,
 } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
@@ -237,6 +238,27 @@ const { autonomyVerbs } = await import("../../../../apps/dashboard/src/surfaces/
 const { partnerVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
 partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
 
+// Notifications (decision 0040): its saves, its flashes and its verbs, stood in as the pane reads them.
+const { alertVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/notifications/surface.ts");
+const realVerbs = { ...alertVerbs };
+/** The whole-config save answered as the server answers it: accepted, under the next version, holding what was sent. */
+alertVerbs.saveConfig = (config, version, accepted) => {
+  saved.push({ config, version });
+  accepted({ config, version: version + 1 });
+  return Promise.resolve({ ok: true });
+};
+/** What the pane flashed, each `{ msg, undo? }`: the frame's toast, as a list. */
+const flashes = [];
+globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+/** Open the email row's addresses (its Change). */
+const openEmail = (tree) => press(byTestId(tree, "ntf-email-change"));
+/** The ticks of one channel, as the buttons a person presses (the kit's Press draws each as one). */
+const ticks = (tree, channel) =>
+  all(tree, (n) => n.type === "button" && (n.props?.["data-testid"] ?? "").startsWith(`ntf-${channel}-`));
+const PHONE = { platform: "ios", app_version: "1.4.0", last_seen_at: null };
+const alertsRead = (dto) => setSurfaceValue("alerts", dto ? { dto, fetchedAt: Date.now() } : null);
+const restoreVerbs = () => Object.assign(alertVerbs, { test: realVerbs.test, setPushOff: realVerbs.setPushOff });
+
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
   if (Array.isArray(n)) {
@@ -383,27 +405,38 @@ const rowsOn = (tree) => all(tree, (n) => n.props?.["data-testid"] === "act-row"
 /* ------------------------------ one gate ------------------------------ */
 
 test("REGRESSION (one gate): Notifications offers its Add to a role that may not press it, gated, and says why once -- it was disabled with a title", () => {
-  const reason = "Only an owner can change who is alerted.";
   workspace("operator");
-  const tree = settings("notifications");
+  // The addresses open under the email row (decision 0040): its Change is every role's, since everyone may read them.
+  openEmail(settings("notifications"));
+  const tree = settle("notifications");
   const add = buttonSaying(tree, "Add");
   assert.ok(add, "the pane's act is on the page");
+  const reason = add.props["data-tip"];
+  assert.ok(reason && /can change who is emailed/.test(reason), "the gate says why, in contracts' words");
   assert.equal(add.props["aria-disabled"], true, "REGRESSION: it was disabled, and a disabled button takes no focus");
   assert.equal(add.props.disabled, false);
   assert.equal(add.props.title, undefined, "no title that nothing but a mouse reaches");
-  assert.equal(add.props["data-tip"], reason);
-  const box = labelled(tree, "input", "Add an address to alert");
+  const box = labelled(tree, "input", ALERT_PANE_WORDS.addLabel);
   assert.equal(box.props["aria-disabled"], true, "the address box says so too");
   assert.equal(box.props["aria-description"], reason);
   assert.equal(buttonSaying(tree, "Remove"), null, "removing an address is not offered to a role that may not");
+  assert.equal(byTestId(tree, "ntf-teammates"), null, "nor adding a teammate");
+  assert.equal(byTestId(tree, "ntf-test"), null, "nor a test");
   assert.equal(textOf(tree).split(reason).length - 1, 1, "and the pane says why, once");
+  // What the business is emailed is the same gate: each tick says why where it is pressed, and saves nothing.
+  const tick = byTestId(tree, "ntf-email-call");
+  assert.equal(tick.props["aria-disabled"], true);
+  assert.match(tick.props["data-tip"], /can change what the business is emailed/);
   const e = press(add);
   assert.ok(e.prevented, "pressing it does nothing");
   assert.equal(tipped.length, 1, "but shows the reason where the control is");
+  press(tick);
+  assert.equal(tipped.length, 2);
   assert.equal(saved.length, 0);
 
   workspace("owner");
-  const own = settings("notifications");
+  openEmail(settings("notifications"));
+  const own = settle("notifications");
   assert.equal(buttonSaying(own, "Add").props["aria-disabled"], undefined, "an owner's Add is an ordinary button");
   assert.equal(
     all(own, (n) => n.type === "button" && textOf(n).trim() === "Remove").length,
@@ -1137,15 +1170,19 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
   }
 });
 
+/* ------------------------------ Notifications (decision 0040) ------------------------------ */
+
 test("F32: a config the parser refuses closes every notifications write, and says why on each", () => {
   // The bridge reads a refused config as its own state: no config, and what was wrong (legacy-bridge/surfaces/settings.ts).
   workspace("owner", {
     __SETTINGS: { role: "owner", version: 3, config: null, broken: { issues: ["brain.business_name"] } },
   });
+  alertsRead(null);
+  // Nothing was read, so no address: the email row is open by itself, and says nobody is emailed.
   const tree = settings("notifications");
   const why = "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change";
   const add = buttonSaying(tree, "Add");
-  const box = labelled(tree, "input", "Add an address to alert");
+  const box = labelled(tree, "input", ALERT_PANE_WORDS.addLabel);
   assert.equal(box.props.disabled, true, "nothing can be typed to save over the broken row");
   assert.equal(box.props.title, why);
   type(box, "new@northside.example");
@@ -1153,74 +1190,193 @@ test("F32: a config the parser refuses closes every notifications write, and say
   assert.equal(buttonSaying(typed, "Add").props.disabled, true, "and Add stays closed with an address typed");
   assert.equal(add.props.title, why);
   assert.equal(buttonSaying(tree, "Remove"), null, "nothing was read, so there is nothing to remove");
+  assert.ok(textOf(tree).includes(ALERT_PANE_WORDS.emailNobody));
+  // What the business is emailed is held the same way: the tick says why, and saves nothing.
+  const tick = byTestId(typed, "ntf-email-call");
+  assert.equal(tick.props["data-tip"], why);
+  press(tick);
   assert.equal(saved.length, 0);
 });
 
-test("Notifications lists what is sent in contracts' groups, the Reach-outs group among them, and offers no switch (N2)", () => {
+test("Notifications: what the workspace is told, a topic a row in its group, where each goes beside it; nothing of Chanlytics' own, and no tick no code reads (0040)", () => {
   workspace("owner");
+  alertsRead({ push_off: [], phones: [], choosable: true });
   const tree = settings("notifications");
-  assert.ok(
-    textOf(byTestId(tree, "notif-recipients")).includes("except the two marked for Chanlytics"),
-    "the recipients' card says which alerts are not theirs (F36)",
-  );
-  assert.ok(
-    textOf(byTestId(tree, "notif-recipients")).includes(NOTIFICATION_PANE_WORDS.recipients),
-    "in contracts' words",
-  );
-  const kinds = byTestId(tree, "notif-kinds");
-  assert.ok(
-    textOf(kinds).includes("What is not listed here is not emailed."),
-    "the list is closed, and says so (B16): every kind the edge emails is in it, and notify() mails no other",
-  );
-  const groups = all(kinds, (n) => n.props?.["data-testid"] === "notif-group");
+  const grid = byTestId(tree, "ntf-grid");
+  // No phone: the topics with nothing to choose (no email, no phone of theirs) are named in the bell's line instead.
+  const groups = alertGrid({
+    notifications: globalThis.window.__SETTINGS.config.notifications,
+    emailHeld: null,
+    phone: null,
+  });
   assert.deepEqual(
-    groups.map((g) => textOf(find(g, (n) => n.type === "h3"))),
-    NOTIFICATION_KIND_GROUPS.map((g) => g.title),
-    "every group contracts lists, in its order",
+    groups.map((g) => g.group),
+    ["needs_you", "worth_knowing"],
   );
-  assert.deepEqual(
-    groups.map((g) =>
-      all(g, (n) => n.props?.className === "set-row").map((r) =>
-        textOf(find(r, (n) => n.props?.className === "set-row-label")).trim(),
+  for (const g of groups) {
+    const body = byTestId(grid, `ntf-group-${g.group}`);
+    assert.ok(textOf(body).startsWith(g.title), `${g.title} heads its rows`);
+    assert.deepEqual(
+      all(body, (n) => /^ntf-topic-/.test(n.props?.["data-testid"] ?? "")).map((n) =>
+        n.props["data-testid"].slice("ntf-topic-".length),
       ),
-    ),
-    // A row for Chanlytics wears the chip "to Chanlytics" in its label.
-    NOTIFICATION_KIND_GROUPS.map((g) => g.rows.map((r) => r.title + (r.platform ? "to Chanlytics" : ""))),
-    "and every row of each",
+      g.rows.map((r) => r.topic.key),
+      `${g.title}: contracts' topics, in order`,
+    );
+  }
+  assert.ok(
+    textOf(tree).includes("Also on the bell: finished searches, new Google reviews, notes left for you,"),
+    "the bell's line names them",
   );
-  const reach = groups[NOTIFICATION_KIND_GROUPS.findIndex((g) => g.title === "Reach-outs")];
-  const rows = all(reach, (n) => n.props?.className === "set-row").map((r) =>
-    textOf(find(r, (n) => n.props?.className === "set-row-label")).trim(),
+  // The two the receptionist must always reach someone with are locked, with nothing to press.
+  for (const key of ["handoff", "deadman"]) {
+    const row = byTestId(grid, `ntf-topic-${key}`);
+    const lock = find(row, (n) => n.props?.className === "ntf-lock");
+    assert.equal(lock?.props["data-tip"], ALERT_PANE_WORDS.always, key);
+    assert.equal(byTestId(row, `ntf-email-${key}`), null, `${key}: nothing to turn off`);
+  }
+  // Every other emailed topic is a tick, on until the business turns it off; and no phone column without a phone.
+  assert.deepEqual(
+    ticks(grid, "email").map((n) => [n.props["data-testid"], n.props["aria-pressed"]]),
+    ALERT_TOPICS.filter((t) => t.email === "choice").map((t) => [`ntf-email-${t.key}`, true]),
   );
-  assert.deepEqual(rows, [
-    "They wrote back",
-    "A reach-out waits for you",
-    "A reach-out holds an email for you",
-    "A sending domain is held, and when it sends again",
-    "The day's numbers",
-  ]);
+  assert.equal(ticks(grid, "phone").length, 0);
+  assert.ok(!textOf(grid).includes(ALERT_PANE_WORDS.phoneHead), "no column of a phone nobody has");
+  assert.ok(!textOf(tree).includes("to Chanlytics"), "Chanlytics' own alerts are not the workspace's");
+  assert.ok(textOf(tree).includes(ALERT_PANE_WORDS.never));
   assert.equal(
-    all(kinds, (n) => n.type === "input" || n.props?.role === "switch").length,
+    all(tree, (n) => n.props?.role === "switch").length,
     0,
-    "rows that say what is sent, never a switch no code reads",
+    "a browser that cannot alert draws no switch (none can here)",
   );
+});
+
+test("a member with a phone ticks what reaches it, whatever their role; a kind no phone is told has no tick, and a choice that cannot be saved yet shows what is told (0040)", async () => {
+  workspace("operator");
+  alertsRead({ push_off: ["call"], phones: [PHONE], choosable: true });
+  const tree = settings("notifications");
+  assert.ok(textOf(byTestId(tree, "ntf-channels")).includes("iPhone"), "their phone, by what it is");
+  const grid = byTestId(tree, "ntf-grid");
+  assert.equal(byTestId(grid, "ntf-phone-call").props["aria-pressed"], false, "turned off");
+  assert.equal(byTestId(grid, "ntf-phone-handoff").props["aria-pressed"], true);
+  assert.equal(byTestId(grid, "ntf-phone-handoff").props["aria-disabled"], undefined, "a phone is the member's own");
+  assert.equal(byTestId(grid, "ntf-phone-templates"), null, "a template's news never reaches a phone");
+  assert.ok(byTestId(grid, "ntf-topic-review"), "with a phone, the topics a phone alone carries are rows");
+  const asked = [];
+  alertVerbs.setPushOff = async (kinds) => {
+    asked.push(kinds);
+    return { ok: true, message: "" };
+  };
+  press(byTestId(grid, "ntf-phone-review"));
+  await flush();
+  assert.deepEqual(asked, [["call", "review"]], "the member's list, with the rest of it kept");
+  assert.equal(saved.length, 0, "and nothing of the business's config");
+  restoreVerbs();
+  // Where the choice cannot be saved yet (00372 not applied), the phone column says what is told and offers nothing.
+  alertsRead({ push_off: [], phones: [PHONE], choosable: false });
+  const told = settings("notifications");
+  assert.equal(ticks(byTestId(told, "ntf-grid"), "phone").length, 0);
   assert.equal(
-    all(
-      groups[NOTIFICATION_KIND_GROUPS.findIndex((g) => g.title === "To Chanlytics")],
-      (n) => n.props?.className === "chip set-notif-platform",
-    ).length,
-    2,
-    "to Chanlytics",
+    all(told, (n) => n.type === "button" && n.props?.["aria-label"] === ALERT_PANE_WORDS.phoneTold).length,
+    ALERT_TOPICS.filter((t) => t.phone).length,
   );
+});
+
+test("an email tick saves what the business is emailed in the whole config, with its version, and draws the answer at once (0040)", async () => {
+  workspace("owner");
+  alertsRead(null);
+  flashes.length = 0;
+  const tree = settings("notifications");
+  press(byTestId(tree, "ntf-email-call"));
+  await flush();
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].version, 3);
+  assert.deepEqual(saved[0].config.notifications, {
+    escalation_emails: ["dana@northside.example", "desk@northside.example"],
+    email_off: ["call"],
+  });
+  assert.equal(saved[0].config.brain.business_name, "Northside Studio", "the rest of the config rides along");
+  const after = settle("notifications");
+  assert.equal(
+    byTestId(after, "ntf-email-call").props["aria-pressed"],
+    false,
+    "drawn from what the server accepted, not the read before it, which says the opposite until it is read again",
+  );
+  // Undo turns it back on, against the version the save answered.
+  flashes.at(-1).undo();
+  await flush();
+  assert.equal(saved[1].version, 4);
+  assert.deepEqual(saved[1].config.notifications.email_off, []);
+});
+
+test("REGRESSION (0040): Undo after Remove saves the address back with the version the remove made -- it sent the version read before, which the server refused", async () => {
+  workspace("owner");
+  alertsRead(null);
+  flashes.length = 0;
+  openEmail(settings("notifications"));
+  const tree = settle("notifications");
+  press(labelled(tree, "button", "Remove desk@northside.example"));
+  await flush();
+  assert.deepEqual(
+    [saved[0].version, saved[0].config.notifications.escalation_emails],
+    [3, ["dana@northside.example"]],
+  );
+  flashes.at(-1).undo();
+  await flush();
+  assert.deepEqual(
+    [saved[1].version, saved[1].config.notifications.escalation_emails],
+    [4, ["dana@northside.example", "desk@northside.example"]],
+    "REGRESSION: it sent 3 again, and the server answered that someone else had saved",
+  );
+});
+
+test("the addresses say whose they are: a teammate by name, the member's own as theirs, any other as not on the team; a teammate not emailed is one press (0040)", async () => {
+  workspace("owner");
+  alertsRead(null);
+  openEmail(settings("notifications"));
+  const tree = settle("notifications");
+  const lines = all(tree, (n) => n.props?.["data-testid"] === "ntf-address").map((n) => textOf(n));
+  assert.ok(lines[0].includes("dana@northside.example") && lines[0].includes("Dana · you"), lines[0]);
+  assert.ok(lines[1].includes("desk@northside.example") && lines[1].includes(ALERT_PANE_WORDS.notOnTeam), lines[1]);
+  // Lee is on the team and not on the list.
+  const lee = labelled(tree, "button", "Email Lee too");
+  assert.ok(lee);
+  press(lee);
+  await flush();
+  assert.deepEqual(saved[0].config.notifications.escalation_emails, [
+    "dana@northside.example",
+    "desk@northside.example",
+    "lee@northside.example",
+  ]);
+});
+
+test("Send a test asks for one email to every address and says what came of it; a role that may not is not offered it (0040)", async () => {
+  workspace("owner");
+  alertsRead(null);
+  flashes.length = 0;
+  let asked = 0;
+  alertVerbs.test = async () => {
+    asked++;
+    return { ok: true, sent: true, to: 2, why: null, message: "" };
+  };
+  openEmail(settings("notifications"));
+  press(byTestId(settle("notifications"), "ntf-test"));
+  await flush();
+  assert.equal(asked, 1);
+  assert.equal(textOf(flashes.at(-1).msg), "A test was sent to 2 addresses.");
+  restoreVerbs();
+  assert.equal(ALERT_PANE_WORDS.testNot("not_live"), "Tests are sent from the live app only, not from a preview.");
 });
 
 // B16 (audit, 2 Oct 2026): the pane said "Sent from the Chanlytics alert address until your own sending domain is
 // verified". Nothing writes notifications.from, and nothing swaps the sender for a sending domain the workspace verifies
-// (the sending domains are for campaigns): the sentence promised a feature there is not. It says where the mail comes from.
-test("Notifications says where its mail is sent from, and promises no sending domain that changes it (B16)", () => {
+// (the sending domains are for campaigns): the sentence promised a feature there is not. It says the sender only where
+// an operator set one, and never the switch that does not exist.
+test("Notifications says where its mail is sent from only where one is set, and promises no sending domain that changes it (B16)", () => {
   workspace("owner");
+  alertsRead(null);
   const bare = textOf(settings("notifications"));
-  assert.ok(bare.includes(NOTIFICATION_PANE_WORDS.sentFromPlatform), "no own address: the platform's, said as it is");
+  assert.ok(!bare.includes("Sent from"), "no own address: nothing to say beyond the alerts themselves");
   assert.ok(
     !bare.includes("until your own sending domain is verified") && !/sending domain is verified/.test(bare),
     "REGRESSION: promised a switch to the workspace's own sending domain that nothing makes",
@@ -1236,9 +1392,37 @@ test("Notifications says where its mail is sent from, and promises no sending do
     },
   });
   const own = textOf(settings("notifications"));
-  assert.ok(
-    own.includes(`${NOTIFICATION_PANE_WORDS.sentFrom} Northside <alerts@northside.example>.`),
-    "the config's own",
-  );
-  assert.ok(!own.includes(NOTIFICATION_PANE_WORDS.sentFromPlatform));
+  assert.ok(own.includes(ALERT_PANE_WORDS.sentFrom("Northside <alerts@northside.example>")), "the config's own");
+});
+
+test("one save at a time (review round, 0040): while one is out every other tick and the address box wait, so two presses never send two lists or one version twice", async () => {
+  workspace("owner");
+  alertsRead({ push_off: [], phones: [PHONE], choosable: true });
+  const stood = alertVerbs.saveConfig;
+  let land = null;
+  alertVerbs.saveConfig = (config, version, accepted) => {
+    saved.push({ config, version });
+    land = () => accepted({ config, version: version + 1 });
+    return Promise.resolve({ ok: true });
+  };
+  try {
+    press(byTestId(settings("notifications"), "ntf-email-call"));
+    const out = settle("notifications");
+    for (const id of ["ntf-email-sweep", "ntf-phone-review"]) {
+      const tick = byTestId(out, id);
+      assert.equal(tick.props["aria-disabled"], true, `${id} waits`);
+      assert.equal(tick.props["data-tip"], "Saving — wait for this one to land.");
+      press(tick);
+    }
+    assert.equal(saved.length, 1, "the second press sent nothing");
+    land();
+    const free = settle("notifications");
+    assert.equal(
+      byTestId(free, "ntf-email-sweep").props["aria-disabled"],
+      undefined,
+      "and is free once the first lands",
+    );
+  } finally {
+    alertVerbs.saveConfig = stood;
+  }
 });

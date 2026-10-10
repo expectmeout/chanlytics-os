@@ -216,6 +216,13 @@ export async function workspaceAnswersOnItsOwn(db: Db, tenantId: string): Promis
   return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status as BillingStatus));
 }
 
+/** The workspace's name and its address, for a message that names it and links to it; null when there is no such workspace. A read that fails throws. */
+export async function workspaceNamed(db: Db, tenantId: string): Promise<{ name: string; slug: string } | null> {
+  const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data ? { name: data.name, slug: data.slug } : null;
+}
+
 // ---- setup acts a member makes from the dashboard: the caller decides what a refusal means; what comes back is the
 // database's own answer, the error untouched, since the words for what it raises are theirs.
 

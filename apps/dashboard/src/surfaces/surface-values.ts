@@ -31,6 +31,7 @@ import type { LeadsSurface } from "./leads/surface";
 import type { SetupSurface } from "./setup/surface";
 import type { BillingSurface } from "./settings/billing/surface";
 import type { PartnerSurface } from "./settings/partner/surface";
+import type { AlertsSurface } from "./settings/notifications/surface";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
@@ -57,6 +58,8 @@ export interface SurfaceValues {
   billing: BillingSurface | null;
   /** Undefined until read; null when the read failed. `dto` is null for a person who is not a partner. */
   partner: PartnerSurface | null;
+  /** What reaches this member's phones (decision 0040). Undefined until read; null when the read failed. */
+  alerts: AlertsSurface | null;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -183,4 +186,5 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   setup: true,
   billing: true,
   partner: true,
+  alerts: true,
 };

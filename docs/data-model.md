@@ -1757,6 +1757,7 @@ Foreign keys:
 | `role` | text | no | `'owner'::text` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `views` | jsonb | no | `'{}'::jsonb` | What this member's pages remember in this workspace, per page: {"people": {"sortBy": "last", ...}}. Written through member_view_set; never read by the receptionist. |
+| `push_off` | text[] | no | `'{}'::text[]` | The notification kinds this member's phones are not told in this workspace (decision 0040): ["call", ...]. Written through member_push_off_set; read by the push_send job. |
 
 Foreign keys:
 

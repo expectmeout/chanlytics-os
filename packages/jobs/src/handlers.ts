@@ -54,6 +54,7 @@ import {
   getTenantConfig,
   claimQueuedSend,
   releaseQueuedSend,
+  membersPushedFor,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -246,10 +247,11 @@ async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 
 /**
- * push_send: one kept notification to every phone of the people it is for.
- * payload: { notification_id }. The row it names may be gone (purged, or the
- * workspace erased): that is a job done, not a failure. A phone the service
- * says is gone is forgotten here, where the answer is.
+ * push_send: one kept notification to every phone of the people it is for,
+ * less those who turned its kind off for their phones (memberships.push_off,
+ * 00372; decision 0040). payload: { notification_id }. The row it names may be
+ * gone (purged, or the workspace erased): that is a job done, not a failure. A
+ * phone the service says is gone is forgotten here, where the answer is.
  */
 async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.push) throw new Error("push_send: this runtime holds no push transport");
@@ -259,20 +261,18 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     "push_send: cannot read the notification",
     await ctx.db
       .from("notifications")
-      .select("id, tenant_id, title, body, route, recipient_user_id")
+      .select("id, tenant_id, kind, title, body, route, recipient_user_id")
       .eq("id", id)
       .eq("tenant_id", job.tenant_id)
       .maybeSingle(),
   );
   if (!n) return;
-  const readers = n.recipient_user_id
-    ? [n.recipient_user_id]
-    : (
-        must(
-          "push_send: cannot read who is in the workspace",
-          await ctx.db.from("memberships").select("user_id").eq("tenant_id", job.tenant_id),
-        ) ?? []
-      ).map((m) => m.user_id);
+  // A note's one reader, or everyone in the workspace; less whoever turned this kind off for their phones.
+  const readers = await membersPushedFor(ctx.db, {
+    tenantId: job.tenant_id,
+    userIds: n.recipient_user_id ? [n.recipient_user_id] : null,
+    kind: n.kind,
+  });
   if (!readers.length) return;
   const devices =
     must(

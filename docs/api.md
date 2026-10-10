@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-224 handlers in 47 domains.
+227 handlers in 47 domains.
 
 ## activity
 
@@ -1069,6 +1069,20 @@ Writes; for any signed-in person, for themselves; counts against the `profile_se
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/route.ts`).
 
+### `GET /api/v1/me/alerts`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/me/alerts/route.ts`).
+
+### `PUT /api/v1/me/alerts`
+
+Writes; for a member of the workspace the request names, viewer or above; counts against the `alert_choice` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `push_off` | array of string | yes | at most 40 |
+
 ### `PUT /api/v1/me/devices`
 
 Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
@@ -1131,6 +1145,12 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | `id` | string | no |  |
 | `read` | boolean | no |  |
 | `dismissed` | boolean | no |  |
+
+### `POST /api/v1/notifications/test`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `alert_test` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/notifications/test/route.ts`).
 
 ## partner
 

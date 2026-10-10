@@ -28,6 +28,15 @@ export type { SpokenRule, SpokenBreach, SpokenTurn, SpokenGuardVerdict, WaWindow
 export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./workspace-config/role-perms";
 export type { Role } from "./workspace-config/role-perms";
 export {
+  ALERT_ADDRESSES_MAX,
+  ALERT_ADDRESSES_MIN,
+  ALERT_REFUSED_WORDS,
+  alertAddressesOf,
+  memberGetsAlerts,
+  withAlertAddress,
+} from "./workspace-config/alerts";
+export type { AlertRefusal } from "./workspace-config/alerts";
+export {
   policyClassOfIntent,
   policyClassLabel,
   policyClassQuestion,

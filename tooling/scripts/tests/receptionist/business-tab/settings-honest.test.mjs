@@ -410,8 +410,11 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   // Business page since Task 3.7: each check is said under the box it belongs to, and the toast only counts
   // them (business-tab-page.test.mjs, business-tab-open/-offer/-answers.test.mjs). What is still this pane's:
   // Who is alerted.
+  // The addresses open under the email row (decision 0040).
   let tree = settings("notifications");
-  type(labelled(tree, "input", "Add an address to alert"), "nobody");
+  press(find(tree, (n) => n.props?.["data-testid"] === "ntf-email-change"));
+  tree = again("notifications");
+  type(labelled(tree, "input", "Add an address to email"), "nobody");
   tree = again("notifications");
   press(buttonSaying(tree, "Add"));
   assert.match(textOf(toasts.at(-1)?.msg), /email address/);
@@ -443,8 +446,10 @@ test("REGRESSION (S20): Profile's sign-out is not titled for one device, and Ale
   assert.ok(profile.includes("Sign out everywhere"), profile);
   const alerts = textOf(settings("notifications"));
   assert.ok(!alerts.includes("push notifications are not built"), "REGRESSION: denied the alerts the bell offers");
-  // The device's switch is the pane's own card since #1467 ("This device"), and the line under the list points to it.
-  assert.ok(alerts.includes("This device, above"), alerts);
+  // This browser is a row of where alerts reach you, drawn where a browser can alert (decision 0040): no sentence points
+  // at a card that the phone app's view does not draw ("This device, above" did).
+  assert.ok(!alerts.includes("This device, above"), alerts);
+  assert.ok(alerts.includes("Where alerts reach you"), alerts);
 });
 
 test("a real roster is counted in people, never in seats of a plan it does not have, and Invite stays offered", () => {

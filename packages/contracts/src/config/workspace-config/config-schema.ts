@@ -21,6 +21,14 @@ export const NotificationsConfigSchema = z
   .object({
     escalation_emails: z.array(z.string().email()).min(1).max(10),
     from: z.string().max(200).optional(),
+    /**
+     * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
+     * set: a kind a newer dashboard writes must not make an older edge's read fail, and `emailOffOf` reads only the kinds
+     * that may be turned off. An edge older than the field drops it and keeps emailing, the safe side.
+     */
+    // `.catch`: a stored value that is not a short list of short names reads as none (everything emailed), never as a
+    // config that cannot be parsed, which would leave the receptionist silent.
+    email_off: z.array(z.string().max(40)).max(40).optional().catch(undefined),
   })
   .strip();
 export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;

@@ -113,7 +113,15 @@ const DEFAULTS = {
     created_at: AT,
     updated_at: AT,
   }),
-  memberships: () => ({ id: uuid(), tenant_id: TENANT, user_id: uuid(), role: "owner", views: {}, created_at: AT }),
+  memberships: () => ({
+    id: uuid(),
+    tenant_id: TENANT,
+    user_id: uuid(),
+    role: "owner",
+    views: {},
+    push_off: [],
+    created_at: AT,
+  }),
   billing_accounts: () => ({
     tenant_id: TENANT,
     mode: "stripe",

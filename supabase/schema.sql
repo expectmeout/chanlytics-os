@@ -8264,6 +8264,45 @@ COMMENT ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) 
 
 
 --
+-- Name: member_push_off_set(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_push_off_set(p_tenant_id uuid, p_kinds text[]) RETURNS text[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_user uuid := auth.uid();
+  v_off  text[];
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_kinds is null or cardinality(p_kinds) > 40
+     or exists (select 1 from unnest(p_kinds) k where k is null or k !~ '^[a-z][a-z_]{0,39}$') then
+    raise exception 'The kinds are a short list of short lowercase names.' using errcode = '22023';
+  end if;
+  update public.memberships
+     set push_off = (select coalesce(array_agg(distinct k order by k), '{}'::text[]) from unnest(p_kinds) k)
+   where tenant_id = p_tenant_id and user_id = v_user
+     -- A partner's seat counts for this session only with its second factor (00261, 00280).
+     and (role <> 'partner' or public.session_shows_second_factor())
+  returning push_off into v_off;
+  if not found then
+    raise exception 'Not a member of this workspace.' using errcode = '42501';
+  end if;
+  return v_off;
+end $_$;
+
+
+--
+-- Name: FUNCTION member_push_off_set(p_tenant_id uuid, p_kinds text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.member_push_off_set(p_tenant_id uuid, p_kinds text[]) IS 'Remembers which notification kinds the caller''s phones are not told in one workspace: their own membership row, judged by auth.uid(). Answers the list as kept, each kind once.';
+
+
+--
 -- Name: member_view_set(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9358,6 +9397,7 @@ CREATE FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id uuid, 
 declare
   v_by     text;
   v_person text;
+  v_id     uuid;
 begin
   if p_for is null or p_for = p_by then
     return;
@@ -9376,7 +9416,12 @@ begin
     'It is on their page.',
     'clients/' || p_contact_id::text,
     'contact', p_contact_id::text, p_for
-  );
+  )
+  returning id into v_id;
+  -- The phone hears what the bell hears (00162's push_send, payload { notification_id }); the job tells the member it
+  -- is for alone (recipient_user_id), unless they turned notes off for their phones.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'push_send', now(), jsonb_build_object('notification_id', v_id));
 end $$;
 
 
@@ -9384,7 +9429,7 @@ end $$;
 -- Name: FUNCTION note_for_you_notify(p_tenant_id uuid, p_contact_id uuid, p_note_id uuid, p_by uuid, p_for uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id uuid, p_note_id uuid, p_by uuid, p_for uuid) IS 'Tell the member a note is for that it is there (0007): a note_for_you notification addressed to them, naming the writer and the person, never the words. Nothing when the note is for its own writer. Called only by the note doors.';
+COMMENT ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id uuid, p_note_id uuid, p_by uuid, p_for uuid) IS 'Tell the member a note is for that it is there (0007): a note_for_you notification addressed to them, naming the writer and the person, never the words, and a push_send job so their phone hears it (00372). Nothing when the note is for its own writer. Called only by the note doors.';
 
 
 --
@@ -22081,6 +22126,7 @@ CREATE TABLE public.memberships (
     role text DEFAULT 'owner'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     views jsonb DEFAULT '{}'::jsonb NOT NULL,
+    push_off text[] DEFAULT '{}'::text[] NOT NULL,
     CONSTRAINT memberships_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'operator'::text, 'partner'::text, 'viewer'::text])))
 );
 
@@ -22090,6 +22136,13 @@ CREATE TABLE public.memberships (
 --
 
 COMMENT ON COLUMN public.memberships.views IS 'What this member''s pages remember in this workspace, per page: {"people": {"sortBy": "last", ...}}. Written through member_view_set; never read by the receptionist.';
+
+
+--
+-- Name: COLUMN memberships.push_off; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.memberships.push_off IS 'The notification kinds this member''s phones are not told in this workspace (decision 0040): ["call", ...]. Written through member_push_off_set; read by the push_send job.';
 
 
 --
@@ -31358,6 +31411,15 @@ GRANT ALL ON FUNCTION public.member_decision(p_tenant_id uuid, p_subject_type te
 
 REVOKE ALL ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.member_has_address(p_tenant_id uuid, p_address text) TO service_role;
+
+
+--
+-- Name: FUNCTION member_push_off_set(p_tenant_id uuid, p_kinds text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.member_push_off_set(p_tenant_id uuid, p_kinds text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.member_push_off_set(p_tenant_id uuid, p_kinds text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.member_push_off_set(p_tenant_id uuid, p_kinds text[]) TO service_role;
 
 
 --

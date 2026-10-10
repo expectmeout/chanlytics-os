@@ -25,7 +25,7 @@ import { daysApart } from "./days";
 export const RANGE_SLOP_PX = 8;
 
 /** A range of days: its first and its last, "YYYY-MM-DD". */
-export type PressRange = { from: string; to: string };
+type PressRange = { from: string; to: string };
 
 /** What presses: a mouse and a pen act as they press, a finger as it lifts. */
 export type PressKind = "mouse" | "pen" | "touch";
@@ -69,10 +69,10 @@ export type PressEvent =
   | { type: "escape" };
 
 /** The rules a range is held to: today (nothing after it), and the most days a range may hold. */
-export type PressRules = { today: string; most: number };
+type PressRules = { today: string; most: number };
 
 /** What a press did: the state after it, the range it chose (or null), and whether it was the month's (Escape). */
-export type PressStep = { state: RangePress; chose: PressRange | null; handled: boolean };
+type PressStep = { state: RangePress; chose: PressRange | null; handled: boolean };
 
 /** Nothing pressed, over the range shown. */
 export const restingPress = (of: string): RangePress => ({ of, anchor: null, reach: null, held: null, refused: null });
@@ -81,7 +81,7 @@ export const restingPress = (of: string): RangePress => ({ of, anchor: null, rea
 const ordered = (a: string, b: string): PressRange => (a <= b ? { from: a, to: b } : { from: b, to: a });
 
 /** Why a day cannot be pressed now, or null where it can: none to come, and none too far from a first day pressed. */
-function refusalOf(state: RangePress, day: string, rules: PressRules): PressRefusal | null {
+function dayRefusal(state: RangePress, day: string, rules: PressRules): PressRefusal | null {
   if (day > rules.today) return { day, why: "to-come" };
   if (state.anchor !== null && daysApart(state.anchor, day) >= rules.most) return { day, why: "too-far" };
   return null;
@@ -89,11 +89,11 @@ function refusalOf(state: RangePress, day: string, rules: PressRules): PressRefu
 
 /** Whether a day can be pressed now: what the month draws as open, and what a press there does. */
 export const dayIsOpen = (state: RangePress, day: string, rules: PressRules): boolean =>
-  refusalOf(state, day, rules) === null;
+  dayRefusal(state, day, rules) === null;
 
 /** A press on a day that acts: the first day, or the last, which chooses the range. */
 function pressDay(state: RangePress, day: string, rules: PressRules): { state: RangePress; chose: PressRange | null } {
-  const refused = refusalOf(state, day, rules);
+  const refused = dayRefusal(state, day, rules);
   if (refused) return { state: { ...state, refused }, chose: null };
   if (state.anchor === null) return { state: { ...state, anchor: day, reach: day, refused: null }, chose: null };
   return { state: { ...restingPress(state.of) }, chose: ordered(state.anchor, day) };
@@ -103,7 +103,7 @@ const travelled = (held: Held, x: number, y: number): boolean =>
   held.far || Math.abs(x - held.x) > RANGE_SLOP_PX || Math.abs(y - held.y) > RANGE_SLOP_PX;
 
 /** A pointer let go: a finger's tap presses its day, a drag from the first day ends the range where it is let go. */
-function release(
+function letGo(
   now: RangePress,
   event: { day: string | null; x: number; y: number },
   rules: PressRules,
@@ -149,7 +149,7 @@ export function rangePress(state: RangePress, event: PressEvent, rules: PressRul
       return step({ ...now, held: { ...now.held, far: true } });
     }
     case "up": {
-      const lifted = release(now, event, rules);
+      const lifted = letGo(now, event, rules);
       return step(lifted.state, lifted.chose);
     }
     case "cancel":
