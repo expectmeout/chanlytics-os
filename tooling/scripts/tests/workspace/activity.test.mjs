@@ -1455,3 +1455,11 @@ test("a visit and a search are named in the log: a visit by its person, else as 
   const calendar = await route.GET.run(get("&family=calendar"), ctxFor(t, rpcs));
   assert.deepEqual(ids(calendar), ["e-g1", "e-g2"], "the Calendar family has something to say now");
 });
+
+test("a campaign changed in place wears the log's edit mark; its pause and its resume keep their own", async () => {
+  const { activityMark } = await import(at("apps/dashboard/src/surfaces/settings/activity/marks.ts"));
+  assert.deepEqual(
+    ["change_playbook", "pause_playbook", "start_playbook"].map((k) => activityMark(k)),
+    ["edit", "pause", "play"],
+  );
+});

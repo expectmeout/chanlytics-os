@@ -11,10 +11,10 @@ import {
   PLAYBOOK_NAME_MAX,
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
-  PLAYBOOK_STATES,
   appointmentWords,
   channelNeverCarries,
   enrolPurpose,
+  isPlaybookState,
   isWinBack,
   messageFitsMoment,
   messageHolds,
@@ -35,6 +35,7 @@ import {
   type PlaybookPatch,
   type PlaybookPatchKey,
   type PlaybookPolicyClass,
+  type PlaybookState,
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { parseChannels } from "./message-channels";
@@ -219,12 +220,15 @@ export interface CheckPlaybookPatchPorts {
   archivedList(row: { id: string; trigger: string }): Promise<string | null>;
 }
 
-/** A playbook as a change is judged against it: its row as the database holds it now, never a caller's copy. */
+/**
+ * A playbook as a change is judged against it: its row as the database holds it now, never a caller's copy. Its state
+ * is one of the two (contracts isPlaybookState narrows a row's), so what a change held is a patch's own type.
+ */
 export interface PlaybookPatchRow {
   id: string;
   name: string;
   trigger: string;
-  state: string;
+  state: PlaybookState;
   run_hour: number;
   cap_per_run: number;
   gap_days: number;
@@ -265,23 +269,26 @@ export async function checkPlaybookPatch(
   // Pause asks, and nothing else.
   if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
     throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
-  if (asked.state !== undefined && !(PLAYBOOK_STATES as readonly unknown[]).includes(asked.state))
+  if (asked.state !== undefined && !isPlaybookState(asked.state))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.state);
-  const next: Record<PlaybookPatchKey, unknown> = {
-    state: asked.state,
+  const next: PlaybookPatch = {
+    state: isPlaybookState(asked.state) ? asked.state : undefined,
     name: asked.name === undefined ? undefined : patchName(asked.name),
     run_hour: patchNumber("run_hour", asked.run_hour, row.run_hour),
     cap_per_run: patchNumber("cap_per_run", asked.cap_per_run, row.cap_per_run),
     gap_days: patchNumber("gap_days", asked.gap_days, row.gap_days),
     cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
   };
-  const set: Record<string, unknown> = {};
-  const was: Record<string, unknown> = {};
-  for (const k of PLAYBOOK_PATCH_KEYS)
-    if (next[k] !== undefined && next[k] !== row[k]) {
-      set[k] = next[k];
-      was[k] = row[k];
-    }
+  const set: PlaybookPatch = {};
+  const was: PlaybookPatch = {};
+  // A field the change names with a value the row does not hold already: set, and what the row held, each in its type.
+  const differs = <K extends PlaybookPatchKey>(k: K): void => {
+    const to = next[k];
+    if (to === undefined || to === row[k]) return;
+    set[k] = to;
+    was[k] = row[k];
+  };
+  for (const k of PLAYBOOK_PATCH_KEYS) differs(k);
   if (set.cadence_days !== undefined && row.trigger !== "everyone_monthly")
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.cadenceOffer(row.name));
   if (set.state === "running") {

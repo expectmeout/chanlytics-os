@@ -378,6 +378,6 @@
     "00373_a_playbook_s_runs_are_counted_where_they_are.sql": "2d22029abf61fb2f2384a088fd0c02cc1b2127e3cfddb4d615556a718bb1c9a5",
     "00374_every_chain_is_counted_behind_one_member_check.sql": "df0132d4cf2518ce2db40d21dd1866ddf3b2c1ee933597e99224b9e6e621d0f3",
     "00375_a_playbook_changed_is_told_to_its_workspace.sql": "7adcd72c365246d2e477b50d9d0ed6f698c480b64cc9eafabb5e8f26c7dcced6",
-    "00376_a_playbook_changes_in_one_write.sql": "adf5cdf4b8d82ce0a7547656a101ff70775463fd3cbaf80343cadab80f77cb0b"
+    "00376_a_playbook_changes_in_one_write.sql": "58ea5c740fe23613b9708726bcce3a83832e563917ca01ee0c0223b16acf97d6"
   }
 }

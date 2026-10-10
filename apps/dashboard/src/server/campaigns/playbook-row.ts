@@ -14,6 +14,7 @@ import {
   AppError,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
+  isPlaybookState,
   triggerOf,
   type PlaybookPatch,
 } from "@chanlytics/contracts";
@@ -137,9 +138,12 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
  * the door, written the way it was before (changeTheOldWay), for one release.
  */
 async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, p: PlaybookRow) {
-  const row = await playbookForChange(ctx.supabase, p.tenant_id, p.id);
+  const read = await playbookForChange(ctx.supabase, p.tenant_id, p.id);
   // A member reads it: the word lane 3 gave the campaign's own refusals.
-  if (!row) throw new AppError("not_found", "Campaign not found.", 404);
+  if (!read) throw new AppError("not_found", "Campaign not found.", 404);
+  // The table's check holds a state to the two; one it does not know is no row a change is judged against.
+  if (!isPlaybookState(read.state)) throw new Error(`playbook ${p.id} holds a state the check does not: ${read.state}`);
+  const row = { ...read, state: read.state };
   const { set, was } = await checkPlaybookPatch({ archivedList: (r) => archivedListRefusal(ctx, r) }, row, asked);
   if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {} };
   const name = set.name ?? row.name;

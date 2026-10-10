@@ -3011,6 +3011,9 @@ var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
   (t) => t.kind !== "reach_out"
 );
 var PLAYBOOK_STATES = ["running", "paused"];
+function isPlaybookState(v) {
+  return PLAYBOOK_STATES.some((s) => s === v);
+}
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var PLAYBOOK_LIMITS = {
@@ -38408,6 +38411,7 @@ export {
   isPersonRow,
   isPersonsWords,
   isPipelineView,
+  isPlaybookState,
   isPlaybookTotalsDto,
   isProductFallback,
   isPushKind,

@@ -1134,6 +1134,7 @@ declare
   v_actor uuid := auth.uid();
   v_set   jsonb := case when jsonb_typeof(p_set) = 'object' then p_set else '{}'::jsonb end;
   v_was   public.playbooks;
+  v_diff  jsonb;
   v_rows  integer;
   v_verb  text;
 begin
@@ -1151,6 +1152,11 @@ begin
     raise exception 'change_playbook: name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days'
       using errcode = '22023';
   end if;
+  -- A null is no value: none of the six columns is ever empty, so it is refused, never read as "keep what it holds".
+  if exists (select 1 from jsonb_each(v_set) e where jsonb_typeof(e.value) = 'null') then
+    raise exception 'change_playbook: name a value for each column named: none of the six is ever empty'
+      using errcode = '22023';
+  end if;
   -- The row as it stands, locked until the transaction ends, read on the caller's rights: a lock asks the update
   -- policy as well as the select policy, so another workspace's row, or one their seat may not change, is no row.
   select * into v_was
@@ -1160,27 +1166,37 @@ begin
   if not found then
     raise exception 'Playbook not found.' using errcode = 'P0002';
   end if;
+  -- What differs from the row as it stands, under the lock: only that is written, answered as `was` and recorded. Where
+  -- nothing does, nothing is written and no line is (a second press of Pause, or two at once): the lock above has already
+  -- asked the caller's rights, so a seat that may not change it is still told it is not there.
+  select coalesce(jsonb_object_agg(k, v_set -> k), '{}'::jsonb) into v_diff
+    from jsonb_object_keys(v_set) k
+   where (to_jsonb(v_was) ->> k) is distinct from (v_set ->> k);
+  if v_diff = '{}'::jsonb then
+    return jsonb_build_object('id', p_playbook_id, 'was', '{}'::jsonb, 'decision_id', null, 'undo_dropped', false);
+  end if;
   update public.playbooks p
-     set state        = coalesce(v_set ->> 'state', p.state),
-         name         = coalesce(v_set ->> 'name', p.name),
-         run_hour     = coalesce((v_set ->> 'run_hour')::integer, p.run_hour),
-         cap_per_run  = coalesce((v_set ->> 'cap_per_run')::integer, p.cap_per_run),
-         gap_days     = coalesce((v_set ->> 'gap_days')::integer, p.gap_days),
-         cadence_days = coalesce((v_set ->> 'cadence_days')::integer, p.cadence_days)
+     set state        = coalesce(v_diff ->> 'state', p.state),
+         name         = coalesce(v_diff ->> 'name', p.name),
+         run_hour     = coalesce((v_diff ->> 'run_hour')::integer, p.run_hour),
+         cap_per_run  = coalesce((v_diff ->> 'cap_per_run')::integer, p.cap_per_run),
+         gap_days     = coalesce((v_diff ->> 'gap_days')::integer, p.gap_days),
+         cadence_days = coalesce((v_diff ->> 'cadence_days')::integer, p.cadence_days)
    where p.id = p_playbook_id and p.tenant_id = p_tenant_id;
   -- A forbidden update raises nothing: counted, so a change the policy refused is never answered as made.
   get diagnostics v_rows = row_count;
   if v_rows = 0 then
     raise exception 'Playbook not found.' using errcode = 'P0002';
   end if;
-  v_verb := case v_set ->> 'state'
+  -- The verb follows the state that moved, never the one named: a state named as it stands is in no diff.
+  v_verb := case v_diff ->> 'state'
               when 'running' then 'start_playbook'
               when 'paused' then 'pause_playbook'
               else 'change_playbook'
             end;
   return jsonb_build_object(
            'id', p_playbook_id,
-           'was', (select jsonb_object_agg(k, to_jsonb(v_was) -> k) from jsonb_object_keys(v_set) k))
+           'was', (select jsonb_object_agg(k, to_jsonb(v_was) -> k) from jsonb_object_keys(v_diff) k))
       || public.member_decision(p_tenant_id, 'playbook', p_playbook_id, v_verb, coalesce(p_decision, '{}'::jsonb),
                                 p_via, p_undo_of);
 end $$;
@@ -1190,7 +1206,7 @@ end $$;
 -- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, only the columns p_set names written (state, name, run_hour, cap_per_run, gap_days, cadence_days), then start_playbook, pause_playbook or change_playbook as theirs (member_decision), in one transaction. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped.';
+COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A null is refused (22023). Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null.';
 
 
 --

@@ -3025,10 +3025,10 @@ import {
   PLAYBOOK_NAME_MAX,
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
-  PLAYBOOK_STATES,
   appointmentWords,
   channelNeverCarries as channelNeverCarries2,
   enrolPurpose as enrolPurpose3,
+  isPlaybookState,
   isWinBack,
   messageFitsMoment,
   messageHolds as messageHolds3,
@@ -3124,10 +3124,10 @@ async function checkPlaybookPatch(ports, row, asked2) {
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
   if (triggerOf4(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
     throw new AppError15("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
-  if (asked2.state !== void 0 && !PLAYBOOK_STATES.includes(asked2.state))
+  if (asked2.state !== void 0 && !isPlaybookState(asked2.state))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.state);
   const next = {
-    state: asked2.state,
+    state: isPlaybookState(asked2.state) ? asked2.state : void 0,
     name: asked2.name === void 0 ? void 0 : patchName(asked2.name),
     run_hour: patchNumber("run_hour", asked2.run_hour, row.run_hour),
     cap_per_run: patchNumber("cap_per_run", asked2.cap_per_run, row.cap_per_run),
@@ -3136,11 +3136,13 @@ async function checkPlaybookPatch(ports, row, asked2) {
   };
   const set = {};
   const was = {};
-  for (const k of PLAYBOOK_PATCH_KEYS)
-    if (next[k] !== void 0 && next[k] !== row[k]) {
-      set[k] = next[k];
-      was[k] = row[k];
-    }
+  const differs = (k) => {
+    const to = next[k];
+    if (to === void 0 || to === row[k]) return;
+    set[k] = to;
+    was[k] = row[k];
+  };
+  for (const k of PLAYBOOK_PATCH_KEYS) differs(k);
   if (set.cadence_days !== void 0 && row.trigger !== "everyone_monthly")
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.cadenceOffer(row.name));
   if (set.state === "running") {

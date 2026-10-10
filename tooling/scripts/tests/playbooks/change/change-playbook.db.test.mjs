@@ -192,8 +192,46 @@ test(
     assert.equal(strange.error?.code, "22023", strange.error?.message);
     const empty = await change(operator, id, {});
     assert.equal(empty.error?.code, "22023", empty.error?.message);
+    // A null is no value: none of the six columns is ever empty, so it is refused, never read as "keep it".
+    const none = await change(operator, id, { name: null });
+    assert.equal(none.error?.code, "22023", none.error?.message);
+    const half = await change(operator, id, { name: null, run_hour: 9 });
+    assert.equal(half.error?.code, "22023", half.error?.message);
     assert.deepEqual(await row(id), before_);
     assert.deepEqual(await decisions(id), []);
+  },
+);
+
+test(
+  "only what differs from the row is written: a state named as it stands moves nothing, so the verb is change_playbook where another field moves, and a call where nothing differs writes no line",
+  { skip },
+  async () => {
+    const id = await winBack();
+    const operator = await signedIn("operator", tenantId);
+    const out = ok(await change(operator, id, { state: "running", run_hour: 9 }));
+    assert.deepEqual(out.was, { run_hour: 10 }, "what each written column held: the hour alone");
+    assert.deepEqual(
+      (await decisions(id)).map((d) => d.verb),
+      ["change_playbook"],
+      "the state did not move, so the line is no start",
+    );
+    // Nothing differs: no line, and an answer that names none.
+    const same = ok(await change(operator, id, { state: "running", run_hour: 9 }));
+    assert.deepEqual(same, { id, was: {}, decision_id: null, undo_dropped: false });
+    const stillRunning = ok(await change(operator, id, { state: "running" }));
+    assert.deepEqual([stillRunning.was, stillRunning.decision_id], [{}, null]);
+    assert.equal((await decisions(id)).length, 1);
+    assert.deepEqual(await row(id), {
+      name: "Win-back",
+      state: "running",
+      run_hour: 9,
+      cap_per_run: 25,
+      gap_days: 90,
+      cadence_days: 30,
+    });
+    // Even so, a seat that may not change it is told it is not there: the lock asks the update policy first.
+    const viewer = await signedIn("viewer", tenantId);
+    assert.equal((await change(viewer, id, { state: "running" })).error?.code, "P0002");
   },
 );
 
@@ -260,6 +298,10 @@ test(
     assert.deepEqual([out.data.id, out.data.was, typeof out.data.decisionId], [id, { cap_per_run: 25 }, "string"]);
     const [line] = await decisions(id);
     assert.deepEqual([line.verb, line.payload.via, line.payload.cap_per_run], ["change_playbook", "ask", 40]);
+    // The same change again differs from nothing: no line, and no decision to name.
+    const again = await writePlaybookChange(operator.client, { ...args, via: null, undoOf: null });
+    assert.deepEqual(again, { data: { id, was: {}, decisionId: null }, error: null });
+    assert.equal((await decisions(id)).length, 1);
     const refused = await writePlaybookChange(viewer.client, {
       ...args,
       set: { state: "paused" },

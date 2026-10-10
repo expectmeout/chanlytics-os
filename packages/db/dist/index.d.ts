@@ -39517,9 +39517,11 @@ declare function startPlaybook(db: Db$9, p: {
 /**
  * Change a playbook in place with its line in the ledger (the change_playbook door), on the member's own session:
  * the row locked, only the columns `set` names written, then the decision (start_playbook, pause_playbook or
- * change_playbook) as theirs, in one transaction. What each written column held comes back as `was`. A playbook the
- * caller cannot see or change is the database's P0002, which the caller words; an answer without its row and its
- * decision is a door that is not this one, and throws. `"missing"` on a database before the door's migration
+ * change_playbook) as theirs, in one transaction. What each written column held comes back as `was`; where nothing
+ * named differs from the row, nothing is written and `was` is empty with no decision (two presses of Pause at once). A
+ * playbook the caller cannot see or change is the database's P0002, which the caller words; an answer without its row,
+ * or with a change and no decision, is a door that is not this one, and throws. `"missing"` on a database before the
+ * door's migration
  * (isMissingDoor), where the dashboard writes the change the way it did before, for one release, so either deploy order
  * works (the counts doors' rule, reports/report-series.ts answerOrMissing).
  */
@@ -39534,7 +39536,7 @@ declare function writePlaybookChange(db: Db$9, p: {
     data: {
         id: string;
         was: Record<string, unknown>;
-        decisionId: string;
+        decisionId: string | null;
     } | null;
     error: PostgrestError | null;
 } | "missing">;

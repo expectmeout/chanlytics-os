@@ -3607,10 +3607,11 @@ async function writePlaybookChange(db, p) {
   });
   if (error) return isMissingDoor(error) ? "missing" : { data: null, error };
   const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
-  if (typeof made.id !== "string" || typeof made.decision_id !== "string")
-    throw new Error("change_playbook: the door answered without its row and its decision");
   const was = made.was !== null && typeof made.was === "object" && !Array.isArray(made.was) ? made.was : {};
-  return { data: { id: made.id, was, decisionId: made.decision_id }, error: null };
+  const decisionId = typeof made.decision_id === "string" ? made.decision_id : null;
+  if (typeof made.id !== "string" || decisionId === null && Object.keys(was).length > 0)
+    throw new Error("change_playbook: the door answered without its row, or a change without its decision");
+  return { data: { id: made.id, was, decisionId }, error: null };
 }
 
 // src/repositories/lists.ts

@@ -132,6 +132,11 @@ export const PLAYBOOK_STATES = ["running", "paused"] as const;
 
 export type PlaybookState = (typeof PLAYBOOK_STATES)[number];
 
+/** Whether a value is one of a playbook's states: a row's, read as the database types it, or a change's, as asked. */
+export function isPlaybookState(v: unknown): v is PlaybookState {
+  return PLAYBOOK_STATES.some((s) => s === v);
+}
+
 export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 } as const;
 
 export const PLAYBOOK_HOURS = { min: 9, max: 20 } as const;
