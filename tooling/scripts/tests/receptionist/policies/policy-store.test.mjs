@@ -3,9 +3,10 @@
  *
  * The mockup's three policy readers (Settings matrix, the approval chip, Fleet)
  * all go through `window.POLICY`. This pins that the adapter answers from the
- * workspace's real rows when they exist, falls back to the seeded store when
- * they do not, never invents a mode for a missing row, keeps money locked,
- * and only ever writes through the courier for a class that is enforced.
+ * workspace's real rows when they exist, says no mode while they are not read
+ * (the seeded store only in a demo session), never invents a mode for a
+ * missing row, keeps money locked, and only ever writes through the courier
+ * for a class that is enforced.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -138,7 +139,7 @@ test("the installed store answers from real rows, and writes only through the co
   ]);
 });
 
-test("without real rows the store is the seeded one, untouched", () => {
+test("in a session that declared itself a demo, with no rows read, the store is the seeded one, untouched", () => {
   const calls = [];
   const seed = {
     MODES: ["Auto", "Veto", "Ask", "Never"],
@@ -146,13 +147,37 @@ test("without real rows the store is the seeded one, untouched", () => {
     modeOf: (id) => `seed:${id}`,
     set: (id, m) => calls.push([id, m]),
   };
-  const win = { POLICY: seed };
+  const win = { POLICY: seed, __DEMO_MODE: true };
   installPolicyStore(win);
   assert.equal(win.POLICY.real(), false);
   assert.equal(win.POLICY.modeOf("reply"), "seed:reply");
   assert.deepEqual(win.POLICY.ROWS, seed.ROWS);
   win.POLICY.set("reply", "Ask");
   assert.deepEqual(calls, [["reply", "Ask"]]);
+});
+
+test("REGRESSION: a workspace whose policies are not read yet has no modes -- its chips said the mockup's seeded ones until settings landed, and all visit when it never did", () => {
+  const calls = [];
+  const seed = {
+    MODES: ["Auto", "Veto", "Ask", "Never"],
+    ROWS: [{ id: "reply", def: "Veto" }],
+    modeOf: () => "Veto",
+    set: (id, m) => calls.push([id, m]),
+  };
+  // A cold tab before GET settings lands, or after it failed twice: the app's window, no demo, no rows.
+  const win = { POLICY: seed, __DEMO_MODE: false };
+  installPolicyStore(win);
+  const S = win.POLICY;
+  assert.equal(S.modeOf("reply"), null, "REGRESSION: the seed's Veto beside a real approval");
+  assert.equal(S.row("reply").mode, null, "the chip's row states no mode either");
+  assert.equal(S.row("money").mode, "Never", "but money, which the database locks whatever we can read");
+  assert.notDeepEqual(S.ROWS, seed.ROWS, "the rows are the charter's, not the seed's");
+  S.set("reply", "Ask");
+  assert.deepEqual(calls, [], "and nothing is written against rows nobody has read");
+  // Settings lands: the same store answers from the workspace's rows.
+  win.__POLICIES = REAL;
+  assert.equal(S.modeOf("reply"), "Veto");
+  assert.equal(S.real(), true);
 });
 
 test("a failed policies read is its own state, not the seeds", () => {

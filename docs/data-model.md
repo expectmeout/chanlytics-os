@@ -68,7 +68,7 @@ what the script writes.
 | [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
-| [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
+| [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
 | [`notification_reads`](#notification_reads) | none | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -978,7 +978,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `events_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+| `events_member_select` | select | authenticated | `((tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))) AND ((kind <> ALL (ARRAY['partner.earned'::text, 'partner.reversed'::te…` |  |
 
 ### google_connections
 
@@ -1771,7 +1771,7 @@ Foreign keys:
 
 ### messages
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -1798,7 +1798,7 @@ Foreign keys:
 | `status_updated_at` | timestamp with time zone | yes |  |  |
 | `meta` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
-| `sending_at` | timestamp with time zone | yes |  | When the one run that took this queued row to the wire claimed it (00352): set where status = 'queued' and it is null, so a second job naming the row sends nothing. Cleared only when the provider provably did not take the message. Null on a row no job sent (an inbound message, a direct answer, a broadcast's). |
+| `sending_at` | timestamp with time zone | yes |  | When the one run that took this queued row to the wire claimed it (00352): set where status = 'queued' and it is null, so a second job naming the row sends nothing, and a member's call-back takes only a row nobody has claimed (00362). Cleared only when the provider provably did not take the message. A broadcast's email is claimed as it is written (00369). Null on a row no job sent (an inbound message, a direct answer). |
 
 Foreign keys:
 
@@ -1810,7 +1810,7 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `messages_acting_member_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (direction = 'outbound'::text) AND (sender = 'human'::text) AND (sent_by = auth.uid()) AND (status = 'queued'::text) AND (medi…` |
-| `messages_acting_member_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
+| `messages_acting_member_update` | update | authenticated | `(is_acting_member(tenant_id) AND (status = 'queued'::text) AND (sending_at IS NULL))` | `(is_acting_member(tenant_id) AND (status = 'canceled'::text))` |
 | `messages_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### notification_marks
@@ -2827,7 +2827,7 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `tenant_config_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+| `tenant_config_owner_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` |  |
 | `tenant_config_owner_update` | update | authenticated | `caller_has_permission(tenant_id, 'settings'::text)` | `caller_has_permission(tenant_id, 'settings'::text)` |
 
 ### tenants

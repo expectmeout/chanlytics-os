@@ -936,8 +936,8 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   );
   assert.equal(
     ASK_TOKENS_DAY,
-    1_500_000,
-    "sized for a workspace's day with the page's context in every round; 400k was spent by one day of eval runs",
+    3_000_000,
+    "sized for a workspace's day with its cache writes counted (1.5M before they were); 400k was spent by one day of eval runs",
   );
   // What the dashboard's call names and binds is run in edge/dashboard-names-its-callers.test.mjs.
   assert.ok(
@@ -990,6 +990,90 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
     ok.ok && ok.request.max_tokens === ASK_MAX_TOKENS && ok.request.model === mod.GATEWAY_FALLBACK_MODEL,
     "a request that names no model gets the fallback every older caller expects and Ask's ceiling; Ask's profile moves Ask alone",
   );
+});
+
+test("the gateway's usage tee reports a round once however its stream ends: cut by the reader or broken upstream, with what was read so far, before the cut goes on; at a clean end, once", async () => {
+  // It reported only at a clean end (the transform's flush), and a cut stream never flushes: a round the dashboard
+  // abandoned at its turn's budget, one the try's bound ended, one the network broke, was spent and never counted.
+  const mod = await import(pathToFileURL(path.join(here, "../../../../apps/edge/lib/ask-gateway.ts")).href);
+  const enc = new TextEncoder();
+  const head =
+    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":1200,"cache_read_input_tokens":900,"cache_creation_input_tokens":0}}}\n\n' +
+    'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Two"}}\n\n';
+  const tail =
+    'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":42}}\n\n';
+  const soFar = {
+    usage: { input_tokens: 1200, output_tokens: 0, cache_read_input_tokens: 900, cache_creation_input_tokens: 0 },
+    stop: null,
+  };
+  /** The tee over `upstream`, and what it reported, in the order it happened beside what the reader saw. */
+  const teed = (upstream) => {
+    const seen = { reports: [], order: [] };
+    const out = mod.teeUsage(upstream, async (usage, stop) => {
+      await new Promise((r) => setTimeout(r, 5)); // the writes take a moment, as the database's do
+      seen.reports.push({ usage: { ...usage }, stop });
+      seen.order.push("reported");
+    });
+    return { out, seen };
+  };
+  /** Read to the end, or to the error. */
+  const drain = async (r) => {
+    for (;;) {
+      const { done } = await r.read();
+      if (done) return;
+    }
+  };
+
+  // Cut by the reader: the dashboard aborts its fetch while the model is still writing.
+  let letGo = null;
+  const open = teed(
+    new ReadableStream({
+      start(c) {
+        c.enqueue(enc.encode(head)); // and then nothing more: the model is still writing
+      },
+      cancel(reason) {
+        letGo = reason;
+      },
+    }),
+  );
+  const reader = open.out.getReader();
+  assert.equal(new TextDecoder().decode((await reader.read()).value), head, "forwarded as it came");
+  await reader.cancel("the turn's budget");
+  open.seen.order.push("cancelled");
+  assert.deepEqual(open.seen.reports, [soFar], "once, with the input side message_start said");
+  assert.deepEqual(open.seen.order, ["reported", "cancelled"], "reported before the cancel returned");
+  assert.equal(letGo, "the turn's budget", "and the model's stream is let go");
+
+  // Broken upstream: the try's bound ends the body, or the connection drops.
+  let pulls = 0;
+  const broken = teed(
+    new ReadableStream({
+      pull(c) {
+        if (pulls++ === 0) c.enqueue(enc.encode(head));
+        else c.error(new TypeError("terminated"));
+      },
+    }),
+  );
+  const r2 = broken.out.getReader();
+  await assert.rejects(drain(r2), /terminated/);
+  broken.seen.order.push("errored");
+  assert.deepEqual(broken.seen.reports, [soFar], "once, with what was read before it broke");
+  assert.deepEqual(broken.seen.order, ["reported", "errored"], "reported before the error reached the reader");
+
+  // A clean end: once, with both sides, and a cancel after the end reports nothing more.
+  const whole = teed(
+    new ReadableStream({
+      start(c) {
+        c.enqueue(enc.encode(head));
+        c.enqueue(enc.encode(tail));
+        c.close();
+      },
+    }),
+  );
+  const r3 = whole.out.getReader();
+  await drain(r3);
+  await r3.cancel();
+  assert.deepEqual(whole.seen.reports, [{ usage: { ...soFar.usage, output_tokens: 42 }, stop: "end_turn" }]);
 });
 
 test("the dashboard's stream parser: blocks, deltas, thinking and its signature, the stop reason, and pings ignored", async () => {

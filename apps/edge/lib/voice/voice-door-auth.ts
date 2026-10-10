@@ -37,7 +37,7 @@
  * signature-only mode, so "true" or "yes", typed by someone who meant to close the doors, closes them.
  */
 import crypto from "node:crypto";
-import { verifyRetellSignature } from "../packages/channels.js";
+import { stripKey, verifyRetellSignature } from "../packages/channels.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
 
@@ -100,6 +100,16 @@ const KEY_READ_FROM: Partial<Record<VoiceDoor, "query" | "header">> = {
   fn: "header",
   availability: "header",
 };
+
+/**
+ * The URL a voice door keeps a delivery under (intake/keep.ts): the one it was knocked on, without its query string,
+ * where the shared secret rides (`?key=`, channels withKey; a key on an old webhook URL rides there too, unread). That
+ * secret opens the voice doors of every workspace, and the ledger keeps what it is given for a week, so it is never
+ * given it. A replay is proved by the signature, kept with the headers; one the secret alone let in replays as a 401.
+ */
+export function keptUrl(request: Request): string {
+  return stripKey(request.url) ?? "";
+}
 
 /** The secret this knock carried, read only from where this door says it reads one. */
 function presentedSecret(door: VoiceDoor, request: Request): string | null {

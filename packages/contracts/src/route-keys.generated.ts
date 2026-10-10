@@ -201,6 +201,8 @@ export const ROUTE_KEYS = [
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
+  "POST team/invite/[id]/resend",
+  "POST team/leave",
   "POST team/partner",
   "POST templates",
   "POST templates/draft",

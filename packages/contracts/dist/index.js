@@ -1430,9 +1430,10 @@ function addressInMessage(body) {
 // src/shared/phone.ts
 function normalizePhone(raw) {
   if (raw == null) return null;
-  const digits2 = String(raw).replace(/[^\d]/g, "");
+  const typed = String(raw).trim();
+  const digits2 = typed.replace(/[^\d]/g, "");
   if (!digits2) return null;
-  if (digits2.length === 10) return `+1${digits2}`;
+  if (!typed.startsWith("+") && digits2.length === 10) return `+1${digits2}`;
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
@@ -3160,7 +3161,8 @@ function draftRefusal(f) {
 }
 var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
 function leadReplyNote(p) {
-  const business = flatClip(p.business, 120) || "a business";
+  const name = promptSafeName(p.business);
+  const business = name ? fencedInline("profile_name", name) : "a business";
   const answered = flatClip(p.answered, 600);
   const signedBy = flatClip(p.signedBy, 60);
   return [
@@ -4179,6 +4181,13 @@ var FLAGS = [
       readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
       closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on those doors."
     }
+  },
+  {
+    name: "WHATSAPP_ANSWERS_AS_JOBS",
+    mechanism: "edge_env",
+    does: "Workspace ids, or 'all': their WhatsApp messages are recorded, acknowledged and answered by a job (whatsapp/answer-later.ts); empty answers every message inside the webhook.",
+    owner: "Ruben",
+    sunset: "2026-12-31"
   },
   {
     name: "LINES_DRY_RUN",
@@ -5319,7 +5328,7 @@ var ASK_VOICE_UP_WAIT_MS = 2500;
 var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_WARM_MAX_TOKENS = 64;
-var ASK_TOKENS_DAY = 15e5;
+var ASK_TOKENS_DAY = 3e6;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -15377,6 +15386,42 @@ function offerLead(offer) {
   return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
 }
 
+// src/config/workspace-config/alerts.ts
+var ALERT_ADDRESSES_MAX = 10;
+var ALERT_ADDRESSES_MIN = 1;
+var alertKey = (address) => String(address ?? "").trim().toLowerCase();
+function alertAddressesOf(notifications) {
+  const out = /* @__PURE__ */ new Set();
+  for (const e of notifications?.escalation_emails ?? []) {
+    const key = alertKey(e);
+    if (key) out.add(key);
+  }
+  return out;
+}
+function memberGetsAlerts(email, notifications) {
+  const key = alertKey(email);
+  return !!key && alertAddressesOf(notifications).has(key);
+}
+var ALERT_REFUSED_WORDS = {
+  last: "Someone has to get alerts. Add another address on Notifications first.",
+  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
+  address: "That doesn't look like an email address."
+};
+function withAlertAddress(notifications, email, on) {
+  const key = alertKey(email);
+  if (!key || !key.includes("@")) return { ok: false, reason: "address" };
+  const list2 = [...notifications?.escalation_emails ?? []];
+  const has3 = list2.some((e) => alertKey(e) === key);
+  const next = on ? has3 ? list2 : [...list2, key] : list2.filter((e) => alertKey(e) !== key);
+  if (on && !has3 && next.length > ALERT_ADDRESSES_MAX) return { ok: false, reason: "full" };
+  if (!on && has3 && next.length < ALERT_ADDRESSES_MIN) return { ok: false, reason: "last" };
+  return {
+    ok: true,
+    changed: has3 !== on,
+    notifications: { ...notifications ?? {}, escalation_emails: next }
+  };
+}
+
 // src/calendar/calendar-people.ts
 function threadOf(p) {
   return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
@@ -15408,11 +15453,7 @@ function calendarOwnerOf(url) {
   return id;
 }
 function ownAddressesOf(cfg) {
-  const out = /* @__PURE__ */ new Set();
-  for (const e of cfg?.notifications?.escalation_emails ?? []) {
-    const a = String(e).trim().toLowerCase();
-    if (a) out.add(a);
-  }
+  const out = alertAddressesOf(cfg?.notifications);
   const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
   if (owner) out.add(owner);
   return out;
@@ -17100,41 +17141,52 @@ var ROLE_PERMS = {
     find: false
   }
 };
-
-// src/config/workspace-config/alerts.ts
-var ALERT_ADDRESSES_MAX = 10;
-var ALERT_ADDRESSES_MIN = 1;
-var alertKey = (address) => String(address ?? "").trim().toLowerCase();
-function alertAddressesOf(notifications) {
-  const out = /* @__PURE__ */ new Set();
-  for (const e of notifications?.escalation_emails ?? []) {
-    const key = alertKey(e);
-    if (key) out.add(key);
+var ROLE_SAYS = {
+  owner: {
+    label: "Owner",
+    one: "an Owner",
+    can: "Everything, billing and the team included.",
+    short: "Everything, billing and the team included"
+  },
+  operator: {
+    label: "Operator",
+    one: "an Operator",
+    can: "Answers and approves conversations, tunes autonomy. No billing, team or channels.",
+    short: "Answers and approves, tunes autonomy"
+  },
+  partner: {
+    label: "Partner",
+    one: "a Partner",
+    can: "Sets up and runs the receptionist with you. No billing, team or customer export.",
+    short: "Sets up and runs the receptionist with you"
+  },
+  viewer: {
+    label: "Viewer",
+    one: "a Viewer",
+    can: "Sees everything, changes nothing.",
+    short: "Sees everything, changes nothing"
   }
-  return out;
-}
-function memberGetsAlerts(email, notifications) {
-  const key = alertKey(email);
-  return !!key && alertAddressesOf(notifications).has(key);
-}
-var ALERT_REFUSED_WORDS = {
-  last: "Someone has to get alerts. Add another address on Notifications first.",
-  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
-  address: "That doesn't look like an email address."
 };
-function withAlertAddress(notifications, email, on) {
-  const key = alertKey(email);
-  if (!key || !key.includes("@")) return { ok: false, reason: "address" };
-  const list2 = [...notifications?.escalation_emails ?? []];
-  const has3 = list2.some((e) => alertKey(e) === key);
-  const next = on ? has3 ? list2 : [...list2, key] : list2.filter((e) => alertKey(e) !== key);
-  if (on && !has3 && next.length > ALERT_ADDRESSES_MAX) return { ok: false, reason: "full" };
-  if (!on && has3 && next.length < ALERT_ADDRESSES_MIN) return { ok: false, reason: "last" };
-  return {
-    ok: true,
-    changed: has3 !== on,
-    notifications: { ...notifications ?? {}, escalation_emails: next }
-  };
+function roleSays(role) {
+  return ROLE_SAYS[role] ?? { label: role, one: role, can: "", short: "" };
+}
+var ROLE_TABLE_LINES = [
+  { perm: null, says: "See conversations, people and reports" },
+  { perm: "approve", says: "Approve and send replies" },
+  { perm: "autonomy", says: "Tune autonomy" },
+  { perm: "settings", says: "Business details and who gets alerts" },
+  { perm: "disconnect", says: "Connect and disconnect channels" },
+  { perm: "find", says: "Find leads", note: "uses the month's allowance" },
+  { perm: "export", says: "Export the customer list" },
+  { perm: "billing", says: "Billing" },
+  { perm: "team", says: "The team and its roles" }
+];
+function roleTable() {
+  return ROLE_TABLE_LINES.map((line) => ({
+    says: line.says,
+    note: line.note ?? null,
+    can: Object.fromEntries(ROLES.map((r2) => [r2, line.perm === null ? true : ROLE_PERMS[r2][line.perm]]))
+  }));
 }
 
 // src/config/workspace-config/policy-limits-schema.ts
@@ -17613,7 +17665,7 @@ function refuseUnknownFields(read, raw, ctx) {
 
 // src/config/workspace-config/config-schema.ts
 var NotificationsConfigSchema = z8.object({
-  escalation_emails: z8.array(z8.string().email()).min(1).max(10),
+  escalation_emails: z8.array(z8.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
   from: z8.string().max(200).optional(),
   /**
    * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
@@ -19493,6 +19545,18 @@ function shellStatusLine(s) {
       cta: "Billing",
       busy: null
     };
+  if (s.previewing) {
+    const one = roleSays(s.previewing).one;
+    return {
+      kind: "preview",
+      tone: "info",
+      text: `Previewing as ${one}`,
+      detail: `Controls ${one} wouldn't have are hidden. Your own access hasn't changed.`,
+      action: "exit-preview",
+      cta: "Exit preview",
+      busy: null
+    };
+  }
   if (s.stale)
     return {
       kind: "stale",
@@ -20620,12 +20684,7 @@ function calendarPeekDeal(block, people, nowMs) {
 }
 
 // src/shell/identity.ts
-var ROLE_WORDS = {
-  owner: "Owner",
-  operator: "Operator",
-  partner: "Partner",
-  viewer: "Viewer"
-};
+var ROLE_WORDS = Object.fromEntries(ROLES.map((r2) => [r2, ROLE_SAYS[r2].label]));
 function personInitials(name, email) {
   const n = (name ?? "").trim();
   if (n) return initialsOf(n);
@@ -20664,15 +20723,19 @@ function providerNameOf(metadata) {
   }
   return null;
 }
-function inviteState(expiresAt, nowMs) {
-  const at3 = expiresAt ? Date.parse(expiresAt) : NaN;
-  if (Number.isNaN(at3)) return { expired: false, words: "invite pending" };
-  if (at3 <= nowMs) return { expired: true, words: "invite expired \u2014 revoke it and send a new one" };
+var TEAM_INVITE_DAYS = 7;
+function joinedWords(joinedAt, tz, nowMs) {
+  const at3 = joinedAt ? Date.parse(joinedAt) : NaN;
+  return Number.isNaN(at3) ? null : `Joined ${clockDate(at3, tz, nowMs)}`;
+}
+function invitationWords(inv, tz, nowMs) {
+  const sentAt = inv.createdAt ? Date.parse(inv.createdAt) : NaN;
+  const sent2 = Number.isNaN(sentAt) ? null : `invited ${clockDate(sentAt, tz, nowMs)}`;
+  const at3 = inv.expiresAt ? Date.parse(inv.expiresAt) : NaN;
+  if (Number.isNaN(at3)) return { expired: false, sent: sent2, left: null };
+  if (at3 <= nowMs) return { expired: true, sent: sent2, left: null };
   const days = Math.ceil((at3 - nowMs) / DAY_MS);
-  return {
-    expired: false,
-    words: days <= 1 ? "invite pending \xB7 expires today" : `invite pending \xB7 expires in ${days} days`
-  };
+  return { expired: false, sent: sent2, left: days <= 1 ? "expires today" : `${days} days left` };
 }
 
 // src/lines/line-failure.ts
@@ -32842,6 +32905,8 @@ var ROUTE_KEYS = [
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
+  "POST team/invite/[id]/resend",
+  "POST team/leave",
   "POST team/partner",
   "POST templates",
   "POST templates/draft",
@@ -32954,6 +33019,10 @@ function fieldsOf(details) {
 function confirmEmailToOf(details) {
   const to = details && typeof details === "object" ? details.confirm_email_to : void 0;
   return typeof to === "string" && to.trim() ? to.trim() : null;
+}
+var SESSION_ENDED = { session_ended: true };
+function sessionEnded(details) {
+  return !!details && typeof details === "object" && details.session_ended === true;
 }
 function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
@@ -36837,6 +36906,10 @@ var WHOLE_SENTENCE = new Map([
     "member.left",
     (p, base) => joinBits(base, [textAt(p, "how") === "account_deleted" ? "deleted their account" : null])
   ],
+  // Team's Resend renews an invitation and emails it again (00371 team_invite_renew); a member's own Leave is a removal
+  // by their own hand (team_leave). Each is said as what happened, not as a second invitation or a removal by somebody.
+  ["invite", (p, base) => p.resent === true ? "Sent an invitation again" : base],
+  ["remove_member", (p, base) => p.left === true ? "Left the team" : base],
   ["call.recorded", callRecordedWords],
   ["reach_out.send_decided", (p, base) => wordOf(SEND_DECIDED_WORDS, textAt(p, "decision")) ?? base],
   ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
@@ -38642,6 +38715,7 @@ export {
   REVIEW_REPLY_MAX_WORDS,
   ROLES,
   ROLE_PERMS,
+  ROLE_SAYS,
   ROLE_WORDS,
   ROUTE_KEYS,
   ROUTE_WORDS,
@@ -38680,6 +38754,7 @@ export {
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SERVICE_SUGGESTION_TYPES,
+  SESSION_ENDED,
   SETUP_CARD_ORDER,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
@@ -38720,6 +38795,7 @@ export {
   SYSTEM_ONE_STATE_MAX_CHARS,
   ServiceSchema,
   SignupSchema,
+  TEAM_INVITE_DAYS,
   TEAM_ROLES,
   TEMPLATE_BODY_MAX,
   TEMPLATE_BUTTON_TEXT_MAX,
@@ -39251,7 +39327,7 @@ export {
   insertSlot,
   instructionsDraft,
   instructionsWords,
-  inviteState,
+  invitationWords,
   invoiceStatusWords,
   isActivityFamily,
   isActivityMoney,
@@ -39328,6 +39404,7 @@ export {
   itemOfAppointment,
   jittered,
   jobNewsWords,
+  joinedWords,
   judgeAsked,
   judgeDomain,
   judgeOpId,
@@ -39880,6 +39957,8 @@ export {
   rightNowLine,
   roleAtLeast,
   roleGate,
+  roleSays,
+  roleTable,
   routeOfAddress,
   routeOfHash,
   routeOfPath,
@@ -39942,6 +40021,7 @@ export {
   servicesSaveWords,
   servicesToldWords,
   servicesWords,
+  sessionEnded,
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,

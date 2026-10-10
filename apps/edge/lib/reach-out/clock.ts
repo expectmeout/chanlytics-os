@@ -13,7 +13,7 @@
  *   unstick     a send claimed and never queued: its email written (adopted, queued) or never written (planned
  *               again), so a writer that died mid-send neither loses it nor spends its domain's day for good.
  *   close       a canceled or failed run's open sends are skipped, `run_canceled`; an email still queued is withdrawn
- *               first, so its job sends nothing.
+ *               first, so its job sends nothing; one its job has begun to send is its job's, and reconcile reads it.
  *   finish      a run that goes ahead with no send left open is sent, and says when it finished.
  *   restale     a planned send long past its time in a run that goes ahead (approved late, its chain resumed, its
  *               domain's day full or its domain removed) is planned again from now.
@@ -31,6 +31,7 @@ import {
   staleSends,
   stuckClaims,
   withdrawEmail,
+  writtenEmail,
   writtenEmails,
   type Database,
   type ReachOutSendRow,
@@ -77,6 +78,37 @@ function neverLeft(error: { reason?: string; http_status?: number } | null): boo
 
 const move = (db: Db, s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Promise<boolean> =>
   moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
+
+/**
+ * The close step: a canceled or failed run's open sends. A queued send's email still queued is withdrawn, and the next
+ * tick's reconcile reads it canceled, run_canceled, and skips the send. A claim its writer is done with may have written
+ * its email: withdrawn too, then the send skipped. An email that was not withdrawn (withdrawEmail's false: its job took
+ * it, or has begun to send it, sending_at) is its job's, and reconcile reads what became of it; a claimed send then
+ * goes on as that email's, as unstick adopts one. Skipped instead, a send whose email reached the lead would say
+ * run_canceled, and the lead would never be marked as written to.
+ */
+async function closeRuns(db: Db, now: Date, out: ClockCounts, tenantId?: string): Promise<void> {
+  const closed = await closedRunSends(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), PAGE, tenantId);
+  for (const { send: s, email_status } of closed) {
+    if (s.state === "queued") {
+      if (s.message_id && email_status === "queued") {
+        if (await withdrawEmail(db, { tenantId: s.tenant_id, id: s.message_id, reason: "run_canceled" }))
+          out.withdrawn += 1;
+      }
+      continue;
+    }
+    if (s.state === "claimed") {
+      const id = await sendMessageId(s.id, s.attempts ?? 0);
+      const withdrawn = await withdrawEmail(db, { tenantId: s.tenant_id, id, reason: "run_canceled" });
+      const was = withdrawn ? null : await writtenEmail(db, { tenantId: s.tenant_id, id });
+      if (was && was.status !== "canceled") {
+        if (await move(db, s, { state: "queued", message_id: id })) out.adopted += 1;
+        continue;
+      }
+    }
+    if (await move(db, s, { state: "skipped", reason: "run_canceled" })) out.closed += 1;
+  }
+}
 
 export async function reachOutClock(
   db: Db,
@@ -169,29 +201,7 @@ export async function reachOutClock(
   }
 
   /* close */
-  if (!late())
-    for (const { send: s, email_status } of await closedRunSends(
-      db,
-      new Date(now.getTime() - CLAIM_STUCK_AFTER_MS),
-      PAGE,
-      tenantId,
-    )) {
-      if (s.state === "queued") {
-        // Its email withdrawn while still queued; the next tick's reconcile reads it canceled, run_canceled, and skips
-        // the send. One its job already took is its job's: reconcile reads what became of it.
-        if (s.message_id && email_status === "queued") {
-          if (await withdrawEmail(db, { tenantId: s.tenant_id, id: s.message_id, reason: "run_canceled" }))
-            out.withdrawn += 1;
-        }
-        continue;
-      }
-      // A claim its writer is done with may have written its email: withdrawn too, then the send skipped.
-      if (s.state === "claimed") {
-        const id = await sendMessageId(s.id, s.attempts ?? 0);
-        await withdrawEmail(db, { tenantId: s.tenant_id, id, reason: "run_canceled" });
-      }
-      if (await move(db, s, { state: "skipped", reason: "run_canceled" })) out.closed += 1;
-    }
+  if (!late()) await closeRuns(db, now, out, tenantId);
 
   /* finish */
   if (!late())

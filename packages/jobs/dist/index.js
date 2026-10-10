@@ -6,6 +6,7 @@ import { logger, requestId } from "../../channels/dist/index.js";
 // src/ledger.ts
 import { DAY_MS, MIN_MS, jittered } from "../../contracts/dist/index.js";
 import { DEADLINE_MARGIN_MS } from "../../core/dist/index.js";
+import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "../../channels/dist/index.js";
 var LEASE_SECONDS = 90;
 var CLAIM_FOR_MS = 2e4;
 var CLAIM_SLOTS = 3;
@@ -13,6 +14,10 @@ var YIELD_AT_MS = 45e3;
 var FUNCTION_CEILING_MS = MIN_MS;
 var SEND_SETTLE_MS = 5e3;
 var sendByAt = (deadline) => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
+var startByAt = (deadline) => ({
+  whatsapp: sendByAt(deadline) - WHATSAPP_SEND_TIMEOUT_MS,
+  sms: sendByAt(deadline) - TWILIO_TIMEOUT_MS
+});
 var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 var REPLY_LATE_PAGE_MS = MIN_MS;
 var MAX_ATTEMPTS = 3;
@@ -114,7 +119,7 @@ function named(payload) {
     return payload;
   return { ...payload, request_id: id };
 }
-function dedupeKeyOf(kind, payload) {
+function dedupeKeyOf({ tenantId, kind, payload }) {
   const p = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const field = (name) => typeof p[name] === "string" ? p[name] : null;
   switch (kind) {
@@ -124,10 +129,12 @@ function dedupeKeyOf(kind, payload) {
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
-    // One read per delivery (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again, or the
-    // provider's webhook replayed, finds the read already on the ledger.
+    // One read per delivery in each workspace (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again,
+    // or the provider's webhook replayed, finds the read already on the ledger. One delivery addressed to two
+    // workspaces' mailboxes is an intake for each (edge resend-event.ts), and each reads it into its own appointments:
+    // keyed by the delivery alone, the second workspace's read was already_scheduled, and its booking never read.
     case "booking_read":
-      return field("received_id") ? `booking_read:${field("received_id")}` : null;
+      return field("received_id") ? `booking_read:${tenantId}:${field("received_id")}` : null;
     case "inbound_answer":
       return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
     default:
@@ -149,7 +156,7 @@ async function scheduleJob(db, p) {
   return { jobId: data.id };
 }
 async function scheduleJobOnce(db, p) {
-  const key = dedupeKeyOf(p.kind, p.payload);
+  const key = dedupeKeyOf(p);
   const insert = (dedupeKey) => db.from("jobs").insert(rowToInsert(p, dedupeKey));
   let { error } = await insert(key);
   if (error?.code === "PGRST204" && key) ({ error } = await insert(null));
@@ -170,7 +177,7 @@ async function requeueFailedJob(db, tenantId, jobId, record) {
   const row = await readJobToRequeue(db, tenantId, jobId);
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
-  if (SPEAKS_TO_A_PERSON.has(row.kind)) return { outcome: "speaks_to_a_person", kind: row.kind };
+  if (SPEAKS_TO_A_PERSON.has(row.kind) || row.spoke_at) return { outcome: "speaks_to_a_person", kind: row.kind };
   if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
   const kind = JOB_KINDS.find((k) => k === row.kind);
   if (!kind) return { outcome: "unknown_kind", kind: row.kind };
@@ -222,8 +229,8 @@ import {
   memberHasAddress,
   keepForwardingConfirmation,
   getTenantConfig,
-  claimQueuedSend,
-  releaseQueuedSend,
+  claimQueuedSend as claimQueuedSend2,
+  releaseQueuedSend as releaseQueuedSend2,
   membersPushedFor
 } from "../../db/dist/index.js";
 
@@ -290,12 +297,14 @@ import {
 import {
   appointmentStates,
   campaignMonthSent,
+  claimQueuedSend,
   emitEvent as emitEvent2,
   insertQueuedEmail,
   mailboxOfTenant,
   messageVersionRowsOf,
   queuedRecipients,
   recordEvent,
+  releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   runGoesByOthers,
@@ -425,6 +434,11 @@ function peoplePorts(ctx, tenantId) {
     unsubscribeUrl: unsubscribeUrlPort(ctx, tenantId),
     // The email, written queued under the id its request was frozen with, before it leaves (the door asks for the
     // row). Its row keeps the request as meta.email, as every email's does. A row already there is a resumed run's.
+    // Written CLAIMED (sending_at, 00352), as sendQueued claims a reply's row before the wire: the batch holds this
+    // person and puts the words on the wire next, and a call-back that asks `sending_at is null` (a member's
+    // cancel-send, the clock's withdrawal) would otherwise win the row while the provider answers, and the person
+    // would get the email under a row that said canceled for ever. A resumed run's row still queued is this run's (the
+    // person's claim is the batch's one door), and takes the claim before it is read, unless it holds one already.
     queueEmail: async (row) => {
       const wrote = await insertQueuedEmail(db, {
         id: row.id,
@@ -437,17 +451,22 @@ function peoplePorts(ctx, tenantId) {
         type: "text",
         body: row.body,
         status: "queued",
+        sending_at: (/* @__PURE__ */ new Date()).toISOString(),
         meta: {
           ...row.meta,
           email: { subject: row.request.subject, to: [...row.request.to], request: frozen(row.request) }
         }
       });
       if (wrote === "written") return { status: "queued" };
+      await claimQueuedSend(db, tenantId, row.id);
       const there = await writtenEmail(db, { tenantId, id: row.id });
       if (!there) throw new Error(`broadcast_send: the email ${row.id} is taken and cannot be read`);
       return { status: there.status };
     },
+    // The batch's own row, which it wrote claimed: the claim given back first (the provider did not take the email, or
+    // the door threw before the wire), so the withdrawal that follows, which takes only a row no run holds, takes it.
     withdrawEmail: async (messageId) => {
+      await releaseQueuedSend(db, tenantId, messageId);
       await withdrawEmail(db, { tenantId, id: messageId, reason: "not_taken" });
     },
     monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
@@ -568,7 +587,15 @@ async function broadcastSend(ctx, job) {
       now: Date.now,
       sleep: (ms) => new Promise((res) => setTimeout(res, ms))
     },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, ...carriedBy(p) }
+    // A WhatsApp send or a text runs its wire's own timeout whole, so the batch starts one only while that still ends
+    // inside the function (ledger startByAt); the people after it are the next batch's.
+    {
+      tenantId: job.tenant_id,
+      broadcastId: p.broadcast_id,
+      deadline: ctx.deadline,
+      startBy: startByAt(ctx.deadline),
+      ...carriedBy(p)
+    }
   );
 }
 function nextBatch(id, carry) {
@@ -964,8 +991,8 @@ async function outboundSend(ctx, job) {
         };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
-      claim: (id) => claimQueuedSend(ctx.db, job.tenant_id, id),
-      release: (id) => releaseQueuedSend(ctx.db, job.tenant_id, id),
+      claim: (id) => claimQueuedSend2(ctx.db, job.tenant_id, id),
+      release: (id) => releaseQueuedSend2(ctx.db, job.tenant_id, id),
       deliver: (d) => deliver2({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
@@ -1031,9 +1058,9 @@ async function emailIngest(ctx, job) {
         senderChecks = e?.authentication ?? null;
         return e ? incomingEmailOf(e) : null;
       },
-      // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
-      // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
-      // provider no longer has when the read runs is still kept on the ledger as the tool's.
+      // A booking tool's notice is read into an appointment by its own job, once per delivery and workspace
+      // (dedupe_key), as this job's own tenant: the intake run again finds it already on the ledger. The tool rides
+      // along, so a delivery the provider no longer has when the read runs is still kept on the ledger as the tool's.
       readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
         await ctx.scheduleOnce("booking_read", /* @__PURE__ */ new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
       },
@@ -1398,7 +1425,7 @@ function lateFields(lateMs) {
   return Object.fromEntries(Object.entries(lateMs).map(([kind, ms]) => [`late_ms_${kind}`, ms]));
 }
 async function runTick(ports, opts) {
-  const started = ports.now();
+  const started = opts.startedAt ?? ports.now();
   const deadlineFor = (kind) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
   const c = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 };
   const slots = Math.max(1, Math.floor(opts.slots ?? 1));

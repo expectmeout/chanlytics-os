@@ -38,6 +38,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, MailboxRow } from "@chanlytics/db";
 import { getTenantConfig, mailboxOfTenant, offersEmailReach } from "@chanlytics/db";
+import { configRowOf } from "./config-row";
 import {
   emailOffersOpen,
   forwardStillAsked,
@@ -293,8 +294,9 @@ function calendarStands(
 
 /** Every source Setup reads, asked at once and in this order. */
 function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: SetupViewer, now: Date) {
-  // The settings, which the calendar's row and the offers' count are read from too: asked once, and handed to both.
-  const settings = getTenantConfig(supabase, tenantId);
+  // The settings, which the calendar's row and the offers' count are read from too: asked once, and handed to both. A
+  // member's as the server holds them for a member (config-row.ts); the back office's, on the service role, from the table.
+  const settings = viewer.kind === "member" ? configRowOf(supabase, tenantId) : getTenantConfig(supabase, tenantId);
   // The workspace's mailbox, which the email line, the calendar's notices and the offers' count each want: asked once,
   // by whichever of them asks first, and by none where none does (email off, no booking tool named).
   const mailbox = once(() => mailboxOfTenant(supabase, tenantId));

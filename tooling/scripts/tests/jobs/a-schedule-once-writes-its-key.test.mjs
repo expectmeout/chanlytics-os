@@ -56,6 +56,37 @@ test("a second schedule of a live key is already_scheduled; a key whose row fail
   assert.equal(tables.jobs.length, 2);
 });
 
+test("a booking notice is read once per delivery in each workspace: one delivery to two workspaces' mailboxes is read in both, and run again in one finds its read on the ledger", async () => {
+  // The key is unique across every workspace (jobs_dedupe_live), and one received email is an intake for each mailbox it
+  // names (edge resend-event.ts). Keyed by the delivery alone, the second workspace's read was already_scheduled, and its
+  // booking was never read into its appointments.
+  const U = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const tables = { jobs: [] };
+  const db = fakeDb(tables);
+  const read = (tenantId, mailbox) =>
+    scheduleJobOnce(db, {
+      tenantId,
+      kind: "booking_read",
+      dueAt: at,
+      payload: { received_id: "r1", mailbox_id: mailbox, tool: "square" },
+    });
+  assert.equal(await read(T, "m1"), "scheduled");
+  assert.equal(await read(U, "m2"), "scheduled", "the other workspace's notice is read too");
+  assert.equal(await read(T, "m1"), "already_scheduled", "the intake run again, or the webhook replayed");
+  assert.equal(
+    await read(T, "m3"),
+    "already_scheduled",
+    "a second mailbox of the same workspace on the same delivery: one read, into the one appointments record",
+  );
+  assert.deepEqual(
+    tables.jobs.map((j) => [j.tenant_id, j.dedupe_key]),
+    [
+      [T, `booking_read:${T}:r1`],
+      [U, `booking_read:${U}:r1`],
+    ],
+  );
+});
+
 test("a database without the column takes the row without the key, so the edge and 00333 land in either order", async () => {
   const sent = [];
   let first = true;

@@ -260,9 +260,9 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
   fresh();
   let tree = drawTeam();
   assert.equal(byTestId(tree, "team-remove-confirm"), null, "nothing is asked until the menu is used");
-  const menu = menuFor(tree, "Remove");
+  const menu = menuFor(tree, "Remove from team…");
   assert.ok(menu, "Lena's row has the menu with Remove");
-  menu.props.items.find((i) => i.label === "Remove").onClick();
+  menu.props.items.find((i) => i.label === "Remove from team…").onClick();
   assert.deepEqual(calls.remove, [], "REGRESSION: the menu item used to remove on the spot");
   tree = drawTeam();
   const ask = byTestId(tree, "team-remove-confirm");
@@ -275,8 +275,8 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
   byTestId(tree, "team-remove-no").props.onClick();
   tree = drawTeam();
   assert.equal(byTestId(tree, "team-remove-confirm"), null, "No disarms");
-  menuFor(tree, "Remove")
-    .props.items.find((i) => i.label === "Remove")
+  menuFor(tree, "Remove from team…")
+    .props.items.find((i) => i.label === "Remove from team…")
     .onClick();
   tree = drawTeam();
   await byTestId(tree, "team-remove-yes").props.onClick();
@@ -291,8 +291,8 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
 test("revoking an invitation asks in its own words", () => {
   fresh();
   let tree = drawTeam();
-  menuFor(tree, "Revoke invite")
-    .props.items.find((i) => i.label === "Revoke invite")
+  menuFor(tree, "Revoke invitation…")
+    .props.items.find((i) => i.label === "Revoke invitation…")
     .onClick();
   tree = drawTeam();
   const ask = byTestId(tree, "team-remove-confirm");

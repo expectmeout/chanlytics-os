@@ -13,13 +13,14 @@ import { isBookingTool } from "../../calendar/booking-notice";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
 import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
+import { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN } from "./alerts";
 import { BrainConfigSchema } from "./brain-config-schema";
 import type { Closure, Hours } from "./business-profile";
 import { MAX_CLOSURES, dayProblems, isRealDate } from "./config-rules";
 
 export const NotificationsConfigSchema = z
   .object({
-    escalation_emails: z.array(z.string().email()).min(1).max(10),
+    escalation_emails: z.array(z.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
     from: z.string().max(200).optional(),
     /**
      * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed

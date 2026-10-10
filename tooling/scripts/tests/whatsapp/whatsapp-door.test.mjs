@@ -1746,6 +1746,94 @@ test("a failure that is the person's own no to offers (131050) is recorded as th
   );
 });
 
+/* ------------------------- a receipt or an echo the database did not keep comes again ------------------------- */
+
+/** One owner's reply from the Business app, as Meta echoes it on this workspace's number. */
+const echoed = (w, to, id, body = "On my way.") =>
+  w.change(
+    { message_echoes: [{ from: w.LINE.slice(1), to, id, timestamp: now(), type: "text", text: { body } }] },
+    { field: "smb_message_echoes" },
+  );
+
+test("a receipt or an owner's echo on a number the database could not answer for is not acknowledged: 503 with the count, no pause said that did not happen, and Meta's redelivery lands once the read works", async () => {
+  // Only messages were counted: a failed receipt went to a workspace of none and flagged nothing, an echo was not
+  // kept and still said it paused the thread, and both were answered 200, so Meta never sent either again.
+  const w = world();
+  const { row, failed } = accepted(w);
+  const to = w.customer();
+  const echo = echoed(w, to, `wamid.${w.i}.echo-blip`);
+  w.open({ "tenant_channels.select": { message: "connection terminated unexpectedly" } });
+  receptionist();
+  await listening(async (log) => {
+    assert.deepEqual(
+      await answer(await deliver(failed())),
+      [503, { ok: false, unrecorded: 1 }],
+      "REGRESSION: acknowledged, and the failure never flagged",
+    );
+    assert.deepEqual(
+      await answer(await deliver(echo)),
+      [503, { ok: false, unrecorded: 1 }],
+      "REGRESSION: acknowledged, and the owner's reply never kept",
+    );
+    assert.deepEqual(log.said("wa_paused_by_echo"), [], "no pause is said that did not happen");
+    assert.deepEqual(
+      log.said("wa_skip_routing_failed").map((l) => l.fields),
+      [
+        { phone_number_id: w.PHONE_ID, receipts: 1 },
+        { phone_number_id: w.PHONE_ID, echoes: 1 },
+      ],
+    );
+  });
+  assert.deepEqual([row.status, holds(w).length, w.tables.contacts.length], ["sent", 0, 0], "nothing was written");
+
+  // Meta sends both again, and the database answers: the failure is flagged and the owner's words pause the thread.
+  w.open();
+  assert.deepEqual(await answer(await deliver(failed())), [200, { ok: true }]);
+  assert.deepEqual([row.status, holds(w).length], ["failed", 1]);
+  assert.deepEqual(await answer(await deliver(echo)), [200, { ok: true }]);
+  const [contact] = w.tables.contacts;
+  assert.equal(contact.phone_e164, `+${to}`);
+  const thread = w.tables.conversations.find((c) => c.contact_id === contact.id);
+  assert.equal(thread.state, "needs_human");
+  assert.ok(Date.parse(thread.paused_until) > Date.now(), "the receptionist steps back for the owner");
+  assert.equal(w.tables.messages.filter((m) => m.meta?.echo).length, 1);
+});
+
+test("an owner's echo whose pause the database would not take is not acknowledged and leaves no words behind, so Meta's redelivery pauses the thread; a replay after that moves nothing", async () => {
+  // The write's failures were logged inside it and the door answered 200: the words were kept, the thread was not
+  // paused, and the receptionist answered over the owner. A redelivery would have found the words and stopped there.
+  const w = world();
+  w.open({ "conversations.update": { message: "the database is down" } });
+  receptionist();
+  const echo = echoed(w, w.customer(), `wamid.${w.i}.echo-refused`, "I'll call you in five minutes.");
+  await listening(async (log) => {
+    assert.deepEqual(
+      await answer(await deliver(echo)),
+      [503, { ok: false, unrecorded: 1 }],
+      "REGRESSION: acknowledged with no pause",
+    );
+    assert.deepEqual(log.said("wa_paused_by_echo"), []);
+    assert.deepEqual(
+      log.said("record_echo_pause_failed").map((l) => l.fields.unwound),
+      [true],
+      "the words without their pause are taken back out, and it says so",
+    );
+  });
+  assert.equal(w.tables.messages.length, 0, "so the redelivery is a new echo, not a replay that pauses nothing");
+
+  w.open();
+  assert.deepEqual(await answer(await deliver(echo)), [200, { ok: true }]);
+  const [thread] = w.tables.conversations;
+  assert.equal(thread.state, "needs_human");
+  const until = thread.paused_until;
+  assert.ok(Date.parse(until) > Date.now(), "paused for the owner");
+  assert.equal(w.tables.messages.length, 1, "and the owner's words kept, once");
+
+  // The same echo once more: kept whole already, so nothing moves.
+  assert.deepEqual(await answer(await deliver(echo)), [200, { ok: true }]);
+  assert.deepEqual([w.tables.messages.length, w.tables.conversations[0].paused_until], [1, until]);
+});
+
 test("the delivery is kept as it came under the body's digest, with no workspace, before the verdict (00336); a wrong signature keeps nothing", async () => {
   const w = world();
   w.open();

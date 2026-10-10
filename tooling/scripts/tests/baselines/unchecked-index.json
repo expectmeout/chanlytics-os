@@ -122,6 +122,5 @@
   "packages/core/src/leads/mark-image.ts": 19,
   "packages/core/src/leads/mark.ts": 3,
   "packages/core/src/leads/runner/mark-places.ts": 2,
-  "packages/core/src/leads/runner/rejudge.ts": 1,
-  "packages/core/src/leads/runner/start.ts": 4
+  "packages/core/src/leads/runner/rejudge.ts": 1
 }

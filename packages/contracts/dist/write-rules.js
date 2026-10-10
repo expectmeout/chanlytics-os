@@ -106,6 +106,15 @@ function refuseUnknownFields(read, raw, ctx) {
   for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
 }
 
+// src/config/workspace-config/alerts.ts
+var ALERT_ADDRESSES_MAX = 10;
+var ALERT_ADDRESSES_MIN = 1;
+var ALERT_REFUSED_WORDS = {
+  last: "Someone has to get alerts. Add another address on Notifications first.",
+  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
+  address: "That doesn't look like an email address."
+};
+
 // src/config/workspace-config/brain-config-schema.ts
 import { z as z2 } from "zod";
 
@@ -351,7 +360,7 @@ var BrainConfigSchema = z2.object({
 
 // src/config/workspace-config/config-schema.ts
 var NotificationsConfigSchema = z3.object({
-  escalation_emails: z3.array(z3.string().email()).min(1).max(10),
+  escalation_emails: z3.array(z3.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
   from: z3.string().max(200).optional(),
   /**
    * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed

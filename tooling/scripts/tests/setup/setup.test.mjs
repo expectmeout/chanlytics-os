@@ -486,7 +486,13 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
     ];
     const member = fakeDb({}, {}, { team_roster: () => [] });
     await setupDtoFor(member, T, { kind: "member" }, new Date(NOW));
-    assert.deepEqual(asked(member), ["rpc:team_roster", ...READS], "a member: the roster through its door");
+    // A member's settings as the server reads them for a member (workspace/config-row.ts): this workspace has no row, so
+    // the door is asked once the table has answered nothing, last.
+    assert.deepEqual(
+      asked(member),
+      ["rpc:team_roster", ...READS, "rpc:tenant_config_read"],
+      "a member: the roster through its door",
+    );
     const office = fakeDb({});
     await setupDtoFor(office, T, { kind: "back_office" }, new Date(NOW));
     assert.deepEqual(

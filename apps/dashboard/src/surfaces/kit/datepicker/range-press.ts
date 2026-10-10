@@ -81,7 +81,7 @@ export const restingPress = (of: string): RangePress => ({ of, anchor: null, rea
 const ordered = (a: string, b: string): PressRange => (a <= b ? { from: a, to: b } : { from: b, to: a });
 
 /** Why a day cannot be pressed now, or null where it can: none to come, and none too far from a first day pressed. */
-function dayRefusal(state: RangePress, day: string, rules: PressRules): PressRefusal | null {
+function pressRefusalOf(state: RangePress, day: string, rules: PressRules): PressRefusal | null {
   if (day > rules.today) return { day, why: "to-come" };
   if (state.anchor !== null && daysApart(state.anchor, day) >= rules.most) return { day, why: "too-far" };
   return null;
@@ -89,11 +89,11 @@ function dayRefusal(state: RangePress, day: string, rules: PressRules): PressRef
 
 /** Whether a day can be pressed now: what the month draws as open, and what a press there does. */
 export const dayIsOpen = (state: RangePress, day: string, rules: PressRules): boolean =>
-  dayRefusal(state, day, rules) === null;
+  pressRefusalOf(state, day, rules) === null;
 
 /** A press on a day that acts: the first day, or the last, which chooses the range. */
 function pressDay(state: RangePress, day: string, rules: PressRules): { state: RangePress; chose: PressRange | null } {
-  const refused = dayRefusal(state, day, rules);
+  const refused = pressRefusalOf(state, day, rules);
   if (refused) return { state: { ...state, refused }, chose: null };
   if (state.anchor === null) return { state: { ...state, anchor: day, reach: day, refused: null }, chose: null };
   return { state: { ...restingPress(state.of) }, chose: ordered(state.anchor, day) };
@@ -103,7 +103,7 @@ const travelled = (held: Held, x: number, y: number): boolean =>
   held.far || Math.abs(x - held.x) > RANGE_SLOP_PX || Math.abs(y - held.y) > RANGE_SLOP_PX;
 
 /** A pointer let go: a finger's tap presses its day, a drag from the first day ends the range where it is let go. */
-function letGo(
+function releasePress(
   now: RangePress,
   event: { day: string | null; x: number; y: number },
   rules: PressRules,
@@ -149,7 +149,7 @@ export function rangePress(state: RangePress, event: PressEvent, rules: PressRul
       return step({ ...now, held: { ...now.held, far: true } });
     }
     case "up": {
-      const lifted = letGo(now, event, rules);
+      const lifted = releasePress(now, event, rules);
       return step(lifted.state, lifted.chose);
     }
     case "cancel":

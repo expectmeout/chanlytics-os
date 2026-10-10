@@ -1,5 +1,6 @@
 import "server-only";
-import { getTenantConfig, listPolicies } from "@chanlytics/db";
+import { listPolicies } from "@chanlytics/db";
+import { configRowOf } from "../workspace/config-row";
 import { tenantFacts } from "../tenant";
 import { sellsByOf } from "../people/deals";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
@@ -53,8 +54,9 @@ export const policies: Reader<undefined, Awaited<ReturnType<typeof listPolicies>
 };
 
 /**
- * The workspace's configuration row as getTenantConfig reads it: the config, the version a write must echo, and who
- * last changed it and when (00085), so the settings read is the turn's one read of the row. Null: there is no row.
+ * The workspace's configuration row, whole, as the server holds it for the member (workspace/config-row.ts): the config,
+ * the version a write must echo, and who last changed it and when (00085), so the settings read is the turn's one read
+ * of the row. Null: there is no row.
  */
 export const config: Reader<
   undefined,
@@ -62,7 +64,7 @@ export const config: Reader<
 > = {
   name: "config",
   async read(rc) {
-    const row = await getTenantConfig(rc.ctx.supabase, rc.tenantId);
+    const row = await configRowOf(rc.ctx.supabase, rc.tenantId);
     return {
       data: row
         ? {

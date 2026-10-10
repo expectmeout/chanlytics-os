@@ -14,7 +14,8 @@ import {
   parseTenantConfig,
   whyNotForward,
 } from "@chanlytics/contracts";
-import { emitEvent, getTenantConfig, lineForwardingSet } from "@chanlytics/db";
+import { emitEvent, lineForwardingSet } from "@chanlytics/db";
+import { configRowOf } from "@/server/workspace/config-row";
 import { serviceDb } from "@/server/service-db";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
@@ -33,7 +34,7 @@ export async function setLineForwarding(ctx: RouteContext, req: Request, member:
   if (!isForwardingMode(body.mode)) throw new AppError("validation", "Pick which calls to forward.", 400);
   // The loop from this side: the number the receptionist puts callers through to cannot become a number that
   // forwards to the receptionist, or a caller put through to it would come straight back.
-  const cfg = await getTenantConfig(ctx.supabase, member.tenantId);
+  const cfg = await configRowOf(ctx.supabase, member.tenantId);
   const loop = whyNotForward(number, parseTenantConfig(cfg?.config ?? null)?.brain?.profile?.handoff_number);
   if (loop) throw new AppError("conflict", loop, 409);
   const { data, error } = await lineForwardingSet(ctx.supabase, {

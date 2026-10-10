@@ -259,14 +259,12 @@
   .set-row-info { flex: 1 1 200px; }
   /* A phone reads the row and its control, not the sentence under the label (the record kit's rule for a filled
      row, record.css): a row with a control keeps its hint for a desktop, and its note stays behind the mark. A row
-     with no control ("Nobody yet") is its sentence, and keeps it. A card's line under its title goes the same way,
-     and Team's legend of what each role may do: the role's word is on every row. */
+     with no control ("Nobody yet") is its sentence, and keeps it. A card's line under its title goes the same way.
+     Team's Roles row stays: it holds Compare and Preview as now, where it held a legend of every role. */
   .set-row:has(.set-row-control > *) .set-row-hint { display: none; }
   /* ...unless the line IS the card's news: the back office's health, who is waiting and the workspaces counted
      (`set-says`). Hidden, "The platform" and "Waiting to get in" were titles over nothing on a phone. */
   .settings .set-says { display: block; }
-  /* The Roles row is a desktop's: a phone reads each person's role word on their row. */
-  [data-testid="team-roles"] { display: none; }
   /* A finger's worth of every control. The settings input, the icon button and
      the options in a segmented dial each set a size for a mouse, and each was
      more specific than the 44px floor in legacy-bridge/legacy.css. */

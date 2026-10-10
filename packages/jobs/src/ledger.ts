@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db";
 import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
+import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels";
 
 export type Db = SupabaseClient<Database>;
 
@@ -74,6 +75,19 @@ export const SEND_SETTLE_MS = 5_000;
  * ops-hygiene.test.mjs holds the two numbers under the ceiling.
  */
 export const sendByAt = (deadline: number): number => deadline + (FUNCTION_CEILING_MS - YIELD_AT_MS) - SEND_SETTLE_MS;
+
+/**
+ * The latest moment a send may START on each wire that sendByAt does not bound: WhatsApp's and a text's are one try each
+ * under the provider's own timeout (channels WHATSAPP_SEND_TIMEOUT_MS, TWILIO_TIMEOUT_MS), which nothing shortens, so a
+ * send starts only while that timeout still ends by sendByAt. Begun just before the yield point, one ran its fifteen
+ * seconds to the ceiling itself, the five kept for the settle were gone, and a message that went could stay "outcome
+ * unknown" and its run be resumed. A batch leaves the rest for the next one instead (core BroadcastBatchCommand.startBy).
+ * Email has no moment: its send is bounded by sendBy itself (core putOnWire).
+ */
+export const startByAt = (deadline: number): { whatsapp: number; sms: number } => ({
+  whatsapp: sendByAt(deadline) - WHATSAPP_SEND_TIMEOUT_MS,
+  sms: sendByAt(deadline) - TWILIO_TIMEOUT_MS,
+});
 
 /**
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's

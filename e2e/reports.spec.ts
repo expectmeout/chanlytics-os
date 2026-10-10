@@ -297,7 +297,7 @@ test.describe("Reports on a real workspace", () => {
     await expect(open).toHaveText("Yesterday");
     await expect(range, "a press of a shortcut closes the popover too").toBeHidden();
     await open.click();
-    await expect(page.getByTestId("period-yesterday")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("period-yesterday")).toHaveAttribute("aria-checked", "true");
     await page.getByTestId("period-30d").click();
     await expect.poll(() => routeOf(page.url())).toBe("reports/people");
     await expect(open).toHaveText("30 days");

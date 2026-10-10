@@ -660,6 +660,41 @@ function platformWide(db) {
 import {
   openDealsFromJson
 } from "../../contracts/dist/index.js";
+
+// src/paged.ts
+var MAX_ROWS = 1e3;
+var DEFAULT_ROW_CAP = 2e4;
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
+  const out = [];
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(out.length, out.length + size - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) return out;
+  }
+  onCapped(what, cap);
+  return out;
+}
+async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
+  const out = [];
+  let after = null;
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(after, size);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    const last = rows.at(-1);
+    if (rows.length < size || last === void 0) return out;
+    after = key(last);
+  }
+  onCapped(what, cap);
+  return out;
+}
+
+// src/repositories/people.ts
 var PEOPLE_PAGE = 1e3;
 var IDS_PER_READ2 = 100;
 async function namesOfPeople(db, tenantId, ids) {
@@ -706,11 +741,45 @@ async function personRow(db, tenantId, contactId) {
 }
 async function everyoneIn(db, tenantId) {
   const all2 = [];
+  for await (const page of everyonePages(db, tenantId)) all2.push(...page);
+  return all2;
+}
+async function* everyonePages(db, tenantId) {
+  let read = 0;
   for (let after = null; ; ) {
-    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all2.length });
-    all2.push(...page);
-    if (page.length < PEOPLE_PAGE) return all2;
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: read });
+    read += page.length;
+    yield page;
+    if (page.length < PEOPLE_PAGE) return;
     after = peopleCursorOf(page[page.length - 1]);
+  }
+}
+var COPY_READ_CAP = 5e5;
+var MISSED_AT_ONCE = 10;
+async function* everyoneOnceIn(db, tenantId) {
+  const seen = /* @__PURE__ */ new Set();
+  for await (const page of everyonePages(db, tenantId)) {
+    const fresh = page.filter((p) => !seen.has(p.id));
+    for (const p of fresh) seen.add(p.id);
+    yield fresh;
+  }
+  const live = await readAllRowsByKey(
+    "live people",
+    (c) => c.id,
+    (after, size) => {
+      let q = db.from("contacts").select("id").eq("tenant_id", tenantId).is("erased_at", null).is("merged_into_contact_id", null);
+      if (after) q = q.gt("id", after);
+      return q.order("id").limit(size);
+    },
+    COPY_READ_CAP,
+    (what, cap) => {
+      throw new Error(`${what}: more than ${cap}; no copy is whole`);
+    }
+  );
+  const missed = live.map((c) => c.id).filter((id) => !seen.has(id));
+  for (let i = 0; i < missed.length; i += MISSED_AT_ONCE) {
+    const rows = await Promise.all(missed.slice(i, i + MISSED_AT_ONCE).map((id) => personRow(db, tenantId, id)));
+    yield rows.filter((r) => r !== null);
   }
 }
 async function erasureDigests(db, tenantId, values) {
@@ -885,7 +954,7 @@ import {
 
 // src/repositories/campaigns/campaign-channels.ts
 async function whatsappChannelFacts(db, tenantId) {
-  const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle();
+  const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
   if (!data) return null;
   const cfg = data.config;
@@ -996,10 +1065,11 @@ async function ingestInbound(db, p) {
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
-  if (p.optIn && out?.contact_id) await noteYesOnChannel(db, p, out.contact_id);
-  if (p.optInMarketing && out?.contact_id && stoppedNow(out)) {
+  if (!out?.contact_id || !out.is_new) return out;
+  if (p.optIn) await noteYesOnChannel(db, p, out.contact_id);
+  if (p.optInMarketing && stoppedNow(out)) {
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
-  } else if (p.optInMarketing && out?.contact_id) {
+  } else if (p.optInMarketing) {
     const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
@@ -1138,7 +1208,7 @@ async function resolveOutboundTargetForContact(db, p) {
   return threadOf(db, p.tenantId, data, p.touch);
 }
 async function wireRowOf(db, p) {
-  const head = "paused_until, control_kind, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
+  const head = "paused_until, control_kind, control_ref, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
   const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
   const read = (columns) => db.from("conversations").select(`${head}${columns}${tail}`).eq("id", p.conversationId).eq("tenant_id", p.tenantId).maybeSingle();
   const full = await read(`consent_channels, marketing_channels, ${p.relationship ? "has_relationship, " : ""}`);
@@ -1193,12 +1263,12 @@ async function recordEchoAndPause(db, p) {
       tenant_id: p.tenantId,
       error: e instanceof Error ? e.message : String(e)
     });
-    return;
+    return false;
   }
   const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
   if (verr || !conv) {
     dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
-    return;
+    return false;
   }
   const { error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
@@ -1215,13 +1285,20 @@ async function recordEchoAndPause(db, p) {
   });
   if (error && error.code !== "23505")
     dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
-  if (error?.code === "23505" && p.externalId) return;
+  if (error?.code === "23505" && p.externalId) return true;
   const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
   if (perr) {
-    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
-    return;
+    const unwound = !error && p.externalId ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error : null;
+    dbLog().error("record_echo_pause_failed", {
+      tenant_id: p.tenantId,
+      conversation_id: conv.id,
+      error: perr.message,
+      unwound
+    });
+    return false;
   }
   await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
+  return !error;
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
@@ -1237,7 +1314,7 @@ async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, o
     dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
-  let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued");
+  let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued").is("sending_at", null);
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
   if (wErr)
@@ -1247,20 +1324,6 @@ async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, o
       error: wErr.message
     });
   return true;
-}
-async function claimReplyTurn(db, tenantId, conversationId, messageId) {
-  const { data, error } = await db.rpc("claim_reply_turn", {
-    p_tenant: tenantId,
-    p_conversation: conversationId,
-    p_message: messageId
-  });
-  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
-  return data !== false;
-}
-async function holdsReplyTurn(db, conversationId, messageId) {
-  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
-  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
-  return data !== false;
 }
 
 // src/repositories/campaigns/email-offers.ts
@@ -2270,8 +2333,7 @@ async function writtenEmails(db, ids) {
   return out;
 }
 async function withdrawEmail(db, p) {
-  const why = { reason: p.reason };
-  const { data, error } = await db.from("messages").update({ status: "canceled", error: why }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").select("id");
+  const { data, error } = await db.from("messages").update({ status: "canceled", error: { reason: p.reason } }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").is("sending_at", null).select("id");
   if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
   return (data ?? []).length > 0;
 }
@@ -2770,20 +2832,41 @@ async function resolveChannelDetailed(db, kind, externalId) {
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
     return { channel: null, lookupFailed: true };
   }
-  const routed = data && data.status === "active" ? {
-    channelId: data.id,
-    tenantId: data.tenant_id,
-    kind: data.kind,
-    externalId: data.external_id,
-    numberE164: data.number_e164,
-    credentialsRef: data.credentials_ref,
-    config: data.config
-  } : null;
+  const routed = data && data.status === "active" ? routedOf(data) : null;
   cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
   return { channel: routed, lookupFailed: false };
 }
+var ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, config, external_id";
+function routedOf(row) {
+  return {
+    channelId: row.id,
+    tenantId: row.tenant_id,
+    kind: row.kind,
+    externalId: row.external_id,
+    numberE164: row.number_e164,
+    credentialsRef: row.credentials_ref,
+    config: row.config
+  };
+}
+async function oldestActiveChannel(db, tenantId, kind) {
+  const { data, error } = await db.from("tenant_channels").select(ROUTED_COLUMNS).eq("tenant_id", tenantId).eq("kind", kind).eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
+  return data ? routedOf(data) : null;
+}
 async function resolveChannel(db, kind, externalId) {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
+}
+async function activeWhatsappNumbers(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("id, credentials_ref, external_id").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
+  return data ?? [];
+}
+async function whatsappLineOf(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "whatsapp").eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
+  const meta = data?.meta;
+  const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
+  return typeof line === "string" && line ? line : null;
 }
 
 // src/repositories/calls.ts
@@ -3260,7 +3343,12 @@ async function keepIdempotencyReceipt(db, p) {
 
 // src/jobs.ts
 async function readJobToRequeue(db, tenantId, jobId) {
-  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at, spoke_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  if (error && NO_SUCH_COLUMN.has(error.code)) {
+    const older = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+    if (older.error) throw new Error(`read_job: ${older.error.message}`);
+    return older.data ? { ...older.data, spoke_at: null } : null;
+  }
   if (error) throw new Error(`read_job: ${error.message}`);
   return data;
 }
@@ -3377,6 +3465,20 @@ async function releaseControl(db, p) {
   if (error) throw new Error(`release_conversation_control: ${error.message}`);
   return data === true;
 }
+async function claimReplyTurn(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId
+  });
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function holdsReplyTurn(db, conversationId, messageId) {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
+}
 
 // src/repositories/control-plane.ts
 import { receptionistOn } from "../../contracts/dist/index.js";
@@ -3385,10 +3487,30 @@ async function getTenantConfig(db, tenantId) {
   if (error) throw new Error(`getTenantConfig: ${error.message}`);
   return data;
 }
+async function getTenantConfigAsMember(db, tenantId) {
+  const row = await getTenantConfig(db, tenantId);
+  if (row) return { ...row, feed_hidden: false };
+  const { data, error } = await db.rpc("tenant_config_read", { p_tenant_id: tenantId }).maybeSingle();
+  if (error && isMissingDoor(error)) return null;
+  if (error) throw new Error(`getTenantConfigAsMember: ${error.message}`);
+  return data;
+}
 async function putTenantConfig(db, tenantId, config, expectedVersion, updatedBy) {
   const { data, error } = await db.from("tenant_config").update({ config, version: expectedVersion + 1, ...updatedBy ? { updated_by: updatedBy } : {} }).eq("tenant_id", tenantId).eq("version", expectedVersion).select("tenant_id, config, version, updated_at, updated_by").maybeSingle();
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
   if (data) return { ok: true, row: data };
+  const door = await db.rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: config, p_version: expectedVersion }).maybeSingle();
+  if (!door.error) {
+    const w = door.data;
+    if (w?.outcome === "saved")
+      return {
+        ok: true,
+        row: { tenant_id: tenantId, config, version: w.version, updated_at: w.updated_at, updated_by: w.updated_by }
+      };
+    if (w?.outcome === "stale" || w?.outcome === "missing") return { ok: false, reason: w.outcome };
+    throw new Error("putTenantConfig: the door answered without an outcome");
+  }
+  if (!isMissingDoor(door.error)) throw new Error(`putTenantConfig: ${door.error.message}`);
   const existing = await getTenantConfig(db, tenantId);
   return { ok: false, reason: existing ? "stale" : "missing" };
 }
@@ -3483,39 +3605,6 @@ async function startPlaybook(db, p) {
   if (typeof made.id !== "string" || typeof made.decision_id !== "string")
     throw new Error("start_playbook: the door answered without its row and its decision");
   return { data: { id: made.id, decisionId: made.decision_id }, error: null };
-}
-
-// src/paged.ts
-var MAX_ROWS = 1e3;
-var DEFAULT_ROW_CAP = 2e4;
-async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
-  const out = [];
-  while (out.length < cap) {
-    const size = Math.min(MAX_ROWS, cap - out.length);
-    const { data, error } = await page(out.length, out.length + size - 1);
-    if (error) throw new Error(`${what}: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < size) return out;
-  }
-  onCapped(what, cap);
-  return out;
-}
-async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
-  const out = [];
-  let after = null;
-  while (out.length < cap) {
-    const size = Math.min(MAX_ROWS, cap - out.length);
-    const { data, error } = await page(after, size);
-    if (error) throw new Error(`${what}: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    const last = rows.at(-1);
-    if (rows.length < size || last === void 0) return out;
-    after = key(last);
-  }
-  onCapped(what, cap);
-  return out;
 }
 
 // src/repositories/lists.ts
@@ -4485,6 +4574,7 @@ export {
   ReportWindowNotReadable,
   acceptHandover,
   acceptPartnerInvite,
+  activeWhatsappNumbers,
   activitySubjects,
   activityTokensOf,
   addPersonNote,
@@ -4565,6 +4655,7 @@ export {
   erasureDigests,
   eventOfDelivery,
   everyoneIn,
+  everyoneOnceIn,
   failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
@@ -4585,6 +4676,7 @@ export {
   getPartnerWorkspaces,
   getPlatformPartners,
   getTenantConfig,
+  getTenantConfigAsMember,
   getWorkspacePartner,
   handRun,
   hasNewerCopy,
@@ -4654,6 +4746,7 @@ export {
   offerLanguageOf,
   offersAnswerOf,
   offersEmailReach,
+  oldestActiveChannel,
   openConversation,
   openDoubtsOf,
   ourLastWire,
@@ -4818,6 +4911,7 @@ export {
   watchedEvents,
   watchedTables,
   whatsappChannelFacts,
+  whatsappLineOf,
   whatsappNumberOf,
   whatsappNumbersToRead,
   wireRowOf,

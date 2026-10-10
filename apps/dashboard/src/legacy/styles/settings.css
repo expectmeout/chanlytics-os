@@ -672,9 +672,10 @@
 .set-spend-roi { font-size: 11.5px; color: var(--ink-dim); }
 .set-spend-roi.ok { color: var(--ok); font-weight: 500; }
 
-/* ---------- Team & roles (audit U3) ---------- */
-/* A member's row is the settings row with the kit's face in front (above); what is its own is the pending look and
-   the word "You". Every face is the kit's: the same fill and ink for each person, as People's rows draw them. */
+/* ---------- Team & roles (audit U3; redesigned 9 Oct 2026) ---------- */
+/* A member's row is the settings row with the kit's face in front (above): the face, the name and the words under it,
+   the role (a picker where it may change, the word elsewhere), and ⋯. Every face is the kit's: the same fill and ink
+   for each person, as People's rows draw them. */
 /* Somebody invited is not somebody here: the disc is drawn, not filled. */
 .set-team-row.pending .set-team-face {
   background: transparent;
@@ -683,19 +684,101 @@
   border: 1px dashed var(--line-strong);
 }
 .set-team-row.pending .set-team-name { color: var(--ink-muted); }
-/* You, beside your own name: a chip (a label, not a live state, so never the accent). */
-.set-team-you { margin-left: 8px; vertical-align: 1px; }
+/* You, beside your own name: a chip, a name's shape (a label, not a live state, so never the accent). The role is a
+   word or a picker now, so the two no longer look alike. */
+.set-team-you { flex: none; margin-block: -2px; }
+/* A member's name and You: the address is cut with an ellipsis, never the word beside it. */
+.set-team-row .set-team-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.set-team-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .set-team-spacer { width: var(--control-h-md); flex: none; }
+/* The role's column and ⋯'s, at the row's end: the roles stand in one column whatever each row offers. */
+.set-team-role { flex: none; display: flex; justify-content: flex-end; align-items: center; }
+.set-team-acts { flex: none; display: flex; justify-content: center; width: var(--control-h-md); }
+.set-team-role-word { padding-inline: 10px; font-size: var(--set-hint); font-weight: 500; color: var(--ink-dim); }
+/* The words under a name: each part beside the next; the alerts mark is a glyph and two words. */
+.set-team-mail { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.set-team-alerts { display: inline-flex; align-items: center; gap: 4px; }
+/* The role under the name, and the row's own press: a phone's (below). */
+.set-team-role-line, .set-team-open { display: none; }
+/* The invitations waiting, under the members. */
+.set-team-group {
+  margin: 0;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--line);
+  font-size: var(--set-hint);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.set-team-group + .set-team-row { border-top: none; }
+/* What a removal asks beside its question: stop emailing them too. */
+.set-team-also { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+/* An Operator's or a Viewer's foot: who to ask. */
+.set-team-ask-owner {
+  margin: 0;
+  padding: var(--set-row-y) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--set-hint);
+  color: var(--ink-dim);
+}
+.set-team-history { gap: 6px; margin-left: auto; }
 
+/* An address and its act on one line (Notifications' recipients): the kit's field takes what the row leaves. */
 .set-invite { display: flex; align-items: center; gap: 8px; padding: var(--set-row-y) 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
-/* The invitation's address is the kit's field (team.tsx), and takes what the row leaves. */
 .set-invite > :first-child { flex: 1; min-width: 180px; }
 
-/* What each role may do, the Roles row's value: a word and its sentence, in two columns. */
-.set-roles-legend { flex: 1 1 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; align-items: baseline; }
-.set-role-def { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: baseline; }
-.set-role-def .chip { justify-self: start; }
-.set-role-can { font-size: var(--set-hint); color: var(--ink-dim); line-height: 1.5; }
+/* The roles' row: their names, Compare and Preview as; the table opens under it. */
+.set-team-roles { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.set-team-roles-acts { display: inline-flex; align-items: center; gap: 4px; }
+.set-team-compare { margin: 0 0 var(--set-row-y); overflow-x: auto; }
+.set-team-compare table { width: 100%; border-collapse: collapse; font-size: var(--set-hint); }
+.set-team-compare th,
+.set-team-compare td { padding: 8px 10px; border-top: 1px solid var(--line); text-align: center; }
+.set-team-compare thead th { border-top: none; font-weight: 600; color: var(--ink); }
+.set-team-compare tbody th { text-align: left; font-weight: 400; color: var(--ink-muted); }
+.set-team-compare thead th:first-child { text-align: left; font-weight: 500; color: var(--ink-dim); }
+.set-team-compare td { color: var(--ink); }
+.set-team-compare td:not([data-can]) { color: var(--ink-faint); }
+.set-team-compare-note { color: var(--ink-dim); }
+p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wrap: pretty; }
+
+/* Inviting: the addresses, the role they join as, and what happened to each (the kit's inset panel holds it). */
+.set-team-invite { display: flex; flex-direction: column; gap: 14px; margin: 4px 0 12px; }
+.set-team-invite-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.set-team-invite-title { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--ink); }
+.set-team-invite-sub,
+.set-team-invite-note { font-size: var(--set-hint); color: var(--ink-dim); }
+.set-team-invite-note { margin: 0; }
+.set-team-addresses { display: flex; flex-wrap: wrap; gap: 6px; }
+.set-team-invite-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.set-team-said { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.set-team-said > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--set-label);
+}
+.set-team-said > li:first-child { border-top: none; }
+.set-team-said > li > :first-child { flex: none; color: var(--ink-dim); }
+.set-team-said > li[data-done] > :first-child { color: var(--ok-ink); }
+.set-team-said > li > :nth-child(2) { flex: 1; min-width: 0; color: var(--ink-muted); }
+
+/* The partner's row asks by a code: the field takes what the row leaves. */
+.set-team-partner-ask { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; padding: 0 0 var(--set-row-y); }
+.set-team-partner-ask > :first-child { flex: 1; min-width: 220px; }
+.set-team-note { margin: 0; font-size: var(--set-hint); color: var(--ink-dim); }
+
+/* A phone: a row is one press, and it opens the person's sheet (team/sheet.tsx); its role is said under the name. */
+@media (max-width: 900px) {
+  .set-team-row > .set-team-role,
+  .set-team-row > .set-team-acts { display: none; }
+  .set-team-open { display: inline-flex; flex: none; }
+  .set-team-open::after { content: ""; position: absolute; inset: 0; }
+  .set-team-row > .set-row-ask { position: relative; z-index: 1; }
+  .set-team-role-line { display: block; font-size: var(--set-hint); color: var(--ink-dim); }
+  .set-team-row:not(.pending) .set-team-mail { display: none; }
+}
 
 
 /* Policy matrix */

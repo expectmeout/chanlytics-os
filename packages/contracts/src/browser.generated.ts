@@ -89,7 +89,7 @@ export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-
 export { policyClassOfIntent, policyClassLabel, policyClassQuestion, policyAskClass, bookingHeld, policyRules, POLICY_CLASSES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, POLICY_CLASS_MODES, policyModeOffered, policyModeRefusal } from "./config/workspace-config/policy-classes";
 export { hoursRuns } from "./config/workspace-config/prompt-hours";
 export { instructionsDraft, hasProfile, resolveSystemPrompt, ownWordsOf, whoseWords, NO_FIELDS_COMPOSED_WORDS } from "./config/workspace-config/resolve";
-export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./config/workspace-config/role-perms";
+export { ROLES, ROLE_PERMS, ROLE_SAYS, TEAM_ROLES, roleSays, roleTable } from "./config/workspace-config/role-perms";
 export { isOptedOutContact, isOfferByEmail, mayMessageFor, relationshipOnRecord, consentChangeOf, purposeOfTemplate, purposeOfPlaybook, OPT_OUT_REFUSAL, optOutWords, stopRequestQuestion, DELIVERY_REFUSALS, PURPOSE_REFUSALS } from "./consent/consent";
 export { yesAsked, consentGuardWords, consentRuleWords } from "./consent/consent-asks";
 export { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, channelsOfYes, yesCovers, coveredChannels, channelsWords } from "./consent/consent-channels";
@@ -272,8 +272,8 @@ export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, 
 export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
 export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error";
-export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, inviteState, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity";
-export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING } from "./shell/refusal";
+export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, invitationWords, joinedWords, TEAM_INVITE_DAYS, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity";
+export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING, SESSION_ENDED, sessionEnded } from "./shell/refusal";
 export { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "./shell/route-prefetch";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./shell/tone";
 export { PAGE_VITALS, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";

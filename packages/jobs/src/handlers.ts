@@ -186,9 +186,9 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
         senderChecks = e?.authentication ?? null;
         return e ? incomingEmailOf(e) : null;
       },
-      // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
-      // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
-      // provider no longer has when the read runs is still kept on the ledger as the tool's.
+      // A booking tool's notice is read into an appointment by its own job, once per delivery and workspace
+      // (dedupe_key), as this job's own tenant: the intake run again finds it already on the ledger. The tool rides
+      // along, so a delivery the provider no longer has when the read runs is still kept on the ledger as the tool's.
       readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
         await ctx.scheduleOnce("booking_read", new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
       },

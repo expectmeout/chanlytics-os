@@ -88,7 +88,7 @@ const groupsOf = (listed: readonly SetTab[]) =>
     return acc;
   }, []);
 
-/** The pane the route names, and for Business the row it names after it (tabs.ts settingsRowOf). */
+/** The pane the route names, and the row it names after it: Business's, or the part Activity opens on (tabs.ts settingsRowOf). */
 function SetPane({
   id,
   row,
@@ -112,7 +112,8 @@ function SetPane({
       {id === "notifications" && <PaneNotificationsReal flash={flash} />}
       {id === "billing" && <PaneBillingReal flash={flash} />}
       {id === "platform" && <PanePlatform />}
-      {id === "activity" && <PaneActivity />}
+      {/* Keyed by its row: the rail's Activity after a door to `activity/team` is the whole log again, not the team's. */}
+      {id === "activity" && <PaneActivity key={row ?? ""} family={row} />}
     </>
   );
 }

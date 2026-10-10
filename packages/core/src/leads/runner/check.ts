@@ -9,13 +9,22 @@ import { CARDS, CHECKER_RUN_TIMEOUT_SECS } from "../cards";
 import { runIdFor, sha256Hex } from "../ids";
 import type { LeadMemberRow, LeadPorts, LeadRunRow } from "../ports";
 import { claimOrRecover, startFailed } from "./claim";
-import { CHECK_BATCH, FIRST_COLLECT_SECONDS, INPUT_MARKER, LeadRetry, iso, outOfTime, webhookUrl } from "./rules";
+import {
+  CHECK_BATCH,
+  FIRST_COLLECT_SECONDS,
+  INPUT_MARKER,
+  LeadRetry,
+  heldBack,
+  iso,
+  outOfTime,
+  webhookUrl,
+} from "./rules";
 
 /* ------------------------------------------------------------- the check */
 
 export type CheckOutcome =
   | { kind: "not_open" }
-  | { kind: "paused" }
+  | { kind: "paused" | "may_not_spend" }
   | { kind: "nothing_to_check" }
   | { kind: "started"; emails: number; more: boolean }
   | { kind: "already" }
@@ -49,11 +58,13 @@ export async function check(
   const named = again ? new Set(again.leadIds) : null;
   const all = checkable(await p.db.membersOfRound(round.id)).filter((m) => !named || named.has(m.lead_id));
   const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
-  // The switch, read before anything reaches the provider, as a start reads it
-  // (§0.5). The mailbox check is money too: with searches off the addresses
-  // still waiting say "Couldn't check", and the round ends the word the
-  // endings carry for it.
-  if (!(await p.db.leadSearchesOn(round.tenant_id))) {
+  // The switch, and whether the workspace may still spend, read before anything
+  // reaches the provider, as a start reads them (§0.5). The mailbox check is
+  // money too: with searches off, or a plan that lapsed since the door
+  // reserved, the addresses still waiting say "Couldn't check", and the round
+  // ends the word the endings carry for it.
+  const held = await heldBack(p, round.tenant_id);
+  if (held) {
     if (slice.length)
       await p.db.checkCommit(
         round.id,
@@ -63,7 +74,7 @@ export async function check(
         false,
       );
     if (!again) await p.db.roundEnd(round.id, "paused");
-    return { kind: "paused" };
+    return { kind: held };
   }
   if (!slice.length) {
     if (batch === 0 && round.state === "checking" && !again) await p.db.checkCommit(round.id, null, [], 0, true);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { SIGNUP_WORDS, googleCallbackUrl } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { publicEnv } from "@/lib/public-env";
+import { sealSurfaceCache } from "@/legacy-bridge/surface-cache";
 
 /**
  * Whether the hosted project has the Google provider switched on. Supabase's
@@ -54,6 +55,10 @@ export default function GoogleSignIn({ next = "/", hint }: { next?: string | (()
   async function go() {
     setBusy(true);
     setError(null);
+    // Whoever signs in next must not inherit what this tab kept of the last account: the password's and the code's
+    // landing clear it (login's signInLanding), and Google's comes back through /auth/callback, a server's redirect
+    // that cannot reach the tab's storage. So it goes as the tab leaves for Google, and stays gone.
+    sealSurfaceCache();
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

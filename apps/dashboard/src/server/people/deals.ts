@@ -1,6 +1,6 @@
 import "server-only";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
-import { recordDeal, yesesSince, type DealMove } from "@chanlytics/db";
+import { readAllRows, recordDeal, yesesSince, type DealMove } from "@chanlytics/db";
 import {
   AppError,
   DAY_MS,
@@ -135,11 +135,17 @@ export async function dealReport(
   span: { since: number; until: number } | null = null,
 ): Promise<DealReportDto | null> {
   if (!on) return none();
-  const { data, error } = await ctx.supabase
-    .from("deals")
-    .select("stage, proposed_at, decided_at, amount_cents, per, currency, lost_reason, contact_id")
-    .eq("tenant_id", tenantId);
-  if (error || !data) return null;
+  // Every page of them (readAllRows), by id: PostgREST answers a thousand rows whatever a select asks for, so past a
+  // thousand deals every figure here counted an arbitrary thousand.
+  const data = await readAllRows("deals", (from, to) =>
+    ctx.supabase
+      .from("deals")
+      .select("stage, proposed_at, decided_at, amount_cents, per, currency, lost_reason, contact_id")
+      .eq("tenant_id", tenantId)
+      .order("id")
+      .range(from, to),
+  ).catch(() => null);
+  if (!data) return null;
   if (!data.length) return none();
   const since = span?.since ?? now.getTime() - days * DAY_MS;
   const until = span?.until ?? Infinity;

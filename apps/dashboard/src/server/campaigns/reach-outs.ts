@@ -43,7 +43,6 @@ import {
   searchNamesByIds,
   sendingDomainsOf,
   workspaceMaySpend,
-  workspaceNameAndConfig,
   type ReachOutRunSend,
   type ReachOutStepRow,
 } from "@chanlytics/db";
@@ -54,6 +53,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db";
 import { runPlaybookNow, type RunPlaybookOutcome } from "@/server/campaigns/playbook-run";
 import { serviceDb } from "@/server/service-db";
+import { storedConfigOf } from "@/server/workspace/config-row";
 import { deployment } from "@/server/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "@/server/edge";
 
@@ -190,8 +190,7 @@ export const dtoOf = <T>(data: unknown): T => data as T;
 
 /** The workspace's booking link, which {{booking link}} needs. */
 async function bookingLinkOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
-  const { config } = await workspaceNameAndConfig(ctx.supabase, tenantId);
-  return parseTenantConfig(config)?.brain?.booking_link?.trim() || null;
+  return parseTenantConfig(await storedConfigOf(ctx.supabase, tenantId))?.brain?.booking_link?.trim() || null;
 }
 
 /** What Start did (R14): the edge's outcome with its reason, or that the edge could not be asked. */

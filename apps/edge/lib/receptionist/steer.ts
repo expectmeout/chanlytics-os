@@ -25,7 +25,7 @@ import { json, refuse } from "../http.js";
 import { tokenWorkspace, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { readThreadState, readLeadContext, describeLead, type RoutedChannel } from "../packages/db.js";
+import { readThreadState, readLeadContext, describeLead, oldestActiveChannel } from "../packages/db.js";
 import {
   resolveSystemPrompt,
   describeNow,
@@ -37,6 +37,7 @@ import {
   UUID,
 } from "../packages/contracts.js";
 import { cancelJobsFor } from "../packages/jobs.js";
+import { smsBody } from "../packages/channels.js";
 import { brainCallOf, generateReply } from "./brain.js";
 import { queueDraft } from "./draft-queue.js";
 import { env } from "../env.js";
@@ -82,9 +83,67 @@ function rewriteBlocked(text: string, messageId: string): boolean {
 function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
   const draft = db
     .from("messages")
-    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
+    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel, sending_at")
     .eq("id", messageId);
   return (workspace ? draft.eq("tenant_id", workspace) : draft).maybeSingle();
+}
+
+/**
+ * The door's refusal of a draft that cannot be rewritten, or null when it can: it is not the receptionist's draft
+ * waiting its turn, or its send job has claimed it (sending_at, 00352) and it is on its way to the customer, queued only
+ * until the provider answers. There is nothing left to rewrite then, and the model is not asked.
+ */
+function notRewritable(m: { sender: string; status: string; sending_at: string | null }): Response | null {
+  if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");
+  return m.sending_at ? refuse(409, "already_sent") : null;
+}
+
+/**
+ * The words as they wait for the wire, shaped as the draft they replace was (core inbound ingest.ts, `wire`): a text
+ * carries the rates, STOP and HELP line when no text of ours has reached this person yet, and never runs past the
+ * carrier's ceiling. Queued as the model wrote them, a steered first text went out without the line the carriers'
+ * filing promises.
+ */
+function wordsForTheWire(channel: "whatsapp" | "sms", text: string, textedBefore: boolean): string {
+  return channel === "sms" ? smsBody(text, !textedBefore) : text;
+}
+
+/**
+ * The old draft retired for the rewrite that was queued in its place: null when it was, else the door's answer, and
+ * the rewrite is taken back with its send.
+ *
+ * Counted, not just attempted. The filters are the whole guard: the model takes seconds, and in those seconds the
+ * tick can claim the old draft's job and send it. Its row stays queued until the provider answers, so it is asked for
+ * unclaimed too (sending_at, 00352): `queued` alone retired a draft already on its way, under a row that then said
+ * canceled. Either way the update matches NOTHING and reports no error, and uncounted, the rewrite queued a moment ago
+ * went out behind the reply it was meant to replace — two answers to one message. Zero rows is the race, and it is
+ * handled exactly like a failure to retire.
+ */
+async function retireForTheRewrite(
+  db: NonNullable<ReturnType<typeof pg>>,
+  old: { id: string; tenant_id: string },
+  newId: string,
+): Promise<Response | null> {
+  const { data: retired, error: cancelErr } = await db
+    .from("messages")
+    .update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })
+    .eq("id", old.id)
+    .eq("tenant_id", old.tenant_id)
+    .eq("status", "queued")
+    .is("sending_at", null)
+    .select("id");
+  if (!cancelErr && retired?.length) return null;
+  const lost = !cancelErr;
+  steerLog.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: old.id, error: cancelErr?.message });
+  await db
+    .from("messages")
+    .update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } })
+    .eq("id", newId)
+    .eq("tenant_id", old.tenant_id)
+    .eq("status", "queued")
+    .is("sending_at", null);
+  await cancelJobsFor(db, old.tenant_id, "outbound_send", "message_id", newId);
+  return lost ? refuse(409, "already_sent") : refuse(500, "could_not_retire_old_draft");
 }
 
 export async function steerHeldDraft(
@@ -106,7 +165,8 @@ export async function steerHeldDraft(
   const { data: m, error: mErr } = await draftOf(db, messageId, workspace);
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
-  if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");
+  const held = notRewritable(m);
+  if (held) return held;
 
   const { data: conv } = await db
     .from("conversations")
@@ -122,24 +182,9 @@ export async function steerHeldDraft(
   // texting-only workspace and, where a WhatsApp channel happened to exist,
   // rewrote the reply against the wrong channel.
   const channel: "whatsapp" | "sms" = m.channel === "sms" ? "sms" : "whatsapp";
-  const { data: ch } = await db
-    .from("tenant_channels")
-    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id")
-    .eq("tenant_id", m.tenant_id)
-    .eq("kind", channel)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-  if (!ch) return refuse(409, "no_channel");
-  const routed: RoutedChannel = {
-    channelId: ch.id,
-    tenantId: ch.tenant_id,
-    kind: ch.kind,
-    externalId: ch.external_id,
-    numberE164: ch.number_e164,
-    credentialsRef: ch.credentials_ref,
-    config: ch.config,
-  };
+  // Its oldest active one, where a workspace holds two of the kind; a read that failed finds none, as it always did.
+  const routed = await oldestActiveChannel(db, m.tenant_id, channel).catch(() => null);
+  if (!routed) return refuse(409, "no_channel");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
 
@@ -177,6 +222,7 @@ export async function steerHeldDraft(
   }
   // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
   if (rewriteBlocked(r.text, messageId)) return refuse(409, "policy_block_price");
+  const words = wordsForTheWire(channel, r.text, thread.textedBefore);
 
   const delayMs =
     typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"
@@ -191,7 +237,7 @@ export async function steerHeldDraft(
       conversationId: m.conversation_id,
       contactId: m.contact_id,
       toPhone: phone,
-      body: r.text,
+      body: words,
       delayMs,
       source: "steered",
       brainMeta: r.meta,
@@ -206,31 +252,9 @@ export async function steerHeldDraft(
   );
   if (!newId) return refuse(502, "could_not_queue");
 
-  // Counted, not just attempted. The status filter is the whole guard: the
-  // model takes seconds, and in those seconds the tick can claim the old
-  // draft's job and send it. That update then matches NOTHING and reports no
-  // error, and the rewrite queued a moment ago went out behind the reply it
-  // was meant to replace — two answers to one message. Zero rows is the race,
-  // and it is handled exactly like a failure to retire.
-  const { data: retired, error: cancelErr } = await db
-    .from("messages")
-    .update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })
-    .eq("id", m.id)
-    .eq("tenant_id", m.tenant_id)
-    .eq("status", "queued")
-    .select("id");
-  if (cancelErr || !retired?.length) {
-    const lost = !cancelErr;
-    steerLog.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
-    await db
-      .from("messages")
-      .update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } })
-      .eq("id", newId)
-      .eq("tenant_id", m.tenant_id)
-      .eq("status", "queued");
-    await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
-    return lost ? refuse(409, "already_sent") : refuse(500, "could_not_retire_old_draft");
-  }
+  // Then the old one, counted (retireForTheRewrite): a draft the tick sent or claimed meanwhile takes the rewrite back.
+  const lost = await retireForTheRewrite(db, m, newId);
+  if (lost) return lost;
   await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 
   // The words are the owner's and the model's and stay out of the log.
@@ -245,7 +269,7 @@ export async function steerHeldDraft(
   return json(200, {
     ok: true,
     message_id: newId,
-    text: r.text,
+    text: words,
     meta: r.meta ?? null,
     escalate: r.escalate,
     delay_ms: delayMs,

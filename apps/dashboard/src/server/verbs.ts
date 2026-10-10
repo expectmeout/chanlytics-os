@@ -318,6 +318,11 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
  * longer `queued`. The reverse leaves a queued row with nothing left to send
  * it — the same strand, reached from the other side.
  *
+ * Only a draft no send job has claimed yet (sending_at, 00352). A claimed one
+ * is already on its way to the customer and stays queued only until the
+ * provider answers: withdrawn then, it reached them under a row that said
+ * canceled for ever. It is left to say what became of it, and not counted.
+ *
  * Returns how many drafts were withdrawn, so a caller can tell the operator
  * their reply replaced the bot's rather than merely followed it.
  */
@@ -331,6 +336,7 @@ export async function cancelPendingAiReply(
     .update({ status: "canceled", error: { reason: "superseded_by_human" } })
     .eq("conversation_id", conv.id)
     .eq("status", "queued")
+    .is("sending_at", null)
     .eq("sender", "ai")
     .select("id");
   if (error) {

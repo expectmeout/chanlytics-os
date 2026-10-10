@@ -198,6 +198,8 @@ export const ROUTES = {
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
+  "POST team/invite/[id]/resend": { method: "POST", path: "/api/v1/team/invite/[id]/resend" },
+  "POST team/leave": { method: "POST", path: "/api/v1/team/leave" },
   "POST team/partner": { method: "POST", path: "/api/v1/team/partner" },
   "POST templates": { method: "POST", path: "/api/v1/templates" },
   "POST templates/draft": { method: "POST", path: "/api/v1/templates/draft" },
@@ -429,6 +431,8 @@ export type Routes = {
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;
+  "POST team/invite/[id]/resend": typeof import("../../app/api/v1/team/invite/[id]/resend/route").POST;
+  "POST team/leave": typeof import("../../app/api/v1/team/leave/route").POST;
   "POST team/partner": typeof import("../../app/api/v1/team/partner/route").POST;
   "POST templates": typeof import("../../app/api/v1/templates/route").POST;
   "POST templates/draft": typeof import("../../app/api/v1/templates/draft/route").POST;

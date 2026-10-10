@@ -41,7 +41,9 @@ export async function consentPageFor(slug: string): Promise<ConsentPageRow | nul
     .select("kind, number_e164")
     .eq("tenant_id", tenant.id)
     .eq("status", "active")
-    .in("kind", ["whatsapp", "sms"]);
+    .in("kind", ["whatsapp", "sms"])
+    // Oldest first, so a workspace with two numbers of a kind names the one Connections shows, every time.
+    .order("created_at", { ascending: true });
   if (chErr) throw new Error(`reading the channels: ${chErr.message}`);
   const numberOf = (kind: string) => channels?.find((c) => c.kind === kind && c.number_e164)?.number_e164 ?? null;
   // Whether the business's own page publishes -- it needs a legal name and an
