@@ -265,8 +265,8 @@ test("Booked is a tile of contracts', with its figure: a count where the calenda
   });
   assert.equal(
     BOOKED_ENDED_META,
-    "not counted for days that have ended: visits are counted as they stand now",
-    "the words are the plan's",
+    "not counted for days that have ended: it follows people as they stand today",
+    "booking-report's reason (BOOKED_NEEDS_TODAY), in the workspace's words: never \"visit\" written in",
   );
 });
 

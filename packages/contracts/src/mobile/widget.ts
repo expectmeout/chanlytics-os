@@ -4,6 +4,7 @@
  * the page already holds, so the widget can never say a number the page would not.
  */
 import type { TodayVM } from "../today/today-vm";
+import { isCount } from "../shared/unknown";
 
 export interface TodayWidgetSnapshot {
   /** The standing's headline: what Today says first. */
@@ -43,7 +44,7 @@ export function parseTodayWidgetSnapshot(v: unknown): TodayWidgetSnapshot | null
   const text = (x: unknown) => (typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null);
   const headline = text(s.headline);
   const at = typeof s.at === "string" && !Number.isNaN(Date.parse(s.at)) ? s.at : null;
-  const waiting = typeof s.waiting === "number" && Number.isInteger(s.waiting) && s.waiting >= 0 ? s.waiting : null;
+  const waiting = isCount(s.waiting) ? s.waiting : null;
   if (headline === null || at === null || waiting === null || !Array.isArray(s.figures)) return null;
   const figures: TodayWidgetSnapshot["figures"] = [];
   for (const f of s.figures.slice(0, FIGURES_MAX)) {

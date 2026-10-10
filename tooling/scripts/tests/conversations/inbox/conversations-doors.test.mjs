@@ -141,7 +141,7 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
   );
   assert.deepEqual(
     [playbook.messages[1].by, playbook.answeredBy, playbook.summary.bullets[1]],
-    ["the Win-back playbook", "playbook", "Last message: the Win-back playbook"],
+    ["the Win-back campaign", "playbook", "Last message: the Win-back campaign"],
   );
 
   const theirs = row(ours({ id: "m0", body: "Hi Rosa!", created_at: "2026-09-14T12:59:00Z" }), msg({ id: "m1" }));
@@ -231,6 +231,11 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
   assert.equal(
     textOf(OutcomePill({ outcome: "handled", channel: "whatsapp", answeredBy: "receptionist" })),
     "Receptionist replied",
+  );
+  assert.equal(
+    textOf(OutcomePill({ outcome: "handled", channel: "whatsapp", answeredBy: "playbook" })),
+    "Campaign sent",
+    "a campaign to its reader, never a playbook (decision 19)",
   );
   assert.equal(
     textOf(OutcomePill({ outcome: "handled", channel: "phone" })),

@@ -1,9 +1,11 @@
 /**
  * The report functions Reports reads (00251, 00304, 00241, 00350, 00380): the receptionist's series, the campaigns', the
- * reviews', the Receptionist lens's and the reach-outs', each over a period of days and the period before it. The one
- * place they are called by name; the dashboard asks on the session client, so RLS decides what a member reads
- * (`report_series`, `campaign_series`, `reviews_ledger` and `receptionist_series` are SECURITY INVOKER; `reach_out_report`
- * is a definer that checks the member again). A read that fails throws: "we could not read" is never "none".
+ * reviews', the Receptionist lens's and the reach-outs', each over a period of days and the period before it; and the
+ * counts Campaigns reads (00374, 00375): a playbook's totals, a run's counts, a message's sends and every chain's numbers.
+ * The one place they are called by name; the dashboard asks on the session client, so RLS decides what a member reads
+ * (`report_series`, `campaign_series`, `reviews_ledger` and `receptionist_series` are SECURITY INVOKER;
+ * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never
+ * "none".
  *
  * Each reads a WINDOW (00360): a count of days, and the day they end on. A period by name ends on the workspace's today
  * and names no day, which is the call every one of these was before 00360, so a database that has not run it yet reads a
@@ -13,6 +15,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
+import type { JsonObject } from "../../events";
 import { isMissingDoor } from "../templates";
 
 type Db = SupabaseClient<Database>;
@@ -110,4 +113,61 @@ export async function reachOutReport(
     return { ok: false, code: error.code ?? "", message: error.message };
   }
   return { ok: true, data };
+}
+
+/**
+ * A counts door's answer where the database may not have the function yet: its one jsonb object, keyed by a
+ * playbook's, a run's or a chain's id or a message's name (an empty object: nothing counted), or "missing" on a
+ * database before its migration (isMissingDoor), where the dashboard reads the old way for one release so either
+ * deploy order works. Any other failure throws, an answer that is no object among them: "we could not read" is never
+ * "none", nor "missing".
+ */
+function answerOrMissing(
+  name: string,
+  data: Json,
+  error: { code: string; message: string } | null,
+): JsonObject | "missing" {
+  if (error) {
+    if (isMissingDoor(error)) return "missing";
+    throw new Error(`${name}: ${error.message}`);
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error(`${name}: answered no object`);
+  return data;
+}
+
+/**
+ * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00374): one jsonb by
+ * playbook id, which PostgREST's row cap never cuts; contracts' isPlaybookTotalsDto reads it.
+ */
+export async function playbookTotals(db: Db, tenantId: string, history: number): Promise<JsonObject | "missing"> {
+  const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
+  return answerOrMissing("playbook_totals", data, error);
+}
+
+/** Each run's people, receipts and replies, by run id (`run_counts`, 00374): what Sent, a run's sheet and a card say. */
+export async function runCounts(db: Db, tenantId: string, runIds: readonly string[]): Promise<JsonObject | "missing"> {
+  const { data, error } = await db.rpc("run_counts", { p_tenant_id: tenantId, p_run_ids: [...runIds] });
+  return answerOrMissing("run_counts", data, error);
+}
+
+/** How many of each message went out, and when the latest did, by name (`template_sends`, 00374). */
+export async function templateSends(db: Db, tenantId: string): Promise<JsonObject | "missing"> {
+  const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
+  return answerOrMissing("template_sends", data, error);
+}
+
+/**
+ * Every chain's numbers over the window, by its first step's id (`reach_out_chain_totals`, 00375): what it wrote, how
+ * many wrote back, when it last wrote. The window is read as `reachOutReport` reads it, its last day named only where it
+ * is not today, so Reports' chains and its report count the same days; the function takes a last day from its first
+ * migration, so a database without it answers "missing", never ReportWindowNotReadable. A definer behind
+ * may_read_workspace: a caller who is no member is refused (P0002), thrown.
+ */
+export async function reachOutChainTotals(
+  db: Db,
+  tenantId: string,
+  window: ReportWindow,
+): Promise<JsonObject | "missing"> {
+  const { data, error } = await db.rpc("reach_out_chain_totals", windowArgs(tenantId, window));
+  return answerOrMissing("reach_out_chain_totals", data, error);
 }

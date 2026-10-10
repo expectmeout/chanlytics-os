@@ -147,7 +147,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
   });
   assert.deepEqual(
     word([ours("m1", "ai", "Welcome back!", 30, "delivered", { source: "broadcast", playbook_name: "Welcome" })]),
-    { text: "Last message: the Welcome playbook — no one asked for you.", tone: "ok", short: null },
+    { text: "Last message: the Welcome campaign — no one asked for you.", tone: "ok", short: null },
   );
   assert.deepEqual(word([ours("m1", "ai", "Hi", 40), wrote("m2", "Thanks!", 30)]), {
     text: "They wrote last — no reply yet.",

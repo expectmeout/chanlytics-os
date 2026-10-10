@@ -1,6 +1,7 @@
 /**
  * What GET templates answers for a workspace's template rows, so the harness's server and its page's fixture say what the
- * route says: the rows (the composers' unless `all`), the messages made of EVERY row, and what the composers left out.
+ * route says: the rows (the composers' unless `all`), the messages made of EVERY row, what the composers left out, and the
+ * call's text found among every WhatsApp row.
  *
  * The route's body is its reader's (apps/dashboard/src/server/readers/templates.ts templatesOf), which reads the database and
  * so cannot run here; this is its composition over the same contracts functions, held to the reader's own answer by
@@ -37,12 +38,14 @@ export function templatesRead(rows, { all }) {
   const templates = all ? every : every.filter(offered);
   const held = templateHolds(every.filter((t) => !offered(t)));
   const messages = campaignMessagesOf(every);
-  if (!all) return { templates, held, messages };
+  // The call's text, found among every WhatsApp row (a hidden one too), as the reader names it; null where there is none.
+  const booking = bookingTemplate(every.filter((t) => t.channel === "whatsapp")) ?? null;
+  if (!all) return { templates, held, messages, booking };
   const usedBy = templateUsage({
     playbooks: [],
     broadcasts: [],
-    bookingName: bookingTemplate(every.filter((t) => t.channel === "whatsapp"))?.name ?? null,
+    bookingName: booking?.name ?? null,
   });
   const sends = templateSends({ runs: [], recipients: [], inbox: [] });
-  return { templates, held, messages, usedBy, sends };
+  return { templates, held, messages, booking, usedBy, sends };
 }

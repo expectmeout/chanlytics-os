@@ -537,9 +537,9 @@ export function ruleNeedsViewer(rule: unknown): boolean {
   return !!r && ruleNeeds(r).includes("viewer");
 }
 
-/** What a playbook is told of a saved list whose rule is about whoever is looking. */
+/** What a playbook is told of a saved list whose rule is about whoever is looking: a campaign to its reader (decision 19). */
 export const viewerListWords = (name: string) =>
-  `${name} is about whoever is looking ("me"), and a playbook's run has no one looking. Pick a list that says who by what they did.`;
+  `${name} is about whoever is looking ("me"), and a campaign's run has no one looking. Pick a list that says who by what they did.`;
 
 /* ------------------------------------------------------------------ Today's pins */
 

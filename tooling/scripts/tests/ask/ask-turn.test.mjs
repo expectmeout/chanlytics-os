@@ -53,6 +53,7 @@ import {
   toReceptionistReportVM,
   toReportVM,
   toReviewsReportVM,
+  toReachOutReportVM,
   toBookingReportVM,
   toDealReportVM,
   compareTemplates,
@@ -621,6 +622,28 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
   );
 });
 
+test("an answer beside its cards that claims a write is said as the cards' own sentence, its detail kept, and logged: nothing is done until a person presses a card (the moment spec, A4)", async () => {
+  const invite = tool("propose_team", { action: "invite", email: "ada@example.com", role: "viewer" });
+  const claimed = scripted([
+    ROUND([prose(answerJson("I've invited Ada for you.", { say: { detail: "She gets the email." } })), invite]),
+  ]);
+  const { result: r, lines } = await logged("ask_answer_claimed_write", () =>
+    runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(claimed.round)),
+  );
+  assert.deepEqual(
+    [r.answer.say.headline, r.answer.say.detail, r.proposals.length, lines.length],
+    ["One card to review: Invite ada@example.com.", "She gets the email.", 1, 1],
+  );
+  assert.deepEqual(JSON.parse(lines[0]), { cards: 1, tenant_id: A });
+  const honest = scripted([ROUND([prose(answerJson("One card: an invitation for Ada.")), invite])]);
+  const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(honest.round));
+  assert.equal(r2.answer.say.headline, "One card: an invitation for Ada.", "an answer that claims nothing stands");
+  // With no card beside it, an answer is the model's to say: the eval judges it (no_write), the loop leaves it.
+  const bare = scripted([ROUND([answer("I paused the win-back.")])]);
+  const r3 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(bare.round));
+  assert.equal(r3.answer.say.headline, "I paused the win-back.");
+});
+
 test("cards alone are the answer: every card made, no second round, the cards said in a sentence; a refused proposal keeps the round and the model must say why", async () => {
   const alone = scripted([
     ROUND([tool("propose_team", { action: "invite", email: "ada@example.com", role: "viewer" })]),
@@ -1016,7 +1039,8 @@ test("report says the Campaigns lens beside the page (0030): its tiles, the read
     { channel: "Text", sent: 6, delivered: "67%", read: null, wrote_back: "17%" },
   ]);
   assert.deepEqual(said.sources, [
-    { name: "Win-back", kind: "Playbook", runs: 1, sent: 20, delivered: "80%", wrote_back: "20%" },
+    // The page's own word for a source's kind (contracts campaign-report.ts kindLabel), a campaign since decision 19.
+    { name: "Win-back", kind: "Campaign", runs: 1, sent: 20, delivered: "80%", wrote_back: "20%" },
   ]);
   const { campaign_series: _, ...without } = rpcs;
   assert.deepEqual(
@@ -1519,6 +1543,97 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
     globalThis.fetch = fetchWas;
     forgetFeeds();
   }
+});
+
+test("report says the Reach-outs section as the page does (a moment holds many campaigns, lane 2, task 6): its counts and its sentences from the page's own fold where the workspace has a reach-out, null where it has none, and an error where its read failed", async () => {
+  const today = iso(NOW.getTime()).slice(0, 10);
+  const counts = (over = {}) => ({
+    written: 0,
+    delivered: 0,
+    bounced: 0,
+    wrote_back: 0,
+    interested: 0,
+    booked: 0,
+    said_no: 0,
+    handed: 0,
+    ...over,
+  });
+  /** What reach_out_report answers (00241) over the days asked: one chain's period, or none at all with `over`. */
+  const reachOuts = (days, over = {}) => ({
+    timezone: TZ,
+    days,
+    today,
+    since: today,
+    has_reach_out: true,
+    totals: counts({
+      written: 40,
+      delivered: 38,
+      bounced: 1,
+      wrote_back: 6,
+      interested: 3,
+      booked: 1,
+      said_no: 2,
+      handed: 4,
+    }),
+    series: [{ day: today, written: 40 }],
+    chains: [],
+    angles: [],
+    other_angles: { written: 0, wrote_back: 0 },
+    no_angle: 0,
+    domains: [],
+    ...over,
+  });
+  const rpcs = {
+    ...RPCS,
+    report_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today,
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    }),
+    reach_out_report: (a) => reachOuts(a.p_days),
+    // Each chain's own totals beside it (00375), which the section does not say: none here.
+    reach_out_chain_totals: () => ({}),
+  };
+  const run = async (r) => {
+    const tc = newToolContext(ctxFor(tables(), r), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+
+  // A workspace with a reach-out: the page's own fold (toReachOutReportVM) over the page's own payload, its totals, the
+  // funnel's sentence and the line on what was handed.
+  const said = (await run(rpcs)).reach_outs;
+  const page = toReachOutReportVM(reachOuts(7), NOW.getTime());
+  assert.deepEqual(said, { empty: false, totals: page.totals, funnel: page.lines.funnel, written: page.lines.written });
+  assert.deepEqual(
+    [said.totals.written, said.totals.wrote_back, said.written],
+    [40, 6, "4 businesses handed to you as a call or a note, too."],
+    "the numbers the page draws, and its words",
+  );
+
+  // No reach-out at all: the page draws no section, and the tool says null, never a section of zeros.
+  const none = await run({
+    ...rpcs,
+    reach_out_report: (a) => reachOuts(a.p_days, { has_reach_out: false, totals: counts(), series: [] }),
+  });
+  assert.equal(none.reach_outs, null);
+
+  // Its read failed: said so, never as nothing written, and the report stands.
+  const failed = await run({
+    ...rpcs,
+    reach_out_report: () => {
+      throw new Error("canceling statement due to statement timeout");
+    },
+  });
+  assert.deepEqual(failed.reach_outs, { error: "the reach-out numbers could not be read just now" });
+  assert.deepEqual([failed.range, failed.tiles.length], ["7 days", (await run(rpcs)).tiles.length]);
 });
 
 test("a question that names another page's rows reads them before the model is asked, and the read rides in as data, never in system", async () => {
@@ -2181,7 +2296,18 @@ test("the proposal builders run against the database in memory: each kind is a c
     (await p("propose_autonomy", { class: "money", mode: "ask" })).result,
     /money stays owner-only by charter/,
   );
-  assert.match((await p("propose_autonomy", { class: "booking", mode: "veto" })).result, /only replies can be held/);
+  // One rule (contracts POLICY_CLASS_MODES): bookings have nothing to hold for review; the re-engage row holds a run.
+  assert.match(
+    (await p("propose_autonomy", { class: "booking", mode: "veto" })).result,
+    /The Bookings row has nothing to hold for review\./,
+  );
+  assert.match(
+    (await p("propose_autonomy", { class: "faq", mode: "never" })).result,
+    /Bookings and service questions are answered by the receptionist or by you/,
+  );
+  const holds = await p("propose_autonomy", { class: "reengage", mode: "veto" });
+  assert.equal(holds.isError, false, holds.result);
+  assert.equal(holds.proposal.summary, "Re-engage quiet customers: holds it");
   assert.match((await p("propose_autonomy", { class: "reply", mode: "" })).result, /say a mode or a confidence/);
   const dial = await p("propose_autonomy", { class: "reply", mode: "", min_confidence: 0.9 });
   assert.deepEqual(
@@ -2290,13 +2416,12 @@ test("the proposal builders run against the database in memory: each kind is a c
     /Rosa opted out; nothing can be sent to them/,
   );
   t.conversations[0].contacts = was;
-  // A playbook with no template takes the trigger's starter, and says so when the workspace does not hold it; a
-  // template with a typed slot and no words is a question for the person, never invented words (pinned as text in
-  // playbooks.test.mjs until PR 3.1).
-  assert.match(
-    (await p("propose_campaign", { action: "playbook", trigger: "quiet_30" })).result,
-    /starter has no version this workspace can send yet/,
-  );
+  // A playbook with no template takes the trigger's starter, and where the workspace does not hold it the card adds it
+  // at its Approve (the moment spec's A0; tests/playbooks/ask-setup/starter-card.test.mjs); a template with a typed slot
+  // and no words is a question for the person, never invented words (pinned as text in playbooks.test.mjs until PR 3.1).
+  const onStarter = JSON.parse((await p("propose_campaign", { action: "playbook", trigger: "quiet_30" })).result);
+  assert.equal(onStarter.card, "Campaign: Win-back");
+  assert.match(onStarter.summary, /adds the “Win-back” starter first/);
   // 2 Oct 2026: welcome is no longer a moment a new playbook starts from (it was this case's trigger): the schema says so.
   const welcome = (await p("propose_campaign", { action: "playbook", trigger: "new_week" })).result;
   assert.match(welcome, /Invalid option: expected one of/);
@@ -2815,7 +2940,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
     params: [],
   });
   assert.equal(onMine.isError, true);
-  assert.match(JSON.parse(onMine.result).error, /a playbook runs with no one looking/);
+  assert.match(JSON.parse(onMine.result).error, /a campaign runs with no one looking/);
   const toCal = await propose("saved", S_CAL);
   assert.equal(toCal.isError, true);
   assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads a calendar link/);
@@ -3292,8 +3417,13 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
     [2, 1],
     "REGRESSION: it read 'said_yes_now: 1', and Ana's yes was nobody's",
   );
-  // The visit reminder names tomorrow's visits, and there is no calendar here: nobody, either way.
-  assert.deepEqual(counts("visit_tomorrow"), [0, 0]);
+  // The visit reminder names tomorrow's visits, and there is no calendar here: since 9 Oct 2026 (D44) it is not offered
+  // at all, so the read leaves it out, rather than saying nobody either way.
+  assert.equal(
+    read.triggers.some((y) => y.trigger === "visit_tomorrow"),
+    false,
+    "no calendar: the appointment reminder is not among the triggers",
+  );
   assert.ok(read.note.includes(NO_NUMBER_REACH), read.note);
   for (const name of ["said_yes_now", "can_be_sent_now"]) {
     assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
@@ -4701,7 +4831,9 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
 
 test("the assistant offers the moments a new playbook may start from (2 Oct 2026): the win-back is the one the workspace can read, welcome and save our number are not offered though a playbook made on one is still listed, and a proposal for the win-back it cannot read is refused in words", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
-  const { WIN_BACK_WORDS } = await import("@chanlytics/contracts");
+  const { winBackWords } = await import("@chanlytics/contracts");
+  // This world never said how its customers buy: its word is the default (contracts appointmentWordOf).
+  const WIN_BACK_WORDS = winBackWords("appointment");
   const ICS = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//test//EN", "END:VCALENDAR"].join("\r\n");
   // A workspace with a calendar address on file: its feed read, or not.
   const connected = (over = {}) => {
@@ -4743,7 +4875,8 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     return JSON.parse(out.result);
   };
   const offered = (read) => read.triggers.map((x) => x.trigger);
-  const SILENCE = ["quiet_30", "everyone_monthly", "visit_tomorrow", "visited", "saved_list"];
+  // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing.
+  const SILENCE = ["quiet_30", "everyone_monthly", "saved_list"];
   const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"];
   const feed = (status) => async () => new Response(status === 200 ? ICS : "down", { status });
   const fetchWas = globalThis.fetch;

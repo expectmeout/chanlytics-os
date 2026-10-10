@@ -15,7 +15,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   customer_messages:
     "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
   answered_share:
-    "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a playbook message is nobody's answer.",
+    "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a campaign message is nobody's answer.",
   reply_median:
     "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers:
@@ -27,7 +27,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   booked:
     "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
   messages_sent:
-    "Messages your broadcasts and playbook runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
+    "Messages your broadcasts and campaign runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   replied_share: `Of the messages sent, the share the person answered in their own words ${REPLY_WINDOW_WORDS}. A note the system wrote, and a program writing from their address, are not their words.`,
   said_yes:
@@ -59,7 +59,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   call_backs:
     "Of the conversations waiting on you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
   replies_held_back:
-    "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or playbook message the door held are not counted.",
+    "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted.",
 };
 
 /** The words over a figure's label: what it counts and what it leaves out. */

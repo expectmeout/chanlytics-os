@@ -229,12 +229,12 @@ export type ReportStripTile = Pick<
 >;
 
 /** What the Booked tile says, under its dash, for days that ended before today: the reason booking-report's BOOKED_NEEDS_TODAY gives, in a tile's few words. */
-export const BOOKED_ENDED_META = "not counted for days that have ended: visits are counted as they stand now";
+export const BOOKED_ENDED_META = "not counted for days that have ended: it follows people as they stand today";
 
 /** Booked, from the calendar: a count where one was read, and why there is none where not (moved from the page's strip). */
 export function bookedTileOf(booking: BookingReportVM | null): ReportStripTile {
   const tile = { id: "booked", metric: "booked", label: "Booked", compare: null } as const;
-  // Days that ended before today are never counted (visits are counted as they stand now): that is not a missing link.
+  // Days that ended before today are never counted (it follows people as they stand today): that is not a missing link.
   if (booking?.calendar === "ended") return { ...tile, value: "—", meta: BOOKED_ENDED_META };
   if (booking && booking.present)
     return {

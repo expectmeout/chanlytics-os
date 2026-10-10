@@ -78,6 +78,17 @@ function hoverRulesOf(sheet, cls) {
   return found;
 }
 
+// The other way round: what a variant promises is no hover style. The kit's inherit link takes its line's ink (a list
+// row's name), and its `:hover` only undoes the quiet link's hover, which a touch keeps too; under a pointer alone, a
+// tapped name wore the quiet link's hover ink on a phone.
+test("the inherit link keeps its line's ink under a touch's hover too: its reset stands outside @media (hover: hover)", () => {
+  const sheet = "apps/dashboard/src/surfaces/kit/kit.css";
+  const rules = hoverRulesOf(parse(sheet), "link-btn-inherit");
+  assert.ok(rules.length > 0, "the kit still resets the inherit link's hover: this test would otherwise prove nothing");
+  for (const r of rules)
+    assert.ok(!r.media.some(asksForHover), "the reset of .link-btn-inherit:hover stands inside @media (hover: hover)");
+});
+
 for (const { sheet, cls } of CONTROLS) {
   test(`${cls}'s hover is drawn only under a pointer that hovers (${path.basename(sheet)})`, () => {
     const rules = hoverRulesOf(parse(sheet), cls);

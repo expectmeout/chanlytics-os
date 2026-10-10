@@ -187,15 +187,18 @@ const broadcasts = (over = {}) => ({
   optIn: { phrase: "YES OFFERS", link: "https://wa.me/15550100?text=YES%20OFFERS" },
   // Each of the 24 once, on the channel a send would reach them by: 17 and 7 are the 24.
   reach: { people: 29, canHear: 24, saidMessages: 24, saidOffers: 5, byChannel: { whatsapp: 17, sms: 0, email: 7 } },
-  report: {
-    days: 30,
-    totals: { sent: 132, delivered: 129, read: 53, replied: 32, optIns: 2, optOuts: 1, readOf: 84 },
-    byChannel: [
-      { channel: "whatsapp", sent: 84 },
-      { channel: "email", sent: 48 },
-    ],
-  },
   ready: ready({ whatsapp: true, email: true }),
+  ...over,
+});
+/** Campaigns' own 30 days (the campaign_results surface's report): what each channel sent among them. */
+const report = (over = {}) => ({
+  days: 30,
+  totals: { sent: 132, delivered: 129, read: 53, replied: 32, optIns: 2, optOuts: 1, readOf: 84 },
+  byChannel: [
+    { channel: "whatsapp", sent: 84 },
+    { channel: "email", sent: 48 },
+  ],
+  sources: [],
   ...over,
 });
 const home = (over = {}) =>
@@ -207,6 +210,10 @@ const home = (over = {}) =>
     library: [],
     messages: [],
     reachOuts: [],
+    report: report(),
+    // A calendar connected and deals off (no follow-up among the moments), in the word these sentences were written in.
+    shape: { calendar: "feed", dealsOn: false, word: "visit" },
+    chains: undefined,
     ...over,
   });
 
@@ -214,7 +221,7 @@ const home = (over = {}) =>
 const marksOf = (row, readiness, templates = playbooks().templates) => {
   const h = home({ playbooks: playbooks({ rows: [row], ready: readiness, templates }), broadcasts: undefined });
   const stage = h.rail.stages.find((s) => s.playbookId === row.id);
-  return (stage ?? h.strips.find((s) => s.id === row.id)).channels.map((m) => m.state);
+  return (stage ?? h.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === row.id)).channels.map((m) => m.state);
 };
 
 test("a playbook's marks are its drawer's reading: on, waits, could and off by its purpose, its message and the workspace", () => {
@@ -386,12 +393,12 @@ test("the home draws the channel facts: the head's line, a mark per channel on e
   const states = Object.fromEntries(h.rail.stages.map((s) => [s.id, s.channels.map((m) => m.state)]));
   assert.deepEqual(states, {
     first_contact: [],
-    visit: ["on", "off", "on"],
+    before: ["on", "off", "on"],
     after: [],
     quiet: ["on", "off", "could"],
   });
   // The month's offer names no channels: WhatsApp alone, as it was made; one more tick would open email.
-  const month = h.strips.find((s) => s.id === "pb-month");
+  const month = h.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "pb-month");
   assert.deepEqual(
     month.channels.map((m) => [m.word, m.state]),
     [
@@ -401,7 +408,7 @@ test("the home draws the channel facts: the head's line, a mark per channel on e
     ],
   );
   // The call's text carries none.
-  assert.deepEqual(h.strips.find((s) => s.id === "call_text").channels, []);
+  assert.deepEqual(h.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "call_text").channels, []);
   // The ladder's "messages" rung in parts, the rung's own bar cut by channel (24 of 29: 17 and 7), its words beside the
   // count. The parts are shares of everyone, so they are the bar: 17/29 and 7/29, never a share of a sum that overlaps.
   const rung = h.reach.rungs.find((r) => r.id === "messages");
@@ -442,13 +449,26 @@ test("a reach-out's mark: it goes by email alone, on where the workspace can sen
       broadcasts: broadcasts({ ready: readiness }),
       reachOuts: [chain],
     })
-      .strips.find((s) => s.id === "ro-1")
+      .ledger.groups.flatMap((g) => g.rows)
+      .find((r) => r.id === "ro-1")
       .channels.map((m) => m.state);
   assert.deepEqual(mark(ready({ whatsapp: true, email: true })), ["off", "off", "on"]);
   assert.deepEqual(mark(ready({ whatsapp: true, email: false })), ["off", "off", "waits"]);
   assert.deepEqual(mark(ready({ whatsapp: true, email: true, paused: true })), ["off", "off", "waits"]);
   // The readiness not read: nothing says it cannot.
   assert.deepEqual(mark(null), ["off", "off", "on"]);
+  // The two surfaces disagree (one read before billing paused the workspace): the pause is either surface's
+  // (workspacePausedOf), as every other row and Coming up read it, so the mark waits whichever surface says it.
+  const marks = (pbReady, bcReady) =>
+    home({ playbooks: playbooks({ ready: pbReady }), broadcasts: broadcasts({ ready: bcReady }), reachOuts: [chain] })
+      .ledger.groups.flatMap((g) => g.rows)
+      .find((r) => r.id === "ro-1")
+      .channels.map((m) => m.state);
+  const open = ready({ whatsapp: true, email: true });
+  const pausedHere = ready({ whatsapp: true, email: true, paused: true });
+  assert.deepEqual(marks(open, pausedHere), ["off", "off", "waits"], "the broadcasts surface says paused");
+  assert.deepEqual(marks(pausedHere, open), ["off", "off", "waits"], "the playbooks surface says paused");
+  assert.deepEqual(marks(null, pausedHere), ["off", "off", "waits"], "one unread, the other paused");
 });
 
 test("where the readiness is unread and the counts predate the channels, the home says nothing of them", () => {
@@ -457,8 +477,8 @@ test("where the readiness is unread and the counts predate the channels, the hom
     broadcasts: broadcasts({
       ready: null,
       reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
-      report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 0, optOuts: 0 } },
     }),
+    report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 0, optOuts: 0 }, sources: [] },
   });
   assert.equal(h.head.channels, null);
   const rung = h.reach.rungs.find((r) => r.id === "messages");
@@ -468,7 +488,7 @@ test("where the readiness is unread and the counts predate the channels, the hom
   assert.equal(h.results.byChannel, null);
   // A ticked channel reads as on where nothing says it is closed.
   assert.deepEqual(
-    h.rail.stages.find((s) => s.id === "visit").channels.map((m) => m.state),
+    h.rail.stages.find((s) => s.id === "before").channels.map((m) => m.state),
     ["on", "off", "on"],
   );
   // The playbooks surface carries no readiness and the broadcasts' does: the home reads that one.
@@ -481,8 +501,6 @@ test("where the readiness is unread and the counts predate the channels, the hom
     "Sending on WhatsApp and by email · Text: No texting line yet",
   );
   // One channel alone sent: no line under the funnel.
-  const one = home({
-    broadcasts: broadcasts({ report: { ...broadcasts().report, byChannel: [{ channel: "whatsapp", sent: 132 }] } }),
-  });
+  const one = home({ report: report({ byChannel: [{ channel: "whatsapp", sent: 132 }] }) });
   assert.equal(one.results.byChannel, null);
 });

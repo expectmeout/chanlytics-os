@@ -169,4 +169,19 @@ test("a run that goes by WhatsApp alone, whose message holds no WhatsApp version
   // The stop stays the closed set's name; the other stops say their own words.
   edge.answer = { ok: true, outcome: "off", mode: "auto", skipped: "number_flagged" };
   await assert.rejects(press(), (e) => e.status === 409 && /flagged this number's quality/.test(e.message));
+  // A campaign to its reader, never a playbook (decision 19): the stop's words, and the edge's own 404.
+  edge.answer = { ok: true, outcome: "off", mode: "never", skipped: "never" };
+  await assert.rejects(
+    press(),
+    (e) =>
+      e.status === 409 &&
+      e.message === "This campaign's class is set to Never in Settings › Autonomy, so nothing runs.",
+  );
+  edge.status = 404;
+  edge.answer = { ok: false, error: "not_found" };
+  try {
+    await assert.rejects(press(), (e) => e.status === 404 && e.message === "Campaign not found.");
+  } finally {
+    edge.status = 200;
+  }
 });

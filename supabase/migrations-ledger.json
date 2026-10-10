@@ -40,11 +40,6 @@
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
-    "00373": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
-    "00374": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
-    "00375": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
-    "00376": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
-    "00377": "held by the Ledger lane (PR #1535, campaigns/a-moment-holds-many: 00373-00377, applied to production on 10 Oct, not yet on main); its file lands with that PR and migration-ledger.mjs --record drops this gap",
     "00378": "held by the doors lane (PR #1537, doors/the-records-take-their-doors: 00378, not yet on main or production); its file lands with that PR and migration-ledger.mjs --record drops this gap"
   },
   "migrations": {
@@ -381,6 +376,11 @@
     "00370_a_partner_s_share_is_read_by_the_owner_alone.sql": "0f5725104586d6fd55c0c9da19e7fe82fd571a2687f15aab947c14732ec1401d",
     "00371_a_member_may_leave_and_an_invitation_is_sent_again.sql": "45451bad4e81406329cd13830e21ec060c17c3fe6d43afcd212f9cc3ed4502e9",
     "00372_a_member_chooses_what_reaches_their_phone.sql": "24e3e33afc479f0073df51c4fec29f9f540aec1f36b62d8bde593162251712b5",
+    "00373_a_booking_notice_is_no_person_s_words.sql": "3ce9ba794c238a30f087c64761c196e3b90a3670de17862dc80da38e84bd53c7",
+    "00374_a_playbook_s_runs_are_counted_where_they_are.sql": "e7e7b01b1e58e49d209b437db4153feb9d9c2a7390457a52773b4375f3320b41",
+    "00375_every_chain_is_counted_behind_one_member_check.sql": "746c09397e240c47d875e73d1c841895f3f1e8a6ba055f453425cba16b4c4c1a",
+    "00376_a_playbook_changed_is_told_to_its_workspace.sql": "c9d1db98e92db91d2591bb1a83ada73efad4f1378396ab249ebccf9103f970ac",
+    "00377_a_playbook_changes_in_one_write.sql": "07eba876932c85bc8c6f6da48782922b0aef54d28b25a0501656c8e3f42bddf5",
     "00379_automated_mail_is_no_customer_message.sql": "98095e49c8846b6a3c8e49f7242a619c2fff618279ad86976de404bad55e1e9f",
     "00380_the_receptionist_is_read_beyond_the_days_counts.sql": "f0feeee18a57006cb937f4427167981c6e12495ee0821131bce3ce433ac033a9"
   }

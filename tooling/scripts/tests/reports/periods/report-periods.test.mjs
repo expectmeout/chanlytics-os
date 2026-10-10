@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CAMPAIGNS_RESULTS_PERIOD,
   DAY_MS,
   REPORT_MOST_DAYS,
   REPORT_PERIOD_DEFAULT,
@@ -100,6 +101,11 @@ test("the period's window ends today, today included, as the report reads it: a 
 
 test("the report's view model says the business's today, the window's last day, from the read's own today", () => {
   assert.equal(toReportVM(reportDto(), { profile: null }).today, reportDto().today);
+});
+
+test("Campaigns counts its campaigns over one of Reports' fixed periods, named once: thirty days", () => {
+  assert.equal(CAMPAIGNS_RESULTS_PERIOD, "30d");
+  assert.equal(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), 30);
 });
 
 /* ---------------------------------------- the days a member picks ---------------------------------------- */

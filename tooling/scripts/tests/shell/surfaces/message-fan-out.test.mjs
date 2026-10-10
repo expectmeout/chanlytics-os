@@ -76,6 +76,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts")).reachOutsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/campaigns/home/results-surface.ts")).campaignResultsOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/reach-out/replies.ts")).repliesOverride,
   (await importSrc("apps/dashboard/src/surfaces/settings/partner/surface.ts")).partnerOverride,
   (await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts")).calendarOverride,
@@ -204,7 +205,9 @@ test("a receipt never reads People, Reports or Campaigns on their own pages, and
   };
   for (const hash of ["#/clients", "#/reports", "#/campaigns"]) {
     win.location.hash = hash;
-    const r = await running();
+    // Campaigns' own 30 days are read on demand and again once aged (results-surface.ts, a period surface): a read recorded
+    // holds nothing and would always say it has aged, so it is held fresh here, and what this asks is what was kept.
+    const r = await running({ fresh: ["campaign_results"] });
     try {
       await away("#/calendar", hash);
       r.asked.length = 0;
@@ -304,26 +307,26 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
   }
 });
 
-test("Campaigns' home owns what it draws: a message re-reads the playbooks and the broadcasts under it, and what passed while it was away is read once as it comes back", async () => {
+test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the playbooks and its own 30 days, never the broadcasts and every page of People behind them; what passed is read once as it comes back", async () => {
   win.location.hash = "#/campaigns";
-  const r = await running();
+  // Its own 30 days are read on demand and again once aged: held fresh, so what is asked is what a message moved.
+  const r = await running({ fresh: ["campaign_results"] });
   try {
     await r.message();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["broadcasts", "conversations", "inbox", "playbooks", "today"],
-      "the home's own surface, and the broadcasts whose runs, replies and numbers it draws: not People, Reports or the Calendar",
+      ["campaign_results", "conversations", "inbox", "playbooks", "today"],
+      "the home's own surface and its numbers: not the broadcasts, People, Reports or the Calendar",
     );
     r.asked.length = 0;
 
-    // Today draws the broadcasts too, and does not own them: the three that draw messages, as it was.
     win.location.hash = "#/today";
     win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
       ["google", "reports_headline"],
-      "nothing was missed; the headline and Google's read, which Today draws and a run that opened on Campaigns never read (they are on demand), are read once as Today comes on screen",
+      "nothing Today owns was missed; the headline and Google's read, which Today draws and a run that opened on Campaigns never read, once",
     );
     r.asked.length = 0;
     await r.message();
@@ -331,11 +334,10 @@ test("Campaigns' home owns what it draws: a message re-reads the playbooks and t
     assert.deepEqual([...new Set(r.asked)].sort(), ["conversations", "inbox", "today"]);
     r.asked.length = 0;
 
-    // The home comes back: each surface that let a message pass is read once.
     win.location.hash = "#/campaigns";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual([...r.asked].sort(), ["broadcasts", "playbooks"], "read once, as the page it draws them on");
+    assert.deepEqual([...r.asked].sort(), ["campaign_results", "playbooks"], "read once, as the page it draws them on");
     r.asked.length = 0;
     win.location.hash = "#/campaigns/moment:pb-1";
     win.dispatchEvent({ type: "popstate" });
@@ -344,14 +346,15 @@ test("Campaigns' home owns what it draws: a message re-reads the playbooks and t
     await r.message();
     assert.deepEqual(
       [...new Set(r.asked)].sort(),
-      ["broadcasts", "conversations", "inbox", "playbooks", "today"],
+      ["campaign_results", "conversations", "inbox", "playbooks", "today"],
       "and with a moment open the home still hears them",
     );
-    // What the other pages own is theirs alone: Sent is the broadcasts' page, which draws the playbooks beside it.
+    // Sent is the broadcasts' page: what passed them on Campaigns is read once as Sent comes on screen, and Sent hears messages.
     r.asked.length = 0;
     win.location.hash = "#/broadcasts";
     win.dispatchEvent({ type: "popstate" });
     await settle();
+    assert.ok(r.asked.includes("broadcasts"), "the replies Campaigns let pass are read once on Sent");
     r.asked.length = 0;
     await r.message();
     assert.deepEqual([...new Set(r.asked)].sort(), ["broadcasts", "conversations", "inbox", "today"]);
@@ -519,10 +522,12 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   assert.equal(owns("reports_reviews", "reports/receptionist"), false, "the Reviews lens's read is not drawn there");
   assert.equal(owns("reports", "reports/receptionist"), true, "and the page's own surface is still its own");
   assert.equal(owns("reports_headline", "reports/receptionist"), false, "while what Today draws is not drawn there");
-  for (const key of ["playbooks", "broadcasts"]) assert.equal(owns(key, "campaigns"), true, key);
-  // Settings and the reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route
-  // that draws them owns them for the refreshes that name a page.
-  for (const key of ["settings", "reach_outs"]) assert.equal(owns(key, "campaigns/new"), true, key);
+  for (const key of ["playbooks", "campaign_results"]) assert.equal(owns(key, "campaigns"), true, key);
+  assert.equal(owns("broadcasts", "campaigns"), false, "Sent's runs are drawn on the home and re-read on Sent");
+  // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that
+  // draws them owns them for the refreshes that name a page. Settings is no longer drawn there.
+  assert.equal(owns("reach_outs", "campaigns/new"), true);
+  assert.equal(owns("settings", "campaigns/new"), false);
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
   // Today draws a good many surfaces and owns only its own.
   for (const key of ["broadcasts", "reports", "playbooks", "people", "calendar"])

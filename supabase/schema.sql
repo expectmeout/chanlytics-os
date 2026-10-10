@@ -926,6 +926,25 @@ COMMENT ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel text,
 
 
 --
+-- Name: campaign_reply_window(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.campaign_reply_window() RETURNS interval
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+  select interval '72 hours'
+$$;
+
+
+--
+-- Name: FUNCTION campaign_reply_window(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.campaign_reply_window() IS 'The window a reply to a campaign is counted in after its send: 72 hours (contracts REPLY_WINDOW_HOURS and isReplyTo; playbooks/totals/playbook-totals.db.test.mjs holds the two equal). Not WhatsApp''s service window (contracts replyWindow). campaign_series and run_counts read it.';
+
+
+--
 -- Name: campaign_series(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -990,7 +1009,7 @@ begin
                       and i.sender = 'customer'
                       and public.message_is_a_persons_words(i.meta)
                       and i.created_at > s.sent_at
-                      and i.created_at <= s.sent_at + interval '72 hours')  as replied
+                      and i.created_at <= s.sent_at + public.campaign_reply_window())  as replied
       from sent s
   ),
   -- A yes or a stop, from the desk or in the customer's own words: the
@@ -1100,7 +1119,94 @@ end $$;
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies (the customer''s own words: not a call''s note, an automatic reply or a list''s mail), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+
+
+--
+-- Name: change_playbook(uuid, uuid, jsonb, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_set   jsonb := case when jsonb_typeof(p_set) = 'object' then p_set else '{}'::jsonb end;
+  v_was   public.playbooks;
+  v_diff  jsonb;
+  v_rows  integer;
+  v_verb  text;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or p_playbook_id is null then
+    raise exception 'change_playbook: a playbook is named by its workspace and its id' using errcode = '22004';
+  end if;
+  -- The six columns a change may name, and nothing else: a key outside them is refused, never ignored.
+  if v_set = '{}'::jsonb or exists (
+    select 1 from jsonb_object_keys(v_set) k
+     where k not in ('state', 'name', 'run_hour', 'cap_per_run', 'gap_days', 'cadence_days')
+  ) then
+    raise exception 'change_playbook: name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days'
+      using errcode = '22023';
+  end if;
+  -- A null is no value: none of the six columns is ever empty, so it is refused, never read as "keep what it holds".
+  if exists (select 1 from jsonb_each(v_set) e where jsonb_typeof(e.value) = 'null') then
+    raise exception 'change_playbook: name a value for each column named: none of the six is ever empty'
+      using errcode = '22023';
+  end if;
+  -- The row as it stands, locked until the transaction ends, read on the caller's rights: a lock asks the update
+  -- policy as well as the select policy, so another workspace's row, or one their seat may not change, is no row.
+  select * into v_was
+    from public.playbooks
+   where id = p_playbook_id and tenant_id = p_tenant_id
+   for update;
+  if not found then
+    raise exception 'Playbook not found.' using errcode = 'P0002';
+  end if;
+  -- What differs from the row as it stands, under the lock: only that is written, answered as `was` and recorded. Where
+  -- nothing does, nothing is written and no line is (a second press of Pause, or two at once): the lock above has already
+  -- asked the caller's rights, so a seat that may not change it is still told it is not there.
+  select coalesce(jsonb_object_agg(k, v_set -> k), '{}'::jsonb) into v_diff
+    from jsonb_object_keys(v_set) k
+   where (to_jsonb(v_was) ->> k) is distinct from (v_set ->> k);
+  if v_diff = '{}'::jsonb then
+    return jsonb_build_object('id', p_playbook_id, 'was', '{}'::jsonb, 'decision_id', null, 'undo_dropped', false);
+  end if;
+  update public.playbooks p
+     set state        = coalesce(v_diff ->> 'state', p.state),
+         name         = coalesce(v_diff ->> 'name', p.name),
+         run_hour     = coalesce((v_diff ->> 'run_hour')::integer, p.run_hour),
+         cap_per_run  = coalesce((v_diff ->> 'cap_per_run')::integer, p.cap_per_run),
+         gap_days     = coalesce((v_diff ->> 'gap_days')::integer, p.gap_days),
+         cadence_days = coalesce((v_diff ->> 'cadence_days')::integer, p.cadence_days)
+   where p.id = p_playbook_id and p.tenant_id = p_tenant_id;
+  -- A forbidden update raises nothing: counted, so a change the policy refused is never answered as made.
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then
+    raise exception 'Playbook not found.' using errcode = 'P0002';
+  end if;
+  -- The verb follows the state that moved, never the one named: a state named as it stands is in no diff.
+  v_verb := case v_diff ->> 'state'
+              when 'running' then 'start_playbook'
+              when 'paused' then 'pause_playbook'
+              else 'change_playbook'
+            end;
+  return jsonb_build_object(
+           'id', p_playbook_id,
+           'was', (select jsonb_object_agg(k, to_jsonb(v_was) -> k) from jsonb_object_keys(v_diff) k))
+      || public.member_decision(p_tenant_id, 'playbook', p_playbook_id, v_verb, coalesce(p_decision, '{}'::jsonb),
+                                p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A null is refused (22023). Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null.';
 
 
 --
@@ -8392,6 +8498,29 @@ end $$;
 
 
 --
+-- Name: may_read_workspace(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.may_read_workspace(p_tenant uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select auth.uid() is not null and exists (
+    select 1 from public.memberships m
+     where m.tenant_id = p_tenant
+       and m.user_id = auth.uid()
+       and (m.role <> 'partner' or public.session_shows_second_factor()))
+$$;
+
+
+--
+-- Name: FUNCTION may_read_workspace(p_tenant uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.may_read_workspace(p_tenant uuid) IS 'Whether the caller (auth.uid(), never a parameter) may read this workspace: a member of it, a partner''s seat only on a session that showed its second factor (00218, 00261). The one member check for a definer read (00375); the ten that inline it keep theirs until each is next changed.';
+
+
+--
 -- Name: member_decision(uuid, text, uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8982,7 +9111,8 @@ CREATE FUNCTION public.message_is_a_persons_words(p_meta jsonb) RETURNS boolean
     LANGUAGE sql IMMUTABLE
     SET search_path TO ''
     AS $$
-  select coalesce(p_meta->'email'->>'claim', 'person') not in ('automated', 'auto_reply', 'report')
+  select coalesce(p_meta->'email'->>'claim', 'person')
+         not in ('automated', 'auto_reply', 'report', 'booking_notice', 'forwarding_confirmation')
 $$;
 
 
@@ -8990,7 +9120,7 @@ $$;
 -- Name: FUNCTION message_is_a_persons_words(p_meta jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) IS 'Whether an inbound message''s words are a person''s own: false for an email read as automated mail, an automatic reply or a delivery report (meta.email.claim), true for everything else, a message with no claim included. The one statement of it: has_relationship and people_list''s last_wrote_at read it.';
+COMMENT ON FUNCTION public.message_is_a_persons_words(p_meta jsonb) IS 'Whether an inbound message''s words are a person''s own: false for an email the intake read as automated mail, an automatic reply, a delivery report, a booking tool''s notice or Gmail''s forwarding confirmation (meta.email.claim; contracts EMAIL_CLAIMS marks each), true for everything else, a message with no claim included. The one statement of it in SQL: has_relationship, people_list''s last_wrote_at and the campaign counts read it.';
 
 
 --
@@ -13483,6 +13613,73 @@ COMMENT ON FUNCTION public.platform_partner_workspaces() IS 'Who brought each wo
 
 
 --
+-- Name: playbook_totals(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer DEFAULT 10) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  with runs as (
+    -- Moments only: a reach-out step's runs share broadcasts and are never scanned.
+    select b.id, b.playbook_id, b.name, b.state, b.run_for, b.scheduled_for, b.recipient_count,
+           case when jsonb_typeof(b.audience -> 'trigger') = 'string' then b.audience ->> 'trigger' end as trigger,
+           row_number() over (partition by b.playbook_id order by b.created_at desc, b.id desc) as n
+      from public.broadcasts b
+      join public.playbooks p on p.id = b.playbook_id and p.tenant_id = b.tenant_id and p.kind = 'moment'
+     where b.tenant_id = p_tenant_id
+  ),
+  counts as (
+    -- Each run's counts as run_counts says them to Sent: one statement of what a run earned, asked once.
+    select public.run_counts(p_tenant_id, coalesce(array_agg(x.id), '{}'::uuid[])) as c from runs x
+  ),
+  per_run as (
+    -- Taken apart by run, so a run's row carries its own counts alone: one that carried the whole answer had every
+    -- run's counts sorted with every run, and 3,600 runs took half a minute (the test's scale case answers in under one).
+    select x.*,
+           coalesce((c.value ->> 'sent')::bigint, 0)      as sent,
+           coalesce((c.value ->> 'skipped')::bigint, 0)
+             + coalesce((c.value ->> 'failed')::bigint, 0) as held,
+           coalesce((c.value ->> 'delivered')::bigint, 0) as delivered,
+           coalesce((c.value ->> 'replied')::bigint, 0)   as replied
+      from runs x
+     cross join counts k
+      left join lateral jsonb_each(k.c) c on c.key = x.id::text
+  )
+  select coalesce(jsonb_object_agg(t.playbook_id::text, t.totals), '{}'::jsonb)  -- one scalar: no row cap cuts it
+    from (
+      select r.playbook_id, jsonb_build_object(
+               'runs', count(*),
+               'sent', sum(r.sent),
+               'delivered', sum(r.delivered),
+               'replied', sum(r.replied),
+               'held', sum(r.held),
+               'last_run', (array_agg(jsonb_build_object(
+                              'id', r.id, 'state', r.state, 'run_for', r.run_for,
+                              'recipient_count', r.recipient_count) order by r.n))[1],
+               'waiting', (array_agg(jsonb_build_object(
+                             'id', r.id, 'recipient_count', r.recipient_count, 'name', r.name,
+                             'run_for', r.run_for, 'trigger', r.trigger) order by r.n)
+                           filter (where r.state = 'pending_approval'))[1],
+               'history', coalesce(jsonb_agg(jsonb_build_object(
+                             'id', r.id, 'run_for', r.run_for, 'state', r.state,
+                             'scheduled_for', r.scheduled_for, 'recipient_count', r.recipient_count,
+                             'sent', r.sent, 'held', r.held, 'delivered', r.delivered, 'replied', r.replied)
+                           order by r.n) filter (where r.n <= p_history), '[]'::jsonb)) as totals
+        from per_run r
+       group by r.playbook_id
+    ) t
+$$;
+
+
+--
+-- Name: FUNCTION playbook_totals(p_tenant_id uuid, p_history integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) IS 'Each moment playbook''s runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history runs (history, newest first), by playbook id, from run_counts; a playbook with no run is absent, and a reach-out step''s runs are never scanned. One jsonb, which PostgREST''s row cap never cuts: what GET playbooks answers of every card (00374). Security invoker: row security decides what is read.';
+
+
+--
 -- Name: playbooks_due(text, timestamp with time zone, integer, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14301,6 +14498,87 @@ begin
                                  where s.root_id = p_root_id and s.state in ('claimed', 'queued', 'sent', 'failed')))
   );
 end $$;
+
+
+--
+-- Name: reach_out_chain_totals(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_days  integer := least(greatest(coalesce(p_days, 30), 1), 90);
+  v_tz    text;
+  v_today date;
+  v_end   date;
+  v_since timestamptz;
+  v_stop  timestamptz;
+begin
+  if not public.may_read_workspace(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
+  v_tz := coalesce(v_tz, 'America/New_York');
+  v_today := (now() at time zone v_tz)::date;
+  -- The window's last day and where it stops, as reach_out_report reads them (00360): today, or the earlier day a member
+  -- picked, never a day that has not come; and the midnight after it, so a window that ended counts nothing after it.
+  v_end   := least(coalesce(p_end, v_today), v_today);
+  v_since := ((v_end - (v_days - 1))::timestamp) at time zone v_tz;
+  v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
+  return (
+    -- An email that left (email_left), dated by when it left (email_sent_at), as reach_out_report counts it.
+    with sent as (
+      select s.root_id, s.lead_id, s.contact_id,
+             coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at
+        from public.reach_out_sends s
+        left join public.messages m on m.id = s.message_id
+       where s.tenant_id = p_tenant_id
+         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
+    ),
+    period as (
+      select x.* from sent x where x.sent_at >= v_since and x.sent_at < v_stop
+    ),
+    -- Each business once a chain, at its last email of the period.
+    last_sent as (
+      select distinct on (x.root_id, x.lead_id) x.root_id, x.lead_id, x.contact_id
+        from period x
+        join public.leads l on l.id = x.lead_id and l.tenant_id = p_tenant_id
+       order by x.root_id, x.lead_id, x.sent_at desc
+    ),
+    wrote as (
+      select w.contact_id from public.outreach_wrote_back(p_tenant_id, array(
+        select distinct ls.contact_id from last_sent ls where ls.contact_id is not null)) w(contact_id)
+    ),
+    per_chain as (
+      select x.root_id, count(*) as written, max(x.sent_at) as last_at
+        from period x
+       group by x.root_id
+    ),
+    wrote_back as (
+      select ls.root_id, count(*) as wrote_back
+        from last_sent ls
+       where ls.contact_id in (select w.contact_id from wrote w)
+       group by ls.root_id
+    )
+    select coalesce(jsonb_object_agg(r.id::text, jsonb_build_object(
+             'written', coalesce(c.written, 0),
+             'wrote_back', coalesce(b.wrote_back, 0),
+             'last_at', c.last_at)), '{}'::jsonb)
+      from public.playbooks r
+      left join per_chain c on c.root_id = r.id
+      left join wrote_back b on b.root_id = r.id
+     where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
+  );
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, how many businesses it wrote to wrote back (outreach_wrote_back, each once a chain at its last email) and when it last wrote in it; a chain that wrote nothing is { written: 0, wrote_back: 0, last_at: null } (00375). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -15976,7 +16254,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over the last p_days (7, 30 or 90) days in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -17890,6 +18168,91 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with why a reply written for one was held. One statement, under the caller''s RLS. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+
+
+--
+-- Name: run_counts(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  with people as (
+    select r.broadcast_id, r.state, r.sent_at,
+           -- The channel it went by (00298); a row naming none went by WhatsApp, as every run before channels did.
+           case when r.channel in ('sms', 'email') then r.channel else 'whatsapp' end as channel,
+           m.status, m.conversation_id
+      from public.broadcast_recipients r
+      left join public.messages m on m.id = r.message_id
+     where r.tenant_id = p_tenant_id
+       and r.broadcast_id = any (p_run_ids)
+  ),
+  counted as (
+    select p.broadcast_id,
+           count(*) filter (where p.state = 'queued')                           as queued,
+           count(*) filter (where p.state = 'sent')                             as sent,
+           count(*) filter (where p.state = 'skipped')                          as skipped,
+           count(*) filter (where p.state = 'failed')                           as failed,
+           count(*) filter (where p.status in ('delivered', 'read'))            as delivered,
+           -- A read is WhatsApp's own receipt (0030): a text a carrier marked read is no read here.
+           count(*) filter (where p.status = 'read' and p.channel = 'whatsapp') as was_read,
+           count(*) filter (where p.state = 'sent' and p.channel = 'whatsapp')  as by_whatsapp,
+           count(*) filter (where p.state = 'sent' and p.channel = 'sms')       as by_sms,
+           count(*) filter (where p.state = 'sent' and p.channel = 'email')     as by_email
+      from people p
+     group by p.broadcast_id
+  ),
+  -- Each thread a run reached, once, from the first time it reached it there.
+  threads as (
+    select p.broadcast_id, p.conversation_id, min(p.sent_at) as sent_at
+      from people p
+     where p.conversation_id is not null and p.sent_at is not null
+     group by p.broadcast_id, p.conversation_id
+  ),
+  replied as (
+    -- One probe of messages_conversation_created (conversation_id, created_at) for each thread, whatever the planner
+    -- guesses. This statement is planned with its arguments as placeholders, so any(p_run_ids) is guessed at about 250
+    -- people where a busy workspace's history is 90,000, and the planner joined every thread to every inbound message of
+    -- the workspace: 3,600 runs of 25 took 3 s at 720 inbound messages and 8 s, a member's limit, at 2,520. OFFSET 0
+    -- keeps the EXISTS a probe of its own, and the probe names no workspace, since on tables not yet analyzed the planner
+    -- probed the workspace's inbound index instead, every inbound message once per thread again (15 s at 720). The thread
+    -- fixes the workspace: a run's person names a message of its own workspace, and a message a thread of its own
+    -- (broadcast_recipients_message_id_same_workspace, messages_conversation_id_same_workspace). Now about 0.4 s from
+    -- 720 to 30,720 inbound messages, analyzed or not, with the same answer
+    -- (playbooks/totals/playbook-totals.db.test.mjs, "a workspace that talks").
+    select t.broadcast_id, count(*) as replied
+      from threads t
+     where exists (
+             select 1 from public.messages i
+              where i.conversation_id = t.conversation_id
+                and i.direction = 'inbound'
+                and i.sender = 'customer'
+                and public.message_is_a_persons_words(i.meta)
+                and i.created_at > t.sent_at
+                and i.created_at <= t.sent_at + public.campaign_reply_window()
+             offset 0)
+     group by t.broadcast_id
+  )
+  select coalesce(jsonb_object_agg(c.broadcast_id::text, jsonb_build_object(
+           'queued', c.queued,
+           'sent', c.sent,
+           'skipped', c.skipped,
+           'failed', c.failed,
+           'delivered', c.delivered,
+           'read', c.was_read,
+           'replied', coalesce(y.replied, 0),
+           'sent_by', jsonb_build_object('whatsapp', c.by_whatsapp, 'sms', c.by_sms, 'email', c.by_email))), '{}'::jsonb)
+    from counted c
+    left join replied y on y.broadcast_id = c.broadcast_id
+$$;
+
+
+--
+-- Name: FUNCTION run_counts(p_tenant_id uuid, p_run_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) IS 'Each named run''s people by state (queued, sent, skipped, failed), its receipts (delivered; read, WhatsApp''s own), the threads it reached that the customer answered in their own words within campaign_reply_window after the run first reached them there (replied), and what went by each channel (sent_by), by run id; a run nobody is on is absent. What Sent, a run''s sheet and a playbook''s card all say (00374). Security invoker: row security decides what is read.';
 
 
 --
@@ -20119,6 +20482,44 @@ end $$;
 
 
 --
+-- Name: template_sends(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.template_sends(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  with went as (
+    -- A person a run marked sent: what left, apart from what was delivered (Reports counts "Messages sent" so).
+    select b.template_name as name, r.sent_at as at
+      from public.broadcast_recipients r
+      join public.broadcasts b on b.id = r.broadcast_id and b.tenant_id = r.tenant_id
+     where r.tenant_id = p_tenant_id
+       and r.state = 'sent'
+       and coalesce(b.template_name, '') <> ''
+    union all
+    -- A template the Inbox sent into a closed window, on its own message row, which left when WhatsApp took it (its
+    -- wamid). A run's own messages name no template, so nothing above is counted again here.
+    select m.template_name, m.created_at
+      from public.messages m
+     where m.tenant_id = p_tenant_id
+       and m.direction = 'outbound'
+       and coalesce(m.template_name, '') <> ''
+       and coalesce(m.external_id, '') <> ''
+  )
+  select coalesce(jsonb_object_agg(w.name, jsonb_build_object('count', w.n, 'last_at', w.last_at)), '{}'::jsonb)
+    from (select x.name, count(*) as n, max(x.at) as last_at from went x group by x.name) w
+$$;
+
+
+--
+-- Name: FUNCTION template_sends(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.template_sends(p_tenant_id uuid) IS 'How many times each message went out (a person a run marked sent; a template the Inbox sent that WhatsApp took, its wamid) and when the latest did, by name; a message never sent is absent. What Settings'' templates say (00374). Security invoker: row security decides what is read.';
+
+
+--
 -- Name: tenant_config_read(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -21673,7 +22074,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text])))
 );
 
 
@@ -27456,6 +27857,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.person_notes REFEREN
 
 
 --
+-- Name: playbooks workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.playbooks REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: reach_out_replies workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -27631,6 +28039,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.person_notes REFEREN
 
 
 --
+-- Name: playbooks workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.playbooks REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: reach_out_replies workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -27789,6 +28204,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.messages REFERENCING
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.person_notes REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: playbooks workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.playbooks REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -30887,12 +31309,30 @@ GRANT ALL ON FUNCTION public.campaign_month_sent(p_tenant_id uuid, p_channel tex
 
 
 --
+-- Name: FUNCTION campaign_reply_window(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.campaign_reply_window() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.campaign_reply_window() TO authenticated;
+GRANT ALL ON FUNCTION public.campaign_reply_window() TO service_role;
+
+
+--
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
+-- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
 
 
 --
@@ -32176,6 +32616,15 @@ GRANT ALL ON FUNCTION public.marketing_consent_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION may_read_workspace(p_tenant uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.may_read_workspace(p_tenant uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.may_read_workspace(p_tenant uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.may_read_workspace(p_tenant uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32932,6 +33381,15 @@ GRANT ALL ON FUNCTION public.platform_partner_workspaces() TO service_role;
 
 
 --
+-- Name: FUNCTION playbook_totals(p_tenant_id uuid, p_history integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) TO authenticated;
+GRANT ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) TO service_role;
+
+
+--
 -- Name: FUNCTION playbooks_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -33109,6 +33567,15 @@ GRANT ALL ON FUNCTION public.reach_out_booked(p_tenant_id uuid, p_seen jsonb) TO
 REVOKE ALL ON FUNCTION public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
 
 
 --
@@ -33557,6 +34024,15 @@ GRANT ALL ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_
 
 
 --
+-- Name: FUNCTION run_counts(p_tenant_id uuid, p_run_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) TO service_role;
+
+
+--
 -- Name: FUNCTION runtime_stamp(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -33964,6 +34440,15 @@ GRANT ALL ON FUNCTION public.team_roster(p_tenant_id uuid) TO service_role;
 
 REVOKE ALL ON FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION template_sends(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.template_sends(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.template_sends(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.template_sends(p_tenant_id uuid) TO service_role;
 
 
 --

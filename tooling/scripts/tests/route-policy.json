@@ -1198,7 +1198,7 @@
       "kind": "read",
       "scope": "workspace",
       "role": null,
-      "rate": null,
+      "rate": "aggregate",
       "spend": false
     },
     "POST playbooks": {

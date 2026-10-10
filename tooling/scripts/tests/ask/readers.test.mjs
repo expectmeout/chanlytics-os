@@ -39,6 +39,7 @@ const {
   sellsBy,
   policies,
   config,
+  businessShape,
   channelsReady: channelsReadyReader,
 } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { metrics } = await import(at("apps/dashboard/src/server/readers/metrics.ts"));
@@ -1932,6 +1933,17 @@ test("the campaigns' report, for Ask and for the page: GET reports/campaigns ans
     assert.deepEqual(r.rows, []);
     assert.deepEqual(ctx.supabase.seen, [{ rpc: "campaign_series", args: { p_tenant_id: A, p_days: days } }]);
   }
+  // Kept a minute across turns that keep (every Ask turn on Campaigns reads it for the page's rows; the moment spec, A6);
+  // a route, which keeps nothing, reads it on each request.
+  const calls = (rc) => rc.ctx.supabase.seen.filter((q) => q.rpc === "campaign_series").length;
+  const keeps = () => kernel.readerContext(worldCtx(w), { tenantId: A, role: "viewer" }, undefined, { keep: true });
+  const [first, next, route] = [keeps(), keeps(), turnIn(worldCtx(w))];
+  for (const rc of [first, next, route]) await kernel.load(rc, campaignReport, { days: 30, end: null });
+  assert.deepEqual(
+    [first, next, route].map(calls),
+    [1, 0, 1],
+    "the next turn's came from the kept read; the route read it",
+  );
   await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30, end: null }), noReport);
   await assert.rejects(campaignsRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)), noReport);
 });
@@ -3092,6 +3104,37 @@ test("the cross-turn cache is opt-in: a context that does not keep reads a ttl r
   });
 });
 
+test("the business's shape (readers/facts.ts businessShape): how its customers buy, the word it derives, and whether bookings arrive by a tool's emails", async () => {
+  const t = calTables(null);
+  t.tenants[0].sells_by = "proposal";
+  t.tenant_config[0].config.bookings = { tool: "booksy" };
+  const r = await kernel.load(turnIn(ctxFor(t)), businessShape, undefined);
+  assert.deepEqual(r.data, { sellsBy: "proposal", dealsOn: true, word: "meeting", bookingsByEmail: true });
+  assert.deepEqual(r.rows, [], "no row of its own");
+  const bare = await kernel.load(turnIn(ctxFor(calTables(null))), businessShape, undefined);
+  assert.deepEqual(bare.data, { sellsBy: null, dealsOn: false, word: "appointment", bookingsByEmail: false });
+  const unreadable = calTables(null);
+  unreadable.tenant_config = [];
+  const none = await kernel.load(turnIn(ctxFor(unreadable)), businessShape, undefined);
+  assert.equal(none.data.bookingsByEmail, false, "no settings row: no booking tool, and the shape still answers");
+  const down = await kernel.load(
+    turnIn({ ...ctxFor(t), supabase: fakeDb(t, { "tenant_config.select": { message: "config down" } }) }),
+    businessShape,
+    undefined,
+  );
+  assert.deepEqual(
+    down.data,
+    { sellsBy: "proposal", dealsOn: true, word: "meeting", bookingsByEmail: false },
+    "settings that cannot be read cost the booking tool's word, never the shape",
+  );
+  // A turn that holds how its customers buy and the settings reads neither again.
+  const turn = turnIn(ctxFor(t));
+  await Promise.all([sellsBy, config].map((x) => kernel.load(turn, x, undefined)));
+  const held = turn.ctx.supabase.seen.length;
+  await kernel.load(turn, businessShape, undefined);
+  assert.equal(turn.ctx.supabase.seen.length, held, "the turn's own reads");
+});
+
 /* ------------------------------------------------- the people list, the lists, the broadcasts (PR 1.6) */
 
 const P3 = "33333333-3333-4333-8333-333333333333";
@@ -3843,6 +3886,13 @@ const PLAYBOOKS_KEYS = [
   // and what its campaigns have sent by email and by text this month (server/campaigns/month-sent.ts).
   "ready",
   "month_sent",
+  // 9 Oct 2026 (spec 2026-10-09 §4.8): what the workspace calls an appointment, and whether its bookings arrive by a tool's
+  // emails (readers/facts.ts businessShape), which the home's moments are said and counted by.
+  "appointment_word",
+  "bookings_by_email",
+  // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): each autonomy class's mode as stored (readers/facts.ts policies), so a
+  // Resume asked on Campaigns says in full that a campaign under `auto` sends on its own.
+  "modes",
 ];
 /** A playbook row as the page's read selects it (server/campaigns/playbooks.ts COLUMNS), a moment. */
 const pbRow = (id, over = {}) => ({
@@ -4024,6 +4074,12 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
     ],
     ["ok", true, [P2], [SEG1], 1],
   );
+  // 9 Oct 2026 (spec 2026-10-09 §4.8, §4.3): the shape's word and booking tool, and the matrix's modes by class.
+  assert.deepEqual(
+    [rich.appointment_word, rich.bookings_by_email, pages["deals off"].appointment_word, pages["deals off"].modes],
+    ["meeting", false, "appointment", {}],
+    "a meeting where deals are on, else an appointment; no autonomy row is no mode",
+  );
 });
 
 /**
@@ -4106,6 +4162,20 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       ["lines.select", "sms_state, reg_mock"],
       ["tenants.select", "status"],
     );
+    // 9 Oct 2026 (00374): what the runs earned is the database's count, one call (playbook_totals), where every run of
+    // every playbook and every person on one were read to sum it here.
+    want.splice(
+      want.findIndex(([k, cols]) => k === "broadcasts.select" && cols.startsWith("id, name, template_id")),
+      1,
+      ["rpc:playbook_totals", null],
+    );
+    want.splice(
+      want.findIndex(([k, cols]) => k === "broadcast_recipients.select" && cols.includes("messages(")),
+      1,
+    );
+    // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): the autonomy matrix's rows, so the page knows a class under `auto`
+    // (control-plane listPolicies, the readers/facts.ts policies reader Ask's campaigns.playbooks already reads).
+    want.push(["policies.select", "id, class, mode, subject_type, subject_id, limits, updated_at"]);
     // 9 Oct 2026: the pools' reads leave with the page's first ones (server/campaigns/playbook-pools.ts poolReads), so the
     // reads no longer reach the database one behind another: the same reads, each as often, the door before them all.
     const w = playbooksWorld();
@@ -5016,19 +5086,28 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
   "messages.select",
   "playbooks.select",
 ];
+/**
+ * 9 Oct 2026 (00374): how many of each went out is the database's count, one call (template_sends), where every sent
+ * person and every templated message was paged here; it is asked as the reads start, ahead of the runs it no longer waits on.
+ */
+const TEMPLATES_ALL_ASKED = [
+  "templates.select",
+  "rpc:template_sends",
+  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(1).filter((k) => k !== "broadcast_recipients.select" && k !== "messages.select"),
+];
 
 test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
   for (const [q, all, names, keys, reads] of [
     // `held`: what the composers' read left out, counted by why, so an empty picker can say it (contracts noTemplateWords).
-    ["", false, ["visit_reminder"], ["templates", "held", "messages"], ["templates.select"]],
+    ["", false, ["visit_reminder"], ["templates", "held", "messages", "booking"], ["templates.select"]],
     [
       "&all=1",
       true,
       ["hello_world", "offer", "visit_reminder"],
-      ["templates", "held", "messages", "usedBy", "sends"],
-      TEMPLATES_ALL_ASKED_AT_MAIN,
+      ["templates", "held", "messages", "booking", "usedBy", "sends"],
+      TEMPLATES_ALL_ASKED,
     ],
-    ["&all=0", false, ["visit_reminder"], ["templates", "held", "messages"], ["templates.select"]],
+    ["&all=0", false, ["visit_reminder"], ["templates", "held", "messages", "booking"], ["templates.select"]],
   ]) {
     const routed = dayCtx(templatesWorld());
     const page = await templatesRoute.GET.run(req(`?workspace=${B}${q}`), routed);
@@ -5089,6 +5168,22 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
   );
   assert.deepEqual(u.data.sends.winback_offer, { count: 2, lastAt: "2026-09-17T14:00:00Z" });
   assert.equal(u.data.usedBy.elsewhere, undefined, "another workspace's are not this one's");
+});
+
+test("GET templates names the call's text it finds among every WhatsApp row, a hidden one too, as the edge texts it: Campaigns' home keeps today's lookup without Settings' read", async () => {
+  const w = usageWorld();
+  w.templates = w.templates.map((t) => (t.name === "booking_link" ? { ...t, hidden_at: "2026-09-01T00:00:00Z" } : t));
+  const r = await kernel.load(turnIn(dayCtx(w), B), templatesReader, { all: false });
+  assert.equal(
+    r.data.templates.some((t) => t.name === "booking_link"),
+    false,
+    "the composers are not offered it",
+  );
+  assert.equal(r.data.booking?.name, "booking_link", "and the phone agent still texts it after a call");
+  // A workspace with no WhatsApp row that carries the booking link answers none.
+  const none = usageWorld();
+  none.templates = none.templates.filter((t) => t.channel !== "whatsapp");
+  assert.equal((await kernel.load(turnIn(dayCtx(none), B), templatesReader, { all: false })).data.booking, null);
 });
 
 /**

@@ -9,8 +9,9 @@ import { plural } from "../shared/words";
 import { domainHoldWords } from "../email/sending-domains";
 import { stepLabelOf } from "../reach-out/reach-out-sheet";
 import { pct } from "../shared/numbers";
+import { isCount, recordOrNull } from "../shared/unknown";
 import type { HandKind } from "../reach-out/reach-out-hand";
-import { dayPointOf, endedOn, periodWords } from "./reports";
+import { dayPointOf, endedOn, withinWords } from "./reports";
 
 export interface ReachOutReportCounts {
   written: number;
@@ -69,6 +70,43 @@ export interface ReachOutReportDto {
   other_angles: { written: number; wrote_back: number };
   no_angle: number;
   domains: ReachOutReportDomainDto[];
+}
+
+/**
+ * Each reach-out's numbers over a period, by its first step's id (`reach_out_chain_totals`, one pass, every chain of the
+ * workspace): what it wrote, and how many wrote back, in Reports' words. `complete` says every chain was counted, so one
+ * absent from `by_root` wrote nothing; it is false where the numbers come from the report's own chains (a database
+ * before the function, chainTotalsFromReport), which holds at most twenty, so one absent may be past the twenty and says
+ * "—". GET reports/reach-outs answers it beside the report (spec 2026-10-09 §4.5).
+ */
+export interface ReachOutChainTotalsDto {
+  complete: boolean;
+  by_root: Record<string, { written: number; wrote_back: number }>;
+}
+
+/** The function's answer, checked (no cast): each root's written and wrote back; null for anything else. */
+export function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null {
+  const roots = recordOrNull(answer);
+  if (!roots) return null;
+  const by_root: ReachOutChainTotalsDto["by_root"] = {};
+  for (const [root, value] of Object.entries(roots)) {
+    const v = recordOrNull(value);
+    if (!v || !isCount(v.written) || !isCount(v.wrote_back)) return null;
+    by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+  }
+  return { complete: true, by_root };
+}
+
+/** The report's own chains, each its steps summed: what a database before the function can say, and not every chain. */
+export function chainTotalsFromReport(report: Pick<ReachOutReportDto, "chains">): ReachOutChainTotalsDto {
+  const by_root: ReachOutChainTotalsDto["by_root"] = {};
+  for (const c of report.chains) {
+    by_root[c.root_id] = {
+      written: c.steps.reduce((sum, s) => sum + s.written, 0),
+      wrote_back: c.steps.reduce((sum, s) => sum + s.wrote_back, 0),
+    };
+  }
+  return { complete: false, by_root };
 }
 
 export interface ReachOutFunnelRow {
@@ -279,16 +317,22 @@ function stepLineOf(root: string, s: ReachOutReportStepDto): ReachOutSourceLine 
 function linesOf(dto: ReachOutReportDto): ReachOutReportVM["lines"] {
   const t = dto.totals;
   const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
+  // The day the report ended, where that was before today (endedOn); null where it ends today.
+  const until = endedOn(dto);
+  // A period of one day is its day, as withinWords says it: today (This month so far, on the 1st), or "on Sep 20" for a
+  // day a member picked before today. Any other is "these days".
+  const oneDay = dto.days === 1 ? withinWords(1, until) : null;
+  const these = oneDay ?? "in these days";
   return {
     funnel: t.written
-      ? `Of ${plural(t.written, "email")} written in these ${plural(dto.days, "day")}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
-      : "Nothing was written in these days.",
+      ? `Of ${plural(t.written, "email")} written ${oneDay ?? `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
+      : `Nothing was written ${these}.`,
     angles: angled
       ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}`
-      : "No email in these days had an opening, so there is no angle to compare.",
+      : `No email ${these} had an opening, so there is no angle to compare.`,
     domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
     written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote ${periodWords(dto.days, endedOn(dto)).within}.`,
+    empty: `No reach-out wrote ${withinWords(dto.days, until)}.`,
   };
 }
 

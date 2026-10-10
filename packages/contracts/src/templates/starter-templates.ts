@@ -470,7 +470,7 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
     },
     texts: {
       en_US: {
-        body: "Hi {{1}}, thank you for coming to {{2}} yesterday — we hope you love the result. When you're ready for your next visit, pick a time here: {{3}}.",
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday — we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
         footer: STOP_EN,
         slots: [FIRST, BUSINESS, LINK],
       },

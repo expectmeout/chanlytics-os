@@ -17,6 +17,9 @@
  * before it counts. All of it runs here: the route's reads over a database
  * double that answers at most a thousand rows, as PostgREST does, and the
  * surface over a fake wire.
+ *
+ * Since 00374 the database counts a run (run_counts) and the route reads its answer; the fold below is what a database
+ * before it is read by, for one release, so its paging is proved against a double that has no run_counts.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -69,6 +72,17 @@ test("REGRESSION (D12): past fifty broadcasts the list says more exist -- the pa
 
 /** PostgREST's `api.max_rows` (supabase/config.toml), which the double keeps by default: a select answers at most a thousand rows, and says nothing. */
 const capped = (tables) => fakeDb(tables);
+/** A database before 00374: no run_counts (PostgREST's PGRST202), so the route folds the runs itself, as these tests prove. */
+const before00362 = (tables) =>
+  fakeDb(
+    tables,
+    {},
+    {
+      run_counts: () => {
+        throw Object.assign(new Error("Could not find the function public.run_counts"), { code: "PGRST202" });
+      },
+    },
+  );
 const pad = (i) => String(i).padStart(4, "0");
 const SENT = Date.UTC(2026, 8, 1, 14);
 const at = (ms) => new Date(SENT + ms).toISOString();
@@ -167,7 +181,7 @@ test("REGRESSION: a run counts every person on it past PostgREST's thousand rows
       sent_by: { whatsapp: 560, sms: 0, email: 0 },
     },
   };
-  const db = capped(tables());
+  const db = before00362(tables());
   const runs = await listRuns({ supabase: db }, TID);
   assert.deepEqual(
     Object.fromEntries(runs.map((b) => [b.id, b.counts])),
@@ -185,6 +199,11 @@ test("REGRESSION: a run counts every person on it past PostgREST's thousand rows
     ["broadcast_id, contact_id"],
     "every page under the table's key",
   );
+  assert.deepEqual(
+    Object.fromEntries((await listRuns({ supabase: capped(tables()) }, TID)).map((b) => [b.id, b.counts])),
+    whole,
+    "and the database's own count says the same",
+  );
 });
 
 test("a run's replies are read together, once for every run: the reads were one for each run with a thread", async () => {
@@ -194,7 +213,7 @@ test("a run's replies are read together, once for every run: the reads were one 
     peopleOf("r2", { sent: 40, replied: 25 }),
     peopleOf("r3", { sent: 40, replied: 0 }),
   ];
-  const db = capped({
+  const db = before00362({
     broadcasts: ["r1", "r2", "r3"].map((id) => broadcast(id, { playbook_id: "pb1" })),
     broadcast_recipients: runs.flatMap((r) => r.recipients),
     messages: runs.flatMap((r) => r.inbound),
@@ -208,7 +227,7 @@ test("a run's replies are read together, once for every run: the reads were one 
 test("REGRESSION: a run's replies count every thread past a thousand messages -- the read answered the first thousand, and the threads after them read as unanswered", async () => {
   // 150 people, each of whom wrote back eight times: 1,200 messages on 150 threads, which are one chunk of threads.
   const { recipients, inbound } = peopleOf("r1", { sent: 150, replied: 150, wrote: 8 });
-  const db = capped({
+  const db = before00362({
     broadcasts: [broadcast("r1", { playbook_id: "pb1" })],
     broadcast_recipients: recipients,
     messages: inbound,
@@ -680,4 +699,23 @@ test("the surface offers the messages of the templates read by the channels each
       ["quick_note", "t-quick_note-whatsapp", ["whatsapp"]],
     ],
   );
+});
+
+test("with run_counts on the database, a list of runs is its answer, asked once for every run, never a person read", async () => {
+  const runs = [peopleOf("r1", { sent: 40, replied: 10 }), peopleOf("r2", { sent: 40, replied: 25 })];
+  const tables = () => ({
+    broadcasts: ["r1", "r2"].map((id) => broadcast(id, { playbook_id: "pb1" })),
+    broadcast_recipients: runs.flatMap((r) => r.recipients),
+    messages: runs.flatMap((r) => r.inbound),
+  });
+  const db = capped(tables());
+  const counted = await listRuns({ supabase: db }, TID);
+  assert.deepEqual(
+    db.seen.filter((q) => q.rpc).map((q) => q.rpc),
+    ["run_counts"],
+  );
+  assert.equal(inboundReads(db).length, 0, "no reply read here");
+  assert.deepEqual(ordersOf(db, "broadcast_recipients"), [], "no person read here");
+  const folded = await listRuns({ supabase: before00362(tables()) }, TID);
+  assert.equal(JSON.stringify(counted), JSON.stringify(folded), "the same bytes the fold says");
 });

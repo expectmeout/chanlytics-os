@@ -4,7 +4,12 @@
  * from the chrome's words (chrome.ts): the phone app reads those through its own entry (mobile/phone-app.ts), and
  * what a page opens on reaches into the pages' own rules (Reports' periods), which the phone app has no part in.
  */
-import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/report-periods";
+import {
+  CAMPAIGNS_RESULTS_PERIOD,
+  REPORT_PERIOD_DEFAULT,
+  REPORT_PERIOD_IDS,
+  REPORT_PERIOD_STORAGE,
+} from "../reports/report-periods";
 import { ROUTE_WORDS } from "./address";
 
 /** A person's id in the address, as the route reads it (surface-registry personRouteId): a uuid, nothing else. */
@@ -49,20 +54,11 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // The report, the offers' and the reach-outs' over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head.
   reports: ["reports?period=30d", "reports/campaigns?period=30d", "reports/reach-outs?period=30d"],
   live: ["calls", "channels"],
-  // The Campaigns home reads what the offers earned over its 30 days (broadcasts/surface.ts HOME_REPORT_PERIOD).
-  broadcasts: [
-    "broadcasts",
-    "contacts",
-    "segments",
-    "templates",
-    "channels",
-    "settings",
-    "reports/campaigns?period=30d",
-  ],
+  // Sent: the runs, who an audience reaches and the composers' reads.
+  broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings"],
   outbound: ["playbooks", "templates", "channels", "settings"],
-  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them who can hear you,
-  // what is coming and what came back, which it draws from the broadcasts (ROUTE_DRAWS): both surfaces' first reads. It
-  // had no entry under its own word, so its reads left after the mount while the old Playbooks address's left from the head.
+  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
+  // 30 days (campaign_results, the period named once) and the reach-outs' chains (ROUTE_DRAWS): each surface's first reads.
   campaigns: [
     "playbooks",
     "templates",
@@ -71,7 +67,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "broadcasts",
     "contacts",
     "segments",
-    "reports/campaigns?period=30d",
+    `reports/campaigns?period=${CAMPAIGNS_RESULTS_PERIOD}`,
+    `reports/reach-outs?period=${CAMPAIGNS_RESULTS_PERIOD}`,
+    "reach-outs",
   ],
   // Templates and every pane of Settings are drawn from the settings surface.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],

@@ -1517,6 +1517,46 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
   }
 });
 
+test("on a touch screen wider than a phone (a tablet at 800px) no field focuses by itself: the Line opens with focus on the dialog, so no keyboard rises until a tap on the field asks for it (Ruben's rule; legacy-verbs focusAsDrawn)", async () => {
+  const mm = globalThis.window.matchMedia;
+  // 800px wide, a finger for a pointer: no phone's width, a touch screen's pointer.
+  globalThis.window.matchMedia = (q) => ({
+    matches: q === "(pointer: coarse)",
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  try {
+    ask([]);
+    let tree = render(Palette, OPEN);
+    let focused = 0;
+    let dialogFocused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    byTestId(tree, "ask-real").props.ref.current = {
+      focus: () => {
+        dialogFocused++;
+      },
+    };
+    tree = await later(Palette, OPEN);
+    await until(() => dialogFocused > 0, "the dialog takes focus on a touch screen");
+    // A focus of the field would be on the same 30ms timer, set on the first draw: one more 30ms cannot end before it.
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(focused, 0, "the field is not focused as Ask opens");
+    assert.equal(byTestId(tree, "ask-hero"), null, "no phone's takeover at this width");
+    // Seeded as the drawer's More and Campaigns' doors open it: a scope, or a sentence asked.
+    sent("ask:seed", { about: { kind: "playbook", id: "pb1", label: "Win-back" } });
+    tree = await later(Palette, OPEN);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(focused, 0, "nor as a door opens it on a scope");
+  } finally {
+    await closes();
+    globalThis.window.matchMedia = mm;
+  }
+});
+
 /* ------------------------------ a phone's thread (2026-09-27-ask-chat-on-a-phone) ------------------------------ */
 
 /** The newest turn's part of a phone's thread: its question, the three and its answer. */
@@ -3362,6 +3402,87 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
   }
 });
 
+test("on Campaigns the field asks what should go out, and when (the moment spec, A3)", async () => {
+  const hash = globalThis.window.location.hash;
+  globalThis.window.location.hash = "#/campaigns";
+  try {
+    ask([]);
+    render(Palette, OPEN);
+    const tree = await later(Palette, OPEN);
+    assert.equal(inputOf(tree).props.placeholder, "Describe what should go out, and when");
+  } finally {
+    await closes();
+    globalThis.window.location.hash = hash;
+  }
+});
+
+test("a campaign card opens in the composer on its moment before Approve, and says so (the moment spec, A7)", () => {
+  // The card's Open is contracts' cardOpenRoute, which reads the playbook spec's own `open`, through the bridge.
+  ask([]);
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const t = globalThis.window.askText("en");
+  const card = {
+    id: "p1",
+    kind: "playbook",
+    needs: "operator",
+    title: "Campaign: Win-back",
+    summary: "Win-back — nothing heard in 30 days",
+    payload: { trigger: "quiet_30" },
+    undo: "Delete it — nothing will run",
+  };
+  const went = [];
+  const tree = render(AskCard, { p: card, messageId: "x", t, onNav: (to) => went.push(to) });
+  const open = find(tree, (n) => n.type === "button" && textOf(n) === "Open in the composer");
+  assert.ok(open, "the card's Open, in the composer's words");
+  open.props.onClick();
+  assert.deepEqual(went, ["campaigns/new:moment:quiet_30"]);
+  assert.equal(globalThis.window.askText("es").openComposer, "Abrir en el redactor");
+  assert.equal(globalThis.window.askText("es").describeCampaigns, "Describe qué debe salir, y cuándo");
+});
+
+test("a campaign card says campaign, never playbook (the moment spec, D19): its kind's word in English and Spanish, and the question before its undo deletes it", () => {
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const A = globalThis.window.__ask;
+  const card = {
+    id: "p1",
+    kind: "playbook",
+    needs: "operator",
+    title: "Campaign: Win-back",
+    summary: "Win-back — nothing heard in 30 days",
+    payload: { trigger: "quiet_30" },
+    undo: "Delete it — nothing will run",
+  };
+  for (const [lang, word] of [
+    ["en", "campaign"],
+    ["es", "campaña"],
+  ]) {
+    const tree = render(AskCard, { p: card, messageId: "x", t: globalThis.window.askText(lang), onNav() {} });
+    const head = byClass(tree, "ask-card-head")[0];
+    assert.equal(textOf(byClass(head, "ask-card-kind")[0]), word, `its word in ${lang}`);
+  }
+  globalThis.window.__ask = { ...A, undoOpen: () => true };
+  try {
+    const made = {
+      ...card,
+      outcome: {
+        state: "done",
+        receipt: "Campaign “Win-back” is running",
+        atMs: Date.now(),
+        undo: { playbook_id: "pb1", decision_id: "d1" },
+      },
+    };
+    const props = { p: made, messageId: "x", t: globalThis.window.askText("en"), onNav() {} };
+    let tree = render(AskCard, props);
+    press(byClass(tree, "ask-card-undo")[0]);
+    tree = settle(AskCard, props);
+    const asked = textOf(tree);
+    assert.ok(asked.includes("The campaign and its schedule go"), asked);
+    assert.ok(!/playbook/i.test(asked), `no playbook in what a person reads: ${asked}`);
+  } finally {
+    globalThis.window.__ask = A;
+  }
+});
+
 test("on Leads a card that answers a search commits through Ask's door with no undo, and the Line goes to the search's question", async () => {
   const hash = globalThis.window.location.hash;
   const chanly = globalThis.window.CHANLY;
@@ -3758,6 +3879,45 @@ test("over the first run the Line is on the start surface: it asks about setting
     await closes();
   } finally {
     delete globalThis.window.__ask.context;
+    globalThis.window.location.hash = hash;
+  }
+});
+
+test("over Campaigns the Line's chips are the campaigns the playbooks surface read (palette.ts campaignsRead, A3): a run of one waiting asks why, by its name; a running win-back offers none; a paused one runs nothing; none read, no chip of Campaigns' own on a guess", async () => {
+  const hash = globalThis.window.location.hash;
+  const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+  /** A campaign as GET playbooks lists it: its name, moment, state, and its totals' run waiting (null where none). */
+  const row = (over = {}) => ({
+    id: "pb1",
+    name: "Win-back",
+    trigger: "quiet_30",
+    state: "running",
+    totals: { waiting: null },
+    ...over,
+  });
+  const chips = async (rows) => {
+    setSurfaceValue("playbooks", rows === undefined ? undefined : { rows });
+    render(Palette, OPEN);
+    const tree = await later(Palette, OPEN);
+    const said = all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").map(textOf);
+    await closes();
+    return said;
+  };
+  ask([]);
+  try {
+    globalThis.window.location.hash = "#/campaigns";
+    const waiting = await chips([row({ totals: { waiting: { id: "run-1" } } })]);
+    assert.deepEqual(waiting.slice(0, 2), ["Why is Win-back waiting?", "What's working?"], "totals.waiting, by name");
+    assert.ok(!waiting.includes("Win back customers who went quiet"), "a running win-back: none offered");
+    const paused = await chips([row({ state: "paused" })]);
+    assert.ok(!paused.some((q) => q.startsWith("Why is")), "nothing waits");
+    assert.ok(paused.includes("Win back customers who went quiet"), "a paused win-back runs nothing (state)");
+    const firstDay = await chips([]);
+    assert.equal(firstDay[0], "Set up my campaigns", "the first day");
+    const unread = await chips(undefined);
+    for (const own of ["Set up my campaigns", "What's working?"]) assert.ok(!unread.includes(own), own);
+  } finally {
+    setSurfaceValue("playbooks", undefined);
     globalThis.window.location.hash = hash;
   }
 });

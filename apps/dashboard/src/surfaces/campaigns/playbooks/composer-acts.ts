@@ -15,7 +15,8 @@ interface ActsIn {
   f: Fields;
   editing: PlaybookCardVM | null;
   adding: boolean;
-  setTrigger: Dispatch<SetStateAction<string>>;
+  /** A moment chosen in the field: held, and told to the sheet that hosts the composer (composer.tsx `onTrigger`). */
+  setTrigger: (id: string) => void;
   setTplId: Dispatch<SetStateAction<string>>;
   setPicked: Dispatch<SetStateAction<boolean>>;
   setBusy: Dispatch<SetStateAction<boolean>>;
@@ -23,7 +24,7 @@ interface ActsIn {
   setAdding: Dispatch<SetStateAction<boolean>>;
   /** The server took it: there is nothing left to keep of the words. */
   done: () => void;
-  onDone: (d: { name?: string }, changed: boolean) => void;
+  onDone: (d: { id?: string; name?: string }, changed: boolean) => void;
 }
 
 export function composerActs(a: ActsIn) {

@@ -504,6 +504,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/live/surface.ts`)).liveOverride,
       (await importSrc(`${S}/surfaces/campaigns/broadcasts/surface.ts`)).broadcastsOverride,
       (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
+      (await importSrc(`${S}/surfaces/campaigns/home/results-surface.ts`)).campaignResultsOverride,
+      (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
       (await importSrc(`${S}/surfaces/calendar/surface.ts`)).calendarOverride,
       (await importSrc(`${S}/surfaces/reports/surface.ts`)).reportsOverride,
@@ -519,8 +521,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS); and
-  // Campaigns' home draws who can hear you, what is coming and what came back from the broadcasts.
-  const alsoDrawn = { today: ["calendar"], campaigns: ["broadcasts"] };
+  // Campaigns' home draws Sent's runs, its own 30 days (campaign_results) and the reach-outs' chains.
+  const alsoDrawn = { today: ["calendar"], campaigns: ["broadcasts", "campaign_results", "reach_outs"] };
   for (const [route, drawn] of Object.entries(alsoDrawn))
     for (const k of drawn) assert.ok(registry.ROUTE_DRAWS[route].includes(k), `${route} draws ${k} beside its own`);
   for (const route of Object.keys(PREFETCH_READS)) {

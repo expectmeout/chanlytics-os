@@ -219,6 +219,10 @@ export {
   receptionistSeries,
   reachOutReport,
   ReportWindowNotReadable,
+  playbookTotals,
+  runCounts,
+  templateSends,
+  reachOutChainTotals,
 } from "./repositories/reports/report-series";
 export type { ReportWindow } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
@@ -245,6 +249,9 @@ export {
   textLineFacts,
   playbookChannels,
   playbookForChannels,
+  playbookForChange,
+  runningTwins,
+  followUpOnFile,
   queuedRecipients,
   runGoesByOthers,
   campaignMonthSent,
@@ -346,10 +353,10 @@ export {
   workspaceIdsOf,
   createWorkspaceFn,
   lineForwardingSet,
-  setPlaybookState,
   updatePlaybook,
   removePlaybook,
   startPlaybook,
+  writePlaybookChange,
 } from "./repositories/control-plane";
 export type {
   TenantConfigRow,

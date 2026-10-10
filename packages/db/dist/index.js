@@ -984,6 +984,25 @@ async function playbookForChannels(db, tenantId, playbookId) {
   if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
 }
+async function playbookForChange(db, tenantId, playbookId) {
+  const { data, error } = await db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
+  if (error) throw new Error(`playbook_for_change: ${error.message}`);
+  if (!data) return null;
+  const waiting = await db.from("broadcasts").select("id, recipient_count").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
+  if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
+  const [w] = waiting.data ?? [];
+  return { ...data, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
+}
+async function runningTwins(db, tenantId, on) {
+  const { data, error } = await db.from("playbooks").select("id, name, list_id, list_key").eq("tenant_id", tenantId).eq("state", "running").eq("trigger", on.trigger).eq("template_id", on.templateId);
+  if (error) throw new Error(`running_twins: ${error.message}`);
+  return (data ?? []).filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey).map((p) => ({ id: p.id, name: p.name }));
+}
+async function followUpOnFile(db, tenantId, trigger) {
+  const { data, error } = await db.from("playbooks").select("id").eq("tenant_id", tenantId).eq("trigger", trigger).limit(1);
+  if (error) throw new Error(`follow_up_on_file: ${error.message}`);
+  return (data ?? []).length > 0;
+}
 function noChannelColumns(error) {
   return !!error && /\b(consent_channels|marketing_channels|channel)\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
@@ -2740,6 +2759,30 @@ async function reachOutReport(db, tenantId, window) {
   }
   return { ok: true, data };
 }
+function answerOrMissing(name, data, error) {
+  if (error) {
+    if (isMissingDoor(error)) return "missing";
+    throw new Error(`${name}: ${error.message}`);
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error(`${name}: answered no object`);
+  return data;
+}
+async function playbookTotals(db, tenantId, history) {
+  const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
+  return answerOrMissing("playbook_totals", data, error);
+}
+async function runCounts(db, tenantId, runIds) {
+  const { data, error } = await db.rpc("run_counts", { p_tenant_id: tenantId, p_run_ids: [...runIds] });
+  return answerOrMissing("run_counts", data, error);
+}
+async function templateSends(db, tenantId) {
+  const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
+  return answerOrMissing("template_sends", data, error);
+}
+async function reachOutChainTotals(db, tenantId, window) {
+  const { data, error } = await db.rpc("reach_out_chain_totals", windowArgs(tenantId, window));
+  return answerOrMissing("reach_out_chain_totals", data, error);
+}
 
 // src/repositories/reports/first-replies.ts
 async function firstReplies(db, tenantId, since) {
@@ -3588,10 +3631,6 @@ async function createWorkspaceFn(db, args) {
 async function lineForwardingSet(db, args) {
   return db.rpc("line_forwarding_set", args);
 }
-async function setPlaybookState(db, id, state) {
-  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
-  return { error };
-}
 async function updatePlaybook(db, id, patch) {
   const { error } = await db.from("playbooks").update(patch).eq("id", id);
   return { error };
@@ -3613,6 +3652,23 @@ async function startPlaybook(db, p) {
   if (typeof made.id !== "string" || typeof made.decision_id !== "string")
     throw new Error("start_playbook: the door answered without its row and its decision");
   return { data: { id: made.id, decisionId: made.decision_id }, error: null };
+}
+async function writePlaybookChange(db, p) {
+  const { data, error } = await db.rpc("change_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook_id: p.playbookId,
+    p_set: p.set,
+    p_decision: p.decision,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  if (error) return isMissingDoor(error) ? "missing" : { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const was = made.was !== null && typeof made.was === "object" && !Array.isArray(made.was) ? made.was : {};
+  const decisionId = typeof made.decision_id === "string" ? made.decision_id : null;
+  if (typeof made.id !== "string" || decisionId === null && Object.keys(was).length > 0)
+    throw new Error("change_playbook: the door answered without its row, or a change without its decision");
+  return { data: { id: made.id, was, decisionId }, error: null };
 }
 
 // src/repositories/lists.ts
@@ -4228,6 +4284,9 @@ var WATCHED = [
   // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
   // repaint (00321). Its people are not watched: a run's page reads them when it opens.
   { table: "broadcasts", events: EVERY },
+  // a playbook paused, resumed, renamed or retimed by a teammate, or stamped by the sweep's run: Campaigns' rows and
+  // their acts repaint (00376)
+  { table: "playbooks", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
   { table: "appointments", events: EVERY }
 ];
@@ -4669,6 +4728,7 @@ export {
   failedMessageErrors,
   finishableRuns,
   firstReplies,
+  followUpOnFile,
   followUpTouchesSince,
   forgetActivityTokens,
   forgetNotification,
@@ -4773,7 +4833,9 @@ export {
   platformHoldStands,
   platformWide,
   playbookChannels,
+  playbookForChange,
   playbookForChannels,
+  playbookTotals,
   playbooksOnList,
   providerEventOf,
   purgeAiUsage,
@@ -4781,6 +4843,7 @@ export {
   queuedOutcomes,
   queuedRecipients,
   reachOutAudience,
+  reachOutChainTotals,
   reachOutDayDue,
   reachOutFollowers,
   reachOutPerson,
@@ -4844,8 +4907,10 @@ export {
   resolveOutboundTargetForContact,
   resolvePerson,
   reviewsLedger,
+  runCounts,
   runGoesByOthers,
   runSending,
+  runningTwins,
   runsWaitingOf,
   saveTemplateVersion,
   savedListFor,
@@ -4873,7 +4938,6 @@ export {
   setPartnerStanding,
   setPartnerStatus,
   setPersonReplyMode,
-  setPlaybookState,
   setPolicyMode,
   setTemplateQuality,
   settleDelivery,
@@ -4899,6 +4963,7 @@ export {
   takeIdempotencyKey,
   takeReplyRead,
   templateIdOf,
+  templateSends,
   templateStatusOf,
   templatesFor,
   templatesNamed,
@@ -4934,6 +4999,7 @@ export {
   workspaceNameAndConfig,
   workspaceNamed,
   workspacePaused,
+  writePlaybookChange,
   writtenEmail,
   writtenEmails,
   yesesSince

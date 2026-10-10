@@ -168,6 +168,24 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
   }
 });
 
+test("a playbook paused, renamed or retimed in another tab is heard where Campaigns draws it: the playbooks and the reach-outs surfaces, which hear a run made or moved too (00376)", async () => {
+  const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+  const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
+  const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
+  const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
+  assert.ok(watchedTables().includes("playbooks"), "the database tells a workspace about its playbooks");
+  const change = (table) => ({ table, event: "UPDATE", row: {} });
+  for (const o of [playbooksOverride, reachOutsOverride]) {
+    for (const table of ["playbooks", "broadcasts"]) {
+      assert.equal(wantsRefresh(o, table), true, `${o.key} hears ${table}`);
+      assert.equal(wantsRefresh(o, table, change(table)), true, `${o.key}: ${table} heard on any page`);
+    }
+  }
+  // A message is no chain's: the chains' read never hears one.
+  for (const table of ["messages", "conversations", "escalations"])
+    assert.equal(wantsRefresh(reachOutsOverride, table), false, `reach_outs: ${table} is not its`);
+});
+
 test("a write that moves the listing, its reviews or the day a review is counted on makes the Reviews lens's read forgotten, not read from the page it was made on; a reply posted, and a reply mode saved, name it", async () => {
   // The lens counts the reviews of a period by the day Google dates them in the workspace's zone, and who answered. Settings' Google verbs
   // and the zone are never made from the lens, so its read is dropped (as a template written is for the Inbox) and read as the lens comes
@@ -195,7 +213,14 @@ test("a write that moves the listing, its reviews or the day a review is counted
     assert.equal(reviews.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
   }
   assert.deepEqual(keysOf("POST google/link"), ["google", "setup"], "beside Google's own and Setup's row");
-  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "reports", "reports_headline", "today"]);
+  assert.deepEqual(keysOf("PATCH workspaces"), [
+    "settings",
+    "people",
+    "reports",
+    "reports_headline",
+    "today",
+    "playbooks",
+  ]);
   held();
   assert.deepEqual(
     keysOf("POST google/reviews/[id]/reply"),
@@ -256,7 +281,14 @@ test("a write that moves who waits on you, the zone's days or the hours and clos
   }
   // Each keeps what it re-read before.
   assert.deepEqual(keysOf("POST conversations/[id]/reply"), ["inbox", "conversations", "today"]);
-  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "reports", "reports_headline", "today"]);
+  assert.deepEqual(keysOf("PATCH workspaces"), [
+    "settings",
+    "people",
+    "reports",
+    "reports_headline",
+    "today",
+    "playbooks",
+  ]);
   for (const key of ["settings", "today", "calendar", "setup"])
     assert.ok(keysOf("PUT settings").includes(key), `PUT settings re-reads ${key}`);
   // The two writes that carry the hours are one list: the first receptionist writes its profile's hours, a save writes them too.

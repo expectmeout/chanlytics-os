@@ -50,7 +50,9 @@ var daysWords = (from, to) => from === to ? fmtDay(to) : `${fmtDay(from)} \u2013
 // src/reports/report-periods.ts
 var REPORT_PERIOD_IDS = REPORT_RANGES.map((r) => r.id);
 var MOST_DAYS = Math.max(...REPORT_RANGES.map((r) => r.days ?? 0));
-var fixedDaysOf = (period) => REPORT_RANGES.find((r) => r.id === period)?.days ?? null;
+function fixedDaysOf(period) {
+  return REPORT_RANGES.find((r) => r.id === period)?.days ?? null;
+}
 var monthDaysAt = (dayKey) => Number(dayKey.slice(8, 10));
 var periodSince = (today, days) => shiftKey(today, -(days - 1));
 var REPORT_MOST_DAYS = MOST_DAYS;

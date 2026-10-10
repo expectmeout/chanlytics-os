@@ -170,6 +170,9 @@ test("every figure the reports build names a metric that has words, and no two m
     assert.ok(typeof words === "string" && words.length > 40 && words.endsWith("."), `${m}: a sentence of words`);
   }
   assert.equal(new Set(metrics.map(metricWordsOf)).size, metrics.length, "each metric says what only it counts");
+  // What sent them is a campaign to the owner reading over a figure, never a playbook (decision 19).
+  for (const m of metrics) assert.doesNotMatch(metricWordsOf(m), /playbook/i, m);
+  assert.match(metricWordsOf("messages_sent"), /^Messages your broadcasts and campaign runs sent in this period/);
 });
 
 test("the words that cite a window cite the constant the report counts by, not a second spelling of it", () => {

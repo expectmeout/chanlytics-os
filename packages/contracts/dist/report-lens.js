@@ -83,13 +83,13 @@ var MISSED_CALL_TOUCH_WORDS = "an hour";
 // src/reports/report-metrics.ts
 var METRIC_WORDS = {
   customer_messages: "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
-  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a playbook message is nobody's answer.",
+  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a campaign message is nobody's answer.",
   reply_median: "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
   calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message, in either direction, or first connected call fell in this period. People brought in with their history, people who asked to be forgotten, and people with no message or call yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
-  messages_sent: "Messages your broadcasts and playbook runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
+  messages_sent: "Messages your broadcasts and campaign runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   replied_share: `Of the messages sent, the share the person answered in their own words ${REPLY_WINDOW_WORDS}. A note the system wrote, and a program writing from their address, are not their words.`,
   said_yes: "People who said yes to being messaged in this period, in their own words or recorded at the desk, counted once a day each.",
@@ -107,7 +107,7 @@ var METRIC_WORDS = {
   answered_while_closed: "Of the customer messages that came in while your opening hours and closures say you were closed, how many the receptionist answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
   waiting_on_you: "Conversations the receptionist flagged for a person that nobody has taken, as of now, whatever period is picked. One you or a teammate has taken over, and one put aside until later, are not counted.",
   call_backs: "Of the conversations waiting on you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
-  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or playbook message the door held are not counted."
+  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted."
 };
 var metricWordsOf = (metric) => METRIC_WORDS[metric];
 

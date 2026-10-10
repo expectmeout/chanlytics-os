@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { EMAIL_CLAIMS, isPersonsWords } from "@chanlytics/contracts";
 import {
   addressOf,
   classifyReceived,
@@ -267,6 +268,42 @@ test("what a message claims to be: a report and an automatic reply before the ge
   assert.equal(claim({ precedence: "bulk" }), "automated");
   assert.equal(claim({ "list-id": "<news.brand.example>" }), "automated");
   assert.equal(claim({ "list-unsubscribe": "<mailto:u@brand.example>" }), "automated");
+});
+
+test("every claim the intake answers is one contracts' EMAIL_CLAIMS declares, the set is no larger, and a person's words are what it marks them", () => {
+  const from = { address: "ana@example.com", name: null };
+  const said = new Set([
+    classifyReceived({ headers: {}, from }),
+    classifyReceived({ headers: { "content-type": "multipart/report; report-type=delivery-status" }, from }),
+    classifyReceived({ headers: { "auto-submitted": "auto-replied" }, from }),
+    classifyReceived({ headers: { precedence: "bulk" }, from }),
+    classifyReceived({
+      headers: { "auto-submitted": "auto-generated" },
+      from: { address: "no-reply@booksy.com", name: "Booksy" },
+      subject: "Dana Rivera: new booking Thursday, October 8, 2026 3:00 PM",
+      text: "Dana Rivera\n(305) 555-0144\nThursday, October 8, 2026, 3:00 PM",
+    }),
+    classifyReceived({
+      headers: {},
+      from: { address: "forwarding-noreply@google.com", name: "Gmail Team" },
+      subject: "(#4815162) Gmail Forwarding Confirmation - Receive Mail from owner@example.com",
+      text: "owner@example.com has requested to automatically forward mail to your email address salon@mail.example.com.\nConfirmation code: 4815162\n\nhttps://mail-settings.google.com/mail/vf-%5BANGjdJ8%5D-abc",
+    }),
+  ]);
+  assert.deepEqual(
+    [...said].sort(),
+    EMAIL_CLAIMS.map((c) => c.claim).sort(),
+    "each claim the intake answers is declared, and each declared one is answered",
+  );
+  for (const { claim, personsWords } of EMAIL_CLAIMS)
+    assert.equal(isPersonsWords({ email: { claim } }), personsWords, `isPersonsWords reads the mark: ${claim}`);
+  assert.deepEqual(
+    EMAIL_CLAIMS.filter((c) => !c.personsWords)
+      .map((c) => c.claim)
+      .sort(),
+    ["auto_reply", "automated", "booking_notice", "forwarding_confirmation", "report"],
+    "a booking tool's notice and Gmail's forwarding confirmation are no person's words (decision 5)",
+  );
 });
 
 test("a yes is taken only from a sender the receiving side PROVED: the provider's own verdict says DMARC passed, or DKIM passed by the From domain; every other verdict, and none at all, is no proof (fails closed)", () => {

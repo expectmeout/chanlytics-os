@@ -32,11 +32,13 @@ export type AwayQueueRef =
   | { conversationId?: string | null; callId?: string | null; runLabel?: string | null; searchTo?: string | null };
 
 /**
- * The title the edge gives a run held for a word: `Playbook “Win-back · quiet 30 days” is ready: 1 person`
- * (core run-playbook.ts). A row kept before the notice named its run carries no `about` and its door is `outbound`,
- * so the run's own name is the one thing every such row shares with the queue's row about the same run.
+ * The titles the edge gives a run held for a word: `Campaign “Win-back · quiet 30 days” is ready: 1 person` (core
+ * run-playbook.ts), and `Playbook “…” is ready` before a person read "campaign" everywhere (decision 19 of 9 Oct 2026):
+ * the bell keeps rows written before, and production holds them. A row kept before the notice named its run carries no
+ * `about` and its door is `outbound`, so the run's own name is the one thing every such row shares with the queue's row
+ * about the same run.
  */
-const readyRunTitle = (label: string) => `Playbook “${label}” is ready`;
+const readyRunTitles = (label: string) => [`Campaign “${label}” is ready`, `Playbook “${label}” is ready`];
 
 export interface AwayGroupVM<T extends AwayRowLike> {
   /** The row itself when it stands alone; the newest of the group otherwise. */
@@ -62,7 +64,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   calendar_people: ["person added from your calendar", "people added from your calendar"],
   booking_notice: ["booking email needs a look", "booking emails need a look"],
   handoff: ["conversation needs you", "conversations need you"],
-  playbook: ["playbook is ready", "playbooks are ready"],
+  playbook: ["campaign is ready", "campaigns are ready"],
   // One sync can approve several at once, and several rejections read as one
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
@@ -182,7 +184,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
     }),
   );
   const callsQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.callId ? [] : [q.callId])));
-  const runsQueued = inQueue.flatMap((q) => (typeof q === "string" || !q.runLabel ? [] : [readyRunTitle(q.runLabel)]));
+  const runsQueued = inQueue.flatMap((q) => (typeof q === "string" || !q.runLabel ? [] : readyRunTitles(q.runLabel)));
   const searchesQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.searchTo ? [] : [q.searchTo])));
   const idOf = (r: T) => r.id ?? r.key ?? "";
   // A row about a conversation says so in three different ways, and only one of

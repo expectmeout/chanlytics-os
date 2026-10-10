@@ -163,10 +163,12 @@ interface ActsProps {
   W: Words;
   flash: Flash | undefined;
   onEdit: (() => void) | null;
+  /** The pane's own close: a chain removed leaves the screen before its toast says so. */
+  onGone: () => void;
 }
 
 /** Edit, Pause or Resume, and Remove only while the report says it may go (R16), asking first. */
-function ReachOutActs({ chain, said, W, flash, onEdit }: ActsProps) {
+function ReachOutActs({ chain, said, W, flash, onEdit, onGone }: ActsProps) {
   const V = reachOuts;
   const RW = W.REACH_OUT_ROW_WORDS;
   const [busy, setBusy] = useState(false);
@@ -187,7 +189,12 @@ function ReachOutActs({ chain, said, W, flash, onEdit }: ActsProps) {
     );
   const remove = () => {
     setSure(false);
-    void act(() => V.remove(chain.root_id), RW.removed(chain.name));
+    void act(async () => {
+      const r = await V.remove(chain.root_id);
+      // Closed as the server takes it, then said (spec 2026-10-09 §4.3).
+      if (r && r.ok) onGone();
+      return r;
+    }, RW.removed(chain.name));
   };
   return (
     <div className="pb-card-acts ro-acts" data-testid="ro-acts">
@@ -244,10 +251,12 @@ interface OpenProps {
   W: Words;
   pace: { host: string | null; share: number };
   onEdit?: (chain: ReachOutChainDto) => void;
+  /** The pane's close, pressed once a Remove is taken. */
+  onGone: () => void;
 }
 
 /** The open row: the chain's path, its report as read, its acts. */
-function ReachOutOpen({ chain, canAct, flash, W, pace, onEdit }: OpenProps) {
+function ReachOutOpen({ chain, canAct, flash, W, pace, onEdit, onGone }: OpenProps) {
   const [read, retry] = useReachOutReport(chain.root_id, true);
   const [editing, setEditing] = useState(false);
   const RW = W.REACH_OUT_ROW_WORDS;
@@ -271,6 +280,7 @@ function ReachOutOpen({ chain, canAct, flash, W, pace, onEdit }: OpenProps) {
         W={W}
         flash={flash}
         onEdit={chain.search ? () => (onEdit ? onEdit(chain) : setEditing(true)) : null}
+        onGone={onGone}
       />
       {/* Who may is the role store's one answer (contracts roleGate, a partner included), never a copy of it. */}
       {!canAct && (
@@ -312,7 +322,7 @@ export function ReachOutPane({ chain, canAct, flash, onClose, onEdit }: PaneProp
       sub={W.chainHintOf(chain, pace.host)}
       onClose={onClose}
     >
-      <ReachOutOpen chain={chain} canAct={canAct} flash={flash} W={W} pace={pace} onEdit={onEdit} />
+      <ReachOutOpen chain={chain} canAct={canAct} flash={flash} W={W} pace={pace} onEdit={onEdit} onGone={onClose} />
     </CmPane>
   );
 }

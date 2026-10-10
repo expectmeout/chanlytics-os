@@ -318,3 +318,11 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   // The rest is behaviour, tested as such: the shell landing segments/<id> on People (shell-status.test.mjs), no
   // Lists tab on a real workspace (shell-status), a kept list's door and sentence (people-honest).
 });
+
+test("a list archived instead of deleted says why in the reader's words: a campaign runs on it, never a playbook (decision 19)", async () => {
+  const { plArchivedWords } = await importSrc("apps/dashboard/src/surfaces/people/lists/doors.tsx");
+  assert.equal(
+    textOf(plArchivedWords("VIP", { paused: [], readBy: [] })),
+    "VIP is archived, not deleted: a campaign runs on it. It comes back from Archived under your lists.",
+  );
+});

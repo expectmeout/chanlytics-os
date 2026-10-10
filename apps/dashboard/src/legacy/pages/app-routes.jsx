@@ -40,7 +40,7 @@ const SOON_META = {
   outbound:   { icon: "bolt",        title: "Campaigns",  blurb: "Standing rules your receptionist runs — win-back, welcome, save our number, the month's offer." },
   content:    { icon: "content",     title: "Content",    blurb: "Content calendar with agent-drafted posts." },
   broadcasts: { icon: "wave",        title: "Sent",       blurb: "One-to-many sends with per-segment targeting." },
-  fleet:      { icon: "agents",      title: "Agent Fleet", blurb: "Deep management for every agent: autonomy, playbooks, performance." },
+  fleet:      { icon: "agents",      title: "Agent Fleet", blurb: "Deep management for every agent: autonomy, campaigns, performance." },
   store:      { icon: "agents",      title: "Agent Store", blurb: "Install agents with new abilities — phone, chat, recovery, review." },
   studio:     { icon: "sparkle",     title: "Agent Studio", blurb: "Compose custom agents from skills, tone, and guardrails." },
   reports:    { icon: "trending-up", title: "Reports",    blurb: "Revenue, conversion, and agent performance over time." },

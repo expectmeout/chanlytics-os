@@ -950,6 +950,11 @@ test("a fold counts what its kind counts: the calls, not the rows about one call
     line(`e-${i}`, "message.received", `2026-10-08T1${i}:00:00Z`, { subject_id: "m" }),
   );
   assert.equal(activityLines(wrote, utcDay)[0].title, "3 messages came in", "a kind whose noun is the row counts rows");
+  // A campaign's runs fold in the reader's word, never "playbook" (decision 19).
+  const ran = [1, 2, 3].map((i) =>
+    line(`r-${i}`, "playbook.run", `2026-10-08T1${i}:00:00Z`, { subject_id: `pb-${i}` }),
+  );
+  assert.equal(activityLines(ran, utcDay)[0].title, "Campaigns ran 3 times");
   const emailed = [1, 2].map((i) =>
     line(`e-r${i}`, "lead.emailed", `2026-10-08T1${i}:00:00Z`, {
       text: activityWords("lead.emailed", { by: "reach_out" }),
@@ -1188,12 +1193,16 @@ test("what the ledgers never kept is said in an owner's words: a thread handed o
   assert.equal(activityWords("member.joined", { by: "u1", role: "operator" }), "Joined the workspace · as operator");
   assert.equal(
     activityWords("playbook.changed", { name: "Win-back", by: "u1", fields: ["message", "channels"] }),
-    "A playbook was edited · Win-back · message, channels",
+    "A campaign was edited · Win-back · message, channels",
   );
   assert.equal(
     activityWords("playbook.changed", { name: "Win-back", by: "u1", fields: [] }),
-    "A playbook was edited · Win-back",
+    "A campaign was edited · Win-back",
   );
+  // A campaign to whoever reads the log, never a playbook (decision 19): the ledger's kinds keep their names.
+  assert.equal(activityWords("playbook.run", {}), "A campaign ran");
+  assert.equal(activityWords("start_playbook", {}), "Started a campaign");
+  assert.equal(activityWords("pause_playbook", {}), "Paused a campaign");
   assert.equal(
     activityWords("template.submitted", { name: "spring_offer", language: "en", by: "u1" }),
     "A message was sent to WhatsApp for approval · spring_offer",
@@ -1445,4 +1454,12 @@ test("a visit and a search are named in the log: a visit by its person, else as 
   assert.equal(r.rows[0].text, "A booking arrived by email · Booksy");
   const calendar = await route.GET.run(get("&family=calendar"), ctxFor(t, rpcs));
   assert.deepEqual(ids(calendar), ["e-g1", "e-g2"], "the Calendar family has something to say now");
+});
+
+test("a campaign changed in place wears the log's edit mark; its pause and its resume keep their own", async () => {
+  const { activityMark } = await import(at("apps/dashboard/src/surfaces/settings/activity/marks.ts"));
+  assert.deepEqual(
+    ["change_playbook", "pause_playbook", "start_playbook"].map((k) => activityMark(k)),
+    ["edit", "pause", "play"],
+  );
 });

@@ -152,6 +152,7 @@ const { CampaignsHome } = await import(`${S}/surfaces/campaigns/home/home-page.t
 const { PaneSheet } = await import(`${S}/surfaces/campaigns/home/pane-sheet.tsx`);
 const { PlaybookPane } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { playbooksSample } = await import(`${S}/surfaces/campaigns/playbooks/sample.ts`);
+const { broadcastsSample } = await import(`${S}/surfaces/campaigns/broadcasts/sample.ts`);
 const { Picker } = await import(`${S}/surfaces/kit/picker/picker.tsx`);
 const { BcHistoryStats } = await import(`${S}/surfaces/campaigns/broadcasts/ledger.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
@@ -183,13 +184,13 @@ test("The home shows every moment, not only the ones somebody made: one nothing 
     stagesOf(tree).map((s) => [s.props["data-stage"], s.props["data-state"]]),
     [
       ["first_contact", "always"],
-      ["visit", "off"],
+      ["before", "off"],
       ["after", "off"],
       ["quiet", "on"],
     ],
     "a moment a playbook already covers is not offered again",
   );
-  assert.deepEqual(turnOnsOf(tree), ["visit", "after"], "each moment nothing is doing says how to start it");
+  assert.deepEqual(turnOnsOf(tree), ["before", "after"], "each moment nothing is doing says how to start it");
 
   // On a first day every moment is offered, and that is the empty state: the rail itself, a Turn on on each.
   setSurfaceValue("playbooks", playbooksSurface({ rows: [] }));
@@ -198,7 +199,7 @@ test("The home shows every moment, not only the ones somebody made: one nothing 
     stagesOf(tree).map((s) => s.props["data-state"]),
     ["always", "off", "off", "off"],
   );
-  assert.deepEqual(turnOnsOf(tree), ["visit", "after", "quiet"]);
+  assert.deepEqual(turnOnsOf(tree), ["before", "after", "quiet"]);
 
   // Pressing the third opens the composer ON that moment, not on whichever trigger is first.
   const after = stagesOf(tree).find((s) => s.props["data-stage"] === "after");
@@ -217,12 +218,12 @@ test("The home shows every moment, not only the ones somebody made: one nothing 
   // It opens beside the page: nothing on the page stands down or moves under it.
   assert.deepEqual(
     stagesOf(tree).map((s) => s.props["data-stage"]),
-    ["first_contact", "visit", "after", "quiet"],
+    ["first_contact", "before", "after", "quiet"],
     "REGRESSION: the moments stood down while it was open",
   );
 });
 
-test("A playbook is somewhere on the home -- the win-back is a moment, the others are lines -- one with a run waiting on you says so, and pressing it opens it where Approve is", () => {
+test("A playbook is somewhere on the home -- the win-back is a moment, every campaign a row -- one with a run waiting on you says so and decides it, and pressing its name opens it where Approve is", (t) => {
   setSurfaceValue(
     "playbooks",
     playbooksSurface({
@@ -276,18 +277,34 @@ test("A playbook is somewhere on the home -- the win-back is a moment, the other
       ],
     }),
   );
+  // The run as Sent reads it: a row decides the run its campaign's waiting names, read where every run is (the
+  // broadcasts' runs), made for the business's own today (Friday the 2nd in New York).
+  const sent = broadcastsSample(new Date(NOW));
+  const pending = sent.rows.find((r) => r.state === "pending_approval");
+  const waits = {
+    ...pending,
+    id: "b-w",
+    name: "The month's offer · 2026-10-02",
+    audience: { kind: "playbook", id: "pb-3", label: "The month's offer" },
+    playbook_id: "pb-3",
+    recipient_count: 186,
+    run_for: "2026-10-02",
+  };
+  setSurfaceValue("broadcasts", { ...sent, rows: [...sent.rows.filter((r) => r !== pending), waits] });
+  t.after(() => setSurfaceValue("broadcasts", undefined));
   let tree = homeAt();
-  // The win-back is the moment it does; the other two are quiet lines under the rail, each one line, said once.
+  // The win-back is the moment it does; every campaign is a row of the ledger, the moment's own among them, said once.
   const quiet = stagesOf(tree).find((s) => s.props["data-stage"] === "quiet");
   assert.equal(quiet.props["data-state"], "on");
-  const lines = all(tree, (n) => n.props?.["data-testid"] === "cmh-strip");
-  const line = (id) => lines.find((l) => l.props["data-strip"] === id);
-  assert.equal(line("pb-1"), undefined, "a moment's playbook is not a line as well");
-  assert.ok(line("pb-2") && line("pb-3"), "the others are lines");
-  // A run waiting on the owner: the line says so, and the press opens it where Approve is.
-  assert.ok(textOf(line("pb-3")).includes("Waiting on you"), textOf(line("pb-3")));
-  assert.equal(byTestId(tree, "pb-approve"), null, "the page carries no verbs of a playbook that is not open");
-  press(find(line("pb-3"), (n) => n.props?.["data-testid"] === "cmh-strip-open"));
+  const rows = all(tree, (n) => n.props?.["data-testid"] === "cmh-row");
+  const row = (id) => rows.find((r) => r.props["data-row"] === id);
+  assert.ok(row("pb-1") && row("pb-2") && row("pb-3"), "every campaign is a row, the moment's lead among them");
+  assert.equal(rows.filter((r) => r.props["data-row"] === "pb-1").length, 1, "and once");
+  // A run waiting on the owner: its row says so and decides it; the drawer's own verbs are not drawn.
+  assert.ok(textOf(row("pb-3")).includes("Waiting on you"), textOf(row("pb-3")));
+  assert.ok(byTestId(row("pb-3"), "cmh-approve"), "decided where it waits");
+  assert.equal(byTestId(tree, "pb-approve"), null, "the page carries no verbs of a drawer that is not open");
+  press(find(row("pb-3"), (n) => n.props?.["data-testid"] === "cmh-row-open"));
   assert.deepEqual(went, ["campaigns/moment:pb-3"]);
   // It opens in the sheet from the side, the run waiting on you in the pane's foot.
   tree = homeAt("moment:pb-3");

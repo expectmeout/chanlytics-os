@@ -403,7 +403,7 @@ test("on the first run the page's own questions lead: what is left to set up and
   assert.equal(first.fast, false, "the model's, over the steps the server's start provider reads: no quick answer");
   // The page questions as one table (PAGE_QUESTIONS): each other surface offers what it did before it, word for word.
   const EVERYONE = ["Who needs me right now?*", "How did the week go?", "What can the receptionist do on its own?"];
-  const OFFER = ["Remember that ", "Send the ", "Start a win-back playbook for the quiet clients"];
+  const OFFER = ["Remember that ", "Send the ", "Start a win-back campaign for the quiet clients"];
   const CALLS = ["Did anyone call while I was busy?", ...EVERYONE, "Remember that "];
   const was = {
     today: ["Brief me on today", "Who wrote today?", ...EVERYONE, "Remember that ", "Close on "],
@@ -454,11 +454,22 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
     "a run is the one scope word no citation spells: its address's word for a Broadcasts row",
   );
   assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a broadcast");
+  // A campaign is one now, open in its drawer (the moment spec, A1): campaigns/moment:<id>.
   assert.deepEqual(
     ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
-    ["deal", "list", "broadcast", "playbook", "template", "domain"],
+    ["deal", "list", "broadcast", "template", "domain"],
     "the rows a reader returns that no page opens as a scope",
   );
+});
+
+test("a campaign's scope is read before the model is asked, by the read that names it (campaigns.playbooks)", async () => {
+  const { scopedRead } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/cross-page.ts")).href
+  );
+  assert.deepEqual(scopedRead({ kind: "playbook", id: "p1", label: "Win-back" }), {
+    name: "campaigns",
+    input: { action: "playbooks" },
+  });
 });
 
 test("on Leads, the chips are the first day's ideas, each a search; after that, more like the latest two searches; then the usual questions", () => {
@@ -583,6 +594,20 @@ test("the prompt on Leads: the page is named and words that describe businesses 
     assert.ok(given.includes("It was read for this question and is in the search results"), given);
     assert.ok(!given.includes("Read it before answering about it.") && !given.includes("page://"), given);
   }
+  // A reach-out's drawer is the page at its address (contracts scopeFromRoute), which no read names: never said read.
+  // Where the page they are on rode in, its rows hold it; else it is read as any scope is.
+  const drawer = { kind: "page", id: "campaigns/moment:x1", label: "Movers in Austin" };
+  const onPage = turnWords({ ...facts, surface: "campaigns", scope: drawer, context: true, scopeOnPage: true });
+  assert.ok(
+    onPage.includes(
+      "It is the page they are on, in the search results before these words (page://): answer from its rows",
+    ),
+    onPage,
+  );
+  assert.ok(!onPage.includes("It was read for this question"), onPage);
+  assert.ok(!onPage.includes("Read it before answering about it."), onPage);
+  const dropped = turnWords({ ...facts, surface: "campaigns", scope: drawer, scopeOnPage: true });
+  assert.ok(dropped.includes("Read it before answering about it."), dropped);
 });
 
 test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
@@ -754,7 +779,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
   assert.equal(
     api.rightNow("en"),
-    "Nora is waiting on you; one playbook run is waiting for your approval.",
+    "Nora is waiting on you; one campaign run is waiting for your approval.",
     "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
   );
   assert.deepEqual(api.waiting().people, [
@@ -772,6 +797,11 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     api.waiting().runs.map((r) => [r.id, r.label, r.reach, r.to]),
     [["r1", "Win-back · quiet 30 days", 1, "broadcasts/run:r1"]],
   );
+  // A run whose audience has no name is a campaign's to its reader, never a playbook's (the moment spec, D19).
+  const named = win.__BROADCASTS.rows[0].audience;
+  win.__BROADCASTS.rows[0].audience = null;
+  assert.equal(api.waiting().runs[0].label, "Campaign");
+  win.__BROADCASTS.rows[0].audience = named;
   win.TODAY_DATA.queue.waiting = 9;
   assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (queue.waiting)");
   delete win.TODAY_DATA.queue.waiting;
@@ -1183,6 +1213,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     list: "approve",
     run: "approve",
     playbook_channels: "approve",
+    playbook_change: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -1201,7 +1232,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
       ["propose_autonomy", []],
-      ["propose_campaign", ["broadcast", "playbook", "run", "channels"]],
+      ["propose_campaign", ["broadcast", "playbook", "run", "channels", "change"]],
       ["propose_deal", []],
       ["propose_lead_search", []],
       ["propose_list", []],
@@ -1350,6 +1381,9 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       person_details_email: { person_details: { email: "jordan.reyes@example.com" } },
       run_approve: { run: { verb: "approve" } },
       run_skip: { run: { verb: "skip" } },
+      // A campaign changed in place (the moment spec, A8): the fields its change card carries.
+      change_resume_by_name: { playbook_change: { state: "running" } },
+      change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
     },
   );
   assert.deepEqual(
@@ -1357,6 +1391,7 @@ test("the eval checks that an Open asked for is followed, and what the words dec
     {
       list_lapsed: { fields: ["last_visit"] },
       list_left_out: { fields: ["last_heard"], cannot: true },
+      setup_new_list_then_playbook: { fields: ["came_from"] },
     },
   );
 });
@@ -1584,6 +1619,101 @@ test("the cross-page reads: what a question names plainly of another page is rea
   assert.deepEqual(names("any drafts held?", "inbox"), []);
   assert.deepEqual(names("what's on the calendar tomorrow?", "calendar"), []);
   assert.deepEqual(names("what playbooks are running right now?", "campaigns"), []);
+  // "Set up" as a state, never a setup: a question whether something is set up, or how, reads what it always read --
+  // the eval's `connections_read` its calendar, a question about campaigns their audiences alone -- and Start's own setup
+  // is not a campaign's.
+  assert.deepEqual(names("is our email mailbox set up, and is the calendar connected?", "today"), [
+    'calendar {"action":"week","day":"today"}',
+  ]);
+  assert.deepEqual(names("how far along is my setup?", "start"), []);
+  assert.deepEqual(names("is the follow-up set up?"), []);
+  assert.deepEqual(names("when did we start the follow-ups?"), []);
+  assert.deepEqual(names("¿ya configuraste mis campañas?"), []);
+  for (const q of [
+    "are my campaigns set up?",
+    "did you set up my campaigns?",
+    "have I set up my campaigns yet?",
+    "how do I set up my campaigns?",
+    "who set up our campaigns?",
+  ])
+    assert.deepEqual(names(q), ['campaigns {"action":"audiences"}'], q);
+  // A setup (the moment spec, A4), asked for: what runs, the moments offered with their starters, the lists and the
+  // messages, read before round 1 on any page -- on Campaigns too, whose rows are the playbooks and hold neither the
+  // moments nor a message. Asked as a request: a sentence's start, or after a please, a "can you", a "help me".
+  const setupReads = ['campaigns {"action":"playbooks"}', 'campaigns {"action":"audiences"}'];
+  assert.deepEqual(names("Set up my campaigns", "campaigns"), setupReads);
+  assert.deepEqual(names("set up my campaigns"), setupReads);
+  assert.deepEqual(names("Prepara mis campañas", "campaigns"), setupReads);
+  assert.deepEqual(names("set up campaigns for a consultancy that sends proposals", "today"), setupReads);
+  for (const q of [
+    "We're an online B2B consultancy: people book a discovery call, then most get a proposal. Set up my campaigns.",
+    "Somos una consultoría B2B en línea: primero una llamada, luego casi siempre una propuesta. Prepara mis campañas.",
+    "Can you set up my campaigns?",
+    "please setup a few follow-ups",
+    "help me set up our nudges",
+    "Start my campaigns",
+    "¿Puedes preparar mis campañas?",
+    // One word may stand before the noun: a new one, the first, a moment's.
+    "Set up a new campaign",
+    "set up my first campaign",
+    "Start a new campaign",
+    "Set up a birthday campaign",
+    // Casual openers, with no comma after them.
+    "hey set up my campaigns",
+    "hi set up my campaigns",
+    "yes set up my campaigns",
+    "I'd love to set up my campaigns",
+    "I wanna set up my campaigns",
+    // Spanish, its nouns typed with the tilde or without, and its other verbs.
+    "Configura una campaña de cumpleaños",
+    "Crea mis campañas",
+    "Inicia mis campañas",
+    "Lanza una campaña para los clientes inactivos",
+    "Prepara mis campanas",
+    // Either language's verb with the other's words.
+    "set up mis campañas",
+    "Configura my campaigns",
+  ])
+    for (const surface of ["campaigns", "people"]) assert.deepEqual(names(q, surface), setupReads, `${q} (${surface})`);
+  // A setup that names an appointment's moment is a setup, never a look at the calendar.
+  assert.deepEqual(names("Set up an appointment reminder", "today"), setupReads);
+  // Every idea Campaigns' first day offers (contracts buildAskSuggestions, A3) is a setup, in either language: a win-back
+  // asked in two words, and what should go out this month, read the moments and the lists before round 1 too.
+  for (const language of ["en", "es"]) {
+    const ideas = buildAskSuggestions({
+      surface: "campaigns",
+      language,
+      needsYou: 0,
+      heldDrafts: 0,
+      missedToday: 0,
+      liveNow: 0,
+      hasCalendar: false,
+      campaigns: { rows: [] },
+    })
+      .filter((s) => s.icon === "bolt")
+      .map((s) => s.q);
+    assert.equal(ideas.length, 3, language);
+    for (const q of ideas) assert.deepEqual(names(q, "campaigns"), setupReads, `${q} (${language})`);
+  }
+  assert.deepEqual(names("win back my quiet clients", "today"), setupReads);
+  // Asked whether something will start, or to start it again, is no setup: the follow-ups and reminders run already.
+  for (const q of ["Will you start the follow-ups tomorrow?", "Can you start the reminders again?"])
+    assert.deepEqual(names(q, "campaigns"), [], q);
+  // The audiences are no page's rows: asked of offers on Campaigns, they are read.
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  // On Campaigns a campaign or an offer named is a row the page holds; only who a send can reach -- an audience, who said
+  // yes, a send to someone, a template -- is read there. Off Campaigns every one of those words still reads the audiences.
+  for (const q of ["which campaign did best?", "pause the monthly offer", "rename the follow-up campaign"]) {
+    assert.deepEqual(names(q, "campaigns"), [], q);
+    assert.deepEqual(names(q), ['campaigns {"action":"audiences"}'], `${q} (people)`);
+  }
+  for (const q of [
+    "who said yes to offers?",
+    "which templates can I use?",
+    "send the October offer to the quiet list",
+    "what audiences do I have?",
+  ])
+    assert.deepEqual(names(q, "campaigns"), ['campaigns {"action":"audiences"}'], q);
   for (const surface of ["conversations", "live"]) assert.deepEqual(names("any missed calls today?", surface), []);
   // Today counts the day's calls and lists none of them: a question about them reads the list there too.
   assert.deepEqual(names("Were there any calls today?", "today"), ['calls {"action":"list","filter":"recent"}']);
@@ -1690,4 +1820,47 @@ test("the speed pass, four: the page's data before the words needs no second rea
     ),
     "a message to many is a broadcast or one reply per thread",
   );
+});
+
+test("on Campaigns the turn's words say what a sentence there is: a campaign to propose, a change on its id, results from the rows; after an approval, read campaigns again; and the rules carry the setup rule (the moment spec, A2 and A4)", async () => {
+  const { turnWords, ASK_RULES, ASK_DEFINITIONS } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/prompt.ts")).href
+  );
+  const facts = {
+    role: "owner",
+    personLabel: "ada@example.com (owner)",
+    scope: null,
+    surface: "campaigns",
+    language: "en",
+    timezone: "America/New_York",
+    closures: [],
+    now: new Date(NOW),
+  };
+  const w = turnWords(facts);
+  assert.ok(w.includes("They are on Campaigns,"), w);
+  assert.ok(w.includes("is action change on its playbook_id"), w);
+  // A campaign's row says its last 30 days; a one-off send's (the ledger's, and Sent's) says that send's own totals.
+  assert.ok(w.includes("a campaign's numbers are its last 30 days, and a one-off send's are that send's own"), w);
+  assert.ok(!w.includes("their numbers are the last 30 days"), w);
+  assert.ok(!w.includes("They are on the campaigns page."), "the line, never the bare page");
+  assert.ok(!turnWords({ ...facts, surface: "today" }).includes("They are on Campaigns,"));
+  // A card approved since the last answer sends Ask back to the reads; one dismissed, failed or undone does not.
+  const since = [{ id: "p-1", title: "Campaign: Win-back", state: "done", receipt: "running", atMs: 1 }];
+  assert.ok(turnWords({ ...facts, since }).includes("read campaigns with action playbooks again, never the shape"));
+  for (const state of ["dismissed", "failed", "undone"])
+    assert.ok(!turnWords({ ...facts, since: [{ ...since[0], state }] }).includes("never the shape"), state);
+  const rule = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
+  assert.ok(rule, "the setup rule");
+  assert.ok(rule.includes("Only batch tool calls that are independent of each other."));
+  assert.ok(rule.includes("never that anything is set up, started or running"));
+  assert.ok(
+    ASK_RULES.indexOf(rule) === ASK_RULES.findIndex((r) => r.startsWith("A proposal is one card.")) + 1,
+    "after the rule that a proposal is one card",
+  );
+  // Words a person of any trade reads: the glossary's appointment, never a salon's visit.
+  assert.ok(ASK_DEFINITIONS.playbook.includes("by appointments where a calendar is connected"));
+  assert.ok(!/\bvisits?\b/.test(ASK_DEFINITIONS.playbook), ASK_DEFINITIONS.playbook);
+  // D19: the person reads Ask's answers, so Ask says the word the pages say, on every page (the definition is read on
+  // every turn; the Campaigns line only on Campaigns).
+  assert.ok(ASK_DEFINITIONS.playbook.includes("say campaign, never playbook"), ASK_DEFINITIONS.playbook);
 });

@@ -10,6 +10,7 @@
  */
 import { clockDate } from "../shared/clock";
 import { agoWords } from "../shared/time";
+import { isCount, recordOrNull } from "../shared/unknown";
 import { WHATSAPP_LANGUAGES } from "./template-languages";
 
 /**
@@ -217,8 +218,8 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
-  visit_when: "Their visit's time",
-  visit_service: "Their visit's service",
+  visit_when: "Their booked time",
+  visit_service: "Their booked service",
   proposal_link: "Their proposal's link",
 };
 
@@ -231,8 +232,8 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
   first_name: "Each person's own — “there” when none is on file",
   business_name: "From Settings › Business",
   booking_link: "From Settings › Business",
-  visit_when: "Each visit's own, from the calendar",
-  visit_service: "Each visit's own, from the calendar",
+  visit_when: "Each one's own, from the calendar",
+  visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal",
 };
 
@@ -285,7 +286,7 @@ export function paramLabel(spec: ParamSpec): string {
 export function playbooksStillSending(names: readonly string[]): string {
   const quoted = names.map((n) => `“${n}”`);
   if (quoted.length <= 1)
-    return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 
@@ -445,8 +446,8 @@ const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s)
 /**
  * What sends it, in one line. "Nothing sends it" is the answer worth showing:
  * it is the only one that asks the owner to do something about the message. A
- * message that ONE playbook sends says "Win-back playbook", because under a
- * heading called "What sends it" a bare name reads as a person.
+ * message that ONE playbook sends says "Win-back campaign" (a person reads "campaign", never "playbook": decision
+ * 19), because under a heading called "What sends it" a bare name reads as a person.
  */
 export function templateUseWords(use: TemplateUse | null | undefined): string {
   const u = use ?? NOTHING;
@@ -456,7 +457,7 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
   if (u.booking) parts.push("the Inbox");
   if (parts.length === 0) return "Nothing sends it";
   // One playbook alone is "Win-back playbook" even when paused: the line under it says so.
-  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
+  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
   return capital(sayList(parts));
 }
 
@@ -537,6 +538,23 @@ export function templateSends(src: TemplateSendSource): Record<string, TemplateS
   }
   for (const m of src.inbox) {
     if (m.template_name && m.external_id) went(m.template_name, m.created_at);
+  }
+  return out;
+}
+
+/**
+ * template_sends' answer (00374), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
+ * number (isCount). Null when it is not that shape, which the reader says as a read that failed, never as a message
+ * nothing sent.
+ */
+export function templateSendsOf(answer: unknown): Record<string, TemplateSends> | null {
+  const byName = recordOrNull(answer);
+  if (!byName) return null;
+  const out: Record<string, TemplateSends> = {};
+  for (const [name, raw] of Object.entries(byName)) {
+    const s = recordOrNull(raw);
+    if (!s || !isCount(s.count) || !(s.last_at === null || typeof s.last_at === "string")) return null;
+    out[name] = { count: s.count, lastAt: s.last_at };
   }
   return out;
 }

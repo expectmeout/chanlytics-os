@@ -144,7 +144,7 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     key: "playbook",
     group: "needs_you",
     title: "A campaign or reach-out waits for your yes",
-    what: "A run waits for your approval, or goes unless you stop it, with how many people it reaches; a reach-out holds an email for your call; or a playbook could not run today, and tomorrow's run tries again.",
+    what: "A run waits for your approval, or goes unless you stop it, with how many people it reaches; a reach-out holds an email for your call; or a campaign could not run today, and tomorrow's run tries again.",
     email: "choice",
     phone: true,
     kinds: ["playbook"],

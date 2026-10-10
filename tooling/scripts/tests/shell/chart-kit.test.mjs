@@ -304,9 +304,9 @@ test("a card's CSV is spelled by contracts' csvCell: a spreadsheet reads it as U
       ["Win-back, again", null],
     ],
   };
-  const tree = ChartCard({ title: "By playbook and broadcast", table, testid: "c", children: "x" });
+  const tree = ChartCard({ title: "By campaign and broadcast", table, testid: "c", children: "x" });
   const { saved, clicked } = await saving(() => press(byTestId(tree, "card-csv")));
-  assert.deepEqual(clicked, [{ href: "blob:card", download: "by-playbook-and-broadcast.csv" }]);
+  assert.deepEqual(clicked, [{ href: "blob:card", download: "by-campaign-and-broadcast.csv" }]);
   const bytes = new Uint8Array(await saved[0].arrayBuffer());
   assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf]);
   assert.deepEqual(
@@ -325,7 +325,7 @@ test("a card's CSV is spelled by contracts' csvCell: a spreadsheet reads it as U
     const inApp = await saving(() => press(byTestId(tree, "card-csv")));
     assert.deepEqual(inApp.clicked, [], "REGRESSION: a blob download the phone's WebView drops without a word");
     assert.equal(handed.length, 1);
-    assert.equal(handed[0].name, "by-playbook-and-broadcast.csv");
+    assert.equal(handed[0].name, "by-campaign-and-broadcast.csv");
     assert.equal(handed[0].type, "text/csv");
     // The same words the browser saves, with its byte-order mark (Blob.text() drops it as it decodes).
     assert.equal(handed[0].text, String.fromCharCode(0xfeff) + (await saved[0].text()), "the same file, mark and all");

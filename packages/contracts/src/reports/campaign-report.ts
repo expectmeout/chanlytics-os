@@ -236,7 +236,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const sources: CampaignSourceVM[] = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
-    kindLabel: s.kind === "playbook" ? "Playbook" : "Broadcast",
+    kindLabel: s.kind === "playbook" ? "Campaign" : "Broadcast",
     name: s.name,
     templateName: s.template_name,
     template: s.template_name ? templateTitle(s.template_name) : "",
@@ -330,8 +330,8 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
           : "Nobody said yes to messages or asked to stop.",
       sent: sends
         ? sends === 1
-          ? "From one broadcast or playbook run."
-          : `From ${sends} broadcast and playbook runs.`
+          ? "From one broadcast or campaign run."
+          : `From ${sends} broadcast and campaign runs.`
         : null,
       channels: channelsLine(channels),
     },

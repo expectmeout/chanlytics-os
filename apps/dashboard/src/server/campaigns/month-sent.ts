@@ -27,7 +27,10 @@ async function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null
   }
 }
 
-/** This calendar month's count. `now` is the turn's clock, so the month is the one the page is read in. */
+/**
+ * This calendar month's count. `now` is the turn's clock, so the month is the one the page is read in; Ask's broadcast
+ * card passes the time its send is set to go, so the month is the one it goes in, as the send screen counts it.
+ */
 export function monthSentOrNull(tenantId: string, now: Date): Promise<MonthSent | null> {
   return monthSentIn(tenantId, now);
 }

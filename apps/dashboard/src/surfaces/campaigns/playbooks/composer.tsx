@@ -24,11 +24,13 @@
  */
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
-import { canDo } from "../../legacy-verbs";
+import { canDo, routeDoor } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
@@ -45,7 +47,12 @@ interface ComposerProps {
   data: PlaybooksSurface;
   editing: PlaybookCardVM | null;
   initialTrigger?: string | null;
-  onDone: (d: { name?: string }, changed: boolean) => void;
+  /**
+   * Another moment chosen in the field, told to the sheet that hosts it: a Turn on's sheet is titled for the moment the
+   * field holds, never only the one its address opened it on (home/new-message.tsx).
+   */
+  onTrigger?: (trigger: string) => void;
+  onDone: (d: { id?: string; name?: string }, changed: boolean) => void;
   onCancel: () => void;
 }
 
@@ -98,21 +105,28 @@ function glassRow(word: string, testid: string, body: ReactNode) {
 }
 
 /**
- * What stops a run from sending from the number: a number that cannot send, or none. Said while the playbook goes by
- * WhatsApp, the one channel that has a number; one that goes by email alone never asks.
+ * What stops a run from sending from the number: a number that cannot send, or none. Said while the campaign goes by
+ * WhatsApp, the one channel that has a number; one that goes by email alone never asks. Each says it with its door to
+ * Settings › Connections, where it is mended (decision 20).
  */
 function numberWarning({ data, kept }: SectionCtx) {
   if (!data.number || !kept.includes("whatsapp")) return null;
+  const W = LIFECYCLE_WORDS.compose.number;
+  const door = (
+    <LinkButton {...routeDoor(W.door.to)} data-testid="pb-number-door">
+      {W.door.label}
+    </LinkButton>
+  );
   if (data.number.present && !data.number.health.canSend)
     return (
       <p className="pb-warn" data-testid="pb-number">
-        {data.number.health.refusal}
+        {data.number.health.refusal} {door}
       </p>
     );
   // Where nothing can send at all, the Send by row has already said so, WhatsApp's number among its doors.
   return data.number.present || cmNothingOpen(data.ready) ? null : (
     <p className="pb-warn" data-testid="pb-number">
-      No WhatsApp number connected — connect one in Settings › Connections before a run can send.
+      {W.words} {door}
     </p>
   );
 }
@@ -137,7 +151,7 @@ function sheetBodyGlass(x: SectionCtx) {
   );
 }
 
-export function PlaybookComposer({ data, editing, initialTrigger = null, onDone, onCancel }: ComposerProps) {
+export function PlaybookComposer({ data, editing, initialTrigger = null, onTrigger, onDone, onCancel }: ComposerProps) {
   // As on Broadcasts: a template this product cannot put on the wire is not
   // offered, rather than offered and refused by Meta for every recipient.
   const offered = useMemo(() => composerOffered(data.templates), [data.templates]);
@@ -192,7 +206,10 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
     f: held,
     editing,
     adding,
-    setTrigger,
+    setTrigger: (id) => {
+      setTrigger(id);
+      onTrigger?.(id);
+    },
     setTplId,
     setPicked,
     setBusy,
@@ -204,6 +221,7 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
   const x: SectionCtx = {
     ...m,
     data,
+    editingId: editing ? editing.id : null,
     editingTemplateName: editing ? editing.template_name : null,
     f: held,
     canEdit,
@@ -237,7 +255,7 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
             onValueChange={setName}
             maxLength={80}
             spellCheck={false}
-            aria-label="The playbook's name"
+            aria-label="The campaign's name"
             data-testid="pb-name"
           />
           <Icon name="pencil" size={13} />

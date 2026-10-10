@@ -230,6 +230,8 @@ const world = () => ({
     report_series: (a) => ({ ...busyReport(), days: a.p_days }),
     campaign_series: (a) => ({ ...busyCampaigns(), days: a.p_days }),
     reach_out_report: () => NO_REACH_OUTS,
+    // 00375: each chain's own totals, which the reach-outs' route reads beside its report (readers/campaign-report.ts).
+    reach_out_chain_totals: () => ({}),
     people_list: () => [],
   },
 });
@@ -249,7 +251,7 @@ test("the database is asked less: the headline reaches for the report's series, 
   t.diagnostic(`doors, after (one route): ${[...after].sort().join(", ")}`);
   for (const door of after) assert.ok(before.has(door), `the headline reaches for nothing new: ${door}`);
   for (const door of ["rpc:report_series", "rpc:people_list"]) assert.ok(after.has(door), `still read: ${door}`);
-  for (const door of ["rpc:campaign_series", "rpc:reach_out_report"]) {
+  for (const door of ["rpc:campaign_series", "rpc:reach_out_report", "rpc:reach_out_chain_totals"]) {
     assert.ok(before.has(door), `read before: ${door}`);
     assert.ok(!after.has(door), `no longer read: ${door}`);
   }

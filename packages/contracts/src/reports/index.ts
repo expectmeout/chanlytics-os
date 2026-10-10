@@ -83,6 +83,7 @@ export {
 } from "./receptionist/receptionist-record";
 export type { ReceptionistDto, ReceptionistSeriesDto } from "./receptionist/receptionist-record";
 export {
+  CAMPAIGNS_RESULTS_PERIOD,
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
   REPORT_PERIOD_STORAGE,
@@ -111,8 +112,9 @@ export { closedOf } from "./report-closed";
 export type { ReportArrivalDto, ReportProfile } from "./report-closed";
 export { reportFacts } from "./report-facts";
 export type { ReportFactVM } from "./report-facts";
-export { toReachOutReportVM, reachOutDayWords } from "./reach-out-report";
+export { toReachOutReportVM, reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reach-out-report";
 export type {
+  ReachOutChainTotalsDto,
   ReachOutReportCounts,
   ReachOutReportStepDto,
   ReachOutReportChainDto,
