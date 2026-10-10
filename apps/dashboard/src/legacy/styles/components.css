@@ -994,10 +994,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  /* Its ground is the kit's pop panel (topbar.jsx: panel panel-pop panel-flush), the glass every menu and list wears. */
   z-index: 250;
   overflow: hidden;
   animation: route-in 180ms var(--ease-out);
@@ -1026,10 +1023,11 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 /* A note is one press: its mark, two lines and a time, at the list row's own numbers (tokens.css, "one row for every
    list"). The press does what the note says; the words say where. Each used to carry a 44px row of boxed buttons
    saying it again, which was half of every note's height (48 notes, 6,677px on a phone, 25 Sep). */
-/* Opaque, so a note slid aside by a thumb shows the ground under it and not through it (the sheet, below). */
-.tbn-item { position: relative; border-bottom: 1px solid var(--line); background: var(--bg-raised); }
+/* On the popover's glass a note has no ground of its own; on a phone's sheet it is opaque, so a note slid aside by a
+   thumb shows the ground under it and not through it (the sheet, below). */
+.tbn-item { position: relative; border-bottom: 1px solid var(--line); }
 .tbn-slot:last-child > .tbn-slot-in > .tbn-item, .tbn-group:last-child > .tbn-item:last-child { border-bottom: none; }
-.tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--bg-raised)); }
+.tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, transparent); }
 /* A dismissed note folds shut so the notes under it glide up, then it goes: the slot is given its own height and then
    none (topbar.jsx NotifPopover fold, measured there, since a grid track animated from 1fr to 0fr holds at its
    content's height until the last frame). The note and the grounds a thumb slides it over sit inside. */
@@ -1103,8 +1101,12 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
      every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
      2 Oct: no fade, no lightening). A tap on it closes the sheet. */
   .tbn-backdrop { background: var(--surface-veil); }
+  /* A sheet's solid, as every sheet a phone raises is (the glass is the desk's popover): its notes slide over grounds. */
+  .tbn-item { background: var(--surface-pop-fill); }
+  .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--surface-pop-fill)); }
   .tbn-pop {
     top: auto; right: 0; bottom: 0; left: 0; max-width: none; max-height: 82vh; max-height: 82dvh;
+    background-color: var(--surface-pop-fill);
     border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px); overscroll-behavior-y: none;
     animation: sheet-in 260ms var(--ease-out);
@@ -1118,7 +1120,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   .tbn-list { overscroll-behavior: none; }
   .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
-.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: var(--bg-raised); border-bottom: 1px solid var(--line); }
+/* A day's head stands over the notes scrolling under it as the glass does: it blurs them. */
+.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: transparent; backdrop-filter: var(--surface-control-blur); border-bottom: 1px solid var(--line); }
+@media (max-width: 720px) { .tbn-sec { background: var(--surface-pop-fill); backdrop-filter: none; } }
 .tbn-title { flex: 1; }
 .tb-bell.ping .icon { animation: bell-swing 0.9s var(--ease-out); transform-origin: 50% 2px; }
 @keyframes bell-swing { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(13deg); } 45% { transform: rotate(-10deg); } 70% { transform: rotate(6deg); } 85% { transform: rotate(-3deg); } }
@@ -1460,6 +1464,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    its row, the account's covered the drawer's places, the workspace's hung off a row a thumb had just left, and one
    placed from a row still sliding in stood off the screen (Ruben, 7 Oct 2026). */
 @media (max-width: 900px) {
+  /* Behind it the phone's one veil, as behind every menu and sheet a phone raises (the kit's Menu, the drawer). */
+  [data-sb-wash="foot"] {
+    background: var(--surface-veil);
+  }
   [data-sb-place="foot"] {
     inset: auto 0 0 0;
     width: auto;
@@ -1518,13 +1526,15 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sb-theme-opt:hover { color: var(--ink); background: var(--bg-hover); }
 .sb-theme-opt.active { color: var(--ink); border-color: var(--ink-muted); background: var(--bg-hover); }
 
-.sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: oklch(from var(--ink) l c h / 0.35); }
+/* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash). */
+.sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: var(--surface-wash); }
 .sb-sheet {
   /* Centred in what the phone shows over its keyboard (--kb, data-bits watchKeyboard). */
   position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);
   width: min(520px, calc(100vw - 32px)); max-height: calc(80vh - var(--kb, 0px)); max-height: calc(80dvh - var(--kb, 0px)); overflow: auto;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg); padding: 14px 18px 18px;
+  /* The solid every sheet and dialog wears (tokens.css, --surface-pop-fill), its edge, corners and depth. */
+  background: var(--surface-pop-fill); border: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pop-radius);
+  box-shadow: var(--surface-pop-depth); padding: 14px 18px 18px;
 }
 .sb-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .sb-sheet-title { font-size: 14px; font-weight: 600; color: var(--ink); }

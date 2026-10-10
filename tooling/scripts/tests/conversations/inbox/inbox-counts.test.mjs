@@ -452,7 +452,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
     );
 
     // A search spans every bucket, so a row there says Needs you again -- only the one that does.
-    find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input").props.onChange({
+    find(tree, (n) => n.props?.["data-testid"] === "inbox-search").props.onChange({
       target: { value: "a" },
     });
     tree = draw();

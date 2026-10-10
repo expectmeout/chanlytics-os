@@ -12,7 +12,7 @@ import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 
 /** "What makes it not a fit?" -- five whys, one tap each (PRD 9.5). It teaches nothing in this release. */
 export const LeadNotFitWhy = ({ busy, on }: { busy?: boolean; on: Pick<PeekActs, "onWhy"> }) => (
-  <div className="pop pk-nf pl-peek" role="menu" aria-label={W.notFitTitle} data-testid="peek-why">
+  <div className="pk-nf pl-peek panel panel-pop" role="menu" aria-label={W.notFitTitle} data-testid="peek-why">
     <div className="pop-h">{W.notFitTitle}</div>
     {W.whys.map((w) => (
       <button

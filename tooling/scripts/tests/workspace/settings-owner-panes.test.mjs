@@ -565,7 +565,7 @@ test("REGRESSION (S21): Activity says it is reading and names its filters -- the
   await new Promise((r) => setTimeout(r, 300));
   await flush();
   tree = settle("activity");
-  assert.equal(byTestId(tree, "act-person-matches").props.className, "more-menu align-left solid");
+  assert.equal(byTestId(tree, "act-person-matches").props.className, "more-menu align-left");
   press(buttonSaying(tree, "Ana Ruiz"));
   tree = settle("activity");
   assert.equal(A.asked[A.asked.length - 1].person, "c-ana", "and the log is read for them");
@@ -601,9 +601,9 @@ test("what kind of thing is two short lists -- the part of the product, then its
     "REGRESSION (8 Oct): the house's menu, the glass the sidebar's menus are; the browser's own list drew itself in the system's colours, whatever the look",
   );
   assert.deepEqual(
-    [menu.props.solid, menu.props.escape, menu.props.btnClass],
-    [true, true, "rec-input rec-select"],
-    "REGRESSION (9 Oct): on the pop's ground, so the log's coloured lines do not show through; against the window, so it is as wide as its words; from the kit's box",
+    [menu.props.escape, menu.props.btnClass],
+    [true, "rec-input rec-select"],
+    "REGRESSION (9 Oct): against the window, so it is as wide as its words; from the kit's box (its ground is every pop's, kit.css)",
   );
   assert.deepEqual(
     menu.props.items.filter((i) => i.checked).map((i) => i.label),
