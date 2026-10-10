@@ -85,7 +85,7 @@
   "packages/contracts/src/calendar/zone-math.ts": 1,
   "packages/contracts/src/config/brain.ts": 1,
   "packages/contracts/src/config/workspace-config/business-profile.ts": 4,
-  "packages/contracts/src/config/workspace-config/config-schema.ts": 2,
+  "packages/contracts/src/config/workspace-config/config-schema.ts": 1,
   "packages/contracts/src/config/workspace-config/fallbacks.ts": 1,
   "packages/contracts/src/consent/consent-page.ts": 1,
   "packages/contracts/src/deals/deal-consultations.ts": 1,
