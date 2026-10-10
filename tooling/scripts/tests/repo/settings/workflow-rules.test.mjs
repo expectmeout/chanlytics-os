@@ -13,6 +13,13 @@ import { ROOT } from "../../_source.mjs";
 const dir = path.join(ROOT, ".github/workflows");
 const workflow = (name) => fs.readFileSync(path.join(dir, name), "utf8").replace(/\r\n/g, "\n");
 const all = fs.readdirSync(dir).filter((f) => f.endsWith(".yml"));
+/** One job's text: from its key to the next job's (a line of two spaces, a name and a colon) or the file's end. */
+const job = (y, name) => {
+  const start = y.indexOf(`\n  ${name}:\n`);
+  assert.ok(start >= 0, `the job ${name}`);
+  const next = y.slice(start + 1).search(/\n {2}[a-z0-9_-]+:\n/);
+  return next < 0 ? y.slice(start) : y.slice(start, start + 1 + next);
+};
 
 test("main is verified after every merge: a pull request's newer run cancels its older, a main commit is never cancelled", () => {
   // A group shared by pushes cancels a queued run even with cancel-in-progress: false, so each main commit's group is
@@ -96,14 +103,18 @@ test("the landed job reads pushes only, opens its issue once, and the Auckland l
 test("every pull request runs the tests of what it changed, and a label starts the suite alone, never CI again", () => {
   const y = workflow("ci.yml");
   assert.match(y, /pull_request:\n {4}types: \[opened, synchronize, reopened\]\n/, "no `labeled`: a label re-ran CI");
-  const typecheck = y.slice(y.indexOf("  typecheck:"), y.indexOf("  auckland:"));
-  assert.ok(typecheck.includes("fetch-depth: 2"), "the merge commit's base, for HEAD^1..HEAD");
-  assert.ok(typecheck.includes("run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD"));
+  const tests = job(y, "tests");
+  assert.ok(tests.includes("fetch-depth: 2"), "the merge commit's base, for HEAD^1..HEAD");
+  assert.ok(tests.includes("run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD"));
   assert.ok(
-    typecheck.includes(
+    tests.includes(
       "if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'suite')",
     ),
     "a labelled pull request runs the whole suite instead",
+  );
+  assert.ok(
+    tests.includes("contains(github.event.pull_request.labels.*.name, 'suite'))"),
+    "the label asks for the suite whatever the laptop ran",
   );
   const suite = workflow("suite.yml");
   assert.match(suite, /pull_request:\n {4}types: \[labeled\]\n/);
@@ -142,4 +153,47 @@ test("every job says how long it may run: a step that hangs is ended at its cap,
     for (const { name, cap } of jobs)
       assert.ok(cap !== null && cap >= 1 && cap <= 60, `${file}: the job ${name} has no cap of an hour or less`);
   }
+});
+
+test("Typecheck, the check branch protection requires, is a gate over parts that run side by side", () => {
+  // Ruben, 10 Oct 2026: a push is through CI in under ten minutes. The parts run at once after `scope`; the gate keeps
+  // the required check's name, runs whatever they said, and fails on a part that failed or was cancelled.
+  const y = workflow("ci.yml");
+  const gate = job(y, "typecheck");
+  assert.ok(gate.includes("name: Typecheck"), "the name branch protection matches");
+  assert.ok(gate.includes("needs: [scope, build, lint, hygiene, tests]"), "every part");
+  assert.ok(gate.includes("if: ${{ always() }}"), "a gate that ran nothing would read as a pass");
+  assert.ok(gate.includes('.result == "failure" or .result == "cancelled"'));
+  for (const part of ["build", "lint", "hygiene", "tests"]) assert.ok(job(y, part).includes("needs: scope"), part);
+});
+
+test("a tree checked locally skips lint, hygiene, the tests and the typecheck, never the build and the bundle", () => {
+  const y = workflow("ci.yml");
+  const scope = job(y, "scope");
+  assert.ok(scope.includes("fetch-depth: 2"), "the merge commit's second parent is the pull request's head");
+  assert.ok(scope.includes('run: node tooling/scripts/checks/checked-locally.mjs --ci >> "$GITHUB_OUTPUT"'));
+  assert.ok(scope.includes("run: node tooling/scripts/checks/pr-title.mjs"), "the title fails first");
+  for (const part of ["lint", "hygiene"])
+    assert.ok(job(y, part).includes("if: needs.scope.outputs.checked != 'true'"), part);
+  assert.ok(job(y, "tests").includes("needs.scope.outputs.checked != 'true' ||"));
+  const build = job(y, "build");
+  assert.ok(!/\n {4}if:/.test(build), "the build job runs for every change");
+  assert.ok(build.includes("- if: needs.scope.outputs.checked != 'true'\n        run: pnpm -r typecheck"));
+  assert.ok(
+    build.includes("run: git diff --exit-code -- packages/*/dist"),
+    "what the other parts read is the source's",
+  );
+  assert.ok(build.includes("run: pnpm --filter @chanlytics/dashboard build") && build.includes("pnpm check:bundle"));
+});
+
+test("the replay runs every database suite on main, and on a pull request the ones its changes name", () => {
+  const y = workflow("database.yml");
+  assert.ok(
+    y.includes(
+      "- if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request'\n        run: pnpm test:db",
+    ),
+  );
+  assert.ok(y.includes("if: steps.changed.outputs.db == 'true' && github.event_name == 'pull_request'"));
+  assert.ok(y.includes("run: node tooling/scripts/checks/changed-tests.mjs --db HEAD^1 HEAD"));
+  assert.ok(workflow("nightly-database.yml").includes("run: pnpm test:db"), "every night, every suite");
 });

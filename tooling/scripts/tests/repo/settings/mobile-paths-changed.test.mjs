@@ -119,7 +119,9 @@ test("the answer is a line for the workflow and a sentence for the log, and neve
 test("ci.yml asks the question first, of the change itself, and every step after it waits for a yes", () => {
   const y = read(".github/workflows/ci.yml").replace(/\r\n/g, "\n");
   const from = y.indexOf("\n  mobile:\n");
-  const job = y.slice(from + 1, y.indexOf("\n  typecheck:\n", from));
+  // To the next job's key, whichever it is.
+  const next = y.slice(from + 1).search(/\n {2}[a-z0-9_-]+:\n/);
+  const job = y.slice(from + 1, next < 0 ? undefined : from + 1 + next);
   assert.ok(from > 0 && job.includes("name: Mobile (typecheck, lint, doctor, bundle)"), "the job keeps its name");
   const steps = job
     .split("\n")
