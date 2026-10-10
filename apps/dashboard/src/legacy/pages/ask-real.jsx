@@ -878,7 +878,7 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
         <input
           ref={inputRef}
           className="ask-line-input"
-          placeholder={talk.listening ? t.listening : active ? t.follow : surface === "leads" ? t.describeLeads : t.placeholder}
+          placeholder={talk.listening ? t.listening : active ? t.follow : surface === "leads" ? t.describeLeads : surface === "campaigns" ? t.describeCampaigns : t.placeholder}
           value={query}
           onChange={(e) => { setQuery(e.target.value); if (composing && M) M.mood.hear(0.5); }}
           onKeyDown={onKey}

@@ -15748,7 +15748,12 @@ var T = {
     actPlaybook: "Start a win-back playbook",
     actPlaybookQ: "Start a win-back playbook for the quiet clients",
     actHold: "Hold every reply for my review",
-    actHoldQ: "Hold every reply for my review before it sends"
+    actHoldQ: "Hold every reply for my review before it sends",
+    setUp: "Set up my campaigns",
+    winBackIdea: "Win back customers who went quiet",
+    offerIdea: "What should go out this month?",
+    whyWaiting: "Why is {name} waiting?",
+    working: "What's working?"
   },
   es: {
     needs: "\xBFQui\xE9n me necesita ahora?",
@@ -15784,7 +15789,12 @@ var T = {
     actPlaybook: "Iniciar un playbook de recuperaci\xF3n",
     actPlaybookQ: "Inicia un playbook de recuperaci\xF3n para los clientes inactivos",
     actHold: "Retener cada respuesta para revisarla",
-    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
+    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla",
+    setUp: "Prepara mis campa\xF1as",
+    winBackIdea: "Recupera a los clientes que dejaron de escribir",
+    offerIdea: "\xBFQu\xE9 deber\xEDa salir este mes?",
+    whyWaiting: "\xBFPor qu\xE9 espera {name}?",
+    working: "\xBFQu\xE9 est\xE1 funcionando?"
   }
 };
 var PAGE_QUESTIONS = {
@@ -15811,6 +15821,27 @@ function clipWords(s, cap) {
   const w = s.replace(/\s+/g, " ").trim();
   return w.length > cap ? `${w.slice(0, cap - 1).trimEnd()}\u2026` : w;
 }
+function pageChips(input, t, add) {
+  if (input.surface === "leads") {
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+    return false;
+  }
+  const rows2 = input.surface === "campaigns" ? input.campaigns?.rows ?? null : null;
+  const winBackRuns = !!rows2?.some((r2) => isWinBack(r2.trigger) && r2.state === "running");
+  if (rows2 && rows2.length === 0)
+    for (const k of ["setUp", "winBackIdea", "offerIdea"]) add(t[k], "ask", "bolt");
+  if (rows2 && rows2.length > 0) {
+    const waiting = rows2.find((r2) => r2.waiting);
+    if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+    add(t.working, "ask", "trending-up");
+    if (!winBackRuns) add(t.winBackIdea, "ask", "bolt");
+  }
+  return winBackRuns;
+}
 function buildAskSuggestions(input) {
   const t = T[input.language === "es" ? "es" : "en"];
   const at3 = CHIPS_OF[input.surface] ?? input.surface;
@@ -15824,13 +15855,7 @@ function buildAskSuggestions(input) {
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
-  if (input.surface === "leads") {
-    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-    for (const w of ideas) add(w, "ask", "search");
-    if (!ideas.length)
-      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
-  }
+  const winBackRuns = pageChips(input, t, add);
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");
   if (input.liveNow > 0) add(t.live, "ask", "phone");
@@ -15858,7 +15883,7 @@ function buildAskSuggestions(input) {
   if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
   if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
-  if (at3 === "people" || at3 === "other") act2(t.actPlaybook, t.actPlaybookQ, "bolt");
+  if ((at3 === "people" || at3 === "other") && !winBackRuns) act2(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }
 

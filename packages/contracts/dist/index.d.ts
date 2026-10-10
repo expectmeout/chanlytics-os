@@ -14105,11 +14105,6 @@ declare function askPages(has: AskPagesHas): JumpEntry[];
  */
 declare function askJump(query: string, index: JumpEntry[], limit?: number): JumpEntry[];
 
-/**
- * The questions and the acts the palette offers for where the person is (buildAskSuggestions): built from the
- * workspace's data, in English or Spanish, never from a seed. The pages it knows are ask.ts's (ASK_SURFACES).
- */
-
 interface AskSuggestion {
     /** The words sent, or placed in the input when `compose` is set. */
     q: string;
@@ -14138,6 +14133,18 @@ interface SuggestionInput {
     /** On Leads: the first day's suggestion words (each a search to propose), and the latest searches' own words. */
     leadIdeas?: string[];
     leadSearches?: string[];
+    /**
+     * On Campaigns (the moment spec, A3): its campaigns as the page read them, each by its name, moment, state and
+     * whether a run of it waits; none read yet is null, and the page's own chips wait for it.
+     */
+    campaigns?: {
+        rows: ReadonlyArray<{
+            name: string;
+            trigger: string;
+            state: string;
+            waiting: boolean;
+        }>;
+    } | null;
 }
 /**
  * Questions the workspace can answer today, for where the person is. Built from the data, in the person's language,

@@ -21,6 +21,8 @@ const ASK_TEXT = {
     needsQ: "Who needs me right now?",
     // On Leads (spec F3): the field's placeholder, the section's label and the consent rule under its chips.
     describeLeads: "Describe the businesses you want",
+    // On Campaigns (the moment spec, A3): the field's placeholder.
+    describeCampaigns: "Describe what should go out, and when",
     findBusinesses: "Find businesses",
     leadsConsent: "You can email and call leads. Texts and offers wait for their yes.",
     // The Leads section is the finder's, not "Ask about Leads": its label is findBusinesses, said once above.
@@ -86,6 +88,7 @@ const ASK_TEXT = {
     working: "Working…",
     editComposer: "Edit in the composer",
     openIt: "Open it",
+    openComposer: "Open in the composer",
     tryAgain: "Try again",
     priceNote: "This looks like a price. The receptionist never quotes one; you may.",
     windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",
@@ -106,6 +109,7 @@ const ASK_TEXT = {
     from: "De",
     needsQ: "¿Quién me necesita ahora?",
     describeLeads: "Describe los negocios que quieres",
+    describeCampaigns: "Describe qué debe salir, y cuándo",
     findBusinesses: "Encontrar negocios",
     leadsConsent: "Puedes escribir y llamar a los leads. Los SMS y las ofertas esperan su sí.",
     askAbout: (surface) =>
@@ -169,6 +173,7 @@ const ASK_TEXT = {
     working: "Un momento…",
     editComposer: "Editar en el redactor",
     openIt: "Abrirlo",
+    openComposer: "Abrir en el redactor",
     tryAgain: "Reintentar",
     priceNote: "Parece un precio. La recepcionista nunca los da; tú sí puedes.",
     windowNote: "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",

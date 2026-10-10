@@ -131,6 +131,38 @@ test("thirteen surfaces, each said once, Conversations and Live among them; each
   );
 });
 
+test("Ask at rest on Campaigns (the moment spec, A3): three ideas on the first day, then chips from the rows -- why one waits, what is working -- and a win-back offered only where none runs", () => {
+  const base = {
+    surface: "campaigns",
+    language: "en",
+    needsYou: 0,
+    heldDrafts: 0,
+    missedToday: 0,
+    liveNow: 0,
+    hasCalendar: false,
+    canAct: true,
+  };
+  const qs = (input) => buildAskSuggestions({ ...base, ...input }).map((s) => s.q);
+  const first = qs({ campaigns: { rows: [] } });
+  assert.deepEqual(first.slice(0, 3), [
+    "Set up my campaigns",
+    "Win back customers who went quiet",
+    "What should go out this month?",
+  ]);
+  const rows = [
+    { name: "Win-back", trigger: "quiet_30", state: "running", waiting: true },
+    { name: "Monthly offer", trigger: "everyone_monthly", state: "paused", waiting: false },
+  ];
+  const later = qs({ campaigns: { rows } });
+  assert.deepEqual(later.slice(0, 2), ["Why is Win-back waiting?", "What's working?"]);
+  assert.ok(!later.includes("Win back customers who went quiet"), "a win-back runs");
+  assert.ok(!later.includes("Start a win-back playbook for the quiet clients"), "nor its act");
+  const none = qs({ campaigns: { rows: [{ ...rows[0], state: "paused", waiting: false }] } });
+  assert.ok(none.includes("Win back customers who went quiet"), "a paused win-back runs nothing");
+  const es = buildAskSuggestions({ ...base, language: "es", campaigns: { rows: [] } })[0].q;
+  assert.equal(es, "Prepara mis campañas");
+});
+
 test("a scope has kinds of its own, and so do the context's rows; each is a kind a citation names, but the run, which a citation names a broadcast", () => {
   assert.notDeepEqual([...ASK_SCOPE_KINDS], [...ASK_CITATION_KINDS], "no longer an alias");
   for (const k of ["lead", "search", "run"]) assert.ok(ASK_SCOPE_KINDS.includes(k), `a page opens a ${k}`);

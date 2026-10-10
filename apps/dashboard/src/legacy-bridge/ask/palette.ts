@@ -36,6 +36,7 @@ import {
   type JumpEntry,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
+import { surfaceValue } from "@/surfaces/surface-values";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
 
@@ -184,6 +185,25 @@ export function waitingFrom(win: Window): AskWaiting | null {
   };
 }
 
+/**
+ * Campaigns' own chips' input (contracts buildAskSuggestions, the moment spec A3): each campaign the playbooks surface
+ * read, by its name, moment and state and whether a run of it waits; null until it is read, so no chip is offered on
+ * a guess.
+ */
+function campaignsRead() {
+  const rows = surfaceValue("playbooks")?.rows;
+  return rows
+    ? {
+        rows: rows.map((r) => ({
+          name: r.name,
+          trigger: r.trigger,
+          state: r.state,
+          waiting: !!r.totals?.waiting,
+        })),
+      }
+    : null;
+}
+
 export function askPalette(win: Window, storage: Storage | null) {
   const w = win as unknown as PaletteGlobals;
   const rememberLanguage = (l: AskLanguage) => {
@@ -248,6 +268,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
         leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.words),
         leadSearches: (w.__LEADS?.searches ?? []).map((s) => s.asked),
+        // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
+        campaigns: campaignsRead(),
       });
     },
     /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */

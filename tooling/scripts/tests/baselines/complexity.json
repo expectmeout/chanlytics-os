@@ -255,9 +255,9 @@
     "depth": 0
   },
   "packages/contracts/src/ask/ask-suggestions.ts::buildAskSuggestions#1": {
-    "lines": 59,
-    "branches": 45,
-    "depth": 3
+    "lines": 51,
+    "branches": 40,
+    "depth": 2
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
     "lines": 180,

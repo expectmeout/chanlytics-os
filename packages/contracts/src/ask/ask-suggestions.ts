@@ -2,6 +2,7 @@
  * The questions and the acts the palette offers for where the person is (buildAskSuggestions): built from the
  * workspace's data, in English or Spanish, never from a seed. The pages it knows are ask.ts's (ASK_SURFACES).
  */
+import { isWinBack } from "../playbooks/playbook-triggers";
 import type { AskScope, AskSurface } from "./ask";
 import type { AskLanguage } from "./ask-language";
 
@@ -9,8 +10,8 @@ import type { AskLanguage } from "./ask-language";
 
 /**
  * The surfaces that have no chips of their own yet, and whose they are offered (the Phase 2 plan, PR 2.1): the
- * Pipeline People's, as it was when it went by People's name; the Calendar and Campaigns other's. The first run's are
- * its own since the palette opens there (Phase 7).
+ * Pipeline People's, as it was when it went by People's name; the Calendar and Campaigns other's, Campaigns after its
+ * own from its rows (pageChips). The first run's are its own since the palette opens there (Phase 7).
  */
 const CHIPS_OF: Partial<Record<AskSurface, AskSurface>> = {
   pipeline: "people",
@@ -47,6 +48,11 @@ export interface SuggestionInput {
   /** On Leads: the first day's suggestion words (each a search to propose), and the latest searches' own words. */
   leadIdeas?: string[];
   leadSearches?: string[];
+  /**
+   * On Campaigns (the moment spec, A3): its campaigns as the page read them, each by its name, moment, state and
+   * whether a run of it waits; none read yet is null, and the page's own chips wait for it.
+   */
+  campaigns?: { rows: ReadonlyArray<{ name: string; trigger: string; state: string; waiting: boolean }> } | null;
 }
 
 const T = {
@@ -85,6 +91,11 @@ const T = {
     actPlaybookQ: "Start a win-back playbook for the quiet clients",
     actHold: "Hold every reply for my review",
     actHoldQ: "Hold every reply for my review before it sends",
+    setUp: "Set up my campaigns",
+    winBackIdea: "Win back customers who went quiet",
+    offerIdea: "What should go out this month?",
+    whyWaiting: "Why is {name} waiting?",
+    working: "What's working?",
   },
   es: {
     needs: "¿Quién me necesita ahora?",
@@ -121,15 +132,20 @@ const T = {
     actPlaybookQ: "Inicia un playbook de recuperación para los clientes inactivos",
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Retén cada respuesta para mi revisión antes de enviarla",
+    setUp: "Prepara mis campañas",
+    winBackIdea: "Recupera a los clientes que dejaron de escribir",
+    offerIdea: "¿Qué debería salir este mes?",
+    whyWaiting: "¿Por qué espera {name}?",
+    working: "¿Qué está funcionando?",
   },
 } as const;
 
 /**
  * Each page's own questions, after those the workspace's state asks for (who needs you, a held draft, a call, the
  * openings): the key of each question's words and its icon, in the order offered. Leads' own are its ideas and its
- * searches' words, which buildAskSuggestions puts first; a page not listed has none of its own. The first run's
- * (Phase 7): what is left, which the turn answers from the steps the page shows (the server's start provider), and
- * the hours, the facts it checks.
+ * searches' words, and Campaigns' its rows', which pageChips puts first; a page not listed has none of its own. The
+ * first run's (Phase 7): what is left, which the turn answers from the steps the page shows (the server's start
+ * provider), and the hours, the facts it checks.
  */
 const PAGE_QUESTIONS: Partial<Record<AskSurface, ReadonlyArray<readonly [keyof (typeof T)["en"], string]>>> = {
   today: [
@@ -159,6 +175,40 @@ function clipWords(s: string, cap: number): string {
 }
 
 /**
+ * A page's own chips, which come first: on Leads the first day's ideas, each a search to propose, or the latest
+ * searches' own words to find more; on Campaigns (the moment spec, A3) three ideas on the first day, each a setup to
+ * ask, then why a campaign waits and what is working, and a win-back only where none runs. Answers whether a win-back
+ * runs here, which the Act group reads. (Out of buildAskSuggestions, which the complexity ratchet holds.)
+ */
+function pageChips(
+  input: SuggestionInput,
+  t: (typeof T)[keyof typeof T],
+  add: (q: string, kind: AskSuggestion["kind"], icon: string, fast?: boolean, label?: string) => void,
+): boolean {
+  if (input.surface === "leads") {
+    // The section under the field keeps three, and they must be these.
+    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+    for (const w of ideas) add(w, "ask", "search");
+    // A search's own words can run long; the chip shows them clipped, the question sent keeps them whole.
+    if (!ideas.length)
+      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+    return false;
+  }
+  const rows = input.surface === "campaigns" ? (input.campaigns?.rows ?? null) : null;
+  const winBackRuns = !!rows?.some((r) => isWinBack(r.trigger) && r.state === "running");
+  if (rows && rows.length === 0)
+    for (const k of ["setUp", "winBackIdea", "offerIdea"] as const) add(t[k], "ask", "bolt");
+  if (rows && rows.length > 0) {
+    const waiting = rows.find((r) => r.waiting);
+    if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+    add(t.working, "ask", "trending-up");
+    if (!winBackRuns) add(t.winBackIdea, "ask", "bolt");
+  }
+  return winBackRuns;
+}
+
+/**
  * Questions the workspace can answer today, for where the person is. Built from the data, in the person's language,
  * never from a seed; a workspace with no missed call is not offered a question about missed calls.
  */
@@ -176,16 +226,8 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
     if (s.kind === "thread") add(t.why, "ask", "sparkle");
   }
   if (s && s.kind === "call") add(t.live, "ask", "phone");
-  // On Leads the page's own chips come first: the first day's ideas, each a search to propose, or the latest
-  // searches' own words to find more. The section under the field keeps three, and they must be these.
-  if (input.surface === "leads") {
-    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-    for (const w of ideas) add(w, "ask", "search");
-    // A search's own words can run long; the chip shows them clipped, the question sent keeps them whole.
-    if (!ideas.length)
-      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
-  }
+  // A page's own chips come first (Leads', Campaigns'), and whether a win-back runs here.
+  const winBackRuns = pageChips(input, t, add);
   if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
   if (input.heldDrafts > 0) add(t.held, "ask", "clock");
   if (input.liveNow > 0) add(t.live, "ask", "phone");
@@ -218,6 +260,6 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
   if (at === "people" || at === "other") act(t.actOffer, t.actOfferQ, "wave", true);
-  if (at === "people" || at === "other") act(t.actPlaybook, t.actPlaybookQ, "bolt");
+  if ((at === "people" || at === "other") && !winBackRuns) act(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }

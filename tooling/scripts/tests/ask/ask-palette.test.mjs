@@ -3362,6 +3362,44 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
   }
 });
 
+test("on Campaigns the field asks what should go out, and when (the moment spec, A3)", async () => {
+  const hash = globalThis.window.location.hash;
+  globalThis.window.location.hash = "#/campaigns";
+  try {
+    ask([]);
+    render(Palette, OPEN);
+    const tree = await later(Palette, OPEN);
+    assert.equal(inputOf(tree).props.placeholder, "Describe what should go out, and when");
+  } finally {
+    await closes();
+    globalThis.window.location.hash = hash;
+  }
+});
+
+test("a campaign card opens in the composer on its moment before Approve, and says so (the moment spec, A7)", () => {
+  // The card's Open is contracts' cardOpenRoute, which reads the playbook spec's own `open`, through the bridge.
+  ask([]);
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const t = globalThis.window.askText("en");
+  const card = {
+    id: "p1",
+    kind: "playbook",
+    needs: "operator",
+    title: "Playbook: Win-back",
+    summary: "Win-back — nothing heard in 30 days",
+    payload: { trigger: "quiet_30" },
+    undo: "Delete it — nothing will run",
+  };
+  const went = [];
+  const tree = render(AskCard, { p: card, messageId: "x", t, onNav: (to) => went.push(to) });
+  const open = find(tree, (n) => n.type === "button" && textOf(n) === "Open in the composer");
+  assert.ok(open, "the card's Open, in the composer's words");
+  open.props.onClick();
+  assert.deepEqual(went, ["campaigns/new:moment:quiet_30"]);
+  assert.equal(globalThis.window.askText("es").openComposer, "Abrir en el redactor");
+  assert.equal(globalThis.window.askText("es").describeCampaigns, "Describe qué debe salir, y cuándo");
+});
+
 test("on Leads a card that answers a search commits through Ask's door with no undo, and the Line goes to the search's question", async () => {
   const hash = globalThis.window.location.hash;
   const chanly = globalThis.window.CHANLY;
