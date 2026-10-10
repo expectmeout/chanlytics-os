@@ -374,10 +374,6 @@
     "00369_a_broadcast_s_email_is_claimed_as_it_is_written.sql": "3b4fcf4cfe6f3a3b1f53b6db8742a19bbd605577f634a337c82434f8a2ad1e84",
     "00370_a_partner_s_share_is_read_by_the_owner_alone.sql": "0f5725104586d6fd55c0c9da19e7fe82fd571a2687f15aab947c14732ec1401d",
     "00371_a_member_may_leave_and_an_invitation_is_sent_again.sql": "45451bad4e81406329cd13830e21ec060c17c3fe6d43afcd212f9cc3ed4502e9",
-    "00372_a_booking_notice_is_no_person_s_words.sql": "19538cfa8e4196dd89f17266aceb9d667bb7d85ab5bf3653ca6d861d48b97578",
-    "00373_a_playbook_s_runs_are_counted_where_they_are.sql": "2d22029abf61fb2f2384a088fd0c02cc1b2127e3cfddb4d615556a718bb1c9a5",
-    "00374_every_chain_is_counted_behind_one_member_check.sql": "df0132d4cf2518ce2db40d21dd1866ddf3b2c1ee933597e99224b9e6e621d0f3",
-    "00375_a_playbook_changed_is_told_to_its_workspace.sql": "7adcd72c365246d2e477b50d9d0ed6f698c480b64cc9eafabb5e8f26c7dcced6",
-    "00376_a_playbook_changes_in_one_write.sql": "58ea5c740fe23613b9708726bcce3a83832e563917ca01ee0c0223b16acf97d6"
+    "00372_a_member_chooses_what_reaches_their_phone.sql": "24e3e33afc479f0073df51c4fec29f9f540aec1f36b62d8bde593162251712b5"
   }
 }

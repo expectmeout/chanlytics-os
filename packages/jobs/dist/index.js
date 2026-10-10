@@ -230,7 +230,8 @@ import {
   keepForwardingConfirmation,
   getTenantConfig,
   claimQueuedSend as claimQueuedSend2,
-  releaseQueuedSend as releaseQueuedSend2
+  releaseQueuedSend as releaseQueuedSend2,
+  membersPushedFor
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -1111,13 +1112,14 @@ async function pushSend(ctx, job) {
   if (!id) throw new Error("push_send: no notification named");
   const n = must(
     "push_send: cannot read the notification",
-    await ctx.db.from("notifications").select("id, tenant_id, title, body, route, recipient_user_id").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
+    await ctx.db.from("notifications").select("id, tenant_id, kind, title, body, route, recipient_user_id").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
   );
   if (!n) return;
-  const readers = n.recipient_user_id ? [n.recipient_user_id] : (must(
-    "push_send: cannot read who is in the workspace",
-    await ctx.db.from("memberships").select("user_id").eq("tenant_id", job.tenant_id)
-  ) ?? []).map((m) => m.user_id);
+  const readers = await membersPushedFor(ctx.db, {
+    tenantId: job.tenant_id,
+    userIds: n.recipient_user_id ? [n.recipient_user_id] : null,
+    kind: n.kind
+  });
   if (!readers.length) return;
   const devices = must(
     "push_send: cannot read the phones",

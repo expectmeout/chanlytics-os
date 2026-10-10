@@ -100,6 +100,10 @@ export const RATE = {
   person_edit: { limit: 60, windowMs: MIN_MS, noun: "profile edits" },
   /** Read and dismiss marks on the bell. */
   notify_mark: { limit: 120, windowMs: MIN_MS, noun: "notification marks" },
+  /** What reaches a member's own phone, ticked on Settings › Notifications: one save a tick. */
+  alert_choice: { limit: 60, windowMs: MIN_MS, noun: "alert changes" },
+  /** A test emails every alert address: a few an hour proves them, more is a mailbox flooded. */
+  alert_test: { limit: 3, windowMs: HOUR_MS, noun: "test alerts" },
   /** A member's own seen and unread marks on people: one as each thread or person is opened. */
   seen_mark: { limit: 240, windowMs: MIN_MS, noun: "read marks" },
   setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },

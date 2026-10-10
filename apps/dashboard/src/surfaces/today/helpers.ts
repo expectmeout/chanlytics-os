@@ -17,7 +17,6 @@ import {
   todayRunApproved,
   withReplies,
   withoutWrongPerson,
-  NOTIFICATION_KIND_GROUPS,
   type ReachOutRepliesDto,
   type TodayNoReplyVM,
   type TodayQueueRowVM,
@@ -43,8 +42,6 @@ export const TODAY_HELPERS = {
   // Who is waiting with nothing back, less a reply read as a wrong person: nobody there is to answer (contracts
   // withoutWrongPerson), over the same readings as the queue's, so the page asks for the replies once.
   withoutWrongPerson: (waiting: TodayNoReplyVM[]) => withoutWrongPerson(waiting, readings()),
-  // What Settings › Notifications says the workspace is told (contracts notification-kinds.ts).
-  notificationKinds: NOTIFICATION_KIND_GROUPS,
 };
 type TodayHelpers = typeof TODAY_HELPERS;
 

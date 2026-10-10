@@ -331,6 +331,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "PUT me": "the name, laid on who is looking at once (identity.ts setName, me:changed)",
   "PUT me/devices": "this device's push registration",
   "DELETE me/devices": "this device's push registration",
+  "PUT me/alerts": "published from the answer (notifications/verbs.ts)",
+  "POST notifications/test": "a test email; nothing moves",
   "PUT views/[page]": "the member's saved view, which the page already shows",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",

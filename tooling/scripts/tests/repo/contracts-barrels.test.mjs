@@ -57,9 +57,10 @@ const SRC = "packages/contracts/src";
 const ROOT_INDEX = `${SRC}/index.ts`;
 const FIRST = "./zod-config";
 /** What may sit at the root beside the index: the zod setting that must run first, and what a generator writes. */
-// The package's entries are plumbing too: the index, the browser's (generated) and the classic schemas a page asks for
-// by import() (write-rules.ts; decision 0024).
-const PLUMBING = /^(index|write-rules|zod-config|[a-z0-9-]+\.generated)\.ts$/;
+// The package's entries are plumbing too: the index, the browser's (generated), the classic schemas a page asks for
+// by import() (write-rules.ts; decision 0024), and what one pane alone draws with, kept off the route every page loads
+// (alert-pane.ts; decision 0040).
+const PLUMBING = /^(index|write-rules|alert-pane|zod-config|[a-z0-9-]+\.generated)\.ts$/;
 
 // The generated closed sets are a module the barrels name, so they stay in the set here.
 const files = repoFiles([SRC], { drop: /(^|\/)(dist|node_modules)\// });

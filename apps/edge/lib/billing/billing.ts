@@ -24,7 +24,7 @@ import {
   type SubscriptionFacts,
   MIN_MS,
 } from "../packages/contracts.js";
-import { recordNotification } from "../ops/notify.js";
+import { keepAndPush } from "../ops/notify.js";
 import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
@@ -248,7 +248,7 @@ export async function applySubscription(
   }
   if (ended && !PLAN_ENDED.has(facts.status)) await endLeftEmpty(sub.id, L);
   if (plan.bell) {
-    await recordNotification(row.tenant_id, {
+    await keepAndPush(row.tenant_id, {
       kind: "billing",
       title: plan.bell.title,
       body: plan.bell.body,
@@ -768,7 +768,7 @@ export async function notePayment(
       .update({ last_payment_failed_at: now.toISOString() })
       .eq("tenant_id", row.tenant_id);
     if (up.error) throw new Error(up.error.message);
-    await recordNotification(row.tenant_id, {
+    await keepAndPush(row.tenant_id, {
       kind: "billing",
       title: "A payment did not go through",
       body: "The card on file was declined. Stripe tries again over the next days; update the card from Billing to keep the receptionist answering.",
@@ -790,7 +790,7 @@ export async function noteTrialEnding(db: Db, row: BillingRow, trialEnd: string 
   await emitEvent(db, row.tenant_id, "billing.trial_ending", "subscription", null, { trial_end: trialEnd }).catch(
     () => {},
   );
-  await recordNotification(row.tenant_id, {
+  await keepAndPush(row.tenant_id, {
     kind: "billing",
     title: "Your trial ends in three days",
     body: `The card on file is charged when the trial ends${trialEnd ? ` on ${new Date(trialEnd).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}. Cancel from Billing before then if you'd rather not.`,

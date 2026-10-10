@@ -85,6 +85,7 @@ import { installBusinessTab } from "./business-tab";
 import { installSetup, setupOverride } from "@/surfaces/setup/surface";
 import { googleOverride } from "./google";
 import { installBilling, billingOverride } from "@/surfaces/settings/billing/surface";
+import { alertsOverride } from "@/surfaces/settings/notifications/surface";
 import { installPlatform } from "./platform";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { installActivity } from "./activity";
@@ -176,6 +177,8 @@ const SURFACES = [
   repliesOverride,
   // The partner's account (0012): on the person, read once, beside the rest.
   partnerOverride,
+  // What reaches this member's phones: read where Settings › Notifications is drawn (ROUTE_DRAWS).
+  alertsOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,

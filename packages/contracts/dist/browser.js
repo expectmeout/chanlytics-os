@@ -30650,6 +30650,7 @@ var ROUTE_KEYS = [
   "GET leads/[id]",
   "GET leads/export",
   "GET lines/codes",
+  "GET me/alerts",
   "GET messages/[id]/media",
   "GET metrics",
   "GET notifications",
@@ -30760,6 +30761,7 @@ var ROUTE_KEYS = [
   "POST mailboxes",
   "POST messages/[id]/cancel-send",
   "POST messages/[id]/steer",
+  "POST notifications/test",
   "POST partner",
   "POST partner/invitations/[id]/accept",
   "POST partner/invitations/[id]/decline",
@@ -30815,6 +30817,7 @@ var ROUTE_KEYS = [
   "PUT lead-suggestions",
   "PUT mailboxes/[id]",
   "PUT me",
+  "PUT me/alerts",
   "PUT me/devices",
   "PUT notifications",
   "PUT playbooks/[id]",
@@ -34766,6 +34769,9 @@ function parseDevice(body) {
 }
 var PUSH_KINDS = [
   "handoff",
+  // A customer still waiting is the second alert about someone nobody answered (decision 0040): the phone is where it is
+  // most likely seen, and it was emailed alone.
+  "deadman",
   "call",
   "note_for_you",
   "leads_ready",
@@ -34782,6 +34788,20 @@ var PUSH_KINDS = [
   "reach_out_replied"
 ];
 var isPushKind = (kind) => PUSH_KINDS.includes(kind);
+function pushOffOf(raw) {
+  if (!Array.isArray(raw)) return [];
+  return PUSH_KINDS.filter((k) => raw.includes(k));
+}
+function pushesFor(pushOff, kind) {
+  return isPushKind(kind) && !(pushOff ?? []).includes(kind);
+}
+function parseMemberAlerts(body) {
+  const b = body && typeof body === "object" ? body : {};
+  if (!Array.isArray(b.push_off)) return { ok: false, reason: "Send the kinds your phone is not told, as push_off." };
+  const unknown = b.push_off.filter((k) => typeof k !== "string" || !isPushKind(k));
+  if (unknown.length) return { ok: false, reason: "That is not something a phone is told." };
+  return { ok: true, pushOff: pushOffOf(b.push_off) };
+}
 function unreadFor(rows2, seenAt, marks) {
   const seen = seenAt ? Date.parse(seenAt) : 0;
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
@@ -34804,6 +34824,314 @@ function pushFor(n, targets) {
 }
 var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var BELL_WINDOW_DAYS = 30;
+
+// src/today/notification-kinds.ts
+var NOTIFICATION_DELIVERY = {
+  handoff: "email",
+  deadman: "email",
+  call: "email",
+  number: "email",
+  sweep: "email",
+  job_failed: "email",
+  playbook: "email",
+  calendar_people: "bell",
+  booking_notice: "bell",
+  alert: "email",
+  review: "bell",
+  billing: "email",
+  template_ready: "email",
+  template_blocked: "email",
+  broadcast_sent: "email",
+  broadcast_stopped: "email",
+  leads_ready: "bell",
+  leads_question: "email",
+  note_for_you: "bell",
+  reach_out_replied: "email",
+  reach_out_day: "bell"
+};
+var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
+function emailsNotificationKind(kind) {
+  const known = Object.hasOwn(NOTIFICATION_DELIVERY, kind ?? "");
+  return NOTIFICATION_DELIVERY[known ? kind : "alert"] === "email";
+}
+var EMAIL_ALWAYS_KINDS = ["handoff", "deadman"];
+var ALERT_GROUP_TITLES = {
+  needs_you: "Needs you",
+  worth_knowing: "Worth knowing",
+  for_you: "For your information"
+};
+var ALERT_TOPICS = [
+  {
+    key: "handoff",
+    group: "needs_you",
+    title: "A customer needs a person",
+    what: "The receptionist stopped on a conversation and someone is waiting. The alert carries their message.",
+    email: "always",
+    phone: true,
+    kinds: ["handoff"]
+  },
+  {
+    key: "deadman",
+    group: "needs_you",
+    title: "Still waiting for an answer",
+    what: "A customer who needed a person has waited a while, a message went unanswered, or a reply never left.",
+    email: "always",
+    phone: true,
+    kinds: ["deadman"]
+  },
+  {
+    key: "playbook",
+    group: "needs_you",
+    title: "A campaign or reach-out waits for your yes",
+    what: "A run waits for your approval, or goes unless you stop it, with how many people it reaches; a reach-out holds an email for your call; or a campaign could not run today, and tomorrow's run tries again.",
+    email: "choice",
+    phone: true,
+    kinds: ["playbook"]
+  },
+  {
+    key: "leads_question",
+    group: "needs_you",
+    title: "A lead search asks you something",
+    what: `A lead search stopped to ask you something. ${LEAD_QUESTION_WAIT_LINE}`,
+    email: "choice",
+    phone: true,
+    kinds: ["leads_question"]
+  },
+  {
+    key: "call",
+    group: "worth_knowing",
+    title: "After every phone call",
+    what: "Who called, how long, what they wanted and what to do next. The email carries the transcript.",
+    email: "choice",
+    phone: true,
+    kinds: ["call"]
+  },
+  {
+    key: "reach_out_replied",
+    group: "worth_knowing",
+    title: "A business wrote back to a reach-out",
+    what: "What the reply was read as, what was done, and the receptionist's draft when it wrote one.",
+    email: "choice",
+    phone: true,
+    kinds: ["reach_out_replied"]
+  },
+  {
+    key: "job_failed",
+    group: "worth_knowing",
+    title: "Something did not finish",
+    what: "A reply may not have been sent, or a search, a broadcast or another background job stopped partway. It says what stopped and whether it carries on.",
+    email: "choice",
+    phone: true,
+    kinds: ["job_failed"]
+  },
+  {
+    key: "broadcasts",
+    group: "worth_knowing",
+    title: "A broadcast finished, or stopped",
+    what: "When a broadcast has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
+    email: "choice",
+    phone: true,
+    kinds: ["broadcast_sent", "broadcast_stopped"]
+  },
+  {
+    key: "number",
+    group: "worth_knowing",
+    title: "Your WhatsApp number needs attention",
+    what: "WhatsApp flagged it, lowered how many new conversations it can start, restricted the account or rejected its review, or the business removed Chanlytics from it.",
+    email: "choice",
+    phone: true,
+    kinds: ["number"]
+  },
+  {
+    key: "templates",
+    group: "worth_knowing",
+    title: "A WhatsApp template was approved or blocked",
+    what: "WhatsApp approved a template, or rejected, paused or disabled it, or moved it to marketing, where a send needs the customer's recorded yes.",
+    email: "choice",
+    phone: false,
+    kinds: ["template_ready", "template_blocked"]
+  },
+  {
+    key: "sweep",
+    group: "worth_knowing",
+    title: "Sending is paused",
+    what: "Offers and news by email, or a sending domain, are held after bounces or complaints, and you are told when they send again. Messages about a visit and everything on WhatsApp go on.",
+    email: "choice",
+    phone: false,
+    kinds: ["sweep"]
+  },
+  {
+    key: "billing",
+    group: "worth_knowing",
+    title: "Your plan",
+    what: "A card declined, a trial ending, or the subscription ended and your receptionist's number is going back. Only the number going back is emailed.",
+    email: "choice",
+    phone: true,
+    kinds: ["billing"]
+  },
+  {
+    key: "leads_ready",
+    group: "for_you",
+    title: "A search found leads",
+    what: "A lead search finished, with how many it found.",
+    onBell: "finished searches",
+    email: null,
+    phone: true,
+    kinds: ["leads_ready"]
+  },
+  {
+    key: "review",
+    group: "for_you",
+    title: "A new Google review",
+    what: "Someone reviewed the business on its Google profile.",
+    onBell: "new Google reviews",
+    email: null,
+    phone: true,
+    kinds: ["review"]
+  },
+  {
+    key: "note_for_you",
+    group: "for_you",
+    title: "A note left for you",
+    what: "A teammate left you a note on a person. Only you are told.",
+    onBell: "notes left for you",
+    email: null,
+    phone: true,
+    kinds: ["note_for_you"]
+  }
+];
+var BELL_LINE_KINDS = [
+  "calendar_people",
+  "booking_notice",
+  "reach_out_day",
+  "alert"
+];
+var EMAIL_CHOICE_KINDS = ALERT_TOPICS.flatMap(
+  (t) => t.email === "choice" ? t.kinds : []
+);
+function emailOffOf(notifications) {
+  const off = notifications?.email_off;
+  if (!Array.isArray(off)) return [];
+  return EMAIL_CHOICE_KINDS.filter((k) => off.includes(k));
+}
+function emailsFor(notifications, kind) {
+  if (!emailsNotificationKind(kind)) return false;
+  return !emailOffOf(notifications).includes(kind ?? "");
+}
+function topicEmailed(topic, notifications) {
+  if (topic.email === null) return false;
+  const off = emailOffOf(notifications);
+  return topic.email === "always" || !topic.kinds.some((k) => off.includes(k));
+}
+function topicPushed(topic, pushOff) {
+  return topic.phone && !topic.kinds.some((k) => pushOff.includes(k));
+}
+function withTopicEmail(notifications, topic, on) {
+  const off = new Set(emailOffOf(notifications));
+  if (topic.email === "choice") switchKinds(off, topic.kinds, on);
+  return EMAIL_CHOICE_KINDS.filter((k) => off.has(k));
+}
+function switchKinds(off, kinds, on) {
+  for (const k of kinds) {
+    if (on) off.delete(k);
+    else off.add(k);
+  }
+}
+function withTopicPush(pushOff, topic, on) {
+  const off = new Set(pushOff);
+  if (topic.phone) switchKinds(off, topic.kinds, on);
+  return ALERT_TOPICS.flatMap((t) => t.phone ? t.kinds : []).filter((k) => off.has(k));
+}
+var ALERT_PANE_WORDS = {
+  where: "Where alerts reach you",
+  whereSub: "The bell keeps everything. Choose what else reaches you below.",
+  bell: "Bell",
+  bellValue: `Everything below, for ${BELL_WINDOW_DAYS} days`,
+  bellOn: "Always on",
+  email: "Email",
+  emailNobody: "Nobody yet",
+  emailNobodyHint: "Until an address is added, a customer who needs a person reaches nobody by email: Chanlytics is told the workspace needs one, without the customer's message.",
+  emailMore: (n) => n === 1 ? "and 1 more" : `and ${n} more`,
+  change: "Change",
+  done: "Done",
+  you: "you",
+  notOnTeam: "Not on the team",
+  onTeam: "On the team",
+  addPlaceholder: "name@yourbusiness.com",
+  addLabel: "Add an address to email",
+  teammates: "Teammates not emailed:",
+  emailFoot: `Each address gets what is ticked under Email. Up to ${ALERT_ADDRESSES_MAX}.`,
+  test: "Send a test",
+  testing: "Sending\u2026",
+  testSent: (n) => n === 1 ? "A test was sent to 1 address." : `A test was sent to ${n} addresses.`,
+  testNot: (why) => why === "no_address" ? "There is no address to send a test to." : why === "not_live" ? "Tests are sent from the live app only, not from a preview." : "The test could not be sent. Try again in a minute.",
+  phone: (n) => n > 1 ? "Your phones" : "Your phone",
+  phoneHint: "Signing out on a phone stops its alerts.",
+  browser: "This browser",
+  browserValue: "When someone needs you right now",
+  browserHint: "A customer who needs a person, a reply waiting for your OK, a missed call, or a search's question, while Chanlytics is open in a tab.",
+  browserBlocked: "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.",
+  what: "What you're told about",
+  whatSub: "Tick where else each one reaches you. Email is the business's; your phone is yours.",
+  emailHead: "Email",
+  emailHeadSub: "for the business",
+  phoneHead: "Phone",
+  phoneHeadSub: "yours",
+  always: "Always emailed: the receptionist must always reach someone.",
+  ownerChooses: "The owner chooses what the business is emailed.",
+  addFirst: "Add an address to email first.",
+  phoneTold: "Your phone is told this.",
+  notEmailed: "Not sent by email.",
+  notPushed: "Not sent to phones.",
+  /** The bell's own line: what it holds that nothing else carries, and the topics that have nothing to choose here. */
+  bellLine: (also) => {
+    const all = [
+      ...also,
+      "people added from your calendar",
+      "a booking email that needs a look",
+      "the day's reach-out numbers at 6 PM",
+      "a problem with a line",
+      "invitations not yet accepted"
+    ];
+    return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;
+  },
+  never: "Never sent: text messages, or a daily or weekly email. Today is your brief.",
+  /** The address the alerts come from, said only where an operator set one (nothing in the app writes it). */
+  sentFrom: (from) => `Sent from ${from}.`
+};
+function alertTestMail(o) {
+  return {
+    subject: `Test alert for ${o.business}`,
+    body: `This is a test from Settings \u203A Notifications. If you can read it, alerts for ${o.business} reach this address: a customer who needs a person, and whatever is ticked under Email.
+
+Nothing needs doing.
+
+${o.link}`
+  };
+}
+function alertGrid(o) {
+  const groups = ["needs_you", "worth_knowing", "for_you"];
+  return groups.map((group) => ({
+    group,
+    title: ALERT_GROUP_TITLES[group],
+    rows: ALERT_TOPICS.filter((t) => t.group === group && !bellOnly(t, !!o.phone)).map((topic) => ({
+      topic,
+      email: topic.email === "always" ? { kind: "always" } : topic.email === null ? { kind: "none" } : { kind: "tick", on: topicEmailed(topic, o.notifications), held: o.emailHeld },
+      phone: !o.phone ? null : !topic.phone ? { kind: "none" } : o.phone.choosable ? { kind: "tick", on: topicPushed(topic, o.phone.pushOff), held: null } : { kind: "told" }
+    }))
+  })).filter((g) => g.rows.length > 0);
+}
+var bellOnly = (t, hasPhone) => t.email === null && !hasPhone;
+function bellLineFor(hasPhone) {
+  return ALERT_PANE_WORDS.bellLine(ALERT_TOPICS.filter((t) => bellOnly(t, hasPhone)).map((t) => t.onBell ?? t.title));
+}
+function phoneLine(p, now) {
+  const what = p.platform === "ios" ? "iPhone" : "Android phone";
+  const at3 = p.last_seen_at ? Date.parse(p.last_seen_at) : NaN;
+  if (Number.isNaN(at3)) return what;
+  const ago3 = agoShort(at3, now);
+  return `${what} \xB7 ${ago3 === "now" ? "seen just now" : `seen ${ago3} ago`}`;
+}
 
 // src/today/notifications.ts
 function bellCalls(live) {
@@ -34939,8 +35267,9 @@ var JOB_WORK = {
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
-  // did not get there, and the activity log is where the fact is.
-  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
+  // did not get there, and the activity log is where the fact is, so its door opens Activity (it opened Notifications,
+  // which says nothing of either).
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/activity" },
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
   inbound_answer: { stopped: "A text could not be answered", to: "inbox" }
@@ -35021,6 +35350,7 @@ var ROUTE_VERBS = [
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
+  [/^admin\/activity/, "Open Activity"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
@@ -35116,169 +35446,6 @@ function nameKnownCustomers(rows2, threads, calls) {
     return who ? { ...r2, title: r2.title.replace(NUMBER_IN_WORDS, who) } : r2;
   });
 }
-
-// src/today/notification-kinds.ts
-var NOTIFICATION_DELIVERY = {
-  handoff: "email",
-  deadman: "email",
-  call: "email",
-  number: "email",
-  sweep: "email",
-  job_failed: "email",
-  playbook: "email",
-  calendar_people: "bell",
-  booking_notice: "bell",
-  alert: "email",
-  review: "bell",
-  billing: "email",
-  template_ready: "email",
-  template_blocked: "email",
-  broadcast_sent: "email",
-  broadcast_stopped: "email",
-  leads_ready: "bell",
-  leads_question: "email",
-  note_for_you: "bell",
-  reach_out_replied: "email",
-  reach_out_day: "bell"
-};
-var EMAILED_NOTIFICATION_KINDS = SERVER_NOTIFICATION_KINDS.filter(
-  (k) => NOTIFICATION_DELIVERY[k] === "email"
-);
-function emailsNotificationKind(kind) {
-  const known = SERVER_NOTIFICATION_KINDS.includes(kind ?? "");
-  return NOTIFICATION_DELIVERY[known ? kind : "alert"] === "email";
-}
-var NOTIFICATION_KIND_GROUPS = [
-  {
-    title: "Customers",
-    rows: [
-      {
-        title: "A customer needs a person",
-        what: "It stopped on a thread and someone is waiting. The alert carries their message.",
-        kinds: ["handoff"]
-      },
-      { title: "Still waiting", what: "A handoff has gone unanswered for a while.", kinds: ["deadman"] },
-      { title: "After every phone call", what: "Who called, how long, how it went.", kinds: ["call"] }
-    ]
-  },
-  {
-    // What stopped, finished or was paused in the sending: a reply, a broadcast, a playbook, the offers by email, a job.
-    title: "Sending",
-    rows: [
-      {
-        title: "Something did not finish",
-        what: "A reply may not have been sent, or a search, a broadcast or another background job stopped partway. It says what stopped and whether it carries on in a fresh run.",
-        kinds: ["job_failed"]
-      },
-      {
-        title: "A broadcast finished, or stopped",
-        what: "When a broadcast has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
-        kinds: ["broadcast_sent", "broadcast_stopped"]
-      },
-      {
-        title: "A campaign's run needs you, or could not run",
-        what: "When a run waits for your approval, or is about to go unless you stop it, with how many people it reaches. And when a campaign could not run for the day, or could not read your calendar, so nobody was sent it: tomorrow's run tries again.",
-        kinds: ["playbook"]
-      },
-      {
-        title: "Offers and news by email are paused",
-        what: "Complaints or bounces went over the line, so they wait until it is fixed. Messages about a visit, replies by email and everything on WhatsApp go on.",
-        kinds: ["sweep"]
-      }
-    ]
-  },
-  {
-    title: "Numbers and templates",
-    rows: [
-      {
-        title: "Your WhatsApp number needs attention",
-        what: "WhatsApp flagged it, lowered how many new conversations it can start, restricted the account or rejected its review, or the business removed Chanlytics from it. Good news about the number is not emailed.",
-        kinds: ["number"]
-      },
-      {
-        title: "A WhatsApp template was approved or blocked",
-        what: "WhatsApp approved a template, or rejected, paused or disabled it, or moved it to marketing, where a send needs the customer's recorded yes.",
-        kinds: ["template_ready", "template_blocked"]
-      },
-      {
-        title: "Your phone number is going back",
-        what: "Your subscription ended: a warning with the day your receptionist's number goes back to the phone company, and a note once it has. A card declined or a trial ending is on the bell, not emailed.",
-        kinds: ["billing"]
-      }
-    ]
-  },
-  {
-    title: "Lead searches",
-    rows: [
-      {
-        title: "A search is waiting for your answer",
-        what: `A lead search stopped to ask you something. ${LEAD_QUESTION_WAIT_LINE}`,
-        kinds: ["leads_question"]
-      }
-    ]
-  },
-  {
-    // Reach out, Part 5 (N2): what a reach-out tells its owner, each the moment it happens; and Part 6 (H12), the
-    // day's numbers at 6 PM, the one row that is a line in the bell rather than an email.
-    title: "Reach-outs",
-    rows: [
-      {
-        title: "They wrote back",
-        what: "A business answered a reach-out: what the reply was read as, what was done, and the receptionist's draft when it wrote one.",
-        kinds: ["reach_out_replied"]
-      },
-      {
-        title: "A reach-out waits for you",
-        what: "A run is planned and waits for your yes before anything sends.",
-        kinds: ["playbook"]
-      },
-      {
-        title: "A reach-out holds an email for you",
-        what: "The check held an email of a run it could not pass, and it waits for your call.",
-        kinds: ["playbook"]
-      },
-      {
-        title: "A sending domain is held, and when it sends again",
-        what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again.",
-        kinds: ["sweep"]
-      },
-      {
-        // Part 6 (H12): a line in the bell, never an email.
-        title: "The day's numbers",
-        what: "At 6 PM your time, a line in the bell, not an email: what your reach-outs wrote that day, who wrote back, and what waits for you.",
-        kinds: ["reach_out_day"],
-        bell: true
-      }
-    ]
-  },
-  {
-    // A switched-off number has no workspace to address, and a stalled sweep belongs to nobody's workspace. Listing
-    // them beside "goes to each of these addresses" without saying so promised an email the owner never receives.
-    title: "To Chanlytics",
-    rows: [
-      {
-        title: "Messages arriving for a switched-off number",
-        what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.",
-        kinds: ["alert"],
-        platform: true
-      },
-      {
-        title: "Background checks",
-        what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.",
-        kinds: ["alert"],
-        platform: true
-      }
-    ]
-  }
-];
-var NOTIFICATION_PANE_WORDS = {
-  recipients: "Each alert below is emailed to every one of these, except the two marked for Chanlytics and the day's numbers, a line in the bell.",
-  kinds: "By email, the moment it happens; the day's reach-out numbers are a line in the bell. What is not listed here is not emailed.",
-  /** The address the alerts come from, said before the config's own `from` where an operator set one (nothing in the app writes it). */
-  sentFrom: "Sent from",
-  /** And where none is set, which is every workspace the app made: the platform's own. Nothing swaps it for a verified sending domain of the workspace's. */
-  sentFromPlatform: "Sent from the Chanlytics alert address."
-};
 
 // src/today/today-away.ts
 var readyRunTitles = (label) => [`Campaign \u201C${label}\u201D is ready`, `Playbook \u201C${label}\u201D is ready`];
@@ -37319,7 +37486,9 @@ export {
   ALERT_ADDRESSES_MAX,
   ALERT_ADDRESSES_MIN,
   ALERT_KINDS,
+  ALERT_PANE_WORDS,
   ALERT_REFUSED_WORDS,
+  ALERT_TOPICS,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
   APPOINTMENT_SOURCES,
@@ -37362,6 +37531,7 @@ export {
   ASK_WARM_MAX_TOKENS,
   AUDIENCE_KINDS,
   AppError,
+  BELL_LINE_KINDS,
   BELL_WINDOW_DAYS,
   BILLING_MODES,
   BILLING_STATUSES,
@@ -37512,6 +37682,7 @@ export {
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
   EMAILED_NOTIFICATION_KINDS,
+  EMAIL_ALWAYS_KINDS,
   EMAIL_BODY_MAX,
   EMAIL_CLAIMS,
   EMAIL_ELSEWHERE_SENTENCE,
@@ -37771,8 +37942,6 @@ export {
   NOTICE_HOLD_WORDS,
   NOTICE_READ_MAX_TOKENS,
   NOTICE_SCHEMA,
-  NOTIFICATION_KIND_GROUPS,
-  NOTIFICATION_PANE_WORDS,
   NO_CHANNEL_REACH,
   NO_FIELDS_COMPOSED_WORDS,
   NO_LINK_DETAILS,
@@ -38147,6 +38316,8 @@ export {
   agoWords,
   aiUsageBodyOf,
   alertAddressesOf,
+  alertGrid,
+  alertTestMail,
   allVisitsIn,
   allowanceBeforeSend,
   allowanceLine,
@@ -38194,6 +38365,7 @@ export {
   awayUntilOf,
   bellActionOf,
   bellCalls,
+  bellLineFor,
   bellSections,
   billingAccountDto,
   billingDoorOpen,
@@ -38451,6 +38623,7 @@ export {
   emailTemplateWords,
   emailWires,
   emailWordCount,
+  emailsFor,
   emailsNotificationKind,
   emptyAudienceRefusal,
   emptyBusinessRecord,
@@ -38935,6 +39108,7 @@ export {
   parseIcs,
   parseLeadsRoute,
   parseListToken,
+  parseMemberAlerts,
   parseOpening,
   parsePageMessage,
   parseParamSpec,
@@ -38986,6 +39160,7 @@ export {
   personStanding,
   personStateFor,
   phoneDialable,
+  phoneLine,
   phoneTail,
   pickCurrentDeal,
   pinTokens,
@@ -39092,6 +39267,8 @@ export {
   purposeOfPlaybook,
   purposeOfTemplate,
   pushFor,
+  pushOffOf,
+  pushesFor,
   quantile,
   questionAfterProbe,
   ratingWords,
@@ -39542,6 +39719,8 @@ export {
   wireFailure,
   withAlertAddress,
   withReplies,
+  withTopicEmail,
+  withTopicPush,
   withVisitsOf,
   withoutVisitsRowsDraw,
   withoutWrongPerson,

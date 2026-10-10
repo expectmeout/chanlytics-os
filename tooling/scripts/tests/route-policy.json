@@ -910,6 +910,20 @@
       "rate": "settings",
       "spend": false
     },
+    "GET me/alerts": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "PUT me/alerts": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "alert_choice",
+      "spend": false
+    },
     "PUT me/devices": {
       "kind": "write",
       "scope": "account",
@@ -979,6 +993,13 @@
       "scope": "workspace",
       "role": "viewer",
       "rate": "notify_mark",
+      "spend": false
+    },
+    "POST notifications/test": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "alert_test",
       "spend": false
     },
     "POST partner/invitations/[id]/accept": {

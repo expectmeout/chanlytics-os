@@ -22,6 +22,11 @@
       "import": "./dist/report-window.js",
       "default": "./dist/report-window.js"
     },
+    "./alert-pane": {
+      "types": "./dist/alert-pane.d.ts",
+      "import": "./dist/alert-pane.js",
+      "default": "./dist/alert-pane.js"
+    },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {

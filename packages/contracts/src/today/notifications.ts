@@ -345,8 +345,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
   // A fact's delivery to a subscriber (00334): the subscriber's own rows are what the owner would see; the bell says it
-  // did not get there, and the activity log is where the fact is.
-  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/notifications" },
+  // did not get there, and the activity log is where the fact is, so its door opens Activity (it opened Notifications,
+  // which says nothing of either).
+  event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/activity" },
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
   inbound_answer: { stopped: "A text could not be answered", to: "inbox" },
@@ -476,6 +477,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
+  [/^admin\/activity/, "Open Activity"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
