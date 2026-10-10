@@ -8,6 +8,7 @@ import {
   isReplyTo,
   parseParamSpecs,
   personName,
+  runCountsOf,
   type Audience,
   type BroadcastCounts,
   type BroadcastDetailDto,
@@ -17,7 +18,7 @@ import {
   type PersonCampaignDto,
   type RecipientState,
 } from "@chanlytics/contracts";
-import { readAllRows } from "@chanlytics/db";
+import { readAllRows, runCounts } from "@chanlytics/db";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
 
@@ -326,12 +327,24 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]):
 }
 
 /**
- * The rows with the numbers their people earned: every person on every run (peopleOnRuns), and the replies of all their
- * threads in one read (inboundOn) where there was one query for each run with a thread.
+ * Each run's numbers, by id: the database's count (run_counts, 00374), the one statement of what a run earned, which
+ * Sent, a run's sheet and a playbook's card all say; or, on a database before it, for one release, the fold here
+ * (foldCounts). A run nobody is on is all zeros.
  */
-async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRow[]): Promise<BroadcastDto[]> {
-  if (rows.length === 0) return [];
-  const ids = rows.map((r) => r.id);
+async function countsOf(ctx: RouteContext, tenantId: string, ids: string[]): Promise<Map<string, BroadcastCounts>> {
+  const read = await runCounts(ctx.supabase, tenantId, ids);
+  if (read === "missing") return foldCounts(ctx, tenantId, ids);
+  const counted = runCountsOf(read);
+  if (!counted) throw new Error("run_counts answered a shape it does not know");
+  return new Map(ids.map((id) => [id, counted[id] ?? emptyCounts()]));
+}
+
+/**
+ * The fold run_counts replaced, kept for one release for a database before 00374: every person on every run
+ * (peopleOnRuns), and the replies of all their threads in one read (inboundOn) where there was one query for each run
+ * with a thread.
+ */
+async function foldCounts(ctx: RouteContext, tenantId: string, ids: string[]): Promise<Map<string, BroadcastCounts>> {
   const { counts, threadsOf } = countRecipients(await peopleOnRuns(ctx, tenantId, ids), ids);
   // Every thread any run reached, read once from the oldest send: each run then reads its own threads off the one read.
   const sends = [...threadsOf.values()].flatMap((threads) => [...threads.values()]).sort();
@@ -343,7 +356,35 @@ async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRo
       counts.get(broadcastId)!.replied = firstReplies(threads, inbound).size;
     }
   }
+  return counts;
+}
+
+/** The rows with the numbers their people earned (countsOf). */
+async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRow[]): Promise<BroadcastDto[]> {
+  if (rows.length === 0) return [];
+  const counts = await countsOf(
+    ctx,
+    tenantId,
+    rows.map((r) => r.id),
+  );
   return rows.map((r) => toDto(r, counts.get(r.id) ?? emptyCounts()));
+}
+
+/**
+ * A run's sheet's numbers: run_counts' (00374), the same a list of runs says of it; on a database before it, for one
+ * release, what the sheet counted of its own people (`own`). `counting` is that call, started beside the sheet's people
+ * (getBroadcast), so the sheet pays no round trip at its end for it.
+ */
+async function sheetCountsOf(
+  counting: ReturnType<typeof runCounts>,
+  id: string,
+  own: BroadcastCounts,
+): Promise<BroadcastCounts> {
+  const read = await counting;
+  if (read === "missing") return own;
+  const counted = runCountsOf(read);
+  if (!counted) throw new Error("run_counts answered a shape it does not know");
+  return counted[id] ?? emptyCounts();
 }
 
 /**
@@ -495,6 +536,10 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   if (error) throw new Error(error.message);
   if (!row) throw new AppError("not_found", "Broadcast not found.", 404);
 
+  // Its numbers as the database counts them go out WITH its people, not after every read below; read where the sheet
+  // says them (sheetCountsOf). The catch is for a sheet that fails first and never reads them: one that does still throws.
+  const counting = runCounts(ctx.supabase, tenantId, [id]);
+  counting.catch(() => {});
   // Every person on it, a page at a time: an unbounded read answers with PostgREST's first 1,000, and a broadcast may
   // hold BROADCAST_MAX_RECIPIENTS (2,000), so a large run's counts and rows stopped at the thousandth.
   const rows = await recipientsOf(ctx, tenantId, id);
@@ -503,7 +548,8 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   const threads = threadsOf.get(id);
   const words = new Map<string, string | null>();
   const replied = threads ? await repliedThreads(ctx, tenantId, threads, words) : new Map<string, string>();
-  counts.get(id)!.replied = replied.size;
+  // The sheet's own count of its people, which a database before 00374 is read by (sheetCountsOf).
+  const own = { ...(counts.get(id) ?? emptyCounts()), replied: replied.size };
   const answered = await consentAfter(ctx, tenantId, rows);
   const answers = await answeredAfter(ctx, tenantId, replied);
   const waiting = replied.size > 0 ? await waitingThreads(ctx, tenantId, [...replied.keys()]) : new Set<string>();
@@ -532,7 +578,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     waiting_on_you: !!(r.messages?.conversation_id && waiting.has(r.messages.conversation_id)),
   }));
   return {
-    broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()),
+    broadcast: toDto(row as BroadcastRow, await sheetCountsOf(counting, id, own)),
     recipients: people,
     reach_out: await reachOutRunOf(ctx, tenantId, row),
   };

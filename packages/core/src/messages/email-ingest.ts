@@ -8,6 +8,7 @@ import {
   bookingNoticeOf,
   forwardingConfirmationOf,
   type BookingTool,
+  type EmailClaim,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
 import type { Json } from "@chanlytics/db";
@@ -33,9 +34,11 @@ const emailLog = logger();
  * beats a double text. Here nothing is sent, so nothing can be sent twice, and
  * a lost customer email is the worse outcome.)
  */
-/** What an email claims to be, from headers anyone can write (the adapter decides it: channels classifyReceived). */
-export type EmailClaim =
-  "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
+/**
+ * What an email claims to be, from headers anyone can write (the adapter decides it: channels classifyReceived), one of
+ * contracts' EMAIL_CLAIMS.
+ */
+export type { EmailClaim };
 
 /**
  * One received email as this verb needs it: the provider's shape and the

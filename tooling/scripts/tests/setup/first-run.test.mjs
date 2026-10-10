@@ -323,6 +323,46 @@ test("Today's card: while nothing answers, one row that opens the first run; aft
   assert.equal(three.hide.said, "All 3 put off. They stay in Setting up for when you're ready.");
 });
 
+test("after the first run, with the calendar in, Today's card carries one door to the appointment reminder; never before", () => {
+  const liveWithCalendar = () => live();
+  const liveWithoutCalendar = () => live({ calendar: { state: "none" } });
+  const before = setupCardOf(setupSteps(empty(), NOW));
+  assert.equal(before.remind, null, "while a step is open, the card is the first run's");
+  const after = setupCardOf(setupSteps(liveWithCalendar(), NOW));
+  assert.deepEqual(after.remind, {
+    // No word for the appointment: the composer it opens says the workspace's own (a meeting where deals are on).
+    words: "Your calendar is in. Remind each customer the day before?",
+    label: "Turn on",
+    to: "campaigns/new:moment:visit_tomorrow",
+  });
+  assert.doesNotMatch(after.remind.words, /appointment|visit|meeting|session|lesson/i);
+  const noCalendar = setupCardOf(setupSteps(liveWithoutCalendar(), NOW));
+  assert.equal(noCalendar?.remind ?? null, null, "no calendar: no reminder to offer");
+});
+
+test("Today's reminder door stands only where Campaigns can make the reminder: a calendar link connected", () => {
+  // Setup's calendar row says Ready for these two, and Campaigns' moments read neither as a calendar (momentOffered's
+  // calendarOn: a link connected), so the door would open a reminder core refuses.
+  const byHand = setupSteps(live({ calendar: { state: "none", by_hand: true } }), NOW);
+  assert.equal(byHand.rows.find((r) => r.id === "calendar")?.state, "ready", "booked by hand: Setup's row is ready");
+  assert.equal(setupCardOf(byHand)?.remind ?? null, null, "booked by hand: no door");
+  const emails = { address: true, forwarding: false, last_at: "2026-09-06T14:00:00Z", held: 0 };
+  const byEmail = setupSteps(live({ calendar: { state: "none", tool: "square", emails } }), NOW);
+  assert.equal(
+    byEmail.rows.find((r) => r.id === "calendar")?.state,
+    "ready",
+    "bookings by email: Setup's row is ready",
+  );
+  assert.equal(setupCardOf(byEmail)?.remind ?? null, null, "bookings by email alone: no door");
+  const both = setupSteps(live({ calendar: { state: "ok", tool: "square", emails } }), NOW);
+  assert.equal(setupCardOf(both)?.remind?.to, "campaigns/new:moment:visit_tomorrow", "a link connected: the door");
+  assert.equal(
+    setupCardOf(setupSteps(live(), NOW))?.remind?.to,
+    "campaigns/new:moment:visit_tomorrow",
+    "connected: the door",
+  );
+});
+
 test("the receptionist card: every value is Setup's or the settings read's, the greeting is the phone's word for word, and a blank is a dash", () => {
   const hours = { mon: { open: "09:00", close: "17:00" }, tue: { open: "09:00", close: "17:00" } };
   const services = [

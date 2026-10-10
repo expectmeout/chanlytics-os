@@ -29,7 +29,7 @@ export const PLAYBOOK_CALENDAR_UNREAD = "calendar: could not be read";
  * anything else, which the platform was paged about.
  */
 export function playbookFailedWords(name: string, why: "calendar" | "other"): { title: string; body: string } {
-  const label = name.trim() || "A playbook";
+  const label = name.trim() || "A campaign";
   if (why === "calendar")
     return {
       title: `“${label}” could not read your calendar today`,

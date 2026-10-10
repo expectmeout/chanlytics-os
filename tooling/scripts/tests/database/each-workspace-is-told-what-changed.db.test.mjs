@@ -101,7 +101,7 @@ let seen;
 function world() {
   seen ??= rolledBack(`
     declare
-      a uuid; b uuid; ta text; tb text; ca uuid; cb uuid; conv uuid; conv_b uuid; seg_a uuid; seg_b uuid;
+      a uuid; b uuid; ta text; tb text; ca uuid; cb uuid; conv uuid; conv_b uuid; seg_a uuid; seg_b uuid; tpl uuid;
       member_a uuid := gen_random_uuid(); viewer_a uuid := gen_random_uuid(); partner_a uuid := gen_random_uuid();
       member_b uuid := gen_random_uuid(); probe_a uuid; probe_b uuid; n integer; spoke boolean; tr record;
       steps jsonb := '{}'; reads jsonb := '{}'; misfired jsonb := '[]';
@@ -186,6 +186,19 @@ function world() {
       ${told("note_made")}
       delete from public.person_notes where tenant_id = b;
       ${told("note_removed")}
+
+      -- A playbook made, paused and removed by a teammate (00376): Campaigns' rows and acts repaint. Its message is no
+      -- watched row.
+      insert into public.templates (tenant_id, channel, name, language, meta_status)
+        values (a, 'whatsapp', 'told_offer', 'en_US', 'approved') returning id into tpl;
+      ${told("template_made")}
+      insert into public.playbooks (tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
+        values (a, 'Win-back', 'quiet_30', tpl, 'told_offer', 'en_US', 'reengage');
+      ${told("playbook_made")}
+      update public.playbooks set state = 'paused' where tenant_id = a;
+      ${told("playbook_paused")}
+      delete from public.playbooks where tenant_id = a;
+      ${told("playbook_removed")}
 
       -- One transaction: a loop of statements, as the lead finder's commits are, tells each workspace once.
       for n in 1..100 loop
@@ -426,6 +439,18 @@ test("a delete is told to the workspace it happened in", { skip }, () => {
   ]);
   assert.deepEqual(steps.note_removed, [notice("b", "DELETE", "person_notes")]);
 });
+
+test(
+  "a playbook made, paused or removed is told to its workspace alone: the table and the event, never the row (00376)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.template_made, [], "a message's row is not watched");
+    assert.deepEqual(steps.playbook_made, [notice("a", "INSERT", "playbooks")]);
+    assert.deepEqual(steps.playbook_paused, [notice("a", "UPDATE", "playbooks")]);
+    assert.deepEqual(steps.playbook_removed, [notice("a", "DELETE", "playbooks")]);
+  },
+);
 
 test("one statement over 500 rows of two workspaces puts one notice on each", { skip }, () => {
   const { steps } = world();

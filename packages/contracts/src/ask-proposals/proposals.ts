@@ -16,10 +16,10 @@
  *
  * One file per family beside this one: inbox.ts (reply, steer, thread_verb, whisper), person.ts (person_mode, deal,
  * note, person_details), workspace.ts (policy, settings, invite), campaigns.ts (broadcast, playbook, playbook_channels,
- * run), lists.ts (list), leads.ts (lead_search); spec.ts is what a spec is.
+ * playbook_change, run), lists.ts (list), leads.ts (lead_search); spec.ts is what a spec is.
  */
 import { ASK_UNDO_MS, type AskProposal } from "../ask/ask";
-import { broadcastSpec, playbookChannelsSpec, playbookSpec, runSpec } from "./campaigns";
+import { broadcastSpec, playbookChangeSpec, playbookChannelsSpec, playbookSpec, runSpec } from "./campaigns";
 import { replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
 import { leadSearchSpec } from "./leads";
 import { listSpec } from "./lists";
@@ -46,6 +46,7 @@ export const PROPOSAL_SPECS = {
   list: listSpec,
   run: runSpec,
   playbook_channels: playbookChannelsSpec,
+  playbook_change: playbookChangeSpec,
 } satisfies Record<AskProposal["kind"], ProposalSpec>;
 
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */

@@ -5,13 +5,15 @@ import {
   toBookingReportVM,
   toCampaignReportVM,
   toDealReportVM,
+  toReachOutReportVM,
   toReportVM,
   toReviewsReportVM,
   type CampaignReportVM,
+  type ReachOutReportVM,
   type ReviewsReportVM,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
-import { campaignReport } from "../../../readers/campaign-report";
+import { campaignReport, reachOutReport } from "../../../readers/campaign-report";
 import { report, reviewsReport } from "../../../readers/report";
 import { defineRead, unlessNotFound, unread, type ToolContext } from "../context";
 
@@ -78,6 +80,12 @@ function reviewsSaid(rv: ReviewsReportVM) {
   };
 }
 
+/** The Reach-outs section as Reports draws it (Reach out Part 6), where the workspace has a reach-out at all. */
+function reachOutsSaid(ro: ReachOutReportVM) {
+  if (!ro.present) return null;
+  return { empty: ro.empty, totals: ro.totals, funnel: ro.lines.funnel, written: ro.lines.written };
+}
+
 async function getReport(t: ToolContext, input: { days: number }): Promise<unknown> {
   // The schema below refuses any other count, so the turn never gets here with one.
   // A period that ends today: the tool reads a count of days, never days a member picked on the page.
@@ -85,7 +93,7 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
   // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
   // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
   // answer is the reader's 404, said as the tool always said it.
-  const [r, campaignRead, reviewRead] = await Promise.all([
+  const [r, campaignRead, reviewRead, reachRead] = await Promise.all([
     unlessNotFound(load(t.rc, report, window)),
     // The Campaigns lens's own read (readers/campaign-report.ts), beside it: one that fails is said as null, and in the log.
     load(t.rc, campaignReport, window).then((x) => x.data.report, unread(t, "report", "campaigns")),
@@ -93,9 +101,13 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
     // record): one that fails, a slow edge or a ledger that cannot be read, is null too. Folded below, outside the catch:
     // a fold that throws is a bug to see, never "could not be read".
     load(t.rc, reviewsReport, window).then((x) => x.data, unread(t, "report", "reviews")),
+    // The Reach-outs section's own read (readers/campaign-report.ts reachOutReport), the page's, over the same window:
+    // null where it fails.
+    load(t.rc, reachOutReport, window).then((x) => x.data.report, unread(t, "report", "reach_outs")),
   ]);
   const campaigns = campaignRead ? toCampaignReportVM(campaignRead) : null;
   const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
+  const reachOuts = reachRead ? toReachOutReportVM(reachRead, t.rc.now.getTime()) : null;
   if (!r) return { error: "report unavailable" };
   // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
   const vm = toReportVM(r.data.report, { profile: r.data.profile });
@@ -137,12 +149,14 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
     campaigns: campaigns ? campaignsSaid(campaigns) : { error: "the campaign numbers could not be read just now" },
     // The Reviews lens, as the page says it; an error where its read failed, never as no reviews.
     reviews: reviews ? reviewsSaid(reviews) : { error: "the review numbers could not be read just now" },
+    // The Reach-outs section, as the page says it, where the workspace has one; an error where its read failed.
+    reach_outs: reachOuts ? reachOutsSaid(reachOuts) : { error: "the reach-out numbers could not be read just now" },
   };
 }
 
 export const reportTool = defineRead({
   name: "report",
-  description: `The Reports page for the last ${PERIOD_DAYS_SAID} days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, the Deals section where deals are on, and the Campaigns lens: what the broadcasts and playbooks sent, delivered and had written back, who said yes or asked to stop, the sources that sent the most, and by_channel where more than one channel sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes ${PERIOD_DAYS_SAID} and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.`,
+  description: `The Reports page for the last ${PERIOD_DAYS_SAID} days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, the Deals section where deals are on, and the Campaigns lens: what the broadcasts and playbooks sent, delivered and had written back, who said yes or asked to stop, the sources that sent the most, and by_channel where more than one channel sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: how many emails the reach-outs wrote, how many were delivered and bounced, and how many businesses wrote back, were interested, booked, said no or were handed to the owner, with the funnel's sentence and the line on what was handed (empty says nothing was written); reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes ${PERIOD_DAYS_SAID} and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.`,
   // The table's counts as literals, not a number: the schema refuses 8, and says the ones it takes.
   input: z.object({ days: z.literal(PERIOD_DAYS) }),
   label: "Reading Reports",

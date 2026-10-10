@@ -28,6 +28,13 @@ export const REPORT_PERIOD_IDS = REPORT_RANGES.map((r) => r.id);
 export const REPORT_PERIOD_DEFAULT: ReportPeriodId = "30d";
 
 /**
+ * The period Campaigns counts its campaigns over: the ledger's "Last 30 days", What came back, and the reads the
+ * document's head starts for the page (shell/route-prefetch.ts) and its results surface makes. One of Reports' own fixed
+ * counts of days, never Month, so its days are a number (fixedDaysOf).
+ */
+export const CAMPAIGNS_RESULTS_PERIOD = "30d" satisfies ReportPeriodId;
+
+/**
  * Where a device keeps the period it last picked: the page reads it as it loads (surfaces/reports/surface.ts), and so
  * does the document's head, which starts the report's reads over that period before the page exists
  * (shell/route-prefetch.ts routePrefetchScript). One name, so the two ask for the same report.
@@ -39,9 +46,12 @@ const MOST_DAYS = Math.max(...REPORT_RANGES.map((r) => r.days ?? 0));
 
 export const isReportPeriod = (value: unknown): value is ReportPeriodId => REPORT_RANGES.some((r) => r.id === value);
 
-/** The days of a period that is a count of days; null for Month. */
-export const fixedDaysOf = (period: ReportPeriodId): number | null =>
-  REPORT_RANGES.find((r) => r.id === period)?.days ?? null;
+/** The days of a period that is a count of days; null for Month. A fixed period's are a number. */
+export function fixedDaysOf(period: Exclude<ReportPeriodId, "month">): number;
+export function fixedDaysOf(period: ReportPeriodId): number | null;
+export function fixedDaysOf(period: ReportPeriodId): number | null {
+  return REPORT_RANGES.find((r) => r.id === period)?.days ?? null;
+}
 
 /** Month to date at a business day ("2026-10-05" is 5): the day of the month, today included. */
 export const monthDaysAt = (dayKey: string): number => Number(dayKey.slice(8, 10));

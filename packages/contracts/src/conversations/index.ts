@@ -37,11 +37,11 @@ export {
   messageText,
   clipAtWord,
 } from "./message-words";
-export { isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./message-author";
+export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./message-author";
 export { HANDLED_OUTCOMES } from "./handled";
 export type { Handled } from "./handled";
 export { REFERRAL_ID_MAX } from "./first-touch";
-export type { MessageAuthor } from "./message-author";
+export type { EmailClaim, MessageAuthor } from "./message-author";
 export {
   ESCALATION_REASON_LABELS,
   ESCALATION_REASON_SHORT,

@@ -92,7 +92,7 @@ export async function audiencePool(
 
 /** What a new send or playbook is told of an archived list (00169). */
 export const archivedListWords = (name: string, to: "send" | "run") =>
-  `${name} is archived. Restore it on People to ${to === "send" ? "send to it" : "run a playbook on it"}.`;
+  `${name} is archived. Restore it on People to ${to === "send" ? "send to it" : "run a campaign on it"}.`;
 
 /**
  * One list over a pool (decision 0009): resolved by its reference (contracts resolveList), counted the one way

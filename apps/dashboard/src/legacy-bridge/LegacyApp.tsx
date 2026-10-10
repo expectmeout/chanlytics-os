@@ -74,6 +74,7 @@ import { installAsk } from "./ask";
 import { installBroadcasts } from "@/surfaces/campaigns/broadcasts/verbs";
 import { installPlaybooks } from "@/surfaces/campaigns/playbooks/verbs";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
+import { campaignResultsOverride } from "@/surfaces/campaigns/home/results-surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
 import { installToday } from "@/surfaces/today/helpers";
@@ -171,6 +172,8 @@ const SURFACES = [
   playbooksOverride,
   // A reach-out's chains and their emails (Part 4 PR 8): Playbooks' rows and Templates' email rows.
   reachOutsOverride,
+  // Campaigns' own 30 days, read where Campaigns is drawn and nowhere else (surfaces/campaigns/home/results-surface.ts).
+  campaignResultsOverride,
   repliesOverride,
   // The partner's account (0012): on the person, read once, beside the rest.
   partnerOverride,

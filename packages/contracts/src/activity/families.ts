@@ -77,6 +77,7 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   cancel_broadcast: "campaigns",
   start_playbook: "campaigns",
   pause_playbook: "campaigns",
+  change_playbook: "campaigns",
   reply_review: "google",
   export: "settings",
   end_call: "calls",

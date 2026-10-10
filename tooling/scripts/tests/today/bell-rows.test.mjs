@@ -15,6 +15,7 @@ import {
   nameKnownCustomers,
   serverNotificationRows,
   JOB_KINDS,
+  REACH_OUT_DAY_ROUTE,
 } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_legacy-react.mjs";
 
@@ -570,4 +571,37 @@ test("the bell groups by what its notes are about, as the away card does: sixtee
     note(2, { type: "conversation", id: "c2" }),
   ]);
   assert.equal(spread.lines[0].title, "2 conversations need you");
+});
+
+/* ------------------------------ the day's reach-outs ------------------------------ */
+
+test("the day's reach-out numbers open Campaigns at its Reach-outs, whatever route the row was kept with", () => {
+  const day = (id, route, subject) =>
+    kept({
+      id,
+      kind: "reach_out_day",
+      title: "Today's reach-outs",
+      body: "1 bounced.",
+      route,
+      subject_type: "reach_out_day",
+      subject_id: subject,
+    });
+  const rows = serverNotificationRows({
+    seen_at: null,
+    notifications: [
+      day("n1", "outbound", "2026-09-28"),
+      day("n2", REACH_OUT_DAY_ROUTE, "2026-09-29"),
+      day("n3", null, "2026-09-30"),
+    ],
+  });
+  assert.equal(REACH_OUT_DAY_ROUTE, "campaigns/in:reach_out");
+  assert.deepEqual(
+    rows.map((r) => r.to),
+    ["campaigns/in:reach_out", "campaigns/in:reach_out", "campaigns/in:reach_out"],
+    "a row kept before this lands there too",
+  );
+  assert.deepEqual(
+    rows.map((r) => r.action),
+    ["Open Campaigns", "Open Campaigns", "Open Campaigns"],
+  );
 });

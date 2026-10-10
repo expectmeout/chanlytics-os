@@ -594,7 +594,7 @@ test("what a campaign says of a message whose WhatsApp version cannot go says th
   // The run door's: a playbook that goes by WhatsApp alone, whose message holds no WhatsApp version a run can send.
   assert.equal(
     RUN_NOW_WITHOUT_VERSION_WORDS,
-    "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the playbook.",
+    "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.",
   );
   // The stored reason stays the closed set's; its words say the WhatsApp version, in the person's held reason and the run's.
   assert.equal(HELD_REASONS.template_not_approved, "its WhatsApp version is no longer approved");

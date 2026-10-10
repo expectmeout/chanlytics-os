@@ -125,6 +125,11 @@ test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a
   assert.ok(!ALERT_TOPICS.some((t) => t.kinds.includes("alert")), "no topic is the platform's");
   assert.ok(BELL_LINE_KINDS.includes("alert"));
   assert.ok(ALERT_PANE_WORDS.bellLine([]).includes("a problem with a line"));
+  // A campaign's run, to the person choosing what reaches them, never a playbook's (decision 19).
+  const runs = ALERT_TOPICS.find((t) => t.kinds.includes("playbook"));
+  assert.equal(runs.title, "A campaign or reach-out waits for your yes");
+  assert.match(runs.what, /or a campaign could not run today/);
+  for (const t of ALERT_TOPICS) assert.doesNotMatch(`${t.title} ${t.what}`, /playbook/i, t.title);
   assert.ok(
     !Object.values(frame).some((t) => t.includes("emails you every message instead")),
     "REGRESSION: promised an email nothing sends",

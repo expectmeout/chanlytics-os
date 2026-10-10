@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, textOf, classes, settle } from "../_legacy-react.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
@@ -57,7 +57,12 @@ const moreItem = (tree, label) => {
 };
 const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-setSurfaceValue("playbooks", { rows: [], triggers: [] });
+setSurfaceValue("playbooks", {
+  rows: [],
+  triggers: [],
+  // How the business works (the surface's shape, 9 Oct 2026), which the playbook's drawer says its word from.
+  shape: { calendar: "none", dealsOn: false, word: "appointment" },
+});
 playbooks.remove = async (id) => {
   calls.pbRemove.push(id);
   return { ok: true, data: {} };
@@ -431,6 +436,8 @@ test("a playbook's delete asks through the one Confirm -- it used to relabel its
   moreItem(tree, "Delete…").onSelect();
   tree = draw();
   await byTestId(tree, "pb-delete-yes").props.onClick();
+  // Said once the server has taken it and the rows are read again (card-detail.tsx `remove`): after the drawer closes.
+  await settle();
   assert.deepEqual(calls.pbRemove, ["pb-1"]);
   tree = draw();
   assert.equal(byTestId(tree, "pb-delete-confirm"), null, "disarmed after the act");

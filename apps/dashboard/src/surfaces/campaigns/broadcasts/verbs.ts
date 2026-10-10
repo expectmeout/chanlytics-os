@@ -10,6 +10,7 @@
  */
 import {
   REPLY_WINDOW_MS,
+  appointmentWordOf,
   broadcastFailureWords,
   heardWords,
   noNumberWords,
@@ -27,6 +28,7 @@ import { readCache } from "@/legacy-bridge/read-cache";
 import type { ApiResult, Output } from "@/client/api";
 import { broadcastsOverride } from "./surface";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import { surfaceValue } from "../../surface-values";
 
 export interface SendBody {
   template_id: string;
@@ -102,7 +104,14 @@ export const broadcasts = {
     const now = Date.now();
     const open = clock ? clock.nextOpen(now) : { at: now, moved: false };
     return toApprovalVM(d, {
-      playbook,
+      // The playbook with what the workspace calls an appointment (the playbooks surface's shape; unread, the one
+      // derivation over nothing known).
+      playbook: playbook
+        ? {
+            ...playbook,
+            word: surfaceValue("playbooks")?.shape.word ?? appointmentWordOf({ stored: null, sellsBy: null }),
+          }
+        : null,
       businessName,
       paused,
       today: clock ? clock.dayKey(now) : new Date(now).toISOString().slice(0, 10),

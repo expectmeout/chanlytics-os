@@ -114,7 +114,10 @@ test("an offer's link asks a customer, in their words, with one button, and chan
   assert.equal(res.headers.get("x-unsubscribe-page"), "ask", "the view it drew: the edge's probe reads it");
   const html = await res.text();
   assert.match(html, /Stop offers from Best Movers\?/);
-  assert.match(html, /won&#39;t send you offers by email again\. You&#39;ll still get messages about your visits\./);
+  assert.match(
+    html,
+    /won&#39;t send you offers by email again\. You&#39;ll still get messages about your appointments\./,
+  );
   assert.deepEqual(buttons(html), [
     { name: "unsubscribe", value: "yes", quiet: false, label: "Unsubscribe from offers" },
   ]);
@@ -129,7 +132,7 @@ test("pressing it records the unsubscribe through the one door and says the spec
   assert.equal(res.headers.get("x-unsubscribe-page"), "done");
   const html = await res.text();
   assert.match(html, /You&#39;re unsubscribed from offers from Best &lt;Movers&gt; &amp; Sons\./);
-  assert.match(html, /<p>You&#39;ll still get messages about your visits\.<\/p>/);
+  assert.match(html, /<p>You&#39;ll still get messages about your appointments\.<\/p>/);
   assert.deepEqual(buttons(html), [{ name: "stop_all", value: "ask", quiet: true, label: "Stop all messages" }]);
   assert.deepEqual(w.calls, [
     [
@@ -173,7 +176,7 @@ test("Stop all messages is asked first, and only the confirmed press stops every
   assert.equal(ask.headers.get("x-unsubscribe-page"), "stop_ask");
   const html = await ask.text();
   assert.match(html, /Stop every message from Best Movers\?/);
-  assert.match(html, /reminders and confirmations about your visits/);
+  assert.match(html, /reminders and confirmations about your appointments/);
   assert.deepEqual(buttons(html), [{ name: "stop_all", value: "yes", quiet: false, label: "Yes, stop all messages" }]);
   assert.deepEqual(w.calls, [], "the question changed nothing");
   const stopped = await post("stop_all=yes");
@@ -300,7 +303,7 @@ test("an offer sent in Spanish opens a Spanish page, its press and its second ac
   const html = await asked.text();
   assert.match(html, /<html lang="es">/);
   assert.match(html, /¿Dejar de recibir ofertas de Best Movers\?/);
-  assert.match(html, /Seguirás recibiendo mensajes sobre tus visitas\./);
+  assert.match(html, /Seguirás recibiendo mensajes sobre tus citas\./);
   assert.deepEqual(buttons(html), [
     { name: "unsubscribe", value: "yes", quiet: false, label: "Darme de baja de las ofertas" },
   ]);

@@ -48,7 +48,7 @@ export const SENDER_WORDS: Record<SenderLanguage, SenderWords> = {
     offerAsked: (who) => `You asked for offers from ${who}.`,
     offerCustomer: (who) => `You're a customer of ${who}.`,
     visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
-    visitBooked: (who) => `You're getting this because of your visit with ${who}.`,
+    visitBooked: (who) => `You're getting this because of your appointment with ${who}.`,
     visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`,
   },
   es: {
@@ -61,7 +61,7 @@ export const SENDER_WORDS: Record<SenderLanguage, SenderWords> = {
     offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
     offerCustomer: (who) => `Eres cliente de ${who}.`,
     visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
-    visitBooked: (who) => `Recibes esto por tu visita con ${who}.`,
+    visitBooked: (who) => `Recibes esto por tu cita con ${who}.`,
     visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`,
   },
 };

@@ -44,6 +44,11 @@ test("six lenses in the strip's order, each with its words, and none for a lens 
     "Nobody wrote or called between Aug 29 and Sep 4.",
     "the words the page said, unchanged",
   );
+  assert.equal(
+    lensEmpty("campaigns", { since: "Aug 29", until: "Sep 4" }).body,
+    "No broadcast or campaign run reached anyone between Aug 29 and Sep 4, and nobody said yes or asked to stop.",
+    "a campaign to its reader, never a playbook (decision 19)",
+  );
 });
 
 test("a lens is an address: the Overview is /reports, every other /reports/<lens>, and nothing else is one", () => {

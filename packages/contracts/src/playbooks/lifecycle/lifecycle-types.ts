@@ -7,12 +7,15 @@
  * A surface that has not landed yet is `undefined` and its sections say nothing; one that could not be read is `null`
  * and its sections say so. A number that is not known is `null`, never a zero it did not count.
  */
-import type { ChannelStandingPart } from "../broadcasts/channels-standing";
-import type { ChannelsReady } from "../broadcasts/reach-for";
-import type { ConsentChannel } from "../consent/consent-channels";
-import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
-import type { CampaignMessage } from "../templates/campaign-message";
-import type { ChannelStand } from "./playbook-channels";
+import type { ChannelStandingPart } from "../../broadcasts/channels-standing";
+import type { ChannelsReady } from "../../broadcasts/reach-for";
+import type { ConsentChannel } from "../../consent/consent-channels";
+import type { AppointmentWord } from "../../journey/appointment-word";
+import type { JourneyStageId } from "../../journey/journey";
+import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
+import type { CampaignMessage } from "../../templates/campaign-message";
+import type { ChannelStand } from "../playbook-channels";
+import type { LIFECYCLE_WORDS } from "./lifecycle-words";
 
 /** One moment's count as the playbooks surface keeps it (`pools`), less what the home does not read. */
 export interface LifecyclePool {
@@ -121,6 +124,12 @@ export interface LifecyclePlaybooks {
    * one more tick would open.
    */
   templates?: readonly LifecycleMessage[] | null;
+  /**
+   * Each autonomy class's mode by class (GET playbooks' `modes`): a Resume asked on a row says a class under `auto` in
+   * full (decision 7). Null where unread, absent on a surface drawn without it: the question then says when and to how
+   * many alone.
+   */
+  modes?: Readonly<Record<string, string>> | null;
 }
 
 /** A run as the broadcasts surface lists it. */
@@ -176,6 +185,42 @@ export interface LifecycleReport {
   };
   /** What each channel sent in the period, the most first (0030); absent from a database before the channels were counted. */
   byChannel?: readonly { channel: ConsentChannel; sent: number }[];
+  /** Each campaign's own numbers over the period (campaign_series' `sources`): the ledger's "Last 30 days" per row. */
+  sources: readonly LifecycleSource[];
+}
+
+/**
+ * One campaign's last 30 days as campaign_series counts them (its `sources`): a playbook's by its id; a one-off send's,
+ * and each run of a playbook since deleted (broadcasts.playbook_id is set null), by its run's id.
+ */
+export interface LifecycleSource {
+  id: string;
+  kind: "playbook" | "broadcast";
+  name: string;
+  sent: number;
+  replied: number;
+  /** When it last sent, an ISO time; null where it never did. */
+  lastAt: string | null;
+}
+
+/**
+ * Each reach-out's last 30 days, by its root (GET reports/reach-outs' `chains`). `complete`: every chain was counted, so
+ * one absent wrote nothing; false where they come from the report's twenty, so one absent may be past them and says "—".
+ */
+export interface LifecycleChains {
+  complete: boolean;
+  byRoot: Readonly<Partial<Record<string, { written: number; wroteBack: number }>>>;
+}
+
+/** How the business works, as the home reads it (the playbooks surface's, from GET playbooks' businessShape). */
+export interface LifecycleShape {
+  /**
+   * "feed": a calendar is connected, its feed readable now or not; "email": none, but a booking tool's notices arrive by
+   * email; "none": neither. The appointment moments are counted only from a feed (decision 0002's readers lane owes the rest).
+   */
+  calendar: "feed" | "email" | "none";
+  dealsOn: boolean;
+  word: AppointmentWord;
 }
 
 /** The broadcasts surface, as the home reads it. */
@@ -192,8 +237,6 @@ export interface LifecycleBroadcasts {
   optIn: { phrase: string; link: string | null };
   /** Null where the people could not be counted: the ladder says so. */
   reach: ReachCounts | null;
-  /** Null where the campaign report could not be read: the funnel says so, and the runs still stand. */
-  report: LifecycleReport | null;
 }
 
 /** A template row, as far as the home reads it: the call's text. */
@@ -213,12 +256,27 @@ export interface LifecycleInput {
   playbooks: LifecyclePlaybooks | undefined;
   /** The broadcasts surface: undefined before it is read, null where it could not be (the tiles made from it say which). */
   broadcasts: LifecycleBroadcasts | null | undefined;
-  /** The workspace's WhatsApp rows (the settings surface's `templatesAll`): the call's text; null where unread. */
+  /**
+   * The rows the call's text is found among (the playbooks surface's `library`: the one GET templates names, `booking`,
+   * found over every WhatsApp row as the edge sends it, or none); null where unread.
+   */
   library: readonly LifecycleTemplate[] | null | undefined;
-  /** The workspace's messages (the settings surface's `messages`), which the Library counts; null where unread. */
+  /** The workspace's messages (the playbooks surface's `messages`), which the Library counts; null where unread. */
   messages: readonly Pick<CampaignMessage, "name" | "hidden">[] | null | undefined;
   /** The reach-outs' chains; null where they could not be read. */
   reachOuts: readonly ReachOutChainDto[] | null | undefined;
+  /**
+   * The campaigns' last 30 days, with each campaign's own (the campaign_results surface's report): undefined before it is
+   * read, null where it could not be. "What came back" and each row's "Last 30 days" are drawn from it.
+   */
+  report: LifecycleReport | null | undefined;
+  /** How the business works (the playbooks surface's `shape`): undefined with that surface. */
+  shape: LifecycleShape | undefined;
+  /**
+   * The reach-outs' last 30 days, by root (the campaign_results surface's `chains`): undefined before it is read, null
+   * where it could not be, and a chain's row then says "—".
+   */
+  chains: LifecycleChains | null | undefined;
 }
 
 /** Whether the read a tile is made of landed: drawn when it did, said quietly while it is out, the kit's failed read where it failed. */
@@ -242,24 +300,29 @@ export type LifecycleAct =
   | { kind: "open"; label: string; playbookId: string }
   /** Open the composer on this moment. */
   | { kind: "turn_on"; label: string; moment: string }
-  /** Start a paused playbook again, in place. */
-  | { kind: "resume"; label: string; playbookId: string }
+  /** Start a paused campaign again, asked in place: when its next run is, and to how many (decision 7). */
+  | { kind: "resume"; label: string; playbookId: string; ask: { question: string; detail: string } }
   /** Go to a route: the library, a run. */
   | { kind: "route"; label: string; route: string };
 
 /** One of the moments around a customer, in order. */
 export interface LifecycleStage {
-  id: "first_contact" | "visit" | "after" | "quiet" | "proposal";
+  /** The journey's stage (journey.ts): free of the word, and the ledger's group and its address (`campaigns/in:before`). */
+  id: JourneyStageId;
   caps: string;
   name: string;
   glyph: LifecycleGlyph;
   /** The moment a new playbook starts from (the offered win-back for the quiet one); null for the receptionist. */
   moment: string | null;
+  /** The campaign that leads it: a running one first, else the newest; null where none stands on it, and for the receptionist. */
   playbookId: string | null;
   /** How many are at it now; null where the moment could not be counted. */
   people: number | null;
   unit: string;
-  /** on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off). */
+  /**
+   * on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off) or
+   * cannot be counted (no calendar).
+   */
   state: "always" | "on" | "paused" | "off" | "not_here";
   stateWords: string;
   /** The same on a phone, where there is room for less: "Live", the clock alone ("daily 10:00 AM"), or the state's own words. */
@@ -280,23 +343,18 @@ export interface LifecycleStage {
    * for a playbook that runs nothing here, as its drawer draws no Goes by row.
    */
   channels: readonly LifecycleChannelMark[];
+  /** What its card says of its campaigns: the one's name and clock ("Visit reminder · daily 9:00 AM"), or "3 campaigns · 2 on · 1 paused"; null where none stands on it. */
+  summary: string | null;
+  /** How its campaigns stand, for the card's meter: only where it holds two or more, else null. */
+  bar: LifecycleBar | null;
 }
 
-/** A quiet line under the rail: a playbook or a campaign that is not one of the five moments. */
-export interface LifecycleStrip {
-  id: string;
-  kind: "call_text" | "moment" | "list" | "reach_out";
-  glyph: LifecycleGlyph;
-  name: string;
-  words: string;
-  stateWords: string;
-  tone: LifecycleTone;
-  /** What pressing the line does: its drawer, or the library for the call's text. */
-  open: LifecycleAct;
-  /** The act at its right. */
-  act: LifecycleAct;
-  /** The channels it goes by, as a stage's; none for the call's text (the phone agent's own) and for a line that is off. */
-  channels: readonly LifecycleChannelMark[];
+/** How a moment's campaigns stand, for its card's meter (on in ok, waiting in warn, paused at rest), of how many. */
+export interface LifecycleBar {
+  on: number;
+  waiting: number;
+  paused: number;
+  of: number;
 }
 
 /** A rung of the ladder of who can hear the workspace. */
@@ -378,6 +436,76 @@ export interface LifecycleComingTile {
   rules: string;
 }
 
+/** A row's last 30 days: a playbook's or a one-off's sent and replied (campaign_series), a chain's written and wrote back (Reports' words), counted where nothing went ("none"), or not counted ("uncounted", "—"). */
+export type LifecycleRowResults =
+  | { kind: "sent"; sent: number; replied: number }
+  | { kind: "written"; written: number; wroteBack: number }
+  | "none"
+  | "uncounted";
+
+/** One row of the ledger: a campaign, or one of First contact's own (the receptionist, the call's text). */
+export interface LifecycleRow {
+  id: string;
+  kind: "receptionist" | "call_text" | "playbook" | "list" | "offer" | "chain" | "sent_once";
+  name: string;
+  /** What it is, in a line under its name: its moment's hint, its list, its cadence, a chain's search and steps. */
+  hint: string;
+  status: "always" | "on" | "waiting" | "paused" | "not_here" | "off";
+  stateWords: string;
+  /** The same on a phone: the clock alone while it is on. */
+  phoneWords: string;
+  tone: LifecycleTone;
+  needs: LifecycleNeeds;
+  needsWords: string;
+  channels: readonly LifecycleChannelMark[];
+  /** Who its moment or list names now (the card's pool), and what the number counts; null where not counted. */
+  people: { n: number | null; unit: string };
+  results: LifecycleRowResults;
+  /** Its next run in words and the moment it is sorted by: a waiting run now, a paused one never (null). */
+  next: { words: string; atMs: number | null };
+  /** Its door, an address the page draws as a link: the drawer, the Library, a one-off's run in Sent; null for the receptionist. */
+  open: LifecycleAct | null;
+  /** A run of it waiting on the person, approved or skipped on the row (decision 14); null otherwise. */
+  waiting: LifecycleWaiting | null;
+  /** The one act its state asks: Resume (asked in place), Turn on, or a chain's waiting run; null for the rest. */
+  act: LifecycleAct | null;
+  /** What a search matches: its name, its hint and its group's caption, lower-cased. */
+  search: string;
+}
+
+/** A group of the ledger: a moment of the journey, then Lists & offers, Reach-outs and the one-off sends. */
+export interface LifecycleGroup {
+  /** Free of the word: the address `campaigns/in:<id>`. */
+  id: JourneyStageId | "lists" | "reach_out" | "sent_once";
+  caps: string;
+  glyph: LifecycleGlyph;
+  /** "3 campaigns · 2 on · 1 paused", or what an empty moment says of itself ("Off", "Needs your calendar"). */
+  meta: string;
+  rows: readonly LifecycleRow[];
+  /** Turn on (the hinted one where it is); the calendar's door; "Find businesses to write to"; none on a moment holding its one campaign. */
+  add: LifecycleAct | null;
+}
+
+/** The words the ledger's page says once (LIFECYCLE_WORDS.ledger), handed over with it. */
+export type LedgerWords = (typeof LIFECYCLE_WORDS)["ledger"];
+
+/** Every campaign of the workspace, grouped, counted, and the words to draw it with. */
+export interface LifecycleLedger {
+  /** The journey's stages in order, then lists, reach_out, and sent_once where the tools stand. */
+  groups: readonly LifecycleGroup[];
+  /** Campaigns only: the receptionist and the call's text are never counted. */
+  counts: { all: number; running: number; needs: number; paused: number };
+  /** Seven campaigns or more (decision 15): the tool line, the tabs, the heads, the phone's strip and search. */
+  tools: boolean;
+  /** Under the tools, the period's one-off sends as a footer and its door to Sent; null where there are none or they are a group. */
+  sentOnce: { n: number; open: LifecycleAct } | null;
+  /** "Last 30 days". */
+  period: string;
+  /** Whether the period's numbers are in: "—" in every row while reading or failed. */
+  results: LifecycleTileRead;
+  words: LedgerWords;
+}
+
 /** One of the funnel's four steps. */
 export interface LifecycleFunnelStep {
   id: "sent" | "delivered" | "read" | "replied";
@@ -428,7 +556,7 @@ export interface LifecycleFailedRead {
   /** What is still current, one sentence. */
   body: string;
   /** The surface its Retry reads again. */
-  surface: "playbooks" | "settings" | "reach_outs" | "broadcasts";
+  surface: "playbooks" | "settings" | "reach_outs" | "broadcasts" | "campaign_results";
 }
 
 /** Each read the home is made from that failed, or null where it was read (or has not landed yet, which says nothing). */
@@ -466,7 +594,8 @@ export interface LifecycleHome {
   head: LifecycleHead;
   /** The rail: its name, how many moments are covered ("2 of 5 moments covered", and the phone's "2 of 5 on"), and the stages. */
   rail: { title: string; coveredWords: string | null; phoneWords: string | null; stages: readonly LifecycleStage[] };
-  strips: readonly LifecycleStrip[];
+  /** Every campaign, grouped by the moment it stands on (spec 2026-10-09 §4.1). */
+  ledger: LifecycleLedger;
   reach: LifecycleReachTile;
   coming: LifecycleComingTile | null;
   results: LifecycleResultsTile;

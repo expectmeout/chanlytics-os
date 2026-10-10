@@ -256,13 +256,8 @@ test("every starter's email and text versions keep to its slots and pass their c
 
 test("the moments offered for a new playbook: no retired one, and one win-back, the one the workspace can read", () => {
   const offered = (o) => PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, o)).map((t) => t.id);
-  assert.deepEqual(offered({ dealsOn: false, calendarOn: false }), [
-    "quiet_30",
-    "everyone_monthly",
-    "visit_tomorrow",
-    "visited",
-    "saved_list",
-  ]);
+  // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing.
+  assert.deepEqual(offered({ dealsOn: false, calendarOn: false }), ["quiet_30", "everyone_monthly", "saved_list"]);
   assert.deepEqual(offered({ dealsOn: true, calendarOn: true }), [
     "everyone_monthly",
     "visit_tomorrow",

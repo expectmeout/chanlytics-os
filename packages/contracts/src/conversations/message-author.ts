@@ -35,16 +35,41 @@ export function isAutomatedSend(meta: unknown): boolean {
   return typeof source === "string" && AUTOMATED_SEND_SOURCES.includes(source);
 }
 
-/** What the email intake read a message as when it is not a person writing (channels email/intake.ts EmailClaim). */
-const NOT_A_PERSONS_CLAIMS: readonly string[] = ["automated", "auto_reply", "report", "booking_notice"];
+/**
+ * What the email intake reads a received email as (channels email/intake.ts classifyReceived, from headers anyone can
+ * write), each marked whether its words are a person's own. THE one statement of the set: channels' and core's
+ * EmailClaim are its names, isPersonsWords reads its marks, and broadcasts/campaign-channels.db.test.mjs runs every claim
+ * through public.message_is_a_persons_words (00373), its twin in SQL, so a claim added here and not there fails.
+ *
+ *   report                   a bounce or a delivery status notification
+ *   booking_notice           a booking tool writing about one of the business's appointments (bookingNoticeOf)
+ *   forwarding_confirmation  Gmail asking whether it may forward an account's mail here: Google's mail, never a person's
+ *   auto_reply               an out-of-office or a responder answering something of ours
+ *   automated                mail a program produced or a list sent
+ *   person                   none of the above: somebody writing
+ */
+export const EMAIL_CLAIMS = [
+  { claim: "report", personsWords: false },
+  { claim: "booking_notice", personsWords: false },
+  { claim: "forwarding_confirmation", personsWords: false },
+  { claim: "auto_reply", personsWords: false },
+  { claim: "automated", personsWords: false },
+  { claim: "person", personsWords: true },
+] as const;
+
+/** One of EMAIL_CLAIMS: what a received email claims to be. */
+export type EmailClaim = (typeof EMAIL_CLAIMS)[number]["claim"];
+
+/** The claims that are not a person writing, read off EMAIL_CLAIMS. */
+const NOT_A_PERSONS_CLAIMS: readonly string[] = EMAIL_CLAIMS.filter((c) => !c.personsWords).map((c) => c.claim);
 
 /**
  * Whether an inbound message's words are a person's own. The intake keeps what an email CLAIMS to be beside it
  * (`meta.email.claim`), and a message of any other kind has no claim and is somebody's words: an out-of-office, a
  * list's mail or a form's notification is a program writing from their address, which is not the person answering.
  * THE statement of it in TypeScript, read where a run counts who replied (the dashboard's broadcasts reader) and where
- * a reply is addressed (replyChannelOf); public.message_is_a_persons_words (00299) is its twin in SQL, read by
- * has_relationship and the people list: the two change together.
+ * a reply is addressed (replyChannelOf); public.message_is_a_persons_words (00373) is its twin in SQL, read by
+ * has_relationship, the people list and the campaign counts: the two change together through EMAIL_CLAIMS.
  */
 export function isPersonsWords(meta: unknown): boolean {
   const claim = metaKey(metaKey(meta, "email"), "claim");
@@ -76,8 +101,9 @@ export function messageAuthor(m: MessageDto): MessageAuthor | null {
   const via = messageVia(m);
   if (via) {
     return via.kind === "playbook"
-      ? // A playbook named "The month's offer" is not "the The month's offer playbook".
-        { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+      ? // A campaign named "The month's offer" is not "the The month's offer campaign"; a person reads "campaign", never
+        // "playbook" (decision 19), and the kind keeps its name.
+        { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} campaign` }
       : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
   }
   return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };

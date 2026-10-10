@@ -6,6 +6,8 @@
  * seam's (`useSurface("setup")`).
  */
 import { FIRST_RUN_HELPERS, type SetupCardVM } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
+import { routeDoor } from "../../legacy-verbs";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
@@ -27,6 +29,18 @@ function startRow(start: NonNullable<SetupCardVM["start"]>, left: string, nav: (
         ctaTestid="today-setup-go"
       />
     </div>
+  );
+}
+
+/** After the first run, with the calendar in: the one door to the appointment reminder (decision 22), under the rows. */
+function remindLine(remind: NonNullable<SetupCardVM["remind"]>) {
+  return (
+    <p className="today-setup-remind" data-testid="today-setup-remind">
+      <span>{remind.words}</span>
+      <Button size="sm" {...routeDoor(remind.to)} data-testid="today-setup-remind-go">
+        {remind.label}
+      </Button>
+    </p>
   );
 }
 
@@ -93,6 +107,7 @@ export const TodaySetup = () => {
         ) : null}
       </div>
       {card.start ? startRow(card.start, card.left, nav) : optionalRows(S, card, flash)}
+      {card.remind ? remindLine(card.remind) : null}
       {toastNode}
     </section>
   );

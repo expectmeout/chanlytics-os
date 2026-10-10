@@ -11,6 +11,7 @@
  * Nothing here is new behaviour: each reads what the pages it stands in for read, in the same words.
  */
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
+import type { AskScope } from "@chanlytics/contracts";
 import type { AskApi } from "../legacy-bridge/ask";
 import type { ViewPage } from "./kit/view-tabs/pager";
 import type { SetupSurface } from "./setup/surface";
@@ -33,10 +34,14 @@ export interface LegacyFlash {
 
 declare global {
   interface Window {
-    CHANLY?: { nav?: (route: string, opts?: { replace?: boolean; quiet?: boolean }) => void };
+    CHANLY?: {
+      nav?: (route: string, opts?: { replace?: boolean; quiet?: boolean }) => void;
+      /** The frame's address (legacy-bridge/workspace.ts): `hear` follows the route on screen, and answers the stop. */
+      address?: { hear?: (fn: () => void) => () => void };
+    };
     canDo?: (action: string) => boolean;
     holdStill?: (el: Element | null | undefined, change: () => void) => void;
-    askAbout?: (about: { prompt?: string; mode?: string; thread?: string }) => void;
+    askAbout?: (about: AskAbout) => void;
     appAsk?: () => void;
     __listRoute?: (id: string) => string;
     __refreshSurface?: (key: string) => Promise<void>;
@@ -93,9 +98,43 @@ export function holdStill(control: Element | null | undefined, change: () => voi
   else change();
 }
 
+/**
+ * What Ask is opened with (dashboard-a-ask.jsx `askAbout`): a question to ask, or to finish with `mode` "compose"; a
+ * conversation to open; and `about`, the scope its chip opens on in place of the address's.
+ */
+interface AskAbout {
+  prompt?: string;
+  mode?: string;
+  thread?: string;
+  about?: AskScope;
+}
+
 /** Open Ask on a question (the Line asks it, or opens on the scope). Nothing where Ask is not drawn. */
-export function askAbout(about: { prompt?: string; mode?: string; thread?: string }): void {
+export function askAbout(about: AskAbout): void {
   window.askAbout?.(about);
+}
+
+/**
+ * Move the address (`move`: a sheet's close, which may be a Back), then run `then` once the route on screen has moved
+ * (the frame's address, `CHANLY.address.hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
+ * lands a moment after it is asked for, so what follows it waits for it. Where the frame hears no address (the
+ * standalone mockup), `then` follows the move at once.
+ */
+export function afterMove(move: () => void, then: () => void): void {
+  const hear = window.CHANLY?.address?.hear;
+  if (!hear) {
+    move();
+    then();
+    return;
+  }
+  let done = false;
+  const stop = hear(() => {
+    if (done) return;
+    done = true;
+    stop();
+    then();
+  });
+  move();
 }
 
 /** Open Ask as ⌘K does (the frame's `appAsk`), keeping what is in its field; on nothing where the frame has no door of its own. */

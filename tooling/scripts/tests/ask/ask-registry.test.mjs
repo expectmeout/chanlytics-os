@@ -8,7 +8,7 @@
  * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
  * beside its mode, an operator's two beside an owner's one; PR 4.5 gave inbox its search; PR 4.7 added propose_list,
  * an operator's (twenty for an owner), gave propose_campaign a waiting run's approval (run), and made
- * propose_thread_verb's words true for every role. What the model is sent is frozen per role in
+ * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change). What the model is sent is frozen per role in
  * fixtures/ask-tools-4-7.json, and every other tool reads to every role as fixtures/ask-tools-4-6.json froze it (which
  * PR 4.6 and PR 4.5 held to fixtures/ask-tools-4-3.json, and PR 4.3 to PR 3.4's, for the tools each did not change --
  * inbox too, less its search); the rest is held as structure: the order, the four prefixes, the flattened
@@ -41,7 +41,8 @@ const {
   calledName,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MOMENTS_RETIRED, PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
+const { MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast } =
+  await import("@chanlytics/contracts");
 /**
  * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
  * trigger enum, so a schema frozen before it is held to its own less those two: the one change to its fields.
@@ -77,7 +78,7 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
  * offered since PR 4.6.
  */
-const CHANGED = ["campaigns", "propose_campaign", "propose_list", "propose_thread_verb", "report"];
+const CHANGED = ["campaigns", "propose_autonomy", "propose_campaign", "propose_list", "propose_thread_verb", "report"];
 /**
  * 6 Oct 2026 (decision 0030, a campaign counted by its channel): report says the Campaigns lens beside the Deals
  * section, and campaigns says a run's channels and that its read is a share of what went by WhatsApp. The one sentence
@@ -91,6 +92,12 @@ const REPORT_CAMPAIGNS_WORDS =
  */
 const REPORT_REVIEWS_WORDS =
   "campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for";
+/**
+ * 9 Oct 2026 (a moment holds many campaigns, lane 2, task 6): report says the Reach-outs section after the Reviews lens,
+ * through the page's own reader: the one sentence, and nothing else it says moved.
+ */
+const REPORT_REACH_OUTS_WORDS =
+  "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: how many emails the reach-outs wrote, how many were delivered and bounced, and how many businesses wrote back, were interested, booked, said no or were handed to the owner, with the funnel's sentence and the line on what was handed (empty says nothing was written); reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for";
 const RUN_CHANNEL_WORDS = [
   "how many were sent, the share of those delivered and read, and how many replied,",
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
@@ -109,6 +116,17 @@ const RUN_WAITING_WORDS = ["is Needs you, with waiting_on_you", "is Waiting on y
 const PLAYBOOK_CHANNELS_WORDS = [
   "its message (template), its clock and next run,",
   "its message (template), the channels it goes by now (channels), its clock and next run,",
+];
+/**
+ * 10 Oct 2026 (the final review of "a moment holds many campaigns"): a broadcast row's `by` says "a campaign" where it
+ * said "a playbook" (a person reads "campaign", decision 19, and the model repeats the row), so the sentence that names
+ * the field says the same word. The one phrase, once.
+ */
+const BROADCAST_BY_WORDS = ["whether a playbook or a person sent it", "whether a campaign or a person sent it"];
+/** 9 Oct 2026 (the moment spec, A6, D35): each playbook says its last 30 days, where it said what its runs earned. */
+const PLAYBOOK_RESULTS_WORDS = [
+  "its list when it runs on one, what its runs earned,",
+  "its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read),",
 ];
 /**
  * 7 Oct 2026 (lane 1, T11): campaigns says a message where it said an approved WhatsApp template, and says what its
@@ -144,6 +162,14 @@ const MESSAGE_WORDS = [
     "never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
     "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have.",
   ],
+];
+/**
+ * 9 Oct 2026 (the moment spec, A7): propose_autonomy is judged by the Autonomy page's rule (policyModeRefusal), so its
+ * words say each class takes the modes its row offers, where they said veto is for replies only. The one sentence.
+ */
+const AUTONOMY_MODES_WORDS = [
+  "veto is for replies only.",
+  `Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for ${PLAYBOOK_VETO_DELAY_WORDS}, so a person can stop it), and a mode a class does not take is refused in that page's words.`,
 ];
 /**
  * What the report tool's description gained after PR 4.7 (the Reports fix wave, spec D14): its median and p90 reply time
@@ -336,7 +362,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, report (its reply times say the hold, and it says the Campaigns lens and the Reviews lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens and the Reviews lens) and campaigns (a run's channels, and a message where it said a template) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -363,12 +389,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
   const tool = (role, name) => toApiTools(role, true).find((t) => t.name === name);
   assert.deepEqual(
     ROLES.map((role) => tool(role, "propose_campaign")?.input_schema.properties.action.enum ?? null),
-    // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches.
+    // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches; 9
+    // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles.
     [
       null,
-      ["broadcast", "playbook", "run", "channels"],
-      ["broadcast", "playbook", "run", "channels"],
-      ["broadcast", "playbook", "run", "channels"],
+      ["broadcast", "playbook", "run", "channels", "change"],
+      ["broadcast", "playbook", "run", "channels", "change"],
+      ["broadcast", "playbook", "run", "channels", "change"],
     ],
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
@@ -380,13 +407,17 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       was(role, "report")
         .description.replace("the median and p90 reply time,", `the median and p90 reply time ${REPORT_HOLD_WORDS},`)
         .replace("and the Deals section where deals are on.", REPORT_CAMPAIGNS_WORDS)
-        .replace("campaigns says error where its numbers could not be read. Call it for", REPORT_REVIEWS_WORDS),
+        .replace("campaigns says error where its numbers could not be read. Call it for", REPORT_REVIEWS_WORDS)
+        .replace(
+          "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for",
+          REPORT_REACH_OUTS_WORDS,
+        ),
       role,
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
     // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; (lane 1, T11): a message, where it said
-    // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by;
-    // nothing else it says moved.
+    // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by; (10
+    // Oct 2026) a broadcast sent by a campaign; nothing else it says moved.
     assert.equal(
       tool(role, "campaigns").description,
       MESSAGE_WORDS.reduce(
@@ -395,7 +426,10 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
           .description.replace(...RUN_CHANNEL_WORDS)
           .replace(...RUN_WAITING_WORDS),
         // Said over the message words above ("its message (template)"), so after them.
-      ).replace(...PLAYBOOK_CHANNELS_WORDS),
+      )
+        .replace(...PLAYBOOK_CHANNELS_WORDS)
+        .replace(...PLAYBOOK_RESULTS_WORDS)
+        .replace(...BROADCAST_BY_WORDS),
       role,
     );
     assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);
@@ -412,13 +446,36 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       role,
     );
     assert.deepEqual(words(tool(role, "propose_thread_verb")), words(was(role, "propose_thread_verb")), role);
+    // propose_autonomy (9 Oct 2026, A7): the sentence on which modes a class takes is the Autonomy page's rule, and
+    // nothing else it says, takes or shows moved.
+    assert.equal(
+      tool(role, "propose_autonomy").description,
+      was(role, "propose_autonomy").description.replace(...AUTONOMY_MODES_WORDS),
+      role,
+    );
+    assert.deepEqual(words(tool(role, "propose_autonomy")), words(was(role, "propose_autonomy")), role);
     // propose_campaign: what it sent before is now's less the run and less the channels action (8 Oct 2026: its one
     // field of its own, playbook_id, beside the channels the broadcast and the playbook already take) -- the
     // broadcast's and the playbook's own fields and examples, byte for byte -- and the run's own words and the channels
     // action's stand between the playbook's and the tail.
     const before = was(role, "propose_campaign");
     const now = tool(role, "propose_campaign");
-    const { broadcast_id: _b, verb: _v, playbook_id: playbookId, channels, ...fields } = now.input_schema.properties;
+    const {
+      broadcast_id: _b,
+      verb: _v,
+      playbook_id: playbookId,
+      channels,
+      state: _s,
+      gap_days: _g,
+      cadence_days: _c,
+      ...fields
+    } = now.input_schema.properties;
+    // 9 Oct 2026: the change action's own three fields; its name, run_hour and cap_per_run are the playbook's, one shape.
+    assert.deepEqual(
+      [_s, _g, _c].map(shapeOf),
+      [{ type: "string", enum: ["running", "paused"] }, { type: "number" }, { type: "number" }],
+      `${role}: change's own three fields`,
+    );
     assert.deepEqual(shapeOf(playbookId), { type: "string" }, `${role}: playbook_id, the channels action's own field`);
     assert.deepEqual(channels, CHANNELS, `${role}: channels, one optional list of the three, for both actions`);
     assert.equal(now.input_schema.required.includes("channels"), false, `${role}: and never required`);
@@ -427,11 +484,12 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       lessRetired(before.input_schema).properties,
     );
     assert.deepEqual(
-      now.input_examples.filter((ex) => ex.action !== "run" && ex.action !== "channels"),
+      now.input_examples.filter((ex) => !["run", "channels", "change"].includes(ex.action)),
       before.input_examples,
     );
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.run.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.channels.words} `), role);
+    assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.change.words} `), role);
   }
 });
 
@@ -853,7 +911,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     get_settings: "Reading Settings",
     get_openings: "Checking the calendar",
     list_audiences: "Reading the lists and templates",
-    list_playbooks: "Reading the playbooks",
+    list_playbooks: "Reading the campaigns",
     get_calendar: "Reading the calendar",
     list_lead_searches: "Reading your searches",
     draft_reply: "Drafting a reply",
@@ -865,7 +923,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     propose_settings: "Preparing a settings change",
     propose_whisper: "Preparing a whisper",
     propose_broadcast: "Preparing a broadcast",
-    propose_playbook: "Preparing a playbook",
+    propose_playbook: "Preparing a campaign",
     propose_invite: "Preparing an invitation",
     propose_lead_search: "Planning a search",
   };

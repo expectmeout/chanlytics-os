@@ -21,7 +21,7 @@ export interface RunLike {
 export interface TodayRunWordsVM {
   /** "3 people" */
   people: string;
-  /** A run waiting for a word: what kind of run it is ("Playbook · ready"), then its sentence. */
+  /** A run waiting for a word: what kind of run it is ("Campaign · ready"), then its sentence. */
   waiting: { meta: string; sentence: string; status: string[] };
   /**
    * A waiting run the approve verb would refuse (contracts runApprovalRefusal: its day has passed): what its row says in
@@ -48,7 +48,8 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   const people = reach
     ? `${r.recipient_count} ${one ? "business" : "businesses"}`
     : `${r.recipient_count} ${one ? "person" : "people"}`;
-  const kind = reach ? "Reach-out" : "Playbook";
+  // A person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
+  const kind = reach ? "Reach-out" : "Campaign";
   const sent = `${r.counts.sent} sent`;
   return {
     people,

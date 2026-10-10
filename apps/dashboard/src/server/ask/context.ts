@@ -206,6 +206,7 @@ export function shapeBlock(shape: WorkspaceShape): string {
     `Lines: ${channels.length ? channels.map((c) => `${c.kind} ${c.status}`).join(", ") : "none"}`,
     [
       `Deals ${shape.deals_on ? "on" : "off"}`,
+      `the appointment word: ${shape.appointment_word}`,
       `calendar feed ${yes(shape.calendar_feed, "set")}`,
       `booking link ${yes(shape.booking_link, "set")}`,
       `mailbox ${yes(shape.mailbox, "connected")}`,

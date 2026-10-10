@@ -137,8 +137,11 @@ async function runCall(input, { role = "operator", now = NOW } = {}) {
   };
 }
 
-/** A run as the run's sheet reads it (getBroadcast): the run, and every person on it. */
-const RUN_READ = ["broadcasts.select", "broadcast_recipients.select"];
+/**
+ * A run as the run's sheet reads it (getBroadcast): the run, then its counts (run_counts, 00374) asked as its people are,
+ * not after them, then every person on it.
+ */
+const RUN_READ = ["broadcasts.select", "rpc.run_counts", "broadcast_recipients.select"];
 const payload = (id, verb, name, people) => ({ broadcast_id: id, verb, name, people, timezone: TZ });
 
 /** Each call and what it comes to: a refusal in the model's words (and what was read before it), or the card. */
@@ -231,7 +234,7 @@ const RUN_CALLS = [
       kind: "run",
       needs: "operator",
       title: "Skip the run: Win-back · 2026-09-19",
-      summary: "2 people · Skipping loses this run only — the playbook keeps running.",
+      summary: "2 people · Skipping loses this run only — the campaign keeps running.",
       payload: payload(OLD, "skip", "Win-back · 2026-09-19", 2),
       undo: null,
     },
@@ -273,7 +276,7 @@ const RUN_CALLS = [
       kind: "run",
       needs: "operator",
       title: `Skip the run: Win-back · ${TODAY}`,
-      summary: "3 people · Skipping loses this run only — the playbook keeps running.",
+      summary: "3 people · Skipping loses this run only — the campaign keeps running.",
       payload: payload(RUN, "skip", `Win-back · ${TODAY}`, 3),
       undo: null,
     },

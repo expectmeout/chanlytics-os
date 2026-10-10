@@ -109,7 +109,7 @@ const FOLD_WORDS: Record<string, FoldWords> = {
   },
   "lead.call": rows((n) => `${n} calls to leads were logged`),
   "google.reviews": rows((n) => `New Google reviews were read ${n} times`),
-  "playbook.run": rows((n) => `Playbooks ran ${n} times`),
+  "playbook.run": rows((n) => `Campaigns ran ${n} times`),
 };
 
 /** The kinds that fold, as the ledgers spell them: what a test holds to the closed sets and the tones. */

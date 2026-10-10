@@ -771,9 +771,11 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
       },
     ],
   });
-  const pb = await buildContext(
-    rcIn(ctxFor(t)),
-    page("campaigns", [{ kind: "playbook", id: PB1 }], { route: "outbound", view: "playbooks" }),
+  const { result: pb, lines: unread } = await logs(() =>
+    buildContext(
+      rcIn(ctxFor(t)),
+      page("campaigns", [{ kind: "playbook", id: PB1 }], { route: "outbound", view: "playbooks" }),
+    ),
   );
   assert.deepEqual(
     pb.blocks.map((x) => [x.source, x.title]),
@@ -782,8 +784,96 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
       [`playbook://${PB1}`, "Win-back"],
     ],
   );
-  assert.ok(textOf(pb.blocks[1]).endsWith(`route: outbound/${PB1}`));
+  // Its last 30 days, as its row on Campaigns says them, straight after its name, so no cut reaches them (this world
+  // models no campaign_series, so said unread, and the failed read logged); then its state and its next run; its moment
+  // only where it is not its name (a Win-back on the Win-back moment says it once); and where its drawer opens (the
+  // moment spec, A6).
+  const pbLine = textOf(pb.blocks[1]);
+  assert.match(pbLine, /^Win-back · 30d: not read · running · next run [^·]+ · route: campaigns\/moment:/, pbLine);
+  assert.ok(pbLine.endsWith(`route: campaigns/moment:${PB1}`), pbLine);
   assert.match(textOf(pb.blocks[0]), /^Campaigns, playbooks: 1 on screen · playbooks: 1, 1 running/);
+  assert.equal(unread.filter((l) => l.includes('"campaign_last_days_read_failed"')).length, 1, unread.join("\n"));
+  // Read, its numbers are its row's (contracts sentResultsOfSource): a reply to an older send, with nothing sent in these
+  // days, is nothing sent, as the ledger says it.
+  const sources = (sent, replied, id = PB1) => ({
+    ...RPCS,
+    campaign_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today: "2026-09-14",
+      series: [],
+      sources: [
+        { id, kind: "playbook", name: "Win-back", template_name: "winback_offer", runs: 1, sent, delivered: sent },
+      ].map((s) => ({ ...s, read: 0, replied, last_at: "2026-09-10T12:00:00Z" })),
+      by_channel: [],
+    }),
+  });
+  for (const [sent, replied, said] of [
+    [0, 2, "Win-back · 30d: nothing sent · running · next run "],
+    [4, 1, "Win-back · 30d: 4 sent, 1 replied · running · next run "],
+  ]) {
+    clearContextCache();
+    readerCache.clear();
+    const got = await buildContext(
+      rcIn(ctxFor(t, sources(sent, replied))),
+      page("campaigns", [{ kind: "playbook", id: PB1 }], { route: "outbound", view: "playbooks" }),
+    );
+    assert.ok(textOf(got.blocks[1]).startsWith(said), textOf(got.blocks[1]));
+  }
+  // A long name on a moment of its own: its numbers come whole, the line is cut after them (CONTEXT_CAPS.text), and
+  // where it opens is never the part cut.
+  const PB2 = "77777777-7777-4777-8777-7777777777a2";
+  const long = tables({
+    playbooks: [
+      {
+        ...t.playbooks[0],
+        id: PB2,
+        name: "The reminder our studio sends the day before every visit",
+        trigger: "visit_tomorrow",
+      },
+    ],
+    templates: t.templates,
+  });
+  clearContextCache();
+  readerCache.clear();
+  const longRow = await buildContext(
+    rcIn(ctxFor(long, sources(0, 0, PB2))),
+    page("campaigns", [{ kind: "playbook", id: PB2 }], { route: "campaigns", view: "playbooks:all" }),
+  );
+  const longLine = textOf(longRow.blocks[1]);
+  assert.ok(
+    longLine.startsWith("The reminder our studio sends the day before every visit · 30d: nothing sent · "),
+    longLine,
+  );
+  assert.ok(longLine.endsWith(`… · route: campaigns/moment:${PB2}`), longLine);
+  assert.equal(longLine.length, 160, "cut at the cap");
+
+  // The home's ledger (the moment spec, A2): its view says its status, group and search; its rows are its campaigns and
+  // its one-off sends, each as its own page says it, and each a row a citation names.
+  const ledger = await buildContext(
+    rcIn(ctxFor(t)),
+    page(
+      "campaigns",
+      [
+        { kind: "playbook", id: PB1 },
+        { kind: "run", id: BC1 },
+      ],
+      { route: "campaigns", view: "playbooks:needs:in:quiet" },
+    ),
+  );
+  assert.deepEqual(
+    ledger.blocks.map((x) => x.source),
+    ["page://campaigns", `playbook://${PB1}`, `run://${BC1}`],
+  );
+  assert.match(textOf(ledger.blocks[0]), /^Campaigns, playbooks:needs:in:quiet: 2 on screen · playbooks: 1, 1 running/);
+  assert.deepEqual(
+    ledger.refs.slice(1).map((r) => [r.kind, r.id]),
+    [
+      ["playbook", PB1],
+      ["broadcast", BC1],
+    ],
+  );
 
   const bc = await buildContext(
     rcIn(ctxFor(t)),
@@ -856,6 +946,169 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
     unknown.blocks.map((x) => x.source),
     ["page://nowhere"],
     "a surface no provider knows reads nothing",
+  );
+});
+
+test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own, read again as GET reach-outs lists it, its last 30 days what its row says (written, wrote back), its state and a run waiting; in the ledger's order among its campaigns; a citation names it as its first step's playbook", async () => {
+  const PB = "77777777-7777-4777-8777-7777777777a1";
+  const ROOT = "88888888-8888-4888-8888-8888888888a1";
+  const STEP2 = "88888888-8888-4888-8888-8888888888a2";
+  const PAUSED = "88888888-8888-4888-8888-8888888888b1";
+  const SEARCH = "99999999-9999-4999-8999-9999999999a1";
+  const RUN = "99999999-9999-4999-8999-9999999999b1";
+  const EMAIL = "99999999-9999-4999-8999-9999999999c1";
+  const step = (id, name, over = {}) => ({
+    id,
+    tenant_id: A,
+    kind: "reach_out",
+    name,
+    state: "running",
+    trigger: "lead_first",
+    lead_search_id: SEARCH,
+    after_playbook_id: null,
+    after_days: null,
+    gap_minutes: 12,
+    domain_ids: [],
+    signed_by: "Sam",
+    include_unconfirmed: false,
+    template_id: EMAIL,
+    run_hour: 9,
+    last_run_for: null,
+    created_at: "2026-09-01T00:00:00Z",
+    ...over,
+  });
+  const t = tables({
+    billing_accounts: [{ tenant_id: A, mode: "direct", status: "active" }],
+    policies: [{ tenant_id: A, class: "outreach", mode: "ask", subject_type: null }],
+    lead_searches: [{ id: SEARCH, tenant_id: A, name: "Movers · Austin" }],
+    playbooks: [
+      {
+        id: PB,
+        tenant_id: A,
+        kind: "moment",
+        name: "Win-back",
+        trigger: "quiet_30",
+        list_id: null,
+        list_key: null,
+        template_id: null,
+        params: [],
+        policy_class: "reengage",
+        state: "running",
+        run_hour: 10,
+        cap_per_run: 50,
+        gap_days: 30,
+        cadence_days: 0,
+        last_run_for: null,
+        last_run_at: null,
+        created_at: "2026-09-01T00:00:00Z",
+      },
+      step(ROOT, "Movers in Austin"),
+      step(STEP2, "Movers in Austin · a nudge", {
+        trigger: "after_step",
+        lead_search_id: null,
+        after_playbook_id: ROOT,
+        after_days: 4,
+      }),
+      step(PAUSED, "Gyms nearby", { state: "paused", created_at: "2026-09-02T00:00:00Z" }),
+    ],
+    templates: [
+      {
+        id: EMAIL,
+        tenant_id: A,
+        channel: "email",
+        components: [{ type: "BODY", text: "{{opening}}" }],
+        body_preview: "{{opening}}",
+      },
+    ],
+    broadcasts: [
+      {
+        id: RUN,
+        tenant_id: A,
+        name: "Movers in Austin",
+        state: "pending_approval",
+        audience: { kind: "reach_out", root_id: ROOT, step_id: ROOT, search_id: SEARCH },
+        playbook_id: ROOT,
+        run_for: "2026-09-15",
+        recipient_count: 3,
+      },
+    ],
+    sending_domains: [],
+  });
+  // Campaigns' own 30 days of the reach-outs (GET reports/reach-outs?period=30d): the report, and each chain's own totals.
+  const reach = {
+    ...RPCS,
+    reach_out_report: () => ({ chains: [] }),
+    reach_out_chain_totals: () => ({ [ROOT]: { written: 12, wrote_back: 2 } }),
+  };
+  const ledger = (rpcs) =>
+    buildContext(
+      rcIn(ctxFor(t, rpcs)),
+      page(
+        "campaigns",
+        [
+          { kind: "reach_out", id: ROOT },
+          { kind: "playbook", id: PB },
+          { kind: "reach_out", id: PAUSED },
+        ],
+        { route: "campaigns", view: "playbooks:all" },
+      ),
+    );
+  const got = await ledger(reach);
+  assert.deepEqual(
+    got.blocks.map((b) => [b.source, b.title]),
+    [
+      ["page://campaigns", "Campaigns"],
+      [`reach_out://${ROOT}`, "Movers in Austin"],
+      [`playbook://${PB}`, "Win-back"],
+      [`reach_out://${PAUSED}`, "Gyms nearby"],
+    ],
+    "the ledger's order, every row it showed",
+  );
+  assert.equal(
+    textOf(got.blocks[1]),
+    `Movers in Austin · 30d: 12 written, 2 wrote back · running · next run waiting on you · route: campaigns/moment:${ROOT}`,
+  );
+  // Every chain was counted, so one with no totals wrote nothing in these days.
+  assert.equal(textOf(got.blocks[3]), `Gyms nearby · 30d: nothing sent · paused · route: campaigns/moment:${PAUSED}`);
+  assert.match(
+    textOf(got.blocks[0]),
+    /^Campaigns, playbooks:all: 3 on screen · playbooks: 1, 1 running · reach-outs: 2/,
+  );
+  assert.deepEqual(
+    got.refs.slice(1).map((r) => [r.kind, r.id, r.route]),
+    [
+      ["playbook", ROOT, `outbound/${ROOT}`],
+      ["playbook", PB, `outbound/${PB}`],
+      ["playbook", PAUSED, `outbound/${PAUSED}`],
+    ],
+  );
+  // Totals that could not be read are said so, and logged; never "nothing sent".
+  clearContextCache();
+  readerCache.clear();
+  const { result: unread, lines } = await logs(() =>
+    ledger({ ...RPCS, reach_out_report: () => ({ chains: [] }), reach_out_chain_totals: () => [] }),
+  );
+  assert.ok(
+    textOf(unread.blocks[1]).startsWith("Movers in Austin · 30d: not read · running"),
+    textOf(unread.blocks[1]),
+  );
+  assert.equal(lines.filter((l) => l.includes('"reach_out_last_days_read_failed"')).length, 0, "a report that answers");
+  clearContextCache();
+  readerCache.clear();
+  const timeout = () => {
+    throw new Error("canceling statement due to statement timeout");
+  };
+  const { result: failed, lines: failedLines } = await logs(() =>
+    ledger({ ...RPCS, reach_out_report: timeout, reach_out_chain_totals: timeout }),
+  );
+  assert.ok(
+    textOf(failed.blocks[1]).startsWith("Movers in Austin · 30d: not read · running"),
+    textOf(failed.blocks[1]),
+  );
+  assert.equal(
+    failedLines.filter((l) => l.includes('"reach_out_last_days_read_failed"')).length,
+    1,
+    failedLines.join("\n"),
   );
 });
 
@@ -1137,6 +1390,8 @@ test("the shape block: sorted and byte-stable -- the same workspace read in anot
   assert.equal(two, one, "the same bytes for a reordered fixture");
   assert.match(one, /^The workspace: Harbor · zone America\/New_York\nLines: sms pending, whatsapp active\n/);
   assert.match(one, /booking link set/);
+  // 9 Oct 2026 (spec 2026-10-09 §4.8): the word the workspace calls an appointment (readers/facts.ts businessShape).
+  assert.match(one, /the appointment word: appointment/);
   assert.match(one, /Lists: Brides \(archived\), Regulars\n/);
   assert.match(one, /Playbooks: Reminder \(visit_tomorrow, paused\); Win-back \(quiet_30, running\)$/);
 
@@ -1164,6 +1419,7 @@ test("the shape block: sorted and byte-stable -- the same workspace read in anot
     name: "Harbor",
     timezone: TZ,
     deals_on: false,
+    appointment_word: "appointment",
     calendar_feed: false,
     booking_link: false,
     channels: [],
@@ -1185,6 +1441,32 @@ test("the shape reader is kept across turns for a context that keeps, and read e
   assert.equal(ctx.supabase.seen.length, after, "the second turn read the kept shape");
   await load(rcIn(ctx, A, { keep: false }), shape, undefined);
   assert.ok(ctx.supabase.seen.length > after, "a route's context reads it again");
+});
+
+test("the shape reads the playbooks' rows alone: no run, no person on one and no count is read to name them", async () => {
+  const ctx = ctxFor(
+    shapeTables({
+      broadcasts: [
+        {
+          id: "b1",
+          tenant_id: A,
+          playbook_id: "pb2",
+          name: "Win-back",
+          state: "sent",
+          recipient_count: 9,
+          created_at: iso(NOW.getTime()),
+        },
+      ],
+      broadcast_recipients: [
+        { tenant_id: A, broadcast_id: "b1", contact_id: P1, state: "sent", sent_at: iso(NOW.getTime()) },
+      ],
+    }),
+  );
+  await load(rcIn(ctx, A, { keep: false }), shape, undefined);
+  const asked = ctx.supabase.seen.map((q) => q.table ?? `rpc:${q.rpc}`);
+  for (const not of ["broadcasts", "broadcast_recipients", "rpc:playbook_totals", "rpc:run_counts"])
+    assert.equal(asked.includes(not), false, `${not}: not the shape's`);
+  assert.ok(asked.includes("playbooks"), "the rows themselves");
 });
 
 /* ------------------------------------------------------------------ the tab's warm */

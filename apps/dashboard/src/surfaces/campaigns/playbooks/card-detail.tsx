@@ -14,10 +14,12 @@ import {
   LIFECYCLE_WORDS,
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
+  appointmentWordOf,
+  appointmentWords,
   pipelineRoute,
   poolWords,
 } from "@chanlytics/contracts";
-import type { ConsentChannel } from "@chanlytics/contracts";
+import type { AppointmentWord, ConsentChannel } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
 import { canRestoreList, gate, gatedProps, navigate, restoreList } from "../../legacy-verbs";
@@ -31,6 +33,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
 import { bcRunOffer, bcWhenWords } from "../broadcasts/when-words";
+import { askAboutItem } from "../home/ask-on-campaigns";
 import { SentenceParts } from "../home/sentence";
 import { MessagePreview } from "../parts/message-preview";
 import { CmPane, useCmPhone } from "../parts/split";
@@ -145,6 +148,8 @@ interface ActsIn {
   setSure: Dispatch<SetStateAction<boolean>>;
   setSkipSure: Dispatch<SetStateAction<boolean>>;
   flash: Flash;
+  /** The pane's own close: a campaign deleted leaves the screen before its toast says so. */
+  onGone: () => void;
 }
 
 /**
@@ -152,7 +157,7 @@ interface ActsIn {
  * the playbooks and the broadcasts are read again behind it; the card repaints from that re-read, and its buttons wait
  * for it -- a Run now pressed twice before the first run's rows had landed would be two runs.
  */
-function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
+function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone }: ActsIn) {
   const act = async <D,>(
     fn: (o: { onAccepted: (d: D) => void }) => Promise<Outcome<D>>,
     said: (d: D) => ReactNode,
@@ -222,7 +227,16 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
   const remove = () => {
     setSure(false);
     void act(
-      (o) => V.remove(p.id, o),
+      // Closed once the server has taken it and the rows are read again without it, then said: a sheet left saying the
+      // campaign "isn't here any more" was the page talking about what it had just done (spec 2026-10-09 §4.3). Closed
+      // at the server's word, before the re-read, the drawer gave the focus back to the row it was about, still drawn,
+      // and the re-read took it to the body; closed after it, the focus comes home to the row now in its place, as a
+      // reach-out's Remove does (reach-out/row.tsx).
+      async () => {
+        const r = await V.remove(p.id);
+        if (r.ok) onGone();
+        return r;
+      },
       () => (
         <>
           <b>{p.name}</b> {PLAYBOOK_DELETE_WORDS.done}
@@ -246,8 +260,12 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash }: ActsIn) {
 /** Everything the card's sections read. */
 interface CardCtx extends ReturnType<typeof cardRead> {
   p: PlaybookRow;
+  /** What the workspace calls an appointment (the playbooks surface's shape): the drawer says the page's one word. */
+  word: AppointmentWord;
   canAct: boolean;
   onEdit: (p: PlaybookRow) => void;
+  /** Close the pane, the way its sheet closes (the home's drawer: Back, or the home's address). */
+  onClose: () => void;
   busy: boolean;
   sure: boolean;
   skipSure: boolean;
@@ -284,7 +302,7 @@ function cardWords(c: CardCtx) {
 
 /** Who its moment reaches, as a link that opens them, and who of them wait: nothing where the server could not count. */
 function sentenceCounted(c: CardCtx) {
-  const { p, trig, noNumber, named, listRoute } = c;
+  const { p, trig, noNumber, named, listRoute, word } = c;
   if (named === null || p.candidates === null || p.held === null) return false;
   return (
     <>
@@ -294,16 +312,16 @@ function sentenceCounted(c: CardCtx) {
         className="ob-link"
         data-tip={
           trig && trig.kind === "visit"
-            ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People"
+            ? `Everyone with a recorded yes — the day's ${appointmentWords(word).many} are picked from them · click to open them in People`
             : trig && trig.kind === "deal"
               ? "The proposals waiting with nothing back — before their links, their follow-ups and the week's breath · click to open them in the Pipeline"
-              : "The list this playbook watches — before the gap and the week's breath · click to open it in People"
+              : "The list this campaign watches — before the gap and the week's breath · click to open it in People"
         }
         onClick={() => navigate(listRoute)}
         data-testid="pb-audience"
       >
         {noNumber ||
-          `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger) : "on the list"} said yes`}
+          `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger, word) : "on the list"} said yes`}
       </LinkButton>
       {/* Why a list with people on it can still offer nobody: one message per
           person per week, across playbooks. A bare "0 people" read as broken. */}
@@ -328,7 +346,7 @@ function sentenceArchived(c: CardCtx) {
                 () => restoreList(p.list_id),
                 () => (
                   <>
-                    <b>{p.triggerLabel}</b> is back; resume the playbook when you want it running
+                    <b>{p.triggerLabel}</b> is back; resume the campaign when you want it running
                   </>
                 ),
               )
@@ -337,7 +355,7 @@ function sentenceArchived(c: CardCtx) {
           >
             Bring the list back
           </LinkButton>
-          , or edit the playbook to run on another.
+          , or edit the campaign to run on another.
         </>
       ) : null}
     </>
@@ -532,7 +550,7 @@ function cardWaitActs(c: CardCtx) {
     <>
       {canAct && (
         <Button size="sm" disabled={busy} onClick={() => setSkipSure(true)} data-testid="pb-skip">
-          Skip this run
+          {LIFECYCLE_WORDS.ledger.skip}
         </Button>
       )}
       <Button
@@ -543,7 +561,7 @@ function cardWaitActs(c: CardCtx) {
         data-testid="pb-approve"
         {...(!canAct ? gate("approve", "approve a run") : refusal ? gatedProps(refusal) : {})}
       >
-        <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
+        <Icon name="check" size={12} /> {LIFECYCLE_WORDS.ledger.approve(waiting.recipient_count)}
       </Button>
     </>
   );
@@ -551,27 +569,32 @@ function cardWaitActs(c: CardCtx) {
 
 /**
  * What a role that may change it does to it, at the head of its pane: Pause or Resume and Edit in words, and behind the
- * kit's menu the two that are pressed least and cost most -- Run now, and Delete, which asks first. They were five
- * buttons in a row under the card, the red Delete among them.
+ * kit's menu Ask about this campaign (the moment spec, A1: the drawer closes, and Ask opens on the campaign by its name),
+ * then the two that are pressed least and cost most -- Run now, and Delete, which asks first. They were five buttons in
+ * a row under the card, the red Delete among them. A viewer asks from the shell's ✦, on the drawer's address.
  */
 function cardOwnActs(c: CardCtx, phone = false) {
-  const { p, canAct, busy, sure, setSure, waiting, acts, onEdit } = c;
+  const { p, canAct, busy, sure, setSure, waiting, acts, onEdit, onClose } = c;
   if (!canAct) return null;
   const hours = pageClock().hours;
-  // On a phone the pane's head is a capsule a thumb wide: every act is the menu's, as a thread's Actions are.
+  const pauseItem: MenuItem = {
+    label: p.state === "paused" ? "Resume" : "Pause",
+    glyph: <Icon name={p.state === "paused" ? "play" : "pause"} size={13} />,
+    disabled: busy,
+    onSelect: () => void acts.toggle(),
+  };
+  // On a phone the pane's head is a capsule a thumb wide: its acts are the menu's, as a thread's Actions are, but Pause or
+  // Resume, which the docked foot holds while no run waits (PlaybookPane); a run waiting holds the foot, and it stays here.
   const words: MenuItem[] = phone
     ? [
-        {
-          label: p.state === "paused" ? "Resume" : "Pause",
-          glyph: <Icon name={p.state === "paused" ? "play" : "pause"} size={13} />,
-          disabled: busy,
-          onSelect: () => void acts.toggle(),
-        },
+        ...(waiting ? [pauseItem] : []),
         { label: "Edit", glyph: <Icon name="pencil" size={13} />, disabled: busy, onSelect: () => onEdit(p) },
       ]
     : [];
+  // Ask first on a desk; on a phone after the menu's own acts, so its first item stays the act the drawer is for.
   const more: MenuItem[] = [
     ...words,
+    askAboutItem(p, onClose),
     ...(p.state === "running" && !waiting
       ? [
           {
@@ -660,15 +683,17 @@ function cardBody(c: CardCtx) {
 }
 
 /** A playbook's state and verbs, held once for the pane it is open in (Campaigns' home draws it in a sheet). */
-function useCard({ p, canAct, onEdit, flash }: Pick<CardProps, "p" | "canAct" | "onEdit" | "flash">): CardCtx {
+function useCard({ p, canAct, onEdit, flash, onClose }: CardProps & { onClose: () => void }): CardCtx {
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
   // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
   const [skipSure, setSkipSure] = useState(false);
   const surface = useSurface("playbooks");
   const read = cardRead(p, surface);
-  const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash });
-  return { ...read, p, canAct, onEdit, busy, sure, skipSure, setSure, setSkipSure, acts };
+  const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone: onClose });
+  // The workspace's word, from the surface the card reads; unread, the one derivation over nothing known.
+  const word = surface ? surface.shape.word : appointmentWordOf({ stored: null, sellsBy: null });
+  return { ...read, p, word, canAct, onEdit, onClose, busy, sure, skipSure, setSure, setSkipSure, acts };
 }
 
 interface PaneProps {
@@ -686,18 +711,27 @@ interface PaneProps {
  * after it down by the card's height, the list's columns over a card that had none.
  */
 export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
-  const c = useCard({ p, canAct, onEdit, flash });
+  const c = useCard({ p, canAct, onEdit, flash, onClose });
   const phone = useCmPhone();
   const { status, reachWords, waiting } = c;
   const asking = cardDeleteAsk(c);
+  // On a phone the foot's acts are the kit's equal pair (kit.css `data-foot-pair`), as every phone foot's are, but while
+  // a question stands there; and with no run waiting the foot holds Pause or Resume, the head's words on a desk, a thumb's
+  // reach from where the menu kept them (spec 2026-10-09 §4.4).
   const foot = asking ? (
     <div className="pb-pane-foot">{asking}</div>
   ) : waiting ? (
-    <div className="pb-pane-foot">
+    <div className="pb-pane-foot" data-foot-pair={c.skipSure ? undefined : ""}>
       <span className="pb-pane-foot-say" data-testid="pb-waiting">
         This run waits on you
       </span>
       {cardWaitActs(c)}
+    </div>
+  ) : phone && canAct ? (
+    <div className="pb-pane-foot" data-foot-pair="">
+      <Button size="sm" disabled={c.busy} onClick={() => void c.acts.toggle()} data-testid="pb-pause-foot">
+        <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
+      </Button>
     </div>
   ) : null;
   return (

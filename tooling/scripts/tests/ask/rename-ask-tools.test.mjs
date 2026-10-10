@@ -18,9 +18,13 @@ test("the committed cases say the new names: the rewrite was run, and running it
   const again = renameCases(CASES);
   assert.deepEqual([again.changed, again.unknown], [0, []]);
   assert.deepEqual(again.cases, CASES);
-  // A second turn's expect names tools too (PR 5.2), and is held to the same names.
+  // A second turn's expect names tools too (PR 5.2), and is held to the same names; so is a setup's order (a note's).
   const named = CASES.flatMap((c) =>
-    [c.expect, c.then?.expect].flatMap((e) => [...(e?.tools_any ?? []), ...(e?.tools_also_any ?? [])]),
+    [c.expect, c.then?.expect].flatMap((e) => [
+      ...(e?.tools_any ?? []),
+      ...(e?.tools_also_any ?? []),
+      ...(e?.tools_order ?? []),
+    ]),
   );
   assert.ok(named.length > 0, "the cases name tools");
   for (const n of named) assert.ok(RECORDED.has(n), `${n} is a name the registry records`);
@@ -65,6 +69,20 @@ test("a second turn's expect is rewritten the same way, and a name there neither
   const bad = renameCases([{ id: "y", expect: {}, then: { text: "b", expect: { tools_also_any: ["teleport"] } } }]);
   assert.deepEqual(bad.unknown, ["y (then): teleport"]);
   assert.deepEqual(renameCases([{ id: "z", then: { text: "b" } }]).cases, [{ id: "z", then: { text: "b" } }]);
+});
+
+test("a setup's tools_order (the moment spec, A8: a note's names) is rewritten through the table as tools_any is, and a name there neither old nor new is refused", () => {
+  const setup = {
+    id: "s",
+    text: "set up my campaigns",
+    expect: { tools_any: ["campaigns.playbooks"], tools_order: ["list_playbooks", "propose_playbook"] },
+  };
+  const once = renameCases([setup]);
+  assert.deepEqual([once.changed, once.unknown], [2, []]);
+  assert.deepEqual(once.cases[0].expect.tools_order, ["campaigns.playbooks", "propose_campaign.playbook"]);
+  assert.equal(renameCases(once.cases).changed, 0, "idempotent");
+  const bad = renameCases([{ id: "o", expect: { tools_order: ["campaigns.playbooks", "teleport"] } }]);
+  assert.deepEqual(bad.unknown, ["o: teleport"]);
 });
 
 test("the judge reads both sides through the table: an old name in a case matches the new name a turn records, a new name in a case matches a turn stored before the rename, and a different action is a different tool", () => {

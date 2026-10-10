@@ -673,7 +673,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
   );
   assert.deepEqual(p, {
     ok: true,
-    receipt: "Playbook “Win-back” is running — its next run is under Coming up in Campaigns",
+    receipt: "Campaign “Win-back” is running — its next run is under Coming up in Campaigns",
     undo: { playbook_id: PB1, decision_id: D(0) },
   });
   assert.deepEqual(t.sent[1].body, {
@@ -773,6 +773,31 @@ test("an undo names the decision it reverses: the inverse call carries the commi
   assert.equal(
     (await undoProposal(mid.win, card("broadcast", {}), o({ broadcast_id: B1 }), mid.client)).receipt,
     "Stopped — it ends after this batch",
+  );
+});
+
+test("a campaign's change (the moment spec, A5): the commit keeps the ledger row the change wrote, and its Undo names it as x-undo-of, so undo_of says which change it reversed", async () => {
+  const change = card("playbook_change", {
+    playbook_id: PB1,
+    playbook_name: "Win-back",
+    state: "paused",
+    was: { state: "running" },
+  });
+  const t = tab((key) =>
+    key === `PUT /api/v1/playbooks/${PB1}`
+      ? envelope({ id: PB1, name: "Win-back", state: "paused", was: { state: "running" }, decision_id: D(6) })
+      : envelope({}),
+  );
+  const done = await commitProposal(t.win, change, t.client);
+  assert.equal(done.ok, true, done.message);
+  assert.deepEqual(done.undo, { playbook_id: PB1, was: { state: "running" }, decision_id: D(6) });
+  await undoProposal(t.win, change, { state: "done", receipt: "", atMs: 1, undo: done.undo }, t.client);
+  assert.deepEqual(
+    t.sent.map((s) => [s.key, s.body, s.undoOf]),
+    [
+      [`PUT /api/v1/playbooks/${PB1}`, { state: "paused" }, undefined],
+      [`PUT /api/v1/playbooks/${PB1}`, { state: "running" }, D(6)],
+    ],
   );
 });
 

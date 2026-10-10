@@ -43,7 +43,7 @@ const bcByPlaybook = (r: { playbook_id: string | null }) => !!r.playbook_id;
 type BcOriginId = "playbook" | "hand";
 
 const BC_ORIGINS: ReadonlyArray<readonly [BcOriginId, string]> = [
-  ["playbook", "by a playbook"],
+  ["playbook", "by a campaign"],
   ["hand", "by hand"],
 ];
 
@@ -415,11 +415,11 @@ function bcRunSub(row: BroadcastVM, pb: PlaybookCardVM | null | undefined) {
         <>
           <LinkButton
             className="bc-run-link"
-            onClick={() => navigate(`outbound/${playbookId}`)}
-            aria-label={`Playbook ${pb ? pb.name : row.name}`}
+            onClick={() => navigate(`campaigns/moment:${playbookId}`)}
+            aria-label={`Campaign ${pb ? pb.name : row.name}`}
             data-testid="bc-history-playbook"
           >
-            Playbook
+            Campaign
           </LinkButton>
           {row.audience.label && row.audience.label !== row.name ? (
             <span className="bc-run-aud"> · {row.audience.label}</span>
@@ -498,7 +498,7 @@ export function BcRunCard({
           </div>
           {/* What sent it, and to whom. A playbook's run is named for its playbook, and so is its list, so the list is
               said only where it is something else: "Win-back · quiet 30 days" under "Win-back · quiet 30 days" was the
-              row saying its name twice. The word Playbook opens the playbook, and says which to a screen reader. */}
+              row saying its name twice. The word Campaign opens the campaign's drawer, and says which to a screen reader. */}
           {bcRunSub(row, pb)}
         </div>
         {/* When it goes or went; under an hour away, the minutes left, ticking, in the accent: it is happening. */}

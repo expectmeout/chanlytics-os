@@ -1,32 +1,45 @@
 /**
  * Campaigns' home, the rail (canvas A): "Your customer, start to finish", five moments in order with how many people are at
- * each, whether it is covered, and the yes it needs; and under it one quiet line for every other playbook or campaign. On a
- * phone the same moments stand one under another on a line down the left (A4). Every word and number is the view model's
- * (contracts campaignsHomeOf); this draws it and presses.
+ * each, whether it is covered, and the yes it needs; and under it the ledger, every campaign in one place
+ * (ledger/ledger.tsx), which a card's body narrows to its moment. On a phone the same moments are the heads of the one list
+ * (ledger/ledger-phone.tsx). Every word and number is the view model's (contracts campaignsHomeOf); this draws it and
+ * presses.
  */
-import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
-import type {
-  LifecycleAct,
-  LifecycleFailed,
-  LifecycleHome,
-  LifecycleStage,
-  LifecycleStrip,
-} from "@chanlytics/contracts";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode, RefObject } from "react";
+import type { LifecycleAct, LifecycleBar, LifecycleHome, LifecycleStage } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
 import { StatePill } from "../../kit/pill/state-pill";
+import type { RouteDoor } from "../../legacy-verbs";
 import { ChannelMarks, ChannelsLine } from "../parts/channels-line";
-import { cmRowPress } from "../parts/head";
 import { HomeFailed } from "./failed";
-import { PhoneReachLine } from "./tiles";
+import { ResumeAct } from "./ledger/ledger-acts";
 
-/** What a press on a stage, a line or a button does: the page decides (home-page.tsx), the rail only says which. */
+/** What a press on the rail does: the page decides (home-page.tsx), the rail only says which. */
 export interface RailActs {
   onAct: (act: LifecycleAct) => void;
+  /** The door a name is where its act opens a page: a moment's drawer, pushed so Back closes it. */
+  door: (act: LifecycleAct) => RouteDoor | null;
   /** Whether the role may turn a moment on, resume one or open the composer; the buttons are gated where it may not. */
   gated: Record<string, unknown>;
+  /** The group the ledger shows alone (`campaigns/in:<group>`), which a card wears chosen; null for every group. */
+  chosen: string | null;
+  /** A card's body pressed: narrow the ledger to its moment, or let go of it. */
+  onChoose: (group: string | null) => void;
+}
+
+/**
+ * The moment the first day's door stands in (Ask's "Set up my campaigns", the moment spec A1): the one whose Turn on is
+ * hinted, and where no moment has anyone to reach yet, the first Turn on, so the door is never left out on a new
+ * workspace's quietest day. The desk's rail and the phone's list read it alike.
+ */
+export function firstDayStage(stages: readonly LifecycleStage[]): string | null {
+  const offs = stages.filter((s) => s.state === "off" && s.act?.kind === "turn_on");
+  return (offs.find((s) => s.hint) ?? offs[0])?.id ?? null;
 }
 
 /** A state as a pill, in the tone the view model gave it. */
@@ -35,13 +48,39 @@ function StateWords({ tone, words, testid }: { tone: "ok" | "warn" | "plain"; wo
 }
 
 /**
- * A moment's node on the line: a clock while a run of its playbook waits for the owner (it is on, and it waits: the
- * pill beside it says "Waiting on you"), the check once it is covered, else the moment's own glyph.
+ * A moment's node on the line: a clock while a run of one of its campaigns waits for the owner (the pill beside it says
+ * "Waiting on you"), the check once it is covered, else the moment's own glyph. The phone's spine draws it too.
  */
-const nodeGlyph = (s: LifecycleStage) => (s.waits ? "clock" : s.covered ? "check" : s.glyph);
+export const nodeGlyph = (s: LifecycleStage) => (s.waits ? "clock" : s.covered ? "check" : s.glyph);
 
-/** What a moment says under its name: its state, or the Turn on that makes it one. */
-function momentFoot(s: LifecycleStage, { onAct, gated }: RailActs) {
+/**
+ * A moment's bar, where it holds two or more (lane 2's `LifecycleBar`): on in the ok tone, waiting in the warn, paused in
+ * the Meter's rest; never animated (the kit's Meter has no transition). It says to a screen reader what the card's
+ * summary says ("3 campaigns · 2 on · 1 paused").
+ */
+function StageBar({ bar, label }: { bar: LifecycleBar; label: string }) {
+  const parts = [
+    { share: bar.on, tone: "ok" as const },
+    { share: bar.waiting, tone: "warn" as const },
+    { share: bar.paused, tone: "rest" as const },
+  ];
+  return <Meter size="sm" className="cmh-stage-bar" parts={parts} aria-label={label} />;
+}
+
+type ResumeOf = Extract<LifecycleAct, { kind: "resume" }>;
+
+/**
+ * A paused moment's Resume (spec §4.2): its lead's own row's act in the ledger, asked in the same words (when, to about
+ * how many, the mode in full under `auto`). Lane 2's stage keeps its `act` the drawer's door, so the name still opens it.
+ */
+function leadResume(home: LifecycleHome, s: LifecycleStage): ResumeOf | null {
+  if (s.state !== "paused" || !s.playbookId) return null;
+  const act = home.ledger.groups.find((g) => g.id === s.id)?.rows.find((r) => r.id === s.playbookId)?.act;
+  return act && act.kind === "resume" ? act : null;
+}
+
+/** What a moment says under its name: Turn on where it holds nothing, its state, and Resume (asked) where it is paused. */
+function momentFoot(s: LifecycleStage, acts: RailActs, resume: ResumeOf | null) {
   const act = s.act;
   if (s.state === "off" && act && act.kind === "turn_on") {
     return (
@@ -49,20 +88,42 @@ function momentFoot(s: LifecycleStage, { onAct, gated }: RailActs) {
         size="sm"
         variant={s.hint ? "primary" : "secondary"}
         className="cmh-turn-on"
-        onClick={() => onAct(act)}
+        onClick={() => acts.onAct(act)}
         data-testid="cmh-turn-on"
-        {...gated}
+        {...acts.gated}
       >
         <Icon name="plus" size={12} /> {act.label}
       </Button>
     );
   }
-  return <StateWords tone={s.tone} words={s.stateWords} testid="cmh-state" />;
+  return (
+    <>
+      <StateWords tone={s.tone} words={s.stateWords} testid="cmh-state" />
+      {resume ? <ResumeAct act={resume} onAct={acts.onAct} gated={acts.gated} testid="cmh-stage-resume" /> : null}
+    </>
+  );
 }
 
-/** One moment on the desk's rail: its people, its node on the line, and its card. */
-function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
-  const open = s.act && s.act.kind === "open" ? s.act : null;
+interface StageProps {
+  s: LifecycleStage;
+  acts: RailActs;
+  resume: ResumeOf | null;
+  /** What a cell says where nobody counted: the ledger's own word for it, never a dash typed here. */
+  dash: string;
+  /** The first day's door, drawn after this moment's Turn on (firstDayStage); null on every other moment and day. */
+  firstDayDoor?: ReactNode;
+}
+
+/**
+ * One moment on the desk's rail. Its caps, figure, unit and summary are one press (a quiet button, `aria-pressed`) that
+ * narrows the ledger to the moment, and lets go pressed again (decision 12: the body filters, the name opens). The
+ * lead's name, the door to its drawer, and Turn on stand beside it, never inside it: a button holds no button.
+ */
+function Stage({ s, acts, resume, dash, firstDayDoor = null }: StageProps) {
+  const chosen = acts.chosen === s.id;
+  // The name is a door where the moment's act opens something: its lead's drawer, or, for a moment of the appointment
+  // with no calendar ("Needs your calendar", decision 44), the calendar's setting.
+  const door = s.act && (s.act.kind === "open" || s.act.kind === "route") ? acts.door(s.act) : null;
   return (
     <li
       className="cmh-stage"
@@ -70,27 +131,42 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
       data-state={s.state}
       data-hint={s.hint ? "true" : undefined}
       data-waits={s.waits ? "true" : undefined}
+      data-chosen={chosen ? "true" : undefined}
       data-testid="cmh-stage"
     >
-      <span className="cmh-caps">{s.caps}</span>
-      <span className="cmh-figure tabular" data-testid="cmh-people">
-        {s.people === null ? "—" : s.people}
-      </span>
-      <span className="cmh-unit">{s.unit}</span>
+      <Button
+        variant="quiet"
+        size="text"
+        className="cmh-stage-press"
+        aria-pressed={chosen}
+        onClick={() => acts.onChoose(chosen ? null : s.id)}
+        data-testid="cmh-stage-press"
+      >
+        <span className="cmh-caps">{s.caps}</span>
+        <span className="cmh-figure tabular" data-testid="cmh-people">
+          {s.people === null ? dash : s.people}
+        </span>
+        <span className="cmh-unit">{s.unit}</span>
+        {/* The summary where the moment holds two or more ("3 campaigns · 2 on · 1 paused"); one campaign's summary is
+            its name and clock, which its name's door and its state say beside the toggle already. */}
+        {s.bar && s.summary ? <span className="cmh-summary">{s.summary}</span> : null}
+      </Button>
       <span className="cmh-track" aria-hidden="true">
         <span className="cmh-node">
           <Icon name={nodeGlyph(s)} size={14} />
         </span>
       </span>
-      <div className="cmh-moment" data-state={s.state} role="presentation" onClick={open ? cmRowPress : undefined}>
-        {open ? (
-          <LinkButton className="cmh-moment-name" onClick={() => acts.onAct(open)} data-row-open data-testid="cmh-open">
+      <div className="cmh-moment" data-state={s.state}>
+        {door ? (
+          <LinkButton {...door} className="cmh-moment-name" data-row-open data-testid="cmh-open">
             {s.name}
           </LinkButton>
         ) : (
           <span className="cmh-moment-name">{s.name}</span>
         )}
-        {momentFoot(s, acts)}
+        {momentFoot(s, acts, resume)}
+        {firstDayDoor}
+        {s.bar ? <StageBar bar={s.bar} label={s.summary ?? s.stateWords} /> : null}
         <ChannelMarks marks={s.channels} testid="cmh-chans" />
         <span className="cmh-needs" data-needs={s.needs}>
           <Icon name="shield" size={12} />
@@ -101,66 +177,42 @@ function Stage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
   );
 }
 
-/** One line under the rail: what it is, its state, and the one act at its right. */
-function StripLine({ l, acts }: { l: LifecycleStrip; acts: RailActs }) {
-  const act = l.act;
-  const resumes = act.kind === "resume" || act.kind === "turn_on";
-  return (
-    <li className="cmh-strip" data-kind={l.kind} data-testid="cmh-strip" data-strip={l.id}>
-      <Icon name={l.glyph} size={16} />
-      <span className="cmh-strip-words">
-        <LinkButton onClick={() => acts.onAct(l.open)} className="cmh-strip-name" data-testid="cmh-strip-open">
-          {l.name}
-        </LinkButton>
-        <span className="cmh-dim cmh-strip-more">{l.words}</span>
-        <ChannelMarks marks={l.channels} testid="cmh-strip-chans" />
-      </span>
-      {l.stateWords ? <StateWords tone={l.tone} words={l.stateWords} /> : null}
-      <Button size="sm" onClick={() => acts.onAct(act)} data-testid="cmh-strip-act" {...(resumes ? acts.gated : {})}>
-        {act.kind === "resume" ? <Icon name="play" size={12} /> : null}
-        {act.label}
-      </Button>
-    </li>
-  );
+/**
+ * Whether the line of moments is wider than its pane, as the browser lays it out: only then do its edges fade (J3), so
+ * a rail that fits draws its first and last card whole. Measured as the pane resizes, and again when the number of
+ * moments changes (the line is drawn once they are read); nothing where nothing measures.
+ */
+function useOverflows<T extends HTMLElement>(count: number): [RefObject<T | null>, boolean] {
+  const ref = useRef<T | null>(null);
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const look = () => setOver(el.scrollWidth > el.clientWidth + 1);
+    const watch = new ResizeObserver(look);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [count]);
+  return [ref, over];
+}
+
+interface RailProps {
+  home: LifecycleHome;
+  acts: RailActs;
+  /** The first day's door (home-page.tsx), a slot the rail draws after the hinted Turn on; it never imports Ask. */
+  firstDayDoor?: ReactNode;
+  children?: ReactNode;
 }
 
 /**
- * The lines under the rail, each its own. A read that failed is said where its data would be: the templates' in the call's
- * text's place, the reach-outs' where their chains would follow.
+ * The desk's rail, and the ledger under it in the same pane (`children`, home-page.tsx). Under 1100px of page it keeps
+ * one line and scrolls across (J3, campaigns.css), its edges fading while it is wider than the pane.
  */
-function StripLines({
-  strips,
-  failed,
-  acts,
-}: {
-  strips: readonly LifecycleStrip[];
-  failed: LifecycleFailed;
-  acts: RailActs;
-}) {
-  return (
-    <>
-      {strips.map((l) =>
-        l.kind === "call_text" && failed.templates ? (
-          <li key={l.id} className="cmh-strip-failed">
-            <HomeFailed failed={failed.templates} testid="cmh-templates-failed" />
-          </li>
-        ) : (
-          <StripLine key={l.id} l={l} acts={acts} />
-        ),
-      )}
-      {failed.chains ? (
-        <li className="cmh-strip-failed">
-          <HomeFailed failed={failed.chains} testid="pb-chains-failed" />
-        </li>
-      ) : null}
-    </>
-  );
-}
-
-/** The desk's rail and the lines under it. */
-export function Rail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
-  const { rail, strips } = home;
-  if (rail.stages.length === 0) return null;
+export function Rail({ home, acts, firstDayDoor = null, children }: RailProps) {
+  const { rail } = home;
+  const [line, overflows] = useOverflows<HTMLOListElement>(rail.stages.length);
+  const doorAt = firstDayDoor ? firstDayStage(rail.stages) : null;
+  if (rail.stages.length === 0 && !children) return null;
   return (
     <Panel
       as="section"
@@ -177,107 +229,28 @@ export function Rail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
         <ChannelsLine parts={home.head.channels} testid="cmh-channels-rail" />
       </header>
       {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
-      <ol className="cmh-rail" data-n={rail.stages.length}>
-        {rail.stages.map((s) => (
-          <Stage key={s.id} s={s} acts={acts} />
-        ))}
-      </ol>
-      {strips.length > 0 ? (
-        <ul className="cmh-strips" aria-label={LIFECYCLE_WORDS.alsoRunning}>
-          <StripLines strips={strips} failed={home.failed} acts={acts} />
-        </ul>
-      ) : null}
-    </Panel>
-  );
-}
-
-/** One moment on the phone's rail: a node on the line, its name and what it stands at, and its state or Turn on. */
-function PhoneStage({ s, acts }: { s: LifecycleStage; acts: RailActs }) {
-  const act = s.act;
-  const turnOn = s.state === "off" && act && act.kind === "turn_on" ? act : null;
-  const open = act && act.kind === "open" ? act : null;
-  return (
-    <li
-      className="cmh-vstage"
-      data-stage={s.id}
-      data-state={s.state}
-      data-hint={s.hint ? "true" : undefined}
-      data-waits={s.waits ? "true" : undefined}
-      data-testid="cmh-stage"
-    >
-      <span className="cmh-node" aria-hidden="true">
-        <Icon name={nodeGlyph(s)} size={13} />
-      </span>
-      <span className="cmh-vwords">
-        {open ? (
-          <LinkButton className="cmh-moment-name" onClick={() => acts.onAct(open)} data-testid="cmh-open">
-            {s.name}
-          </LinkButton>
-        ) : (
-          <span className="cmh-moment-name">{s.name}</span>
-        )}
-        <span className="cmh-dim">
-          {s.caps} · <span className="tabular">{s.people === null ? "—" : s.people}</span> {s.unit}
-          <ChannelMarks marks={s.channels} testid="cmh-chans" />
-        </span>
-      </span>
-      {turnOn ? (
-        <Button
-          size="sm"
-          variant={s.hint ? "primary" : "secondary"}
-          onClick={() => acts.onAct(turnOn)}
-          data-testid="cmh-turn-on"
-          {...acts.gated}
+      {rail.stages.length > 0 ? (
+        // Under 1100px of page the line scrolls across under a thumb, so it takes its own touch: no swipe starts on it.
+        <ol
+          ref={line}
+          className="cmh-rail"
+          data-n={rail.stages.length}
+          data-overflows={overflows ? "true" : undefined}
+          data-own-drag
         >
-          {s.hint ? <Icon name="plus" size={12} /> : null} {LIFECYCLE_WORDS.phone.turnOn}
-        </Button>
-      ) : (
-        <StateWords tone={s.tone} words={s.phoneWords} />
-      )}
-    </li>
-  );
-}
-
-/** The phone's rail: the moments down a line, and under it the other lines as one list ("Also"). */
-export function PhoneRail({ home, acts }: { home: LifecycleHome; acts: RailActs }) {
-  const { rail, strips } = home;
-  if (rail.stages.length === 0) return null;
-  return (
-    <>
-      <Panel
-        as="section"
-        size="flush"
-        className="cmh-block cmh-vrail-block"
-        aria-label={rail.title}
-        data-testid="cmh-rail"
-      >
-        <header className="cmh-block-head">
-          <h2 className="cmh-h">{LIFECYCLE_WORDS.phone.moments}</h2>
-          {rail.phoneWords ? <span className="cmh-dim">{rail.phoneWords}</span> : null}
-        </header>
-        {/* Who can hear you, and where the workspace stands on its channels: a line in the head (8 Oct 2026), so the
-            moments are the first thing on the page. It was a tile of its own over them. */}
-        <PhoneReachLine tile={home.reach} failed={home.failed.reach} channels={home.head.channels} />
-        {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
-        <ol className="cmh-vrail">
           {rail.stages.map((s) => (
-            <PhoneStage key={s.id} s={s} acts={acts} />
+            <Stage
+              key={s.id}
+              s={s}
+              acts={acts}
+              resume={leadResume(home, s)}
+              dash={home.ledger.words.dash}
+              firstDayDoor={s.id === doorAt ? firstDayDoor : null}
+            />
           ))}
         </ol>
-      </Panel>
-      {strips.length > 0 ? (
-        <Panel
-          as="section"
-          size="flush"
-          className="cmh-block cmh-also-block"
-          aria-label={LIFECYCLE_WORDS.phone.also}
-          data-testid="cmh-also"
-        >
-          <ul className="cmh-strips">
-            <StripLines strips={strips} failed={home.failed} acts={acts} />
-          </ul>
-        </Panel>
       ) : null}
-    </>
+      {children}
+    </Panel>
   );
 }

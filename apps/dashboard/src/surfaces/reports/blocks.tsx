@@ -288,7 +288,7 @@ function sourceRow(s: CampaignSourceVM) {
 // the row's door, to the playbook's card or the broadcast's own page.
 export function RptSources({ rows }: { rows: CampaignSourceVM[] }) {
   if (!rows.length)
-    return <EmptyState kind="line" title="No broadcast or playbook run reached anyone in this period." />;
+    return <EmptyState kind="line" title="No broadcast or campaign run reached anyone in this period." />;
   return (
     <div className="ck-table-wrap rpt-sources">
       <table className="ck-table">

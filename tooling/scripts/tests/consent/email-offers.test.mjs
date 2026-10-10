@@ -616,7 +616,7 @@ test("the one foot builder, by kind: an offer says why they get it, who and wher
   // The visit's foot: its reason, STOP as the way out, no link.
   assert.equal(
     emailFoot("Northside Studio", "12 Main St", { kind: "visit", facts: { visit_when: "tomorrow at 2:00 PM" } }, "en"),
-    "You're getting this because of your visit with Northside Studio.\nReply STOP to stop these emails.\nNorthside Studio · 12 Main St",
+    "You're getting this because of your appointment with Northside Studio.\nReply STOP to stop these emails.\nNorthside Studio · 12 Main St",
   );
   assert.match(
     emailFoot("Northside Studio", null, { kind: "visit", facts: { proposal_link: "https://x.example/p" } }, "en"),
@@ -702,10 +702,10 @@ test("the unsubscribe page says to a customer what the spec says, and offers the
   assert.deepEqual(ask.buttons, [
     { label: "Unsubscribe from offers", name: "unsubscribe", value: "yes", quiet: false },
   ]);
-  assert.match(ask.body, /won't send you offers by email again\. You'll still get messages about your visits\./);
+  assert.match(ask.body, /won't send you offers by email again\. You'll still get messages about your appointments\./);
   const done = offerUnsubscribeWords({ kind: "done", business: "Northside Studio" }, "en");
   assert.equal(done.lead, "You're unsubscribed from offers from Northside Studio.");
-  assert.equal(done.body, "You'll still get messages about your visits.");
+  assert.equal(done.body, "You'll still get messages about your appointments.");
   assert.deepEqual(
     done.buttons,
     [{ label: "Stop all messages", name: "stop_all", value: "ask", quiet: true }],
@@ -713,7 +713,7 @@ test("the unsubscribe page says to a customer what the spec says, and offers the
   );
   const confirm = offerUnsubscribeWords({ kind: "stop_ask", business: "Northside Studio" }, "en");
   assert.equal(confirm.lead, "Stop every message from Northside Studio?");
-  assert.match(confirm.body, /reminders and confirmations about your visits/);
+  assert.match(confirm.body, /reminders and confirmations about your appointments/);
   assert.deepEqual(
     confirm.buttons.map((b) => [b.name, b.value]),
     [["stop_all", "yes"]],
@@ -760,7 +760,7 @@ test("the email foot speaks the version's language, each kind, text and HTML; th
     emailFoot("Estudio Norte", address, { kind: "visit", facts }, "es");
   assert.equal(
     visit({ visit_when: "mañana a las 14:00" }),
-    "Recibes esto por tu visita con Estudio Norte.\nResponde STOP para dejar de recibir estos correos.\nEstudio Norte · Calle Mayor 12",
+    "Recibes esto por tu cita con Estudio Norte.\nResponde STOP para dejar de recibir estos correos.\nEstudio Norte · Calle Mayor 12",
   );
   assert.equal(
     visit({ proposal_link: "https://x.example/p" }, null),
@@ -834,7 +834,7 @@ test("the unsubscribe page speaks the language of the offer it came from: every 
     ],
     "the same acts as in English: only their words move",
   );
-  assert.match(es[0].body, /Seguirás recibiendo mensajes sobre tus visitas\./);
+  assert.match(es[0].body, /Seguirás recibiendo mensajes sobre tus citas\./);
   assert.equal(es[0].foot, "Estudio Norte envía su correo con Chanlytics.");
   // No business name reads the stand-in in the language, and the acts are the English page's.
   assert.equal(

@@ -167,6 +167,8 @@ const playbooksSurface = (over = {}) => ({
   ],
   timezone: ZONE,
   calendar: "none",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "none", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: false,
@@ -570,7 +572,7 @@ test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values s
     byTestId(tree, "bc-detail"),
     (n) => n.props?.className === "cl-prof-aut-hint" && textOf(n).startsWith("Values:"),
   );
-  assert.equal(textOf(values), "Values: their visit's time · their first name", "REGRESSION: visit_when");
+  assert.equal(textOf(values), "Values: their booked time · their first name", "REGRESSION: visit_when");
 });
 
 test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- the starter's slot held a value its select had no option for", () => {
@@ -608,9 +610,7 @@ test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- th
         f.props.offers.some((o) => o.id === f.props.kind),
         `REGRESSION: ${f.props.kind} had no choice for itself`,
       );
-  assert.ok(
-    fills[slots.findIndex((s) => s.kind === "visit_when")].props.offers[0].label.includes("Their visit's time"),
-  );
+  assert.ok(fills[slots.findIndex((s) => s.kind === "visit_when")].props.offers[0].label.includes("Their booked time"));
 });
 
 test("REGRESSION: a starter's first name is each person's own on a broadcast and offers no other source -- it could be set to the booking link, and a broadcast greeted everyone 'Hi your booking link'", async () => {
@@ -925,11 +925,14 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       "where it sits among the runs waiting",
     );
     assert.equal(paneTitle(tree), "The month's offer");
+    // What made the run, first on the sheet's line: a campaign, never a playbook to its reader (decision 19).
+    assert.match(textOf(sheet), /Campaign · /);
+    assert.doesNotMatch(textOf(sheet), /Playbook · /);
     const reach = textOf(byTestId(sheet, "bc-sheet-reach"));
     assert.ok(
       reach.includes("2will get it") &&
         reach.includes("each said yes to offers") &&
-        reach.includes("none heard from any playbook this week"),
+        reach.includes("none heard from any campaign this week"),
       reach,
     );
     assert.ok(!/ of \d/.test(reach), `REGRESSION-IN-WAITING: a pool the run never recorded -- ${reach}`);
@@ -965,6 +968,8 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     page(props);
     await settle();
     tree = again(props);
+    // One word per act (decision 19): Skip, as on every row a run is decided.
+    assert.equal(textOf(byTestId(tree, "bc-sheet-skip")).trim(), contracts.LIFECYCLE_WORDS.ledger.skip);
     press(byTestId(tree, "bc-sheet-skip"));
     tree = again(props);
     assert.equal(skipped.length, 0, "one press does not skip");
@@ -1162,7 +1167,7 @@ test("a run that kept who it left out opens as the board's card: of how many, th
   assert.equal(textOf(byTestId(card, "bc-sheet-pool")), "312", "out of everyone its moment named");
   assert.deepEqual(
     all(byTestId(card, "bc-sheet-why"), (n) => n.type === "li").map((li) => textOf(li)),
-    ["94 never said yes to offersGet their yes", "32 heard from a playbook this week"],
+    ["94 never said yes to offersGet their yes", "32 heard from a campaign this week"],
   );
   // The bar is the whole list: green reaches, amber waits, and the grey is the rest.
   const parts = all(card, (n) => /^bc-sheet-bar-/.test(String(n.props?.className || ""))).map((n) => [
@@ -1753,7 +1758,7 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     assert.match(textOf(toasts[0].msg), /approved — 3 people/);
     assert.equal(
       textOf(byTestId(again(props), "bc-approve")).trim(),
-      "Approve the run",
+      "Approve · 3 people",
       "the button is back when the server took it",
     );
     while (reread.length) reread.shift()();
@@ -1827,7 +1832,7 @@ test("REGRESSION (C14): a send in flight draws its progress, Approve says it is 
   release();
   await settle();
   tree = again(props);
-  assert.equal(textOf(byTestId(tree, "bc-approve")).trim(), "Approve the run");
+  assert.equal(textOf(byTestId(tree, "bc-approve")).trim(), "Approve · 3 people");
 });
 
 test("REGRESSION (C15): the sending hours and the pace are the published ones -- they were typed into the pages beside the constants", async () => {
@@ -2252,9 +2257,10 @@ test("the run open beside the list is the address's: opening and closing it repl
     // A door out of the page is a link: it pushes, as every link does.
     const door = find(byTestId(tree, "bc-run-solo"), (n) => n.props?.className === "bc-run-link");
     assert.ok(door, "the run's playbook is a link in the pane's head");
+    assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
     const before = calls.length;
     press(door);
-    assert.equal(went.at(-1), "outbound/pb-1");
+    assert.equal(went.at(-1), "campaigns/moment:pb-1", "its drawer on Campaigns' home, by its own address");
     assert.equal(calls.length, before, "and it did not replace the run's entry");
     // New message, with a run open, is the home's door: it pushes the composer's address and leaves the run where it is.
     const entries = calls.length;
@@ -3030,7 +3036,7 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
 
   tree = armed(undefined);
   assert.ok(
-    textOf(byTestId(tree, "template-delete-confirm")).includes("couldn't check which playbooks send it"),
+    textOf(byTestId(tree, "template-delete-confirm")).includes("couldn't check which campaigns send it"),
     "a playbooks read that has not landed is said",
   );
 });
@@ -3942,9 +3948,9 @@ test("History says whether a playbook or a person sent each broadcast, and the s
     all(tree, (n) => n.props?.["data-testid"] === "bc-history").map((n) => textOf(n).replace(/\s+/g, " "));
   let words = rowWords();
   assert.equal(words.length, 2);
-  // Each card says which kind sent it, first on its line: a playbook's run, or a broadcast a person sent.
+  // Each card says which kind sent it, first on its line: a campaign's run, or a broadcast a person sent.
   assert.ok(
-    words.some((w) => w.includes("Playbook · Win-back")),
+    words.some((w) => w.includes("Campaign · Win-back")),
     words.join(" || "),
   );
   assert.ok(
@@ -3958,12 +3964,13 @@ test("History says whether a playbook or a person sent each broadcast, and the s
     2,
     "the run's own name, and the audience — not a third time in the origin",
   );
+  assert.match(byTestId(run0, "bc-history-playbook").props["aria-label"], /^Campaign Win-back/);
   press(byTestId(run0, "bc-history-playbook"));
-  assert.equal(went.at(-1), "outbound/pb-1", "and it opens the playbook that made it");
+  assert.equal(went.at(-1), "campaigns/moment:pb-1", "and it opens the drawer of the campaign that made it");
 
   // The line splits them, and each count is its own filter.
   const line = byTestId(tree, "bc-standing");
-  assert.ok(textOf(line).includes("by a playbook") && textOf(line).includes("by hand"), textOf(line));
+  assert.ok(textOf(line).includes("by a campaign") && textOf(line).includes("by hand"), textOf(line));
   press(byTestId(line, "bc-origin-hand"));
   tree = again({ initialSegment: null, initialRun: null });
   words = rowWords();
@@ -4108,8 +4115,8 @@ test("the send screen says how many of an audience heard from a playbook or a br
     0,
     "no touches read, nobody said",
   );
-  assert.equal(contracts.heardWords(2), "2 of them heard from a playbook or a broadcast this week.");
-  assert.equal(contracts.heardWords(1), "One of them heard from a playbook or a broadcast this week.");
+  assert.equal(contracts.heardWords(2), "2 of them heard from a campaign or a broadcast this week.");
+  assert.equal(contracts.heardWords(1), "One of them heard from a campaign or a broadcast this week.");
   assert.equal(contracts.heardWords(0), null);
 
   const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
@@ -4130,7 +4137,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
     }),
   );
   const tree = writing({ initialSegment: null, initialRun: null });
-  assert.equal(textOf(byTestId(tree, "bc-heard")), "One of them heard from a playbook or a broadcast this week.");
+  assert.equal(textOf(byTestId(tree, "bc-heard")), "One of them heard from a campaign or a broadcast this week.");
   setSurfaceValue(
     "broadcasts",
     broadcastsSurface({
