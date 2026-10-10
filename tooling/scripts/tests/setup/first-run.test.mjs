@@ -323,6 +323,21 @@ test("Today's card: while nothing answers, one row that opens the first run; aft
   assert.equal(three.hide.said, "All 3 put off. They stay in Setting up for when you're ready.");
 });
 
+test("after the first run, with the calendar in, Today's card carries one door to the appointment reminder; never before", () => {
+  const liveWithCalendar = () => live();
+  const liveWithoutCalendar = () => live({ calendar: { state: "none" } });
+  const before = setupCardOf(setupSteps(empty(), NOW));
+  assert.equal(before.remind, null, "while a step is open, the card is the first run's");
+  const after = setupCardOf(setupSteps(liveWithCalendar(), NOW));
+  assert.deepEqual(after.remind, {
+    words: "Your calendar is in. Remind tomorrow's customers of their appointment too?",
+    label: "Turn on",
+    to: "campaigns/new:moment:visit_tomorrow",
+  });
+  const noCalendar = setupCardOf(setupSteps(liveWithoutCalendar(), NOW));
+  assert.equal(noCalendar?.remind ?? null, null, "no calendar: no reminder to offer");
+});
+
 test("the receptionist card: every value is Setup's or the settings read's, the greeting is the phone's word for word, and a blank is a dash", () => {
   const hours = { mon: { open: "09:00", close: "17:00" }, tue: { open: "09:00", close: "17:00" } };
   const services = [

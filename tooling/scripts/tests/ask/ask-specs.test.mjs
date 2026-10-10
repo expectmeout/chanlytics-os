@@ -365,6 +365,26 @@ test("a playbook's channels, changed from a card: the playbook's own PUT with th
   assert.equal(spec.open(card("playbook_channels", { ...GOES_BY, playbook_id: null }), null), "outbound");
 });
 
+test("Ask's new campaign opens its drawer once it is made, by the id the route answered; before then the home", () => {
+  const spec = PROPOSAL_SPECS.playbook;
+  assert.equal(
+    spec.open(card("playbook", {}), done({ playbook_id: "pb9", decision_id: "d9" })),
+    "campaigns/moment:pb9",
+  );
+  assert.equal(
+    spec.open(card("playbook", {}), null),
+    "outbound",
+    "not approved yet: the home, where the old address lands",
+  );
+  assert.equal(spec.open(card("playbook", {}), done(null)), "outbound");
+  assert.equal(spec.open(card("playbook", {}), done({ playbook_id: "" })), "outbound", "an empty id names nothing");
+  // The id is the one the commit kept for its undo: what the route answered when it made the campaign.
+  assert.deepEqual(spec.undo.record(card("playbook", {}), { id: "pb9", decision_id: "d9" }), {
+    playbook_id: "pb9",
+    decision_id: "d9",
+  });
+});
+
 test("the seventeen kinds each have a spec, and every route a spec names is a route the app has", () => {
   assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 17));
   const named = Object.fromEntries(

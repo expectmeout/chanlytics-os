@@ -60,11 +60,11 @@ test("each workspace whose 6 PM it is gets one line in the bell, of its own kind
         "reach_out_day",
         "Today's reach-outs",
         "18 written · 2 wrote back, 1 interested · 1 said no · 3 wait for your say.",
-        "outbound",
+        "campaigns/in:reach_out",
         "reach_out_day",
         "2026-09-28",
       ],
-      [B, "reach_out_day", "Today's reach-outs", "1 bounced.", "outbound", "reach_out_day", "2026-09-28"],
+      [B, "reach_out_day", "Today's reach-outs", "1 bounced.", "campaigns/in:reach_out", "reach_out_day", "2026-09-28"],
     ],
   );
   assert.deepEqual(

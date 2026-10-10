@@ -8473,7 +8473,12 @@ var playbookSpec = {
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
     receipt: () => "Deleted \u2014 nothing will run"
   },
-  open: () => "outbound"
+  // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
+  // commit kept for the undo, as the list card opens the list it made; before then the home, where the old address lands.
+  open: (_card, outcome) => {
+    const id = idIn(rec(outcome?.undo), "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
 };
 var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
 var playbookChannelsSpec = {
@@ -32161,6 +32166,11 @@ function firstRunOf(vm, at3, who) {
   };
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
+var CARD_REMIND = {
+  words: "Your calendar is in. Remind tomorrow's customers of their appointment too?",
+  label: "Turn on",
+  to: "campaigns/new:moment:visit_tomorrow"
+};
 function setupCardOf(vm) {
   const fr = firstRunOf(vm);
   if (!fr.complete && fr.current !== "try") {
@@ -32182,7 +32192,8 @@ function setupCardOf(vm) {
       },
       rows: [],
       hide: null,
-      skip: CARD_SKIP
+      skip: CARD_SKIP,
+      remind: null
     };
   }
   const rows2 = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
@@ -32190,13 +32201,15 @@ function setupCardOf(vm) {
   );
   if (!rows2.length) return null;
   const said = rows2.length === 1 ? CARD_SKIP.said : `All ${rows2.length} put off. They stay in Setting up for when you're ready.`;
+  const calendar = rowOf(vm, "calendar");
   return {
     title: FINISH_SETTING_UP,
     left: `${rows2.length} left`,
     start: null,
     rows: rows2,
     hide: { put: "Hide", said },
-    skip: CARD_SKIP
+    skip: CARD_SKIP,
+    remind: calendar && calendar.state === "ready" ? { ...CARD_REMIND } : null
   };
 }
 var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
@@ -35716,6 +35729,7 @@ function jobRowWords(n) {
   const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], { attempts: tries ? Number(tries[1]) : 1, resumed: false });
   return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
 }
+var REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -35758,8 +35772,8 @@ var SERVER_LOOK = {
   note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
   /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
   reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
-  /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Playbooks. */
-  reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: "outbound" },
+  /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Campaigns, at its Reach-outs. */
+  reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: REACH_OUT_DAY_ROUTE },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
 var ROUTE_VERBS = [
@@ -35821,7 +35835,7 @@ function serverNotificationRows(dto) {
     const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
     const at3 = Date.parse(n.created_at);
     const job = jobRowWords(n);
-    const route = job ? job.route : n.route;
+    const route = job ? job.route : n.kind === "reach_out_day" ? REACH_OUT_DAY_ROUTE : n.route;
     return {
       key: `${SERVER_KEY_PREFIX}${n.id}`,
       kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
@@ -39130,6 +39144,7 @@ export {
   REACH_OUT_AWAY_MAX_DAYS,
   REACH_OUT_BODY_MAX,
   REACH_OUT_CHECKS_PER_DAY,
+  REACH_OUT_DAY_ROUTE,
   REACH_OUT_DECISIONS,
   REACH_OUT_EMAILED_WORDS,
   REACH_OUT_FIRST_WORDS,

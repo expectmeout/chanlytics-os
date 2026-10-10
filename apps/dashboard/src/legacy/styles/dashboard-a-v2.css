@@ -1183,6 +1183,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    where the row's acts do. Setup's own margins are its page's (a tile and a 24px gutter, settings.css), which the card
    does not have: the form stood 48px inside the words. */
 .today-setup .setup-chooser { margin-left: 26px; margin-right: 0; }
+/* After the first run, the one door to the appointment reminder (decision 22), under the card's rows. */
+.today-setup-remind { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0; padding: var(--space-2) 0; font-size: var(--text-sm); color: var(--ink-muted); }
 .setup-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .setup-card-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--text-base); font-weight: 500; color: var(--ink); }
 .setup-card-left { font-size: var(--text-sm); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }

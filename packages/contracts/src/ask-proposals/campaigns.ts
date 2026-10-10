@@ -116,7 +116,12 @@ export const playbookSpec: ProposalSpec = {
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
     receipt: () => "Deleted — nothing will run",
   },
-  open: () => "outbound",
+  // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
+  // commit kept for the undo, as the list card opens the list it made; before then the home, where the old address lands.
+  open: (_card, outcome) => {
+    const id = idIn(rec(outcome?.undo), "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  },
 };
 
 /** The channels a payload names, in the product's order: what a card's commit and its receipt read; none where it names none. */

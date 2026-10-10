@@ -77,6 +77,7 @@ export {
   ALERT_KINDS,
   SERVER_NOTIFICATION_KINDS,
   SERVER_KEY_PREFIX,
+  REACH_OUT_DAY_ROUTE,
 } from "./notifications";
 export type {
   NotificationKind,

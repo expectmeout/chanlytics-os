@@ -411,6 +411,12 @@ function jobRowWords(n: NotificationDto): { title: string; message: string; rout
 }
 
 /**
+ * Where the day's reach-out numbers open (spec 2026-10-09 §4.6): Campaigns narrowed to its Reach-outs, the chains the
+ * numbers are about. The edge writes it on the row; a row kept before then says `outbound`, and opens here too.
+ */
+export const REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
+
+/**
  * How a kept kind reads. `own` keeps the kind's verb over the route's: a question asks for an answer, and "Open
  * Leads" would say where it is without saying what it wants.
  */
@@ -457,8 +463,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
     note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
     /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
     reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
-    /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Playbooks. */
-    reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: "outbound" },
+    /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Campaigns, at its Reach-outs. */
+    reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: REACH_OUT_DAY_ROUTE },
     alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
   };
 
@@ -562,7 +568,8 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
       const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
       const at = Date.parse(n.created_at);
       const job = jobRowWords(n);
-      const route = job ? job.route : n.route;
+      // The day's reach-out numbers open the Reach-outs, whatever route their row was kept with.
+      const route = job ? job.route : n.kind === "reach_out_day" ? REACH_OUT_DAY_ROUTE : n.route;
       return {
         key: `${SERVER_KEY_PREFIX}${n.id}`,
         kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(n.kind)
