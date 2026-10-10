@@ -907,6 +907,38 @@ drawer's own sentence (`LIFECYCLE_TOAST.channels`). `campaigns` with action `pla
 goes by now, since a change must name them whole. A playbook that already goes by those channels gets no card, and a
 reach-out's step is changed on its own sheet. Not recorded as a decision, as the drawer's change is not.
 
+**Ask on Campaigns** (9 October 2026, the same spec as "A moment holds many campaigns" above, §4.9): Ask says
+"campaign" to a person, on its cards, its chips and its lines; the tools' names, actions, card kinds and fields keep
+"playbook". It changes a campaign that exists in place through `propose_campaign`'s action `change` (no new tool; the
+card kind `playbook_change`): its state, name, hour, cap, gap or cadence, read for the one campaign
+(`playbookForChange`: its row, and a run of it that waits) and judged by the PUT's own core `checkPlaybookPatch`
+against the campaign as it stands, so a value its Approve would refuse is refused at the card in the same words; a
+change of nothing is said in words with no card, and a reach-out's step is changed on its own sheet. Approve sends
+`PUT playbooks/[id]` with what changes alone, which writes it with its line in the ledger in one transaction (the
+`change_playbook` door, recorded as a decision, unlike a change of channels) and answers what each field held: the
+card's Undo. A pause leaves a run that waits waiting and says so (Skip is a second card); a resume says its class's
+mode, in full under auto. A new campaign on a moment whose starter is not on file carries the starter's key
+(`starter_key`) and is judged whole before anything is filed (`checkStarterPlaybook`, the judgement `POST playbooks`
+runs before its Approve files the starter): it goes by a channel the starter's message holds at once, an email or text
+version filed with it or a WhatsApp version already approved, and by WhatsApp beside them where the workspace has a
+number, its people there held until WhatsApp approves; a card that would go by none it holds at once is refused in
+words, with nothing filed and Meta never called. A running twin on the same moment, list and message is refused
+unless named apart, and a card going by email or text says what the month's allowance holds back. Ask's doors on
+Campaigns: Ask in the head between the Library and New message from 721px up (`cmh-ask`; under it the shell's ✦),
+"Set up my campaigns" beside the first day's hinted Turn on for a role that may approve, sent as Ask opens so no field
+takes the focus, and "Ask about this campaign" in a drawer's More, which closes the drawer and opens Ask over the home
+on that campaign. A campaign open in its drawer (`campaigns/moment:<id>`) is the scope Ask is asked about, kind
+`playbook`, read by `campaigns` with action `playbooks`; a reach-out open there is the page at that address, named for
+it. What Ask is told is on screen is the ledger's rows: those it counts as campaigns, in its order, forty at most,
+reach-outs and one-off sends among them, under the view they are under (`playbooks:<status>[:in:<group>][:search]`, on
+which the kept context is keyed), each read again by the server under the person's RLS, a campaign with its last 30
+days; before the ledger draws, the campaigns the surface read. On Campaigns the turn's words say what a sentence there
+is; a request to set campaigns up has `campaigns` with actions `playbooks` and `audiences` ride into the first round,
+on any page; after an approval the next turn reads the campaigns again; and a headline claiming a write beside cards is
+said as the cards' own sentence (`claimsWrite`, contracts), and logged. Ask's twelve setup and change cases are written
+and not run, and the eval workspace's paused Win-back is seeded only by hand (`e2e-workspace.mjs --seed-win-back`),
+never by the nightly.
+
 ### 14.4 Reach out — cold email, built (nothing sends until a reach-out exists and its secrets are set)
 
 Reach out is cold email to the businesses a workspace's searches found, from its own domains
