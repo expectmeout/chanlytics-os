@@ -6,6 +6,7 @@
 import { zoneMidnight, shiftKey } from "../../calendar/day-keys";
 import { purposeOfPlaybook } from "../../consent/consent";
 import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/consent-channels";
+import type { JourneyStage } from "../../journey/journey";
 import { GET_YES_ROUTE } from "../../people/people-lists";
 import type { PersonRowVM } from "../../people/person-row";
 import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods";
@@ -279,49 +280,25 @@ function runRow(r: LifecycleRun, name: string, nowMs: number, tz: string, at: Wa
   };
 }
 
-/** What an off moment with people waiting says: how many, in the moment's words. */
-function offWhy(id: LifecycleStage["id"], n: number): string {
-  const people = plural(n, "person", "people");
-  switch (id) {
-    case "visit":
-      return `Off · ${people} ${n === 1 ? "visits" : "visit"} tomorrow`;
-    case "after":
-      return `Off · ${people} visited yesterday`;
-    case "quiet":
-      return `Off · ${people} ${n === 1 ? "has" : "have"} gone quiet`;
-    default:
-      return `Off · ${plural(n, "proposal")} waiting`;
-  }
-}
-
-/** When an off moment would run, as its words say it where it has no clock. */
-const OFF_WHEN: Record<LifecycleStage["id"], { day: string; at: string }> = {
-  first_contact: { day: "", at: "" },
-  visit: { day: "Every", at: "day" },
-  after: { day: "The day", at: "after" },
-  quiet: { day: "Every", at: "day" },
-  proposal: { day: "When one", at: "waits" },
-};
-
-/** An off moment that has people waiting offers to be turned on. */
-function offRows(stages: readonly LifecycleStage[], nowMs: number): LifecycleComing[] {
-  return stages.flatMap((s, i) =>
-    s.state === "off" && s.act?.kind === "turn_on" && (s.people ?? 0) > 0
-      ? [
-          {
-            id: `off:${s.id}`,
-            kind: "off" as const,
-            when: OFF_WHEN[s.id],
-            what: s.name,
-            why: offWhy(s.id, s.people ?? 0),
-            pill: null,
-            act: { kind: "turn_on" as const, label: "Turn on", moment: s.act.moment },
-            waiting: null,
-            atMs: nowMs + COMING_DAYS * DAY_MS + i,
-          },
-        ]
-      : [],
-  );
+/** An off moment that has people waiting offers to be turned on, in its stage's own words (journey.ts `off`). */
+function offRows(stages: readonly LifecycleStage[], defs: readonly JourneyStage[], nowMs: number): LifecycleComing[] {
+  return stages.flatMap((s, i) => {
+    const off = defs.find((d) => d.id === s.id)?.off;
+    if (!off || s.state !== "off" || s.act?.kind !== "turn_on" || (s.people ?? 0) <= 0) return [];
+    return [
+      {
+        id: `off:${s.id}`,
+        kind: "off" as const,
+        when: off.when,
+        what: s.name,
+        why: off.why(s.people ?? 0),
+        pill: null,
+        act: { kind: "turn_on" as const, label: "Turn on", moment: s.act.moment },
+        waiting: null,
+        atMs: nowMs + COMING_DAYS * DAY_MS + i,
+      },
+    ];
+  });
 }
 
 /**
@@ -330,7 +307,11 @@ function offRows(stages: readonly LifecycleStage[], nowMs: number): LifecycleCom
  * Null while the playbooks have not landed. The runs are the broadcasts' read: while it is out or failed the tile has no
  * rows and no "nothing is set to go out", which a week it could not see would be a false thing to say.
  */
-export function lifecycleComing(input: LifecycleInput, stages: readonly LifecycleStage[]): LifecycleComingTile | null {
+export function lifecycleComing(
+  input: LifecycleInput,
+  stages: readonly LifecycleStage[],
+  defs: readonly JourneyStage[],
+): LifecycleComingTile | null {
   const playbooks = input.playbooks;
   if (!playbooks) return null;
   const { nowMs, tz, broadcasts } = input;
@@ -353,7 +334,7 @@ export function lifecycleComing(input: LifecycleInput, stages: readonly Lifecycl
     .filter((p) => !covered.has(p.id))
     .flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
   const timed = [...moments, ...runs].sort((a, b) => a.atMs - b.atMs);
-  const rows = [...timed, ...offRows(stages, nowMs)];
+  const rows = [...timed, ...offRows(stages, defs, nowMs)];
   return { read: "read", rows, empty: LIFECYCLE_WORDS.coming.empty, rules };
 }
 

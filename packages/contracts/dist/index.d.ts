@@ -25070,17 +25070,22 @@ type LifecycleAct =
 };
 /** One of the moments around a customer, in order. */
 interface LifecycleStage {
-    id: "first_contact" | "visit" | "after" | "quiet" | "proposal";
+    /** The journey's stage (journey.ts): free of the word, and the ledger's group and its address (`campaigns/in:before`). */
+    id: JourneyStageId;
     caps: string;
     name: string;
     glyph: LifecycleGlyph;
     /** The moment a new playbook starts from (the offered win-back for the quiet one); null for the receptionist. */
     moment: string | null;
+    /** The campaign that leads it: a running one first, else the newest; null where none stands on it, and for the receptionist. */
     playbookId: string | null;
     /** How many are at it now; null where the moment could not be counted. */
     people: number | null;
     unit: string;
-    /** on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off). */
+    /**
+     * on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off) or
+     * cannot be counted (no calendar).
+     */
     state: "always" | "on" | "paused" | "off" | "not_here";
     stateWords: string;
     /** The same on a phone, where there is room for less: "Live", the clock alone ("daily 10:00 AM"), or the state's own words. */
@@ -25101,6 +25106,17 @@ interface LifecycleStage {
      * for a playbook that runs nothing here, as its drawer draws no Goes by row.
      */
     channels: readonly LifecycleChannelMark[];
+    /** What its card says of its campaigns: the one's name and clock ("Visit reminder · daily 9:00 AM"), or "3 campaigns · 2 on · 1 paused"; null where none stands on it. */
+    summary: string | null;
+    /** How its campaigns stand, for the card's meter: only where it holds two or more, else null. */
+    bar: LifecycleBar | null;
+}
+/** How a moment's campaigns stand, for its card's meter (on in ok, waiting in warn, paused at rest), of how many. */
+interface LifecycleBar {
+    on: number;
+    waiting: number;
+    paused: number;
+    of: number;
 }
 /** A quiet line under the rail: a playbook or a campaign that is not one of the five moments. */
 interface LifecycleStrip {
@@ -25314,7 +25330,7 @@ interface LifecycleHome {
 
 /** What the drawer calls a moment: its stage's words ("Quiet or lapsed"), else the kind of line it is, else just a moment. */
 declare function lifecycleKicker(home: LifecycleHome, id: string): string;
-/** The whole home: the head, the rail, the strips under it, the three tiles, and what could not be read. */
+/** The whole home: the head, the rail, the lines under it, the three tiles, and what could not be read. */
 declare function campaignsHomeOf(input: LifecycleInput): LifecycleHome;
 
 /**
@@ -25349,6 +25365,11 @@ declare const LIFECYCLE_WORDS: {
     readonly noLine: {
         readonly state: "No line to answer on yet";
         readonly needs: "Connect a number or email to answer on";
+    };
+    readonly needsCalendar: {
+        readonly none: "Needs your calendar";
+        readonly email: "Needs your calendar feed";
+        readonly door: "Connect your calendar";
     };
     readonly alsoRunning: "Also running";
     readonly callText: {
@@ -25501,6 +25522,7 @@ declare const LIFECYCLE_WORDS: {
 /** What the home says in a toast: a name is the page's emphasis, so a sentence with one is in parts. */
 declare const LIFECYCLE_TOAST: {
     readonly resumed: (name: string) => LifecycleSentence;
+    readonly paused: (name: string) => LifecycleSentence;
     readonly changed: (name: string) => LifecycleSentence;
     readonly running: (name: string) => LifecycleSentence;
     /** The name of a line the page has no row for, where a toast must name it. */

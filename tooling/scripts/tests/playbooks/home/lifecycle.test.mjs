@@ -135,6 +135,10 @@ const input = (over = {}) => ({
   // The workspace's messages (the settings surface's `messages`): the Library's count reads these.
   messages: C.campaignMessagesOf(LIBRARY),
   reachOuts: [],
+  // How the business works (the playbooks surface's shape): a calendar connected, deals on, and "visit", the word every
+  // sentence here was first written in, so the words stay; a test that is about the shape names its own.
+  shape: { calendar: "feed", dealsOn: true, word: "visit" },
+  chains: undefined,
   report: report(),
   ...over,
 });
@@ -149,10 +153,10 @@ test("five moments in order, each with its caps, name, people, state and the yes
     h.rail.stages.map((s) => [s.id, s.caps, s.name]),
     [
       ["first_contact", "First contact", "Your receptionist"],
-      ["visit", "Visit tomorrow", "Visit reminder"],
-      ["after", "After a visit", "How did it go"],
+      ["before", "Visit tomorrow", "Visit reminder"],
+      ["after", "After the visit", "How did it go"],
+      ["proposal", "Proposal waiting", "Proposal follow-up"],
       ["quiet", "Quiet or lapsed", "Win-back"],
-      ["proposal", "Proposal out", "Proposal follow-up"],
     ],
   );
   assert.deepEqual(
@@ -161,8 +165,8 @@ test("five moments in order, each with its caps, name, people, state and the yes
       [0, "this week"],
       [3, "people"],
       [0, "yesterday"],
-      [5, "people"],
       [0, "waiting"],
+      [5, "people"],
     ],
     "the people at each moment now, from the surface's pools",
   );
@@ -172,13 +176,13 @@ test("five moments in order, each with its caps, name, people, state and the yes
       "Answers whoever writes",
       "Reaches a yes to messages",
       "Reaches a yes to messages",
-      "Needs a yes to offers",
       "Reaches a yes to messages",
+      "Needs a yes to offers",
     ],
   );
   assert.deepEqual(
     h.rail.stages.map((s) => s.needs),
-    ["none", "messages", "messages", "offers", "messages"],
+    ["none", "messages", "messages", "messages", "offers"],
     "a moment needs what its message's kind asks (purposeOfPlaybook): a visit or a proposal is about their own, a win-back is an offer",
   );
 });
@@ -191,8 +195,8 @@ test("the receptionist is always on; a running playbook is on with its clock; th
       ["always", "Answers · asks for the yes", true],
       ["off", "Off", false],
       ["off", "Off", false],
-      ["on", "On · daily 10:00 AM", true],
       ["off", "Off", false],
+      ["on", "On · daily 10:00 AM", true],
     ],
   );
   assert.equal(h.rail.coveredWords, "2 of 5 moments covered", "the board's two of five");
@@ -286,8 +290,12 @@ test("the head says offers by email are paused while the email channel's own rea
 
 test("one off moment with people it would reach is the hint: Turn on · 3 tomorrow", () => {
   const h = home();
-  assert.equal(stage(h, "visit").hint, "Turn on · 3 tomorrow");
-  assert.deepEqual(stage(h, "visit").act, { kind: "turn_on", label: "Turn on · 3 tomorrow", moment: "visit_tomorrow" });
+  assert.equal(stage(h, "before").hint, "Turn on · 3 tomorrow");
+  assert.deepEqual(stage(h, "before").act, {
+    kind: "turn_on",
+    label: "Turn on · 3 tomorrow",
+    moment: "visit_tomorrow",
+  });
   assert.equal(stage(h, "after").hint, null, "only one is the hint");
   // The first off moment that reaches somebody, in the stages' order; a pool of people nobody can reach is no hint.
   const two = home({
@@ -296,7 +304,7 @@ test("one off moment with people it would reach is the hint: Turn on · 3 tomorr
     }),
   });
   assert.equal(
-    stage(two, "visit").hint,
+    stage(two, "before").hint,
     null,
     "three visit tomorrow, none of whom a run would reach: nothing to promise",
   );
@@ -306,9 +314,9 @@ test("one off moment with people it would reach is the hint: Turn on · 3 tomorr
 
 test("a moment that was not counted says no number, never a zero it did not count", () => {
   const h = home({ playbooks: playbooks({ pools: { quiet_30: null, visit_tomorrow: null } }) });
-  assert.equal(stage(h, "visit").people, null);
+  assert.equal(stage(h, "before").people, null);
   assert.equal(stage(h, "quiet").people, null);
-  assert.equal(stage(h, "visit").hint, null, "and no hint over a count that was not made");
+  assert.equal(stage(h, "before").hint, null, "and no hint over a count that was not made");
   assert.equal(stage(h, "after").people, null, "a moment the pools do not hold at all");
 });
 
@@ -341,18 +349,81 @@ test("a paused playbook is paused and not covered; a run waiting on you says so;
   });
   assert.deepEqual(
     [stage(nodeals, "proposal").state, stage(nodeals, "proposal").covered, stage(nodeals, "proposal").act],
-    ["not_here", false, null],
+    ["not_here", false, { kind: "open", label: "Open", playbookId: "pb-9" }],
   );
+});
+
+test("without a calendar the appointment moments say they need one: no figure, no Turn on, never covered; one made before runs nothing here (D44)", () => {
+  const none = home({ shape: { calendar: "none", dealsOn: true, word: "visit" } });
+  for (const id of ["before", "after"]) {
+    const s = stage(none, id);
+    assert.deepEqual(
+      [s.state, s.stateWords, s.people, s.covered, s.hint],
+      ["not_here", "Needs your calendar", null, false, null],
+      id,
+    );
+    assert.deepEqual(s.act, { kind: "route", label: "Connect your calendar", route: "admin/workspace/calendar" }, id);
+  }
+  assert.equal(none.rail.coveredWords, "2 of 5 moments covered", "drawn, and never covered");
+  assert.equal(
+    none.coming.rows.some((r) => r.id === "off:before"),
+    false,
+    "no Turn on in Coming up for a moment that cannot run",
+  );
+  const email = home({ shape: { calendar: "email", dealsOn: true, word: "visit" } });
+  assert.equal(stage(email, "before").stateWords, "Needs your calendar feed", "bookings arrive by email, and no feed");
+  const made = home({
+    shape: { calendar: "none", dealsOn: true, word: "visit" },
+    playbooks: playbooks({ rows: [playbook(), playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })] }),
+  });
+  const before = stage(made, "before");
+  assert.deepEqual([before.playbookId, before.stateWords, before.covered], ["pb-r", "Needs your calendar", false]);
+  assert.deepEqual(
+    before.act,
+    { kind: "open", label: "Open", playbookId: "pb-r" },
+    "its drawer opens, to pause or delete it",
+  );
+  assert.equal(before.summary, "Reminder · not running here");
+  assert.equal(
+    made.coming.rows.some((r) => r.id === "moment:pb-r"),
+    false,
+    "Coming up promises no run of it",
+  );
+});
+
+test("a moment that holds several campaigns is led by the running one, says how they stand and carries a meter; one alone says its name and clock", () => {
+  const rows = [
+    playbook({ id: "pb-a", name: "Win-back · paused", state: "paused", next: "paused" }),
+    playbook({ id: "pb-b", name: "Win-back · by visits", trigger: "lapsed" }),
+    playbook({ id: "pb-c", name: "Win-back · spring" }),
+  ];
+  const quiet = stage(home({ playbooks: playbooks({ rows }) }), "quiet");
+  assert.equal(quiet.playbookId, "pb-b", "a running one first, the newest of them (the rows come newest first)");
+  assert.equal(quiet.summary, "3 campaigns · 2 on · 1 paused");
+  assert.deepEqual(quiet.bar, { on: 2, waiting: 0, paused: 1, of: 3 });
+  const one = stage(home(), "quiet");
+  assert.equal(one.summary, "Win-back · daily 10:00 AM");
+  assert.equal(one.bar, null, "a meter only where a moment holds two or more");
+  assert.equal(stage(home(), "after").summary, null, "nothing stands on it");
+});
+
+test("a paused campaign rests: plain, not amber; a run waiting on you is the one amber (D13)", () => {
+  const paused = home({ playbooks: playbooks({ rows: [playbook({ state: "paused", next: "paused" })] }) });
+  assert.deepEqual([stage(paused, "quiet").state, stage(paused, "quiet").tone], ["paused", "plain"]);
+  assert.equal(C.stateTone("playbook", "paused"), "plain");
+  assert.equal(C.stateTone("playbook", "approval"), "warn");
+  assert.deepEqual(C.LIFECYCLE_TOAST.paused("Win-back"), [{ b: "Win-back" }, " paused"]);
 });
 
 test("where deals are off and nothing was made on the follow-up, the rail has four moments", () => {
   const pb = playbooks();
   const h = home({
     playbooks: { ...pb, triggers: pb.triggers.filter((t) => t.id !== "proposal_waiting") },
+    shape: { calendar: "feed", dealsOn: false, word: "visit" },
   });
   assert.deepEqual(
     h.rail.stages.map((s) => s.id),
-    ["first_contact", "visit", "after", "quiet"],
+    ["first_contact", "before", "after", "quiet"],
   );
   assert.equal(h.rail.coveredWords, "2 of 4 moments covered");
   assert.ok(h.head.sentence.some((p) => typeof p === "object" && p.b === "2 of 4"));
@@ -390,7 +461,7 @@ test("the win-back is one moment by visits or by silence: a playbook on either i
 test("the stage names the playbook the owner made when there is one, and the moment's own words when not", () => {
   const h = home({ playbooks: playbooks({ rows: [playbook({ name: "Come back soon" })] }) });
   assert.equal(stage(h, "quiet").name, "Come back soon");
-  assert.equal(stage(h, "visit").name, "Visit reminder");
+  assert.equal(stage(h, "before").name, "Visit reminder");
 });
 
 /* ------------------------------------------------ the strips ------------------------------------------------- */
@@ -429,7 +500,7 @@ test("the month's offer: its playbook's state and act, or a line that turns it o
   const paused = strip(home({ playbooks: playbooks({ rows: [playbook(), month({ state: "paused" })] }) }), "pb-m");
   assert.deepEqual(
     [paused.stateWords, paused.tone, paused.act],
-    ["Paused", "warn", { kind: "resume", label: "Resume", playbookId: "pb-m" }],
+    ["Paused", "plain", { kind: "resume", label: "Resume", playbookId: "pb-m" }],
   );
   const off = strip(home(), "everyone_monthly");
   assert.deepEqual(

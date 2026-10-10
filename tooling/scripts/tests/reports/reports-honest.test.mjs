@@ -183,13 +183,13 @@ test("The home shows every moment, not only the ones somebody made: one nothing 
     stagesOf(tree).map((s) => [s.props["data-stage"], s.props["data-state"]]),
     [
       ["first_contact", "always"],
-      ["visit", "off"],
+      ["before", "off"],
       ["after", "off"],
       ["quiet", "on"],
     ],
     "a moment a playbook already covers is not offered again",
   );
-  assert.deepEqual(turnOnsOf(tree), ["visit", "after"], "each moment nothing is doing says how to start it");
+  assert.deepEqual(turnOnsOf(tree), ["before", "after"], "each moment nothing is doing says how to start it");
 
   // On a first day every moment is offered, and that is the empty state: the rail itself, a Turn on on each.
   setSurfaceValue("playbooks", playbooksSurface({ rows: [] }));
@@ -198,7 +198,7 @@ test("The home shows every moment, not only the ones somebody made: one nothing 
     stagesOf(tree).map((s) => s.props["data-state"]),
     ["always", "off", "off", "off"],
   );
-  assert.deepEqual(turnOnsOf(tree), ["visit", "after", "quiet"]);
+  assert.deepEqual(turnOnsOf(tree), ["before", "after", "quiet"]);
 
   // Pressing the third opens the composer ON that moment, not on whichever trigger is first.
   const after = stagesOf(tree).find((s) => s.props["data-stage"] === "after");
@@ -217,7 +217,7 @@ test("The home shows every moment, not only the ones somebody made: one nothing 
   // It opens beside the page: nothing on the page stands down or moves under it.
   assert.deepEqual(
     stagesOf(tree).map((s) => s.props["data-stage"]),
-    ["first_contact", "visit", "after", "quiet"],
+    ["first_contact", "before", "after", "quiet"],
     "REGRESSION: the moments stood down while it was open",
   );
 });

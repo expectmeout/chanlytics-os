@@ -162,7 +162,8 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
   // Running is a standing rule that is on -- healthy, ok. It is not happening
   // right now: its RUN is, while it sends, and that is the broadcast's own
   // "sending", which keeps the accent.
-  playbook: { running: "ok", paused: "warn", approval: "warn" },
+  // Paused rests (decision 13, 9 Oct 2026): amber is a run waiting on someone, never a rule its owner stopped.
+  playbook: { running: "ok", paused: "plain", approval: "warn" },
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },

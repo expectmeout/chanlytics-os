@@ -217,7 +217,7 @@ async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = fals
  * moments it offers a Turn on for: a moment of its rail that is off, and a line under it that is (the month's offer), in the
  * order the home draws them. A moment to turn on is what a person is offered, so a playbook already on it leaves it out.
  */
-const homeOf = (surface) => campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: surface });
+const homeOf = (surface) => campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: surface, shape: surface.shape });
 const turnOns = (home) =>
   [...home.rail.stages.map((s) => s.act), ...home.strips.map((s) => s.act)]
     .filter((a) => a?.kind === "turn_on")

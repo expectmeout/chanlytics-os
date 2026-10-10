@@ -33,6 +33,8 @@ export const LIFECYCLE_WORDS = {
   receptionist: "Answers · asks for the yes",
   // First contact where the workspace has nothing to answer on: no number and no channel that can send.
   noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  // An appointment moment where no calendar feeds it (decision 44 of 9 Oct 2026): what it says instead of a figure, and its door.
+  needsCalendar: { none: "Needs your calendar", email: "Needs your calendar feed", door: "Connect your calendar" },
   alsoRunning: "Also running",
   callText: {
     name: "The call's text",
@@ -176,6 +178,7 @@ export const LIFECYCLE_WORDS = {
 /** What the home says in a toast: a name is the page's emphasis, so a sentence with one is in parts. */
 export const LIFECYCLE_TOAST = {
   resumed: (name: string): LifecycleSentence => [{ b: name }, " resumed"],
+  paused: (name: string): LifecycleSentence => [{ b: name }, " paused"],
   changed: (name: string): LifecycleSentence => [{ b: name }, " changed"],
   // A new playbook's next run is under Coming up, by the business's clock; there is no card to look on any more.
   running: (name: string): LifecycleSentence => [
@@ -235,7 +238,21 @@ export function lifecycleStateOf(p: LifecyclePlaybook): {
     paused,
   });
   if (p.off) return stated("Not running here", "plain");
-  if (p.state !== "running") return stated("Paused", "warn", true);
+  // Paused rests (decision 13 of 9 Oct 2026): amber is for a run waiting on someone, never for a rule its owner stopped.
+  if (p.state !== "running") return stated("Paused", "plain", true);
   if (p.totals.waiting) return stated("Waiting on you", "warn");
   return stated(`On · ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
+}
+
+/** How a moment's or a group's campaigns stand, in a line: "3 campaigns · 2 on · 1 paused". */
+export function tallyWords(n: number, t: { on: number; waiting: number; paused: number; off: number }): string {
+  return [
+    plural(n, "campaign"),
+    t.on > 0 ? `${t.on} on` : "",
+    t.waiting > 0 ? `${t.waiting} waiting` : "",
+    t.paused > 0 ? `${t.paused} paused` : "",
+    t.off > 0 ? `${t.off} not running here` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }

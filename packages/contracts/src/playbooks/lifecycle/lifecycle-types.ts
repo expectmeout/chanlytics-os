@@ -11,6 +11,7 @@ import type { ChannelStandingPart } from "../../broadcasts/channels-standing";
 import type { ChannelsReady } from "../../broadcasts/reach-for";
 import type { ConsentChannel } from "../../consent/consent-channels";
 import type { AppointmentWord } from "../../journey/appointment-word";
+import type { JourneyStageId } from "../../journey/journey";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import type { CampaignMessage } from "../../templates/campaign-message";
 import type { ChannelStand } from "../playbook-channels";
@@ -305,17 +306,22 @@ export type LifecycleAct =
 
 /** One of the moments around a customer, in order. */
 export interface LifecycleStage {
-  id: "first_contact" | "visit" | "after" | "quiet" | "proposal";
+  /** The journey's stage (journey.ts): free of the word, and the ledger's group and its address (`campaigns/in:before`). */
+  id: JourneyStageId;
   caps: string;
   name: string;
   glyph: LifecycleGlyph;
   /** The moment a new playbook starts from (the offered win-back for the quiet one); null for the receptionist. */
   moment: string | null;
+  /** The campaign that leads it: a running one first, else the newest; null where none stands on it, and for the receptionist. */
   playbookId: string | null;
   /** How many are at it now; null where the moment could not be counted. */
   people: number | null;
   unit: string;
-  /** on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off). */
+  /**
+   * on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off) or
+   * cannot be counted (no calendar).
+   */
   state: "always" | "on" | "paused" | "off" | "not_here";
   stateWords: string;
   /** The same on a phone, where there is room for less: "Live", the clock alone ("daily 10:00 AM"), or the state's own words. */
@@ -336,6 +342,18 @@ export interface LifecycleStage {
    * for a playbook that runs nothing here, as its drawer draws no Goes by row.
    */
   channels: readonly LifecycleChannelMark[];
+  /** What its card says of its campaigns: the one's name and clock ("Visit reminder · daily 9:00 AM"), or "3 campaigns · 2 on · 1 paused"; null where none stands on it. */
+  summary: string | null;
+  /** How its campaigns stand, for the card's meter: only where it holds two or more, else null. */
+  bar: LifecycleBar | null;
+}
+
+/** How a moment's campaigns stand, for its card's meter (on in ok, waiting in warn, paused at rest), of how many. */
+export interface LifecycleBar {
+  on: number;
+  waiting: number;
+  paused: number;
+  of: number;
 }
 
 /** A quiet line under the rail: a playbook or a campaign that is not one of the five moments. */

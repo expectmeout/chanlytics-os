@@ -211,6 +211,9 @@ const home = (over = {}) =>
     messages: [],
     reachOuts: [],
     report: report(),
+    // A calendar connected and deals off (no follow-up among the moments), in the word these sentences were written in.
+    shape: { calendar: "feed", dealsOn: false, word: "visit" },
+    chains: undefined,
     ...over,
   });
 
@@ -390,7 +393,7 @@ test("the home draws the channel facts: the head's line, a mark per channel on e
   const states = Object.fromEntries(h.rail.stages.map((s) => [s.id, s.channels.map((m) => m.state)]));
   assert.deepEqual(states, {
     first_contact: [],
-    visit: ["on", "off", "on"],
+    before: ["on", "off", "on"],
     after: [],
     quiet: ["on", "off", "could"],
   });
@@ -472,7 +475,7 @@ test("where the readiness is unread and the counts predate the channels, the hom
   assert.equal(h.results.byChannel, null);
   // A ticked channel reads as on where nothing says it is closed.
   assert.deepEqual(
-    h.rail.stages.find((s) => s.id === "visit").channels.map((m) => m.state),
+    h.rail.stages.find((s) => s.id === "before").channels.map((m) => m.state),
     ["on", "off", "on"],
   );
   // The playbooks surface carries no readiness and the broadcasts' does: the home reads that one.

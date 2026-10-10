@@ -7680,6 +7680,8 @@ var LIFECYCLE_WORDS = {
   receptionist: "Answers \xB7 asks for the yes",
   // First contact where the workspace has nothing to answer on: no number and no channel that can send.
   noLine: { state: "No line to answer on yet", needs: "Connect a number or email to answer on" },
+  // An appointment moment where no calendar feeds it (decision 44 of 9 Oct 2026): what it says instead of a figure, and its door.
+  needsCalendar: { none: "Needs your calendar", email: "Needs your calendar feed", door: "Connect your calendar" },
   alsoRunning: "Also running",
   callText: {
     name: "The call's text",
@@ -7817,6 +7819,7 @@ var LIFECYCLE_WORDS = {
 };
 var LIFECYCLE_TOAST = {
   resumed: (name) => [{ b: name }, " resumed"],
+  paused: (name) => [{ b: name }, " paused"],
   changed: (name) => [{ b: name }, " changed"],
   // A new playbook's next run is under Coming up, by the business's clock; there is no card to look on any more.
   running: (name) => [
@@ -7866,9 +7869,18 @@ function lifecycleStateOf(p) {
     paused
   });
   if (p.off) return stated("Not running here", "plain");
-  if (p.state !== "running") return stated("Paused", "warn", true);
+  if (p.state !== "running") return stated("Paused", "plain", true);
   if (p.totals.waiting) return stated("Waiting on you", "warn");
   return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
+}
+function tallyWords(n, t) {
+  return [
+    plural(n, "campaign"),
+    t.on > 0 ? `${t.on} on` : "",
+    t.waiting > 0 ? `${t.waiting} waiting` : "",
+    t.paused > 0 ? `${t.paused} paused` : "",
+    t.off > 0 ? `${t.off} not running here` : ""
+  ].filter(Boolean).join(" \xB7 ");
 }
 
 // src/ask-proposals/spec.ts
@@ -21036,7 +21048,8 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   // Running is a standing rule that is on -- healthy, ok. It is not happening
   // right now: its RUN is, while it sends, and that is the broadcast's own
   // "sending", which keeps the accent.
-  playbook: { running: "ok", paused: "warn", approval: "warn" },
+  // Paused rests (decision 13, 9 Oct 2026): amber is a run waiting on someone, never a rule its owner stopped.
+  playbook: { running: "ok", paused: "plain", approval: "warn" },
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
@@ -27420,54 +27433,36 @@ function runRow(r2, name, nowMs, tz, at3) {
     atMs
   };
 }
-function offWhy(id, n) {
-  const people = plural(n, "person", "people");
-  switch (id) {
-    case "visit":
-      return `Off \xB7 ${people} ${n === 1 ? "visits" : "visit"} tomorrow`;
-    case "after":
-      return `Off \xB7 ${people} visited yesterday`;
-    case "quiet":
-      return `Off \xB7 ${people} ${n === 1 ? "has" : "have"} gone quiet`;
-    default:
-      return `Off \xB7 ${plural(n, "proposal")} waiting`;
-  }
-}
-var OFF_WHEN = {
-  first_contact: { day: "", at: "" },
-  visit: { day: "Every", at: "day" },
-  after: { day: "The day", at: "after" },
-  quiet: { day: "Every", at: "day" },
-  proposal: { day: "When one", at: "waits" }
-};
-function offRows(stages, nowMs) {
-  return stages.flatMap(
-    (s, i) => s.state === "off" && s.act?.kind === "turn_on" && (s.people ?? 0) > 0 ? [
+function offRows(stages, defs, nowMs) {
+  return stages.flatMap((s, i) => {
+    const off = defs.find((d) => d.id === s.id)?.off;
+    if (!off || s.state !== "off" || s.act?.kind !== "turn_on" || (s.people ?? 0) <= 0) return [];
+    return [
       {
         id: `off:${s.id}`,
         kind: "off",
-        when: OFF_WHEN[s.id],
+        when: off.when,
         what: s.name,
-        why: offWhy(s.id, s.people ?? 0),
+        why: off.why(s.people ?? 0),
         pill: null,
         act: { kind: "turn_on", label: "Turn on", moment: s.act.moment },
         waiting: null,
         atMs: nowMs + COMING_DAYS * DAY_MS + i
       }
-    ] : []
-  );
+    ];
+  });
 }
-function lifecycleComing(input, stages) {
+function lifecycleComing(input, stages, defs) {
   const playbooks = input.playbooks;
   if (!playbooks) return null;
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const playbookOf2 = (id) => playbooks.rows.find((p) => p.id === id);
+  const playbookOf = (id) => playbooks.rows.find((p) => p.id === id);
   const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => {
-    const p = playbookOf2(r2.playbook_id);
+    const p = playbookOf(r2.playbook_id);
     return runRow(r2, p?.name ?? r2.name, nowMs, tz, { paused, known: p !== void 0 });
   });
   const covered = new Set(
@@ -27475,7 +27470,7 @@ function lifecycleComing(input, stages) {
   );
   const moments = playbooks.rows.filter((p) => !covered.has(p.id)).flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
   const timed = [...moments, ...runs].sort((a, b) => a.atMs - b.atMs);
-  const rows2 = [...timed, ...offRows(stages, nowMs)];
+  const rows2 = [...timed, ...offRows(stages, defs, nowMs)];
   return { read: "read", rows: rows2, empty: LIFECYCLE_WORDS.coming.empty, rules };
 }
 function wentAt(r2) {
@@ -27591,63 +27586,52 @@ function chainMarksOf(ready) {
     state: c !== "email" ? "off" : waits ? "waits" : "on"
   }));
 }
-var STAGES = [
-  { id: "first_contact", caps: "First contact", name: "Your receptionist", glyph: "chat", unit: "this week", hint: "" },
-  { id: "visit", caps: "Visit tomorrow", name: "Visit reminder", glyph: "bell", unit: "people", hint: "tomorrow" },
-  { id: "after", caps: "After a visit", name: "How did it go", glyph: "check", unit: "yesterday", hint: "yesterday" },
-  { id: "quiet", caps: "Quiet or lapsed", name: "Win-back", glyph: "refresh", unit: "people", hint: "quiet" },
-  { id: "proposal", caps: "Proposal out", name: "Proposal follow-up", glyph: "deal", unit: "waiting", hint: "waiting" }
-];
-var STAGE_TRIGGER = {
-  first_contact: null,
-  visit: "visit_tomorrow",
-  after: "visited",
-  quiet: "quiet_30",
-  proposal: "proposal_waiting"
-};
-var FIRST_CONTACT_POOL = "new_week";
-function playbookOf(id, rows2) {
-  const trigger = STAGE_TRIGGER[id];
-  if (trigger === null) return null;
-  const own = rows2.filter((p) => id === "quiet" ? isWinBack(p.trigger) : p.trigger === trigger);
-  return own.find((p) => p.state === "running") ?? own[0] ?? null;
-}
-function winBackMoment(playbooks) {
-  return playbooks.triggers.find((t) => t.offered && isWinBack(t.id))?.id ?? "quiet_30";
+function winBackMoment(playbooks, fallback) {
+  return playbooks.triggers.find((t) => t.offered && isWinBack(t.id))?.id ?? fallback;
 }
 function poolOf(playbooks, key) {
   return playbooks.pools[key] ?? null;
+}
+function calendarRead(playbooks, shape) {
+  if (shape.calendar === "feed") return playbooks;
+  const why = LIFECYCLE_WORDS.needsCalendar[shape.calendar];
+  return {
+    ...playbooks,
+    rows: playbooks.rows.map((p) => !p.off && triggerOf(p.trigger)?.kind === "visit" ? { ...p, off: why } : p)
+  };
+}
+function stagePlaybooks(def, rows2) {
+  return rows2.filter((p) => def.holds.includes(p.trigger));
+}
+function tallyOf(own) {
+  const t = { on: 0, waiting: 0, paused: 0, off: 0 };
+  for (const p of own) {
+    if (p.off) t.off += 1;
+    else if (p.state !== "running") t.paused += 1;
+    else if (p.totals.waiting) t.waiting += 1;
+    else t.on += 1;
+  }
+  return t;
+}
+function stageSummaryOf(own) {
+  if (own.length > 1) return tallyWords(own.length, tallyOf(own));
+  const p = own.at(0);
+  if (!p) return null;
+  const short = lifecycleStateOf(p).short;
+  return `${p.name} \xB7 ${short.charAt(0).toLowerCase()}${short.slice(1)}`;
+}
+function barOf(own) {
+  if (own.length < 2) return null;
+  const t = tallyOf(own);
+  return { on: t.on, waiting: t.waiting, paused: t.paused, of: own.length };
 }
 function hasLine(broadcasts) {
   const ready = broadcasts?.ready;
   if (!broadcasts || broadcasts.number.present || !ready) return true;
   return CONSENT_CHANNELS.some((c) => ready[c].ready);
 }
-function stageOf(def, playbooks, line, ready) {
-  const trigger = def.id === "quiet" ? winBackMoment(playbooks) : STAGE_TRIGGER[def.id];
-  const p = playbookOf(def.id, playbooks.rows);
-  const offered = trigger === null || playbooks.triggers.some((t) => t.id === trigger && t.offered) || !!p;
-  if (def.id === "proposal" && !p && !playbooks.triggers.some((t) => t.id === trigger)) return null;
-  const poolKey = def.id === "first_contact" ? FIRST_CONTACT_POOL : p?.trigger ?? trigger ?? "";
-  const pool = poolOf(playbooks, poolKey);
-  const needs2 = trigger === null ? "none" : purposeOfPlaybook(triggerOf(trigger)?.cls ?? null) === "marketing" ? "offers" : "messages";
-  const base = {
-    id: def.id,
-    caps: def.caps,
-    name: p ? p.name : def.name,
-    glyph: def.glyph,
-    moment: trigger,
-    playbookId: p ? p.id : null,
-    people: pool ? pool.pool : null,
-    unit: def.unit,
-    needs: needs2,
-    needsWords: LIFECYCLE_WORDS.needs[needs2],
-    hint: null,
-    waits: false,
-    // A playbook's channels; the receptionist's and an off moment's are none (what Turn on ticks is the composer's to say).
-    channels: p ? channelMarksOf(p, playbooks.templates, ready) : []
-  };
-  if (trigger === null && !line) {
+function receptionistStage(base, line) {
+  if (!line)
     return {
       ...base,
       needsWords: LIFECYCLE_WORDS.noLine.needs,
@@ -27658,33 +27642,47 @@ function stageOf(def, playbooks, line, ready) {
       covered: false,
       act: null
     };
-  }
-  if (trigger === null) {
-    return {
-      ...base,
-      state: "always",
-      stateWords: LIFECYCLE_WORDS.receptionist,
-      phoneWords: "Live",
-      tone: "ok",
-      covered: true,
-      act: null
-    };
-  }
-  if (p) {
-    const s = lifecycleStateOf(p);
-    const state = p.off ? "not_here" : s.paused ? "paused" : "on";
-    return {
-      ...base,
-      state,
-      stateWords: s.words,
-      phoneWords: s.short,
-      tone: s.tone,
-      covered: state === "on",
-      // On, and a run of it waits for the person: the node is a clock (the pill beside it says "Waiting on you").
-      waits: state === "on" && !!p.totals.waiting,
-      act: p.off ? null : { kind: "open", label: "Open", playbookId: p.id }
-    };
-  }
+  return {
+    ...base,
+    state: "always",
+    stateWords: LIFECYCLE_WORDS.receptionist,
+    phoneWords: "Live",
+    tone: "ok",
+    covered: true,
+    act: null
+  };
+}
+function unmetStage(base, shape) {
+  const words3 = LIFECYCLE_WORDS.needsCalendar[shape.calendar === "email" ? "email" : "none"];
+  const act2 = base.playbookId ? { kind: "open", label: "Open", playbookId: base.playbookId } : { kind: "route", label: LIFECYCLE_WORDS.needsCalendar.door, route: CALENDAR_SETTING_ROUTE };
+  return {
+    ...base,
+    people: null,
+    channels: [],
+    state: "not_here",
+    stateWords: words3,
+    phoneWords: words3,
+    tone: "plain",
+    covered: false,
+    act: act2
+  };
+}
+function playbookStage(base, p) {
+  const s = lifecycleStateOf(p);
+  const state = p.off ? "not_here" : s.paused ? "paused" : "on";
+  return {
+    ...base,
+    state,
+    stateWords: s.words,
+    phoneWords: s.short,
+    tone: s.tone,
+    covered: state === "on",
+    // On, and a run of it waits for the person: the node is a clock (the pill beside it says "Waiting on you").
+    waits: state === "on" && !!p.totals.waiting,
+    act: { kind: "open", label: "Open", playbookId: p.id }
+  };
+}
+function emptyStage(base, offered, moment) {
   if (!offered) {
     const words3 = "Not offered here";
     return {
@@ -27704,26 +27702,72 @@ function stageOf(def, playbooks, line, ready) {
     phoneWords: "Off",
     tone: "plain",
     covered: false,
-    act: { kind: "turn_on", label: "Turn on", moment: trigger }
+    act: { kind: "turn_on", label: "Turn on", moment }
   };
 }
-function withHint(stages, playbooks) {
-  const at3 = stages.findIndex((s) => {
-    const reach = poolOf(playbooks, s.moment ?? "")?.candidates ?? 0;
-    return s.state === "off" && reach > 0;
-  });
+function stageOf(def, at3) {
+  const { playbooks } = at3;
+  const own = def.kind === "moment" ? stagePlaybooks(def, playbooks.rows) : [];
+  const p = own.find((x) => x.state === "running") ?? own.at(0) ?? null;
+  const moment = def.id === "quiet" ? winBackMoment(playbooks, def.trigger) : def.trigger;
+  const poolKey = def.kind === "receptionist" ? def.poolKey : p?.trigger ?? moment ?? def.poolKey;
+  const pool = def.unmet ? null : poolOf(playbooks, poolKey);
+  const needs2 = moment === null ? "none" : purposeOfPlaybook(triggerOf(moment)?.cls ?? null) === "marketing" ? "offers" : "messages";
+  const base = {
+    id: def.id,
+    caps: def.caps,
+    name: p ? p.name : def.name,
+    glyph: def.glyph,
+    moment,
+    playbookId: p ? p.id : null,
+    people: pool ? pool.pool : null,
+    unit: def.unit,
+    needs: needs2,
+    needsWords: LIFECYCLE_WORDS.needs[needs2],
+    hint: null,
+    waits: false,
+    // A campaign's channels; the receptionist's and an empty moment's are none (what Turn on ticks is the composer's to say).
+    channels: p ? channelMarksOf(p, playbooks.templates, at3.ready) : [],
+    summary: stageSummaryOf(own),
+    bar: barOf(own)
+  };
+  if (def.kind === "receptionist") return receptionistStage(base, at3.line);
+  if (def.unmet) return unmetStage(base, at3.shape);
+  if (p) return playbookStage(base, p);
+  const offered = moment !== null && playbooks.triggers.some((t) => t.id === moment && t.offered);
+  return emptyStage(base, offered, moment ?? def.poolKey);
+}
+function withHint(stages, defs, playbooks) {
+  const reachOf = (s) => poolOf(playbooks, s.moment ?? "")?.candidates ?? 0;
+  const at3 = stages.findIndex((s) => s.state === "off" && reachOf(s) > 0);
   if (at3 < 0) return [...stages];
   return stages.map((s, i) => {
     if (i !== at3 || s.act?.kind !== "turn_on") return s;
-    const n = poolOf(playbooks, s.moment ?? "")?.candidates ?? 0;
-    const unit = STAGES.find((d) => d.id === s.id)?.hint ?? "";
-    const hint = `Turn on \xB7 ${n} ${unit}`;
+    const hint = `Turn on \xB7 ${reachOf(s)} ${defs.find((d) => d.id === s.id)?.off?.hint ?? ""}`;
     return { ...s, hint, act: { ...s.act, label: hint } };
   });
 }
-function lifecycleStages(playbooks, line, ready) {
-  const made = STAGES.map((d) => stageOf(d, playbooks, line, ready)).filter((s) => s !== null);
-  return withHint(made, playbooks);
+function lifecycleStages(at3) {
+  const held = new Set(
+    at3.playbooks.rows.flatMap((p) => {
+      const id = journeyStageOf(p.trigger);
+      return id ? [id] : [];
+    })
+  );
+  const defs = journeyOf({
+    calendarOn: at3.shape.calendar === "feed",
+    dealsOn: at3.shape.dealsOn,
+    word: at3.shape.word,
+    held
+  });
+  return {
+    defs,
+    stages: withHint(
+      defs.map((d) => stageOf(d, at3)),
+      defs,
+      at3.playbooks
+    )
+  };
 }
 function stripOfPlaybook(p, kind, glyph, words3, channels) {
   const s = lifecycleStateOf(p);
@@ -27793,7 +27837,7 @@ function chainStrip(c, ready) {
     name: c.name,
     words: `Cold email${c.search ? ` to ${c.search.name}` : ""} \xB7 ${plural(c.steps.length, "step")}`,
     stateWords: paused ? "Paused" : waiting ? "Waiting on you" : "On",
-    tone: paused || waiting ? "warn" : "ok",
+    tone: waiting ? "warn" : paused ? "plain" : "ok",
     open,
     act: paused ? { kind: "resume", label: "Resume", playbookId: c.root_id } : open,
     channels: chainMarksOf(ready)
@@ -27861,21 +27905,23 @@ function failedOf(input) {
   };
 }
 function campaignsHomeOf(input) {
-  const stages = input.playbooks ? lifecycleStages(input.playbooks, hasLine(input.broadcasts), readyOf(input)) : [];
+  const at3 = input.playbooks && input.shape ? { ...input, playbooks: calendarRead(input.playbooks, input.shape) } : input;
+  const made = at3.playbooks && at3.shape ? lifecycleStages({ playbooks: at3.playbooks, shape: at3.shape, line: hasLine(at3.broadcasts), ready: readyOf(at3) }) : { defs: [], stages: [] };
+  const { defs, stages } = made;
   const covered = stages.filter((s) => s.covered).length;
   return {
-    head: lifecycleHeadOf(input, stages),
+    head: lifecycleHeadOf(at3, stages),
     rail: {
       title: LIFECYCLE_WORDS.rail,
       coveredWords: stages.length > 0 ? `${covered} of ${stages.length} moments covered` : null,
       phoneWords: stages.length > 0 ? `${covered} of ${stages.length} on` : null,
       stages
     },
-    strips: lifecycleStrips(input, stages),
-    reach: lifecycleReach(input, stages),
-    coming: lifecycleComing(input, stages),
-    results: lifecycleResults(input),
-    failed: failedOf(input)
+    strips: lifecycleStrips(at3, stages),
+    reach: lifecycleReach(at3, stages),
+    coming: lifecycleComing(at3, stages, defs),
+    results: lifecycleResults(at3),
+    failed: failedOf(at3)
   };
 }
 

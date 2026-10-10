@@ -167,7 +167,7 @@ test("the home draws the rail's moments in order, the lines under it, and the th
   assert.ok(byTestId(tree, "campaigns-home"));
   assert.deepEqual(
     allBy(tree, "cmh-stage").map((s) => s.props["data-stage"]),
-    ["first_contact", "visit", "after", "quiet"],
+    ["first_contact", "before", "after", "quiet"],
     "the sample workspace has no deals, so no proposal follow-up",
   );
   assert.equal(allBy(tree, "cmh-people").length, 4);
@@ -308,7 +308,7 @@ test("a Turn on opens the composer on the moment it was pressed for", () => {
   pressed(find(after, (n) => n.props?.["data-testid"] === "cmh-turn-on"));
   assert.deepEqual(went, ["campaigns/new:moment:visited"]);
   fresh();
-  const visit = allBy(page(), "cmh-stage").find((s) => s.props["data-stage"] === "visit");
+  const visit = allBy(page(), "cmh-stage").find((s) => s.props["data-stage"] === "before");
   assert.equal(
     find(visit, (n) => n.props?.["data-testid"] === "cmh-open")?.props["data-testid"],
     "cmh-open",
