@@ -2743,6 +2743,14 @@ async function reviewsLedger(db, tenantId, window) {
   }
   return data;
 }
+async function receptionistSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("receptionist_series", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`receptionist_series: ${error.message}`);
+  }
+  return data;
+}
 async function reachOutReport(db, tenantId, window) {
   const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
   if (error) {
@@ -4855,6 +4863,7 @@ export {
   readThreadState,
   readVoiceSession,
   readVoiceSessionByConversation,
+  receptionistSeries,
   recheckSends,
   recordActivation,
   recordCallNote,

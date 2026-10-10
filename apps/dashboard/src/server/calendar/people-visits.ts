@@ -157,6 +157,23 @@ export async function withVisits(
 }
 
 /**
+ * Whether a person's visits answer a moment they reached out at: one upcoming, or one held since (contracts
+ * bookedAfterAsk, the one rule). The booking line and the booking link's count both ask it, so a person is "booked"
+ * the same way in each.
+ */
+function bookedSince(visits: PersonVisitsDto | undefined, askedMs: number): boolean {
+  if (!visits) return false;
+  const { next, last } = visits;
+  return bookedAfterAsk(
+    {
+      next: next ? { ...next, start: Date.parse(next.start), end: Date.parse(next.end), allDay: next.all_day } : null,
+      last: last ? { ...last, start: Date.parse(last.start), end: Date.parse(last.end), allDay: last.all_day } : null,
+    },
+    askedMs,
+  );
+}
+
+/**
  * Asked, then booked: of the people who wrote or called in the period, how
  * many have an appointment on the calendar — upcoming, or held since they
  * reached out. The one conversion line Reports carries. `known`: the zone and
@@ -185,22 +202,27 @@ export async function bookingReport(
     const askedMs = Math.max(...cands);
     if (askedMs < since) continue;
     asked += 1;
-    const v = pv.visits.get(r.id);
-    if (
-      v &&
-      bookedAfterAsk(
-        {
-          next: v.next
-            ? { ...v.next, start: Date.parse(v.next.start), end: Date.parse(v.next.end), allDay: v.next.all_day }
-            : null,
-          last: v.last
-            ? { ...v.last, start: Date.parse(v.last.start), end: Date.parse(v.last.end), allDay: v.last.all_day }
-            : null,
-        },
-        askedMs,
-      )
-    )
-      booked += 1;
+    if (bookedSince(pv.visits.get(r.id), askedMs)) booked += 1;
   }
   return { calendar: pv.calendar.state, days, asked, booked };
+}
+
+/**
+ * The booking link: of the people sent it, how many have booked since, by the rule "asked, then booked" counts by
+ * (bookedSince), the link's moment standing where their message does. `rows` is People as read, or the part of it the
+ * links name: a person it no longer holds (erased, merged) has no visit to find and is not counted. `booked` is 0 where
+ * the calendar cannot say (`calendar` "none" or "unavailable"), which the caller words as no number, never as zero.
+ * `known` as bookingReport takes it.
+ */
+export async function linksBooked(
+  ctx: RouteContext,
+  tenantId: string,
+  rows: PersonRowDto[],
+  links: { c: string; at: string }[],
+  now = new Date(),
+  known?: { timezone: string; config: unknown },
+): Promise<{ calendar: PeopleVisits["calendar"]["state"]; booked: number }> {
+  const pv = await peopleVisits(ctx, tenantId, rows, now, known);
+  const booked = links.filter((l) => bookedSince(pv.visits.get(l.c), Date.parse(l.at))).length;
+  return { calendar: pv.calendar.state, booked };
 }

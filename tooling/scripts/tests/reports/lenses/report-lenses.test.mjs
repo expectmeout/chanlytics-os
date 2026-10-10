@@ -180,7 +180,17 @@ test("the head says the lens's own sentence, from the view models that hold it",
   );
   const parts = { vm, campaigns, deals, reviews: null };
   assert.equal(lensAnswerOf("overview", parts), vm.lines.hero);
-  assert.equal(lensAnswerOf("receptionist", parts), vm.lines.answered ?? undefined);
+  assert.equal(lensAnswerOf("receptionist", parts), vm.lines.receptionist ?? undefined);
+  assert.equal(
+    lensAnswerOf("receptionist", parts),
+    "2 of 2 messages answered without you.",
+    "the Receptionist's head is how many of how many, not the busiest day",
+  );
+  assert.equal(
+    lensAnswerOf("receptionist", { ...parts, vm: quiet }),
+    undefined,
+    "a period nobody wrote in says nothing",
+  );
   assert.equal(lensAnswerOf("people", parts), vm.lines.channels ?? undefined);
   assert.equal(lensAnswerOf("pipeline", parts), deals.headline);
   assert.equal(lensAnswerOf("campaigns", parts), campaigns.lines.funnel);

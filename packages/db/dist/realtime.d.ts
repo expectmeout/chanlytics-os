@@ -8816,6 +8816,14 @@ type Database = {
                     why_it_fits: string;
                 }[];
             };
+            receptionist_series: {
+                Args: {
+                    p_days?: number;
+                    p_end?: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             record_consent: {
                 Args: {
                     p_batch?: number;

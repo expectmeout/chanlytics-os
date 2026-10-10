@@ -71,6 +71,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/headline.ts")).reportsHeadlineOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts")).reviewsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts")).receptionistOverride,
   (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
@@ -414,7 +415,99 @@ test("the Reviews lens hears the listing's tables only while it is on screen, an
   }
 });
 
-test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home and Reports' Reviews lens, and no other page's draws are owned", async () => {
+test("the Receptionist lens hears messages, escalations and calls only while it is on screen, and is read once as it comes back; no other page of Reports hears them", async () => {
+  win.location.hash = "#/reports/receptionist";
+  const r = await running({ fresh: ["reports_receptionist"] });
+  const lensReads = () => r.asked.filter((k) => k === "reports_receptionist");
+  try {
+    // A message, an escalation opened or resolved, a call starting or ending: the lens on screen re-reads its own.
+    for (const [table, event] of [
+      ["messages", "INSERT"],
+      ["escalations", "INSERT"],
+      ["escalations", "UPDATE"],
+      ["calls", "INSERT"],
+    ]) {
+      r.asked.length = 0;
+      await r.change(table, event);
+      assert.deepEqual(lensReads(), ["reports_receptionist"], `${table} ${event}: heard on the lens`);
+    }
+    // A call ending is heard (Today repaints with it); a transcript turn of one in progress is not, by the lens or by Today.
+    r.asked.length = 0;
+    await r.change("calls", "UPDATE", "ended");
+    assert.deepEqual(lensReads(), ["reports_receptionist"], "a call ending: heard on the lens");
+    assert.equal(r.asked.includes("today"), true, "and by Today, as it was");
+    for (let turn = 0; turn < 3; turn += 1) {
+      r.asked.length = 0;
+      await r.change("calls", "UPDATE", "ongoing");
+      assert.deepEqual(
+        lensReads(),
+        [],
+        "REGRESSION: a transcript turn re-read the lens every few seconds of a live call",
+      );
+      assert.equal(r.asked.includes("today"), false, "nor Today");
+    }
+    // It is told of no table it does not name: a review is the Reviews lens's, and a conversation's own row moves no figure here.
+    for (const table of ["google_reviews", "conversations", "contacts"]) {
+      r.asked.length = 0;
+      await r.change(table, "UPDATE");
+      assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
+    }
+    r.asked.length = 0;
+
+    // Elsewhere it hears none of them, and what passed is read once, when the lens comes back.
+    for (const hash of ["#/reports", "#/reports/people", "#/reports/reviews", "#/inbox", "#/today"]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      r.asked.length = 0;
+      await r.change("escalations", "INSERT");
+      await r.change("calls", "UPDATE", "ended");
+      await r.message();
+      assert.deepEqual(lensReads(), [], `${hash}: the lens is not on screen`);
+
+      r.asked.length = 0;
+      win.location.hash = "#/reports/receptionist";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), ["reports_receptionist"], `${hash}: read once as the lens came back`);
+      r.asked.length = 0;
+      win.location.hash = "#/reports/campaigns";
+      win.dispatchEvent({ type: "popstate" });
+      win.location.hash = "#/reports/receptionist";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), [], `${hash}: and once: the next arrival reads nothing new`);
+    }
+
+    // A transcript turn heard away from the lens keeps nothing for it: the guard comes before the page rule, so it is not "missed".
+    for (const hash of ["#/inbox", "#/today"]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      r.asked.length = 0;
+      await r.change("calls", "UPDATE", "ongoing");
+      await r.change("calls", "UPDATE", "ongoing");
+      win.location.hash = "#/reports/receptionist";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), [], `${hash}: only turns passed, so nothing is read as the lens comes back`);
+    }
+
+    // And nothing here moves the Reviews lens's read: a review is the only thing it counts.
+    win.location.hash = "#/reports/receptionist";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    r.asked.length = 0;
+    await r.message();
+    await r.change("escalations", "INSERT");
+    assert.equal(r.asked.includes("reports_reviews"), false, "the Reviews lens counts reviews, not these");
+  } finally {
+    r.stop();
+    win.location.hash = "#/today";
+  }
+});
+
+test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home and Reports' Reviews and Receptionist lenses, and no other page's draws are owned", async () => {
   const owns = (key, route) => registry.ownsTheScreen(key, route);
   // Reports owns what it names for a lens, and that lens alone: Reviews' read, and no other of its pages or lenses.
   assert.equal(owns("reports_reviews", "reports/reviews"), true);
@@ -422,6 +515,13 @@ test("the page that owns what it draws is an explicit one: the surface registry 
     assert.equal(owns("reports_reviews", route), false, `${route} does not own the Reviews lens's read`);
   assert.equal(owns("reports", "reports/reviews"), true, "and the page's own surface is still its own");
   assert.equal(owns("reports_headline", "reports/reviews"), false, "while what Today draws is not drawn there");
+  // The Receptionist lens's, the same way, and the two lenses' reads are not each other's.
+  assert.equal(owns("reports_receptionist", "reports/receptionist"), true);
+  for (const route of ["reports", "reports/people", "reports/campaigns", "reports/reviews", "today", "campaigns"])
+    assert.equal(owns("reports_receptionist", route), false, `${route} does not own the Receptionist lens's read`);
+  assert.equal(owns("reports_reviews", "reports/receptionist"), false, "the Reviews lens's read is not drawn there");
+  assert.equal(owns("reports", "reports/receptionist"), true, "and the page's own surface is still its own");
+  assert.equal(owns("reports_headline", "reports/receptionist"), false, "while what Today draws is not drawn there");
   for (const key of ["playbooks", "campaign_results"]) assert.equal(owns(key, "campaigns"), true, key);
   assert.equal(owns("broadcasts", "campaigns"), false, "Sent's runs are drawn on the home and re-read on Sent");
   // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that

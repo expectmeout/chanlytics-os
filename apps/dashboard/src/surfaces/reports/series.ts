@@ -30,7 +30,6 @@ export const RPT_CHANNELS: ChartConfig = Object.fromEntries(
 
 export const RPT_CALLS: ChartConfig = { calls: { label: "Calls", color: "var(--chart-1)" } };
 export const RPT_SENT: ChartConfig = { sent: { label: "Sent", color: "var(--chart-1)" } };
-export const RPT_REPLY: ChartConfig = { p50: { label: "Median reply", color: "var(--chart-1)", shape: "line" } };
 export const RPT_GAINED: ChartConfig = { gained: { label: "Ratings gained", color: "var(--chart-1)" } };
 export const RPT_WRITTEN: ChartConfig = { written: { label: "Written", color: "var(--chart-1)" } };
 
@@ -40,18 +39,19 @@ export const rptPeriods = (vm: ReportVM, key: string, before: boolean): ChartCon
   ...(before ? { prior: { label: vm.period.before, color: "var(--chart-prior)", shape: "line" as const } } : {}),
 });
 
-/** Reply times are ordered, fastest first and darkest (the ordinal ink ramp). */
-export const rptSpread = (buckets: ReportBarVM[]): ChartConfig =>
-  Object.fromEntries(buckets.map((b, i) => [b.id, { label: b.label, color: `var(--chart-ramp-${5 - i})` }]));
+/** The ordinal ink ramp's steps: charts.css defines `--chart-ramp-1` (the lowest) to `--chart-ramp-5` (the highest). */
+const RAMP_LOWEST = 1;
+const RAMP_HIGHEST = 5;
 
-/** A caller's mood wears its status. */
-export const rptMood = (rows: ReportBarVM[]): ChartConfig =>
+/**
+ * Reply times are ordered, fastest first and darkest (the ordinal ink ramp). So is a caller's mood, good first: an order,
+ * not a verdict, so it wears the same ramp and never the green and red of a status. A sixth value or more stays on the ramp's
+ * lowest step, never on a token that is not there.
+ */
+export const rptSpread = (buckets: ReportBarVM[]): ChartConfig =>
   Object.fromEntries(
-    rows.map((r) => [
-      r.id,
-      {
-        label: r.label,
-        color: r.tone === "ok" ? "var(--ok)" : r.tone === "danger" ? "var(--danger)" : "var(--chart-prior)",
-      },
+    buckets.map((b, i) => [
+      b.id,
+      { label: b.label, color: `var(--chart-ramp-${Math.max(RAMP_LOWEST, RAMP_HIGHEST - i)})` },
     ]),
   );

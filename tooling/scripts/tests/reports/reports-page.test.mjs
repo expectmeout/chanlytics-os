@@ -54,6 +54,7 @@ import {
   reviewsLedger,
   writtenReview,
 } from "./_report-world.mjs";
+import { ownHeld } from "./receptionist/_receptionist-world.mjs";
 
 const went = [];
 const flashed = [];
@@ -75,7 +76,8 @@ const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
 const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
-const { reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { receptionistSample, reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { toReceptionistReportVM } = await import("@chanlytics/contracts/report-lens");
 const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
@@ -201,6 +203,8 @@ const drawOnce = (set) => {
   // the page follows its address, and an address with no days says the period kept.
   const shown = surfaceValue("reports");
   if (shown?.period) keepReportPeriod(shown.period);
+  // The Receptionist lens's own read is of the range the report shows (its states are receptionist/receptionist-page.test.mjs's).
+  setSurfaceValue("reports_receptionist", shown ? ownHeld(undefined, shown.key) : undefined);
   fresh();
   went.length = 0;
   return draw();
@@ -237,6 +241,7 @@ const cls = (tree, c) => find(tree, (n) => classes(n).includes(c));
 const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
 const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
+const { RptStrip } = await import(`${S}/surfaces/reports/blocks.tsx`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
 const { DayRangePicker } = await import(`${S}/surfaces/kit/datepicker/day-range-picker.tsx`);
@@ -409,9 +414,62 @@ test("the strip's figures: five counts, each named by its metric, the period bef
   assert.deepEqual(all(strip, (n) => n.type === "dt").length, 5);
 });
 
+test("a figure that counts what has a page opens it: Needed you is a door to the Inbox, a count with no page of its own is no door", () => {
+  const strip = card(page(), "reports-tiles");
+  const figureOf = (id) => find(strip, (n) => n.type === "div" && n.props["data-figure"] === id);
+  const needed = find(figureOf("handovers"), (n) => n.type === "a");
+  assert.ok(needed, "the number is a link, since a door is a link");
+  assert.equal(needed.props.href, "#/inbox");
+  assert.equal(textOf(needed), "3");
+  press(needed);
+  assert.deepEqual(went, ["inbox"], "and a plain press goes there by the app's own way");
+  const messages = find(figureOf("customer_messages"), (n) => n.type === "a");
+  assert.equal(messages.props.href, "#/conversations", "the customer messages open the conversations they count");
+  for (const id of ["calls", "new_people", "booked"])
+    assert.equal(
+      find(figureOf(id), (n) => n.type === "a" || n.type === "button"),
+      null,
+      `${id} opens nothing`,
+    );
+});
+
+test("a ratio of too few is greyed and says so: three answered is under the minimum, seventeen is read", () => {
+  const thin = (n) =>
+    toReportVM(
+      reportDto({
+        series: reportDto().series.map((d, i) =>
+          i < 7 ? d : rday(d.day, i === 7 ? { messages_in: n, conversations: 1, answered_ai: n } : {}),
+        ),
+      }),
+      { profile: null },
+    );
+  const answeredFigure = (vm) => {
+    fresh();
+    const strip = RptStrip({ tiles: vm.tiles.filter((t) => t.id === "answered"), testid: "answered-strip" });
+    assert.equal(strip.props["data-testid"], "answered-strip", "the strip is named for a test that finds it");
+    return find(strip, (n) => n.type === "div" && n.props["data-figure"] === "answered_share");
+  };
+  const few = answeredFigure(thin(3));
+  assert.deepEqual(classes(few), ["figure", "is-thin", "rpt-cell"], "the figure wears the kit's thin state");
+  assert.equal(textOf(cls(few, "figure-n")), "only 3, too few to read");
+  assert.equal(textOf(cls(few, "figure-value")), "100%", "the number is still said, greyed, never hidden");
+  const enough = answeredFigure(thin(9));
+  assert.deepEqual(classes(enough), ["figure", "rpt-cell"]);
+  assert.equal(cls(enough, "figure-n"), null);
+  const none = answeredFigure(thin(0));
+  assert.equal(textOf(cls(none, "figure-value")), "—", "nothing to answer is a dash, never a zero");
+  assert.deepEqual(classes(none), ["figure", "rpt-cell"], "of none there is no ratio to grey");
+  assert.equal(cls(none, "figure-n"), null, "and no line says it is of none: the meta already says why");
+  assert.equal(
+    find(answeredFigure(thin(3)), (n) => n.type === "a" || n.type === "button"),
+    null,
+    "the share has no page of its own, so its number is no door",
+  );
+});
+
 /* ------------------------------------------ the cards ------------------------------------------ */
 
-test("every card is drawn, under the testids the e2e, Today and the Google tests read, in three sections", async () => {
+test("every card is drawn, under the testids the e2e, Today and the Google tests read, in the lenses' sections", async () => {
   const tree = page();
   for (const id of [
     "chart-answered",
@@ -419,6 +477,16 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
     "chart-reasons",
     "chart-calls",
     "chart-booking",
+    // The Receptionist lens's own (receptionist/receptionist-page.test.mjs holds their words and states).
+    "receptionist-strip",
+    "chart-hold",
+    "chart-topics",
+    "chart-languages",
+    "chart-call-endings",
+    "receptionist-link",
+    "receptionist-time",
+    "receptionist-figures",
+    "receptionist-stuck",
     "chart-channels",
     "chart-rhythm",
     "chart-people",
@@ -439,7 +507,7 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
   assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing"]);
   assert.deepEqual(
     all(tree, (n) => n.type === "section" && n.props.className === "rpt-section").map((n) => n.props["aria-label"]),
-    ["The receptionist", "Your customers", "Campaigns"],
+    ["The receptionist", "Time between steps", "Stuck now", "Your customers", "Campaigns"],
   );
   assert.equal(
     find(tree, (n) => n.type === "section" && n.props["aria-label"] === "This period").props.className,
@@ -496,9 +564,16 @@ test("the channels in messages and calls, their colour fixed by channel, the wee
 test("a caller's mood and the reply spread are part-bars in their own order, each part in its colour and its word", () => {
   const tree = page();
   const mood = byTestId(card(tree, "chart-calls"), "caller-mood");
+  // A mood is an order, not a verdict: its parts wear the ordinal ink ramp like the spread, never the green and red of a status.
   assert.deepEqual(
     [mood.props.style["--color-Positive"], mood.props.style["--color-Neutral"]],
-    ["var(--ok)", "var(--chart-prior)"],
+    ["var(--chart-ramp-5)", "var(--chart-ramp-4)"],
+  );
+  const moodColors = Object.entries(mood.props.style).filter(([k]) => k.startsWith("--color-"));
+  assert.equal(moodColors.length, 2);
+  assert.ok(
+    moodColors.every(([, c]) => /^var\(--chart-ramp-\d\)$/.test(c)),
+    "no var(--ok) and no var(--danger)",
   );
   assert.equal(textOf(find(mood, (n) => classes(n).includes("ck-legend"))), "Positive2Neutral1");
   const spread = byTestId(card(tree, "chart-reply"), "reply-spread");
@@ -516,7 +591,7 @@ test("a caller's mood and the reply spread are part-bars in their own order, eac
 test("with a hold set the reply card draws it: the chart's one reference is the hold and the spread is said against it; with none there is neither", () => {
   const held = Array.from({ length: 8 }, () => ({ day: "2026-09-01", s: 63, hold: 60 }));
   const reply = card(page({ report: { replies: held, reply_seconds: held.map((r) => r.s) } }), "chart-reply");
-  assert.equal(textOf(cls(reply, "ck-ref")), "1-minute hold");
+  assert.equal(textOf(cls(reply, "ck-dotplot-ref")), "your 1-minute hold ends");
   const spread = byTestId(reply, "reply-spread");
   assert.equal(textOf(cls(spread, "ck-segbar-title")), "Every reply, against your hold");
   assert.deepEqual(
@@ -529,6 +604,7 @@ test("with a hold set the reply card draws it: the chart's one reference is the 
   );
   const plain = card(page(), "chart-reply");
   assert.equal(cls(plain, "ck-ref"), null, "no hold: no yardstick the owner never set");
+  assert.equal(cls(plain, "ck-dotplot-ref"), null, "and no caption for one");
   assert.equal(textOf(cls(byTestId(plain, "reply-spread"), "ck-segbar-title")), "Every reply, by how long it took");
 });
 
@@ -579,7 +655,11 @@ test("the page says the hold and the closed hours: the hero, the speed chart's y
     "the hold, never the speed the setting made",
   );
   const reply = card(tree, "chart-reply");
-  assert.equal(textOf(cls(reply, "ck-ref")), "1-minute hold", "the speed chart's one reference is the owner's hold");
+  assert.equal(
+    textOf(cls(reply, "ck-dotplot-ref")),
+    "your 1-minute hold ends",
+    "the reply plot's one reference is where the owner's hold ends",
+  );
   const spread = byTestId(reply, "reply-spread");
   assert.equal(textOf(cls(spread, "ck-segbar-title")), "Every reply, against your hold");
   assert.deepEqual(
@@ -1576,6 +1656,57 @@ test("a demo's Reviews lens draws the sample's listing through the same section,
     choose(tree, "90 days");
     tree = redraw();
     assert.equal(standingSaid().sentence, reviewsSample("90d").vm.lines.head, "the sample's own period");
+  } finally {
+    globalThis.__DEMO_MODE = false;
+    lensAt = LENS_PATHS[0];
+  }
+});
+
+test("a demo's Receptionist lens draws the sample's own read through the same fold, every part of it, and its tabs switch the sample's period", () => {
+  setSurfaceValue("reports", undefined);
+  setSurfaceValue("reports_receptionist", undefined);
+  globalThis.__DEMO_MODE = true;
+  lensAt = LENS_PATHS[1];
+  const foldOf = (range) => {
+    const own = receptionistSample(range);
+    return toReceptionistReportVM(own.dto, { nowMs: own.readAt });
+  };
+  try {
+    fresh();
+    let tree = draw();
+    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    for (const id of [
+      "receptionist-strip",
+      "chart-hold",
+      "chart-topics",
+      "chart-languages",
+      "chart-call-endings",
+      "receptionist-link",
+      "receptionist-figures",
+      "receptionist-stuck",
+    ])
+      assert.ok(byTestId(tree, id), `${id}: the sample has every part`);
+    assert.equal(byTestId(tree, "receptionist-failed"), null);
+    assert.equal(
+      byTestId(tree, "reports-sample").props["data-loading"],
+      undefined,
+      "the sample answers at once: nothing is on its way",
+    );
+    assert.equal(
+      textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")),
+      foldOf("30d").hold.line,
+      "the hold's line is the fold's, of the sample's numbers",
+    );
+    assert.equal(
+      textOf(cls(card(tree, "chart-reply"), "ck-dotplot-ref")),
+      "your 1-minute hold ends",
+      "the sample's business has a hold, so its replies are plotted past it",
+    );
+    choose(tree, "90 days");
+    tree = redraw();
+    assert.equal(chosen(tree), "90 days", "the sample's own period");
+    assert.equal(textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")), foldOf("90d").hold.line);
+    assert.notEqual(foldOf("90d").hold.line, foldOf("30d").hold.line, "a longer period is more replies");
   } finally {
     globalThis.__DEMO_MODE = false;
     lensAt = LENS_PATHS[0];
