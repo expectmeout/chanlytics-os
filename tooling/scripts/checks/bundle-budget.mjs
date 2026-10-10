@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * What a browser loads to open a workspace may only grow on purpose, and each change is held to what it adds.
+ * What a browser loads to open a workspace grows only on purpose: each change says why it grows it past a line, and
+ * nothing crosses a ceiling.
  *
  * Run after the dashboard's production build (the Typecheck job builds it the way Vercel does). It reads what Next
  * wrote about the workspace route, /w/[workspace], and about every other workspace page:
@@ -15,47 +16,35 @@
  * page's own JavaScript beyond the route (its segments' chunks and its loadable's, less the route's; a chunk two pages
  * share counts for each, since each page's visitor downloads it). A chunk fetched later, on demand (the map, a
  * refresh), is not counted: it is not what a person waits for. A build that no longer writes one of the manifests
- * fails the check rather than measuring less.
+ * fails the check rather than measuring less. The build is deterministic to the byte (6 Oct 2026).
  *
- * The build is deterministic: three builds of one commit measured the same byte in every file, Node 22 and Node 24
- * gzip the same, two machines read one commit 6 bytes apart, and a small change moved one chunk by 54 bytes and no
- * other (6 Oct 2026). So the sums are held to the byte, with two allowances in bytes, never a share:
+ * Three holds, none of them a number the repository keeps in step with every merge:
  *
- *   TOLERANCE  what one change may add to a sum without a row, and a fall worth banking
- *   DRIFT      how far main may sit above its budget, so growth under the tolerance cannot sum unseen
+ *   1. What this change adds. A push to main records its measurement under its own sha (the Actions cache, and an
+ *      artifact the weekly reading finds); a pull request is compared with the record of the main commit its merge
+ *      stands on, so the difference is this change's alone. A sum it grows past its line (GROWTH_LINE: the route's JS
+ *      and CSS 1 KB, a page 2 KB, gzipped) fails until the pull request says why, in a line of its description:
+ *      `Bundle: <why>`. The description is read when the check runs, so after editing it, run the job again.
+ *   2. The ceiling (baselines/bundle-ceiling.json): what a visitor may be asked to wait for. Every build is held to
+ *      it, a pull request's and main's; within NEAR of it the summary warns. Over it is a split or a lighter module,
+ *      never a line in a pull request: the ceiling moves only by a decision on what a visitor may wait for
+ *      (docs/runbook.md, "See how fast the pages are"), `--ceiling js=<bytes> css=<bytes> page=<bytes>`.
+ *   3. The week. Growth under the line sums over merges; once a week the reading compares main with main a week
+ *      before, and a sum that grew past its WEEK_LINE keeps an issue open naming the merges (.github/workflows/
+ *      bundle-week.yml): the creep is read on a day, not paid for by whichever change crosses a line next.
  *
- * Under a 1% band the band was the allowance, and it filled: 21 merges of 5 Oct 2026 grew the route by 6,238 bytes,
- * none past the band, none with a row, and the next change of 953 bytes paid for them all (docs/debt.md, "Rises").
+ * Until 10 Oct 2026 the repository kept a budget per sum, to the byte, with a tolerance per change and a drift per
+ * merge: 47 of 165 merges in ten days edited it, its rows and the register, and a change that grew a page by 393 bytes
+ * failed for 813 bytes that fifteen merges before it had added (docs/debt.md, "Rises"). What a change adds is still
+ * held to the byte, and argued where it is made, in its pull request.
  *
- * Three readings of a build, in this order:
+ *   corepack pnpm check:bundle                                        # after a build: measure, and hold the ceiling
+ *   corepack pnpm check:bundle -- --ceiling js=819200 page=262144     # no build: set a ceiling (page: each page's own)
+ *   node tooling/scripts/checks/bundle-budget.mjs --week <older> <newer> [--commits <file>] [--report <file>]
  *
- *   1. Against the base's own build (`--against <record> --base <sha>`, CI). A push to main records its measurement
- *      (`--record <file>`), and a pull request reads the record of the commit its merge stands on: the difference is
- *      what this change adds, whatever main carries. A sum that grew by more than the tolerance beyond what the change
- *      raised its budget by fails, naming the exact bytes to argue. A record of another commit is compared and said,
- *      not held.
- *   2. Against the budget (baselines/bundle-budget.json): a sum more than DRIFT over fails until the growth is raised,
- *      a sum more than TOLERANCE under fails until the fall is banked, so the budget follows the route down and does
- *      not drift back up.
- *   3. Against the ceiling (`ceiling` in the same file): what a visitor may be asked to wait for, whatever the rows
- *      say. Over it is a split or a lighter module, never a raise; the ceiling itself moves only by a decision on the
- *      field data (docs/runbook.md, "See how fast the pages are").
- *
- *   corepack pnpm check:bundle                                   # after a build: measure and compare
- *   corepack pnpm check:bundle -- --update                       # after a build: bank what fell, drop a page gone
- *   corepack pnpm check:bundle -- --raise                        # after a build: seed a missing budget, or a new page
- *   corepack pnpm check:bundle -- --raise js=953 inbox=1557      # no build: raise each by the growth argued, in bytes
- *   corepack pnpm check:bundle -- --update css=147499            # no build: bank a sum as CI measured it
- *   corepack pnpm check:bundle -- --ceiling js=768000 page=262144   # no build: set a ceiling (page: each page's own)
- *
- * The numbers to pass are what CI prints in the job summary and the log, so a raise or a bank needs no build on a
- * laptop. A raise adds the growth argued, never writes the sums measured: a build passes within its allowances, so a
- * raise to what was measured banked every growth that had crept in under them, argued by nobody (G:2, #1206). The
- * budget's keys are `js`, `css` and `page.<name>`, a page named by its path under the workspace without its dynamic
- * segment (`inbox`, `reports`); `bankBudget`, `moveBudget` and `judge` are the decisions, and
- * repo/bundle-budget.test.mjs holds them.
- *
- * `--next <dir>`, `--baseline <file>`, `--sha <sha>` and `--summary <file>` point it elsewhere, for CI and its test.
+ * `--next <dir>`, `--baseline <file>`, `--sha <sha>`, `--record <file>`, `--against <file>`, `--base <sha>` and
+ * `--summary <file>` point it elsewhere, for CI and its test; the pull request's description comes in `PR_BODY`.
+ * repo/bundle-budget.test.mjs holds the decisions (`compareWith`, `unargued`, `reasonIn`, `judge`, `weekOf`).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -69,16 +58,18 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 // is counted where it lives.
 const PAGE = "(os)/w/[workspace]/[[...route]]/page";
 const PAGES_DIR = "server/app/(os)/w/[workspace]";
-/** What one change may add to a sum, gzipped bytes, without a row; and a fall worth banking. */
-export const TOLERANCE = 512;
-/** How far main may sit above its budget: growth under the tolerance, summed over merges, before it is banked. */
-export const DRIFT = 1024;
-/** The route's two sums; every other key of the budget is a page's own JavaScript, under `page`. */
+/** What one change may add to a sum, gzipped bytes, before its pull request says why: the route's two, and a page's. */
+export const GROWTH_LINE = { js: 1024, css: 1024, page: 2048 };
+/** What main may add to a sum in a week before the weekly reading keeps an issue open about it. */
+export const WEEK_LINE = { js: 4096, css: 2048, page: 8192 };
+/** How near its ceiling a sum comes before the summary warns. */
+export const NEAR = 0.9;
+/** The route's two sums; every other key is a page's own JavaScript. */
 const KINDS = ["js", "css"];
 const LABELS = { js: "route JS", css: "route CSS" };
 /** How a person runs this, for the messages that name a flag. */
 const COMMAND = "corepack pnpm check:bundle";
-const BASELINE = "tooling/scripts/tests/baselines/bundle-budget.json";
+const BASELINE = "tooling/scripts/tests/baselines/bundle-ceiling.json";
 
 /** A build that is not the shape this reads: fails with exit 2, rather than measuring less. */
 class BuildShape extends Error {}
@@ -207,109 +198,65 @@ export const sumsOf = (measured) => ({
   page: Object.fromEntries(Object.entries(measured.page).map(([k, v]) => [k, v.gzip])),
 });
 
-/* --------------------------------- the budget --------------------------------- */
+/* ---------------------------------- the holds ---------------------------------- */
+
+/** A sum's line: the route's two by kind, a page's for every other key. */
+const lineOf = (key, lines = GROWTH_LINE) => (KINDS.includes(key) ? lines[key] : lines.page);
+const labelOf = (key) => (KINDS.includes(key) ? LABELS[key] : `page ${key}`);
 
 /**
- * One sum banked: a fall as measured, a rise kept at its budget, an argued growth added to the budget whatever was
- * measured, a sum the budget does not name seeded by a raise alone, and a page the build no longer has dropped.
+ * Every sum beside another build's (null: beside nothing): what it adds. A page the other build lacks counts from
+ * nothing; a page this build no longer has is said as gone, and adds nothing.
  */
-function bankOne(measured, was, raise, argued) {
-  if (typeof was !== "number") return raise ? measured : undefined;
-  if (typeof measured !== "number") return undefined;
-  if (typeof argued === "number") return was + argued;
-  return Math.min(was, measured);
+export function compareWith(sums, other) {
+  const pages = new Set([...Object.keys(sums.page ?? {}), ...Object.keys(other?.page ?? {})]);
+  return [...KINDS, ...[...pages].sort()].map((key) => {
+    const now = KINDS.includes(key) ? sums[key] : sums.page?.[key];
+    const base = KINDS.includes(key) ? other?.[key] : other?.page?.[key];
+    const gone = typeof now !== "number";
+    return { key, label: labelOf(key), base: base ?? 0, now: now ?? 0, growth: gone ? 0 : now - (base ?? 0), gone };
+  });
 }
 
+/** The rows a change grew past their line. */
+export const unargued = (rows) => rows.filter((r) => r.growth > lineOf(r.key));
+
 /**
- * The budget a bank writes after a build, from the sums measured and the budget (null when there is none): each sum
- * by `bankOne`, the ceiling kept as it was. A missing budget is seeded only by `raise` (null otherwise: write
- * nothing), as _ratchet.mjs's `bank` seeds one. Banking what was just banked changes nothing.
+ * Why the pull request grows what a page loads: a line of its description, `Bundle: <why>`, in a few words at least
+ * (marks of emphasis and a list's bullet around it are its own business); null where it says none.
  */
-export function bankBudget(sums, budget, { raise = false, argued = {} } = {}) {
-  if (!budget) return raise ? { js: sums.js, css: sums.css, page: { ...sums.page } } : null;
-  const out = {};
-  for (const k of KINDS) out[k] = bankOne(sums[k], budget[k], raise, argued[k]);
-  out.page = {};
-  for (const key of [...new Set([...Object.keys(budget.page ?? {}), ...Object.keys(sums.page ?? {})])].sort()) {
-    const n = bankOne(sums.page?.[key], budget.page?.[key], raise, argued.page?.[key]);
-    if (typeof n === "number") out.page[key] = n;
+export function reasonIn(body) {
+  const m = /^[ \t>*-]*\**Bundle:\**[ \t]*(.+?)[ \t]*$/im.exec(String(body ?? ""));
+  if (!m) return null;
+  const why = m[1].replace(/[*_`]/g, "").trim();
+  return why.length >= 12 ? why : null;
+}
+
+/** What the ceiling says of a build: the sums over it, and the sums within NEAR of it. */
+export function judge(sums, ceiling) {
+  const out = { over: [], near: [] };
+  for (const row of compareWith(sums, null)) {
+    const cap = KINDS.includes(row.key) ? ceiling?.[row.key] : ceiling?.page;
+    if (row.gone || typeof cap !== "number") continue;
+    if (row.now > cap) out.over.push({ ...row, ceiling: cap });
+    else if (row.now > cap * NEAR) out.near.push({ ...row, ceiling: cap });
   }
-  if (budget.ceiling) out.ceiling = { ...budget.ceiling };
   return out;
 }
 
-/**
- * The budget moved by numbers alone, with no build: a raise adds each growth argued (a key the budget does not name is
- * seeded at the number given), an update banks each sum as measured elsewhere, which is CI's summary.
- */
-export function moveBudget(budget, numbers, { raise }) {
-  const move = (was, n) => {
-    if (typeof was !== "number") return n;
-    return raise ? was + n : Math.min(was, n);
-  };
-  const out = { ...budget, page: { ...(budget.page ?? {}) } };
-  for (const k of KINDS) if (typeof numbers[k] === "number") out[k] = move(out[k], numbers[k]);
-  for (const [key, n] of Object.entries(numbers.page ?? {})) out.page[key] = move(out.page[key], n);
-  return out;
+/** A week of main, from two of its records: each sum beside the older one's, and the sums grown past WEEK_LINE. */
+export function weekOf(older, newer) {
+  const rows = compareWith(newer.sums, older.sums);
+  return { rows, past: rows.filter((r) => r.growth > lineOf(r.key, WEEK_LINE)) };
 }
 
-/** The numbers after a flag, `js=953 css=40 inbox=1557`: the route's by kind, `page=` the ceiling of each page, every other name a page's. */
+/** The numbers after a flag, `js=819200 css=163840 page=262144`. */
 export function numbersIn(args) {
-  const out = { page: {} };
+  const out = {};
   for (const a of args) {
-    const m = /^([A-Za-z][\w./-]*)=(\d+)$/.exec(a);
-    if (!m) continue;
-    if (KINDS.includes(m[1])) out[m[1]] = Number(m[2]);
-    else if (m[1] === "page") out.each = Number(m[2]);
-    else out.page[m[1]] = Number(m[2]);
+    const m = /^(js|css|page)=(\d+)$/.exec(a);
+    if (m) out[m[1]] = Number(m[2]);
   }
-  return out;
-}
-
-/* ----------------------------------- judging ----------------------------------- */
-
-/** Every sum beside the base's record: what this build adds, and what the budget was raised by for it. */
-export function compareWith(sums, budget, record) {
-  const rows = [];
-  const row = (key, label, now, base, was, wasBase) =>
-    rows.push({
-      key,
-      label,
-      base: base ?? 0,
-      now: now ?? 0,
-      growth: (now ?? 0) - (base ?? 0),
-      raised: (was ?? 0) - (wasBase ?? 0),
-    });
-  for (const k of KINDS) row(k, LABELS[k], sums[k], record.sums?.[k], budget?.[k], record.budget?.[k]);
-  const keys = new Set([...Object.keys(sums.page), ...Object.keys(record.sums?.page ?? {})]);
-  for (const key of [...keys].sort()) {
-    row(key, `page ${key}`, sums.page[key], record.sums?.page?.[key], budget?.page?.[key], record.budget?.page?.[key]);
-  }
-  return rows;
-}
-
-/** The rows a change grew by more than the tolerance beyond what it raised its budget by. */
-export const unargued = (rows) => rows.filter((r) => r.growth - r.raised > TOLERANCE);
-
-/**
- * What the budget says of a build's sums: rises past the drift, falls past the tolerance, sums over the ceiling, pages
- * the budget does not name, and budget pages the build no longer has.
- */
-export function judge(sums, budget) {
-  const out = { rose: [], fell: [], over: [], unnamed: [], gone: [] };
-  const one = (key, label, now, was, ceiling) => {
-    if (typeof was !== "number") {
-      out.unnamed.push(label);
-      return;
-    }
-    if (now > was + DRIFT) out.rose.push({ key, label, now, was });
-    else if (now < was - TOLERANCE) out.fell.push({ key, label, now, was });
-    if (typeof ceiling === "number" && now > ceiling) out.over.push({ key, label, now, ceiling });
-  };
-  for (const k of KINDS) one(k, LABELS[k], sums[k], budget[k], budget.ceiling?.[k]);
-  for (const [key, now] of Object.entries(sums.page))
-    one(key, `page ${key}`, now, budget.page?.[key], budget.ceiling?.page);
-  for (const key of Object.keys(budget.page ?? {})) if (!(key in sums.page)) out.gone.push(key);
   return out;
 }
 
@@ -318,7 +265,7 @@ export function judge(sums, budget) {
 const bytes = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const signed = (n) => (n >= 0 ? `+${bytes(n)}` : `-${bytes(-n)}`);
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
-const raiseCommand = (rows, by) => `${COMMAND} -- --raise ${rows.map((r) => `${r.key}=${by(r)}`).join(" ")}`;
+const share = (n, of) => `${Math.round((n / of) * 100)}%`;
 const sumLine = (label, m) =>
   `${label} ${bytes(m.gzip)} bytes gzipped (${kb(m.gzip)}; ${bytes(m.raw)} raw, ${m.files} files)`;
 
@@ -329,103 +276,98 @@ function describe(measured) {
 }
 
 function describeComparison({ record, rows, held, why }) {
-  if (!record) return `no record of the base to compare with (${why}): held to the budget alone.`;
-  const moved = rows.filter((r) => r.growth !== 0);
+  if (!record) return `no record of the base to compare with (${why}): held to the ceiling alone.`;
+  const moved = rows.filter((r) => r.growth !== 0 || r.gone);
   const head = held
     ? `against main's own build ${record.sha}, the base of this change:`
     : `against the record of ${record.sha} (${why}): compared, not held.`;
   const body = moved.length
-    ? moved.map((r) => `  ${r.label} ${signed(r.growth)} bytes gzipped (raised ${signed(r.raised)})`)
+    ? moved.map((r) => (r.gone ? `  ${r.label} is gone` : `  ${r.label} ${signed(r.growth)} bytes gzipped`))
     : ["  nothing moved"];
   return [head, ...body].join("\n");
 }
 
 const unarguedMessage = (rows, sha) =>
-  `this change grows what a page loads by more than the tolerance (${TOLERANCE} bytes gzipped) beyond what it raised, against main's own build ${sha}:\n` +
-  rows.map((r) => `  ${r.label} ${signed(r.growth)} bytes, raised ${signed(r.raised)}`).join("\n") +
-  `\n\nKeep it off the page (a dynamic import, a lighter module), or argue it by exactly that growth, with no build: ` +
-  `\`${raiseCommand(rows, (r) => r.growth - r.raised)}\`, in the same change as its row under "Rises" in docs/debt.md, with the reason in the pull request.`;
-
-/** A sum the budget does not name: seeded at what this build measured, by numbers, with its row. */
-function unnamedMessage(labels, sums, budget) {
-  const seeds = [
-    ...KINDS.filter((k) => typeof budget[k] !== "number").map((k) => `${k}=${sums[k]}`),
-    ...Object.entries(sums.page)
-      .filter(([key]) => typeof budget.page?.[key] !== "number")
-      .map(([key, n]) => `${key}=${n}`),
-  ];
-  return (
-    `the budget names no ${labels.join(", ")}: seed it at what this build measures, with no build, ` +
-    `\`${COMMAND} -- --raise ${seeds.join(" ")}\` (or \`${COMMAND} -- --raise\` after a build), in the same change as ` +
-    `its row under "Rises" in docs/debt.md.`
-  );
-}
+  `this change grows what a page loads past its line, against main's own build ${sha}:\n` +
+  rows.map((r) => `  ${r.label} ${signed(r.growth)} bytes gzipped (its line ${bytes(lineOf(r.key))})`).join("\n") +
+  `\n\nKeep it off the page's first load (a dynamic import, a lighter module), or say why in the pull request's ` +
+  `description, on a line of its own:\n\n  Bundle: <what grew it, and why it is worth what a visitor waits for>\n\n` +
+  `then run the job again: the description is read when the check runs. Nothing in the repository changes.`;
 
 const ceilingMessage = (rows) =>
-  `over the ceiling, which no row crosses:\n` +
+  `over the ceiling, which no pull request crosses:\n` +
   rows.map((r) => `  ${r.label} ${bytes(r.now)} bytes gzipped against ${bytes(r.ceiling)}`).join("\n") +
   `\n\nSplit what grew it, or load it where it is drawn. A ceiling moves only by a decision on what a visitor may wait for ` +
   `(docs/runbook.md, "See how fast the pages are"): \`${COMMAND} -- --ceiling js=<bytes> css=<bytes> page=<bytes>\`.`;
 
-function roseMessage(rows, compared) {
-  const list = rows
-    .map((r) => `  ${r.label} ${bytes(r.now)} bytes gzipped against a budget of ${bytes(r.was)}`)
-    .join("\n");
-  if (compared?.held) {
-    return (
-      `growth under the tolerance has summed past the drift (${DRIFT} bytes gzipped); none of it is this change's beyond what it raised:\n${list}\n\n` +
-      `Bank it with a row naming the merges since the budget was last set: \`${raiseCommand(rows, (r) => r.now - r.was)}\`.`
-    );
-  }
-  return (
-    `grew past its budget (${DRIFT} bytes gzipped over it):\n${list}\n\n` +
-    `Find what grew it and keep it off the page (a dynamic import, a lighter module). A growth argued is raised by the growth, ` +
-    `in bytes, which CI's summary says against main's own build: \`${COMMAND} -- --raise js=<bytes> css=<bytes> <page>=<bytes>\`, ` +
-    `in the same change as its row under "Rises" in docs/debt.md, with the reason in the pull request.`
-  );
-}
-
-function bankMessage(fell, gone) {
-  const lines = fell.map((r) => `  ${r.label} ${bytes(r.now)} bytes gzipped against a budget of ${bytes(r.was)}`);
-  for (const key of gone) lines.push(`  page ${key} is gone`);
-  const given = fell.map((r) => `${r.key}=${r.now}`).join(" ");
-  return (
-    `good, now bank it (${TOLERANCE} bytes gzipped under its budget, or a page gone):\n${lines.join("\n")}\n\n` +
-    `\`${COMMAND} -- --update\` after a build` +
-    (given && gone.length === 0
-      ? `, or with the numbers as measured, with no build: \`${COMMAND} -- --update ${given}\`.`
-      : ".")
-  );
-}
+const nearLines = (rows) =>
+  rows.map((r) => `  ${r.label} ${bytes(r.now)} of ${bytes(r.ceiling)} bytes gzipped (${share(r.now, r.ceiling)})`);
 
 /**
- * The job summary's table: every sum beside the base's, the budget and the ceiling. With no record of the base (none
- * found, or none asked for) the table still lists this build's sums: they are the numbers a raise or a bank takes.
+ * The job summary: every sum beside the base's, its line and its ceiling, what is near a ceiling, and the reason the
+ * pull request gave where it gave one. With no record of the base the table still lists this build's sums.
  */
-export function summaryOf({ measured, budget, compared }) {
-  const rows = compared?.record ? compared.rows : compareWith(sumsOf(measured), budget, { sums: null, budget: null });
-  const ceilingOf = (key) => (KINDS.includes(key) ? budget.ceiling?.[key] : budget.ceiling?.page);
+export function summaryOf({ measured, ceiling, compared, reason = null }) {
+  const sums = sumsOf(measured);
+  const rows = compared?.record ? compared.rows : compareWith(sums, null);
+  const capOf = (key) => (KINDS.includes(key) ? ceiling?.[key] : ceiling?.page);
   const cell = (n) => (typeof n === "number" ? bytes(n) : "");
   const header = compared?.record
     ? `Against main's own build \`${compared.record.sha}\`${compared.held ? "" : ` (${compared.why}: compared, not held)`}.`
-    : "No record of the base to compare with: held to the budget alone.";
+    : "No record of the base to compare with: held to the ceiling alone.";
   const table = [
-    "| | base | this build | change | budget | ceiling |",
+    "| | base | this build | change | line | ceiling |",
     "| --- | ---: | ---: | ---: | ---: | ---: |",
     ...rows.map((r) => {
-      const was = KINDS.includes(r.key) ? budget[r.key] : budget.page?.[r.key];
-      return `| ${r.label} | ${compared?.record ? cell(r.base) : ""} | ${bytes(r.now)} | ${compared?.record ? signed(r.growth) : ""} | ${cell(was)} | ${cell(ceilingOf(r.key))} |`;
+      const change = compared?.record ? (r.gone ? "gone" : signed(r.growth)) : "";
+      return `| ${r.label} | ${compared?.record ? cell(r.base) : ""} | ${r.gone ? "" : bytes(r.now)} | ${change} | ${bytes(lineOf(r.key))} | ${cell(capOf(r.key))} |`;
     }),
   ];
-  return `### What a workspace loads, gzipped bytes\n\n${header}\n\n${table.join("\n")}\n\n`;
+  const near = judge(sums, ceiling).near;
+  const notes = [
+    reason ? `The pull request says why it grows: ${reason}` : "",
+    near.length ? `Near a ceiling (over ${share(NEAR, 1)}):\n\n${nearLines(near).join("\n")}` : "",
+  ].filter(Boolean);
+  return `### What a workspace loads, gzipped bytes\n\n${header}\n\n${table.join("\n")}\n\n${notes.map((n) => `${n}\n\n`).join("")}`;
+}
+
+/** The weekly reading, as the issue says it: each sum's week, the ones past their line, and the merges between. */
+export function weekReport({ older, newer, week, commits = "" }) {
+  const lines = [
+    `### What a workspace loads: the week from \`${older.sha}\` to \`${newer.sha}\``,
+    "",
+    "| | a week before | now | grew | the week's line |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    ...week.rows.map(
+      (r) =>
+        `| ${r.label} | ${bytes(r.base)} | ${r.gone ? "gone" : bytes(r.now)} | ${r.gone ? "" : signed(r.growth)} | ${bytes(lineOf(r.key, WEEK_LINE))} |`,
+    ),
+    "",
+    week.past.length
+      ? `Grew past the week's line: ${week.past.map((r) => `${r.label} ${signed(r.growth)}`).join(", ")}. Each merge ` +
+        `below was under its own line; together they are what a visitor now waits for. Read what grew (the record's ` +
+        `\`files\` name each chunk), and keep it off the first load, or let it stand, here, on purpose.`
+      : "Nothing grew past the week's line.",
+  ];
+  if (commits.trim())
+    lines.push(
+      "",
+      "The merges of the week:",
+      "",
+      ...commits
+        .trim()
+        .split("\n")
+        .map((c) => `- ${c}`),
+    );
+  return lines.join("\n") + "\n";
 }
 
 /* ------------------------------------ main ------------------------------------ */
 
 function parseArgs(args) {
-  const value = (name) => {
+  const value = (name, at = 1) => {
     const i = args.indexOf(name);
-    return i >= 0 && args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : undefined;
+    return i >= 0 && args[i + at] && !args[i + at].startsWith("--") ? args[i + at] : undefined;
   };
   const resolved = (name, fallback) => (value(name) ? path.resolve(value(name)) : fallback);
   return {
@@ -434,74 +376,63 @@ function parseArgs(args) {
     record: resolved("--record"),
     against: resolved("--against"),
     summary: resolved("--summary"),
+    report: resolved("--report"),
+    commits: resolved("--commits"),
+    week: args.includes("--week") ? [value("--week", 1), value("--week", 2)] : null,
     base: value("--base"),
     sha: value("--sha") ?? process.env.GITHUB_SHA ?? "unknown",
-    update: args.includes("--update"),
-    raise: args.includes("--raise"),
     ceiling: args.includes("--ceiling"),
     numbers: numbersIn(args),
   };
 }
 
-const readBudget = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null);
-
-function writeBudget(file, budget) {
-  fs.writeFileSync(file, JSON.stringify(budget, null, 2) + "\n");
-  console.log(`budget written to ${path.relative(ROOT, file)}`);
-}
+const readJsonFile = (file) => (file && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null);
 
 function fail(message, code = 1) {
   console.error(message);
   process.exit(code);
 }
 
-const hasNumbers = (n) =>
-  KINDS.some((k) => typeof n[k] === "number") || typeof n.each === "number" || Object.keys(n.page).length > 0;
+/** A ceiling given its numbers: written beside the others, and no build is read. */
+function setCeiling(opts) {
+  if (Object.keys(opts.numbers).length === 0)
+    fail(`a ceiling says its numbers: ${COMMAND} -- --ceiling js=<bytes> css=<bytes> page=<bytes>`, 2);
+  const ceiling = { ...(readJsonFile(opts.baseline) ?? {}), ...opts.numbers };
+  fs.writeFileSync(opts.baseline, JSON.stringify(ceiling, null, 2) + "\n");
+  console.log(`ceiling written to ${path.relative(ROOT, opts.baseline)}`);
+}
 
-/** A raise, an update or a ceiling given its numbers: the budget moves by arithmetic, and no build is read. */
-function moveByNumbers(opts) {
-  const was = readBudget(opts.baseline);
-  if (!was) fail(`no budget at ${opts.baseline}: seed it with ${COMMAND} -- --raise after a build`, 2);
-  if (opts.ceiling) {
-    const given = {};
-    for (const k of KINDS) if (typeof opts.numbers[k] === "number") given[k] = opts.numbers[k];
-    if (typeof opts.numbers.each === "number") given.page = opts.numbers.each;
-    writeBudget(opts.baseline, { ...was, ceiling: { ...(was.ceiling ?? {}), ...given } });
-    return;
-  }
-  writeBudget(opts.baseline, moveBudget(was, opts.numbers, { raise: opts.raise }));
+/** The weekly reading: exit 3 when a sum grew past its line in the week, so the workflow keeps its issue open. */
+function readWeek(opts) {
+  const [olderFile, newerFile] = opts.week;
+  const older = readJsonFile(olderFile && path.resolve(olderFile));
+  const newer = readJsonFile(newerFile && path.resolve(newerFile));
+  if (!older || !newer) fail(`the week reads two records of main: --week <older> <newer>`, 2);
+  const week = weekOf(older, newer);
+  const commits = opts.commits && fs.existsSync(opts.commits) ? fs.readFileSync(opts.commits, "utf8") : "";
+  const report = weekReport({ older, newer, week, commits });
+  console.log(report);
+  if (opts.report) fs.writeFileSync(opts.report, report);
+  if (opts.summary) fs.appendFileSync(opts.summary, report);
+  if (week.past.length) process.exit(3);
 }
 
 /** The base's record read for `--against`: held only when it is the build of the commit this change stands on. */
-function comparison(opts, sums, budget) {
+function comparison(opts, sums) {
   if (!opts.against) return null;
   if (!fs.existsSync(opts.against))
     return { record: null, rows: [], held: false, why: "the base's record was not found" };
   const record = JSON.parse(fs.readFileSync(opts.against, "utf8"));
-  const rows = compareWith(sums, budget ?? {}, record);
+  const rows = compareWith(sums, record.sums);
   if (!opts.base) return { record, rows, held: false, why: "no base was named" };
   if (record.sha !== opts.base) return { record, rows, held: false, why: `the base is ${opts.base}` };
   return { record, rows, held: true, why: "" };
 }
 
-function bankAfterBuild(opts, sums) {
-  const was = readBudget(opts.baseline);
-  if (opts.raise && was && hasNumbers(opts.numbers)) {
-    return writeBudget(opts.baseline, moveBudget(was, opts.numbers, { raise: true }));
-  }
-  const banked = bankBudget(sums, was, { raise: opts.raise });
-  if (banked) writeBudget(opts.baseline, banked);
-}
-
 function main() {
   const opts = parseArgs(process.argv.slice(2));
-  if (opts.ceiling) {
-    if (!hasNumbers(opts.numbers))
-      fail(`a ceiling says its numbers: ${COMMAND} -- --ceiling js=<bytes> css=<bytes> page=<bytes>`, 2);
-    return moveByNumbers(opts);
-  }
-  const built = fs.existsSync(path.join(opts.next, "build-manifest.json"));
-  if ((opts.raise || opts.update) && hasNumbers(opts.numbers) && !built) return moveByNumbers(opts);
+  if (opts.week) return readWeek(opts);
+  if (opts.ceiling) return setCeiling(opts);
   let measured;
   try {
     measured = measureBuild(opts.next);
@@ -511,36 +442,34 @@ function main() {
   }
   const sums = sumsOf(measured);
   console.log(describe(measured));
-  if (opts.update || opts.raise) bankAfterBuild(opts, sums);
-  const budget = readBudget(opts.baseline);
-  if (!budget) fail(`no budget at ${opts.baseline}: seed it with ${COMMAND} -- --raise after a build`, 2);
+  const ceiling = readJsonFile(opts.baseline);
+  if (!ceiling) fail(`no ceiling at ${opts.baseline}: ${COMMAND} -- --ceiling js=<bytes> css=<bytes> page=<bytes>`, 2);
   if (opts.record) {
     fs.mkdirSync(path.dirname(opts.record), { recursive: true });
     fs.writeFileSync(
       opts.record,
-      JSON.stringify({ sha: opts.sha, at: new Date().toISOString(), sums, budget, files: measured.files }, null, 1) +
+      JSON.stringify({ sha: opts.sha, at: new Date().toISOString(), sums, ceiling, files: measured.files }, null, 1) +
         "\n",
     );
     console.log(`record of ${opts.sha} written to ${path.relative(ROOT, opts.record)}`);
   }
-  const compared = comparison(opts, sums, budget);
+  const compared = comparison(opts, sums);
   if (compared) console.log(describeComparison(compared));
-  if (opts.summary) fs.appendFileSync(opts.summary, summaryOf({ measured, budget, compared }));
-  const verdict = judge(sums, budget);
-  if (verdict.unnamed.length) fail(unnamedMessage(verdict.unnamed, sums, budget), 2);
+  const reason = reasonIn(process.env.PR_BODY);
+  if (opts.summary) fs.appendFileSync(opts.summary, summaryOf({ measured, ceiling, compared, reason }));
+  const verdict = judge(sums, ceiling);
+  const grown = compared?.held ? unargued(compared.rows) : [];
   const problems = [];
-  if (compared?.held && unargued(compared.rows).length)
-    problems.push(unarguedMessage(unargued(compared.rows), compared.record.sha));
+  if (grown.length && !reason) problems.push(unarguedMessage(grown, compared.record.sha));
   if (verdict.over.length) problems.push(ceilingMessage(verdict.over));
-  if (verdict.rose.length) problems.push(roseMessage(verdict.rose, compared));
-  if (verdict.fell.length || verdict.gone.length) problems.push(bankMessage(verdict.fell, verdict.gone));
+  if (verdict.near.length)
+    console.log(`near a ceiling (over ${share(NEAR, 1)}):\n${nearLines(verdict.near).join("\n")}`);
   if (problems.length) fail(problems.join("\n\n"), 1);
-  const held = [
-    `${LABELS.js} ${bytes(budget.js)}`,
-    `${LABELS.css} ${bytes(budget.css)}`,
-    `${Object.keys(budget.page ?? {}).length} pages`,
-  ];
-  console.log(`within its budget (${TOLERANCE} bytes under, ${DRIFT} over): ${held.join(", ")} gzipped`);
+  if (grown.length) console.log(`grown past its line, and the pull request says why: ${reason}`);
+  console.log(
+    `within its lines and under its ceilings (${LABELS.js} ${bytes(ceiling.js)}, ${LABELS.css} ${bytes(ceiling.css)}, ` +
+      `each page ${bytes(ceiling.page)} gzipped)`,
+  );
 }
 
 // Run as a script, not when a test imports its decisions.

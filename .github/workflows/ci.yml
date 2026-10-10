@@ -122,6 +122,11 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # The bundle check reads the pull request's description as it runs (below), so a re-run reads an edited one; the
+    # token reads nothing else.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       # Two commits deep: on a pull request the checkout is the merge commit GitHub tests, whose first parent is the
       # base, so HEAD^1..HEAD is what the pull request changes (the changed tests, below).
@@ -217,25 +222,23 @@ jobs:
           # build stops at /signup. Vercel builds with the real public values.
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-placeholder
-      # What a browser loads to open a workspace may only grow on purpose, and
-      # each change is held to what it adds (tooling/scripts/checks/bundle-budget.mjs,
-      # docs/debt.md). The build is deterministic to the byte, so the allowances
-      # are bytes, not a share: a 1% band filled with growth nobody argued (21
-      # merges of 5 Oct 2026, 6,238 bytes, no row) and the next change paid for
-      # them all.
+      # What a browser loads to open a workspace grows only on purpose
+      # (tooling/scripts/checks/bundle-budget.mjs). The build is deterministic to the byte.
       #
-      # A push to main records its measurement under its own sha, in the Actions
-      # cache. A pull request's checkout is the merge commit (fetch-depth 2
+      # A push to main records its measurement under its own sha: in the Actions
+      # cache, for the pull requests that stand on it, and as an artifact, for
+      # the weekly reading (bundle-week.yml), which compares main with main a week
+      # before. A pull request's checkout is the merge commit (fetch-depth 2
       # above), whose first parent is the main commit the change stands on: its
-      # record is the base, and the difference is what this change adds,
-      # whatever main carries. The restore falls back to the newest record when
-      # main's run for that commit has not saved yet (a pull request opened
-      # right after a merge), and the check then compares and says so, holding
-      # the change to the budget alone. The table lands in the job summary, in
-      # bytes: a raise or a bank takes those numbers, with no build on a laptop
-      # (`check:bundle -- --raise js=<bytes>`). The record is written before the
-      # verdict and saved whatever the verdict, so a main the check finds red is
-      # still the base its next change is held against.
+      # record is the base, and the difference is what this change adds, whatever
+      # main carries. A sum grown past its line fails until the description says
+      # why, in a line `Bundle: <why>`; the description is read here, as the step
+      # runs, so after editing it, run the job again. Nothing in the repository
+      # changes for it. The restore falls back to the newest record when main's
+      # run for that commit has not saved yet, and the check then compares and
+      # says so, holding the build to its ceiling alone. Every build, main's
+      # included, is held to the ceilings (baselines/bundle-ceiling.json). The
+      # record is written before the verdict and saved whatever the verdict.
       - name: The main commit this change stands on
         id: base
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
@@ -247,8 +250,19 @@ jobs:
           key: bundle-record-${{ steps.base.outputs.sha }}
           restore-keys: |
             bundle-record-
-      - if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-        run: pnpm check:bundle -- --against .bundle/record.json --base "${{ steps.base.outputs.sha }}" --summary "$GITHUB_STEP_SUMMARY"
+      - name: What this change adds to what a workspace loads
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          if [ -n "$PR" ]; then
+            PR_BODY="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
+            export PR_BODY
+          fi
+          pnpm check:bundle -- --against .bundle/record.json --base "$BASE" --summary "$GITHUB_STEP_SUMMARY"
       - if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         run: pnpm check:bundle -- --record .bundle/record.json --sha "${{ github.sha }}" --summary "$GITHUB_STEP_SUMMARY"
       - uses: actions/cache/save@v6
@@ -256,6 +270,12 @@ jobs:
         with:
           path: .bundle/record.json
           key: bundle-record-${{ github.sha }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && github.event_name == 'push' && hashFiles('.bundle/record.json') != '' }}
+        with:
+          name: bundle-record
+          path: .bundle/record.json
+          retention-days: 35
 
   # The node suite again, with the clock in Auckland (UTC+12, +13 in summer): a
   # rule that reads the viewer's zone instead of the workspace's gives the wrong

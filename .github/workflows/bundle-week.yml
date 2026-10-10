@@ -1,0 +1,96 @@
+name: What a workspace loads, week by week
+
+# Each change is held to what it adds past its line (ci.yml, tooling/scripts/checks/bundle-budget.mjs), so growth
+# under the line sums over merges unseen by any one of them. Once a week this reads main beside main a week before,
+# from the records every push to main keeps as an artifact, and a sum grown past its week's line keeps one issue open,
+# with the table and the merges of the week: the creep is read on a day, by whoever reads the issue, and no change
+# that happens to cross a line next pays for it. It changes nothing in the repository.
+on:
+  schedule:
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: bundle-week
+  cancel-in-progress: false
+
+jobs:
+  week:
+    name: Main beside main a week before
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The merges between the two records are read from history.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - id: records
+        name: Two records of main, a week apart
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push --limit 300 \
+            --json databaseId,createdAt > runs.json
+          # The newest run that kept a record, and the newest at least a week older that did: a run cancelled, or
+          # one from before the records were kept, has none, and the next one back is read instead.
+          first_record() {
+            for id in $(jq -r "$1" runs.json); do
+              if gh run download "$id" --repo "$GITHUB_REPOSITORY" -n bundle-record -D "$2" > /dev/null 2>&1; then
+                echo "$id"
+                return 0
+              fi
+            done
+            return 1
+          }
+          if ! first_record 'sort_by(.createdAt) | reverse | .[].databaseId' newer > /dev/null; then
+            echo "::notice title=Nothing read::no run of main kept a record yet."
+            echo "found=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! first_record "[.[] | select(.createdAt <= \"$since\")] | sort_by(.createdAt) | reverse | .[].databaseId" older > /dev/null; then
+            echo "::notice title=Nothing read::no record of main a week old yet (the records start with the first push that kept one)."
+            echo "found=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "found=yes" >> "$GITHUB_OUTPUT"
+      - id: week
+        if: steps.records.outputs.found == 'yes'
+        name: Read the week
+        shell: bash
+        run: |
+          set +e
+          older=$(jq -r .sha older/record.json)
+          newer=$(jq -r .sha newer/record.json)
+          git log --format='%h %s' "$older..$newer" > commits.txt
+          node tooling/scripts/checks/bundle-budget.mjs --week older/record.json newer/record.json \
+            --commits commits.txt --report week.md --summary "$GITHUB_STEP_SUMMARY"
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # 3 is a sum grown past its week's line; anything else but 0 is the reading itself failing.
+          [ "$code" -eq 0 ] || [ "$code" -eq 3 ]
+      - if: steps.week.outputs.code == '3'
+        name: Keep the week's issue open
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> week.md
+          title="What a workspace loads grew past the week's line"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -1)
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file week.md
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file week.md
+          fi
