@@ -46,15 +46,15 @@ function StateWords({ tone, words, testid }: { tone: "ok" | "warn" | "plain"; wo
 export const nodeGlyph = (s: LifecycleStage) => (s.waits ? "clock" : s.covered ? "check" : s.glyph);
 
 /**
- * A moment's bar, where it holds two or more (lane 2's `LifecycleBar`): on in the ok tone, waiting in the warn, paused at
- * rest in the strong hairline; never animated (the kit's Meter has no transition). It says to a screen reader what the
- * card's summary says ("3 campaigns · 2 on · 1 paused").
+ * A moment's bar, where it holds two or more (lane 2's `LifecycleBar`): on in the ok tone, waiting in the warn, paused in
+ * the Meter's rest; never animated (the kit's Meter has no transition). It says to a screen reader what the card's
+ * summary says ("3 campaigns · 2 on · 1 paused").
  */
 function StageBar({ bar, label }: { bar: LifecycleBar; label: string }) {
   const parts = [
     { share: bar.on, tone: "ok" as const },
     { share: bar.waiting, tone: "warn" as const },
-    { share: bar.paused, color: "var(--line-strong)" },
+    { share: bar.paused, tone: "rest" as const },
   ];
   return <Meter size="sm" className="cmh-stage-bar" parts={parts} aria-label={label} />;
 }

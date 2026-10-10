@@ -4823,14 +4823,18 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 /* A card's caps, figure, unit and summary are one press (rail.tsx Stage): a quiet button the width of the column, its
    words standing as they stood, that narrows the ledger to its moment. Chosen, it wears the kit's selected ground, and so
-   does the card under it. */
+   does the card under it. The words keep the page's own spacing, weight and tracking, not a button's: the kit's gap
+   between them made the rail 12 to 18px taller, and its weight set every word of the card in bold. */
 .cmh .cmh-stage-press {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 0;
   width: 100%;
   height: auto;
   padding: 0 0 var(--space-1);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-normal);
   white-space: normal;
 }
 .cmh-stage[data-chosen="true"] > .cmh-stage-press,
@@ -5138,6 +5142,8 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 .cmh-ledger {
   --cmh-tools-h: 52px;
+  /* A group's head at its tallest: its padding round its add, a small control (.cmh-group-head). */
+  --cmh-group-h: calc(var(--space-3) + var(--control-h-sm) + var(--space-1));
   display: grid;
   /* Sent's track shape (.bc-runs): every column but the act's may give way to nothing, so the grid never runs past the
      clipped pane and never clips a row's acts. The columns give way together, each by its share: a track with a fixed
@@ -5254,15 +5260,27 @@ div.tpl-slotbox:not([data-lines="1"]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* A row: 44px, a hairline between two, no zebra; the hover's grey, and the keys' cursor wearing it too. */
+/* A row: 44px, a hairline between two, no zebra; the hover's grey, and the keys' cursor wearing it too. A row that opens
+   nothing (the receptionist) wears no pointer and no hover. */
 .cmh-row + .cmh-row {
   border-top: 1px solid var(--line);
+}
+/* A row the keys walk to, or a campaign just made, is brought into view by the least scroll that shows it
+   (ledger-keys.ts): what sticks over it is its margin, the group's head and the tool line where there is one, so no row
+   stops under them. */
+.cmh-row {
+  scroll-margin-top: var(--cmh-group-h);
+}
+.cmh-ledger[data-tools="true"] .cmh-row {
+  scroll-margin-top: calc(var(--cmh-tools-h) + var(--cmh-group-h));
 }
 .cmh-row-line {
   align-items: center;
   box-sizing: border-box;
   min-height: 44px;
   padding: var(--space-1) 22px;
+}
+.cmh-row[data-opens="true"] > .cmh-row-line {
   cursor: pointer;
 }
 .cmh-row[data-cursor="true"] > .cmh-row-line {
@@ -5270,10 +5288,10 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 /* A pointer's hover alone: a touch screen keeps :hover on the last row tapped (memory reference_touch_hover_sticks). */
 @media (hover: hover) {
-  .cmh-row-line:hover {
+  .cmh-row[data-opens="true"] > .cmh-row-line:hover {
     background: var(--bg-hover);
   }
-  .cmh .cmh-row-name:hover {
+  .cmh a.cmh-row-name:hover {
     text-decoration: underline;
     text-underline-offset: 2px;
   }
@@ -5297,11 +5315,26 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-row-dot[data-tone="warn"] {
   background: var(--warn);
 }
-.cmh .cmh-row-name {
+/* A desk row's name, in the line's small size. A block, so a name longer than its column ends in an ellipsis: the kit's
+   link is a flex box, whose words are cut with none. */
+.cmh-row-what .cmh-row-name {
+  display: block;
   min-width: 0;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A phone row's name is the kit's list row's first line, in its size, weight and ink: the link it is takes them from the
+   line, never a quiet link's own small words; a block too, so a long name ends in an ellipsis. */
+.cmh-phone-line .cmh-row-name {
+  display: block;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
@@ -5357,6 +5390,20 @@ div.tpl-slotbox:not([data-lines="1"]) {
   border-top: 1px solid var(--line);
   font-size: var(--text-sm);
   color: var(--ink-dim);
+}
+/* Its door to Sent, and the ledger's Clear, are small words: under a finger each takes 44px from the line's padding round
+   it, as a tile's door does. */
+.cmh-once-open,
+.cmh-say-clear {
+  position: relative;
+}
+@media (pointer: coarse) {
+  .cmh-once-open::after,
+  .cmh-say-clear::after {
+    content: "";
+    position: absolute;
+    inset: -14px -8px;
+  }
 }
 /* A row decided where it stands (Approve, Skip, Resume) keeps its place and settles once: its next run arrives on the
    kit's own rise-in, as a record row's value does after its editor's save (kit.css, the save settle). */
@@ -5615,6 +5662,8 @@ div.tpl-slotbox:not([data-lines="1"]) {
    head its node on a line down the left that runs through its rows, the groups off the line after them. The pane is
    clipped, not hidden (the kit's flush panel hides), so the page's scroll is the one the strip sticks to. */
 .cmh .cmh-spine-block {
+  /* The strip's height: a thumb's 44px control, its padding and its hairline (.cmh-phone-strip). */
+  --cmh-strip-h: 53px;
   overflow: clip;
 }
 .cmh-meta {
@@ -5658,9 +5707,22 @@ div.tpl-slotbox:not([data-lines="1"]) {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: var(--cmh-strip-h);
   padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--line);
   background: var(--surface-pane-solid);
+}
+/* Under seven rows, a group the address names: said, with how many and its Clear, where the strip would stand, a thumb's
+   44px tall so Clear's press area stays inside it. */
+.cmh-phone-say {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 22px;
 }
 .cmh-phone-strip > :first-child {
   flex: 1 1 auto;
@@ -5710,10 +5772,14 @@ div.tpl-slotbox:not([data-lines="1"]) {
   position: relative;
   padding-left: calc(var(--space-3) + 28px);
 }
+/* A row brought into view (ledger-keys.ts) stops under the strip where the strip sticks, never beneath it. */
+.cmh-spine[data-tools="true"] .cmh-phone-row {
+  scroll-margin-top: var(--cmh-strip-h);
+}
 .cmh-phone-row + .cmh-phone-row {
   border-top: 1px solid var(--line);
 }
-.cmh-phone-line {
+.cmh-phone-row[data-opens="true"] > .cmh-phone-line {
   cursor: pointer;
 }
 .cmh-phone-row > .cmh-row-decide,

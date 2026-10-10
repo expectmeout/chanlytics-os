@@ -437,6 +437,39 @@ test("the keys' cursor and an arrival are brought into view, the least scroll th
   globalThis.document.querySelector = () => null;
 });
 
+test("a drawer opened from a moment's card gives the focus back to the card's name as it closes, never to the row", () => {
+  const ids = ["r1", "r2"];
+  const did = pageOf({ rows: ids });
+  const rowsOnly = globalThis.document.querySelector;
+  // The rail's cards: each moment's name, the door to its lead's drawer (rail.tsx Stage).
+  globalThis.document.querySelector = (sel) => {
+    const card = /data-stage="([^"]+)"\] \[data-row-open\]$/.exec(sel);
+    if (!card) return rowsOnly(sel);
+    return { focus: (o) => did.push(["focus", `card:${card[1]}`, o?.preventScroll === true ? "still" : "scrolls"]) };
+  };
+  fresh();
+  const fromCard = again(() => useFocusComesHome(null, ids));
+  fromCard("r2", "quiet");
+  again(() => useFocusComesHome("r2", ids));
+  again(() => useFocusComesHome(null, ids));
+  assert.deepEqual(did, [["focus", "card:quiet", "still"]], "the card that opened it, the page held still");
+  // A card noted for another campaign (its press opened a tab, and no drawer here) is not this drawer's opener.
+  did.length = 0;
+  fresh();
+  again(() => useFocusComesHome(null, ids))("r1", "before");
+  again(() => useFocusComesHome("r2", ids));
+  again(() => useFocusComesHome(null, ids));
+  assert.deepEqual(did, [["focus", "name:r2", "still"]], "the row it was opened from");
+  // A card's campaign the ledger does not show (narrowed to another moment): still the card.
+  did.length = 0;
+  fresh();
+  again(() => useFocusComesHome(null, ["r1"]))("r9", "after");
+  again(() => useFocusComesHome("r9", ["r1"]));
+  again(() => useFocusComesHome(null, ["r1"]));
+  assert.deepEqual(did, [["focus", "card:after", "still"]]);
+  globalThis.document.querySelector = () => null;
+});
+
 test("a row gone when its sheet closes gives the focus to the row now in its place, else the last row, else the search", () => {
   // Deleted: the row after it stands in its place now.
   let did = pageOf({ rows: ["r1", "r3"] });

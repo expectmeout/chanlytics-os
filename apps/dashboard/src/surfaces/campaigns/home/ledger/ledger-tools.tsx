@@ -47,8 +47,8 @@ function statusTabs(ledger: LifecycleLedger): SubTab[] {
   ];
 }
 
-/** How many are shown, and Clear where something narrows the list. */
-function ToolSay({ view, W }: { view: LedgerView; W: Words }) {
+/** How many are shown, and Clear where something narrows the list: the desk's tool line, and a phone's under seven rows. */
+export function ToolSay({ view, W }: { view: LedgerView; W: Words }) {
   const say = view.chosen ? W.showingIn(view.chosen.caps, view.shown, view.total) : W.showing(view.shown, view.total);
   return (
     <>
@@ -56,7 +56,8 @@ function ToolSay({ view, W }: { view: LedgerView; W: Words }) {
         {say}
       </span>
       {view.filtered ? (
-        <LinkButton onClick={view.clearAll} data-testid="cmh-ledger-clear">
+        // Small words: a thumb's 44px is the page's press area round them on a touch screen (campaigns.css).
+        <LinkButton onClick={view.clearAll} className="cmh-say-clear" data-testid="cmh-ledger-clear">
           {W.clear}
         </LinkButton>
       ) : null}
@@ -194,7 +195,8 @@ export function SentOnce({ ledger, acts }: { ledger: LifecycleLedger; acts: Ledg
     <p className="cmh-once" data-testid="cmh-sent-once">
       <span>{ledger.words.sentOnce.footer(once.n)}</span>
       {door ? (
-        <LinkButton {...door} data-testid="cmh-sent-once-open">
+        // Small words: a thumb's 44px is the page's press area round them on a touch screen (campaigns.css).
+        <LinkButton {...door} className="cmh-once-open" data-testid="cmh-sent-once-open">
           {ledger.words.sentOnce.open}
         </LinkButton>
       ) : null}

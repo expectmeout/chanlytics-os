@@ -85,6 +85,7 @@ export {
   LEDGER_STATUSES,
   isLedgerCampaign,
   ledgerOrder,
+  ledgerPeopleWords,
   ledgerPhoneLine,
   ledgerRowIn,
 } from "./lifecycle/lifecycle-ledger";

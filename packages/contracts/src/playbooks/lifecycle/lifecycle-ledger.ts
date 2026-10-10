@@ -635,6 +635,16 @@ export function ledgerOrder(by: LedgerSort): (a: LifecycleRow, b: LifecycleRow) 
 export function ledgerPhoneLine(r: LifecycleRow, caps: string): string {
   const dash = LIFECYCLE_WORDS.ledger.dash;
   const next = r.status === "waiting" || r.next.words === dash ? null : r.next.words;
-  const people = r.people.n === null ? null : `${r.people.n} ${r.people.unit}`;
-  return [caps, next, people].filter((p): p is string => !!p).join(" · ");
+  return [caps, next, ledgerPeopleWords(r.people)].filter((p): p is string => !!p).join(" · ");
+}
+
+/**
+ * Who is at a row's moment now, with what they are counted as: "1 person", "7 people", a moment's own unit as it says
+ * it ("3 this week"). Said one way on a phone's line and a desk's fold (ledger-row.tsx); null where nobody was counted,
+ * never a zero.
+ */
+export function ledgerPeopleWords(people: LifecycleRow["people"]): string | null {
+  if (people.n === null) return null;
+  if (people.unit === "people") return plural(people.n, "person", "people");
+  return `${people.n} ${people.unit}`.trim();
 }

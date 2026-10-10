@@ -7,6 +7,7 @@
  * when it goes next, warn where it waits and plain where paused; and its one act. 44px, a hairline between rows, no
  * zebra. Under 1000px of page the channels and the people fold under the name. Every word is the view model's.
  */
+import { ledgerPeopleWords } from "@chanlytics/contracts";
 import type { LifecycleLedger, LifecycleRow } from "@chanlytics/contracts";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
@@ -62,16 +63,22 @@ interface LedgerRowProps {
   mark: "settled" | "arrived" | null;
 }
 
+/** Whether a row's press opens something (its drawer, the Library, a run): the receptionist's opens nothing. */
+export const rowOpens = (r: LifecycleRow, acts: LedgerActs): boolean => !!r.open && acts.door(r.open) !== null;
+
 /** One row of the ledger, on a desk. */
 export function LedgerRow({ r, W, acts, cursor, mark }: LedgerRowProps) {
   const results = resultsWords(r, W);
   const people = peopleWords(r, W);
+  const counted = ledgerPeopleWords(r.people);
   return (
     <div
       className="cmh-row"
       data-row={r.id}
       data-kind={r.kind}
       data-state={r.status}
+      // A row that opens something wears a pointer and a hover (campaigns.css); one that opens nothing, neither.
+      data-opens={rowOpens(r, acts) ? "true" : undefined}
       data-cursor={cursor ? "true" : undefined}
       data-settled={mark === "settled" ? "true" : undefined}
       data-arrived={mark === "arrived" ? "true" : undefined}
@@ -84,10 +91,11 @@ export function LedgerRow({ r, W, acts, cursor, mark }: LedgerRowProps) {
           <RowName r={r} acts={acts} />
           {r.hint ? <span className="cmh-dim cmh-row-hint">{r.hint}</span> : null}
           {/* Under 1000px of page the two columns that leave stand here, under the name (campaigns.css): the people with
-              what they count, since no head says it there, and nothing where they were not counted. */}
-          <span className="cmh-row-fold" aria-hidden="true">
+              what they count, since no head says it there, and nothing where they were not counted. Above it the
+              stylesheet does not draw it, which keeps it from a screen reader too, so the columns are said once. */}
+          <span className="cmh-row-fold">
             <ChannelMarks marks={r.channels} />
-            {r.people.n === null ? null : <span className="tabular">{`${r.people.n} ${r.people.unit}`}</span>}
+            {counted === null ? null : <span className="tabular">{counted}</span>}
           </span>
         </div>
         <div className="cmh-row-by">

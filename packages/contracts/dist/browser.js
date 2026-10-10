@@ -28433,8 +28433,12 @@ function ledgerOrder(by) {
 function ledgerPhoneLine(r2, caps) {
   const dash = LIFECYCLE_WORDS.ledger.dash;
   const next = r2.status === "waiting" || r2.next.words === dash ? null : r2.next.words;
-  const people = r2.people.n === null ? null : `${r2.people.n} ${r2.people.unit}`;
-  return [caps, next, people].filter((p) => !!p).join(" \xB7 ");
+  return [caps, next, ledgerPeopleWords(r2.people)].filter((p) => !!p).join(" \xB7 ");
+}
+function ledgerPeopleWords(people) {
+  if (people.n === null) return null;
+  if (people.unit === "people") return plural(people.n, "person", "people");
+  return `${people.n} ${people.unit}`.trim();
 }
 
 // src/playbooks/lifecycle/lifecycle.ts
@@ -38427,6 +38431,7 @@ export {
   leadsRoute,
   leadsStanding,
   ledgerOrder,
+  ledgerPeopleWords,
   ledgerPhoneLine,
   ledgerRowIn,
   legacyErasedEmailHash,

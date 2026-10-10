@@ -40,8 +40,8 @@ import { TileRead } from "../tiles";
 import { AddAct, ResumePress, ResumeQuestion, WaitingActs, useResumeAsk } from "./ledger-acts";
 import type { LedgerActs } from "./ledger-acts";
 import type { RowMark } from "./ledger-keys";
-import { RowName, resultsWords } from "./ledger-row";
-import { SentOnce } from "./ledger-tools";
+import { RowName, resultsWords, rowOpens } from "./ledger-row";
+import { SentOnce, ToolSay } from "./ledger-tools";
 import type { LedgerView } from "./use-ledger-view";
 
 /** What the phone reads of the home. */
@@ -216,6 +216,7 @@ function PhoneRow({ r, g, W, acts, mark }: PhoneRowProps) {
       data-row={r.id}
       data-kind={r.kind}
       data-state={r.status}
+      data-opens={rowOpens(r, acts) ? "true" : undefined}
       data-settled={mark === "settled" ? "true" : undefined}
       data-arrived={mark === "arrived" ? "true" : undefined}
       data-testid="cmh-row"
@@ -283,7 +284,20 @@ export function LedgerPhone({ home, view, acts, mark, searchRef }: LedgerPhonePr
       <PhoneMeta home={home} />
       {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
       {ledger.tools ? <PhoneStrip ledger={ledger} view={view} searchRef={searchRef} /> : null}
-      <div ref={list} className="cmh-spine" aria-label={W.label} data-testid="cmh-ledger">
+      {/* Under seven rows no strip says what narrows the list: a group the address names (a card's door, the bell's
+          reach-out day) is said as the desk says it, with how many and its Clear. */}
+      {!ledger.tools && view.chosen ? (
+        <div className="cmh-phone-say">
+          <ToolSay view={view} W={W} />
+        </div>
+      ) : null}
+      <div
+        ref={list}
+        className="cmh-spine"
+        aria-label={W.label}
+        data-tools={ledger.tools ? "true" : undefined}
+        data-testid="cmh-ledger"
+      >
         {view.rows.length === 0 && view.filtered ? (
           <EmptyState
             kind="line"

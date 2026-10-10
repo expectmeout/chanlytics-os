@@ -19,8 +19,17 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boole
   type _Its = [
     Holds<Exactly<ComponentProps<typeof Meter>, MeterProps>>,
     Holds<Exactly<MeterProps["size"], "sm" | "md" | "lg" | undefined>>,
-    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "warn" | undefined>>,
+    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "warn" | "rest" | undefined>>,
   ];
+  // A part at rest: the strong hairline's colour, the kit's own, as the rest of the whole is drawn (a moment's paused share).
+  Meter({
+    parts: [
+      { share: 2, tone: "ok" },
+      { share: 1, tone: "rest" },
+    ],
+    size: "sm",
+    "aria-label": "2 on · 1 paused",
+  });
   Meter({ parts: [{ share: 12, color: "var(--color-whatsapp)" }], "aria-label": "12 WhatsApp" });
   Meter({
     parts: [

@@ -7,7 +7,8 @@
  * Escape in the search box), never with a modifier, never behind a menu or a sheet.
  *
  * Focus comes home: a sheet opened from a row gives it, as it closes, to that row's opener
- * (`[data-row="<id>"] [data-row-open]`), or where the row is gone to the row now in its place, the last row or the search:
+ * (`[data-row="<id>"] [data-row-open]`), one opened from a moment's card on the rail to the card's name, or where the row
+ * is gone to the row now in its place, the last row or the search:
  * the kit's Sheet would give it to what held it when it opened, which an Edit that swapped one sheet for another has
  * taken away. An act decided in a row leaves it on the row's name, since the button that held it is gone. No focus here
  * scrolls the page (a phone jumped to the row): only the cursor and an arrival bring a row into view, by the least scroll
@@ -159,8 +160,11 @@ export function useLedgerCursor(ids: readonly string[]): { cursor: string | null
   return { cursor: at, move };
 }
 
-/** The row a sheet was opened from: its id, and where it stood among the rows shown. */
-type CameFrom = { id: string; at: number };
+/**
+ * The row a sheet was opened from: its id, and where it stood among the rows shown; and the card it was opened from on
+ * the rail, where it was (its name's selector), which comes before the row.
+ */
+type CameFrom = { id: string; at: number; card: string | null };
 
 /** The search, or on a phone the circle that opens it: where focus goes when no row is left to take it. */
 const SEARCH_OR_CIRCLE = `[data-testid="${SEARCH_ID}"], [data-testid="cmh-phone-find"]`;
@@ -168,13 +172,19 @@ const SEARCH_OR_CIRCLE = `[data-testid="${SEARCH_ID}"], [data-testid="cmh-phone-
 /** A row's opener by its id, where the row is drawn and has one (the receptionist has none). */
 const openerOf = (id: string | undefined): HTMLElement | null => (id === undefined ? null : found(rowOpener(id)));
 
+/** A moment's card's name on the rail, by its moment (rail.tsx Stage): the door to its lead's drawer. */
+const cardOpener = (stage: string): string =>
+  `.cmh-stage[data-stage="${stage.replace(/["\\]/g, "\\$&")}"] [data-row-open]`;
+
 /**
- * Where focus comes home as a sheet closes: the row's own name; else, the row gone (deleted, or out of the tab), the name
- * of the row now in its place; else the last row's; else the search. Never the page's body, which sends the next Tab, and
- * a screen reader, back to the top of the page (legacy-verbs editorBox).
+ * Where focus comes home as a sheet closes: the card's name where a card opened it; else the row's own name; else, the
+ * row gone (deleted, or out of the tab), the name of the row now in its place; else the last row's; else the search.
+ * Never the page's body, which sends the next Tab, and a screen reader, back to the top of the page (legacy-verbs
+ * editorBox).
  */
 function homeOf(from: CameFrom, ids: readonly string[]): HTMLElement | null {
   return (
+    (from.card === null ? null : found(from.card)) ??
     openerOf(from.id) ??
     openerOf(ids[Math.min(from.at, ids.length - 1)]) ??
     openerOf(ids[ids.length - 1]) ??
@@ -184,25 +194,35 @@ function homeOf(from: CameFrom, ids: readonly string[]): HTMLElement | null {
 
 /**
  * The row a sheet was opened from gets the focus back as the sheet closes, the page held still. `open`: the row the open
- * sheet is about; `ids`: the rows the screen shows, in order. Only a sheet opened from a row shown here comes home: one
- * open as the page is first drawn (reached by its address: Today, the bell, a reload) was opened from no row the person
- * saw, and gives nothing back.
+ * sheet is about; `ids`: the rows the screen shows, in order. Only a sheet opened from a row shown here, or from a
+ * moment's card, comes home: one open as the page is first drawn (reached by its address: Today, the bell, a reload) was
+ * opened from nothing the person saw, and gives nothing back.
+ *
+ * It answers how a card says it opened the next drawer (`fromCard(id, stage)`, as its name is pressed): the drawer about
+ * that campaign then comes home to the card, never to the campaign's row in the ledger under it. A card noted for
+ * another campaign (its press opened a tab instead) is let go of by the next drawer.
  */
-export function useFocusComesHome(open: string | null, ids: readonly string[]): void {
+export function useFocusComesHome(open: string | null, ids: readonly string[]): (id: string, stage: string) => void {
   const was = useRef(open);
   const from = useRef<CameFrom | null>(null);
+  const card = useRef<{ id: string; stage: string } | null>(null);
   useEffect(() => {
     if (open === was.current) return;
     was.current = open;
     if (open !== null) {
       const at = ids.indexOf(open);
-      if (at >= 0) from.current = { id: open, at };
+      const by = card.current && card.current.id === open ? cardOpener(card.current.stage) : null;
+      card.current = null;
+      if (by !== null || at >= 0) from.current = { id: open, at, card: by };
       return;
     }
     const came = from.current;
     from.current = null;
     if (came) afterDraw(() => focusStill(homeOf(came, ids)));
   }, [open, ids]);
+  return (id, stage) => {
+    card.current = { id, stage };
+  };
 }
 
 /** What a row wears for its next draw: decided in place (it settles once), or arrived (scrolled to, washed once). */

@@ -606,3 +606,20 @@ test("a phone row says its moment, its next run and who is at it, in one line; a
   });
   assert.equal(C.ledgerPhoneLine(row(uncounted, "pb-r"), "Appointment tomorrow"), "Appointment tomorrow");
 });
+
+test("who is at a row's moment is said one way, on a phone's line and a desk's fold: one person is a person", () => {
+  assert.equal(C.ledgerPeopleWords({ n: 1, unit: "people" }), "1 person");
+  assert.equal(C.ledgerPeopleWords({ n: 7, unit: "people" }), "7 people");
+  assert.equal(C.ledgerPeopleWords({ n: 0, unit: "people" }), "0 people", "a zero counted is a zero");
+  assert.equal(C.ledgerPeopleWords({ n: 3, unit: "this week" }), "3 this week", "a moment's own unit as it says it");
+  assert.equal(C.ledgerPeopleWords({ n: null, unit: "people" }), null, "nobody counted: nothing said, never a 0");
+  const one = ledger({
+    playbooks: playbooks([
+      playbook({ id: "pb-v", name: "Reminder", trigger: "visit_tomorrow", named: { pool: 1, saidYes: 1 } }),
+    ]),
+  });
+  assert.equal(
+    C.ledgerPhoneLine(row(one, "pb-v"), "Appointment tomorrow"),
+    "Appointment tomorrow · tomorrow 10:00 AM · 1 person",
+  );
+});

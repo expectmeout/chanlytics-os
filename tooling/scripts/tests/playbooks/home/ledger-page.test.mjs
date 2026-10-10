@@ -18,6 +18,7 @@ import {
   classes,
   textOf,
   press,
+  remount,
 } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
@@ -384,7 +385,10 @@ test("under seven rows: no tool line, no heads, the rows in their groups, an emp
   );
   const once = byTestId(tree, "cmh-sent-once");
   assert.match(textOf(once), /Sent once · last 30 days · 3/);
-  press(byTestId(once, "cmh-sent-once-open"));
+  const sent = byTestId(once, "cmh-sent-once-open");
+  // Its words are small: the page's class gives it a thumb's 44px on a touch screen (campaigns.css), as a tile's door has.
+  assert.ok(classes(sent).includes("cmh-once-open"), "the door takes the page's press area");
+  press(sent);
   assert.deepEqual(went, ["broadcasts"], "a door to Sent");
 });
 
@@ -419,11 +423,36 @@ test("a row: its name a link to its drawer, the whole row its press, what came b
   );
   const receptionist = rows.find((r) => r.props["data-row"] === "receptionist");
   assert.equal(byTestId(receptionist, "cmh-row-open"), null, "the receptionist has no page to open");
+  // A row that opens something says so, for its pointer and its hover (campaigns.css); one that opens nothing wears neither.
+  assert.equal(a.props["data-opens"], "true");
+  assert.equal(call.props["data-opens"], "true", "a door to the Library opens a page too");
+  assert.equal(receptionist.props["data-opens"], undefined);
   // Turn on on an empty moment's head is a press; Reach-outs' add is a door to Leads.
   const heads = allBy(tree, "cmh-group-add");
   press(heads.find((n) => textOf(n).includes("Turn on")));
   assert.deepEqual(acts.did, ["turn_on"]);
   assert.equal(heads.find((n) => textOf(n).includes("Find businesses")).props.href, "/w/studio/clients/leads");
+});
+
+test("under 1000px the fold says the channels and who is at a row's moment, to a screen reader too; one person is a person", () => {
+  fresh();
+  const one = ledgerOf(
+    [
+      groupOf("before", [
+        rowOf("pb-a", { people: { n: 1, unit: "people" } }),
+        rowOf("pb-b", { people: { n: 7, unit: "people" } }),
+        rowOf("pb-c", { people: { n: null, unit: "people" } }),
+      ]),
+    ],
+    { tools: false },
+  );
+  const rows = allBy(drawLedger(one).draw(), "cmh-row");
+  const fold = (r) => find(r, (n) => n.props?.className === "cmh-row-fold");
+  // Above 1000px the stylesheet does not draw it, which hides it from a screen reader too; under, its columns leave.
+  assert.equal(fold(rows[0]).props["aria-hidden"], undefined, "the fold is the row's words where it is drawn");
+  assert.equal(textOf(fold(rows[0])), "1 person");
+  assert.equal(textOf(fold(rows[1])), "7 people");
+  assert.equal(textOf(fold(rows[2])), "", "nobody counted: nothing, never a 0");
 });
 
 test("a chain whose run waits opens that run from its row: its act is a door, as lane 2's view model says", () => {
@@ -628,6 +657,11 @@ test("a Meter stands only where a moment holds two or more; a paused moment offe
     [2, 0, 1],
     "on, waiting, paused",
   );
+  assert.deepEqual(
+    meter.props.parts.map((p) => p.tone ?? p.color),
+    ["ok", "warn", "rest"],
+    "paused at rest in the Meter's own tone, never a colour the page writes",
+  );
   assert.equal(meter.props["aria-label"], "3 campaigns · 2 on · 1 paused");
   assert.match(
     textOf(byTestId(card(tree, "quiet"), "cmh-stage-press")),
@@ -651,6 +685,38 @@ test("the rail holds the ledger under its moments, and its edges fade only where
   // Nothing measured (the stub has no ResizeObserver): nothing is said to overflow, so nothing fades.
   assert.equal(find(tree, (n) => n.props?.className === "cmh-rail").props["data-overflows"], undefined);
   assert.ok(byTestId(byTestId(tree, "cmh-rail"), "the-ledger"), "the ledger stands in the rail's pane");
+});
+
+test("the line of moments is measured as its pane resizes: wider than the pane, its edges fade; one that fits, none", () => {
+  const kept = globalThis.ResizeObserver;
+  // A browser's observer tells what it watches as it starts to watch it, and again as it resizes.
+  globalThis.ResizeObserver = class {
+    constructor(heard) {
+      this.heard = heard;
+    }
+    observe() {
+      this.heard([]);
+    }
+    disconnect() {}
+  };
+  try {
+    const five = ["first_contact", "before", "after", "proposal", "quiet"].map((id) => stageOf(id));
+    const draw = () => h(Rail, { home: railHome(five), acts: railActs() });
+    const lineOf = (tree) => find(tree, (n) => n.props?.className === "cmh-rail");
+    for (const [scrollWidth, fades] of [
+      [1400, "true"],
+      [801, undefined],
+    ]) {
+      fresh();
+      // The line as the browser laid it out, 800px of pane: the first draw has no element yet, so it is laid out after.
+      lineOf(again(draw)).props.ref.current = { scrollWidth, clientWidth: 800 };
+      // Its effects run again (React's own check in development does it): the line is measured now, and drawn by it.
+      remount(draw);
+      assert.equal(lineOf(again(draw)).props["data-overflows"], fades, `${scrollWidth}px of moments in 800`);
+    }
+  } finally {
+    globalThis.ResizeObserver = kept;
+  }
 });
 
 /* ------------------------------------------------------- the phone ------------------------------------------------------- */
@@ -735,18 +801,40 @@ test("past seven rows a strip of chips, one choice: a moment's chip narrows to i
 });
 
 test("the search its circle reveals waits for a tap on a touch screen, and is ready to type under a mouse", () => {
-  for (const coarse of [true, false]) {
-    fresh();
-    globalThis.matchMedia = (q) => ({
-      matches: coarse && q === "(pointer: coarse)",
-      addEventListener() {},
-      removeEventListener() {},
-    });
-    const { draw } = drawPhone(phoneHome(NINE()));
-    press(byTestId(draw(), "cmh-phone-find"));
-    const field = byTestId(byTestId(draw(), "cmh-phone-strip"), "cmh-ledger-search");
-    assert.equal(field.props.autoFocus, !coarse, coarse ? "no keyboard rises by itself" : "the box takes the keys");
+  const kept = globalThis.matchMedia;
+  try {
+    for (const coarse of [true, false]) {
+      fresh();
+      globalThis.matchMedia = (q) => ({
+        matches: coarse && q === "(pointer: coarse)",
+        addEventListener() {},
+        removeEventListener() {},
+      });
+      const { draw } = drawPhone(phoneHome(NINE()));
+      press(byTestId(draw(), "cmh-phone-find"));
+      const field = byTestId(byTestId(draw(), "cmh-phone-strip"), "cmh-ledger-search");
+      assert.equal(field.props.autoFocus, !coarse, coarse ? "no keyboard rises by itself" : "the box takes the keys");
+    }
+  } finally {
+    globalThis.matchMedia = kept;
   }
+});
+
+test("on a phone under seven rows a group the address names is said, with how many and Clear, in the desk's words", () => {
+  fresh();
+  const few = ledgerOf([groupOf("before", [rowOf("pb-a")]), groupOf("quiet", [rowOf("pb-c")])], { tools: false });
+  // The bell's reach-out day, a card's door: the address narrows the list, and no strip stands to say so.
+  const tree = drawPhone(phoneHome(few), { group: "quiet" }).draw();
+  assert.equal(byTestId(tree, "cmh-phone-strip"), null);
+  assert.equal(textOf(byTestId(tree, "cmh-ledger-say")), WORDS.showingIn("QUIET", 1, 2));
+  assert.deepEqual(
+    allBy(tree, "cmh-row").map((r) => r.props["data-row"]),
+    ["pb-c"],
+  );
+  press(byTestId(tree, "cmh-ledger-clear"));
+  assert.deepEqual(went, [["group", null]], "Clear lets go of the group");
+  fresh();
+  assert.equal(byTestId(drawPhone(phoneHome(few)).draw(), "cmh-ledger-say"), null, "nothing narrows it: nothing said");
 });
 
 test("each moment's head is its node on the line, an empty one with its Turn on; its rows under it wear their kind as a mark", () => {
@@ -779,6 +867,9 @@ test("each moment's head is its node on the line, an empty one with its Turn on;
   assert.ok(byTestId(b, "cmh-approve") && byTestId(b, "cmh-skip"), "Approve and Skip under a waiting row");
   const c = rows.find((r) => r.props["data-row"] === "pb-c");
   assert.doesNotMatch(String(find(c, (n) => n.type === ListRow).props.said), /\b0 people\b/, "nobody counted is no 0");
+  // A row that opens something wears a pointer (campaigns.css); the receptionist, which opens nothing, does not.
+  assert.equal(a.props["data-opens"], "true");
+  assert.equal(rows.find((r) => r.props["data-row"] === "receptionist").props["data-opens"], undefined);
 });
 
 test("a paused row's Resume stands at its end, and its question under the row, at the row's whole width", () => {
