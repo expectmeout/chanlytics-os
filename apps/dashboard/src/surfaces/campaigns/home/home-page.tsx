@@ -28,7 +28,7 @@ import { useCmPhone } from "../parts/split";
 import type { PlaybookCardVM } from "../playbooks/surface";
 import { ReachOutSheet } from "../reach-out/sheet";
 import { composeRoute, momentRoute, parseHome } from "./address";
-import { useLedgerOnScreen } from "./ask-on-campaigns";
+import { AskDoor, SetUpAsk, useLedgerOnScreen } from "./ask-on-campaigns";
 import type { HomeAddress } from "./address";
 import { MomentDrawer } from "./drawer";
 import { Ledger } from "./ledger/ledger";
@@ -76,7 +76,10 @@ function sentenceOf(home: LifecycleHome): ReactNode {
   );
 }
 
-/** The head's two acts: the Library, which is the Templates page now, and New message, the page's one primary act. */
+/**
+ * The head's acts: the Library, which is the Templates page now, Ask's door (ask-on-campaigns.tsx), and New message, the
+ * page's one primary act.
+ */
 function headActs(home: LifecycleHome, newMessage: () => void) {
   const { library } = home.head;
   return (
@@ -85,6 +88,7 @@ function headActs(home: LifecycleHome, newMessage: () => void) {
         <Icon name="content" size={13} /> <span className="cmh-library-word">{library.label}</span>
         {library.count !== null ? <span className="cmh-n tabular">{library.count}</span> : null}
       </Button>
+      <AskDoor />
       <Button
         variant="primary"
         size="sm"
@@ -301,6 +305,9 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
     onChoose: ledger.view.setGroup,
   };
   const ledgerActs: LedgerActs = { door, onAct, gated: acts.gated, approval };
+  // The first day (no campaign yet): "Set up my campaigns" beside the hinted Turn on, for a role that may approve what
+  // Ask proposes; the rail draws it on a desk and the phone's list where there is no rail.
+  const firstDayDoor = canAct && home.ledger.counts.all === 0 ? <SetUpAsk /> : null;
   const newMessage = () => nav.push(composeRoute("once"));
   // A change is pushed over the drawer that showed it, so Cancel, and Back, return to the detail.
   const changeAt = (id: string) => nav.push(composeRoute("every", { edit: id }));
@@ -319,13 +326,14 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
             acts={ledgerActs}
             mark={ledger.marks.mark}
             searchRef={ledger.searchRef}
+            firstDayDoor={firstDayDoor}
           />
           <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} />
           <ResultsBlock tile={home.results} failed={home.failed} onOpen={navigate} />
         </>
       ) : (
         <>
-          <Rail home={home} acts={acts}>
+          <Rail home={home} acts={acts} firstDayDoor={firstDayDoor}>
             <Ledger
               ledger={home.ledger}
               failed={home.failed}

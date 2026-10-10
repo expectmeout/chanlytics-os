@@ -1247,7 +1247,8 @@ test("on a phone the drawer's docked foot holds Pause, or Resume, when no run wa
   const menu = find(running, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""));
   assert.deepEqual(
     menu.props.groups[0].items.map((i) => i.label),
-    ["Edit", "Run now", "Delete…"],
+    // Ask about this campaign follows the menu's own act on a phone (the moment spec, A1: ask-on-campaigns.tsx).
+    ["Edit", "Ask about this campaign", "Run now", "Delete…"],
     "the foot holds Pause: the menu does not say it twice",
   );
   fresh();

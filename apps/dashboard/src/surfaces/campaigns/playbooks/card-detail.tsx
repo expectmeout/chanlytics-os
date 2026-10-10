@@ -33,6 +33,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
 import { bcRunOffer, bcWhenWords } from "../broadcasts/when-words";
+import { askAboutItem } from "../home/ask-on-campaigns";
 import { SentenceParts } from "../home/sentence";
 import { MessagePreview } from "../parts/message-preview";
 import { CmPane, useCmPhone } from "../parts/split";
@@ -566,8 +567,9 @@ function cardWaitActs(c: CardCtx) {
 
 /**
  * What a role that may change it does to it, at the head of its pane: Pause or Resume and Edit in words, and behind the
- * kit's menu the two that are pressed least and cost most -- Run now, and Delete, which asks first. They were five
- * buttons in a row under the card, the red Delete among them.
+ * kit's menu Ask about this campaign (the moment spec, A1: Ask on the drawer's own scope), then the two that are pressed
+ * least and cost most -- Run now, and Delete, which asks first. They were five buttons in a row under the card, the red
+ * Delete among them. A viewer asks from the shell's ✦, on the same scope.
  */
 function cardOwnActs(c: CardCtx, phone = false) {
   const { p, canAct, busy, sure, setSure, waiting, acts, onEdit } = c;
@@ -587,8 +589,10 @@ function cardOwnActs(c: CardCtx, phone = false) {
         { label: "Edit", glyph: <Icon name="pencil" size={13} />, disabled: busy, onSelect: () => onEdit(p) },
       ]
     : [];
+  // Ask first on a desk; on a phone after the menu's own acts, so its first item stays the act the drawer is for.
   const more: MenuItem[] = [
     ...words,
+    askAboutItem(),
     ...(p.state === "running" && !waiting
       ? [
           {

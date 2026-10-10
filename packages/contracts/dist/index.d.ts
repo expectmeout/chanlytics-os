@@ -25154,6 +25154,12 @@ declare const LIFECYCLE_WORDS: {
         /** What the drawer's head calls a campaign whose group the page does not hold. */
         readonly kicker: "Campaign";
     };
+    /** Ask's doors on the page (the moment spec, A1): the head's, the first day's sentence, and the drawer's More. */
+    readonly ask: {
+        readonly door: "Ask";
+        readonly setUp: "Set up my campaigns";
+        readonly about: "Ask about this campaign";
+    };
     readonly reach: {
         readonly title: "Who can hear you";
         readonly people: "In People";

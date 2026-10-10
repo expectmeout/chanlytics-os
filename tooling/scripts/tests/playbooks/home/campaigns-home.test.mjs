@@ -60,7 +60,10 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
-const { useLedgerOnScreen } = await import(`${SRC}/surfaces/campaigns/home/ask-on-campaigns.tsx`);
+const { askAboutItem, useLedgerOnScreen } = await import(`${SRC}/surfaces/campaigns/home/ask-on-campaigns.tsx`);
+const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
+const { Icon } = await import(`${SRC}/surfaces/kit/icon/icon.tsx`);
+const { Button } = await import(`${SRC}/surfaces/kit/button/button.tsx`);
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { playbooks: verbs } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
@@ -1523,4 +1526,94 @@ test("the page tells Ask the rows its ledger draws, in its order, under the grou
   check(page("in:quiet"), "playbooks:all:in:quiet");
   unmount();
   assert.equal(globalThis.window.__askOnScreen, null, "taken back when the ledger goes");
+});
+
+/* ------------------------------------------------- Ask's doors ------------------------------------------------- */
+
+test("Ask's doors on Campaigns (the moment spec, A1): Ask in the head between the Library and New message, wearing the three; the drawer's More asks about its campaign; the first day's 'Set up my campaigns' asks it", () => {
+  const asked = [];
+  const askWas = globalThis.askAbout;
+  globalThis.askAbout = (about) => asked.push(about);
+  try {
+    surfaces();
+    fresh();
+    page();
+    const head = headSaid();
+    const door = byTestId(head, "cmh-ask");
+    assert.ok(door, "the head's door");
+    assert.match(String(door.props.className), /\bcmh-ask\b/, "the class the phone's width hides");
+    assert.match(textOf(door), /Ask/);
+    assert.equal(find(door, (n) => n.type === Icon)?.props.name, "three", "it wears Ask's three");
+    // The kit's Button and what it draws carry the same testid: each door once, as the page drew it, a kit Button.
+    const acts = all(
+      head,
+      (n) => n.type === Button && ["cmh-library", "cmh-ask", "cmh-new"].includes(n.props?.["data-testid"]),
+    );
+    assert.deepEqual(
+      acts.map((n) => n.props["data-testid"]),
+      ["cmh-library", "cmh-ask", "cmh-new"],
+    );
+    pressed(door);
+    assert.deepEqual(asked.at(-1), {}, "Ask opens on the page, its scope the address's");
+    const item = askAboutItem();
+    assert.equal(item.label, "Ask about this campaign");
+    item.onSelect();
+    assert.deepEqual(asked.at(-1), {}, "on the drawer's address, its scope is the campaign");
+    // The drawer's More starts with it on a desk; on a phone it follows the menu's own acts (Pause or Resume, Edit).
+    const moreOf = (tree) =>
+      find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? "")).props.groups[0].items.map(
+        (i) => i.label,
+      );
+    fresh();
+    assert.equal(moreOf(page("moment:pb-sample-winback"))[0], "Ask about this campaign", "first on a desk");
+    globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const onPhone = moreOf(page("moment:pb-sample-winback"));
+    assert.equal(
+      onPhone[onPhone.indexOf("Edit") + 1],
+      "Ask about this campaign",
+      "after the drawer's own acts on a phone",
+    );
+    globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    // The first day: no campaign yet. "Set up my campaigns" stands beside the hinted Turn on and asks it as a sentence.
+    surfaces({ playbooks: { rows: [] } });
+    fresh();
+    const first = page();
+    const setUp = byTestId(first, "cmh-setup-ask");
+    assert.ok(setUp, "beside the first day's Turn on");
+    const hinted = allBy(first, "cmh-stage").find((s) => s.props["data-hint"] === "true");
+    assert.ok(byTestId(hinted, "cmh-setup-ask"), "in the hinted moment, after its Turn on");
+    assert.equal(allBy(first, "cmh-setup-ask").filter((n) => n.type === Button).length, 1, "one door");
+    pressed(setUp);
+    assert.deepEqual(asked.at(-1), { prompt: "Set up my campaigns" });
+    // A new workspace's quietest day, nobody yet to reach at any moment, hints no Turn on: the door stands by the first.
+    const nobody = (n) => ({ candidates: 0, held: 0, pool: n, noYes: 0, stopped: 0, noNumber: 0, saidYes: n });
+    surfaces({ playbooks: { rows: [] }, pools: { visit_tomorrow: nobody(3), visited: nobody(2) } });
+    fresh();
+    const quiet = page();
+    assert.equal(allBy(quiet, "cmh-stage").filter((s) => s.props["data-hint"] === "true").length, 0, "no hint");
+    const firstOff = allBy(quiet, "cmh-stage").find((s) => byTestId(s, "cmh-turn-on"));
+    assert.ok(byTestId(firstOff, "cmh-setup-ask"), "beside the first Turn on");
+    // On a phone (≤900px, no rail): the same door, under the hinted moment's Turn on, with its mark and its words.
+    surfaces({ playbooks: { rows: [] } });
+    globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const phone = page();
+    const onPhoneDoor = byTestId(phone, "cmh-setup-ask");
+    assert.ok(onPhoneDoor, "the phone's first day has its door too");
+    assert.match(textOf(onPhoneDoor), /Set up my campaigns/);
+    assert.equal(find(onPhoneDoor, (n) => n.type === Icon)?.props.name, "three", "its mark, never a bare glyph");
+    const hintedGroup = allBy(phone, "cmh-group").find((g) => byTestId(g, "cmh-group-head")?.props["data-hint"]);
+    assert.ok(byTestId(hintedGroup, "cmh-setup-ask"), "under the hinted moment's Turn on");
+    globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    surfaces();
+    fresh();
+    assert.equal(
+      byTestId(page(), "cmh-setup-ask"),
+      null,
+      "a workspace with campaigns has its ledger, not the first day's door",
+    );
+  } finally {
+    globalThis.askAbout = askWas;
+  }
 });

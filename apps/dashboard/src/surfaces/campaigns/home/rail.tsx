@@ -32,6 +32,16 @@ export interface RailActs {
   onChoose: (group: string | null) => void;
 }
 
+/**
+ * The moment the first day's door stands in (Ask's "Set up my campaigns", the moment spec A1): the one whose Turn on is
+ * hinted, and where no moment has anyone to reach yet, the first Turn on, so the door is never left out on a new
+ * workspace's quietest day. The desk's rail and the phone's list read it alike.
+ */
+export function firstDayStage(stages: readonly LifecycleStage[]): string | null {
+  const offs = stages.filter((s) => s.state === "off" && s.act?.kind === "turn_on");
+  return (offs.find((s) => s.hint) ?? offs[0])?.id ?? null;
+}
+
 /** A state as a pill, in the tone the view model gave it. */
 function StateWords({ tone, words, testid }: { tone: "ok" | "warn" | "plain"; words: string; testid?: string }) {
   return <StatePill kind="tone" value={tone} label={words} testid={testid} />;
@@ -100,6 +110,8 @@ interface StageProps {
   resume: ResumeOf | null;
   /** What a cell says where nobody counted: the ledger's own word for it, never a dash typed here. */
   dash: string;
+  /** The first day's door, drawn after this moment's Turn on (firstDayStage); null on every other moment and day. */
+  firstDayDoor?: ReactNode;
 }
 
 /**
@@ -107,7 +119,7 @@ interface StageProps {
  * narrows the ledger to the moment, and lets go pressed again (decision 12: the body filters, the name opens). The
  * lead's name, the door to its drawer, and Turn on stand beside it, never inside it: a button holds no button.
  */
-function Stage({ s, acts, resume, dash }: StageProps) {
+function Stage({ s, acts, resume, dash, firstDayDoor = null }: StageProps) {
   const chosen = acts.chosen === s.id;
   // The name is a door where the moment's act opens something: its lead's drawer, or, for a moment of the appointment
   // with no calendar ("Needs your calendar", decision 44), the calendar's setting.
@@ -153,6 +165,7 @@ function Stage({ s, acts, resume, dash }: StageProps) {
           <span className="cmh-moment-name">{s.name}</span>
         )}
         {momentFoot(s, acts, resume)}
+        {firstDayDoor}
         {s.bar ? <StageBar bar={s.bar} label={s.summary ?? s.stateWords} /> : null}
         <ChannelMarks marks={s.channels} testid="cmh-chans" />
         <span className="cmh-needs" data-needs={s.needs}>
@@ -183,13 +196,22 @@ function useOverflows<T extends HTMLElement>(count: number): [RefObject<T | null
   return [ref, over];
 }
 
+interface RailProps {
+  home: LifecycleHome;
+  acts: RailActs;
+  /** The first day's door (home-page.tsx), a slot the rail draws after the hinted Turn on; it never imports Ask. */
+  firstDayDoor?: ReactNode;
+  children?: ReactNode;
+}
+
 /**
  * The desk's rail, and the ledger under it in the same pane (`children`, home-page.tsx). Under 1100px of page it keeps
  * one line and scrolls across (J3, campaigns.css), its edges fading while it is wider than the pane.
  */
-export function Rail({ home, acts, children }: { home: LifecycleHome; acts: RailActs; children?: ReactNode }) {
+export function Rail({ home, acts, firstDayDoor = null, children }: RailProps) {
   const { rail } = home;
   const [line, overflows] = useOverflows<HTMLOListElement>(rail.stages.length);
+  const doorAt = firstDayDoor ? firstDayStage(rail.stages) : null;
   if (rail.stages.length === 0 && !children) return null;
   return (
     <Panel
@@ -217,7 +239,14 @@ export function Rail({ home, acts, children }: { home: LifecycleHome; acts: Rail
           data-own-drag
         >
           {rail.stages.map((s) => (
-            <Stage key={s.id} s={s} acts={acts} resume={leadResume(home, s)} dash={home.ledger.words.dash} />
+            <Stage
+              key={s.id}
+              s={s}
+              acts={acts}
+              resume={leadResume(home, s)}
+              dash={home.ledger.words.dash}
+              firstDayDoor={s.id === doorAt ? firstDayDoor : null}
+            />
           ))}
         </ol>
       ) : null}

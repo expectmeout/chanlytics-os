@@ -5104,8 +5104,10 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 
 /* A Turn on that carries its hint ("Turn on · 3 tomorrow") is wider than a column of five: it wraps inside the moment's card
-   rather than run out of it (the kit's button keeps its words on one line, so the page's placement class lets them wrap). */
-.cmh .cmh-turn-on {
+   rather than run out of it (the kit's button keeps its words on one line, so the page's placement class lets them wrap).
+   The first day's "Set up my campaigns" under it in the same card wraps the same way. */
+.cmh .cmh-turn-on,
+.cmh .cmh-first-ask {
   box-sizing: border-box;
   max-width: 100%;
   height: auto;
@@ -5905,6 +5907,23 @@ div.tpl-slotbox:not([data-lines="1"]) {
     background: var(--selected-fill);
     color: var(--ink);
   }
+}
+/* Ask's door in the head stands from 721px up (the Leads finder's band rule): under it the shell's ✦ is Ask's door. By the
+   width, as the Library's word is, since in Glass the act stands in the frame's head, outside .cmh; on the element, so the
+   kit's own display never outranks it whichever sheet comes last. */
+@media (max-width: 720px) {
+  button.cmh-ask {
+    display: none;
+  }
+}
+/* The first day's "Set up my campaigns" on a phone (home/ask-on-campaigns.tsx SetUpAsk): under the hinted moment's head, at
+   the list's width past its line, as a row's acts stand under it; the kit's touch floor gives it its 44px. */
+.cmh-first-ask-row {
+  display: flex;
+  padding: 0 var(--space-3) var(--space-2) calc(var(--space-3) + 28px);
+}
+.cmh-first-ask-row > .cmh-first-ask {
+  flex: 1 1 auto;
 }
 
 /* A moment and the composer, in the kit's sheet from the side (home/pane-sheet.tsx). The pane is the page's own CmPane and

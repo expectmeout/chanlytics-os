@@ -196,6 +196,12 @@ export const LIFECYCLE_WORDS = {
     /** What the drawer's head calls a campaign whose group the page does not hold. */
     kicker: "Campaign",
   },
+  /** Ask's doors on the page (the moment spec, A1): the head's, the first day's sentence, and the drawer's More. */
+  ask: {
+    door: "Ask",
+    setUp: "Set up my campaigns",
+    about: "Ask about this campaign",
+  },
   reach: {
     title: "Who can hear you",
     people: "In People",

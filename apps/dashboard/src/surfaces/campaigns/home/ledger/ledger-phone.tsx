@@ -11,7 +11,7 @@
  * scrolls across under a thumb and walks no view. Every word is the view model's.
  */
 import { useState } from "react";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { LIFECYCLE_WORDS, ledgerPhoneLine } from "@chanlytics/contracts";
 import type {
   LifecycleGroup,
@@ -35,7 +35,7 @@ import { editorBox, focusAsDrawn, routeDoor } from "../../../legacy-verbs";
 import { ChannelMarks, ChannelsLine } from "../../parts/channels-line";
 import { CmDot, cmRowPress } from "../../parts/head";
 import { HomeFailed } from "../failed";
-import { nodeGlyph } from "../rail";
+import { firstDayStage, nodeGlyph } from "../rail";
 import { TileRead } from "../tiles";
 import { AddAct, ResumePress, ResumeQuestion, WaitingActs, useResumeAsk } from "./ledger-acts";
 import type { LedgerActs } from "./ledger-acts";
@@ -264,12 +264,18 @@ interface LedgerPhoneProps {
   acts: LedgerActs;
   mark: RowMark;
   searchRef: RefObject<HTMLInputElement | null>;
+  /**
+   * The first day's door (home-page.tsx), a slot drawn under the hinted moment's Turn on at the list's width, where
+   * there is no rail; the list never imports Ask.
+   */
+  firstDayDoor?: ReactNode;
 }
 
 /** The phone's list: the Moments head and its meta line, the strip past seven rows, the groups on the journey's line. */
-export function LedgerPhone({ home, view, acts, mark, searchRef }: LedgerPhoneProps) {
+export function LedgerPhone({ home, view, acts, mark, searchRef, firstDayDoor = null }: LedgerPhoneProps) {
   const ledger = home.ledger;
   const W = ledger.words;
+  const doorAt = firstDayDoor ? firstDayStage(home.rail.stages) : null;
   const list = useSwapMotion<HTMLDivElement>(`${view.status}|${view.group ?? ""}`, ".cmh-group");
   const stageOf = (id: string) => home.rail.stages.find((s) => s.id === id) ?? null;
   const markOf = (id: string) => (mark && mark.id === id ? mark.kind : null);
@@ -323,6 +329,7 @@ export function LedgerPhone({ home, view, acts, mark, searchRef }: LedgerPhonePr
             data-testid="cmh-group"
           >
             <PhoneHead g={g} stage={stageOf(g.id)} acts={acts} W={W} />
+            {g.id === doorAt ? <div className="cmh-first-ask-row">{firstDayDoor}</div> : null}
             {g.rows.map((r) => (
               <PhoneRow
                 key={markOf(r.id) === "arrived" ? `${r.id}:arrived` : r.id}
