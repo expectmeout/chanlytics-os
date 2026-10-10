@@ -153,7 +153,9 @@ export const LIFECYCLE_WORDS = {
     resume: {
       label: "Resume",
       question: (name: string): string => `Resume ${name}?`,
-      detail: (when: string, n: number): string => `Next run ${when}, about ${plural(n, "person", "people")}`,
+      /** When, and to about how many; when alone where the moment could not be counted (null), never "about 0". */
+      detail: (when: string, n: number | null): string =>
+        n === null ? `Next run ${when}` : `Next run ${when}, about ${plural(n, "person", "people")}`,
       chain: "Its next emails go out on its next run.",
       /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
       auto: "It sends on its own: nothing will wait for your approval.",

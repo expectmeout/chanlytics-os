@@ -9362,7 +9362,8 @@ var LIFECYCLE_WORDS = {
     resume: {
       label: "Resume",
       question: (name) => `Resume ${name}?`,
-      detail: (when, n) => `Next run ${when}, about ${plural(n, "person", "people")}`,
+      /** When, and to about how many; when alone where the moment could not be counted (null), never "about 0". */
+      detail: (when, n) => n === null ? `Next run ${when}` : `Next run ${when}, about ${plural(n, "person", "people")}`,
       chain: "Its next emails go out on its next run.",
       /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
       auto: "It sends on its own: nothing will wait for your approval.",
@@ -27684,10 +27685,16 @@ function nextRunLine(p, nowMs, tz) {
   const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
   return { day: word, at: clockHour(next.hour), atMs };
 }
+function runCapOf(p) {
+  return triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+}
 function nextShare(p) {
   const all = p.candidates ?? 0;
-  const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+  const cap = runCapOf(p);
   return cap > 0 ? Math.min(all, cap) : all;
+}
+function workspacePausedOf(input) {
+  return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
 function whoWill(p) {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
@@ -27696,7 +27703,7 @@ function whoWill(p) {
   switch (reach) {
     case "sends": {
       const all = p.candidates ?? 0;
-      const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : p.cap_per_run ?? 0;
+      const cap = runCapOf(p);
       const next = nextShare(p);
       const later = all - next;
       return {
@@ -27808,7 +27815,7 @@ function lifecycleComing(input, stages, defs) {
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
   const playbookOf = (id) => playbooks.rows.find((p) => p.id === id);
-  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
+  const paused = workspacePausedOf(input);
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => {
     const p = playbookOf(r2.playbook_id);
@@ -27988,7 +27995,7 @@ function rowWaitingOf(p, at3) {
   const id = p.totals.waiting?.id;
   const run = id ? at3.input.broadcasts?.rows.find((r2) => r2.id === id) : void 0;
   if (!run) return null;
-  const offer = waitingOffer(run, at3.input, { paused: readyOf(at3.input)?.paused === true, known: true });
+  const offer = waitingOffer(run, at3.input, { paused: workspacePausedOf(at3.input), known: true });
   if (offer.kind === "open") return null;
   return { runId: run.id, people: run.recipient_count, refusal: offer.kind === "skip" ? offer.why : null };
 }
@@ -27998,11 +28005,11 @@ function resumeOf(p, input) {
     { ...p, state: "running" },
     input.tz,
     new Date(input.nowMs),
-    readyOf(input)?.paused === true
+    workspacePausedOf(input)
   );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
   const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto";
-  const detail = W.detail(when, nextShare(p));
+  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
   return {
     kind: "resume",
     label: W.label,
@@ -28028,7 +28035,7 @@ function playbookRow(p, at3) {
     needs: needs2,
     needsWords: LIFECYCLE_WORDS.needs[needs2],
     channels: channelMarksOf(p, at3.playbooks.templates, at3.ready),
-    people: { n: p.named ? p.named.pool : null, unit: at3.unit },
+    people: { n: at3.counted && p.named ? p.named.pool : null, unit: at3.unit },
     results: sentResultsOf(p.id, at3.input.report),
     next: rowNextOf(p, status, at3.input),
     open: { kind: "open", label: "Open", playbookId: p.id },
@@ -28195,7 +28202,7 @@ function journeyGroup(def, stage, at3) {
   const own = stagePlaybooks(def, at3.playbooks.rows);
   const lead = own.find((p) => p.id === stage.playbookId);
   const ordered = lead ? [lead, ...own.filter((p) => p !== lead)] : own;
-  const each = { ...at3, caps: def.caps, unit: def.unit };
+  const each = { ...at3, caps: def.caps, unit: def.unit, counted: !def.unmet };
   const rows2 = [
     ...def.kind === "receptionist" ? [receptionistRow(stage), callTextRow(at3.input.library, def.caps)] : [],
     ...ordered.map((p) => playbookRow(p, each))
@@ -28211,7 +28218,7 @@ function journeyGroup(def, stage, at3) {
 }
 function listsGroup(at3, onStage) {
   const caps = LIFECYCLE_WORDS.ledger.groups.lists;
-  const each = { ...at3, caps, unit: "people" };
+  const each = { ...at3, caps, unit: "people", counted: true };
   const offered = (id) => at3.playbooks.triggers.some((t) => t.id === id && t.offered);
   const offers = at3.playbooks.rows.filter((p) => p.trigger === "everyone_monthly");
   const rest = at3.playbooks.rows.filter((p) => p.trigger !== "everyone_monthly" && !onStage.has(p.id));
@@ -28230,12 +28237,13 @@ function listsGroup(at3, onStage) {
 }
 function reachOutGroup(at3) {
   const caps = LIFECYCLE_WORDS.ledger.groups.reach_out;
-  const rows2 = (at3.input.reachOuts ?? []).map((c) => chainRow(c, { input: at3.input, ready: at3.ready, caps }));
+  const chains = at3.input.reachOuts;
+  const rows2 = (chains ?? []).map((c) => chainRow(c, { input: at3.input, ready: at3.ready, caps }));
   return {
     id: "reach_out",
     caps,
     glyph: "send",
-    meta: groupMetaOf(rows2, LIFECYCLE_WORDS.ledger.none),
+    meta: chains ? groupMetaOf(rows2, LIFECYCLE_WORDS.ledger.none) : LIFECYCLE_WORDS.ledger.dash,
     rows: rows2,
     add: { kind: "route", label: LIFECYCLE_WORDS.ledger.findBusinesses, route: LEADS_ROUTE }
   };

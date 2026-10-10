@@ -220,6 +220,18 @@ test("the month's offer not offered here is no row, and the chains a read could 
     route: "clients/leads",
   });
   assert.equal(failed.failed.chains.surface, "reach_outs", "the page says the read failed, with its Retry");
+  // Its line says nothing of chains it could not see, unread or failed: "—", never "No campaign yet".
+  for (const [what, reachOuts] of [
+    ["failed", null],
+    ["unread", undefined],
+  ])
+    assert.equal(
+      group(ledger({ reachOuts }), "reach_out").meta,
+      "—",
+      `${what}: REGRESSION: the group said No campaign yet beside its couldn't-read notice`,
+    );
+  assert.equal(group(ledger({ reachOuts: [] }), "reach_out").meta, "No campaign yet", "read, and none: said");
+  assert.equal(group(ledger({ reachOuts: [chain("ro-1")] }), "reach_out").meta, "1 campaign · 1 on");
 });
 
 test("three campaigns on one moment: all in its group, the stage's lead first, the group saying how they stand", () => {
@@ -271,6 +283,48 @@ test("Resume under auto says in full that it sends on its own (decision 7); unde
   );
   assert.equal(detail({ reengage: "ask" }), "Next run tomorrow 10:00 AM, about 4 people");
   assert.equal(detail(null), "Next run tomorrow 10:00 AM, about 4 people", "unread: the mode is not guessed");
+  // A moment that could not be counted: when alone, never "about 0 people" nobody counted.
+  const uncounted = [playbook({ id: "pb-u", state: "paused", next: "paused", candidates: null, named: null })];
+  assert.equal(
+    row(ledger({ playbooks: playbooks(uncounted) }), "pb-u").act.ask.detail,
+    "Next run tomorrow 10:00 AM",
+    "REGRESSION: the question said about 0 people of a moment the server could not count",
+  );
+  assert.equal(
+    C.LIFECYCLE_WORDS.ledger.resume.detail("tomorrow 10:00 AM", 0),
+    "Next run tomorrow 10:00 AM, about 0 people",
+  );
+});
+
+test("a workspace paused is one reading: a row and Coming up's line refuse the same run, whichever surface says it", () => {
+  const open = { ready: true, why: null };
+  const ready = (paused) => ({ whatsapp: open, sms: open, email: open, paused });
+  const rows = [playbook({ id: "pb-w", totals: { waiting: { id: "r-1", recipient_count: 7 } } })];
+  for (const [what, pbPaused, bcPaused] of [
+    ["the broadcasts' readiness alone", false, true],
+    ["the playbooks' readiness alone", true, false],
+  ]) {
+    const home = C.campaignsHomeOf(
+      input({
+        playbooks: playbooks(rows, { ready: ready(pbPaused) }),
+        broadcasts: { ...broadcasts([run({ playbook_id: "pb-w" })]), ready: ready(bcPaused) },
+      }),
+    );
+    const line = home.coming.rows.find((r) => r.id === "run:r-1");
+    assert.equal(line.waiting.refusal, C.CAMPAIGNS_PAUSED_WORDS, `${what}: Coming up refuses it`);
+    assert.deepEqual(
+      row(home.ledger, "pb-w").waiting,
+      line.waiting,
+      `${what}: REGRESSION: the row offered Approve while Coming up refused the same run`,
+    );
+  }
+  const neither = C.campaignsHomeOf(
+    input({
+      playbooks: playbooks(rows, { ready: ready(false) }),
+      broadcasts: { ...broadcasts([run({ playbook_id: "pb-w" })]), ready: ready(false) },
+    }),
+  );
+  assert.deepEqual(row(neither.ledger, "pb-w").waiting, { runId: "r-1", people: 7, refusal: null });
 });
 
 test("the counts are campaigns': running, needing you (a run waiting or an archived list, the one amber) and paused", () => {
@@ -425,6 +479,16 @@ test("without a calendar the appointment groups say they need one, with its door
     [r.status, r.stateWords, r.hint, r.channels],
     ["not_here", "Not running here", "Needs your calendar", []],
   );
+  // No figure, as its moment's card has none (D44): never the pool it was last counted at, nor a zero.
+  assert.deepEqual(r.people, { n: null, unit: "people" }, "REGRESSION: the row kept the 5 its card no longer says");
+  const card = C.campaignsHomeOf(
+    input({
+      shape: { calendar: "none", dealsOn: true, word: "appointment" },
+      playbooks: playbooks([playbook(), playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })]),
+    }),
+  ).rail.stages.find((s) => s.id === "before");
+  assert.equal(card.people, null, "the card and its rows agree");
+  assert.deepEqual(row(l, "pb-1").people, { n: 5, unit: "people" }, "a moment that can be counted keeps its figure");
 });
 
 test("before the playbooks are read the ledger holds nothing; the period's numbers say they are reading or failed", () => {

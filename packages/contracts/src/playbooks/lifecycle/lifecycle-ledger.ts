@@ -30,7 +30,7 @@ import {
 } from "../playbook-channels";
 import { nextRunLabel } from "../playbook-schedule";
 import { PLAYBOOK_DEFAULTS, triggerOf, triggerWords } from "../playbook-triggers";
-import { nextRunLine, nextShare, waitingOffer } from "./lifecycle-tiles";
+import { nextRunLine, nextShare, waitingOffer, workspacePausedOf } from "./lifecycle-tiles";
 import type {
   LifecycleAct,
   LifecycleChannelMark,
@@ -173,6 +173,11 @@ interface RowAt {
   /** Its group's caption (a search matches it) and the unit its people are counted in. */
   caps: string;
   unit: string;
+  /**
+   * Whether its group's moment can be counted here: an appointment moment no calendar feeds cannot (decision 44), and a
+   * campaign made there before says no figure, as its moment's card does, never the pool its card was last counted at.
+   */
+  counted: boolean;
 }
 
 function rowStatusOf(p: LifecyclePlaybook): LifecycleRow["status"] {
@@ -202,7 +207,8 @@ function rowWaitingOf(p: LifecyclePlaybook, at: RowAt): LifecycleWaiting | null 
   const id = p.totals.waiting?.id;
   const run = id ? at.input.broadcasts?.rows.find((r) => r.id === id) : undefined;
   if (!run) return null;
-  const offer = waitingOffer(run, at.input, { paused: readyOf(at.input)?.paused === true, known: true });
+  // The pause as Coming up reads it (workspacePausedOf): either surface's readiness, so a row and its line agree.
+  const offer = waitingOffer(run, at.input, { paused: workspacePausedOf(at.input), known: true });
   if (offer.kind === "open") return null;
   return { runId: run.id, people: run.recipient_count, refusal: offer.kind === "skip" ? offer.why : null };
 }
@@ -210,6 +216,7 @@ function rowWaitingOf(p: LifecyclePlaybook, at: RowAt): LifecycleWaiting | null 
 /**
  * Resume, asked in place: when its next run would be, to about how many, and, where its class sends without asking
  * (`auto`, GET playbooks' `modes`), that in full (decision 7). Unread, the mode is not guessed: when and how many alone.
+ * A moment that could not be counted (`candidates` null) says when alone: never "about 0 people" nobody counted.
  */
 function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
   const W = LIFECYCLE_WORDS.ledger.resume;
@@ -217,11 +224,11 @@ function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
     { ...p, state: "running" as const },
     input.tz,
     new Date(input.nowMs),
-    readyOf(input)?.paused === true,
+    workspacePausedOf(input),
   );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
   const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto";
-  const detail = W.detail(when, nextShare(p));
+  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
   return {
     kind: "resume",
     label: W.label,
@@ -250,7 +257,7 @@ function playbookRow(p: LifecyclePlaybook, at: RowAt): LifecycleRow {
     needs,
     needsWords: LIFECYCLE_WORDS.needs[needs],
     channels: channelMarksOf(p, at.playbooks.templates, at.ready),
-    people: { n: p.named ? p.named.pool : null, unit: at.unit },
+    people: { n: at.counted && p.named ? p.named.pool : null, unit: at.unit },
     results: sentResultsOf(p.id, at.input.report),
     next: rowNextOf(p, status, at.input),
     open: { kind: "open", label: "Open", playbookId: p.id },
@@ -456,14 +463,14 @@ function journeyAddOf(
 }
 
 /** What every group's rows share. */
-type GroupAt = Omit<RowAt, "caps" | "unit">;
+type GroupAt = Omit<RowAt, "caps" | "unit" | "counted">;
 
 /** A moment of the journey: its lead first, then the rest as they came; First contact's own rows before its campaigns. */
 function journeyGroup(def: JourneyStage, stage: LifecycleStage, at: GroupAt): LifecycleGroup {
   const own = stagePlaybooks(def, at.playbooks.rows);
   const lead = own.find((p) => p.id === stage.playbookId);
   const ordered = lead ? [lead, ...own.filter((p) => p !== lead)] : own;
-  const each = { ...at, caps: def.caps, unit: def.unit };
+  const each = { ...at, caps: def.caps, unit: def.unit, counted: !def.unmet };
   const rows = [
     ...(def.kind === "receptionist" ? [receptionistRow(stage), callTextRow(at.input.library, def.caps)] : []),
     ...ordered.map((p) => playbookRow(p, each)),
@@ -481,7 +488,7 @@ function journeyGroup(def: JourneyStage, stage: LifecycleStage, at: GroupAt): Li
 /** Lists & offers: the month's offer, the campaigns on a list, and any other that stands on no moment. */
 function listsGroup(at: GroupAt, onStage: ReadonlySet<string>): LifecycleGroup {
   const caps = LIFECYCLE_WORDS.ledger.groups.lists;
-  const each = { ...at, caps, unit: "people" };
+  const each = { ...at, caps, unit: "people", counted: true };
   const offered = (id: string) => at.playbooks.triggers.some((t) => t.id === id && t.offered);
   const offers = at.playbooks.rows.filter((p) => p.trigger === "everyone_monthly");
   const rest = at.playbooks.rows.filter((p) => p.trigger !== "everyone_monthly" && !onStage.has(p.id));
@@ -501,15 +508,19 @@ function listsGroup(at: GroupAt, onStage: ReadonlySet<string>): LifecycleGroup {
   };
 }
 
-/** Reach-outs: each chain, and the door to Leads, where one begins. */
+/**
+ * Reach-outs: each chain, and the door to Leads, where one begins. Its line says how they stand only once the chains
+ * were read: unread or failed (the page's notice says which) it is "—", never "No campaign yet" of chains it could not see.
+ */
 function reachOutGroup(at: GroupAt): LifecycleGroup {
   const caps = LIFECYCLE_WORDS.ledger.groups.reach_out;
-  const rows = (at.input.reachOuts ?? []).map((c) => chainRow(c, { input: at.input, ready: at.ready, caps }));
+  const chains = at.input.reachOuts;
+  const rows = (chains ?? []).map((c) => chainRow(c, { input: at.input, ready: at.ready, caps }));
   return {
     id: "reach_out",
     caps,
     glyph: "send",
-    meta: groupMetaOf(rows, LIFECYCLE_WORDS.ledger.none),
+    meta: chains ? groupMetaOf(rows, LIFECYCLE_WORDS.ledger.none) : LIFECYCLE_WORDS.ledger.dash,
     rows,
     add: { kind: "route", label: LIFECYCLE_WORDS.ledger.findBusinesses, route: LEADS_ROUTE },
   };

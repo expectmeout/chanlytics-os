@@ -24922,7 +24922,8 @@ declare const LIFECYCLE_WORDS: {
         readonly resume: {
             readonly label: "Resume";
             readonly question: (name: string) => string;
-            readonly detail: (when: string, n: number) => string;
+            /** When, and to about how many; when alone where the moment could not be counted (null), never "about 0". */
+            readonly detail: (when: string, n: number | null) => string;
             readonly chain: "Its next emails go out on its next run.";
             /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
             readonly auto: "It sends on its own: nothing will wait for your approval.";

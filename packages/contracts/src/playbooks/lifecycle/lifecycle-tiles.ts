@@ -153,11 +153,28 @@ export function nextRunLine(
   return { day: word, at: clockHour(next.hour), atMs };
 }
 
-/** How many a running campaign's next run reaches: its cap's share, or everyone for an appointment moment, which has no cap. */
+/**
+ * The most one run of a campaign sends, or 0 where nothing caps it: an appointment moment has no cap (contracts
+ * playbookRunReach: a reminder is owed to everyone with an appointment, and tomorrow's have no later run), and a card
+ * drawn without its cap is said whole. The one reading of it: Coming up's line and Resume's question both ask it.
+ */
+function runCapOf(p: Pick<LifecyclePlaybook, "trigger" | "cap_per_run">): number {
+  return triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
+}
+
+/** How many a running campaign's next run reaches: its cap's share, or everyone where nothing caps it (runCapOf). */
 export function nextShare(p: Pick<LifecyclePlaybook, "trigger" | "candidates" | "cap_per_run">): number {
   const all = p.candidates ?? 0;
-  const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
+  const cap = runCapOf(p);
   return cap > 0 ? Math.min(all, cap) : all;
+}
+
+/**
+ * Whether the workspace is paused (billing), as either surface's readiness says it: the playbooks' own or the
+ * broadcasts'. The one reading the home asks, so Coming up's line and a ledger row never disagree about one run.
+ */
+export function workspacePausedOf(input: Pick<LifecycleInput, "playbooks" | "broadcasts">): boolean {
+  return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
 
 /** Who a running moment will reach on its next run, and the reason when it reaches nobody. */
@@ -170,10 +187,10 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
       // A run sends its cap and no more (core run-playbook draws the longest-unheard first, at most cap_per_run): a new
       // win-back with 300 quiet people said "300 will get it" over a run that sends 25. The next run's share is what
       // "will get it" promises. The rest are "up to": a later run draws them again, less whoever its own gap, the
-      // week's breath or the number's limit holds then. A visit's moment has no cap (contracts playbookRunReach: a
-      // reminder is owed to everyone with a visit, and tomorrow's visits have no later run), so its count is whole.
+      // week's breath or the number's limit holds then. An appointment moment has no cap (runCapOf), so its count is
+      // whole.
       const all = p.candidates ?? 0;
-      const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
+      const cap = runCapOf(p);
       const next = nextShare(p);
       const later = all - next;
       return {
@@ -338,8 +355,8 @@ export function lifecycleComing(
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
   const playbookOf = (id: string | null) => playbooks.rows.find((p) => p.id === id);
-  // The workspace's pause, as either surface's readiness says it (the playbooks' own, else the broadcasts').
-  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
+  // The workspace's pause, as either surface's readiness says it (workspacePausedOf, the one reading).
+  const paused = workspacePausedOf(input);
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows
     .filter((r) => (r.state === "scheduled" || r.state === "pending_approval") && Date.parse(r.scheduled_for) <= end)
