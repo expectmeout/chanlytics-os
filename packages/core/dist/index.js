@@ -2118,18 +2118,29 @@ function replyPosture(f) {
 function effectiveReplyMode(posture, personMode) {
   return personMode || posture.replyMode;
 }
+function unattendedHold(f) {
+  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) return "human_has_it";
+  if (f.sentToday >= f.dailyCap) return "daily_cap";
+  if (f.workspacePaused) return "paused";
+  if (f.bookingHeld) return "booking_needs_a_person";
+  if (!speaksUnattended(f.mode)) return "policy_hold";
+  return null;
+}
 
 // src/messages/outbound-gate.ts
 function outboundGate(f) {
   const may = mayMessageFor2(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
   if (!may.ok) return { allowed: false, refusal: may.reason };
-  if (f.paused) return { allowed: false, refusal: "paused" };
-  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) {
-    return { allowed: false, refusal: "human_has_it" };
-  }
-  if (f.bookingHeld) return { allowed: false, refusal: "booking_needs_a_person" };
-  if (!speaksUnattended(f.replyMode)) return { allowed: false, refusal: "policy_hold" };
-  if (f.sentToday >= f.dailyCap) return { allowed: false, refusal: "daily_cap" };
+  const hold = unattendedHold({
+    pausedUntilMs: f.pausedUntilMs,
+    nowMs: f.nowMs,
+    sentToday: f.sentToday,
+    dailyCap: f.dailyCap,
+    workspacePaused: f.paused === true,
+    bookingHeld: f.bookingHeld,
+    mode: f.replyMode
+  });
+  if (hold) return { allowed: false, refusal: hold };
   return { allowed: true, refusal: null };
 }
 function refusalScript(refusal, phoneDisplay) {
@@ -38080,11 +38091,6 @@ function ageVerdict(timestampS, now = Date.now()) {
   const ageMs = timestampS ? now - Number(timestampS) * 1e3 : 0;
   return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
 }
-function threadVerdict(thread, maxRepliesDay, now = Date.now()) {
-  if (now < thread.pausedUntil) return "paused";
-  if (thread.replies.length >= maxRepliesDay) return "ratecap";
-  return "ok";
-}
 function holdPlan(replyMode, replyLimits, brainMeta) {
   let delayMs = replyDelayMs(replyMode, replyLimits);
   const minConfidence = typeof replyLimits?.min_confidence === "number" ? replyLimits.min_confidence : 0;
@@ -38557,13 +38563,21 @@ async function heldForThePerson(at, bodyText) {
     replyMode,
     personMode
   } = at;
-  const gate = threadVerdict(thread, maxRepliesDay);
-  if (gate === "paused") {
+  const held = unattendedHold({
+    pausedUntilMs: thread.pausedUntil,
+    nowMs: Date.now(),
+    sentToday: thread.replies.length,
+    dailyCap: maxRepliesDay,
+    workspacePaused: !!rt?.paused,
+    bookingHeld: false,
+    mode: replyMode
+  });
+  if (held === "human_has_it") {
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
     await sink.processed(handledOf(SET_ASIDE));
     return;
   }
-  if (gate === "ratecap") {
+  if (held === "daily_cap") {
     L.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
     const asked2 = sink.escalate(
       "rate_cap",
@@ -38576,8 +38590,21 @@ async function heldForThePerson(at, bodyText) {
     ]);
     return;
   }
+  if (held === "paused") {
+    L.info("wa_skip_workspace_paused");
+    const asked2 = sink.escalate(
+      "paused",
+      "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
+    );
+    await Promise.all([
+      asked2,
+      tell(bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
+      processedAfter(sink, asked2, "none")
+    ]);
+    return;
+  }
   const tokenCap = tokenCapOf(replyLimits);
-  if (tokenCap > 0 && db && tenantId) {
+  if (held === null && tokenCap > 0 && db && tenantId) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
@@ -38593,20 +38620,7 @@ async function heldForThePerson(at, bodyText) {
       return;
     }
   }
-  if (rt?.paused) {
-    L.info("wa_skip_workspace_paused");
-    const asked2 = sink.escalate(
-      "paused",
-      "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
-    );
-    await Promise.all([
-      asked2,
-      tell(bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
-      processedAfter(sink, asked2, "none")
-    ]);
-    return;
-  }
-  if (!brainCfg || !speaksUnattended(replyMode)) {
+  if (held === "policy_hold" || !brainCfg) {
     const hold = holdCopy({
       brainCfg,
       personMode,
@@ -39127,7 +39141,6 @@ export {
   templatePurpose,
   templateValues,
   termsShortOf,
-  threadVerdict,
   toBase64,
   unreadableThread,
   wake,

@@ -51,3 +51,43 @@ export function replyPosture(f: RoutingFacts): ReplyPosture {
 export function effectiveReplyMode(posture: ReplyPosture, personMode: string | null | undefined): string {
   return personMode || posture.replyMode;
 }
+
+/**
+ * Why an automated message may not go to a person now, or null when it may: one order for every sender that speaks
+ * without a person, the text receptionist's gates (./reply-gates.ts) and the phone agent's booking link
+ * (../messages/outbound-gate.ts). They asked the same five questions in two orders, so one workspace could get two
+ * answers to one moment. Consent is not here: it is the send door's, and a sender that must say why before it sends
+ * asks the one consent predicate itself first (contracts mayMessageFor).
+ *
+ *   human_has_it              a person holds the thread: an automated message underneath them is what the pause is for.
+ *   daily_cap                 the thread's automated messages today have reached their ceiling.
+ *   paused                    the workspace is paused (billing stopped): nothing automated goes.
+ *   booking_needs_a_person    the workspace confirms bookings itself, and this message would book (the booking link).
+ *   policy_hold               the mode in force is not one that speaks without a person (speaksUnattended).
+ *
+ * A thread a person holds is asked first: its message is theirs to read, so it is set aside, not escalated as a
+ * workspace-wide stop would be.
+ */
+type UnattendedHold = "human_has_it" | "daily_cap" | "paused" | "booking_needs_a_person" | "policy_hold";
+
+export function unattendedHold(f: {
+  /** conversations.paused_until, as epoch ms: a person holds the thread until then. Null or past: nobody does. */
+  pausedUntilMs: number | null;
+  nowMs: number;
+  /** The automated messages this thread has had today, and their ceiling. */
+  sentToday: number;
+  dailyCap: number;
+  /** tenants.status = 'paused'. */
+  workspacePaused: boolean;
+  /** This message would book, and the Autonomy pane's booking row is not on auto. */
+  bookingHeld: boolean;
+  /** The mode in force: the workspace's, or the person's own when set (effectiveReplyMode). */
+  mode: string;
+}): UnattendedHold | null {
+  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) return "human_has_it";
+  if (f.sentToday >= f.dailyCap) return "daily_cap";
+  if (f.workspacePaused) return "paused";
+  if (f.bookingHeld) return "booking_needs_a_person";
+  if (!speaksUnattended(f.mode)) return "policy_hold";
+  return null;
+}

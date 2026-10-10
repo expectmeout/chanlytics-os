@@ -14,7 +14,10 @@ import { formatPhoneDisplay } from "@chanlytics/contracts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../../../..");
 const steps = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
-const { ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
+const { ageVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
+const { unattendedHold } = await import(
+  pathToFileURL(path.join(ROOT, "packages/core/src/inbound/reply-posture.ts")).href
+);
 const { handledOf, escalationOf, processedAfter } = await import(
   pathToFileURL(path.join(ROOT, "packages/core/src/inbound/handled.ts")).href
 );
@@ -33,19 +36,38 @@ test("age: fresh inside ten minutes, late inside two hours, stale beyond — and
   assert.ok(ageVerdict(at(STALE_MS + 1000), NOW).ageMs > STALE_MS, "the age travels with the verdict for the log");
 });
 
-test("thread: a human has it, the day is spent, or the receptionist may answer", () => {
-  assert.equal(threadVerdict({ pausedUntil: NOW + 1, replies: [] }, 20, NOW), "paused");
-  assert.equal(
-    threadVerdict({ pausedUntil: NOW, replies: [] }, 20, NOW),
-    "ok",
-    "the pause has ended at the very moment",
-  );
-  assert.equal(threadVerdict({ pausedUntil: 0, replies: new Array(20).fill(NOW) }, 20, NOW), "ratecap");
-  assert.equal(threadVerdict({ pausedUntil: 0, replies: new Array(19).fill(NOW) }, 20, NOW), "ok");
-  assert.equal(
-    threadVerdict({ pausedUntil: NOW + 1, replies: new Array(30).fill(NOW) }, 20, NOW),
-    "paused",
-    "the pause is decided first",
+test("may an unattended message go: one order for every sender, the thread's holder first", () => {
+  const go = {
+    pausedUntilMs: 0,
+    nowMs: NOW,
+    sentToday: 0,
+    dailyCap: 20,
+    workspacePaused: false,
+    bookingHeld: false,
+    mode: "auto",
+  };
+  const held = (over) => unattendedHold({ ...go, ...over });
+  assert.equal(held({}), null, "nothing holds it");
+  assert.equal(held({ mode: "veto" }), null, "veto speaks once its window passes");
+  assert.equal(held({ pausedUntilMs: NOW + 1 }), "human_has_it");
+  assert.equal(held({ pausedUntilMs: NOW }), null, "the pause has ended at the very moment");
+  assert.equal(held({ pausedUntilMs: null }), null);
+  assert.equal(held({ sentToday: 20 }), "daily_cap");
+  assert.equal(held({ sentToday: 19 }), null);
+  assert.equal(held({ workspacePaused: true }), "paused");
+  assert.equal(held({ bookingHeld: true }), "booking_needs_a_person");
+  for (const mode of ["ask", "never", "", "nonsense"]) assert.equal(held({ mode }), "policy_hold", mode);
+  // The order: each stop outranks every one after it.
+  const all = { pausedUntilMs: NOW + 1, sentToday: 30, workspacePaused: true, bookingHeld: true, mode: "ask" };
+  assert.deepEqual(
+    [
+      held(all),
+      held({ ...all, pausedUntilMs: 0 }),
+      held({ ...all, pausedUntilMs: 0, sentToday: 0 }),
+      held({ ...all, pausedUntilMs: 0, sentToday: 0, workspacePaused: false }),
+      held({ ...all, pausedUntilMs: 0, sentToday: 0, workspacePaused: false, bookingHeld: false }),
+    ],
+    ["human_has_it", "daily_cap", "paused", "booking_needs_a_person", "policy_hold"],
   );
 });
 
@@ -222,7 +244,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // Each phase asks the steps (steps.ts) for its decisions.
   for (const [m, s] of [
     ["reply-gates", "const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);"],
-    ["reply-gates", "const gate = threadVerdict(thread, maxRepliesDay);"],
+    ["reply-gates", "const held = unattendedHold({"],
     ["dispatch", "const plan = holdPlan(replyMode, replyLimits, brainMeta);"],
     ["model-turn", "const two = layerTwo({"],
     ["reply-gates", "const hold = holdCopy({"],

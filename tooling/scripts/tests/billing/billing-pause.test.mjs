@@ -83,12 +83,14 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
   );
   const inbound = readCode("packages/core/src/inbound/reply-gates.ts");
   assert.ok(
-    inbound.includes("if (rt?.paused) {") && /sink\.escalate\(\s*"paused",/.test(inbound),
+    inbound.includes("workspacePaused: !!rt?.paused,") &&
+      inbound.includes('if (held === "paused") {') &&
+      /sink\.escalate\(\s*"paused",/.test(inbound),
     "kept, held for a person, not answered",
   );
   const inboundRaw = readRaw("packages/core/src/inbound/reply-gates.ts");
   assert.ok(
-    inboundRaw.indexOf("if (rt?.paused) {") <
+    inboundRaw.indexOf('if (held === "paused") {') <
       inboundRaw.indexOf("// E3: the reply policy is consulted BEFORE generation."),
     "before the policy, which may still read auto",
   );
