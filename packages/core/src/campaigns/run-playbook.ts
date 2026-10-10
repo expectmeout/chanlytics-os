@@ -318,7 +318,9 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
   const { n, at } = made;
   if (!at) {
     await ports.notify(
-      `Playbook “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
+      // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
+      `Campaign “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
       made.madeId,
     );

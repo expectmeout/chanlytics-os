@@ -1,7 +1,7 @@
 /**
  * What the kit's LinkButton takes, proved where the compiler reads it (link-button.tsx): its one tone, left out or
- * chosen as the page runs, and a button's attributes and ref, or a link's with an address. A kind or a size of a
- * button's, another tone, a door that is disabled and a ref of the other element stop compiling.
+ * chosen as the page runs, the size of where it stands, and a button's attributes and ref, or a link's with an address. A kind or a
+ * size of a button's, another tone, a door that is disabled and a ref of the other element stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -23,8 +23,13 @@ function _linkButtonTakes(
   type _Its = [
     Holds<Exactly<ComponentProps<typeof LinkButton>, LinkButtonProps>>,
     Holds<Exactly<LinkButtonProps["tone"], "danger" | undefined>>,
+    Holds<Exactly<LinkButtonProps["size"], "inherit" | undefined>>,
   ];
   LinkButton({ children: ["Write one", glyph] });
+  // A line's door: a list row's name, in the size, weight and ink of where it stands.
+  LinkButton({ size: "inherit", href: "/w/studio/campaigns/moment:pb-1", ref: link, children: "Win-back" });
+  // @ts-expect-error `line` named the default size's own place: the size that takes where it stands is `inherit`
+  LinkButton({ size: "line", children: "Win-back" });
   LinkButton({ tone: "danger", children: "Delete the list" });
   LinkButton({ tone: now.flag ? "danger" : undefined, children: "Remove" });
   LinkButton({ type: "submit", ref: button, onClick: () => undefined, children: "Send" });
@@ -37,7 +42,7 @@ function _linkButtonTakes(
   LinkButton({ tone: "warn", children: "Delete the list" });
   // @ts-expect-error it is one look: a kind of its own is a Button's
   LinkButton({ variant: "primary", children: "Save" });
-  // @ts-expect-error it is the line's size, and has no other
+  // @ts-expect-error its own size or where it stands', and no button's
   LinkButton({ size: "sm", children: "Save" });
   // @ts-expect-error a door is never disabled: a link that goes nowhere is no door
   LinkButton({ href: "/w/studio/#/clients", disabled: true, children: "Open People" });

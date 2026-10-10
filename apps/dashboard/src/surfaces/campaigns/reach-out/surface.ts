@@ -108,6 +108,9 @@ export const reachOutsOverride: SurfaceOverride = {
   key: "reach_outs",
   value: "reach_outs",
   events: ["surface:reach_outs"],
+  // A chain paused or resumed elsewhere (00376), and a step's run made, approved or stopped (00321), move its row and
+  // its Approve: heard wherever the tab is. A message is no chain's, and is never heard here.
+  refreshOnTables: ["playbooks", "broadcasts"],
   apply: async () => {
     try {
       setSurfaceValue("reach_outs", (await read("GET reach-outs")).chains);

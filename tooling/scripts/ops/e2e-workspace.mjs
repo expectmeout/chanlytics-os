@@ -44,7 +44,17 @@
  *   - Google holds one listing at a fixture place id, the Business Profile connected to it with no credentials, four of
  *     its reviews and two days of its count: what e2e/google.spec.ts reads of the Reviews lens, with a reply the
  *     receptionist wrote and one held back (convergeGoogle says how the sweeps leave them);
- *   - and there is no job, escalation, line, playbook or broadcast.
+ *   - under `--seed-win-back` alone (Ruben's run by hand, never the nightly's),
+ *     one playbook, a Win-back on silence, paused so no sweep runs it, on a
+ *     made-up message of its own: what Ask's change cases resume, rename and
+ *     retime (the moment spec, A8; decision D3); without it, an existing
+ *     Win-back is only put back paused, and nothing is added;
+ *   - and there is no job, escalation, line or broadcast.
+ *
+ * Merging seeds nothing: the nightly (.github/workflows/nightly-e2e.yml, every
+ * day at 09:00 UTC) passes --apply alone. The Win-back's first run,
+ * `--apply --seed-win-back`, is Ruben's call, run by hand and away from 09:00
+ * UTC, after the merge; the nightly then keeps it paused and adds nothing.
  *
  * It refuses an owner or teammate address outside example.com, so it can never
  * reset a real account, and refuses when the owner belongs to any workspace but
@@ -55,7 +65,7 @@
  * before any write, idempotent, and --apply to write.
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, E2E_USER_EMAIL, E2E_MEMBER_EMAIL
- * Usage: node tooling/scripts/ops/e2e-workspace.mjs [--apply]
+ * Usage: node tooling/scripts/ops/e2e-workspace.mjs [--apply] [--seed-win-back]
  */
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -78,6 +88,11 @@ export const NAME = "Chanlytics E2E Studio";
 export const CALL_ID = "e2e-seed-call-1";
 /** The workspace's clock, which everything the pages say a time in is said by. */
 export const TIMEZONE = "America/New_York";
+/**
+ * The eval's Win-back (the moment spec, A8): its name, moment and message, as the change cases name them. The message's
+ * name is no starter's (contracts STARTER_TEMPLATES), so Ask never takes it for a starter on file.
+ */
+export const WIN_BACK = { name: "Win-back", trigger: "quiet_30", template: "e2e_win_back" };
 const BOOKING_LINK = "https://example.com/book/e2e";
 const BUSINESS_PHONE = "+12125550142";
 const BUSINESS_PHONE_DISPLAY = "(212) 555-0142";
@@ -561,6 +576,8 @@ export async function snapshot(db, tenantId, userIds) {
       "jobs",
       "broadcasts",
       "segments",
+      "templates",
+      "playbooks",
       "ask_threads",
       "invitations",
       "lead_searches",
@@ -589,9 +606,13 @@ async function deleteWhere(db, table, column, values, what) {
 
 /**
  * Brings the workspace to its known state. With `apply: false` it reads, checks
- * every refusal, and says what it would do.
+ * every refusal, and says what it would do. `seedWinBack` (--seed-win-back, by
+ * hand only) adds the eval's Win-back where it is not there (convergeWinBack).
  */
-export async function converge(db, { ownerEmail, memberEmail, apply = false, now = Date.now(), backup = null } = {}) {
+export async function converge(
+  db,
+  { ownerEmail, memberEmail, apply = false, seedWinBack = false, now = Date.now(), backup = null } = {},
+) {
   for (const [label, email] of [
     ["E2E_USER_EMAIL", ownerEmail],
     ["E2E_MEMBER_EMAIL", memberEmail],
@@ -656,6 +677,7 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
   if (!apply) {
     for (const probe of probes) did.push(`would delete the leftover probe workspace "${probe.name}"`);
     did.push(tenant ? `would reset ${SLUG} (${tenant.id})` : `would create ${SLUG}`);
+    if (seedWinBack) did.push("would add the eval's Win-back, paused, where it is not there");
     return { apply, did, tenantId: tenant?.id ?? null };
   }
 
@@ -994,6 +1016,8 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
 
   await convergeLeads(db, T, ownerId, now);
   await convergeGoogle(db, T, ownerId, now);
+  const winBack = await convergeWinBack(db, T, ownerId, seedWinBack);
+  if (winBack) did.push(winBack);
 
   const problems = await verify(db, T, ownerId);
   if (problems.length) throw new Error(`the workspace is not in its known state: ${problems.join("; ")}`);
@@ -1453,6 +1477,89 @@ async function convergeGoogle(db, T, ownerId, now) {
   );
 }
 
+/**
+ * The eval's Win-back (the moment spec, A8; decision D3): one playbook on silence, PAUSED, so the hourly sweep never runs
+ * it (playbooks_due takes only a running one), on a made-up message of its own: approved, no slot, a WhatsApp row the
+ * channel above cannot send from, synced from nowhere and named for no starter. What Ask's change cases resume, rename
+ * and retime, and what a "pause" case finds already paused. Added only under --seed-win-back (`seed`), Ruben's run by
+ * hand: the nightly's converge never passes it, so merging seeds nothing. Without it, an existing Win-back is put back
+ * as it was seeded (a spec that resumed it never leaves it running), and nothing is added. Another playbook a spec made
+ * is that spec's to remove. Says what it did, or null where it did nothing.
+ */
+async function convergeWinBack(db, T, ownerId, seed) {
+  const found = must(
+    "reading the win-back's message",
+    await db
+      .from("templates")
+      .select("id")
+      .eq("tenant_id", T)
+      .eq("channel", "whatsapp")
+      .eq("name", WIN_BACK.template)
+      .eq("language", "en_US")
+      .maybeSingle(),
+  );
+  // The nightly's converge (no --seed-win-back) adds nothing: with no message on file there is no Win-back to put back.
+  if (!found && !seed) return null;
+  const message =
+    found ??
+    must(
+      "adding the win-back's message",
+      await db
+        .from("templates")
+        .insert({
+          tenant_id: T,
+          channel: "whatsapp",
+          name: WIN_BACK.template,
+          language: "en_US",
+          category: "marketing",
+          meta_status: "approved",
+          body_preview: "It has been a while. We would love to see you again: reply to book.",
+          variables: [],
+          // templates_source_check takes 'meta' or 'chanlytics': a row written here, not synced from Meta.
+          source: "chanlytics",
+        })
+        .select("id")
+        .single(),
+    );
+  const row = {
+    tenant_id: T,
+    kind: "moment",
+    name: WIN_BACK.name,
+    trigger: WIN_BACK.trigger,
+    template_id: message.id,
+    template_name: WIN_BACK.template,
+    template_language: "en_US",
+    params: [],
+    policy_class: "reengage",
+    state: "paused",
+    run_hour: 10,
+    cap_per_run: 25,
+    gap_days: 90,
+    cadence_days: 30,
+    channels: ["whatsapp"],
+    created_by: ownerId,
+  };
+  // The first one made, should someone have made a second on its message: that one is theirs, and stops nothing here.
+  const [kept] = must(
+    "reading the win-back",
+    await db
+      .from("playbooks")
+      .select("id")
+      .eq("tenant_id", T)
+      .eq("trigger", WIN_BACK.trigger)
+      .eq("template_id", message.id)
+      .order("created_at", { ascending: true })
+      .limit(1),
+  );
+  if (kept) {
+    must("putting the win-back back", await db.from("playbooks").update(row).eq("id", kept.id));
+    return "put the eval's Win-back back, paused";
+  }
+  if (!seed) return null;
+  must("adding the win-back", await db.from("playbooks").insert(row));
+  return "added the eval's Win-back, paused";
+}
+
 /** Reads the workspace back and names anything that is not as it should be. */
 export async function verify(db, T, ownerId) {
   const problems = [];
@@ -1627,7 +1734,23 @@ export async function verify(db, T, ownerId) {
   ]).sort();
   if (JSON.stringify(repliesFiled) !== JSON.stringify(repliesWanted))
     problems.push(`the workspace's reply events are not the fixtures' (${repliesFiled.join(", ")})`);
+  // The eval's Win-back, where --seed-win-back has seeded it: paused, so no sweep runs it. None is no problem: the
+  // nightly seeds none.
+  const winBacks = await read(
+    "the eval's Win-back",
+    db.from("playbooks").select("state").eq("tenant_id", T).eq("template_name", WIN_BACK.template),
+  );
+  if (winBacks.some((p) => p.state !== "paused"))
+    problems.push("the eval's Win-back is running, and the hourly sweep would run it");
   return problems;
+}
+
+/**
+ * The script's arguments: --apply writes, and --seed-win-back (Ruben's run by hand, never the nightly's, which passes
+ * --apply alone) adds the eval's Win-back where it is not there.
+ */
+export function runOptions(argv) {
+  return { apply: argv.includes("--apply"), seedWinBack: argv.includes("--seed-win-back") };
 }
 
 async function main() {
@@ -1637,13 +1760,14 @@ async function main() {
     console.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required");
     process.exit(2);
   }
-  const apply = process.argv.includes("--apply");
+  const { apply, seedWinBack } = runOptions(process.argv);
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
   const report = await converge(db, {
     ownerEmail: process.env.E2E_USER_EMAIL,
     memberEmail: process.env.E2E_MEMBER_EMAIL,
     apply,
+    seedWinBack,
     backup: async (rows) => {
       mkdirSync(backupsDir, { recursive: true });
       const file = join(backupsDir, `e2e-workspace-${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`);

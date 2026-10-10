@@ -6,6 +6,7 @@ import {
   ASK_TURN_BUDGET_MS,
   answerForCards,
   answerWords,
+  claimsWrite,
   cleanAnswer,
   failedAnswer,
   isUngrounded,
@@ -257,6 +258,8 @@ function wordsBlock(
     closures: input.facts.closures,
     focus,
     focusRead: !!focus && !!kind && kind !== "page" && rode.read[kind].has(focus.id),
+    // A reach-out's drawer: the page they are on, at its address (contracts scopeFromRoute), whose row the page holds.
+    scopeOnPage: input.scope?.kind === "page" && input.scope.id === input.context?.route,
     now,
     spoken: input.spoken ?? false,
   };
@@ -289,6 +292,22 @@ export function turnHead(model: AskModelProfile, role: MembershipRole, facts: Wo
       format: { type: "json_schema" as const, schema: ASK_ANSWER_FORMAT as unknown as Record<string, unknown> },
     },
   };
+}
+
+/**
+ * An answer beside the turn's cards that claims a write (contracts claimsWrite: "I've set up", "I paused"): nothing is
+ * done until a person presses a card, so its headline is the cards' own count sentence and its detail stays. Logged,
+ * since the rule the model is told did not hold (the moment spec, A4). An answer with no card beside it is left as it
+ * is: the eval judges it (`no_write`).
+ */
+function withoutClaimedWrite(
+  answer: AskAnswer,
+  input: Pick<TurnInput, "language" | "tenantId">,
+  made: readonly AskProposal[],
+): AskAnswer {
+  if (made.length === 0 || !claimsWrite(answer.say.headline)) return answer;
+  log.warn("ask_answer_claimed_write", { cards: made.length, tenant_id: input.tenantId });
+  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language).say.headline } };
 }
 
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
@@ -704,11 +723,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             );
           }
           if (shaped.dropped) log.warn("ask_sources_dropped", { dropped: shaped.dropped, tenant_id: input.tenantId });
-          answer = shaped.answer;
+          answer = withoutClaimedWrite(shaped.answer, input, proposals);
         } else {
           // Words with no shape: the format was refused (D15), or words came where the JSON should have.
           if (format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
-          answer = proseAnswer(written, input.language);
+          answer = withoutClaimedWrite(proseAnswer(written, input.language), input, proposals);
         }
         return done({
           answer,

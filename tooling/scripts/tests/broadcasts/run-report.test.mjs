@@ -699,10 +699,7 @@ test("a playbook's run that a billing pause stopped is told its own next step on
   );
   assert.equal(win.tone, "warn");
   const visit = stopped({ playbook_id: "p1", audience: { kind: "playbook", id: "p1", trigger: "visit_tomorrow" } });
-  assert.match(
-    visit.fix,
-    /a visit's message belongs to the day of the visit, so the people it did not reach will not be sent it later\.$/,
-  );
+  assert.match(visit.fix, /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/);
   // A playbook's run that reached some people first says the same: its next step is not a resend either.
   const sent = [
     { contact_id: "got", name: "Ada Lee", first_name: "Ada", state: "sent", sent_at: at(0), replied: false },
@@ -829,6 +826,8 @@ test("the detail reads the channel each person was picked for, and a database 00
   // A database that has no such column refuses the read that asks for it: read again without, never a run that cannot open.
   const db = fakeDb(world);
   const noColumn = {
+    // The run's counts are the database's (run_counts, 00374), which this database answers as it always does.
+    rpc: (name, args) => db.rpc(name, args),
     from: (table) => {
       const q = db.from(table);
       if (table !== "broadcast_recipients") return q;

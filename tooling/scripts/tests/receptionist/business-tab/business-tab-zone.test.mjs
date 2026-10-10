@@ -107,8 +107,8 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   // read, which counts a review on the day it was written in the zone, is forgotten, not read from Settings.
   assert.deepEqual(
     AFTER["PATCH workspaces"]().map((o) => o.key),
-    ["settings", "people", "reports", "reports_headline", "today"],
-    "the refresh map names the surfaces the workspace's own fields ride on",
+    ["settings", "people", "reports", "reports_headline", "today", "playbooks"],
+    "the refresh map names the surfaces the workspace's own fields ride on, Campaigns' moments among them (how customers buy shapes them)",
   );
 
   const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };

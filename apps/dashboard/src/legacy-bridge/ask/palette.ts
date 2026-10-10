@@ -36,6 +36,8 @@ import {
   type JumpEntry,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
+import { surfaceValue } from "@/surfaces/surface-values";
+import { focusAsDrawn } from "@/surfaces/legacy-verbs";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
 
@@ -176,12 +178,31 @@ export function waitingFrom(win: Window): AskWaiting | null {
       .filter((r) => r.state === "pending_approval")
       .map((r) => ({
         id: r.id,
-        label: r.audience?.label || "Playbook",
+        label: r.audience?.label || "Campaign",
         reach: r.recipient_count,
         to: `broadcasts/run:${r.id}`,
       })),
     searches,
   };
+}
+
+/**
+ * Campaigns' own chips' input (contracts buildAskSuggestions, the moment spec A3): each campaign the playbooks surface
+ * read, by its name, moment and state and whether a run of it waits; null until it is read, so no chip is offered on
+ * a guess.
+ */
+function campaignsRead() {
+  const rows = surfaceValue("playbooks")?.rows;
+  return rows
+    ? {
+        rows: rows.map((r) => ({
+          name: r.name,
+          trigger: r.trigger,
+          state: r.state,
+          waiting: !!r.totals?.waiting,
+        })),
+      }
+    : null;
 }
 
 export function askPalette(win: Window, storage: Storage | null) {
@@ -248,6 +269,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
         leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.words),
         leadSearches: (w.__LEADS?.searches ?? []).map((s) => s.asked),
+        // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
+        campaigns: campaignsRead(),
       });
     },
     /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */
@@ -256,12 +279,16 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
     answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
       oneDoor(m.answer ?? answerFromV1(m), m.proposals ?? []),
-    scopeFor: (page: string, param: string | null, label?: string | null) => scopeFromRoute(page, param, label),
+    // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute).
+    scopeFor: (page: string, param: string | null, label?: string | null) =>
+      scopeFromRoute(page, param, label, surfaceValue("reach_outs")),
     surfaceFor,
     language,
     rememberLanguage,
     timezone,
     sameQuestion,
+    /** Whether the Line's field may take focus as it opens: not on a touch screen, whatever its width (legacy-verbs). */
+    focusAsDrawn,
   };
 }
 

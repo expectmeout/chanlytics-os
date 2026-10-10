@@ -17,7 +17,7 @@ import {
   err,
   MESSAGE_MOMENT_WORDS,
   MOMENTS_RETIRED,
-  WIN_BACK_WORDS,
+  winBackWords,
   broadcastName,
   campaignMessageOf,
   channelsReady,
@@ -193,6 +193,9 @@ function fakes(over = {}) {
     dealsOn: false,
     // 2 Oct 2026: whether a calendar is connected, which win-back a new playbook may be (check-playbook).
     calendarOn: false,
+    // What the workspace calls an appointment (contracts appointmentWordOf): "visit" here, so every sentence and name
+    // these tests wrote before the word existed reads as it did; a test that is about the word names another.
+    appointmentWord: "visit",
     ...over,
   };
   if (answers.list === null) {
@@ -328,7 +331,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     }),
     "validation",
     400,
-    "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.",
+    "Only a reminder the day before or the check the day after can fill in the booked time or service.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
@@ -338,7 +341,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     }),
     "validation",
     400,
-    "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.",
+    "Only a reminder the day before or the check the day after can fill in the booked time or service.",
   );
   assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
 });
@@ -542,7 +545,7 @@ test("REGRESSION: an empty audience says which of its two causes it has -- a yes
   const noYesToOffers =
     "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent.";
   const noYesToMessages =
-    "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
+    "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
   /** The route's refusal of one list, for a message of this category: its status and its words, whole. */
   const refusalOf = async (list, category = "marketing") => {
     const f = fakes({
@@ -1331,8 +1334,12 @@ test("cancel: scheduled withdraws the job; sending stops at the next batch; wait
 
 test("the playbook's check refuses a tick its purpose never carries, accepts one the workspace is not ready on (a run holds those people), and keeps the channels an edit does not name", async () => {
   const visit = { trigger: "visit_tomorrow", template_id: T1, params: [] };
+  // A calendar is connected: a new reminder is made only where one is (D44).
   const reminder = () =>
-    fakes({ message: messageOf({ whatsapp: template({ category: "utility" }), own: ["email", "sms"] }) }).ports;
+    fakes({
+      calendarOn: true,
+      message: messageOf({ whatsapp: template({ category: "utility" }), own: ["email", "sms"] }),
+    }).ports;
   // A reminder goes by email and text, ready or not: the check has no readiness, a run holds whom it cannot reach. It
   // asks only that the message holds a version of one of the ticks (a message that holds none could not be sent).
   const both = await checkPlaybook(reminder(), { ...visit, channels: ["email", "whatsapp", "sms"] });
@@ -1423,12 +1430,16 @@ test("the playbook's check: the trigger first, then the template through the one
     }),
     "validation",
     400,
-    "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.",
+    "Only a reminder the day before or the check the day after can fill in the booked time or service.",
   );
   for (const trigger of ["visit_tomorrow", "visited"]) {
     // 2 Oct 2026: both visit moments run under Bookings, so their message is about the visit (utility), not an offer.
+    // A calendar is connected: a new one is made only where one is (D44).
     const visit = await checkPlaybook(
-      fakes({ message: messageOf({ whatsapp: template({ variables: ["1", "2"], category: "utility" }) }) }).ports,
+      fakes({
+        calendarOn: true,
+        message: messageOf({ whatsapp: template({ variables: ["1", "2"], category: "utility" }) }),
+      }).ports,
       { trigger, template_id: T1, params: ["@visit_when", "@visit_service"] },
       null,
     );
@@ -1581,10 +1592,10 @@ test("the moments a new playbook may start from (2 Oct 2026): a retired one is r
   );
   const silence = fakes({ calendarOn: false });
   assert.equal((await checkPlaybook(silence.ports, body("quiet_30"), null)).trigger, "quiet_30");
-  await refused(checkPlaybook(silence.ports, body("lapsed"), null), "validation", 400, WIN_BACK_WORDS.lapsed);
+  await refused(checkPlaybook(silence.ports, body("lapsed"), null), "validation", 400, winBackWords("visit").lapsed);
   const visits = fakes({ calendarOn: true });
   assert.equal((await checkPlaybook(visits.ports, body("lapsed"), null)).trigger, "lapsed");
-  await refused(checkPlaybook(visits.ports, body("quiet_30"), null), "validation", 400, WIN_BACK_WORDS.quiet_30);
+  await refused(checkPlaybook(visits.ports, body("quiet_30"), null), "validation", 400, winBackWords("visit").quiet_30);
   // The other win-back, already running, is changed and kept: a calendar connected later does not strand it.
   assert.equal((await checkPlaybook(visits.ports, body("quiet_30"), { trigger: "quiet_30" })).trigger, "quiet_30");
   // Each fact is asked only of the moment it decides: a calendar that cannot be read costs a month's offer nothing.
@@ -1604,15 +1615,58 @@ test("the moments a new playbook may start from (2 Oct 2026): a retired one is r
   );
 });
 
+test("an appointment moment needs a calendar, said in the workspace's word; a new one is named in it; one made before is kept", async () => {
+  const utility = messageOf({ whatsapp: template({ category: "utility" }) });
+  const visit = (trigger, over = {}) => ({ trigger, template_id: T1, params: [], ...over });
+  await refused(
+    checkPlaybook(
+      fakes({ calendarOn: false, appointmentWord: "meeting", message: utility }).ports,
+      visit("visit_tomorrow"),
+      null,
+    ),
+    "validation",
+    400,
+    "Meetings are read from your calendar, and none is connected. Connect one under Settings › Business.",
+  );
+  // A reminder made before the rule keeps running, and is changed where it is.
+  const kept = await checkPlaybook(
+    fakes({ calendarOn: false, message: utility }).ports,
+    visit("visit_tomorrow", { name: "Kept" }),
+    { trigger: "visit_tomorrow" },
+  );
+  assert.equal(kept.name, "Kept");
+  // A new one given no name takes its moment's, in the word (D43: a stored name keeps its own).
+  const made = await checkPlaybook(
+    fakes({ calendarOn: true, appointmentWord: "session", message: utility }).ports,
+    visit("visited"),
+    null,
+  );
+  assert.match(made.name, /^After the session/);
+  // The refusal that names the moments says them in the word too.
+  await refused(
+    checkPlaybook(fakes({ appointmentWord: "lesson" }).ports, { template_id: T1, params: [] }, null),
+    "validation",
+    400,
+    "a lesson tomorrow, a lesson yesterday",
+  );
+  // The word is asked only where it is said: a month's offer with no name never asks it.
+  const quiet = fakes({ appointmentWord: new Error("asked") });
+  assert.equal(
+    (await checkPlaybook(quiet.ports, { trigger: "everyone_monthly", template_id: T1, params: [] }, null)).trigger,
+    "everyone_monthly",
+  );
+});
+
 test("a moment and its message agree on the yes they need (decision 7): a playbook made or changed whose two disagree is refused, in the words for which way", async () => {
   const offer = template({ category: "marketing" });
   const visit = template({ category: "utility" });
   const unfiled = template({ category: null });
-  // A message that is an offer on a moment that reaches anyone who said yes to texts.
+  // A message that is an offer on a moment that reaches anyone who said yes to texts. A calendar is connected: a new
+  // appointment moment is made only where one is (D44).
   for (const trigger of ["visit_tomorrow", "visited"])
     await refused(
       checkPlaybook(
-        fakes({ message: messageOf({ whatsapp: offer }) }).ports,
+        fakes({ calendarOn: true, message: messageOf({ whatsapp: offer }) }).ports,
         { trigger, template_id: T1, params: [] },
         null,
       ),
@@ -1623,7 +1677,7 @@ test("a moment and its message agree on the yes they need (decision 7): a playbo
   // One no channel ever filed is an offer, as the send reads it (purposeOfTemplate).
   await refused(
     checkPlaybook(
-      fakes({ message: messageOf({ whatsapp: unfiled }) }).ports,
+      fakes({ calendarOn: true, message: messageOf({ whatsapp: unfiled }) }).ports,
       { trigger: "visited", template_id: T1, params: [] },
       null,
     ),
@@ -1686,7 +1740,7 @@ test("a moment and its message agree on the yes they need (decision 7): a playbo
   assert.equal(
     (
       await checkPlaybook(
-        fakes({ message: messageOf({ whatsapp: visit }) }).ports,
+        fakes({ calendarOn: true, message: messageOf({ whatsapp: visit }) }).ports,
         { trigger: "visit_tomorrow", template_id: T1, params: [] },
         null,
       )
@@ -1996,8 +2050,8 @@ test("any version's id names the message: WhatsApp's, an email's and a text's ma
   const f = fakes({ message: own, channels: EMAIL_ONLY, people: [reachable("a", { phone: null })] });
   await make(f, { template_id: TEXT_V, audience: everyone, channels: ["email"] });
   assert.equal(f.of("assemble")[0][1].template_id, EMAIL_V, "picked by the text's id, kept on the email's: the anchor");
-  // The playbook is kept on the anchor the same way.
-  const kept = await checkPlaybook(fakes({ message: own }).ports, {
+  // The playbook is kept on the anchor the same way (a calendar connected: a new reminder is made only where one is).
+  const kept = await checkPlaybook(fakes({ calendarOn: true, message: own }).ports, {
     trigger: "visit_tomorrow",
     template_id: TEXT_V,
     params: [],
@@ -2048,8 +2102,9 @@ test("a message takes as many values as it has slots, by contracts' one count: p
 
 test("a playbook on a message with no WhatsApp row keeps the ticks that cannot send yet but is made only where a tick is held: email alone is kept, WhatsApp alone is refused in its words, the two together are kept", async () => {
   const visit = { trigger: "visit_tomorrow", params: [] };
+  // A calendar is connected: a new reminder is made only where one is (D44).
   const check = (channels, message = EMAIL_VISIT(), id = EMAIL_V) =>
-    checkPlaybook(fakes({ message }).ports, { ...visit, template_id: id, channels });
+    checkPlaybook(fakes({ calendarOn: true, message }).ports, { ...visit, template_id: id, channels });
   const byEmail = await check(["email"]);
   assert.deepEqual([byEmail.template_id, byEmail.channels], [EMAIL_V, ["email"]]);
   await refused(check(["whatsapp"]), "conflict", 409, NO_WHATSAPP);
@@ -2078,7 +2133,7 @@ test("a playbook on a message with no WhatsApp row keeps the ticks that cannot s
   );
   // A message that is an offer is refused on a moment about a visit, as it is with a WhatsApp row (decision 7).
   await refused(
-    checkPlaybook(fakes({ message: messageOf({ whatsapp: null, own: ["email"] }) }).ports, {
+    checkPlaybook(fakes({ calendarOn: true, message: messageOf({ whatsapp: null, own: ["email"] }) }).ports, {
       ...visit,
       template_id: EMAIL_V,
       channels: ["email"],
@@ -2087,4 +2142,25 @@ test("a playbook on a message with no WhatsApp row keeps the ticks that cannot s
     400,
     MESSAGE_MOMENT_WORDS.offer_on_texts,
   );
+});
+
+test("a booking-link slot needs a link on file, by one rule a message's values and a starter card both ask (core refuseWithoutBookingLink), and the link is read only where a slot asks for it", async () => {
+  const { refuseWithoutBookingLink } = await importSrc("packages/core/src/campaigns/template-values.ts");
+  let asked = 0;
+  const ports = (link) => ({
+    bookingLink: async () => {
+      asked += 1;
+      return link;
+    },
+  });
+  await refused(
+    refuseWithoutBookingLink(ports(null), [{ kind: "first_name" }, { kind: "booking_link" }]),
+    "conflict",
+    409,
+    "This message takes the booking link, and none is on file. Add it in Settings › Business first.",
+  );
+  await refuseWithoutBookingLink(ports("https://example.com/book"), [{ kind: "booking_link" }]);
+  asked = 0;
+  await refuseWithoutBookingLink(ports(null), [{ kind: "first_name" }, { kind: "business_name" }]);
+  assert.equal(asked, 0, "no slot for it, no read");
 });

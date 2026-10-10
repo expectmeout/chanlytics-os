@@ -631,6 +631,11 @@ export const DECISION_VERBS = [
   "start_playbook",
   "pause_playbook",
   /**
+   * A playbook changed in place (the change_playbook door): its name, hour, cap, gap or cadence. Subject 'playbook'; the
+   * payload names what changed. A pause or a resume stays pause_playbook or start_playbook.
+   */
+  "change_playbook",
+  /**
    * An answer to a review on Google, in the business's own words: subject
    * 'review' (the row's id), payload the words and when Google took them.
    * Replaces the previous answer; Google keeps one per review.

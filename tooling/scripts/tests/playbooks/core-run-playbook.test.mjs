@@ -556,7 +556,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   // and when, by the business's clock. Until this nobody was told unless Campaigns happened to be open.
   assert.deepEqual(veto.ops(), ["assemble", "notify", "record"]);
   assert.deepEqual(veto.of("notify")[0].slice(1), [
-    "Playbook “Win-back” sends today 10:30 AM: 2 people",
+    "Campaign “Win-back” sends today 10:30 AM: 2 people",
     "2 people will be sent “Win-back” today 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
     // The run it is about: the bell's row and the phone open that run, where Stop is (it named none, and opened Campaigns' home).
     "b1",
@@ -567,7 +567,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     late.ports,
     cmd({ ctx: context({ now: new Date("2026-09-07T01:00:00Z"), modes: new Map([["reengage", "veto"]]) }) }),
   );
-  assert.equal(late.of("notify")[0][1], "Playbook “Win-back” sends tomorrow 9:00 AM: 2 people");
+  assert.equal(late.of("notify")[0][1], "Campaign “Win-back” sends tomorrow 9:00 AM: 2 people");
   // The run is made and on the ledger: a bell that fails does not cost the run its record.
   const deaf = fakes({ notify: new Error("the bell is down") });
   const made = await runPlaybook(deaf.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
@@ -618,14 +618,14 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.equal(of("assemble")[0][1].scheduled_for, NOW.toISOString());
   assert.deepEqual(of("notify")[0], [
     "notify",
-    "Playbook “Win-back” is ready: 2 people",
+    "Campaign “Win-back” is ready: 2 people",
     "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.",
     // The run that waits: the row opens it, where Approve and Skip are.
     "b1",
   ]);
   const one = fakes();
   await runPlaybook(one.ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]), people: [person("a")] }) }));
-  assert.equal(one.of("notify")[0][1], "Playbook “Win-back” is ready: 1 person");
+  assert.equal(one.of("notify")[0][1], "Campaign “Win-back” is ready: 1 person");
   assert.match(one.of("notify")[0][2], /^1 person has become eligible/);
 });
 

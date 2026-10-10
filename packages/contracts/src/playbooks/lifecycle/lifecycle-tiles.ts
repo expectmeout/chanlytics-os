@@ -3,15 +3,17 @@
  * what came back in the last thirty. Each is made from what the surfaces carry and says nothing it does not know: a count the
  * workspace could not make is left out, a surface not read yet leaves its tile out, and a zero is shown as zero.
  */
-import { zoneMidnight, shiftKey } from "../calendar/day-keys";
-import { purposeOfPlaybook } from "../consent/consent";
-import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../consent/consent-channels";
-import { GET_YES_ROUTE } from "../people/people-lists";
-import type { PersonRowVM } from "../people/person-row";
-import { fmtDay } from "../reports/reports";
-import { clockHour, clockNear, clockTime, zoneDayKey } from "../shared/clock";
-import { HOUR_MS } from "../shared/time";
-import { plural } from "../shared/words";
+import { zoneMidnight, shiftKey } from "../../calendar/day-keys";
+import { purposeOfPlaybook } from "../../consent/consent";
+import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/consent-channels";
+import type { JourneyStage } from "../../journey/journey";
+import { GET_YES_ROUTE } from "../../people/people-lists";
+import type { PersonRowVM } from "../../people/person-row";
+import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods";
+import { fmtDay } from "../../reports/reports";
+import { clockHour, clockNear, clockTime, zoneDayKey } from "../../shared/clock";
+import { HOUR_MS } from "../../shared/time";
+import { plural } from "../../shared/words";
 import type {
   LifecycleAct,
   LifecycleCameBack,
@@ -28,16 +30,18 @@ import type {
   ReachCounts,
 } from "./lifecycle-types";
 import { LIFECYCLE_WORDS } from "./lifecycle-words";
-import { todayRunWords } from "../today/today-runs";
-import { waitingRunOffer } from "./playbook-approval";
-import { DAY_MS } from "./playbook-time";
-import { playbookReach } from "./playbook-reach";
-import { nextOpenMoment, nextRunOf } from "./playbook-schedule";
-import { triggerOf } from "./playbook-triggers";
+import { todayRunWords } from "../../today/today-runs";
+import { waitingRunOffer } from "../playbook-approval";
+import { DAY_MS } from "../playbook-time";
+import { playbookReach } from "../playbook-reach";
+import { runCapOf } from "../playbook-run-split";
+import { nextOpenMoment, nextRunOf } from "../playbook-schedule";
+import { triggerOf } from "../playbook-triggers";
 
-/** How far ahead "Coming up" looks, and how far back "What came back" does. */
+/** How far ahead "Coming up" looks. */
 const COMING_DAYS = 7;
-const RESULTS_DAYS = 30;
+/** How far back "What came back" looks: Campaigns' period (contracts CAMPAIGNS_RESULTS_PERIOD), a fixed count of days. */
+const RESULTS_DAYS = fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD);
 
 /** How many runs "What came back" lists. */
 const RUNS_SHOWN = 3;
@@ -137,13 +141,32 @@ export function lifecycleReach(input: LifecycleInput, stages: readonly Lifecycle
  * sorted by. Made from the schedule's own rule over the playbook's hour and the day it last ran for (playbook-schedule.ts
  * nextRunOf, which the card's label is said from too), at the moment the page is read: never from the label's words.
  */
-function nextRunLine(p: LifecyclePlaybook, nowMs: number, tz: string): { day: string; at: string; atMs: number } {
+export function nextRunLine(
+  p: LifecyclePlaybook,
+  nowMs: number,
+  tz: string,
+): { day: string; at: string; atMs: number } {
   const next = nextRunOf(p, tz, new Date(nowMs));
   const word = next.day === "tomorrow" ? "Tomorrow" : "Today";
   if (next.soon) return { day: word, at: "Within the hour", atMs: nowMs };
   const today = zoneDayKey(nowMs, tz);
   const atMs = zoneMidnight(tz, next.day === "tomorrow" ? shiftKey(today, 1) : today) + next.hour * HOUR_MS;
   return { day: word, at: clockHour(next.hour), atMs };
+}
+
+/** How many a running campaign's next run reaches: its cap's share, or everyone where nothing caps it (runCapOf). */
+export function nextShare(p: Pick<LifecyclePlaybook, "trigger" | "candidates" | "cap_per_run">): number {
+  const all = p.candidates ?? 0;
+  const cap = runCapOf(p);
+  return cap > 0 ? Math.min(all, cap) : all;
+}
+
+/**
+ * Whether the workspace is paused (billing), as either surface's readiness says it: the playbooks' own or the
+ * broadcasts'. The one reading the home asks, so Coming up's line and a ledger row never disagree about one run.
+ */
+export function workspacePausedOf(input: Pick<LifecycleInput, "playbooks" | "broadcasts">): boolean {
+  return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
 
 /** Who a running moment will reach on its next run, and the reason when it reaches nobody. */
@@ -156,11 +179,11 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
       // A run sends its cap and no more (core run-playbook draws the longest-unheard first, at most cap_per_run): a new
       // win-back with 300 quiet people said "300 will get it" over a run that sends 25. The next run's share is what
       // "will get it" promises. The rest are "up to": a later run draws them again, less whoever its own gap, the
-      // week's breath or the number's limit holds then. A visit's moment has no cap (contracts playbookRunReach: a
-      // reminder is owed to everyone with a visit, and tomorrow's visits have no later run), so its count is whole.
+      // week's breath or the number's limit holds then. An appointment moment has no cap (runCapOf), so its count is
+      // whole.
       const all = p.candidates ?? 0;
-      const cap = triggerOf(p.trigger)?.kind === "visit" ? 0 : (p.cap_per_run ?? 0);
-      const next = cap > 0 ? Math.min(all, cap) : all;
+      const cap = runCapOf(p);
+      const next = nextShare(p);
       const later = all - next;
       return {
         why:
@@ -251,6 +274,15 @@ function offerOf(r: LifecycleRun, nowMs: number, tz: string, at: WaitingAt) {
   );
 }
 
+/** What a waiting run may offer where it is drawn, by the business's clock (offerOf): a ledger row reads it, as Coming up's line does. */
+export function waitingOffer(
+  r: LifecycleRun,
+  input: Pick<LifecycleInput, "nowMs" | "tz">,
+  at: { paused: boolean; known: boolean },
+) {
+  return offerOf(r, input.nowMs, input.tz, at);
+}
+
 /**
  * A run on its way: scheduled, or waiting for the person's approval. One that waits says what Today's row says of it
  * ("7 people. Nothing sends until you say so.", or "12 businesses." for a reach-out's), and is approved or skipped on
@@ -277,49 +309,25 @@ function runRow(r: LifecycleRun, name: string, nowMs: number, tz: string, at: Wa
   };
 }
 
-/** What an off moment with people waiting says: how many, in the moment's words. */
-function offWhy(id: LifecycleStage["id"], n: number): string {
-  const people = plural(n, "person", "people");
-  switch (id) {
-    case "visit":
-      return `Off · ${people} ${n === 1 ? "visits" : "visit"} tomorrow`;
-    case "after":
-      return `Off · ${people} visited yesterday`;
-    case "quiet":
-      return `Off · ${people} ${n === 1 ? "has" : "have"} gone quiet`;
-    default:
-      return `Off · ${plural(n, "proposal")} waiting`;
-  }
-}
-
-/** When an off moment would run, as its words say it where it has no clock. */
-const OFF_WHEN: Record<LifecycleStage["id"], { day: string; at: string }> = {
-  first_contact: { day: "", at: "" },
-  visit: { day: "Every", at: "day" },
-  after: { day: "The day", at: "after" },
-  quiet: { day: "Every", at: "day" },
-  proposal: { day: "When one", at: "waits" },
-};
-
-/** An off moment that has people waiting offers to be turned on. */
-function offRows(stages: readonly LifecycleStage[], nowMs: number): LifecycleComing[] {
-  return stages.flatMap((s, i) =>
-    s.state === "off" && s.act?.kind === "turn_on" && (s.people ?? 0) > 0
-      ? [
-          {
-            id: `off:${s.id}`,
-            kind: "off" as const,
-            when: OFF_WHEN[s.id],
-            what: s.name,
-            why: offWhy(s.id, s.people ?? 0),
-            pill: null,
-            act: { kind: "turn_on" as const, label: "Turn on", moment: s.act.moment },
-            waiting: null,
-            atMs: nowMs + COMING_DAYS * DAY_MS + i,
-          },
-        ]
-      : [],
-  );
+/** An off moment that has people waiting offers to be turned on, in its stage's own words (journey.ts `off`). */
+function offRows(stages: readonly LifecycleStage[], defs: readonly JourneyStage[], nowMs: number): LifecycleComing[] {
+  return stages.flatMap((s, i) => {
+    const off = defs.find((d) => d.id === s.id)?.off;
+    if (!off || s.state !== "off" || s.act?.kind !== "turn_on" || (s.people ?? 0) <= 0) return [];
+    return [
+      {
+        id: `off:${s.id}`,
+        kind: "off" as const,
+        when: off.when,
+        what: s.name,
+        why: off.why(s.people ?? 0),
+        pill: null,
+        act: { kind: "turn_on" as const, label: "Turn on", moment: s.act.moment },
+        waiting: null,
+        atMs: nowMs + COMING_DAYS * DAY_MS + i,
+      },
+    ];
+  });
 }
 
 /**
@@ -328,15 +336,19 @@ function offRows(stages: readonly LifecycleStage[], nowMs: number): LifecycleCom
  * Null while the playbooks have not landed. The runs are the broadcasts' read: while it is out or failed the tile has no
  * rows and no "nothing is set to go out", which a week it could not see would be a false thing to say.
  */
-export function lifecycleComing(input: LifecycleInput, stages: readonly LifecycleStage[]): LifecycleComingTile | null {
+export function lifecycleComing(
+  input: LifecycleInput,
+  stages: readonly LifecycleStage[],
+  defs: readonly JourneyStage[],
+): LifecycleComingTile | null {
   const playbooks = input.playbooks;
   if (!playbooks) return null;
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
   const playbookOf = (id: string | null) => playbooks.rows.find((p) => p.id === id);
-  // The workspace's pause, as either surface's readiness says it (the playbooks' own, else the broadcasts').
-  const paused = playbooks.ready?.paused === true || broadcasts.ready?.paused === true;
+  // The workspace's pause, as either surface's readiness says it (workspacePausedOf, the one reading).
+  const paused = workspacePausedOf(input);
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows
     .filter((r) => (r.state === "scheduled" || r.state === "pending_approval") && Date.parse(r.scheduled_for) <= end)
@@ -351,7 +363,7 @@ export function lifecycleComing(input: LifecycleInput, stages: readonly Lifecycl
     .filter((p) => !covered.has(p.id))
     .flatMap((p) => momentRow(p, nowMs, tz, paused) ?? []);
   const timed = [...moments, ...runs].sort((a, b) => a.atMs - b.atMs);
-  const rows = [...timed, ...offRows(stages, nowMs)];
+  const rows = [...timed, ...offRows(stages, defs, nowMs)];
   return { read: "read", rows, empty: LIFECYCLE_WORDS.coming.empty, rules };
 }
 
@@ -380,9 +392,9 @@ function cameBack(input: LifecycleInput, days: number): LifecycleCameBack[] {
 }
 
 /**
- * "What came back": the period's funnel from the campaign report (sent, delivered, read, replied: counts over what is stored),
- * who said yes and who asked to stop, and the latest runs. A report that could not be read leaves the numbers out and says
- * so; the runs, which are the surface's own, stand.
+ * "What came back": the period's funnel from the campaign report (the campaign_results surface's: sent, delivered, read,
+ * replied: counts over what is stored), who said yes and who asked to stop, and the latest runs. A report that could not
+ * be read leaves the numbers out and says so; the runs, which are the broadcasts surface's own, stand.
  */
 export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
   const b = input.broadcasts;
@@ -402,10 +414,11 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       quiet: false,
     };
   }
-  const days = b.report?.days ?? RESULTS_DAYS;
+  const report = input.report;
+  const days = report?.days ?? RESULTS_DAYS;
   const note = plural(days, "day");
   const runs = cameBack(input, days);
-  if (!b.report)
+  if (!report)
     return {
       read: "read",
       days,
@@ -419,7 +432,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
       runs,
       quiet: false,
     };
-  const t = b.report.totals;
+  const t = report.totals;
   const W = LIFECYCLE_WORDS.results.funnel;
   // A read is a share of WhatsApp's own sends (0030): a text or an email keeps no read receipt. Absent, of every send.
   const readOf = t.readOf ?? t.sent;
@@ -464,7 +477,7 @@ export function lifecycleResults(input: LifecycleInput): LifecycleResultsTile {
     readNote,
     // What went by each channel (0030), where more than one sent: a line under the funnel in the channels' own words.
     byChannel: countsByChannelWords(
-      b.report.byChannel ? Object.fromEntries(b.report.byChannel.map((c) => [c.channel, c.sent])) : null,
+      report.byChannel ? Object.fromEntries(report.byChannel.map((c) => [c.channel, c.sent])) : null,
     ),
     runs,
     quiet: t.sent === 0 && t.optIns === 0 && t.optOuts === 0,

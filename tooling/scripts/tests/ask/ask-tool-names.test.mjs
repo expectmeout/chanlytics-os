@@ -556,6 +556,19 @@ function withReviews(result) {
   const said = JSON.parse(result);
   return said.error ? result : JSON.stringify({ ...said, reviews: { linked: false, words: NOTHING_LINKED } });
 }
+
+/**
+ * 9 Oct 2026 (spec 2026-10-09 §4.5): the report says the Reach-outs section after the Reviews lens, from its own reader
+ * (readers/campaign-report.ts reachOutReport). This world's database models neither reach_out_report nor
+ * reach_out_chain_totals (a function it does not have is no read it counts), so it says the read failed. The one change
+ * to the bytes of a report it answers; its reads are unchanged.
+ */
+function withReachOuts(result) {
+  const said = JSON.parse(result);
+  return said.error
+    ? result
+    : JSON.stringify({ ...said, reach_outs: { error: "the reach-out numbers could not be read just now" } });
+}
 /** What the Reviews fold says of a workspace with nothing linked, where nothing can be looked up (this world's deployment). */
 const NOTHING_LINKED = toReviewsReportVM(
   {
@@ -736,6 +749,43 @@ function withTheClocksHour(frozen) {
 }
 
 /**
+ * 9 Oct 2026 (the moment spec, decision 19): a playbook card's title says what a person calls it, "Campaign: …", where
+ * these bytes say "Playbook: …". The kind, the action and the payload keep their names. The fixture stays as it was made.
+ */
+function withCampaignWord(frozen) {
+  return frozen
+    .replace('"card":"Playbook: ', '"card":"Campaign: ')
+    .replace('"title":"Playbook: ', '"title":"Campaign: ');
+}
+
+/**
+ * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
+ * says "Reading the campaigns" where these bytes say "Reading the playbooks". The action keeps its name; the fixture
+ * stays as it was made.
+ */
+function withCampaignsLabel(want) {
+  return want.label === "Reading the playbooks" ? { ...want, label: "Reading the campaigns" } : want;
+}
+
+/**
+ * 9 Oct 2026 (the moment spec, A6, D35): campaigns.playbooks says each playbook's last 30 days (last_30_days, from
+ * campaign_series' sources; null where that read fails, as in this world, which models no campaign_series) in the place
+ * of its all-time runs, sent and replied, and its route is Campaigns' own word. Nothing else moved.
+ */
+function withLastThirtyDays(frozen) {
+  const said = JSON.parse(frozen);
+  if (!Array.isArray(said.playbooks)) return frozen;
+  const playbooks = said.playbooks.map((p) =>
+    Object.fromEntries(
+      Object.entries(p).flatMap(([k, v]) =>
+        k === "runs" ? [["last_30_days", null]] : k === "sent" || k === "replied" ? [] : [[k, v]],
+      ),
+    ),
+  );
+  return JSON.stringify({ ...said, route: said.route === "outbound" ? "campaigns" : said.route, playbooks });
+}
+
+/**
  * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
  * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
  * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
@@ -789,7 +839,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withReviews(withCampaigns(withHold(result)));
+    if (NAMES[old] === "report") result = withReachOuts(withReviews(withCampaigns(withHold(result))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
@@ -799,8 +849,17 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // in their result and in the card they propose.
     const campaignsOwn = NAMES[old].startsWith("campaigns.") || NAMES[old].startsWith("propose_campaign.");
     if (campaignsOwn) result = withTheClocksHour(result);
+    // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
+    const playbookCard = NAMES[old] === "propose_campaign.playbook";
+    if (playbookCard) result = withCampaignWord(result);
     const card =
-      campaignsOwn && typeof want.proposal === "string" ? { proposal: withTheClocksHour(want.proposal) } : {};
+      campaignsOwn && typeof want.proposal === "string"
+        ? {
+            proposal: playbookCard
+              ? withCampaignWord(withTheClocksHour(want.proposal))
+              : withTheClocksHour(want.proposal),
+          }
+        : {};
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -892,10 +951,28 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // the reader does not count as the person's own, so the draft that reaches the read makes it. Its bytes are unchanged.
     const readsOurWire = NAMES[old] === "propose_reply.draft" && withSeen.includes("messages.select");
     const withOurWire = readsOurWire ? [...withSeen, "messages.select"] : withSeen;
-    const reads = NAMES[old] === "report" ? withReviewReads(withOurWire) : withOurWire;
+    // 9 Oct 2026 (a moment holds many campaigns, lane 1, task 14): the playbooks reader asks the database what each
+    // playbook's runs earned (00374 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
+    // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
+    // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
+    const countsInTheDatabase = NAMES[old] === "campaigns.playbooks" && withOurWire.includes("broadcasts.select");
+    const withTotals = countsInTheDatabase
+      ? [...withOurWire.toSpliced(withOurWire.indexOf("broadcasts.select"), 1), "rpc:playbook_totals"]
+      : withOurWire;
+    // 9 Oct 2026 (the moment spec, D9): a playbook proposed is held to the running ones on its moment, list and message
+    // (packages/db runningTwins): one `playbooks` read more for a call that reaches its card.
+    const readsTwins = NAMES[old] === "propose_campaign.playbook" && !want.isError;
+    const withTwins = readsTwins ? [...withTotals, "playbooks.select"] : withTotals;
+    // 10 Oct 2026 (a moment holds many campaigns: the month's allowance, one rule): a playbook proposed is counted against
+    // the week's touches as the page's pools are (server/campaigns/playbooks.ts recentTouches, db touchesSince: the week's
+    // runs, and the workspace's zone a waiting run is judged by), where it was counted with nobody touched: two reads more
+    // for a call that reaches its card, and no read of the runs' people where the week holds no run. Its bytes are
+    // unchanged: nobody here heard from a campaign this week.
+    const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
+    const reads = NAMES[old] === "report" ? withReviewReads(withWeek) : withWeek;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
-        ? againstOffered(got.result, result)
+        ? againstOffered(got.result, withLastThirtyDays(result))
         : [got.result, NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result];
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
     // zone and settings the turn reads once: the same reads as before, those two earlier.
@@ -904,7 +981,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const inOrder = (r) => [...r].sort();
     assert.deepEqual(
       { ...got, result: gotResult, reads: inOrder(got.reads) },
-      { ...want, ...card, result: wantResult, reads: inOrder(reads) },
+      { ...withCampaignsLabel(want), ...card, result: wantResult, reads: inOrder(reads) },
       `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`,
     );
   }

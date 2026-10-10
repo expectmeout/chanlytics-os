@@ -132,7 +132,7 @@ function queueList(vm: TodayVM, drawn: ReactElement[], runs: ReactElement[], tot
         <FailedRead
           kind="line"
           className="tq-failed"
-          what="the playbook runs"
+          what="the campaign runs"
           body="The rows above are current."
           surface="broadcasts"
           testid="today-runs-failed"

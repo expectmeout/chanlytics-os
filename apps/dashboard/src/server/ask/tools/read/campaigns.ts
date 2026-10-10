@@ -31,6 +31,7 @@ import {
   sentByWords,
   toRunReportVM,
   triggerOf,
+  triggerWords,
   unmetNeed,
   type AudienceKind,
   type BroadcastDto,
@@ -40,6 +41,7 @@ import {
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { broadcast as broadcastReader, broadcasts as broadcastsReader } from "../../../readers/broadcasts";
+import { lastDaysBySource, lastDaysOf } from "../../../readers/campaign-report";
 import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
@@ -240,22 +242,30 @@ const MODE_WORDS: Record<string, string> = {
 };
 
 /**
- * The playbooks as the page shows them — the same rows, the same totals,
- * the same next-run words — and the triggers with the counts the page's
+ * The playbooks as the page shows them — the same rows, the same last 30
+ * days, the same next-run words — and the triggers with the counts the page's
  * chips carry: the Playbooks page's own read (readers/playbooks.ts), once a
  * turn, projected (ledger #10). Every count is the page's: over everyone, with
  * no one looking, the week's touches applied and, where deals are on, whoever
  * already had their proposal's follow-up left out, as a run counts them.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [read, policies] = await Promise.all([
+  const [read, policies, sources] = await Promise.all([
     load(t.rc, playbooks, undefined),
     load(t.rc, readers.policies, undefined).then(
       (r) => r.data,
       () => [],
     ),
+    // The last 30 days by playbook (campaign_series' sources, Reports' Campaigns lens): what the ledger's row says. Null
+    // where it could not be read, never all-time totals in its place (D35).
+    lastDaysBySource(t.rc),
   ]);
   const pb = read.data;
+  // The workspace's word (GET playbooks' businessShape): Ask says each appointment moment as the page does.
+  const said = (id: string) => {
+    const x = triggerOf(id);
+    return x ? triggerWords(x, pb.appointment_word) : null;
+  };
   // Every playbook it lists is a row an answer may cite, opened on Playbooks at its card: the reader's RowRefs.
   noteRows(t.read, read.rows);
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
@@ -294,7 +304,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
     return listUnknownWords(need, pb.calendar);
   };
   return {
-    route: "outbound",
+    route: "campaigns",
     timezone: pb.timezone,
     modes: {
       reengage: modeOf("reengage"),
@@ -308,7 +318,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       playbook_id: p.id,
       name: p.name,
       trigger: p.trigger,
-      trigger_label: triggerOf(p.trigger)?.label ?? p.trigger,
+      trigger_label: said(p.trigger)?.label ?? p.trigger,
       template: p.template_name,
       // The channels it goes by (WhatsApp alone for one made before channels): what propose_campaign with action
       // channels is asked to change, and must be told whole.
@@ -316,7 +326,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       state: p.state,
       policy_class: p.policy_class,
       mode: modeOf(p.policy_class),
-      schedule: scheduleLine(p),
+      schedule: scheduleLine(p, pb.appointment_word),
       next_run: nextRunLabel(p, pb.timezone, t.now, pb.ready?.paused === true),
       // On a list (decision 0009): its token, and who a run on it reaches now, as the page counts that list.
       ...(() => {
@@ -325,9 +335,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         const token = listToken(ref);
         return { list: token, ...(pb.pools[token] ? counted(token) : { cannot_count: uncounted(ref) }) };
       })(),
-      runs: p.totals.runs,
-      sent: p.totals.sent,
-      replied: p.totals.replied,
+      last_30_days: lastDaysOf(sources, p.id),
       waiting: p.totals.waiting
         ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
         : null,
@@ -338,8 +346,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       momentOffered(x, { dealsOn: pb.deals_on, calendarOn: pb.calendar !== "none" }),
     ).map((x) => ({
       trigger: x.id,
-      label: x.label,
-      when: x.hint,
+      label: triggerWords(x, pb.appointment_word).label,
+      when: triggerWords(x, pb.appointment_word).hint,
       policy_class: x.cls,
       // On a list, the counts are the list's: campaigns.audiences has each list's.
       ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
@@ -353,7 +361,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
 const RUN_CAP = { people: 20, replies: 10 };
 
 /**
- * A broadcast as the Broadcasts page's row says it (contracts toBroadcastVM): its name, whether a playbook or a person
+ * A broadcast as the Broadcasts page's row says it (contracts toBroadcastVM): its name, whether a campaign or a person
  * sent it, its audience and template, its state in the page's words -- a run waiting for a person to approve it said
  * as such -- when, and what its messages earned.
  */
@@ -363,7 +371,8 @@ function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
     broadcast_id: b.id,
     route: `broadcasts/run:${b.id}`,
     name: b.name,
-    by: b.playbook_id ? "a playbook" : "a person",
+    // A person reads "campaign", never "playbook" (decision 19), and the model repeats what the row says.
+    by: b.playbook_id ? "a campaign" : "a person",
     audience: b.audience.label,
     template: b.template_name,
     state: vm.stateLabel,
@@ -455,9 +464,9 @@ export const campaignsTool = defineActions({
     playbooks: readAction({
       input: z.object({}),
       examples: [{}],
-      label: "Reading the playbooks",
+      label: "Reading the campaigns",
       words:
-        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read), and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
       run: listPlaybooksTool,
     }),
     broadcasts: readAction({
@@ -465,7 +474,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the broadcasts",
       words:
-        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Waiting on you, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
+        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a campaign or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Waiting on you, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
       run: readBroadcasts,
     }),
     broadcast: readAction({

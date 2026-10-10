@@ -29,7 +29,7 @@ function _buttonTakes(
     // Its props are the type the kit names for them, and its kinds, sizes and tone its map's, each optional.
     Holds<Exactly<ComponentProps<typeof Button>, ButtonProps>>,
     Holds<Exactly<ButtonProps["variant"], "primary" | "secondary" | "quiet" | "danger" | undefined>>,
-    Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | undefined>>,
+    Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | "text" | undefined>>,
     Holds<Exactly<ButtonProps["tone"], "danger" | undefined>>,
   ];
   Button({ children: "Export" });
@@ -52,6 +52,14 @@ function _buttonTakes(
   Button({ variant: "loud", children: "Save" });
   // The large one is Glass's, a page's head act (a person's thread and More).
   Button({ size: "lg", variant: "primary", children: "Open the thread" });
+  // Drawn as text: an area of a page's words that is one press (a moment's card on Campaigns' rail).
+  Button({ size: "text", variant: "quiet", "aria-pressed": now.flag, children: [glyph, "Visit reminder"] });
+  // @ts-expect-error drawn as text is the quiet kind's alone: a primary as text would take a text's weight, and no page wants one
+  Button({ size: "text", variant: "primary", children: "Visit reminder" });
+  // @ts-expect-error drawn as text names its kind, the quiet one: the default kind, secondary, is a control's
+  Button({ size: "text", children: "Visit reminder" });
+  // @ts-expect-error the size of its words is said as text: `fit` is no size the kit names
+  Button({ size: "fit", children: "Visit reminder" });
   // @ts-expect-error the kit draws the sizes it names: another comes with its first reader
   Button({ size: "xl", children: "Save" });
   // @ts-expect-error danger is the words' one tone

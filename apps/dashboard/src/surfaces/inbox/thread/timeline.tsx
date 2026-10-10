@@ -199,7 +199,7 @@ function sentBy(entry: MsgEntry): string {
     entry.byWords ||
     (entry.via
       ? entry.via.kind === "playbook"
-        ? `the ${entry.via.name} playbook`
+        ? `the ${entry.via.name} campaign`
         : `a broadcast (${entry.via.name})`
       : "you")
   );

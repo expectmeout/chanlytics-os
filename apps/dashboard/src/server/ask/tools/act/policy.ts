@@ -2,10 +2,16 @@ import "server-only";
 import { z } from "zod";
 import {
   FOLLOW_UP_NEEDS_DEALS,
+  PLAYBOOK_VETO_DELAY_WORDS,
   POLICY_CLASSES,
+  POLICY_CLASS_WORDS,
   POLICY_MODES,
+  POLICY_MODE_WORDS,
   dealsAreOn,
   policyClassOffered,
+  policyModeRefusal,
+  type PolicyClass,
+  type PolicyMode,
 } from "@chanlytics/contracts";
 import { sellsByOf } from "../../../people/deals";
 import { defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
@@ -26,7 +32,9 @@ async function proposePolicy(
     return refuse(FOLLOW_UP_NEEDS_DEALS);
   if (mode && !(POLICY_MODES as readonly string[]).includes(mode))
     return refuse("mode must be auto, veto, ask or never");
-  if (mode === "veto" && cls !== "reply") return refuse("only replies can be held for review");
+  // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
+  const notOffered = mode ? policyModeRefusal(cls as PolicyClass, mode as PolicyMode) : null;
+  if (notOffered) return refuse(notOffered);
   if (conf !== null && (cls !== "reply" || conf < 0 || conf > 1))
     return refuse("the confidence dial is 0 to 1 and applies to reply");
   if (!mode && conf === null) return refuse("say a mode or a confidence");
@@ -37,14 +45,9 @@ async function proposePolicy(
     .eq("class", cls)
     .is("subject_type", null)
     .maybeSingle();
-  const MODE_LABEL: Record<string, string> = {
-    auto: "acts on its own",
-    veto: "sends after a short window unless you stop it",
-    ask: "asks you first",
-    never: "never",
-  };
+  // The Autonomy page's own words for the row and the mode, never a class id.
   const summary = [
-    mode ? `${cls}: ${MODE_LABEL[mode] ?? mode}` : null,
+    mode ? `${POLICY_CLASS_WORDS[cls as PolicyClass].name}: ${POLICY_MODE_WORDS[mode as PolicyMode].chip}` : null,
     conf !== null ? `confidence dial ${Math.round(conf * 100)}%` : null,
   ]
     .filter(Boolean)
@@ -67,8 +70,7 @@ async function proposePolicy(
 
 export const propose_autonomy = defineAct({
   name: "propose_autonomy",
-  description:
-    "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. veto is for replies only. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+  description: `Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for ${PLAYBOOK_VETO_DELAY_WORDS}, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.`,
   kind: "policy",
   input: z.object({
     // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).

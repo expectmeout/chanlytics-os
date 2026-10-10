@@ -179,6 +179,8 @@ const playbooksSurface = (over = {}) => ({
   ],
   timezone: ZONE,
   calendar: "none",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "none", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: false,
@@ -694,6 +696,9 @@ test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipp
     totals: { ...playbook().totals, waiting: { id: "b-wait", recipient_count: 3, name: "Win-back · 2026-09-15" } },
   });
   let tree = pane(p);
+  // One word per act (decision 19): Skip, and Approve with its count, as on the run's row of the ledger.
+  assert.equal(textOf(byTestId(tree, "pb-skip")).trim(), "Skip");
+  assert.match(textOf(byTestId(tree, "pb-approve")), /Approve · 3 people$/);
   press(byTestId(tree, "pb-skip"));
   assert.deepEqual(skipped, [], "REGRESSION: one click skipped the run");
   tree = redraw(p);
@@ -816,6 +821,7 @@ test("A playbook's detail leads with what it sends, not with how it is configure
     "no chip row above the message",
   );
   // The audience is still a door to the people it means.
+  assert.match(byTestId(tree, "pb-audience").props["data-tip"], /^The list this campaign watches — /);
   press(byTestId(tree, "pb-audience"));
   assert.match(went.at(-1), /^clients\/seg:/);
 });
@@ -970,10 +976,11 @@ test("a playbook on an archived list says so in its detail, one press from its l
       " ",
     );
     assert.ok(sentence.includes("Paused — its list, VIP, is archived."), sentence);
+    assert.ok(sentence.includes(", or edit the campaign to run on another."), sentence);
     await press(byTestId(drawn, "pb-list-restore"));
     await settle();
     assert.deepEqual(restored, ["l1"]);
-    assert.match(textOf(toasts.at(-1).msg), /^VIP is back; resume the playbook when you want it running/);
+    assert.match(textOf(toasts.at(-1).msg), /^VIP is back; resume the campaign when you want it running/);
   } finally {
     delete globalThis.window.__lists;
     globalThis.fetch = fetchKept;

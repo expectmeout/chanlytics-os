@@ -18,7 +18,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { doorOf, localDate, localHour } from "@chanlytics/contracts";
+import { doorOf, localDate, localHour, playbookFailedWords } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault, wire, withEnv } from "../_cron-doors-world.mjs";
@@ -1008,7 +1008,7 @@ test("a run that waits for a person tells them WHICH run: the bell's row is abou
   const [notice] = bellOf(w, A);
   assert.deepEqual(
     [notice.kind, notice.title, notice.route, notice.subject_type, notice.subject_id],
-    ["playbook", "Playbook “Win-back” is ready: 2 people", `broadcasts/run:${run.id}`, "broadcast", run.id],
+    ["playbook", "Campaign “Win-back” is ready: 2 people", `broadcasts/run:${run.id}`, "broadcast", run.id],
     "REGRESSION: the row named no run and opened Campaigns' home (route outbound)",
   );
   // And their phone hears it: a waiting run is refused once its day has passed, and the bell alone was the only word.
@@ -1186,9 +1186,10 @@ test("a playbook that cannot run is told: the platform is paged once per workspa
       assert.deepEqual(mailTo(line, OWNER), []);
       const page = mailTo(line, PLATFORM);
       assert.equal(page.length, 1);
-      assert.ok(page[0].subject.startsWith("[Chanlytics] A playbook could not run in workspace"), page[0].subject);
+      assert.ok(page[0].subject.startsWith("[Chanlytics] A campaign could not run in workspace"), page[0].subject);
       for (const said of [A, "Win-back", "pb-a", "statement timeout"])
         assert.ok(page[0].text.includes(said), `${said}: ${page[0].text}`);
+      assert.ok(page[0].text.includes("Campaign: Win-back (pb-a)"), page[0].text);
       line.calls.length = 0;
 
       // The last hour of its day: the owner is told, in the bell and by mail, and once however many ticks follow.
@@ -1225,6 +1226,30 @@ test("a playbook that cannot run is told: the platform is paged once per workspa
   } finally {
     line.restore();
   }
+});
+
+test("a workspace that names nobody to tell hears of its failed campaign as a fact alone, in the platform's mailbox", async () => {
+  const LAST = zoneWhere((h) => h === 20);
+  const failing = { "templates.select": { message: "canceling statement due to statement timeout" } };
+  const line = wire();
+  try {
+    await withEnv(MAIL_ENV, async () => {
+      const w = world({ people: { [A]: [person("c1")] }, faults: failing });
+      workspace(w.tables, A, LAST, "auto");
+      w.tables.playbooks.push(playbook(A, "pb-a", { name: "Win-back", last_run_at: iso(D) }));
+      const [, body] = await answer(await w.tick());
+      assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+      const withheld = mailTo(line, PLATFORM).filter((m) => m.subject === "A workspace needs notification settings");
+      assert.equal(withheld.length, 1);
+      // Its name withheld, and a campaign to whoever reads it (decision 19).
+      assert.ok(withheld[0].text.startsWith("A campaign could not run today in this workspace."), withheld[0].text);
+      assert.ok(!withheld[0].text.includes("Win-back"), withheld[0].text);
+    });
+  } finally {
+    line.restore();
+  }
+  // A campaign with a blank name is still said as one to its owner.
+  assert.equal(playbookFailedWords("  ", "other").title, "“A campaign” could not run today");
 });
 
 test("a calendar that could not be read all day tells the owner what failed and where to look, and pages nobody: the link is the owner's to mend", async () => {
@@ -1288,7 +1313,8 @@ test("a workspace whose context cannot be read pages once and tells each due pla
       );
       const page = mailTo(line, PLATFORM);
       assert.equal(page.length, 1);
-      assert.ok(page[0].subject.startsWith("[Chanlytics] Playbooks could not run in workspace"), page[0].subject);
+      assert.ok(page[0].subject.startsWith("[Chanlytics] Campaigns could not run in workspace"), page[0].subject);
+      assert.ok(page[0].text.includes("2 campaigns could not run for"), page[0].text);
       for (const named of ["Win-back", "Second chance", "pb-1", "pb-2"]) assert.ok(page[0].text.includes(named), named);
       assert.deepEqual(
         bellOf(w, A)

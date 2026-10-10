@@ -3,7 +3,7 @@
  * email, the ids a header lists, and what a message claims to be. Whether a delivery is Resend's at all is
  * webhook-signature.ts; the header values it reads are header-values.ts.
  */
-import { bookingNoticeOf, forwardingConfirmationOf } from "@chanlytics/contracts";
+import { bookingNoticeOf, forwardingConfirmationOf, type EmailClaim } from "@chanlytics/contracts";
 import { addressOf, addressesOf, messageIdHeader } from "./header-values";
 
 /* ------------------------------------------------------------------ intake
@@ -160,23 +160,25 @@ export function messageIdsIn(header: string | null | undefined): string[] {
 }
 
 /**
- * What a received email CLAIMS to be, from headers anyone can write. The order
- * is the rule: a delivery report and an automatic reply are tested before the
- * generic automated mark, because both carry it, and each is handled apart.
+ * What a received email CLAIMS to be, from headers anyone can write: one of contracts' EMAIL_CLAIMS, the one list of
+ * them, which also says whether each is a person's words. The order classifyReceived tests them in is the rule: a
+ * delivery report and an automatic reply are tested before the generic automated mark, because both carry it, and
+ * each is handled apart.
  *
- *   report     a bounce or a delivery status notification, by email. Recorded
- *              for a person; what stops sends to an address is the provider's
- *              signed receipt, never this.
- *   auto_reply an out-of-office or a responder answering something of ours
- *              (RFC 3834 auto-replied, and the markers older systems use).
- *              Never answered: two responders answering each other is a loop.
- *   automated  mail a program produced or a list sent. Kept, and kept from the
- *              receptionist. (A lead notification is automated mail too; the
- *              day one is parsed, its source is tested before this.)
- *   person     none of the above.
+ *   report                   a bounce or a delivery status notification, by email. Recorded
+ *                            for a person; what stops sends to an address is the provider's
+ *                            signed receipt, never this.
+ *   booking_notice           a booking tool writing about one of the business's appointments.
+ *   forwarding_confirmation  Gmail asking whether it may forward an account's mail here.
+ *   auto_reply               an out-of-office or a responder answering something of ours
+ *                            (RFC 3834 auto-replied, and the markers older systems use).
+ *                            Never answered: two responders answering each other is a loop.
+ *   automated                mail a program produced or a list sent. Kept, and kept from the
+ *                            receptionist. (A lead notification is automated mail too; the
+ *                            day one is parsed, its source is tested before this.)
+ *   person                   none of the above.
  */
-export type EmailClaim =
-  "report" | "auto_reply" | "automated" | "person" | "booking_notice" | "forwarding_confirmation";
+export type { EmailClaim };
 
 /**
  * One mailbox, plainly: an address, and a phrase beside it that could not be a second one. A From line may list several

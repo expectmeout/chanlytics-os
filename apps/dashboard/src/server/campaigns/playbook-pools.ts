@@ -17,7 +17,10 @@ import {
   triggerOffered,
   ruleNeedsViewer,
   DEFAULT_CAMPAIGN_CHANNELS,
+  PLAYBOOK_CAP_CHOICES,
+  PLAYBOOK_LIMITS,
   readyOrWhatsApp,
+  runReadingOf,
   type ChannelsReady,
   type ConsentChannel,
   type DealPaceVM,
@@ -25,6 +28,7 @@ import {
   type PlaybookDto,
   type PlaybookTrigger,
   type RunMessage,
+  type RunSplit,
 } from "@chanlytics/contracts";
 import { savedListsFor, templatesFor } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
@@ -36,7 +40,7 @@ import {
   type ZoneAndSettings,
 } from "@/server/calendar/people-visits";
 import { otherChannelSets } from "@/lib/campaign-channels";
-import { noFollowUps, proposalFollowUps, type FollowUpsRead } from "@/server/campaigns/playbooks";
+import { noFollowUps, poolTouches, proposalFollowUps, type FollowUpsRead } from "@/server/campaigns/playbooks";
 import { everyone } from "@/server/people/people";
 import { lazily, settled, type Lazy, type Settled } from "@/server/lazy";
 import { log } from "@/server/log";
@@ -49,8 +53,8 @@ import { log } from "@/server/log";
  * length (9 Oct 2026).
  */
 
-/** A cap no workspace reaches: the pool is counted, not capped. */
-const PLAYBOOK_POOL = 100_000;
+/** A cap no workspace reaches: the pool is counted, not capped (here, and by Ask's campaign card). */
+export const PLAYBOOK_POOL = 100_000;
 
 interface PoolCounts {
   /** Who a run would pick now. */
@@ -83,6 +87,11 @@ interface PoolCounts {
   no_channel: number;
   /** Who a run reaches on each channel (step 3), adding up to `candidates`. */
   by_channel: Record<ConsentChannel, number>;
+  /**
+   * One run's split by channel at each cap a campaign here may take, where it differs from `by_channel` (contracts
+   * runReadingOf): what the composer holds the month's allowance against.
+   */
+  run_split?: RunSplit;
 }
 
 /**
@@ -255,8 +264,11 @@ interface PoolsFrom {
   people?: Lazy<PersonRowDto[]>;
   /** The calendar's zone and settings, so the visits' lookup reads neither of them. */
   known?: ZoneAndSettings;
-  /** The workspace's playbooks: those whose message is stricter than their moment are counted by it (strictMessagePools). */
-  playbooks?: readonly StrictCandidate[];
+  /**
+   * The workspace's playbooks: those whose message is stricter than their moment are counted by it (strictMessagePools),
+   * and one run's split is counted at each one's cap too (splitCaps).
+   */
+  playbooks?: readonly (StrictCandidate & Pick<PlaybookDto, "cap_per_run">)[];
   /**
    * The pools' reads, where the caller asked for them before it had the rest (readers/playbooks.ts, with the page's
    * first reads). Without them they are asked here, together.
@@ -269,28 +281,43 @@ interface PoolsFrom {
   ready?: ChannelsReady | null;
 }
 
-/** What counting a moment is made from: the people with their visits, the week's touches, the pace, and what each channel can send on. */
+/**
+ * What counting a moment is made from: the people with their visits, the week's touches, the pace, what each channel can
+ * send on, and the caps one run's split is counted at (splitCaps).
+ */
 interface PoolCounting {
   vms: Parameters<typeof playbookRunReach>[0];
   breath: Parameters<typeof playbookRunReach>[2];
   nowMs: number;
   pace: Parameters<typeof playbookRunReach>[4];
   ready: ChannelsReady;
+  caps: readonly number[];
+}
+
+/**
+ * The caps one run's split is counted at: every cap the composer offers (contracts PLAYBOOK_CAP_CHOICES) and each
+ * campaign's own, within the bounds a cap is held to, so the composer finds the split for any cap it can be set to.
+ */
+function splitCaps(playbooks: readonly Pick<PlaybookDto, "cap_per_run">[]): number[] {
+  const { min, max } = PLAYBOOK_LIMITS.cap_per_run;
+  const own = playbooks.map((p) => p.cap_per_run).filter((cap) => Number.isInteger(cap) && cap >= min && cap <= max);
+  return [...new Set([...PLAYBOOK_CAP_CHOICES, ...own])];
 }
 
 /**
  * How one moment is counted (the runner's own predicate, over everyone): with no message in view, its class's yes alone,
  * or a playbook's own message where that is stricter, for WhatsApp alone as every playbook went, and for each other set of
- * channels a playbook of this kind of message may tick (campaign-channels.ts otherChannelSets), each counted once.
+ * channels a playbook of this kind of message may tick (campaign-channels.ts otherChannelSets), each counted once. One
+ * run's split at each cap is read off the same draw (contracts runReadingOf), never counted again.
  */
-function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
+function poolCounter({ vms, breath, nowMs, pace, ready, caps }: PoolCounting) {
   const countFor = (
     trigger: PlaybookDto["trigger"],
     listIds: ReadonlySet<string> | null,
     message: RunMessage,
     channels: readonly ConsentChannel[],
   ): PoolCounts => {
-    const { reach, saidYes } = playbookRunReach(
+    const drawn = playbookRunReach(
       vms,
       { trigger, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0, message, channels, ready },
       breath,
@@ -298,8 +325,9 @@ function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
       pace,
       listIds,
     );
+    const { reach, saidYes } = drawn;
     return {
-      candidates: reach.will,
+      ...runReadingOf(drawn, trigger, caps),
       held: reach.heardAny,
       pool: reach.pool,
       noYes: reach.noYes,
@@ -309,7 +337,6 @@ function poolCounter({ vms, breath, nowMs, pace, ready }: PoolCounting) {
       no_address: reach.no_address ?? 0,
       address_stopped: reach.address_stopped ?? 0,
       no_channel: reach.no_channel ?? 0,
-      by_channel: reach.by_channel ?? { whatsapp: 0, sms: 0, email: 0 },
     };
   };
   return (trigger: PlaybookDto["trigger"], listIds: ReadonlySet<string> | null, message: RunMessage): TriggerPool => {
@@ -395,11 +422,7 @@ export async function triggerPools(
   // that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on;
   // unreadable, the moment is not counted.
   const followUps = followUpsOrNull(tenantId, await reads.followUps);
-  const breath = {
-    byThis: new Map<string, number>(),
-    byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),
-    ...(followUps ?? noFollowUps()),
-  };
+  const breath = poolTouches(touched, followUps ?? noFollowUps());
   // One pass per moment, the runner's own: who it would pick, who waits for the
   // week's breath, and who it names and leaves out whatever the week. A moment
   // the calendar names is not counted when the calendar could not be read.
@@ -410,6 +433,7 @@ export async function triggerPools(
     nowMs: now.getTime(),
     pace: deals.pace,
     ready: readyOrWhatsApp(from.ready),
+    caps: splitCaps(from.playbooks ?? []),
   });
   for (const t of MOMENT_TRIGGERS) {
     // A moment the calendar names (a visit, or the Lapsed list) is not counted when the calendar could not be read;

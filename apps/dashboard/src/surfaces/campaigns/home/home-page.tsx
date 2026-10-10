@@ -1,21 +1,24 @@
 /**
- * Campaigns, the home (canvas A, "Lifecycle", approved 2 Oct 2026): what goes out on its own as a customer reaches a moment,
- * and what you send yourself. A head with the Library and New message; the rail of five moments around a customer with the
- * campaigns that are not one of them under it; and three tiles, who can hear you, what is coming and what came back. A moment
- * pressed opens its playbook in a sheet from the side; New message opens the composer in one. The old Playbooks list is this
- * page, and the Broadcasts and Templates pages are its rooms (Sent and the Library).
+ * Campaigns, the home (canvas A, "Lifecycle", approved 2 Oct 2026; its ledger, option A of 9 Oct): what goes out on its own
+ * as a customer reaches a moment, and what you send yourself. A head with the Library and New message; the rail of moments
+ * around a customer, and under it in the same pane the ledger, every campaign in one place, grouped by moment, narrowed by a
+ * card, a tab, a search or a key, and decided where it stands; then three tiles, who can hear you, what is coming and what
+ * came back. On a phone the moments are the one list's spine. A campaign's name opens it in a sheet from the side; New
+ * message opens the composer in one. The old Playbooks list is this page, and the Broadcasts and Templates pages are its
+ * rooms (Sent and the Library).
  *
- * Every word and number is the view model's (contracts campaignsHomeOf, over the surfaces the Playbooks and Broadcasts pages
- * read); the page composes it and presses. A real workspace draws its own surfaces; a demo session draws the samples; without
- * either, nothing. The toast host is the page's, so a toast outlives the sheet that raised it (a send closes the composer in
- * the same breath, and the toast that offers to stop it must not go with it).
+ * Every word and number is the view model's (contracts campaignsHomeOf); the page composes it and presses. The ledger's
+ * view is held here, once (ledger/use-ledger-view.ts), where Ask's door reads the rows on screen. The toast host is the
+ * page's, so a toast outlives the sheet that raised it (a send closes the composer in the same breath, and the toast that
+ * offers to stop it must not go with it).
  */
 import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { LIFECYCLE_TOAST } from "@chanlytics/contracts";
-import type { LifecycleAct, LifecycleComing, LifecycleHome } from "@chanlytics/contracts";
+import type { LifecycleAct, LifecycleHome, LifecycleRow } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { canDo, gate, routeDoor, navigate, useLegacyToast } from "../../legacy-verbs";
+import type { RouteDoor } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { bcWhenWords } from "../broadcasts/when-words";
@@ -25,23 +28,38 @@ import { useCmPhone } from "../parts/split";
 import type { PlaybookCardVM } from "../playbooks/surface";
 import { ReachOutSheet } from "../reach-out/sheet";
 import { composeRoute, momentRoute, parseHome } from "./address";
+import { AskDoor, SetUpAsk, useLedgerOnScreen } from "./ask-on-campaigns";
+import type { HomeAddress } from "./address";
 import { MomentDrawer } from "./drawer";
+import { Ledger } from "./ledger/ledger";
+import type { LedgerActs, LedgerApproval } from "./ledger/ledger-acts";
+import {
+  pressRowOpener,
+  useArrivalLands,
+  useFocusComesHome,
+  useLedgerCursor,
+  useLedgerKeys,
+  useLetGo,
+  useRowMarks,
+} from "./ledger/ledger-keys";
+import { LedgerPhone } from "./ledger/ledger-phone";
+import { useLedgerView } from "./ledger/use-ledger-view";
 import { NewMessageLabel } from "./new-label";
 import { NewMessage } from "./new-message";
-import { PhoneRail, Rail } from "./rail";
+import { Rail } from "./rail";
 import type { RailActs } from "./rail";
 import { SentenceParts } from "./sentence";
 import { ComingBlock, ReachBlock, ResultsBlock } from "./tiles";
-import type { ComingApproval } from "./tiles";
-import { useHomeData, useHomeNav, useReopenDrafts } from "./use-home";
+import { useHomeData, useHomeNav, useKeptGroup, useReopenDrafts } from "./use-home";
 
 type Flash = ReturnType<typeof useLegacyToast>[1];
+type Nav = ReturnType<typeof useHomeNav>;
+type Door = (act: LifecycleAct) => RouteDoor | null;
 
 /**
  * The head's line: the page's numbers in the page's emphasis, and a quiet line while offers by email are paused. Where
  * the workspace stands on its channels is drawn where it is seen, at the rail's head (in the Moments head on a phone): the
- * frame's head is a screen reader's line under Glass, clipped to a point on a desk and gone on a phone, so the channels'
- * doors drawn in it were links nobody could see and every Tab still landed on.
+ * frame's head is a screen reader's line under Glass, clipped to a point on a desk and gone on a phone.
  */
 function sentenceOf(home: LifecycleHome): ReactNode {
   const { sentence, pausedLine } = home.head;
@@ -58,7 +76,10 @@ function sentenceOf(home: LifecycleHome): ReactNode {
   );
 }
 
-/** The head's two acts: the Library, which is the Templates page now, and New message, the page's one primary act. */
+/**
+ * The head's acts: the Library, which is the Templates page now, Ask's door (ask-on-campaigns.tsx), and New message, the
+ * page's one primary act.
+ */
 function headActs(home: LifecycleHome, newMessage: () => void) {
   const { library } = home.head;
   return (
@@ -67,6 +88,7 @@ function headActs(home: LifecycleHome, newMessage: () => void) {
         <Icon name="content" size={13} /> <span className="cmh-library-word">{library.label}</span>
         {library.count !== null ? <span className="cmh-n tabular">{library.count}</span> : null}
       </Button>
+      <AskDoor />
       <Button
         variant="primary"
         size="sm"
@@ -80,20 +102,23 @@ function headActs(home: LifecycleHome, newMessage: () => void) {
   );
 }
 
-/** What a press on a stage, a line, a run or a button does. Starting or resuming a playbook is the role's; every page of it is. */
-function useActs(
-  home: LifecycleHome,
-  nav: ReturnType<typeof useHomeNav>,
-  flash: Flash,
-): { onAct: (act: LifecycleAct) => void; onCopy: (phrase: string) => void } {
+/**
+ * What a press on a moment, a row, a line or a button does. A door to a campaign is its drawer, pushed so Back closes
+ * it; a door to a page is a link the app's way. Starting or resuming a campaign is the role's. `onDecided`: a campaign
+ * resumed where it stood settles there.
+ */
+function useActs(home: LifecycleHome, nav: Nav, flash: Flash, onDecided: (id: string) => void) {
   const nameOf = (id: string) =>
+    home.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === id)?.name ??
     home.rail.stages.find((s) => s.playbookId === id)?.name ??
-    home.strips.find((s) => s.id === id)?.name ??
     LIFECYCLE_TOAST.nameless;
   const resume = async (id: string) => {
     const name = nameOf(id);
     const r = await verbs.resume(id, {
-      onAccepted: () => flash({ tone: "ok", msg: <SentenceParts parts={LIFECYCLE_TOAST.resumed(name)} /> }),
+      onAccepted: () => {
+        onDecided(id);
+        flash({ tone: "ok", msg: <SentenceParts parts={LIFECYCLE_TOAST.resumed(name)} /> });
+      },
     });
     if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
   };
@@ -102,6 +127,11 @@ function useActs(
     else if (act.kind === "turn_on") nav.push(composeRoute("every", { moment: act.moment }));
     else if (act.kind === "resume") void resume(act.playbookId);
     else navigate(act.route);
+  };
+  const door: Door = (act) => {
+    if (act.kind === "open") return routeDoor(momentRoute(act.playbookId), nav.push);
+    if (act.kind === "route") return routeDoor(act.route);
+    return null;
   };
   // A browser that will not copy (no clipboard on an insecure page, or a refusal) says the phrase, to be typed or copied by hand.
   const onCopy = (phrase: string) => {
@@ -112,21 +142,38 @@ function useActs(
     }
     void navigator.clipboard.writeText(phrase).then(() => flash({ msg: <>{LIFECYCLE_TOAST.phraseCopied}</> }), refused);
   };
-  return { onAct, onCopy };
+  return { onAct, onCopy, door };
 }
 
 /**
- * A waiting run approved or skipped on its line in Coming up (the broadcast's own doors, playbooks/verbs.ts): one at a
- * time, each said the moment the server takes it, from what it answered -- how many, and when it really goes, since the
- * server moves an approval outside the sending hours to the next nine o'clock (broadcasts/when-words.ts). The page
- * repaints from the re-read behind it; a refusal is the server's own words.
+ * A moment's card's name, the door to its lead's drawer: pushed as a row's name is, and said to be the card's, so the
+ * drawer gives the focus back to the card as it closes, never to the campaign's row under it (ledger-keys.ts
+ * useFocusComesHome). Any other door is the page's own.
  */
-function useApproval(flash: Flash, canAct: boolean): ComingApproval {
+function cardDoor(home: LifecycleHome, door: Door, nav: Nav, fromCard: (id: string, stage: string) => void): Door {
+  return (act) => {
+    if (act.kind !== "open") return door(act);
+    const stage = home.rail.stages.find((s) => s.playbookId === act.playbookId);
+    return routeDoor(momentRoute(act.playbookId), (to) => {
+      if (stage) fromCard(act.playbookId, stage.id);
+      nav.push(to);
+    });
+  };
+}
+
+/**
+ * A waiting run approved or skipped on its row (the broadcast's own doors, playbooks/verbs.ts): one at a time, each said
+ * the moment the server takes it, from what it answered -- how many, and when it really goes, since the server moves an
+ * approval outside the sending hours to the next nine o'clock (broadcasts/when-words.ts). The row keeps its place and
+ * settles; the page repaints from the re-read behind it; a refusal is the server's own words.
+ */
+function useApproval(flash: Flash, canAct: boolean, onDecided: (id: string) => void): LedgerApproval {
   const [busy, setBusy] = useState<string | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   // A second press before the first has drawn its busy state would be a second request: the ref holds it at once.
   const working = useRef(false);
   const answer = async <D,>(
+    row: LifecycleRow,
     runId: string,
     send: (o: { onAccepted: (d: D) => void }) => Promise<{ ok: true; data: D } | { ok: false; message: string }>,
     said: (d: D) => ReactNode,
@@ -137,6 +184,7 @@ function useApproval(flash: Flash, canAct: boolean): ComingApproval {
     let done = false;
     const say = (d: D) => {
       done = true;
+      onDecided(row.id);
       flash({ tone: "ok", msg: said(d) });
     };
     try {
@@ -151,28 +199,72 @@ function useApproval(flash: Flash, canAct: boolean): ComingApproval {
       setAsking((open) => (open === runId ? null : open));
     }
   };
-  const onApprove = async (row: LifecycleComing): Promise<void> => {
+  const onApprove = async (row: LifecycleRow): Promise<void> => {
     const w = row.waiting;
     if (!w || w.refusal || !canAct) return;
     await answer(
+      row,
       w.runId,
       (o) => verbs.approveRun(w.runId, o),
       (d: Output<"POST broadcasts/[id]/approve">) => (
-        <SentenceParts parts={LIFECYCLE_TOAST.approved(row.what, d.recipient_count || w.people, bcWhenWords(d))} />
+        <SentenceParts parts={LIFECYCLE_TOAST.approved(row.name, d.recipient_count || w.people, bcWhenWords(d))} />
       ),
     );
   };
-  const onSkip = async (row: LifecycleComing): Promise<void> => {
+  const onSkip = async (row: LifecycleRow): Promise<void> => {
     const w = row.waiting;
     if (!w || !canAct) return;
     await answer(
+      row,
       w.runId,
       (o) => verbs.skipRun(w.runId, o),
       // What the server stopped, by what the run was when it did: one a teammate approved a moment before is going.
-      (d: Output<"POST broadcasts/[id]/cancel">) => <SentenceParts parts={LIFECYCLE_TOAST.skipped(row.what, d.was)} />,
+      (d: Output<"POST broadcasts/[id]/cancel">) => <SentenceParts parts={LIFECYCLE_TOAST.skipped(row.name, d.was)} />,
     );
   };
   return { busy, asking, onAsk: setAsking, onApprove, onSkip, canAct, gated: gate("approve", "approve a run") };
+}
+
+/**
+ * The ledger as the page holds it, once: its view (what the screen shows, and what Ask is told is on screen:
+ * ask-on-campaigns.tsx), the row marks (a row decided in place keeps its place until the filter changes, and settles; an
+ * arrival is washed), the keys over the rows the screen shows, and focus coming back to the row, or the card, a sheet
+ * was opened from.
+ */
+function useLedgerPage(
+  home: LifecycleHome,
+  address: HomeAddress,
+  at: { group: string | null; nav: Nav; phone: boolean },
+) {
+  // A sheet over the ledger: the drawer, or a composer (a reach-out's sheet among them, at the composer's address).
+  const sheetOpen = address.moment !== null || address.compose !== null;
+  const marks = useRowMarks(sheetOpen);
+  const settled = marks.mark && marks.mark.kind === "settled" ? marks.mark.id : null;
+  const view = useLedgerView(home.ledger, { group: at.group, onGroup: at.nav.narrow, phone: at.phone, keep: settled });
+  useLedgerOnScreen(view);
+  useLetGo(`${view.status}|${view.group ?? ""}|${view.query}`, marks.clear);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const ids = view.visibleRows.map((r) => r.id);
+  const cursor = useLedgerCursor(ids);
+  useLedgerKeys({
+    ids,
+    cursor: cursor.cursor,
+    move: cursor.move,
+    open: pressRowOpener,
+    focusSearch: () => searchRef.current?.focus(),
+    narrowed: view.filtered,
+    clearOne: view.clearOne,
+    sheetOpen,
+  });
+  // The rows the screen shows, so focus has a row to go to when the opener is gone (the row now at its index, else the
+  // last, else the search).
+  const fromCard = useFocusComesHome(
+    address.moment ?? (address.compose && address.compose.mode === "every" ? address.compose.edit : null),
+    ids,
+  );
+  // A campaign just made has no row until the playbooks are read again: it is scrolled to when its row is drawn.
+  useArrivalLands(marks.mark, ids);
+  return { marks, view, searchRef, cursor: cursor.cursor, fromCard };
 }
 
 /** What the composer says once the server took a playbook. */
@@ -184,7 +276,7 @@ const composerDone = (flash: Flash) => (d: { name?: string }, changed: boolean) 
 };
 
 interface CampaignsHomeProps {
-  /** The address's param, `campaigns/<param>`: a moment open, or the composer. */
+  /** The address's param, `campaigns/<param>`: the group the ledger shows, a moment open, or the composer. */
   param: string | null;
   /** The clock the page is read at, for a test; the moment it draws otherwise. */
   nowMs?: number;
@@ -193,20 +285,29 @@ interface CampaignsHomeProps {
 export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
   const { playbooks, broadcasts, reachOuts, home } = useHomeData(nowMs);
   const address = parseHome(param);
-  const nav = useHomeNav(address);
+  const group = useKeptGroup(address);
+  const nav = useHomeNav(address, group);
   const [toastNode, flash] = useLegacyToast();
   const phone = useCmPhone();
-  // Who may start, change or run a playbook, or send: the role store's answer, View-as included.
+  // Who may start, change or run a campaign, or send: the role store's answer, View-as included.
   const canAct = !!canDo("approve");
-  useReopenDrafts(address, playbooks);
-  const { onAct, onCopy } = useActs(home, nav, flash);
-  const approval = useApproval(flash, canAct);
+  useReopenDrafts(address, playbooks, nav.swap);
+  const ledger = useLedgerPage(home, address, { group, nav, phone });
+  const { onAct, onCopy, door } = useActs(home, nav, flash, ledger.marks.settle);
+  const approval = useApproval(flash, canAct, ledger.marks.settle);
   if (!playbooks) return null;
   const acts: RailActs & { onCopy: (phrase: string) => void } = {
     onAct,
     onCopy,
-    gated: gate("approve", "turn on, resume or start a playbook"),
+    door: cardDoor(home, door, nav, ledger.fromCard),
+    gated: gate("approve", "turn on, resume or start a campaign"),
+    chosen: ledger.view.group,
+    onChoose: ledger.view.setGroup,
   };
+  const ledgerActs: LedgerActs = { door, onAct, gated: acts.gated, approval };
+  // The first day (no campaign yet): "Set up my campaigns" beside the hinted Turn on, for a role that may approve what
+  // Ask proposes; the rail draws it on a desk and the phone's list where there is no rail.
+  const firstDayDoor = canAct && home.ledger.counts.all === 0 ? <SetUpAsk /> : null;
   const newMessage = () => nav.push(composeRoute("once"));
   // A change is pushed over the drawer that showed it, so Cancel, and Back, return to the detail.
   const changeAt = (id: string) => nav.push(composeRoute("every", { edit: id }));
@@ -219,16 +320,33 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
       <CmHead title="Campaigns" quiet testid="cmh-head" sub={sentenceOf(home)} right={headActs(home, newMessage)} />
       {phone ? (
         <>
-          <PhoneRail home={home} acts={acts} />
-          <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} approval={approval} />
+          <LedgerPhone
+            home={home}
+            view={ledger.view}
+            acts={ledgerActs}
+            mark={ledger.marks.mark}
+            searchRef={ledger.searchRef}
+            firstDayDoor={firstDayDoor}
+          />
+          <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} />
           <ResultsBlock tile={home.results} failed={home.failed} onOpen={navigate} />
         </>
       ) : (
         <>
-          <Rail home={home} acts={acts} />
+          <Rail home={home} acts={acts} firstDayDoor={firstDayDoor}>
+            <Ledger
+              ledger={home.ledger}
+              failed={home.failed}
+              view={ledger.view}
+              acts={ledgerActs}
+              cursor={ledger.cursor}
+              mark={ledger.marks.mark}
+              searchRef={ledger.searchRef}
+            />
+          </Rail>
           <div className="cmh-grid">
             <ReachBlock tile={home.reach} failed={home.failed.reach} acts={acts} />
-            <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} approval={approval} />
+            <ComingBlock tile={home.coming} failed={home.failed.coming} acts={acts} />
             <ResultsBlock tile={home.results} failed={home.failed} onOpen={navigate} />
           </div>
         </>
@@ -260,6 +378,8 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
         onSaved={(d, changed) => {
           nav.close();
           composerDone(flash)(d, changed);
+          // Held until no sheet stands (useRowMarks): a change made from a drawer closes back to it first.
+          if (d.id) ledger.marks.arrive(d.id);
         }}
       />
       {toastNode}

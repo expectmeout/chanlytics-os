@@ -294,11 +294,13 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * Campaigns' home on a phone: the moments stand down a line (the phone's rail, one under another), the tiles are one column,
-   * every control is inside the screen, and New message, the page's act, is whole on the first screen. Its composer, in a
-   * sheet from the bottom, holds nothing past the edge either.
+   * Campaigns' home on a phone (decision 16 of the spec of 9 October 2026): the moments are the one list's spine, each
+   * moment's head on the line, one under another, its campaigns under it; the tiles are one column; every control is
+   * inside the screen; and New message, the page's act, is whole on the first screen. Its composer, in a sheet from the
+   * bottom, holds nothing past the edge either. Read-only: nothing here is pressed but New message, and its sheet is left
+   * unsaved.
    */
-  test("Campaigns: every control on the home is inside the screen, the moments stand down a line, and the page opens on the work", async ({
+  test("Campaigns: every control on the home is inside the screen, the moments' heads stand down a line with their campaigns under them, and the page opens on the work", async ({
     page,
   }) => {
     await page.goto("/#/campaigns");
@@ -307,27 +309,39 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(home).toBeVisible();
     await expect(home).toHaveAttribute("data-phone", "true");
     await expect(page.getByTestId("cmh-new")).toBeInViewport({ ratio: 1 });
-    // One moment under another: each stage's top is below the one before it.
-    const stages = home.getByTestId("cmh-stage");
-    expect(await stages.count()).toBeGreaterThanOrEqual(4);
-    const tops = await stages.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+    // Heads on the line: each moment's head is below the one before it, never two on one line. The journey holds four
+    // moments, or five where deals are on (contracts journeyOf): how many is playbooks.spec's, read from the answer.
+    const heads = home.locator('[data-testid="cmh-group-head"][data-stage]');
+    expect(await heads.count()).toBeGreaterThanOrEqual(4);
+    const tops = await heads.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
     expect(tops, "the moments stand one under another").toEqual([...tops].sort((a, b) => a - b));
     expect(new Set(tops.map(Math.round)).size, "no two moments on one line").toBe(tops.length);
-    // Who can hear you is a line in the moments' head (8 Oct 2026; it was a tile of its own over them), so the moments
-    // are the first tile on the page: nothing of the page's own stands above their tile.
+    // Rows under them: every campaign of a group stands below its group's head.
+    const underTheirHeads = await home.getByTestId("cmh-group").evaluateAll((groups) =>
+      groups.every((g) => {
+        const head = g.querySelector('[data-testid="cmh-group-head"]');
+        if (!head) return false;
+        const foot = head.getBoundingClientRect().bottom;
+        return [...g.querySelectorAll('[data-testid="cmh-row"]')].every(
+          (r) => r.getBoundingClientRect().top >= foot - 1,
+        );
+      }),
+    );
+    expect(underTheirHeads, "each group's campaigns stand under its head").toBe(true);
+    // Who can hear you is one line in the moments' head, inside their pane: nothing of the page's own stands above it.
     const rail = home.getByTestId("cmh-rail");
     await expect(rail.getByTestId("cmh-reach")).toBeVisible();
     await expect(home.getByTestId("cmh-reach")).toHaveCount(1);
+    await expect(home.getByTestId("cmh-also")).toHaveCount(0);
     const railTop = (await rail.boundingBox())?.y ?? 0;
-    for (const id of ["cmh-also", "cmh-coming", "cmh-results"]) {
+    for (const id of ["cmh-coming", "cmh-results"]) {
       const box = await home.getByTestId(id).first().boundingBox();
       if (box) expect(box.y, `${id} stands under the moments`).toBeGreaterThan(railTop);
     }
-    // The marks a moment goes by (8 Oct 2026): on a phone each keeps its word beside its dot (a dot alone said which
-    // channel by its colour), inside the screen, and the whole still says itself to a screen reader. Which moments
-    // carry marks is playbooks.spec's, against the API.
+    // The marks a campaign goes by (8 Oct 2026): on a phone each keeps its word beside its dot, inside the screen, and
+    // the whole says itself to a screen reader. Which campaigns carry marks is playbooks.spec's, against the API.
     const width = page.viewportSize()?.width ?? 0;
-    const marks = stages.getByTestId("cmh-chans");
+    const marks = home.getByTestId("cmh-row").locator(".cmh-chans");
     for (let i = 0; i < (await marks.count()); i++) {
       const m = marks.nth(i);
       await expect(m).toHaveAttribute("aria-label", /Goes by |waits?\b/);

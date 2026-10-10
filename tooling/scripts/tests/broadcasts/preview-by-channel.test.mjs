@@ -203,9 +203,9 @@ test("an email carries the foot the sender adds, a text its STOP line, WhatsApp 
   );
   assert.ok(
     on("email", { facts: { visit_when: "tomorrow at 2:00 PM" } }).foot.startsWith(
-      "You're getting this because of your visit",
+      "You're getting this because of your appointment",
     ),
-    "a visit's reason where the person's row kept the visit's time",
+    "an appointment's reason where the person's row kept the visit's time",
   );
   const text = on("sms");
   assert.deepEqual([text.label, text.version, text.foot], ["By text", VERSIONS.sms, "Reply STOP to opt out"]);

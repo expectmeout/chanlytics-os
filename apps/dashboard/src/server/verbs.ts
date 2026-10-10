@@ -8,6 +8,7 @@
 import {
   AppError,
   asTenantId,
+  CAMPAIGN_NOT_FOUND,
   REACH_OUT_REFUSALS,
   REPLY_UNDO_REFUSALS,
   isPersonsWords,
@@ -422,7 +423,8 @@ export const templateScope = row((ctx, params) => loadTemplate(ctx, String(param
 
 /** The playbook a verb acts on (paused, rewritten, run, deleted), read under RLS: one the caller cannot see is a 404. */
 async function loadPlaybook(ctx: RouteContext, id: string) {
-  const playbookId = requireUuid(id, "playbook");
+  // A person reads "campaign", never "playbook" (decision 19): the 404s below are said in a toast.
+  const playbookId = requireUuid(id, "campaign");
   const { data, error } = await ctx.supabase
     .from("playbooks")
     // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
@@ -430,7 +432,7 @@ async function loadPlaybook(ctx: RouteContext, id: string) {
     .eq("id", playbookId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new AppError("not_found", "Playbook not found.", 404);
+  if (!data) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   return data;
 }
 export const playbookScope = row((ctx, params) => loadPlaybook(ctx, String(params.id ?? "")));

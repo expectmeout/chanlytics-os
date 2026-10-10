@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { versionWords } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import type { JsonObject } from "../events";
 
 type Db = SupabaseClient<Database>;
 
@@ -302,8 +303,6 @@ export interface HeldNoticeMark {
   claimed_at: string;
   sent_at?: string;
 }
-
-type JsonObject = { [key: string]: Json | undefined };
 
 /** A mark as the audience holds it; anything else is no mark. */
 const markOf = (v: Json | undefined): HeldNoticeMark | null =>

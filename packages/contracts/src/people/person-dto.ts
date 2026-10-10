@@ -274,7 +274,7 @@ export interface PersonCampaignVM {
   when: string;
   /** What became of it: "Replied", "Sent", "Held — no yes to offers", "Didn't send", "Waiting to send". */
   outcome: string;
-  /** The line under the title, in Broadcasts' history words: "Playbook · Replied", "Broadcast · Sent". */
+  /** The line under the title, in Broadcasts' history words: "Campaign · Replied", "Broadcast · Sent". */
   line: string;
   tone: "ok" | "plain" | "warn";
   /** The run's own report. */

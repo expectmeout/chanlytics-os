@@ -38,6 +38,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   resume_agent: "play",
   pause_playbook: "pause",
   start_playbook: "play",
+  change_playbook: "edit",
   export: "download",
   import: "arrow-up",
   open_recording: "headphones",

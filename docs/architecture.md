@@ -641,6 +641,7 @@ packages/contracts/src/
   deals/
   email/
   google/
+  journey/
   leads/
   lines/
   mobile/

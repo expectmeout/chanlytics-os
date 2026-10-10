@@ -28,8 +28,11 @@ import { dbLog, dbRequestId } from "./observe";
 
 type Db = SupabaseClient<Database>;
 
-/** A JSON object whose keys are open: a provider's own payload, or a tally, forwarded as it came. */
-type Open = { [key: string]: Json | undefined };
+/**
+ * A JSON object whose keys are open: a provider's own payload, a tally, or a counts function's answer, forwarded as it
+ * came. Json's object branch, spelled once for packages/db (reports/report-series.ts and reach-out-sheet.ts read it).
+ */
+export type JsonObject = { [key: string]: Json | undefined };
 /** A kind that carries nothing but its subject. */
 type Nothing = Record<string, never>;
 
@@ -59,7 +62,7 @@ interface TableData {
   "billing.paused": BillingData;
   "billing.resumed": BillingData;
   "billing.updated": BillingData;
-  "broadcast.sent": Open;
+  "broadcast.sent": JsonObject;
   /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
   "broadcast.stopped": { failure: string; sent: number | null };
   "business.recorded": { legal_name: string | null; path: string; by?: string | null };
@@ -86,7 +89,7 @@ interface TableData {
   "google.connected": { email: string | null; accounts: number; locations: number; on_maps: number; by: string | null };
   "google.disconnected": { email: string | null; location: string | null; revoked: boolean; by?: string | null };
   "google.linked": { place_id: string; name: string | null; by: string | null; read: boolean };
-  "google.replied": { review_id: string; chars: number; by?: "receptionist"; usage?: Open | null };
+  "google.replied": { review_id: string; chars: number; by?: "receptionist"; usage?: JsonObject | null };
   /** An automatic reply the receptionist wrote and did not post: it named a price or money (contracts autoReplyHold). */
   "google.reply_held": { review_id: string; why: "price" | "money" };
   "google.reviews": {
@@ -99,7 +102,7 @@ interface TableData {
   "google.unlinked": { place_id: string; name: string | null; had_profile: boolean; by?: string | null };
   "ingest.allowlist_skip": Nothing;
   "ingest.unreachable_sender": Nothing;
-  "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" } & Open;
+  "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" } & JsonObject;
   "lead.emailed": { by: "reach_out"; send_id: string };
   "lead.excluded": LeadTriageData;
   "lead.kept": LeadTriageData;
@@ -115,13 +118,13 @@ interface TableData {
   /** The number a business keeps, set to forward to its line: its carrier and which calls, never the number. */
   "line.forwarding_set": { carrier: string; mode: string; by: string };
   "line.forwarding_verified": { from: string | null; call_id: string; proof: string };
-  "line.released": { e164: string | null; provider: string } & Open;
+  "line.released": { e164: string | null; provider: string } & JsonObject;
   "line.texting_approved": TextingData;
   "line.texting_on": TextingData;
   "line.texting_rejected": TextingData;
-  "message.send_blocked": { reason: string | null } & Open;
+  "message.send_blocked": { reason: string | null } & JsonObject;
   /** `http_status` is the send's own answer: absent when the failure came later, in the provider's receipt (reason "receipt"). */
-  "message.send_failed": { http_status?: number; body: string | null; reason: string } & Open;
+  "message.send_failed": { http_status?: number; body: string | null; reason: string } & JsonObject;
   "message.send_raced_cancel": { wamid: string | null };
   "message.sent": { sender: string };
   "platform.acted": PlatformActedData;
@@ -133,26 +136,26 @@ interface TableData {
   "reach_out.send_decided": { decision: string; by: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
   "sending_domain.added": { host: string; by?: string | null };
-  "sending_domain.held": { host: string } & Open;
-  "sending_domain.released": { host: string } & Open;
+  "sending_domain.held": { host: string } & JsonObject;
+  "sending_domain.released": { host: string } & JsonObject;
   "sending_domain.removed": { host: string; why?: string; by?: string | null };
   "sending_domain.resumed": { host: string; why?: string; by: string };
-  "sending_domain.verified": { host: string } & Open;
+  "sending_domain.verified": { host: string } & JsonObject;
   "settings.changed": { fields: string[]; by: string; version: number | string | null; via?: string };
   /** A message deleted from the Library, and one sent to WhatsApp for approval: its name, its language, and who. */
   "template.removed": { name: string; language: string; by: string };
   "template.submitted": { name: string; language: string; by: string };
-  "usage.ask_tokens": Open;
+  "usage.ask_tokens": JsonObject;
   "usage.llm_tokens": Record<string, unknown>;
-  "voice.provisioned": Open & { agent_id: string; llm_id: string };
-  "webhook.auth": { provider: "retell" } & Open;
-  "webhook.delivery": { provider: "retell" } & Open;
+  "voice.provisioned": JsonObject & { agent_id: string; llm_id: string };
+  "webhook.auth": { provider: "retell" } & JsonObject;
+  "webhook.delivery": { provider: "retell" } & JsonObject;
   /** A workspace reached one of the activation milestones for the first time (contracts ACTIVATION_MILESTONES). */
   "workspace.activated": { milestone: ActivationMilestone; via: string };
 }
 
 /** Meta's account webhooks, one kind per field (contracts WABA_FIELDS): the payload as Meta sent it. */
-type WabaData = { waba_id: string } & Open;
+type WabaData = { waba_id: string } & JsonObject;
 
 /** Every kind this module writes, and its data: the table above, and Meta's family. */
 export type EventData = TableData & { [K in WabaEventKind]: WabaData };

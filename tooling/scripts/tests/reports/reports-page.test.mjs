@@ -411,7 +411,7 @@ test("the strip's figures: five counts, each named by its metric, the period bef
 
 /* ------------------------------------------ the cards ------------------------------------------ */
 
-test("every card is drawn, under the testids the e2e, Today and the Google tests read, in three sections", () => {
+test("every card is drawn, under the testids the e2e, Today and the Google tests read, in three sections", async () => {
   const tree = page();
   for (const id of [
     "chart-answered",
@@ -427,6 +427,14 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
     "chart-sources",
   ])
     assert.ok(card(tree, id), id);
+  // The sources' card names what sent them as a person reads it: campaigns, never playbooks (decision 19); and so does
+  // its table when nothing went out.
+  assert.equal(
+    find(tree, (n) => n.props?.testid === "chart-sources" && typeof n.props.title === "string")?.props.title,
+    "By campaign and broadcast",
+  );
+  const { RptSources } = await import(`${S}/surfaces/reports/blocks.tsx`);
+  assert.equal(RptSources({ rows: [] }).props.title, "No broadcast or campaign run reached anyone in this period.");
   // A lens draws no heading that says what its tab says (Ruben, 9 Oct 2026): the section keeps its label for a screen reader.
   assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing"]);
   assert.deepEqual(
@@ -453,7 +461,7 @@ test("each card's one line is the view model's, and adds the next thing: never a
   assert.equal(takeaway(tree, "chart-funnel"), "3 people said yes to messages, 2 people asked to stop.");
   assert.equal(
     takeaway(tree, "chart-campaigns"),
-    "From 3 broadcast and playbook runs.",
+    "From 3 broadcast and campaign runs.",
     "the sends are the funnel's; the card says what sent them",
   );
   for (const id of ["chart-reasons", "chart-people", "chart-booking"])

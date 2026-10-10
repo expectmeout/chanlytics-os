@@ -374,7 +374,7 @@ test("the server answers the templates read as the route does, from the record's
   const read = asked("email-only");
   assert.equal(read.status, 200);
   assert.equal(read.body.ok, true, "the app's own envelope");
-  assert.deepEqual(Object.keys(read.body.data), ["templates", "held", "messages"]);
+  assert.deepEqual(Object.keys(read.body.data), ["templates", "held", "messages", "booking"]);
   assert.deepEqual(
     read.body.data.templates.map((t) => t.id),
     record.templates.map((t) => t.id),
@@ -392,7 +392,7 @@ test("the server answers the templates read as the route does, from the record's
 
   // Settings' read, `all`: the same, and what sends each message and how many went out, none on a harness that sends nothing.
   const all = asked("email-only", { all: "1" }).body.data;
-  assert.deepEqual(Object.keys(all), ["templates", "held", "messages", "usedBy", "sends"]);
+  assert.deepEqual(Object.keys(all), ["templates", "held", "messages", "booking", "usedBy", "sends"]);
   assert.deepEqual([all.usedBy, all.sends], [{}, {}]);
   assert.deepEqual(all.messages, read.body.data.messages);
 

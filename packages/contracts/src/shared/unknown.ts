@@ -7,6 +7,9 @@
 /** A finite number, or null. */
 export const finiteOrNull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
+/** A whole number, none below zero: a count, as a page says one and the database counts one. */
+export const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
 /** A finite number, or zero. */
 export const finiteOrZero = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 

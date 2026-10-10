@@ -2934,8 +2934,27 @@ select.rec-input :is(option, optgroup) {
 .link-btn-danger {
   color: var(--danger);
 }
+/* Words of a line that are its door (a list row's name, where the row is the press and the name its link): they take
+   the size, weight and ink of where they stand, never the quiet link's small words, and no underline; a block, so a
+   long name ends in an ellipsis, which the link's flex box cannot draw. */
+.link-btn-inherit {
+  display: block;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .link-btn:hover {
   color: var(--ink);
+}
+/* Words that take where they stand's ink keep that ink under any hover: the quiet link's hover above outranked the
+   variant's `inherit`, and a name lost its line's ink. What the variant promises, not a hover style, so it holds under a
+   touch too, which keeps `:hover` on the last thing tapped (touch-hover.test.mjs). */
+.link-btn-inherit:hover {
+  color: inherit;
 }
 
 /* ---------- Face: a person, a lead, a conversation, as initials in a circle ----------
@@ -3056,6 +3075,17 @@ a.list-row {
   align-self: start;
 }
 .list-row:not(:has(> .list-row-said)) > .list-row-face {
+  grid-row: 1 / span 2;
+}
+/* A row that is a thing of a kind, not someone (a campaign on Campaigns' phone list): the kit's mark in the face's
+   column, centred in it, neutral always (the badges' rule: a mark is a row's kind). */
+.list-row-mark {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: start;
+  justify-self: center;
+}
+.list-row:not(:has(> .list-row-said)) > .list-row-mark {
   grid-row: 1 / span 2;
 }
 .list-row-name {
@@ -3561,6 +3591,18 @@ a.list-row {
 .btn-ghost,
 .btn-danger {
   box-shadow: none;
+}
+/* A press drawn as text: an area of a page's words that is one press (Campaigns' moment card, whose caps, figure and
+   unit narrow the ledger), not a control's label. No gap of a button's between its parts, a text's weight and tracking
+   and never a control's, its height its words', which wrap: a button's gap made the card 12 to 18px taller, and its
+   weight set every word of the card in bold. The quiet kind is the one drawn as text (button.tsx's ButtonSize); after
+   the kinds, so a text's weight holds over whatever weight a kind sets. */
+.btn-text {
+  gap: 0;
+  height: auto;
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-normal);
+  white-space: normal;
 }
 
 /* ---- The segmented capsule and the stage capsule (inbox3.py segmented; deals3.py stage_capsule) ----

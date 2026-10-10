@@ -273,6 +273,8 @@ const playbooksSurface = (over = {}) => ({
   })),
   timezone: ZONE,
   calendar: "none",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "none", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: true,
@@ -426,6 +428,11 @@ test("the playbook composer keeps what was typed in the tab, opens again on it, 
 
   unmount();
   tree = composer();
+  assert.equal(
+    byTestId(tree, "pb-name").props["aria-label"],
+    "The campaign's name",
+    "a campaign to a screen reader too",
+  );
   type(byTestId(tree, "pb-name"), "Sunday quiet");
   tree = redraw(composer);
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
@@ -647,6 +654,32 @@ test("the home reopens once, when the playbooks are first read, and never over a
     fresh();
     again(() => home(param));
     assert.deepEqual(replaced, [], `${param}: never over an address that names something`);
+  }
+});
+
+test("a draft reopened over a narrowed ledger closes back to that group: replaced, never a step Back past the home", () => {
+  const backs = [];
+  const keep = globalThis.history.back;
+  globalThis.history.back = () => backs.push("back");
+  try {
+    keepWords({}, "Sunday quiet");
+    unmount();
+    fresh();
+    // Arrived at the home narrowed to a moment: the kept words swap the composer in, over nothing of the page's.
+    again(() => home("in:quiet"));
+    assert.deepEqual(replaced, ["campaigns/new:every"], "swapped in, never pushed");
+    const draw = () => again(() => home("new:every"));
+    let tree = draw();
+    assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
+    // Closed (its words asked about first): nothing of the page's stands behind it, so the address is replaced with the
+    // home, still narrowed to the group the ledger had under the sheet.
+    press(byTestId(tree, "pb-cancel"));
+    tree = draw();
+    press(byTestId(tree, "pb-leave-yes"));
+    assert.deepEqual(backs, [], "no step Back: it would leave the page");
+    assert.equal(replaced.at(-1), "campaigns/in:quiet", "the home, narrowed as it was");
+  } finally {
+    globalThis.history.back = keep;
   }
 });
 

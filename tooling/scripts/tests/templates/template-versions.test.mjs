@@ -972,7 +972,7 @@ test("a custom message is an offer or news: utility is a starter's alone, a text
   );
   assert.equal(
     MESSAGE_BEGIN_WORDS.customIsAnOffer,
-    "A message you write is an offer or news. Only a starter is about their own visit or proposal.",
+    "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
   );
   // A text of an offer: contracts' own sentence, the one the ticks and the sends say.
   await refused(

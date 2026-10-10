@@ -6207,8 +6207,20 @@ export type Database = {
         Args: { p_at?: string; p_channel: string; p_tenant_id: string }
         Returns: number
       }
+      campaign_reply_window: { Args: never; Returns: string }
       campaign_series: {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      change_playbook: {
+        Args: {
+          p_decision?: Json
+          p_playbook_id: string
+          p_set: Json
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
         Returns: Json
       }
       channel_keep_quality: {
@@ -6957,6 +6969,7 @@ export type Database = {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      may_read_workspace: { Args: { p_tenant: string }; Returns: boolean }
       member_decision: {
         Args: {
           p_payload?: Json
@@ -7669,6 +7682,10 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      playbook_totals: {
+        Args: { p_history?: number; p_tenant_id: string }
+        Returns: Json
+      }
       playbooks_due: {
         Args: {
           p_at: string
@@ -7776,6 +7793,10 @@ export type Database = {
       }
       reach_out_chain_report: {
         Args: { p_root_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_chain_totals: {
+        Args: { p_days: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
       reach_out_check_take: {
@@ -8230,6 +8251,10 @@ export type Database = {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
+      run_counts: {
+        Args: { p_run_ids: string[]; p_tenant_id: string }
+        Returns: Json
+      }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
       safe_zone: { Args: { p: string }; Returns: string }
       save_template_version: {
@@ -8540,6 +8565,7 @@ export type Database = {
         Args: { p_actor: string; p_tenant_id: string }
         Returns: undefined
       }
+      template_sends: { Args: { p_tenant_id: string }; Returns: Json }
       tenant_config_read: {
         Args: { p_tenant_id: string }
         Returns: {

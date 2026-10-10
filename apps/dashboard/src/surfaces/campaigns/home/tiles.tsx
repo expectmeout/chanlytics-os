@@ -3,12 +3,10 @@
  * came back. Each draws its part of the view model (contracts campaignsHomeOf) and nothing it was not told: a tile whose read
  * is still out says it is reading (after the standard beat), one whose read failed is the kit's failed read with its Retry, a
  * number that could not be counted is not drawn, and a zero is a zero. The phone says the first as a line in its Moments
- * head (PhoneReachLine, which the rail draws) and draws the other two the same as the desk.
+ * head (ledger/ledger-phone.tsx PhoneMeta) and draws the other two the same as the desk.
  */
-import { useEffect, useRef } from "react";
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type {
-  ChannelStandingPart,
   LifecycleComing,
   LifecycleComingTile,
   LifecycleFailed,
@@ -20,14 +18,12 @@ import type {
 } from "@chanlytics/contracts";
 import { routeDoor } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
-import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
 import { cmChannelColour } from "../parts/channels";
-import { ChannelsLine } from "../parts/channels-line";
 import { HomeFailed, HomeReading } from "./failed";
 import type { RailActs } from "./rail";
 
@@ -91,7 +87,7 @@ function BlockHead({ title, note, door }: { title: string; note?: string; door?:
  * What a tile says where its read has not landed: quietly that it is reading, or the kit's failed read with its Retry; nothing
  * for a read that landed. `testid` names the tile (`cmh-coming` says `cmh-coming-reading` or `cmh-coming-failed`).
  */
-function TileRead({
+export function TileRead({
   read,
   failed,
   testid,
@@ -163,127 +159,13 @@ function Yes({ yes, acts }: { yes: NonNullable<LifecycleReachTile["yes"]>; acts:
 }
 
 /**
- * The phone's line in the Moments head: how many can hear you and the offers pill, the door to how that yes is got
- * (where the desk's tile has one), and where the workspace stands on its channels, which is the readiness's to say and
- * so is drawn whether or not the reach has been read. Its read, where there is none yet, at the line's own gutter.
+ * One line of "Coming up": when, what, who will get it, and its act. A run that waits says so ("Waiting on you") and is
+ * decided on its row of the ledger, never here (decision 14: one decision per run per screen). Where the verb would
+ * refuse a waiting run's approval, what the line says is the verb's whole sentence (its day has passed, or the
+ * workspace is paused): it takes the line's width under the name, since beside the pill it was four lines in a column a
+ * third as wide.
  */
-export function PhoneReachLine({
-  tile,
-  failed,
-  channels,
-}: ReachProps & { channels: readonly ChannelStandingPart[] | null }) {
-  const phone = tile.phone;
-  return (
-    <div className="cmh-vrail-reach" role="group" aria-label={LIFECYCLE_WORDS.reach.title} data-testid="cmh-reach">
-      <TileRead read={tile.read} failed={failed} testid="cmh-reach" />
-      {phone ? (
-        <p className="cmh-vrail-hear">
-          <span>{phone.words}</span>
-          <StatePill kind="tone" value={phone.offers.tone} label={phone.offers.words} />
-        </p>
-      ) : null}
-      {phone?.yes ? (
-        <LinkButton className="cmh-vrail-yes" {...routeDoor(phone.yes.route)} data-testid="cmh-phone-yes">
-          {phone.yes.label}
-        </LinkButton>
-      ) : null}
-      <ChannelsLine parts={channels} testid="cmh-channels" />
-    </div>
-  );
-}
-
-/**
- * What a waiting run's line presses (home-page.tsx decides; the tile only says which): approve it, or skip it once the
- * question is answered. One run at a time: while one is being answered, every such line's buttons wait.
- */
-export interface ComingApproval {
-  /** The run a press is working on now. */
-  busy: string | null;
-  /** The run whose Skip was pressed and waits for its answer. */
-  asking: string | null;
-  onAsk: (runId: string | null) => void;
-  onApprove: (r: LifecycleComing) => Promise<void>;
-  onSkip: (r: LifecycleComing) => Promise<void>;
-  /** Whether the role may approve or skip a run; Approve is drawn for every role and says who may (`gated`). */
-  canAct: boolean;
-  gated: Record<string, unknown>;
-}
-
-/**
- * A waiting run's acts, under its words: Approve and Skip, or the question Skip asks in their place (the kit's Confirm, as
- * Sent's row asks it). Where the verb would refuse an approval (its day has passed, or the workspace is paused: the
- * line's own words say which, `refusal`) Skip is the act left, and a role that may not skip has nothing to press. Each
- * act names its run to a screen reader, since two rows may wait; a No on the question hands the keyboard back to the
- * Skip that asked it; and while another row's press is with the server this row's Yes waits for it, in sight.
- */
-function WaitingActs({ r, approval }: { r: LifecycleComing; approval: ComingApproval }) {
-  const w = r.waiting;
-  const asking = !!w && approval.canAct && approval.asking === w.runId;
-  const skip = useRef<HTMLButtonElement>(null);
-  const asked = useRef(false);
-  useEffect(() => {
-    if (asked.current && !asking) skip.current?.focus();
-    asked.current = asking;
-  }, [asking]);
-  if (!w) return null;
-  const W = LIFECYCLE_WORDS.coming.approval;
-  const busy = approval.busy === w.runId;
-  const inFlight = approval.busy !== null;
-  if (asking) {
-    return (
-      <div className="cmh-coming-acts" data-testid="cmh-waiting-acts">
-        <Confirm
-          question={W.question(r.what)}
-          detail={W.detail}
-          yes={W.yes}
-          danger
-          busy={busy}
-          ready={!inFlight || busy}
-          onYes={() => void approval.onSkip(r)}
-          onNo={() => approval.onAsk(null)}
-          testid="cmh-skip"
-        />
-      </div>
-    );
-  }
-  if (w.refusal && !approval.canAct) return null;
-  return (
-    <div className="cmh-coming-acts" data-testid="cmh-waiting-acts">
-      {w.refusal ? null : (
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={inFlight}
-          onClick={() => approval.onApprove(r)}
-          aria-label={busy ? undefined : W.approveOf(r.what)}
-          data-testid="cmh-approve"
-          {...approval.gated}
-        >
-          <Icon name="check" size={12} /> {busy ? W.approving : W.approve}
-        </Button>
-      )}
-      {approval.canAct ? (
-        <Button
-          ref={skip}
-          size="sm"
-          disabled={inFlight}
-          onClick={() => approval.onAsk(w.runId)}
-          aria-label={W.skipOf(r.what)}
-          data-testid="cmh-skip"
-        >
-          {W.skip}
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * One line of "Coming up": when, what, who will get it, and its act. Where the verb would refuse a waiting run's
- * approval, what the line says is the verb's whole sentence (its day has passed, or the workspace is paused): it takes
- * the line's width under the name, as the acts do, since beside the pill it was four lines in a column a third as wide.
- */
-function ComingLine({ r, acts, approval }: { r: LifecycleComing; acts: RailActs; approval: ComingApproval }) {
+function ComingLine({ r, acts }: { r: LifecycleComing; acts: RailActs }) {
   const turnOn = r.act.kind === "turn_on";
   const refused = !!r.waiting?.refusal;
   return (
@@ -313,7 +195,6 @@ function ComingLine({ r, acts, approval }: { r: LifecycleComing; acts: RailActs;
           {r.why}
         </span>
       ) : null}
-      <WaitingActs r={r} approval={approval} />
     </li>
   );
 }
@@ -323,23 +204,22 @@ export function ComingBlock({
   tile,
   failed,
   acts,
-  approval,
 }: {
   tile: LifecycleComingTile | null;
   failed: LifecycleFailedRead | null;
   acts: RailActs;
-  approval: ComingApproval;
 }) {
   const W = LIFECYCLE_WORDS.coming;
   if (!tile) return null;
   return (
     <Panel as="section" size="flush" className="cmh-block" aria-label={W.title} data-testid="cmh-coming">
-      <BlockHead title={W.title} note={W.window} door={{ label: W.link, to: "calendar" }} />
+      {/* Its door goes to Sent's week, where every run is read: its label is Sent's name (spec §4.3). */}
+      <BlockHead title={W.title} note={W.window} door={{ label: W.link, to: "broadcasts" }} />
       <TileRead read={tile.read} failed={failed} testid="cmh-coming" />
       {tile.rows.length > 0 ? (
         <ul className="cmh-coming-list">
           {tile.rows.map((r) => (
-            <ComingLine key={r.id} r={r} acts={acts} approval={approval} />
+            <ComingLine key={r.id} r={r} acts={acts} />
           ))}
         </ul>
       ) : tile.empty !== null ? (

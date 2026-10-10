@@ -84,7 +84,7 @@ export function keepReportPeriod(period: ReportPeriodId): void {
 
 export interface ReportsSurface {
   vm: ReportVM;
-  /** What the broadcasts and playbooks sent over the same period; null when that read failed and the receptionist's own numbers still stand (D9). */
+  /** What the broadcasts and campaigns sent over the same period; null when that read failed and the receptionist's own numbers still stand (D9). */
   campaigns: CampaignReportVM | null;
   /** Asked, then booked: the one conversion line, from the calendar. */
   booking: BookingReportVM;

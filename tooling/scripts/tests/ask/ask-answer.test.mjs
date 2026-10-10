@@ -19,6 +19,7 @@ import {
   callsAnswer,
   callsToday,
   cardOpenRoute,
+  claimsWrite,
   emptyReadSet,
   failedAnswer,
   leadQuestionRoute,
@@ -70,6 +71,10 @@ test("an answer made before the Line reads back as prose: its rows are items, a 
     "navigate wins, in the app's words",
   );
   assert.equal(answerFromV1(v1({ language: "es" })).show.items[0].meta, "Hilo");
+  // A playbook a person reads as a campaign (the moment spec, D19), in both languages.
+  const pb = [{ kind: "playbook", id: ID2, label: "Win-back", to: `campaigns/moment:${ID2}` }];
+  assert.equal(answerFromV1(v1({ citations: pb })).show.items[0].meta, "Campaign");
+  assert.equal(answerFromV1(v1({ citations: pb, language: "es" })).show.items[0].meta, "Campaña");
   assert.equal(answerText(a), "Nora asked about Saturday; nobody else is waiting.");
 });
 
@@ -219,10 +224,13 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   assert.equal(rightNowLine(waiting(["Ana"]), "en"), "Ana is waiting on you.");
   assert.equal(
     rightNowLine(waiting(["Ana", "Sam"], 1), "en"),
-    "Ana and Sam are waiting on you; one playbook run is waiting for your approval.",
+    "Ana and Sam are waiting on you; one campaign run is waiting for your approval.",
   );
   assert.equal(rightNowLine(waiting(["Ana", "Sam", "Lee", "Kai"]), "en"), "Ana, Sam and 2 others are waiting on you.");
-  assert.equal(rightNowLine(waiting([], 2), "en"), "2 playbook runs are waiting for your approval.");
+  // A person reads "campaign", never "playbook" (the moment spec, D19), in both languages.
+  assert.equal(rightNowLine(waiting([], 2), "en"), "2 campaign runs are waiting for your approval.");
+  assert.equal(rightNowLine(waiting([], 1), "es"), "Un envío de campaña espera tu aprobación.");
+  assert.equal(rightNowLine(waiting([], 2), "es"), "2 envíos de campaña esperan tu aprobación.");
   assert.equal(rightNowLine(waiting([]), "es"), "Nadie te espera ahora mismo.");
   assert.equal(rightNowLine(waiting(["Ana", "Sam"]), "es"), "Ana y Sam te esperan.");
   assert.equal(
@@ -249,7 +257,7 @@ test("Right now names the one search waiting for an answer, counts several, afte
   );
   assert.equal(
     rightNowLine(waiting(["Ana"], 1, 0, [SEARCH]), "en"),
-    "Ana is waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Ana is waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
     "three populations, three clauses, in this order",
   );
   assert.equal(
@@ -276,7 +284,7 @@ test("rightNowCounts: the people, the runs and the searches the sentence counts;
   assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1, searches: 1 });
   assert.equal(
     rightNowLine(w, "en"),
-    "Nora, Emily and 1 other are waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Nora, Emily and 1 other are waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
 });
 
@@ -285,7 +293,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
   assert.equal(a.form, "structured");
   assert.equal(
     a.say.headline,
-    "Ana and Sam are waiting on you; one playbook run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Ana and Sam are waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
   assert.deepEqual(
     a.show.items.map((i) => [i.title, i.meta, i.line, i.source.to]),
@@ -298,13 +306,14 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
         "Most of the first 25 are gyms, not trainers. Keep them?",
         "clients/leads:s-s1:c-excluded",
       ],
-      ["Win-back · quiet 30 days", "Playbook", "1 person", "broadcasts/run:r0"],
+      ["Win-back · quiet 30 days", "Campaign", "1 person", "broadcasts/run:r0"],
     ],
     "the search's door is its question, opened where the answer row is (leadQuestionRoute)",
   );
   assert.equal(a.show.items[2].source.kind, "page", "a search's door is a page, so the Inbox count never includes it");
   assert.equal(a.do.open, null, "each item is already a door");
   assert.equal(needsAnswer(waiting([], 1), "es").show.items[0].line, "1 persona", "a run's reach, in Spanish too");
+  assert.equal(needsAnswer(waiting([], 1), "es").show.items[0].meta, "Campaña", "and its word, as a citation's is");
   const esSearch = needsAnswer(waiting([], 0, 0, [SEARCH]), "es");
   assert.equal(esSearch.say.headline, "Tu búsqueda de personal trainers espera tu respuesta.");
   assert.equal(esSearch.show.items[0].meta, "Leads", "a search's door says where it lives, in either language");
@@ -921,7 +930,15 @@ test("cards only: the cards are the Do, said in a sentence, in English and Spani
   );
   const es = answerForCards([{ title: "a" }, { title: "b" }], "es");
   assert.equal(es.say.headline, "2 tarjetas para revisar.");
-  assert.equal(es.say.detail, "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas.");
+  // Several cards are several presses (the moment spec, A7): a setup's cards are each approved apart.
+  assert.equal(
+    es.say.detail,
+    "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas.",
+  );
+  assert.equal(
+    answerForCards([{ title: "a" }, { title: "b" }], "en").say.detail,
+    "Each is its own press: approve, change or dismiss each one; nothing happens until you do.",
+  );
   assert.equal(es.language, "es");
 });
 
@@ -1007,4 +1024,27 @@ test("the v1 fields a v2 answer is stored beside: its words, each place it rests
     reads(...threads.map(threadRef)),
   ).answer;
   assert.equal(v1FromAnswer(many).citations.length, ASK_CAPS.citations);
+});
+
+test("a write claimed is one predicate (the moment spec, A4): what the eval judged, the loop now catches; a quote claims nothing", () => {
+  for (const said of [
+    "I've set up your win-back.",
+    "I started the follow-up for you.",
+    "I paused it.",
+    "I have resumed the offer.",
+    "I renamed it to Past clients.",
+    "I turned on the reminder.",
+    "I've scheduled it for 9am.",
+    "He configurado tus campañas.",
+    "He pausado la campaña.",
+    "I sent it.",
+  ])
+    assert.equal(claimsWrite(said), true, said);
+  for (const said of [
+    "Two cards to review: a win-back and a follow-up.",
+    "Once you approve it, it starts running.",
+    "The card is waiting for your approval.",
+    'Here is the reply, ready to approve: "I\'ve set up your visit."',
+  ])
+    assert.equal(claimsWrite(said), false, said);
 });

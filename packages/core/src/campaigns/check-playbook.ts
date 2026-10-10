@@ -7,25 +7,35 @@ import {
   FOLLOW_UP_NEEDS_LINK,
   MOMENTS_RETIRED,
   PLAYBOOK_DEFAULTS,
-  PLAYBOOK_HOURS,
+  PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
-  WIN_BACK_WORDS,
+  PLAYBOOK_PATCH_KEYS,
+  PLAYBOOK_PATCH_WORDS,
+  appointmentWords,
   channelNeverCarries,
   enrolPurpose,
+  isPlaybookState,
   isWinBack,
   messageFitsMoment,
   messageHolds,
   messageWhyNot,
   momentOffered,
+  momentReadsCalendar,
   playbookName,
   ruleNeeds,
   triggerOf,
   triggerOffered,
+  triggerWords,
   UUID,
+  winBackWords,
+  type AppointmentWord,
   type CampaignMessage,
   type ConsentChannel,
   type ParamSpec,
+  type PlaybookPatch,
+  type PlaybookPatchKey,
   type PlaybookPolicyClass,
+  type PlaybookState,
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { parseChannels } from "./message-channels";
@@ -53,15 +63,12 @@ export interface PlaybookInput {
   channels: ConsentChannel[];
 }
 
-/** One whole-number field of the body: what it is when none is sent, the range it must fall in, and its name. */
-interface IntRule {
-  fallback: number;
-  min: number;
-  max: number;
-  what: string;
-}
-
-function int(v: unknown, { fallback, min, max, what }: IntRule): number {
+/**
+ * One whole number of a playbook, by its field's bounds (contracts PLAYBOOK_LIMITS): `fallback` when none is sent, and a
+ * refusal in the save's own sentence otherwise. A new playbook's check, a change's and Ask's starter card read it.
+ */
+export function playbookNumber(field: keyof typeof PLAYBOOK_LIMITS, v: unknown, fallback: number): number {
+  const { min, max, what } = PLAYBOOK_LIMITS[field];
   if (v === undefined || v === null || v === "") return fallback;
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isInteger(n) || n < min || n > max)
@@ -79,13 +86,19 @@ export interface CheckPlaybookPorts extends TemplateValuesPorts {
    * "none"): which of the two win-backs a new playbook may be (contracts momentOffered).
    */
   calendarOn(): Promise<boolean>;
+  /**
+   * What the workspace calls an appointment (contracts appointmentWordOf): the words a refusal says, and the name a new
+   * campaign on an appointment moment takes when it is given none. Asked only where one of those is said.
+   */
+  appointmentWord(): Promise<AppointmentWord>;
 }
 
 /**
  * The moment a playbook names: where it may run at all, and where it may be made new. A proposal follow-up where deals
  * are off has no proposal to follow (0006), whether it is made or changed; a playbook kept on its moment is not new,
- * so a retired moment's and the other win-back's keep running and may be changed. A new one is held to what is offered
- * now (contracts momentOffered), in the words for each. Each fact is asked only of the moment it decides.
+ * so a retired moment's, the other win-back's and an appointment moment's made before a calendar was required keep
+ * running and may be changed. A new one is held to what is offered now (contracts momentOffered), in the words for each
+ * and in the workspace's word. Each fact is asked only of the moment it decides.
  */
 async function refuseMoment(
   ports: CheckPlaybookPorts,
@@ -97,9 +110,22 @@ async function refuseMoment(
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError("validation", retired);
-  const calendarOn = isWinBack(trig.id) ? await ports.calendarOn() : false;
-  if (!momentOffered(trig, { dealsOn, calendarOn }))
-    throw new AppError("validation", WIN_BACK_WORDS[trig.id as keyof typeof WIN_BACK_WORDS]);
+  const calendarOn = momentReadsCalendar(trig) ? await ports.calendarOn() : false;
+  if (momentOffered(trig, { dealsOn, calendarOn })) return;
+  const word = await ports.appointmentWord();
+  if (!isWinBack(trig.id)) throw new AppError("validation", appointmentWords(word).needsCalendar);
+  const w = winBackWords(word);
+  throw new AppError("validation", trig.id === "lapsed" ? w.lapsed : w.quiet_30);
+}
+
+/** The name a campaign given none takes: its list's, an appointment moment's in the workspace's word, else its moment's. */
+async function defaultLabel(
+  ports: CheckPlaybookPorts,
+  trig: NonNullable<ReturnType<typeof triggerOf>>,
+  listName: string | null,
+): Promise<string> {
+  if (listName) return listName;
+  return trig.kind === "visit" ? triggerWords(trig, await ports.appointmentWord()).label : trig.label;
 }
 
 /**
@@ -120,7 +146,7 @@ async function listOf(
     if (ruleNeeds(b.rule).includes("viewer"))
       throw new AppError(
         "validation",
-        `${b.label} is about whoever is looking, and a playbook runs with no one looking. Pick another list.`,
+        `${b.label} is about whoever is looking, and a campaign runs with no one looking. Pick another list.`,
       );
     return { listName: b.label, listKey, listId: null };
   }
@@ -189,6 +215,124 @@ export async function checkPlaybookChannels(
   return channelsItMayGoBy(Array.isArray(asked) ? asked : [], row.channels, cls, message);
 }
 
+/** What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null. */
+export interface CheckPlaybookPatchPorts {
+  archivedList(row: { id: string; trigger: string }): Promise<string | null>;
+}
+
+/**
+ * A playbook as a change is judged against it: its row as the database holds it now, never a caller's copy. Its state
+ * is one of the two (contracts isPlaybookState narrows a row's), so what a change held is a patch's own type.
+ */
+export interface PlaybookPatchRow {
+  id: string;
+  name: string;
+  trigger: string;
+  state: PlaybookState;
+  run_hour: number;
+  cap_per_run: number;
+  gap_days: number;
+  cadence_days: number;
+}
+
+/** A name as a change keeps it: trimmed, its runs of space one, never empty and never past the bound (D25). */
+function patchName(v: unknown): string {
+  const name = typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+  if (!name) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nameMissing);
+  if (name.length > PLAYBOOK_NAME_MAX)
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nameLong(PLAYBOOK_NAME_MAX));
+  return name;
+}
+
+/** A number a change names, by its field's bounds; undefined where the change names none. */
+const patchNumber = (k: keyof typeof PLAYBOOK_LIMITS, v: unknown, was: number): number | undefined =>
+  v === undefined ? undefined : playbookNumber(k, v, was);
+
+/**
+ * A playbook changed in place (the moment spec §4.9 A5): what Ask's change card proposes and PUT playbooks/:id's patch
+ * writes, judged one way. `asked` names any of the six fields (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each is
+ * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
+ * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), and a reach-out's
+ * step to its state alone (its sheet changes the rest). It answers only what differs from the row as it stands, `set`,
+ * and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in words and
+ * the route answers without a write.
+ */
+export async function checkPlaybookPatch(
+  ports: CheckPlaybookPatchPorts,
+  row: PlaybookPatchRow,
+  asked: Record<string, unknown>,
+): Promise<{ set: PlaybookPatch; was: PlaybookPatch }> {
+  const keys = Object.keys(asked).filter((k) => asked[k] !== undefined);
+  if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nothing);
+  // A reach-out's step is changed on its own sheet (Reach out, Part 4); here it is paused or resumed, as the sheet's
+  // Pause asks, and nothing else.
+  if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
+    throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
+  if (asked.state !== undefined && !isPlaybookState(asked.state))
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.state);
+  const next: PlaybookPatch = {
+    state: isPlaybookState(asked.state) ? asked.state : undefined,
+    name: asked.name === undefined ? undefined : patchName(asked.name),
+    run_hour: patchNumber("run_hour", asked.run_hour, row.run_hour),
+    cap_per_run: patchNumber("cap_per_run", asked.cap_per_run, row.cap_per_run),
+    gap_days: patchNumber("gap_days", asked.gap_days, row.gap_days),
+    cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
+  };
+  const set: PlaybookPatch = {};
+  const was: PlaybookPatch = {};
+  // A field the change names with a value the row does not hold already: set, and what the row held, each in its type.
+  const differs = <K extends PlaybookPatchKey>(k: K): void => {
+    const to = next[k];
+    if (to === undefined || to === row[k]) return;
+    set[k] = to;
+    was[k] = row[k];
+  };
+  for (const k of PLAYBOOK_PATCH_KEYS) differs(k);
+  if (set.cadence_days !== undefined && row.trigger !== "everyone_monthly")
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.cadenceOffer(row.name));
+  if (set.state === "running") {
+    const archived = await ports.archivedList(row);
+    if (archived) throw new AppError("validation", archived);
+  }
+  return { set, was };
+}
+
+/**
+ * What a new playbook names before its message, judged: its moment (one offered here, never a reach-out's step), its
+ * list, and the class it runs under. A starter card is refused for all of it before its starter is filed (a WhatsApp
+ * version sent to Meta cannot be taken back), and checkPlaybook asks it first, so a new playbook is judged one way, in
+ * one order and in the same words.
+ */
+export async function checkPlaybookMoment(
+  ports: CheckPlaybookPorts,
+  body: Record<string, unknown> | null,
+  existing: { trigger: string } | null,
+): Promise<{
+  trig: NonNullable<ReturnType<typeof triggerOf>>;
+  cls: PlaybookPolicyClass;
+  listName: string | null;
+  listKey: string | null;
+  listId: string | null;
+}> {
+  const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
+  if (!trig)
+    throw new AppError(
+      "validation",
+      `Pick what starts it: win-back, the month's offer, ${appointmentWords(await ports.appointmentWord()).startsWith}, one of your lists, or a proposal waiting.`,
+    );
+  // A reach-out's steps are not moments (Reach out, Part 3): they are made on the reach-out sheet, over a lead search.
+  if (trig.kind === "reach_out") throw new AppError("validation", REACH_OUT_IS_NOT_A_MOMENT);
+  await refuseMoment(ports, trig, existing);
+  const { listName, listKey, listId } = await listOf(ports, trig, body);
+  // A playbook on a list sends an offer or a win-back, under that class's autonomy row; every other moment its own.
+  const cls =
+    trig.kind === "saved" && (LIST_PLAYBOOK_CLASSES as readonly string[]).includes(String(body?.policy_class))
+      ? (body!.policy_class as PlaybookPolicyClass)
+      : trig.cls;
+  return { trig, cls, listName, listKey, listId };
+}
+
 /**
  * Everything a playbook names, checked the way a broadcast is: the trigger,
  * then the message and its values through the one judgement, then the
@@ -201,21 +345,7 @@ export async function checkPlaybook(
   existing: { trigger: string; channels?: string[] | null } | null,
 ): Promise<PlaybookInput> {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
-  const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
-  if (!trig)
-    throw new AppError(
-      "validation",
-      "Pick what starts it: win-back, the month's offer, a visit tomorrow, a visit yesterday, one of your lists, or a proposal waiting.",
-    );
-  // A reach-out's steps are not moments (Reach out, Part 3): they are made on the reach-out sheet, over a lead search.
-  if (trig.kind === "reach_out") throw new AppError("validation", REACH_OUT_IS_NOT_A_MOMENT);
-  await refuseMoment(ports, trig, existing);
-  const { listName, listKey, listId } = await listOf(ports, trig, body);
-  // A playbook on a list sends an offer or a win-back, under that class's autonomy row; every other moment its own.
-  const cls =
-    trig.kind === "saved" && (LIST_PLAYBOOK_CLASSES as readonly string[]).includes(String(body?.policy_class))
-      ? (body!.policy_class as PlaybookPolicyClass)
-      : trig.cls;
+  const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { message, specs } = await templateValues(ports, {
     templateId,
@@ -230,9 +360,12 @@ export async function checkPlaybook(
   if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
     throw new AppError("validation", FOLLOW_UP_NEEDS_LINK);
   return {
-    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
-    // list's own name for a playbook on a list.
-    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, message).slice(0, PLAYBOOK_NAME_MAX),
+    // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
+    // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).
+    name: (name || playbookName({ id: trig.id, label: await defaultLabel(ports, trig, listName) }, message)).slice(
+      0,
+      PLAYBOOK_NAME_MAX,
+    ),
     trigger: trig.id,
     list_id: listId,
     list_key: listKey,
@@ -242,20 +375,10 @@ export async function checkPlaybook(
     template_language: message.language,
     params: specs,
     policy_class: cls,
-    run_hour: int(body?.run_hour, {
-      fallback: PLAYBOOK_DEFAULTS.runHour,
-      min: PLAYBOOK_HOURS.min,
-      max: PLAYBOOK_HOURS.max,
-      what: "The hour",
-    }),
-    cap_per_run: int(body?.cap_per_run, { fallback: PLAYBOOK_DEFAULTS.capPerRun, min: 1, max: 500, what: "The cap" }),
-    gap_days: int(body?.gap_days, { fallback: PLAYBOOK_DEFAULTS.gapDays, min: 7, max: 365, what: "The gap" }),
-    cadence_days: int(body?.cadence_days, {
-      fallback: PLAYBOOK_DEFAULTS.cadenceDays,
-      min: 1,
-      max: 90,
-      what: "The cadence",
-    }),
+    run_hour: playbookNumber("run_hour", body?.run_hour, PLAYBOOK_DEFAULTS.runHour),
+    cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun),
+    gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
+    cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
     channels,
   };
 }

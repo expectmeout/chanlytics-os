@@ -136,7 +136,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
       {channelsCard(cm)}
       <ChartCard
         className="rpt-span-12"
-        title="By playbook and broadcast"
+        title="By campaign and broadcast"
         testid="chart-sources"
         switchable={false}
         table={{

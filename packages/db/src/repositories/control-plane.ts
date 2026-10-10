@@ -307,12 +307,6 @@ export async function lineForwardingSet(db: Db, args: LineForwardingArgs) {
 /** The columns an edit may write, as the table types them. */
 export type PlaybookPatch = Database["public"]["Tables"]["playbooks"]["Update"];
 
-/** Set a playbook's state (running or paused). */
-export async function setPlaybookState(db: Db, id: string, state: string): Promise<{ error: PostgrestError | null }> {
-  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
-  return { error };
-}
-
 /** Write the edited fields of a playbook. */
 export async function updatePlaybook(
   db: Db,
@@ -375,4 +369,42 @@ export async function startPlaybook(
   if (typeof made.id !== "string" || typeof made.decision_id !== "string")
     throw new Error("start_playbook: the door answered without its row and its decision");
   return { data: { id: made.id, decisionId: made.decision_id }, error: null };
+}
+
+/**
+ * Change a playbook in place with its line in the ledger (the change_playbook door), on the member's own session:
+ * the row locked, only the columns `set` names written, then the decision (start_playbook, pause_playbook or
+ * change_playbook) as theirs, in one transaction. What each written column held comes back as `was`; where nothing
+ * named differs from the row, nothing is written and `was` is empty with no decision (two presses of Pause at once). A
+ * playbook the caller cannot see or change is the database's P0002, which the caller words; an answer without its row,
+ * or with a change and no decision, is a door that is not this one, and throws. `"missing"` on a database before the
+ * door's migration
+ * (isMissingDoor), where the dashboard writes the change the way it did before, for one release, so either deploy order
+ * works (the counts doors' rule, reports/report-series.ts answerOrMissing).
+ */
+export async function writePlaybookChange(
+  db: Db,
+  p: { tenantId: string; playbookId: string; set: Json; decision: Json; via: string | null; undoOf: string | null },
+): Promise<
+  | {
+      data: { id: string; was: Record<string, unknown>; decisionId: string | null } | null;
+      error: PostgrestError | null;
+    }
+  | "missing"
+> {
+  const { data, error } = await db.rpc("change_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook_id: p.playbookId,
+    p_set: p.set,
+    p_decision: p.decision,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) return isMissingDoor(error) ? "missing" : { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const was = made.was !== null && typeof made.was === "object" && !Array.isArray(made.was) ? made.was : {};
+  const decisionId = typeof made.decision_id === "string" ? made.decision_id : null;
+  if (typeof made.id !== "string" || (decisionId === null && Object.keys(was).length > 0))
+    throw new Error("change_playbook: the door answered without its row, or a change without its decision");
+  return { data: { id: made.id, was, decisionId }, error: null };
 }
