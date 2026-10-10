@@ -298,7 +298,8 @@ the outbound gate asking it in one order and failing closed; an escalation is op
 00380), the hold refused with an event the ledger refused; the spine's first subscriber that acts (00381): an
 appointment's change writes `appointment.changed` in its own transaction, and `reach_out_booked` books the lead a
 reach-out wrote to however the booking arrived; a paused subscription keeps what it would have been handed (00382), a
-re-drive replaying it. Invariant 10's registry names 187 of its 195 columns (0036 step 3, 00383), and 0035's client
+re-drive replaying it, and that re-drive is a delivery's one way back: the back office's requeue hands a delivery's job
+to it rather than running a second beside a row it would leave failed. Invariant 10's registry names 187 of its 195 columns (0036 step 3, 00383), and 0035's client
 keys the workspace's other writes. Invariant 2 is held in part: the doors-without-events baseline is built (sixty-seven
 doors writing seventy-six tables, `baselines/doors-without-events.json`), and each door the day built has its event
 proved on a real database; the conformance test across every door is not. Invariant 12 waits on Ruben's targets.

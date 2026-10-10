@@ -178,6 +178,10 @@ async function requeueFailedJob(db, tenantId, jobId, record) {
   const row = await readJobToRequeue(db, tenantId, jobId);
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
+  if (row.kind === "event_deliver") {
+    const subscriber = row.payload?.subscriber;
+    return { outcome: "redrive", subscriber: typeof subscriber === "string" ? subscriber : "" };
+  }
   if (SPEAKS_TO_A_PERSON.has(row.kind) || row.spoke_at) return { outcome: "speaks_to_a_person", kind: row.kind };
   if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
   const kind = JOB_KINDS.find((k) => k === row.kind);

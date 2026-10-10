@@ -141,6 +141,7 @@ export type Requeued =
   | { outcome: "not_found" }
   | { outcome: "not_failed"; state: string }
   | { outcome: "speaks_to_a_person"; kind: string }
+  | { outcome: "redrive"; subscriber: string }
   | { outcome: "unknown_kind"; kind: string }
   | { outcome: "already_scheduled" };
 
@@ -154,6 +155,10 @@ export type Requeued =
  * its words on the wire and then threw may have reached the customer, and a fresh row would answer them twice.
  * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
  * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
+ * An event's delivery is not run again here: its row is the delivery's, which a fresh job would leave failed and naming
+ * the old one, and its one way back is `event_deliveries_redrive` (00334, 00382), which replays every failed or paused
+ * delivery of its subscriber once the subscriber is mended, each with a job of its own (decision 0031's review of
+ * 9 October: one of the two re-drive paths goes).
  */
 export async function requeueFailedJob(
   db: Db,
@@ -164,6 +169,10 @@ export async function requeueFailedJob(
   const row = await readJobToRequeue(db, tenantId, jobId);
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
+  if (row.kind === "event_deliver") {
+    const subscriber = (row.payload as { subscriber?: unknown } | null)?.subscriber;
+    return { outcome: "redrive", subscriber: typeof subscriber === "string" ? subscriber : "" };
+  }
   if (SPEAKS_TO_A_PERSON.has(row.kind) || row.spoke_at) return { outcome: "speaks_to_a_person", kind: row.kind };
   // Run again once: a second press, or a second person, finds the copy the first left and does not make another.
   if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
