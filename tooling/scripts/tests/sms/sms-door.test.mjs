@@ -312,9 +312,17 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: f
  * is what realPorts() answers with. Its sink sends on the wire handleInbound
  * builds for the message, as the real sink's door does, so an answer on a text
  * goes through the carrier the door made from the line and the vault.
- * `ingest` and `escalate` run inside those steps, so a case can make either throw.
+ * `ingest` and `escalate` run inside those steps, so a case can make either throw. A hold lands as `escalateAnswer` says,
+ * "opened" unless a case refuses it: a hold written is told from its event (decision 0043), one refused by the
+ * receptionist's own note (`alerts`).
  */
-function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {}, thread = blank } = {}) {
+function receptionist({
+  allowlist = "",
+  ingest = () => {},
+  escalate = () => {},
+  escalateAnswer = "opened",
+  thread = blank,
+} = {}) {
   const kept = new Set();
   const seen = {
     runtimes: [],
@@ -395,7 +403,7 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {}, 
         escalate: async (reason, details) => {
           escalate(reason);
           seen.escalations.push({ reason, details });
-          return "opened";
+          return escalateAnswer;
         },
         media: async () => null,
       }),
@@ -621,7 +629,7 @@ test("a number no line carries is a 404, told to the platform once for the whole
 
 /* ---------------------------------------------------- the accepted text */
 
-test("a text on a line the carriers have not approved reaches the receptionist held: kept on the workspace's sms channel, handed to a person for the carriers, the owner told it is a text, nothing answered", async () => {
+test("a text on a line the carriers have not approved reaches the receptionist held: kept on the workspace's sms channel, handed to a person for the carriers, nothing answered", async () => {
   const w = world();
   w.line.sms_state = "registering";
   w.open();
@@ -660,9 +668,9 @@ test("a text on a line the carriers have not approved reaches the receptionist h
       "held for a person, with the hold's own reason",
     );
     assert.deepEqual(
-      seen.alerts.map((a) => [a.thread, a.reason, a.channel]),
-      [[from.slice(1), "carriers", "sms"]],
-      "and the owner is told a TEXT is waiting",
+      seen.alerts,
+      [],
+      "the hold is written, so its event tells the owner a text is waiting, after the commit (decision 0043)",
     );
     assert.deepEqual([seen.sent, w.left().texts], [[], []], "nothing answered, and nothing left on the line");
     assert.equal(seen.processed, 1);
@@ -864,7 +872,8 @@ test("a text is never gated by the pilot allowlist or answered as the environmen
   // for that number would be recorded, skipped and never answered. The flag
   // beside it -- that routing failed -- speaks only for the environment's own
   // number too (reply-posture.ts), so this is what both of them decide.
-  const seen = receptionist({ allowlist: "+19175550100" });
+  // A hold the database refused is told by the receptionist's own note, so the note's addressing shows.
+  const seen = receptionist({ allowlist: "+19175550100", escalateAnswer: "failed" });
   await listening(async () => {
     assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN)), twiml(200));
     assert.equal(seen.allowlistSkips, 0, "no allowlist skip is recorded for a text");

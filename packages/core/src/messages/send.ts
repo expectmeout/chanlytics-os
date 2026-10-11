@@ -8,6 +8,7 @@ import {
 } from "../wire-senders";
 import type { SendQueuedCommand, SendQueuedPorts } from "./ports";
 import { pageTheProvider } from "./provider-page";
+import { toldFromItsEvent } from "../subscribers";
 
 export type { SendQueuedCommand } from "./ports";
 
@@ -187,9 +188,17 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
   // the row says why.
   const cause = causeOf(out, channel);
   const receptionist = msg.sender === "ai";
-  await raiseSendFailed(ports, {
+  const flagged = await raiseSendFailed(ports, {
     conversationId: p.conversation_id,
     details: `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
+  });
+  // A flag written is told from its event (decision 0043). One that could not be is told here: the job completes, and
+  // nothing will say it again.
+  if (toldFromItsEvent(flagged)) return;
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${p.conversation_id}`,
+    about: { type: "conversation", id: p.conversation_id },
     subject: `Reply delivery failed: ${to}`,
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
   });
@@ -197,37 +206,23 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
 
 /**
  * A reply that did not reach the customer: THE statement of what it owes, whichever way it was found out. The thread is
- * flagged for a person (reason send_failed, with why in `details`) and the owner told, in a hand-off that opens THAT
- * thread rather than the Inbox's front page. Said here by a send the wire could not carry (sayItFailed) and by a delivery
- * the provider reported failed after taking it (late-failure.ts), so the two cannot come to say it differently. Answers
- * what the flag came to. The owner is told once per hold, as an inbound hand-off and an email's flag are: a thread
- * already held for a failed send (`refreshed`) has its details brought up to date and rings no second bell, so a
- * receipt the provider sends twice, or a run of failures on one thread, is one notice. A send that fails at the wire
- * tells the owner whatever else the flag came to (the job completes and nothing will say it again); a caller that WILL
- * be told again (`again`: a receipt the provider redelivers) is spared a bell for a thread that is not flagged: a flag
- * that could not be written throws, and the owner is told once, when it is.
+ * flagged for a person (reason send_failed, with why in `details`), by a send the wire could not carry (sayItFailed) and
+ * by a delivery the provider reported failed after taking it (late-failure.ts), so the two cannot come to say it
+ * differently. Answers what the flag came to. A flag written is told from its event, once per hold (decision 0043,
+ * owner_notice), as every hold is: a thread already held for a failed send (`refreshed`) has its details brought up to
+ * date and rings no second bell, so a receipt the provider sends twice, or a run of failures on one thread, is one
+ * notice. What a flag that could not be written comes to is the caller's: the send tells the owner itself, and a
+ * receipt throws, so the provider says it again.
  *
  * The flag is a conversation that needs a person: the same thing a WhatsApp handoff is, drawn the same way. The job
  * itself completes; it never was "a job did not finish". (Today drops an away-row whose conversation the queue already
  * shows, so this row usually appears only as the thread at the top of the page, which is where it is.)
  */
-export async function raiseSendFailed(
-  ports: Pick<SendQueuedPorts, "escalate" | "alert">,
-  f: { conversationId: string; details: string; subject: string; body: string },
-  again = false,
+export function raiseSendFailed(
+  ports: Pick<SendQueuedPorts, "escalate">,
+  f: { conversationId: string; details: string },
 ): Promise<"opened" | "changed" | "refreshed" | "failed"> {
-  const flagged = await ports.escalate(f.conversationId, "send_failed", f.details);
-  if (again && flagged === "failed")
-    throw new Error(`send failed: its thread ${f.conversationId} could not be flagged`);
-  if (flagged === "refreshed") return flagged;
-  await ports.alert({
-    kind: "handoff",
-    route: `inbox/th-${f.conversationId}`,
-    about: { type: "conversation", id: f.conversationId },
-    subject: f.subject,
-    body: f.body,
-  });
-  return flagged;
+  return ports.escalate(f.conversationId, "send_failed", f.details);
 }
 
 /** Why it did not leave, in words for the owner: a number with no credentials is not "HTTP 503". */

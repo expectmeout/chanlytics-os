@@ -133,9 +133,9 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's
  * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
  * relay's lag is measured on real traffic; `reach_out_booked` hands a booking on the appointments record to the
- * booking door (00389), the first that acts.
+ * booking door (00389), the first that acts; `owner_notice` tells the workspace of a hold from its event (decision 0043).
  */
-export const EVENT_SUBSCRIBERS = ["audit", "reach_out_booked"] as const;
+export const EVENT_SUBSCRIBERS = ["audit", "reach_out_booked", "owner_notice"] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 
 /**

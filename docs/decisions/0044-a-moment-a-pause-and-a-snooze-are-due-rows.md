@@ -44,6 +44,10 @@ per appointment would need each job to join its day's run.
    until Reports, People and playbooks read rows together (0002, steps 4 and 5); a run then reads the feed's rows synced
    first, so it is never an hour stale.
 
+A hold's two-hour check joins them (0043 step 4, moved here on 10 October 2026): `owner_notice` schedules it at the
+hold's time plus two hours, and it tells only a hold still open, through the deadman's once-guard
+(`escalations.deadman_alerted_at`). The deadman clock stays, as the reconciler and for the turns no write schedules.
+
 ## Steps
 
 1. **`thread_wake`.** The kind with its handler, its callers (the pause and snooze doors), its CHECK and its lane, in one

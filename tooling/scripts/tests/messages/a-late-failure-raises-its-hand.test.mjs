@@ -1,11 +1,12 @@
 /**
  * A failure the provider reports after it took the message raises what a send that fails at the wire raises (the 2 Oct
- * 2026 audit, #5): the thread flagged for a person, the owner told, the ledger written, once per message.
+ * 2026 audit, #5): the thread flagged for a person, which its event tells the owner of (decision 0043, owner_notice:
+ * events/an-event-is-delivered-to-its-subscriber.test.mjs), and the ledger written, once per message.
  *
  * The verb is core's raiseLateFailure, run over fakes that log their calls. The doors that call it (WhatsApp's receipts,
  * Twilio's status callback) are proved over a database in memory in whatsapp/whatsapp-door.test.mjs and
- * sms/sms-status-door.test.mjs; what is proved here is the rule: whose failure it is, that it says it once, that it says it
- * in the words and the shape the send does, and that a flag that cannot be written tells nobody and throws.
+ * sms/sms-status-door.test.mjs; what is proved here is the rule: whose failure it is, that it says it once, that it flags
+ * the thread as the send does, and that a flag that cannot be written writes nothing and throws.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -23,7 +24,6 @@ const facts = (over = {}) => ({
   direction: "outbound",
   status: "sent",
   meta: {},
-  to: "+13475550101",
   ...over,
 });
 
@@ -42,7 +42,6 @@ function ports({ message = facts(), flag = "opened" } = {}) {
         log.push(["escalate", ...args]);
         return flag;
       },
-      alert: async (news) => void log.push(["alert", news]),
       noteFailed: async (...args) => void log.push(["noteFailed", ...args]),
     },
   };
@@ -50,32 +49,25 @@ function ports({ message = facts(), flag = "opened" } = {}) {
 const late = (p, over = {}) =>
   core.raiseLateFailure(p.ports, { externalId: "wamid.1", channel: "whatsapp", error: REENGAGE, ...over });
 
-test("a reply a person or the receptionist wrote, reported failed after it was taken, flags the thread, tells the owner and writes the ledger, in that order", async () => {
+test("a reply a person or the receptionist wrote, reported failed after it was taken, flags the thread and writes the ledger, in that order; the flag's event tells the owner", async () => {
   const p = ports();
   assert.equal(await late(p), "raised");
-  assert.deepEqual(p.ops(), ["message", "escalate", "alert", "noteFailed"]);
+  assert.deepEqual(p.ops(), ["message", "escalate", "noteFailed"], "nobody told inside the provider's request");
   const [, conversation, reason, details] = p.log[1];
   assert.deepEqual([conversation, reason], ["c1", "send_failed"]);
   assert.equal(
     details,
     "A reply from your team was accepted for sending but did not reach them. WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now (WhatsApp error 131047).",
   );
-  assert.deepEqual(p.log[2][1], {
-    kind: "handoff",
-    route: "inbox/th-c1",
-    about: { type: "conversation", id: "c1" },
-    subject: "Reply delivery failed: +13475550101",
-    body: "A reply from your team was accepted for sending, and then the provider reported that it was not delivered. WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now (WhatsApp error 131047). The thread is flagged in the Inbox.",
-  });
-  assert.deepEqual(p.log[3], [
+  assert.deepEqual(p.log[2], [
     "noteFailed",
     "m1",
     { reason: "receipt", outcome: "refused", body: JSON.stringify(REENGAGE) },
   ]);
 });
 
-test("the alert is the shape a send that fails at the wire raises: one function says it, so the two cannot come to say it differently", async () => {
-  // The send's own: a queued reply the door could not carry.
+test("a late failure flags its thread as a send that fails at the wire does: one function says it, so the two cannot come to say it differently", async () => {
+  // The send's own: a queued reply the door could not carry, its flag written.
   const sent = [];
   await core.sendQueued(
     {
@@ -90,7 +82,10 @@ test("the alert is the shape a send that fails at the wire raises: one function 
         errorBody: "x",
         messageId: "m1",
       }),
-      escalate: async (...a) => void sent.push(["escalate", ...a]),
+      escalate: async (...a) => {
+        sent.push(["escalate", ...a]);
+        return "opened";
+      },
       alert: async (news) => void sent.push(["alert", news]),
       retry: async () => {},
       now: () => Date.parse("2026-10-05T12:00:00Z"),
@@ -103,14 +98,11 @@ test("the alert is the shape a send that fails at the wire raises: one function 
   );
   const p = ports();
   await late(p);
-  const [wireEscalate, wireAlert] = [sent[0], sent[1][1]];
-  const [, , lateReason] = p.log[1];
-  const lateAlert = p.log[2][1];
-  assert.equal(wireEscalate[2], lateReason, "the same reason");
+  assert.deepEqual(sent[0].slice(0, 3), p.log[1].slice(0, 3), "the same thread, for the same reason");
   assert.deepEqual(
-    [wireAlert.kind, wireAlert.route, wireAlert.about, wireAlert.subject],
-    [lateAlert.kind, lateAlert.route, lateAlert.about, lateAlert.subject],
-    "the same kind, the same door to the same thread, the same subject",
+    [sent.map((x) => x[0]), p.ops()],
+    [["escalate"], ["message", "escalate", "noteFailed"]],
+    "and both are told from the flag's event, neither by itself",
   );
 });
 
@@ -118,14 +110,12 @@ test("the receptionist's reply is said as the receptionist's", async () => {
   const p = ports({ message: facts({ sender: "ai" }) });
   assert.equal(await late(p), "raised");
   assert.match(p.log[1][3], /^The receptionist's reply was accepted for sending but did not reach them\. /);
-  assert.match(p.log[2][1].body, /^The receptionist's reply was accepted for sending, and then/);
 });
 
 test("a failure whose row says nothing readable is still raised, in the provider's words that it did not deliver it", async () => {
-  const p = ports({ message: facts({ to: null }) });
+  const p = ports();
   assert.equal(await late(p, { error: {} }), "raised");
   assert.match(p.log[1][3], /The provider reported it as not delivered\.$/);
-  assert.equal(p.log[2][1].subject, "Reply delivery failed: a customer");
 });
 
 test("only a message a person or the receptionist wrote to a customer is news: a campaign's send, a customer's row and a system note are not, and nothing is written for them", async () => {
@@ -162,16 +152,16 @@ test("once per message: a row already failed or canceled is a receipt seen befor
   }
 });
 
-test("a flag that could not be written throws before anyone is told or anything is written, so the receipt's redelivery says it again", async () => {
+test("a flag that could not be written throws before anything is written, so the receipt's redelivery says it again", async () => {
   const p = ports({ flag: "failed" });
   await assert.rejects(late(p), /could not be flagged/);
-  assert.deepEqual(p.ops(), ["message", "escalate"], "no bell for a thread that is not flagged, no ledger row");
+  assert.deepEqual(p.ops(), ["message", "escalate"], "no ledger row for a thread that is not flagged");
 
-  // Every other way a flag lands is a flag: a new hold, or one that changed its reason, is told.
+  // Every other way a flag lands is a flag: a new hold, or one that changed its reason, has an event that tells.
   for (const flag of ["opened", "changed"]) {
     const ok = ports({ flag });
     assert.equal(await late(ok), "raised", flag);
-    assert.deepEqual(ok.ops(), ["message", "escalate", "alert", "noteFailed"], flag);
+    assert.deepEqual(ok.ops(), ["message", "escalate", "noteFailed"], flag);
   }
 });
 
@@ -206,7 +196,7 @@ test("a text's receipt is read as Twilio's: the code in its own words, and a sta
 
 /* ---------------------------------------------------- the read the edge makes of the message */
 
-test("the message the provider's id names is read in its own workspace, with where it went; none, or a read that fails, is not a guess", async () => {
+test("the message the provider's id names is read in its own workspace, and no more of the person than the flag needs; none, or a read that fails, is not a guess", async () => {
   const { fakeDb } = await import("../_fake-db.mjs");
   const { messageByExternalId } = await import("@chanlytics/db");
   const T = "aaaaaaaa-0000-4000-8000-0000000000e1";
@@ -224,15 +214,8 @@ test("the message the provider's id names is read in its own workspace, with whe
     meta: { source: "broadcast" },
     ...over,
   });
-  // The person's row rides on the message as the select's embed (the database in memory takes an embed as a fixture seeds it).
-  const dana = { phone_e164: "+13475550101", email: "dana@example.com" };
   const tables = {
-    messages: [
-      row("mine", T, { contact_id: "k1", contacts: dana }),
-      row("theirs", OTHER),
-      row("mail", T, { external_id: "re_1", channel: "email", contact_id: "k1", contacts: dana }),
-      row("alone", T, { external_id: "wamid.alone", contacts: null }),
-    ],
+    messages: [row("mine", T, { contact_id: "k1" }), row("theirs", OTHER)],
   };
   const db = fakeDb(tables);
   assert.deepEqual(await messageByExternalId(db, T, "wamid.same"), {
@@ -242,10 +225,7 @@ test("the message the provider's id names is read in its own workspace, with whe
     sender: "human",
     status: "sent",
     meta: { source: "broadcast" },
-    to: "+13475550101",
   });
-  assert.equal((await messageByExternalId(db, T, "re_1")).to, "dana@example.com", "an email went to their address");
-  assert.equal((await messageByExternalId(db, T, "wamid.alone")).to, null, "a row naming no person names no one");
   assert.equal(await messageByExternalId(db, T, "wamid.nobody"), null);
   await assert.rejects(
     messageByExternalId(fakeDb(tables, { "messages.select": { message: "down" } }), T, "wamid.same"),

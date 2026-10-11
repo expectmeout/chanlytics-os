@@ -43,9 +43,9 @@ test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
 
 test("WhatsApp: a person's hold is its own reason, alerted once per open hold", () => {
   assert.ok(steps.includes('personHold ? "person_hold" : "policy_block"'));
-  assert.ok(wa.includes('const alertNeeded = !hold.personHold || outcome !== "refreshed";'));
-  // The workspace-level hold keeps its per-message alert: that behaviour is
-  // unchanged here on purpose.
+  // Once per hold, a workspace's own hold as well since decision 0043: a hold written is told from its event, and the
+  // handler tells only one it could not write (run in whatsapp/inbound-executed.test.mjs).
+  assert.ok(wa.includes("const alertNeeded = !toldFromItsEvent(outcome);"));
   assert.ok(steps.includes("const personHold = !!x.brainCfg && !!x.personMode;"));
 });
 

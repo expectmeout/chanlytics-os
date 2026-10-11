@@ -43,7 +43,46 @@ const READS = {
     subject_id: "a-1",
     data: { change: "added", source: "booking_email", starts_at: "2026-10-12T15:00:00Z" },
   },
+  owner_notice: {
+    kind: "escalation.opened",
+    category: "message",
+    subject_type: "conversation",
+    subject_id: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0",
+    data: { reason: "rate_cap" },
+  },
 };
+
+const CONV = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
+const PERSON = "d0d0d0d0-d0d0-4d0d-8d0d-d0d0d0d0d0d0";
+/** A thread waiting for a person: the hold, the thread, the person, their words and the receptionist's (decision 0043). */
+const heldThread = () => ({
+  escalations: [
+    {
+      id: "e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5",
+      tenant_id: T,
+      conversation_id: CONV,
+      reason: "rate_cap",
+      details: "Thread hit 20 automatic replies today — the receptionist stopped and is waiting for a human.",
+      state: "open",
+      created_at: "2026-10-06T00:00:00Z",
+    },
+  ],
+  conversations: [rows.conversation({ id: CONV, tenant_id: T, contact_id: PERSON })],
+  contacts: [rows.contact({ id: PERSON, tenant_id: T, display_name: "Rosa Diaz", phone_e164: "+13055550142" })],
+  messages: [
+    rows.message({
+      tenant_id: T,
+      conversation_id: CONV,
+      contact_id: PERSON,
+      direction: "inbound",
+      sender: "customer",
+      channel: "whatsapp",
+      body: "Can I move my visit to Friday?",
+      created_at: "2026-10-05T23:59:00Z",
+    }),
+  ],
+  notifications: [],
+});
 
 /** A world with one event, its subscription and the delivery the relay wrote; the booking door counts its calls. */
 function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) {
@@ -51,6 +90,7 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
   const kind = read.kind;
   const booked = [];
   const tables = {
+    ...(subscriber === "owner_notice" ? heldThread() : {}),
     events: withEvent ? [rows.event({ id: E, tenant_id: T, ...read })] : [],
     event_subscriptions: [{ kind, subscriber, lane: 2, paused, created_at: "2026-10-06T00:00:00Z" }],
     event_deliveries: [
@@ -82,10 +122,26 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
   );
   // The platform's pager, recorded: a delivery's failure is never an owner's (ledger PAGES_THE_PLATFORM).
   const pages = [];
+  // The workspace told as the edge's alertFor tells it: the bell's row, keeping the event it answers.
+  const told = [];
   const ctx = {
     db,
     wire: { whatsapp: null, sms: null },
-    alert: async () => {},
+    alert: async (news) => {
+      told.push(news);
+      const kept = await db.from("notifications").insert({
+        tenant_id: T,
+        kind: news.kind,
+        title: news.subject,
+        body: news.body,
+        route: news.route,
+        subject_type: news.about?.type ?? null,
+        subject_id: news.about?.id ?? null,
+        source_event: news.sourceEvent ?? null,
+        created_at: "2026-10-06T00:00:02Z",
+      });
+      if (kept.error) throw new Error(kept.error.message);
+    },
     page: async (key, subject, body) => {
       pages.push({ key, subject, body });
     },
@@ -96,7 +152,7 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
     kind: "event_deliver",
     payload: { event_id: E, subscriber, kind, lane: "2" },
   };
-  return { tables, ctx, job, pages, booked, delivery: () => tables.event_deliveries[0] };
+  return { tables, ctx, job, pages, booked, told, delivery: () => tables.event_deliveries[0] };
 }
 
 test("the audit subscriber runs and the delivery is done, counted once", async () => {
@@ -214,5 +270,171 @@ test("reach_out_booked hands the booking door the appointment its event names, a
     assert.equal(await dispatchJob(quiet.ctx, quiet.job), "done");
     assert.deepEqual(quiet.booked, [], `${change} from ${source}: books nobody`);
     assert.equal(quiet.delivery().state, "done", "and the delivery is done, not failed");
+  }
+});
+
+test("owner_notice tells the workspace of a hold once, from its rows: who, why, their words, the hold's own, the thread", async () => {
+  const w = world({ subscriber: "owner_notice" });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1);
+  const [n] = w.told;
+  assert.deepEqual(
+    [n.kind, n.route, n.about, n.sourceEvent],
+    ["handoff", `inbox/th-${CONV}`, { type: "conversation", id: CONV }, E],
+  );
+  assert.equal(n.subject, "Rosa Diaz needs a person — the receptionist reached its daily limit");
+  assert.match(n.body, /^They wrote: “Can I move my visit to Friday\?”/);
+  assert.match(n.body, /Thread hit 20 automatic replies today/);
+  assert.match(n.body, /WhatsApp conversation · \+1 \(305\) 555-0142/);
+  assert.match(n.redactedBody, /^A WhatsApp conversation needed a person \(the receptionist reached its daily limit\)/);
+  assert.doesNotMatch(n.redactedBody, /Rosa|Friday|305/, "the platform's copy holds no customer");
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1, "a second delivery of the same event tells nobody");
+});
+
+test("owner_notice tells nobody of a hold answered since, nor of one an edge from before already told inline", async () => {
+  const answered = world({ subscriber: "owner_notice" });
+  answered.tables.escalations[0].state = "resolved";
+  assert.equal(await dispatchJob(answered.ctx, answered.job), "done");
+  assert.equal(answered.told.length, 0, "the thread no longer waits for a person");
+
+  const inline = world({ subscriber: "owner_notice" });
+  inline.tables.notifications.push({
+    id: "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1",
+    tenant_id: T,
+    kind: "handoff",
+    title: "Rosa Diaz needs a person — rate cap",
+    body: "They wrote: …",
+    route: `inbox/th-${CONV}`,
+    subject_type: "conversation",
+    subject_id: CONV,
+    source_event: null,
+    recipient_user_id: null,
+    created_at: "2026-10-05T23:59:30Z",
+  });
+  assert.equal(await dispatchJob(inline.ctx, inline.job), "done");
+  assert.equal(inline.told.length, 0, "the old edge's notice, kept within the minute, is the notice");
+});
+
+test("owner_notice reads a change by its hold, and names nobody erased", async () => {
+  const changed = world({ subscriber: "owner_notice" });
+  Object.assign(changed.tables.events[0], {
+    kind: "escalation.changed",
+    subject_type: "escalation",
+    subject_id: changed.tables.escalations[0].id,
+    data: { from: "policy_block", to: "rate_cap" },
+  });
+  assert.equal(await dispatchJob(changed.ctx, changed.job), "done");
+  assert.equal(changed.told.length, 1, "a hold taking another reason is a hold, and is told");
+  assert.equal(changed.told[0].about.id, CONV);
+
+  const erased = world({ subscriber: "owner_notice" });
+  erased.tables.contacts[0].erased_at = "2026-10-05T00:00:00Z";
+  assert.equal(await dispatchJob(erased.ctx, erased.job), "done");
+  const [n] = erased.told;
+  assert.equal(n.subject, "A customer needs a person — the receptionist reached its daily limit");
+  assert.doesNotMatch(n.body, /Rosa|Friday|305|Thread hit/, "no name, no words, no number of someone erased");
+});
+
+test("owner_notice tells a hold's new reason a moment after it told the first: its own notice answers that event, not this one", async () => {
+  const w = world({ subscriber: "owner_notice" });
+  Object.assign(w.tables.events[0], {
+    kind: "escalation.changed",
+    subject_type: "escalation",
+    subject_id: w.tables.escalations[0].id,
+    data: { from: "human_token", to: "rate_cap" },
+  });
+  // Told of the first reason seconds ago, by this subscriber, for the event that opened the hold.
+  w.tables.notifications.push({
+    id: "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
+    tenant_id: T,
+    kind: "handoff",
+    title: "Rosa Diaz needs a person — asked for a person",
+    body: "They wrote: …",
+    route: `inbox/th-${CONV}`,
+    subject_type: "conversation",
+    subject_id: CONV,
+    source_event: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    recipient_user_id: null,
+    created_at: "2026-10-05T23:59:50Z",
+  });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.deepEqual(
+    w.told.map((n) => n.subject),
+    ["Rosa Diaz needs a person — the receptionist reached its daily limit"],
+    "REGRESSION: a reason changed within the minute was swallowed by the first notice",
+  );
+});
+
+test("owner_notice tells a hold as it stands: an opened event whose hold took another reason since tells nothing, its change tells", async () => {
+  const w = world({ subscriber: "owner_notice" });
+  Object.assign(w.tables.events[0], { data: { reason: "policy_block" } });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.deepEqual(w.told, [], "two deliveries out of order tell the hold once");
+  assert.equal(w.delivery().state, "done");
+});
+
+test("owner_notice quotes the receptionist only in words that reached them: a failed or held reply was never said", async () => {
+  for (const status of ["failed", "queued", "canceled"]) {
+    const w = world({ subscriber: "owner_notice" });
+    w.tables.messages.push(
+      rows.message({
+        tenant_id: T,
+        conversation_id: CONV,
+        contact_id: PERSON,
+        direction: "outbound",
+        sender: "ai",
+        channel: "whatsapp",
+        status,
+        body: "Friday at 3 is yours.",
+        created_at: "2026-10-05T23:59:30Z",
+      }),
+    );
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", status);
+    assert.doesNotMatch(w.told[0].body, /The receptionist|Friday at 3/, status);
+  }
+  const said = world({ subscriber: "owner_notice" });
+  said.tables.messages.push(
+    rows.message({
+      tenant_id: T,
+      conversation_id: CONV,
+      contact_id: PERSON,
+      direction: "outbound",
+      sender: "ai",
+      channel: "whatsapp",
+      status: "delivered",
+      body: "Friday at 3 is yours.",
+      created_at: "2026-10-05T23:59:30Z",
+    }),
+  );
+  assert.equal(await dispatchJob(said.ctx, said.job), "done");
+  assert.match(said.told[0].body, /The receptionist: “Friday at 3 is yours\.”/);
+});
+
+test("owner_notice leaves an email's hold to where it is taken in: opened, changed to it, or holding it now", async () => {
+  // The intake tells it in its job (sender, subject), a reach-out's reading tells its reply, a dead job's notice tells
+  // the rest: told here too, one email would be heard of twice.
+  const opened = world({ subscriber: "owner_notice" });
+  Object.assign(opened.tables.events[0], { data: { reason: "email_review" } });
+  opened.tables.escalations[0].reason = "email_review";
+  const changed = world({ subscriber: "owner_notice" });
+  Object.assign(changed.tables.events[0], {
+    kind: "escalation.changed",
+    subject_type: "escalation",
+    subject_id: changed.tables.escalations[0].id,
+    data: { from: "carriers", to: "email_review" },
+  });
+  changed.tables.escalations[0].reason = "email_review";
+  // Opened for the cap, then an email moved it before the delivery ran: the hold is the intake's to tell now.
+  const since = world({ subscriber: "owner_notice" });
+  since.tables.escalations[0].reason = "email_review";
+  for (const [name, w] of [
+    ["opened", opened],
+    ["changed", changed],
+    ["since", since],
+  ]) {
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", name);
+    assert.deepEqual(w.told, [], name);
+    assert.equal(w.delivery().state, "done", `${name}: delivered, and nothing owed`);
   }
 });

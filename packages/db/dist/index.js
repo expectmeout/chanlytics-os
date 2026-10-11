@@ -1671,7 +1671,7 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
   }
 }
 async function messageByExternalId(db, tenantId, externalId) {
-  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
+  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, status, meta").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
   if (error) throw new Error(`messageByExternalId: ${error.message}`);
   if (!data) return null;
   return {
@@ -1680,8 +1680,7 @@ async function messageByExternalId(db, tenantId, externalId) {
     direction: data.direction,
     sender: data.sender,
     status: data.status,
-    meta: data.meta,
-    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null
+    meta: data.meta
   };
 }
 async function keepMessageCost(db, tenantId, externalId, pricing) {
@@ -3223,227 +3222,7 @@ async function firstReplies(db, tenantId, since) {
 }
 
 // src/repositories/notifications.ts
-async function forgetNotification(db, p) {
-  const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
-  if (error) throw new Error(`cannot take the notification back: ${error.message}`);
-}
-async function noticeKept(db, p) {
-  const { data, error } = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).limit(1);
-  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
-  return (data ?? []).length > 0;
-}
-async function activityTokensOf(db, tenantId, roles) {
-  const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
-  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
-  const people = (members ?? []).map((m) => m.user_id);
-  if (!people.length) return [];
-  const { data: devices, error: de } = await db.from("push_devices").select("activity_token").in("user_id", people).not("activity_token", "is", null);
-  if (de) throw new Error(`cannot read the phones: ${de.message}`);
-  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t) => !!t))];
-}
-async function forgetActivityTokens(db, tokens) {
-  if (!tokens.length) return;
-  const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
-  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
-}
-var UNDEFINED_COLUMN2 = "42703";
-async function memberAlertsOf(db, p) {
-  const [mine, phones] = await Promise.all([
-    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
-    db.from("push_devices").select("platform, app_version, last_seen_at").eq("user_id", p.userId).order("last_seen_at", { ascending: false, nullsFirst: false })
-  ]);
-  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
-  if (mine.error && mine.error.code !== UNDEFINED_COLUMN2)
-    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
-  return {
-    pushOff: mine.error ? [] : mine.data?.push_off ?? [],
-    phones: (phones.data ?? []).map((d) => ({
-      platform: d.platform,
-      app_version: d.app_version,
-      last_seen_at: d.last_seen_at
-    })),
-    choosable: !mine.error
-  };
-}
-async function setMemberPushOff(db, p) {
-  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
-  if (error) throw error;
-  return data ?? [];
-}
-async function membersPushedFor(db, p) {
-  if (p.userIds && !p.userIds.length) return [];
-  const ids = p.userIds ? [...p.userIds] : null;
-  const chosen = ids ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids) : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
-  if (!chosen.error)
-    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
-  if (chosen.error.code !== UNDEFINED_COLUMN2)
-    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
-  if (ids) return ids;
-  const all2 = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
-  if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
-  return (all2.data ?? []).map((m) => m.user_id);
-}
-
-// src/repositories/campaigns/workspace.ts
-async function workspacePaused(db, tenantId) {
-  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
-  return data?.status === "paused";
-}
-
-// src/repositories/routing.ts
-import { MIN_MS } from "../../contracts/dist/index.js";
-var POS_TTL_MS = 5 * MIN_MS;
-var NEG_TTL_MS = MIN_MS;
-var cache = /* @__PURE__ */ new Map();
-async function resolveChannelDetailed(db, kind, externalId) {
-  const key = `${kind}:${externalId}`;
-  const hit = cache.get(key);
-  if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
-  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id").eq("kind", kind).eq("external_id", externalId).maybeSingle();
-  if (error) {
-    dbLog().error("resolve_channel_failed", { kind, error: error.message });
-    if (hit?.v) return { channel: hit.v, lookupFailed: false };
-    return { channel: null, lookupFailed: true };
-  }
-  const routed = data && data.status === "active" ? routedOf(data) : null;
-  cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
-  return { channel: routed, lookupFailed: false };
-}
-var ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, config, external_id";
-function routedOf(row) {
-  return {
-    channelId: row.id,
-    tenantId: row.tenant_id,
-    kind: row.kind,
-    externalId: row.external_id,
-    numberE164: row.number_e164,
-    credentialsRef: row.credentials_ref,
-    config: row.config
-  };
-}
-async function oldestActiveChannel(db, tenantId, kind) {
-  const { data, error } = await db.from("tenant_channels").select(ROUTED_COLUMNS).eq("tenant_id", tenantId).eq("kind", kind).eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
-  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
-  return data ? routedOf(data) : null;
-}
-async function resolveChannel(db, kind, externalId) {
-  return (await resolveChannelDetailed(db, kind, externalId)).channel;
-}
-async function activeWhatsappNumbers(db, tenantId) {
-  const { data, error } = await db.from("tenant_channels").select("id, credentials_ref, external_id").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
-  return data ?? [];
-}
-async function whatsappLineOf(db, tenantId, conversationId) {
-  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "whatsapp").eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
-  const meta = data?.meta;
-  const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
-  return typeof line === "string" && line ? line : null;
-}
-
-// src/repositories/calls.ts
-async function ingestCall(db, tenantId, n, raw) {
-  const { data, error } = await db.rpc("ingest_call", {
-    p_tenant_id: tenantId,
-    p_retell_call_id: n.retellCallId,
-    p_agent_id: n.agentId,
-    p_from_e164: n.fromE164,
-    p_from_raw: n.fromRaw,
-    p_to_e164: n.toE164,
-    p_direction: n.direction,
-    p_call_type: n.callType,
-    p_status: n.status,
-    p_started_at: n.startedAtIso,
-    p_ended_at: n.endedAtIso,
-    p_duration_ms: n.durationMs,
-    p_disconnection: n.disconnectionReason,
-    p_sentiment: n.sentiment,
-    p_successful: n.callSuccessful,
-    p_in_voicemail: n.inVoicemail,
-    p_summary: n.summary,
-    p_transcript: n.transcript,
-    p_transcript_obj: n.transcriptObject ?? null,
-    // The provider URL is NOT written to the row: calls is in the realtime
-    // publication, so every column reaches every member's browser, and the
-    // REST layer's care in stripping it was being undone one layer down. A
-    // retry asks the provider for a fresh URL by call id.
-    p_recording: n.recordingUrl ? { fetch_state: "pending" } : null,
-    p_public_log_url: n.publicLogUrl,
-    p_cost: n.cost ?? null,
-    p_latency: n.latency ?? null,
-    p_raw: raw ?? {},
-    p_analysis: n.analysis ?? null
-  });
-  if (error) throw new Error(`ingest_call: ${error.message}`);
-  return data;
-}
-async function linkCallMessage(db, tenantId, callId, messageId) {
-  const { data, error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
-  else if (!data || data.length === 0)
-    dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
-}
-async function callersOf(db, tenantId, ids) {
-  const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
-    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
-    if (error) throw new Error(`callersOf: ${error.message}`);
-    out.push(...data ?? []);
-  }
-  return out;
-}
-async function setCallRecording(db, tenantId, callId, recording) {
-  const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
-  else if (!data || data.length === 0)
-    dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
-}
-async function recordCallNote(db, p) {
-  const { data, error } = await db.from("messages").insert({
-    tenant_id: p.tenantId,
-    conversation_id: p.conversationId,
-    contact_id: p.contactId,
-    channel: "voice",
-    direction: "inbound",
-    sender: "system",
-    type: "call_summary",
-    body: p.body,
-    external_id: p.externalId,
-    channel_ts: p.channelTsIso,
-    status: "received"
-  }).select("id").single();
-  if (error) {
-    if (error.code === "23505") {
-      const { data: prior } = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
-      return prior?.id ?? null;
-    }
-    dbLog().error("record_call_note_failed", { tenant_id: p.tenantId, error: error.message });
-    return null;
-  }
-  return data.id;
-}
-async function claimCallNotification(db, tenantId, callId) {
-  const { data, error } = await db.from("calls").update({ notified_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("notified_at", null).select("id");
-  if (error) throw new Error(`claim_call_notification: ${error.message}`);
-  return (data?.length ?? 0) > 0;
-}
-async function claimCallActivity(db, tenantId, callId) {
-  const { data, error } = await db.from("calls").update({ activity_started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("activity_started_at", null).select("id");
-  if (error) throw new Error(`claim_call_activity: ${error.message}`);
-  return (data?.length ?? 0) > 0;
-}
-async function callerNameOf(db, tenantId, contactId) {
-  const { data, error } = await db.from("contacts").select("display_name, wa_profile_name").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
-  if (error) throw new Error(`caller_name: ${error.message}`);
-  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
-}
-async function isWorkspaceCall(db, tenantId, retellCallId) {
-  const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
-  if (error) return null;
-  return data !== null;
-}
+import { HOUR_MS as HOUR_MS2, MIN_MS } from "../../contracts/dist/index.js";
 
 // src/repositories/thread.ts
 import {
@@ -3735,6 +3514,280 @@ async function ourLastWire(db, tenantId, conversationId) {
   const { data, error } = await db.from("messages").select("channel").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").in("type", ["text", "template", "media"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`reading the last outbound: ${error.message}`);
   return data?.channel ?? null;
+}
+
+// src/repositories/notifications.ts
+async function forgetNotification(db, p) {
+  const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (error) throw new Error(`cannot take the notification back: ${error.message}`);
+}
+async function noticeKept(db, p) {
+  const { data, error } = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).limit(1);
+  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function activityTokensOf(db, tenantId, roles) {
+  const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
+  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
+  const people = (members ?? []).map((m) => m.user_id);
+  if (!people.length) return [];
+  const { data: devices, error: de } = await db.from("push_devices").select("activity_token").in("user_id", people).not("activity_token", "is", null);
+  if (de) throw new Error(`cannot read the phones: ${de.message}`);
+  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t) => !!t))];
+}
+async function forgetActivityTokens(db, tokens) {
+  if (!tokens.length) return;
+  const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
+  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
+var UNDEFINED_COLUMN2 = "42703";
+async function memberAlertsOf(db, p) {
+  const [mine, phones] = await Promise.all([
+    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
+    db.from("push_devices").select("platform, app_version, last_seen_at").eq("user_id", p.userId).order("last_seen_at", { ascending: false, nullsFirst: false })
+  ]);
+  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
+  if (mine.error && mine.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
+  return {
+    pushOff: mine.error ? [] : mine.data?.push_off ?? [],
+    phones: (phones.data ?? []).map((d) => ({
+      platform: d.platform,
+      app_version: d.app_version,
+      last_seen_at: d.last_seen_at
+    })),
+    choosable: !mine.error
+  };
+}
+async function setMemberPushOff(db, p) {
+  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
+  if (error) throw error;
+  return data ?? [];
+}
+async function membersPushedFor(db, p) {
+  if (p.userIds && !p.userIds.length) return [];
+  const ids = p.userIds ? [...p.userIds] : null;
+  const chosen = ids ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids) : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
+  if (!chosen.error)
+    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
+  if (chosen.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
+  if (ids) return ids;
+  const all2 = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
+  if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
+  return (all2.data ?? []).map((m) => m.user_id);
+}
+var oneOr = (r, what) => {
+  if (r.error) throw new Error(`cannot read ${what}: ${r.error.message}`);
+  return r.data?.[0] ?? null;
+};
+async function holdFactsOf(db, tenantId, ref, nowMs) {
+  const holds = db.from("escalations").select("id, conversation_id, reason, details").eq("tenant_id", tenantId).eq("state", "open");
+  const hold = oneOr(
+    await ("conversationId" in ref ? holds.eq("conversation_id", ref.conversationId) : holds.eq("id", ref.escalationId)).limit(1),
+    "the hold"
+  );
+  if (!hold) return null;
+  const thread = oneOr(
+    await db.from("conversations").select("contact_id, paused_until").eq("tenant_id", tenantId).eq("id", hold.conversation_id).limit(1),
+    "the thread"
+  );
+  if (!thread) return null;
+  const person = oneOr(
+    await db.from("contacts").select("display_name, wa_profile_name, phone_e164, email, erased_at, erasing_since").eq("tenant_id", tenantId).eq("id", thread.contact_id).limit(1),
+    "the person"
+  );
+  const theirs = oneOr(
+    await db.from("messages").select("body, channel, created_at").eq("tenant_id", tenantId).eq("conversation_id", hold.conversation_id).eq("direction", "inbound").eq("sender", "customer").order("created_at", { ascending: false }).limit(1),
+    "their words"
+  );
+  const reply = theirs ? oneOr(
+    await db.from("messages").select("body").eq("tenant_id", tenantId).eq("conversation_id", hold.conversation_id).eq("direction", "outbound").eq("sender", "ai").in("status", DELIVERED).gte("created_at", theirs.created_at).order("created_at", { ascending: false }).limit(1),
+    "the receptionist's reply"
+  ) : null;
+  const pausedMs = thread.paused_until ? Date.parse(thread.paused_until) - nowMs : 0;
+  return {
+    conversationId: hold.conversation_id,
+    reason: hold.reason,
+    details: hold.details,
+    who: person?.display_name ?? person?.wa_profile_name ?? null,
+    address: person?.phone_e164 ?? person?.email ?? null,
+    channel: theirs?.channel ?? null,
+    customerWords: theirs?.body ?? null,
+    replyWords: reply?.body ?? null,
+    pausedHours: pausedMs > 0 ? Math.max(1, Math.round(pausedMs / HOUR_MS2)) : null,
+    erased: !person || !!person.erased_at || !!person.erasing_since
+  };
+}
+async function holdTold(db, p) {
+  const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).limit(1);
+  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if ((answered.data ?? []).length) return true;
+  const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
+  const inline = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", "handoff").eq("subject_type", "conversation").eq("subject_id", p.conversationId).is("source_event", null).gte("created_at", since).limit(1);
+  if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);
+  return (inline.data ?? []).length > 0;
+}
+
+// src/repositories/campaigns/workspace.ts
+async function workspacePaused(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data?.status === "paused";
+}
+
+// src/repositories/routing.ts
+import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
+var POS_TTL_MS = 5 * MIN_MS2;
+var NEG_TTL_MS = MIN_MS2;
+var cache = /* @__PURE__ */ new Map();
+async function resolveChannelDetailed(db, kind, externalId) {
+  const key = `${kind}:${externalId}`;
+  const hit = cache.get(key);
+  if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id").eq("kind", kind).eq("external_id", externalId).maybeSingle();
+  if (error) {
+    dbLog().error("resolve_channel_failed", { kind, error: error.message });
+    if (hit?.v) return { channel: hit.v, lookupFailed: false };
+    return { channel: null, lookupFailed: true };
+  }
+  const routed = data && data.status === "active" ? routedOf(data) : null;
+  cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
+  return { channel: routed, lookupFailed: false };
+}
+var ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, config, external_id";
+function routedOf(row) {
+  return {
+    channelId: row.id,
+    tenantId: row.tenant_id,
+    kind: row.kind,
+    externalId: row.external_id,
+    numberE164: row.number_e164,
+    credentialsRef: row.credentials_ref,
+    config: row.config
+  };
+}
+async function oldestActiveChannel(db, tenantId, kind) {
+  const { data, error } = await db.from("tenant_channels").select(ROUTED_COLUMNS).eq("tenant_id", tenantId).eq("kind", kind).eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
+  return data ? routedOf(data) : null;
+}
+async function resolveChannel(db, kind, externalId) {
+  return (await resolveChannelDetailed(db, kind, externalId)).channel;
+}
+async function activeWhatsappNumbers(db, tenantId) {
+  const { data, error } = await db.from("tenant_channels").select("id, credentials_ref, external_id").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
+  return data ?? [];
+}
+async function whatsappLineOf(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "whatsapp").eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
+  const meta = data?.meta;
+  const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
+  return typeof line === "string" && line ? line : null;
+}
+
+// src/repositories/calls.ts
+async function ingestCall(db, tenantId, n, raw) {
+  const { data, error } = await db.rpc("ingest_call", {
+    p_tenant_id: tenantId,
+    p_retell_call_id: n.retellCallId,
+    p_agent_id: n.agentId,
+    p_from_e164: n.fromE164,
+    p_from_raw: n.fromRaw,
+    p_to_e164: n.toE164,
+    p_direction: n.direction,
+    p_call_type: n.callType,
+    p_status: n.status,
+    p_started_at: n.startedAtIso,
+    p_ended_at: n.endedAtIso,
+    p_duration_ms: n.durationMs,
+    p_disconnection: n.disconnectionReason,
+    p_sentiment: n.sentiment,
+    p_successful: n.callSuccessful,
+    p_in_voicemail: n.inVoicemail,
+    p_summary: n.summary,
+    p_transcript: n.transcript,
+    p_transcript_obj: n.transcriptObject ?? null,
+    // The provider URL is NOT written to the row: calls is in the realtime
+    // publication, so every column reaches every member's browser, and the
+    // REST layer's care in stripping it was being undone one layer down. A
+    // retry asks the provider for a fresh URL by call id.
+    p_recording: n.recordingUrl ? { fetch_state: "pending" } : null,
+    p_public_log_url: n.publicLogUrl,
+    p_cost: n.cost ?? null,
+    p_latency: n.latency ?? null,
+    p_raw: raw ?? {},
+    p_analysis: n.analysis ?? null
+  });
+  if (error) throw new Error(`ingest_call: ${error.message}`);
+  return data;
+}
+async function linkCallMessage(db, tenantId, callId, messageId) {
+  const { data, error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId).select("id");
+  if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
+  else if (!data || data.length === 0)
+    dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
+}
+async function callersOf(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
+    if (error) throw new Error(`callersOf: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
+async function setCallRecording(db, tenantId, callId, recording) {
+  const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
+  if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
+  else if (!data || data.length === 0)
+    dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
+}
+async function recordCallNote(db, p) {
+  const { data, error } = await db.from("messages").insert({
+    tenant_id: p.tenantId,
+    conversation_id: p.conversationId,
+    contact_id: p.contactId,
+    channel: "voice",
+    direction: "inbound",
+    sender: "system",
+    type: "call_summary",
+    body: p.body,
+    external_id: p.externalId,
+    channel_ts: p.channelTsIso,
+    status: "received"
+  }).select("id").single();
+  if (error) {
+    if (error.code === "23505") {
+      const { data: prior } = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
+      return prior?.id ?? null;
+    }
+    dbLog().error("record_call_note_failed", { tenant_id: p.tenantId, error: error.message });
+    return null;
+  }
+  return data.id;
+}
+async function claimCallNotification(db, tenantId, callId) {
+  const { data, error } = await db.from("calls").update({ notified_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("notified_at", null).select("id");
+  if (error) throw new Error(`claim_call_notification: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function claimCallActivity(db, tenantId, callId) {
+  const { data, error } = await db.from("calls").update({ activity_started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("activity_started_at", null).select("id");
+  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function callerNameOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("display_name, wa_profile_name").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(`caller_name: ${error.message}`);
+  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
+}
+async function isWorkspaceCall(db, tenantId, retellCallId) {
+  const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
+  if (error) return null;
+  return data !== null;
 }
 
 // src/ask-voice-session.ts
@@ -5155,7 +5208,9 @@ export {
   heldNoticeDue,
   heldNoticesOf,
   heldStale,
+  holdFactsOf,
   holdRecipients,
+  holdTold,
   holdsReplyTurn,
   ingestCall,
   ingestInbound,

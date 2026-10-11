@@ -33,12 +33,12 @@ what the script writes.
 | [`contact_identities`](#contact_identities) | none | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
-| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
+| [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
+| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
-| [`escalations`](#escalations) | `packages/db/src/events.ts`, `packages/db/src/repositories/outreach.ts` | on, 2 policies |
+| [`escalations`](#escalations) | `packages/db/src/events.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts` | on, 2 policies |
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
@@ -68,7 +68,7 @@ what the script writes.
 | [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
-| [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
+| [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
 | [`notification_reads`](#notification_reads) | none | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -685,7 +685,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -737,7 +737,7 @@ Foreign keys:
 
 ### conversations
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -862,7 +862,7 @@ When the stored erasure digests were re-keyed (00263 erasure_rekey): null until 
 
 ### escalations
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/outreach.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1771,7 +1771,7 @@ Foreign keys:
 
 ### messages
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -1874,6 +1874,7 @@ What needed the workspace's attention, kept: each alert the edge raised, where t
 | `subject_id` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `recipient_user_id` | uuid | yes |  | The one member this is for (0007); null for everyone in the workspace. Only the recipient reads an addressed row. |
+| `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00396): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised. |
 
 Foreign keys:
 

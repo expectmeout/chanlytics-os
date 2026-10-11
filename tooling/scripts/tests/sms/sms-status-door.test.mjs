@@ -172,18 +172,22 @@ test("a sid no row carries is let go with a 200: Twilio must not retry it; a for
 
 /* ------------------------- a failure the carrier reports later raises its hand ------------------------- */
 
-/** What the owner was given: the open holds on the thread, the bell's rows, and the ledger's failures. */
+/**
+ * What the owner was given: the open holds on the thread, the events that tell of them (owner_notice rings the bell from
+ * these, after the commit: decision 0043), the bell's rows the door wrote itself, and the ledger's failures.
+ */
 const raised = (w) => ({
   holds: (w.tables.escalations ?? []).filter((e) => e.state !== "resolved"),
+  told: (w.tables.events ?? []).filter((e) => e.kind === "escalation.opened" || e.kind === "escalation.changed"),
   bell: w.tables.notifications ?? [],
   events: (w.tables.events ?? []).filter((e) => e.kind === "message.send_failed"),
 });
 
-test("a text the carrier refuses after taking it flags its thread, rings the bell and writes the ledger, saying why", async () => {
+test("a text the carrier refuses after taking it flags its thread, whose event rings the bell, and writes the ledger, saying why", async () => {
   const w = world();
   assert.equal(await w.post(w.form({ MessageStatus: "undelivered", ErrorCode: "30007" })), 200);
   assert.equal(w.row.status, "failed");
-  const { holds, bell, events } = raised(w);
+  const { holds, told, bell, events } = raised(w);
   assert.equal(holds.length, 1);
   assert.deepEqual(
     [holds[0].conversation_id, holds[0].reason, holds[0].tenant_id],
@@ -192,13 +196,12 @@ test("a text the carrier refuses after taking it flags its thread, rings the bel
   );
   assert.match(holds[0].details, /^A reply from your team was accepted for sending but did not reach them\./);
   assert.match(holds[0].details, /The text was filtered as a possible policy violation \(Twilio error 30007\)\.$/);
-  assert.equal(bell.length, 1);
   assert.deepEqual(
-    [bell[0].kind, bell[0].route, bell[0].subject_type, bell[0].subject_id],
-    ["handoff", "inbox/th-cv-1", "conversation", "cv-1"],
-    "a hand-off that opens that thread, as the send's own does",
+    told.map((e) => [e.kind, e.subject_type, e.subject_id]),
+    [["escalation.opened", "conversation", "cv-1"]],
+    "the hold's event, which tells the owner of that thread after the commit, out of Twilio's request",
   );
-  assert.match(bell[0].body, /Twilio error 30007/);
+  assert.deepEqual(bell, [], "and no bell of the door's own beside it");
   assert.equal(events.length, 1);
   assert.deepEqual(
     [events[0].subject_id, events[0].data.reason, events[0].data.outcome],
@@ -212,14 +215,14 @@ test("the same receipt twice raises once: a message already failed is a receipt 
   assert.equal(await w.post(fields), 200);
   assert.equal(await w.post(fields), 200, "Twilio retries a callback it could not deliver");
   assert.equal(await w.post(w.form({ MessageStatus: "failed", ErrorCode: "30003" })), 200, "and may say it twice");
-  const { holds, bell, events } = raised(w);
-  assert.deepEqual([holds.length, bell.length, events.length], [1, 1, 1]);
+  const { holds, told, events } = raised(w);
+  assert.deepEqual([holds.length, told.length, events.length], [1, 1, 1]);
   assert.equal(w.row.status, "failed");
 
   // Said again after the owner dealt with it, it still raises nothing: it is the same message.
   w.tables.escalations.forEach((e) => (e.state = "resolved"));
   assert.equal(await w.post(fields), 200);
-  assert.deepEqual([raised(w).holds.length, raised(w).bell.length], [0, 1]);
+  assert.deepEqual([raised(w).holds.length, raised(w).told.length], [0, 1]);
 });
 
 test("a campaign's text, a customer's row and a delivered text raise nothing, and the failure still lands on the row", async () => {
@@ -231,11 +234,11 @@ test("a campaign's text, a customer's row and a delivered text raise nothing, an
     const w = world({ row });
     assert.equal(await w.post(w.form({ MessageStatus: "undelivered", ErrorCode: "30007" })), 200, name);
     assert.equal(w.row.status, "failed", name);
-    assert.deepEqual(raised(w), { holds: [], bell: [], events: [] }, name);
+    assert.deepEqual(raised(w), { holds: [], told: [], bell: [], events: [] }, name);
   }
   const ok = world();
   assert.equal(await ok.post(ok.form({ MessageStatus: "delivered" })), 200);
-  assert.deepEqual(raised(ok), { holds: [], bell: [], events: [] }, "a delivery is no news");
+  assert.deepEqual(raised(ok), { holds: [], told: [], bell: [], events: [] }, "a delivery is no news");
 });
 
 test("the receptionist's reply is said as the receptionist's, and a thread already held for something else is held for this", async () => {
@@ -244,11 +247,15 @@ test("the receptionist's reply is said as the receptionist's, and a thread alrea
     { id: "e0", tenant_id: w.T, conversation_id: "cv-1", reason: "human_token", details: "asked", state: "open" },
   ];
   assert.equal(await w.post(w.form({ MessageStatus: "undelivered", ErrorCode: "30005" })), 200);
-  const { holds, bell } = raised(w);
+  const { holds, told } = raised(w);
   assert.equal(holds.length, 1, "one open hold per thread");
   assert.equal(holds[0].reason, "send_failed", "the reason a person is needed for has changed under them");
   assert.match(holds[0].details, /^The receptionist's reply was accepted for sending/);
-  assert.equal(bell.length, 1);
+  assert.deepEqual(
+    told.map((e) => [e.kind, e.subject_id, e.data]),
+    [["escalation.changed", "e0", { from: "human_token", to: "send_failed" }]],
+    "told as the hold's new reason",
+  );
 });
 
 test("a flag the database would not take is a 503 with the row untouched; Twilio never says it again, so the report is kept, the platform is paged with the key that replays it, and the replay lands once the database is well", async () => {
@@ -260,7 +267,7 @@ test("a flag the database would not take is a 503 with the row untouched; Twilio
     assert.equal(await w.post(w.form({ MessageStatus: "undelivered", ErrorCode: "30007" })), 503);
     assert.equal(w.row.status, "sent", "the row did not move: the replay finds it as it was");
     assert.equal(w.row.error, null);
-    assert.deepEqual(raised(w), { holds: [], bell: [], events: [] });
+    assert.deepEqual(raised(w), { holds: [], told: [], bell: [], events: [] });
 
     const key = `${w.row.external_id}:undelivered`;
     assert.deepEqual(
@@ -289,8 +296,8 @@ test("a flag the database would not take is a 503 with the row untouched; Twilio
     assert.equal(await replayed(key), 200);
     assert.equal(w.row.status, "failed");
     assert.deepEqual(w.row.error, { carrier: "undelivered", code: "30007" });
-    const { holds, bell, events } = raised(w);
-    assert.deepEqual([holds.length, bell.length, events.length], [1, 1, 1]);
+    const { holds, told, events } = raised(w);
+    assert.deepEqual([holds.length, told.length, events.length], [1, 1, 1]);
   } finally {
     pager.restore();
   }

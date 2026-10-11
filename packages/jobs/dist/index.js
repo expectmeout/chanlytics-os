@@ -237,7 +237,9 @@ import {
   claimQueuedSend as claimQueuedSend2,
   releaseQueuedSend as releaseQueuedSend2,
   membersPushedFor,
-  reachOutBookedFrom
+  reachOutBookedFrom,
+  holdFactsOf,
+  holdTold
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -1262,7 +1264,11 @@ async function eventDeliver(ctx, job) {
   if (!subscriberNamed(named2.subscriber)) throw new Error(`event_deliver: no subscriber named ${named2.subscriber}`);
   const subscriber = SUBSCRIBERS[named2.subscriber];
   const ports = {
-    bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId)
+    bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId),
+    holdFacts: (tenantId, ref) => holdFactsOf(ctx.db, tenantId, ref, Date.now()),
+    holdTold: (tenantId, p) => holdTold(ctx.db, { tenantId, ...p }),
+    // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
+    tell: (news) => ctx.alert(news)
   };
   try {
     await subscriber(event, ports);

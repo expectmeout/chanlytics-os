@@ -5,7 +5,8 @@ import { missedCallIsNews, type LiveCallVM } from "../voice/live";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { lensRoute } from "../reports/lenses";
 import { firstLine } from "./push";
-import type { JobKind } from "../shared/enums";
+import type { EscalationReason, JobKind } from "../shared/enums";
+import { formatPhoneDisplay } from "../shared/phone";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -294,6 +295,10 @@ export interface JobNews {
   body: string;
   /** What it is about, when it is one thing. */
   about?: { type: string; id: string } | null;
+  /** The platform's copy, for a workspace nobody can be told in: the fact, never the words. The runtime's own when absent. */
+  redactedBody?: string;
+  /** The event this notice answers (decision 0043): the bell keeps it, and a second delivery of it tells nobody. */
+  sourceEvent?: string;
 }
 
 export interface NotificationDto {
@@ -647,4 +652,99 @@ export function nameKnownCustomers<T extends NotificationRow>(
           : undefined;
     return who ? { ...r, title: r.title.replace(NUMBER_IN_WORDS, who) } : r;
   });
+}
+
+/* ---- A hold, told from its record (decision 0043) ---- */
+
+/**
+ * Why a thread waits for a person, in the owner's words: the subject's "needs a person — <why>", one for each reason a
+ * hold can carry (contracts ESCALATION_REASONS), so a new reason cannot reach an owner as its raw token.
+ */
+const HOLD_REASON_WORDS: Readonly<Record<EscalationReason, string>> = {
+  human_token: "asked for a person",
+  non_text: "sent something other than words",
+  refusal: "asked something the receptionist will not answer",
+  rate_cap: "the receptionist reached its daily limit",
+  policy_block: "the receptionist held its reply for you",
+  send_failed: "a reply failed to send",
+  deadman: "has waited two hours for a person",
+  brain_error: "the receptionist could not finish its answer",
+  manual: "was handed to a person",
+  opt_out: "asked to stop",
+  state_unavailable: "the receptionist could not read the thread",
+  stale: "arrived too late to answer automatically",
+  person_hold: "is someone you answer yourself",
+  budget: "the day's model budget is used up",
+  policy_ask: "asked about a booking or a price you answer first",
+  callback: "needs a call back",
+  paused: "the workspace is paused",
+  carriers: "texted before the carriers approved the line",
+  email_review: "sent an email that waits for you",
+};
+
+/** The channel a thread was last written on, in the words an owner reads. */
+const HOLD_CHANNEL_WORDS: Readonly<Record<string, string>> = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email",
+  voice: "Phone",
+};
+
+/** What a hold's notice says, read from its rows (packages/db holdFactsOf). */
+export interface HoldFacts {
+  conversationId: string;
+  /** The hold's reason, one of ESCALATION_REASONS. */
+  reason: string;
+  /** The hold's own words: what happened and what to do, written where it was decided. */
+  details: string | null;
+  /** The person's name, when the record has one. */
+  who: string | null;
+  /** Their number (E.164) or their address. */
+  address: string | null;
+  /** The channel of their latest message, or of the thread. */
+  channel: string | null;
+  /** Their latest words in the thread. */
+  customerWords: string | null;
+  /** What the receptionist said or held after them, when it did. */
+  replyWords: string | null;
+  /** How many hours the receptionist is out of the thread, when it is. */
+  pausedHours: number | null;
+  /** The person is erased, or being erased: the thread is told of, never them. */
+  erased: boolean;
+}
+
+/** A line of words cut to `max` characters, an ellipsis where it was cut. */
+const clipped = (s: string, max: number): string => {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+};
+
+/**
+ * The owner's notice of a hold (decision 0043): who needs a person and why, their words and the receptionist's, the
+ * hold's own words, where to answer, and the pause when there is one. An erased person is "A customer", with no words
+ * and no number. The platform's copy, for a workspace nobody can be told in, says the fact and never the words.
+ */
+export function holdNotice(f: HoldFacts): Omit<JobNews, "sourceEvent"> {
+  const why = (HOLD_REASON_WORDS as Readonly<Record<string, string>>)[f.reason] ?? "needs a person";
+  const where = HOLD_CHANNEL_WORDS[f.channel ?? ""] ?? "The";
+  const shown = f.erased ? null : f.address?.startsWith("+") ? (formatPhoneDisplay(f.address) ?? f.address) : f.address;
+  const name = (!f.erased && f.who?.trim()) || shown || "A customer";
+  const lines = f.erased
+    ? []
+    : [
+        ...(f.customerWords ? [`They wrote: “${clipped(f.customerWords, 600)}”`] : []),
+        ...(f.replyWords ? [`The receptionist: “${clipped(f.replyWords, 600)}”`] : []),
+        ...(f.details ? [clipped(f.details, 600)] : []),
+      ];
+  const pause = f.pausedHours
+    ? `Reply from the Inbox — the receptionist is paused on this thread for ${f.pausedHours}h.`
+    : "Reply from the Inbox.";
+  return {
+    kind: "handoff",
+    route: `inbox/th-${f.conversationId}`,
+    about: { type: "conversation", id: f.conversationId },
+    subject: clipped(`${name} needs a person — ${why}`, 200),
+    body: [...lines, "", `${where} conversation${shown ? ` · ${shown}` : ""}`, pause].join("\n").replace(/^\n/, ""),
+    redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person (${why}), and nobody could be told.`,
+  };
 }

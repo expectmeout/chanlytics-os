@@ -397,6 +397,7 @@
     "00392_a_review_google_no_longer_shows_and_a_closed_invitation_go.sql": "a2f60beed4051a4b072b0db14e7584e6bb5d1101cd0a5a1da1c8da244352660d",
     "00393_a_person_is_added_by_their_number_or_their_address.sql": "c9fec19f278c7c93b2062e3c80e9b6e8d400f2b3613b444a986ab3efee1309b4",
     "00394_a_new_person_is_one_who_reached_you.sql": "8a3e70409ab7eb04060a591956846c3b4bdbecd551f8a00a09d6e67a1fed0a2f",
-    "00395_the_people_lens_is_read_beyond_the_days_counts.sql": "2c4b85c3506e5dba229b3f37da31b87b2c7f50f684b73d8a4a50bf6fb805a5cf"
+    "00395_the_people_lens_is_read_beyond_the_days_counts.sql": "2c4b85c3506e5dba229b3f37da31b87b2c7f50f684b73d8a4a50bf6fb805a5cf",
+    "00396_a_hold_is_told_from_its_event.sql": "b04adcf408584fb773642bb0fc4899fe50b32ee259a9ef6045207d598bfb8c4c"
   }
 }
