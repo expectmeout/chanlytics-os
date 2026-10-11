@@ -12,6 +12,7 @@ import {
   allLeftOutWords,
   breathSplit,
   broadcastName,
+  leftOutBy,
   emptyAudienceRefusal,
   enrolFor,
   overLimitRefusal,
@@ -226,19 +227,19 @@ type Enrolled = ReturnType<typeof enrolFor>[number];
 
 /**
  * The week's breath on a send by hand (spec §5.6): of the people enrolled, who goes and who is left out, having heard
- * from a campaign or a broadcast within the week -- by the one read of who did (ports.touched, the composer's own), made
- * once, at the press, and only when the send breathes, and split by contracts breathSplit, the rule the composer and Ask's
- * card count by. A send scheduled ahead is judged at its press, as the composer counted it. A read that fails refuses the
- * send: "nobody heard" is the reading that messages people twice.
+ * from a campaign or a broadcast within the week before the send goes -- its time as asked (`sendsAt`), or now -- by the
+ * one read of who did and when (ports.touches, the composer's own), made once, at the press, and only when the send
+ * breathes, and judged by contracts leftOutBy, the rule the composer and Ask's card count by. A read that fails refuses
+ * the send: "nobody heard" is the reading that messages people twice.
  */
 async function breathOf(
-  ports: Pick<CreateBroadcastPorts, "touched">,
+  ports: Pick<CreateBroadcastPorts, "touches">,
   enrolled: Enrolled[],
   breathe: boolean,
-  now: Date,
+  at: { now: Date; sendsAt: Date },
 ): Promise<{ goes: Enrolled[]; leftOut: Enrolled[] }> {
   if (!breathe) return { goes: enrolled, leftOut: [] };
-  const touched = await ports.touched(now).catch((e: unknown) => {
+  const touches = await ports.touches(at.now).catch((e: unknown) => {
     createLog.error("campaign_step_failed", { step: "touches", error: errField(e) });
     throw new AppError(
       "internal",
@@ -246,7 +247,7 @@ async function breathOf(
       500,
     );
   });
-  return breathSplit(enrolled, (e) => e.row.id, touched);
+  return breathSplit(enrolled, (e) => e.row.id, leftOutBy(touches, at.sendsAt.getTime(), at.now.getTime()));
 }
 
 /**
@@ -263,8 +264,9 @@ async function breathOf(
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. Whoever heard from a campaign or a broadcast this week is left out (the
- * week's breath, `breathe` true unless the body says false): enrolled, their row
+ * wire. Whoever heard from a campaign or a broadcast within the week before it goes
+ * (now, or the time it is set for) is left out (the week's breath, `breathe` true
+ * unless the body says false; contracts leftOutBy): enrolled, their row
  * marked (LEFT_OUT_FACTS, which the wire's check skips them for), and skipped with
  * RECIPIENT_REASON_HEARD. The ledger records the decision to send, in the run's own write. The body is judged here, in
  * sentences for the person composing: the values are judged against the message
@@ -303,8 +305,10 @@ export async function createBroadcast(
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   // 4a. Whoever heard from a campaign or a broadcast this week is left out (skipped at enrolment, in the assembly), unless
   // the person sending it sends to them too: refused in words when nobody else is left, never a run of skips.
-  const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, now);
-  if (goes.length === 0) throw new AppError("conflict", allLeftOutWords(label, leftOut.length), 409);
+  // Judged for the time it is set for (`when` as asked, now for a send that goes at once): the week before it goes.
+  const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
+  if (goes.length === 0)
+    throw new AppError("conflict", allLeftOutWords(label, leftOut.length, when.getTime() > now.getTime()), 409);
   // An audience past the day's limit is split, not silently cut: WhatsApp's limit is Meta's, so it counts the people
   // who go by WhatsApp alone, now.
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;

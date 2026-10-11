@@ -2214,11 +2214,12 @@ interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
     }>;
     /**
      * Who a run of any kind reached, or is about to reach, within the week's breath before `now` (contracts
-     * PLAYBOOK_BREATH_MS): their contact ids, the read the composer counts who a send leaves out by (packages/db
-     * recentTouches), so the page, Ask's card and the people a send skips are one number. Read once per send, at its press,
+     * PLAYBOOK_BREATH_MS), and when last: contact id -> their latest touch, the read the composer counts who a send leaves
+     * out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are one number. A send set for
+     * later leaves out those of them within the week before it goes (contracts leftOutBy). Read once per send, at its press,
      * and only when it breathes. Throws when it cannot be read: "nobody heard" is the reading that messages people twice.
      */
-    touched(now: Date): Promise<ReadonlySet<string>>;
+    touches(now: Date): Promise<Readonly<Record<string, string>>>;
 }
 interface CreateBroadcastCommand {
     userId: string;
@@ -2419,8 +2420,9 @@ declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, me
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. Whoever heard from a campaign or a broadcast this week is left out (the
- * week's breath, `breathe` true unless the body says false): enrolled, their row
+ * wire. Whoever heard from a campaign or a broadcast within the week before it goes
+ * (now, or the time it is set for) is left out (the week's breath, `breathe` true
+ * unless the body says false; contracts leftOutBy): enrolled, their row
  * marked (LEFT_OUT_FACTS, which the wire's check skips them for), and skipped with
  * RECIPIENT_REASON_HEARD. The ledger records the decision to send, in the run's own write. The body is judged here, in
  * sentences for the person composing: the values are judged against the message

@@ -3631,7 +3631,14 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     // 3 Oct 2026: and whether each channel can send now (`ready`, server/campaigns/channels-ready.ts), which the composer's
     // Send by row is drawn from; these workspaces keep no WhatsApp number, so it says so.
-    assert.deepEqual(Object.keys(r.data), ["broadcasts", "more", "touched", "ready", "month_sent", "month_sent_next"]);
+    assert.deepEqual(Object.keys(r.data), [
+      "broadcasts",
+      "more",
+      "touched_at",
+      "ready",
+      "month_sent",
+      "month_sent_next",
+    ]);
     assert.equal(r.data.ready.whatsapp.why, "Connect a WhatsApp number first.");
     assert.deepEqual(
       r.data.month_sent,
@@ -3658,15 +3665,19 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     [harbor.broadcasts.map((b) => b.id), harbor.broadcasts[0].counts.sent, harbor.broadcasts[0].counts.delivered],
     [[BC2, BC1], 1, 1],
   );
-  const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), broadcastsReader, undefined)).data.touched;
-  assert.deepEqual(touched, ["k1"], "sent this week; not held back, not canceled, not last month");
+  // 11 Oct 2026: who heard and when last (`touched_at`), so the composer judges a send set for later by the week before it
+  // goes (contracts heardFor).
+  const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), broadcastsReader, undefined)).data.touched_at;
+  assert.deepEqual(Object.keys(touched), ["k1"], "sent this week; not held back, not canceled, not last month");
+  const at = Date.parse(touched.k1);
+  assert.ok(at <= Date.now() && Date.now() - at < 2 * HOUR, `when it went, an hour ago: ${touched.k1}`);
   // The week is the turn's: at a clock eight days on, the run of an hour ago is last week's.
   const later = kernel.readerContext(
     worldCtx(touchedWorld()),
     { tenantId: A, role: "viewer" },
     new Date(Date.now() + 8 * 24 * HOUR),
   );
-  assert.deepEqual((await kernel.load(later, broadcastsReader, undefined)).data.touched, []);
+  assert.deepEqual((await kernel.load(later, broadcastsReader, undefined)).data.touched_at, {});
 });
 
 test("the month a page says is null where it could not be counted, said in the log, and never a month of nothing: both pages still answer", async () => {

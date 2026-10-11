@@ -81,8 +81,7 @@ function preview(sending: number, held: number, names: string[]): AudiencePrevie
     sending,
     held,
     saidYes: sending,
-    heard: 0,
-    heardBy: { whatsapp: 0, sms: 0, email: 0 },
+    heardTouches: [],
   };
 }
 

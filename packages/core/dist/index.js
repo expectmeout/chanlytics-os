@@ -2796,6 +2796,7 @@ import {
   allLeftOutWords,
   breathSplit,
   broadcastName,
+  leftOutBy,
   emptyAudienceRefusal,
   enrolFor,
   overLimitRefusal,
@@ -2874,9 +2875,9 @@ async function audienceOf(ports, ref, now) {
     kept: { token: listToken2(ref), rule: found.rule ?? null, counted_at: now.toISOString() }
   };
 }
-async function breathOf(ports, enrolled, breathe, now) {
+async function breathOf(ports, enrolled, breathe, at) {
   if (!breathe) return { goes: enrolled, leftOut: [] };
-  const touched = await ports.touched(now).catch((e) => {
+  const touches = await ports.touches(at.now).catch((e) => {
     createLog.error("campaign_step_failed", { step: "touches", error: errField5(e) });
     throw new AppError12(
       "internal",
@@ -2884,7 +2885,7 @@ async function breathOf(ports, enrolled, breathe, now) {
       500
     );
   });
-  return breathSplit(enrolled, (e) => e.row.id, touched);
+  return breathSplit(enrolled, (e) => e.row.id, leftOutBy(touches, at.sendsAt.getTime(), at.now.getTime()));
 }
 async function createBroadcast(ports, cmd) {
   const { now } = cmd;
@@ -2903,8 +2904,9 @@ async function createBroadcast(ports, cmd) {
   if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-  const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, now);
-  if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length), 409);
+  const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
+  if (goes.length === 0)
+    throw new AppError12("conflict", allLeftOutWords(label, leftOut.length, when.getTime() > now.getTime()), 409);
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError12("validation", over);
   const tz = await ports.timezone();

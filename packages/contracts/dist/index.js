@@ -172,88 +172,6 @@ function promptSafeName(name) {
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
 }
 
-// src/shared/time.ts
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var JITTER_SPREAD = 0.2;
-function jittered(ms2, random = Math.random) {
-  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
-}
-function formatterOnUse(locales, options) {
-  let built = null;
-  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
-}
-var FORMATS_KEPT = 256;
-var DATE_FORMATS = /* @__PURE__ */ new Map();
-var NUMBER_FORMATS = /* @__PURE__ */ new Map();
-function formatterKept(cache, key, make) {
-  const hit = cache.get(key);
-  if (hit) return hit;
-  const made = make();
-  if (cache.size >= FORMATS_KEPT) cache.clear();
-  cache.set(key, made);
-  return made;
-}
-function dateFormat(locales, options) {
-  return formatterKept(
-    DATE_FORMATS,
-    `${locales}|${JSON.stringify(options)}`,
-    () => new Intl.DateTimeFormat(locales, options)
-  );
-}
-function numberFormat(locales, options) {
-  return formatterKept(
-    NUMBER_FORMATS,
-    `${locales}|${JSON.stringify(options)}`,
-    () => new Intl.NumberFormat(locales, options)
-  );
-}
-var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
-function isoMs(iso) {
-  if (!iso) return null;
-  const ms2 = Date.parse(iso);
-  return Number.isNaN(ms2) ? null : ms2;
-}
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
-  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
-  const minutes = Math.round(gap / MIN_MS);
-  if (minutes < 60) return { n: minutes, unit: "m" };
-  const hours = Math.round(gap / HOUR_MS);
-  if (hours < 24) return { n: hours, unit: "h" };
-  return { n: Math.round(gap / DAY_MS), unit: "d" };
-}
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
-}
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
-}
-function agoShort(atMs, nowMs) {
-  return spanLabel(nowMs - atMs);
-}
-function agoWords(atMs, nowMs, opts = {}) {
-  const gap = Math.max(0, nowMs - atMs);
-  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
-  if (gap >= dateAfter && opts.date) return opts.date(atMs);
-  const u = spanUnits(gap);
-  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
-}
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
-}
-
-// src/playbooks/playbook-time.ts
-var SWEEP_TICK_MS = 5 * MIN_MS;
-function sweepTickAtOrAfter(ms2) {
-  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
-}
-
 // src/deals/sells-by.ts
 var SELLS_BY = ["booking", "proposal"];
 var SELLS_BY_QUESTION = "How customers buy";
@@ -352,6 +270,89 @@ function appointmentWords(word) {
     byMany: `by ${many}`,
     needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`
   };
+}
+
+// src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var JITTER_SPREAD = 0.2;
+function jittered(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
+function formatterOnUse(locales, options) {
+  let built = null;
+  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
+}
+var FORMATS_KEPT = 256;
+var DATE_FORMATS = /* @__PURE__ */ new Map();
+var NUMBER_FORMATS = /* @__PURE__ */ new Map();
+function formatterKept(cache, key, make) {
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const made = make();
+  if (cache.size >= FORMATS_KEPT) cache.clear();
+  cache.set(key, made);
+  return made;
+}
+function dateFormat(locales, options) {
+  return formatterKept(
+    DATE_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.DateTimeFormat(locales, options)
+  );
+}
+function numberFormat(locales, options) {
+  return formatterKept(
+    NUMBER_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.NumberFormat(locales, options)
+  );
+}
+var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
+function isoMs(iso) {
+  if (!iso) return null;
+  const ms2 = Date.parse(iso);
+  return Number.isNaN(ms2) ? null : ms2;
+}
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+
+// src/playbooks/playbook-time.ts
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var SWEEP_TICK_MS = 5 * MIN_MS;
+function sweepTickAtOrAfter(ms2) {
+  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
 }
 
 // src/playbooks/playbook-triggers.ts
@@ -475,7 +476,6 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
   const minutes = Math.round(ms2 / MIN_MS);
@@ -7739,10 +7739,25 @@ var LEFT_OUT_FACTS = { breath: RECIPIENT_REASON_HEARD };
 function leftOutByFacts(facts) {
   return facts.breath === RECIPIENT_REASON_HEARD;
 }
-function breathSplit(reached, idOf, touched) {
+function breathSince(sendsAt, now) {
+  return Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
+}
+function leftOutBy(touches, sendsAt, now) {
+  const since = breathSince(sendsAt, now);
+  return new Set(
+    Object.entries(touches).filter(([, at3]) => Date.parse(at3) >= since).map(([id]) => id)
+  );
+}
+function heardFor(heard, sendsAt, now) {
+  const since = breathSince(sendsAt, now);
+  const heardBy = { whatsapp: 0, sms: 0, email: 0 };
+  for (const h of heard) if (h.at >= since) heardBy[h.channel] += 1;
+  return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
+}
+function breathSplit(reached, idOf, out) {
   const goes = [];
   const leftOut2 = [];
-  for (const person of reached) (touched.has(idOf(person)) ? leftOut2 : goes).push(person);
+  for (const person of reached) (out.has(idOf(person)) ? leftOut2 : goes).push(person);
   return { goes, leftOut: leftOut2 };
 }
 function reachAfterBreath(split, heardBy, breathe) {
@@ -7754,17 +7769,17 @@ function reachAfterBreath(split, heardBy, breathe) {
   };
   return { ...split, byChannel, reached: byChannel.whatsapp + byChannel.sms + byChannel.email };
 }
-var leftOutWords = (n) => `${n} left out: heard from you this week`;
-function heardWords(n, breathe) {
+var heardWhen = (ahead) => ahead ? "within the week before it goes" : "this week";
+function heardWords(n, breathe, ahead) {
   if (!(n > 0)) return null;
-  if (breathe) return leftOutWords(n);
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
+  if (breathe) return `${n} left out: heard from you ${heardWhen(ahead)}`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast ${heardWhen(ahead)}.`;
 }
-function heardTooWords(n) {
-  return `Also send to the ${n === 1 ? "one" : n} who heard this week`;
+function heardTooWords(n, ahead) {
+  return `Also send to the ${n === 1 ? "one" : n} who heard ${heardWhen(ahead)}`;
 }
-function allLeftOutWords(label, n) {
-  return `Everyone it reaches on \u201C${label}\u201D heard from you this week, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
+function allLeftOutWords(label, n, ahead) {
+  return `Everyone it reaches on \u201C${label}\u201D heard from you ${heardWhen(ahead)}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
 }
 var HEARD_UNREAD_WORDS = "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.";
 function goesToOf(receipt) {
@@ -10589,7 +10604,7 @@ var broadcastSpec = {
     const d = rec(data);
     const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
-    const said = heardWords(leftOut2, true);
+    const said = heardWords(leftOut2, true, Boolean(pl.scheduled_for));
     return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
@@ -15693,8 +15708,8 @@ function audienceMembers(rows2, kind, id, savedIds) {
 function previewPerson(r2, refusal, channel) {
   return { id: r2.id, label: r2.name, firstName: firstNameOf(r2.givenName, r2.waName), refusal, channel };
 }
-var NO_ONE = /* @__PURE__ */ new Set();
-function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touched = NO_ONE) {
+var NO_TOUCHES = {};
+function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touches = NO_TOUCHES) {
   const pool = audienceMembers(rows2, kind, id, savedIds);
   const picks = pool.map((r2) => ({ r: r2, p: reachFor(r2, purpose, how) }));
   const sending = picks.filter((x) => x.p.channel !== null);
@@ -15705,17 +15720,18 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
   const people = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));
   for (const { r: r2, p } of held.slice(0, 2))
     people.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
-  const { leftOut: leftOut2 } = breathSplit(sending, (x) => x.r.id, touched);
-  const heardBy = { whatsapp: 0, sms: 0, email: 0 };
-  for (const x of leftOut2) if (x.p.channel) heardBy[x.p.channel] += 1;
+  const heardTouches = [];
+  for (const x of sending) {
+    const at3 = touches[x.r.id];
+    if (at3 !== void 0 && x.p.channel) heardTouches.push({ at: Date.parse(at3), channel: x.p.channel });
+  }
   return {
     people,
     split: reachSplit(pool, purpose, how),
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r2) => saidYesOnAny(r2, purpose, how)).length,
-    heard: leftOut2.length,
-    heardBy
+    heardTouches
   };
 }
 
@@ -41405,6 +41421,7 @@ export {
   hasHours,
   hasProfile,
   headlineOf,
+  heardFor,
   heardSinceProposal,
   heardTooWords,
   heardWords,
@@ -41612,6 +41629,7 @@ export {
   ledgerPeopleWords,
   ledgerPhoneLine,
   ledgerRowIn,
+  leftOutBy,
   leftOutByFacts,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,

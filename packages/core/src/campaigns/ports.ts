@@ -310,11 +310,12 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
   channels(): Promise<{ ready: ChannelsReady; health: NumberHealth | null }>;
   /**
    * Who a run of any kind reached, or is about to reach, within the week's breath before `now` (contracts
-   * PLAYBOOK_BREATH_MS): their contact ids, the read the composer counts who a send leaves out by (packages/db
-   * recentTouches), so the page, Ask's card and the people a send skips are one number. Read once per send, at its press,
+   * PLAYBOOK_BREATH_MS), and when last: contact id -> their latest touch, the read the composer counts who a send leaves
+   * out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are one number. A send set for
+   * later leaves out those of them within the week before it goes (contracts leftOutBy). Read once per send, at its press,
    * and only when it breathes. Throws when it cannot be read: "nobody heard" is the reading that messages people twice.
    */
-  touched(now: Date): Promise<ReadonlySet<string>>;
+  touches(now: Date): Promise<Readonly<Record<string, string>>>;
 }
 export interface CreateBroadcastCommand {
   userId: string;

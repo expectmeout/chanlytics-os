@@ -17,6 +17,7 @@ import {
   enrolFor,
   heardTooWords,
   heardWords,
+  leftOutBy,
   nextOpenMoment,
   parseParamSpec,
   proposalChannelsWords,
@@ -124,15 +125,15 @@ async function broadcastMessage(
  * Who a broadcast proposal sends to and what its card says of the channels: the count, the words after it ("on WhatsApp and
  * by email (52 on WhatsApp, 32 by email)", none for a proposal that named no channel), the channels the card keeps
  * for its commit, how many each channel reaches, and how many are left out. Each person is reached once, on the first
- * channel that reaches them (contracts enrolFor, the route's own), and whoever heard from a campaign or a broadcast this
- * week (`touched`, the composer's read) is left out, as the route skips them (contracts breathSplit): the count, the split
- * and the month are of who goes.
+ * channel that reaches them (contracts enrolFor, the route's own), and whoever heard from a campaign or a broadcast within
+ * the week before it goes (`out`: contracts leftOutBy over the composer's read, for the card's own time) is left out, as
+ * the route skips them (contracts breathSplit): the count, the split and the month are of who goes.
  */
 function broadcastReach(
   rows: PersonRowVM[],
   purpose: AskedPurpose,
   by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
-  touched: ReadonlySet<string>,
+  out: ReadonlySet<string>,
 ): {
   count: number;
   says: string;
@@ -140,11 +141,7 @@ function broadcastReach(
   byChannel: Record<ConsentChannel, number>;
   leftOut: number;
 } {
-  const { goes, leftOut } = breathSplit(
-    enrolFor(rows, "everyone", null, null, purpose, by.how),
-    (e) => e.row.id,
-    touched,
-  );
+  const { goes, leftOut } = breathSplit(enrolFor(rows, "everyone", null, null, purpose, by.how), (e) => e.row.id, out);
   const byChannel: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
   for (const e of goes) byChannel[e.channel] += 1;
   if (!by.named) return { count: goes.length, says: "", kept: {}, byChannel, leftOut: leftOut.length };
@@ -159,29 +156,32 @@ function broadcastReach(
 
 /**
  * Who a broadcast card sends to (broadcastReach), with how many are left out in the composer's words and their separator
- * (" · 1 left out: heard from you this week", none where nobody heard), or why there is no card: who heard unread
- * (context.ts touchesThisWeek, logged there) is no card, since "nobody heard" would promise a send to people the route
- * then leaves out. Nobody it reaches is said in the route's words, which say which cause it is (nobody said this yes, or the ones who
- * did have no number); everyone it reaches having heard is said as the composer says it, and sending to them too is a
- * person's own switch there, never Ask's.
+ * (" · 1 left out: heard from you this week", or "within the week before it goes" for a card set for later; none where
+ * nobody heard), or why there is no card: who heard unread (context.ts touchesThisWeek, logged there) is no card, since
+ * "nobody heard" would promise a send to people the route then leaves out. Who heard is judged for the time the card is
+ * set for (`sendsAt`, now where it goes at once), as the route judges it (contracts leftOutBy). Nobody it reaches is said in
+ * the route's words, which say which cause it is (nobody said this yes, or the ones who did have no number); everyone it
+ * reaches having heard is said as the composer says it, and sending to them too is a person's own switch there, never
+ * Ask's.
  */
 async function broadcastCount(
   t: ToolContext,
-  rows: PersonRowVM[],
-  label: string,
-  purpose: AskedPurpose,
+  aud: { rows: PersonRowVM[]; label: string; purpose: AskedPurpose },
   by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
+  sendsAt: Date,
 ): Promise<(ReturnType<typeof broadcastReach> & { leftOutSaid: string }) | { refusal: string }> {
-  const touched = await touchesThisWeek(t, "propose_campaign.broadcast");
-  if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
-  const reach = broadcastReach(rows, purpose, by, new Set(Object.keys(touched)));
+  const { rows, label, purpose } = aud;
+  const touches = await touchesThisWeek(t, "propose_campaign.broadcast");
+  if (!touches) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
+  const reach = broadcastReach(rows, purpose, by, leftOutBy(touches, sendsAt.getTime(), t.now.getTime()));
+  const ahead = sendsAt.getTime() > t.now.getTime();
   if (reach.count > 0) {
-    const said = heardWords(reach.leftOut, true);
+    const said = heardWords(reach.leftOut, true, ahead);
     return { ...reach, leftOutSaid: said ? ` · ${said}` : "" };
   }
   if (reach.leftOut > 0)
     return {
-      refusal: `${allLeftOutWords(label, reach.leftOut)} Say so; a person may send it to them anyway from the composer (“${heardTooWords(reach.leftOut)}”)`,
+      refusal: `${allLeftOutWords(label, reach.leftOut, ahead)} Say so; a person may send it to them anyway from the composer (“${heardTooWords(reach.leftOut, ahead)}”)`,
     };
   return {
     refusal: `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows, by.how)} Say so, and name what to do about it`,
@@ -215,6 +215,18 @@ async function broadcastHeld(
 function goesWords(t: ToolContext, when: string | null, open: { at: Date; moved: boolean }): string {
   if (open.moved) return `${clockWhen(open.at.getTime(), t.timezone, t.now.getTime())} — ${sendsWaitWords()}`;
   return when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
+}
+
+/**
+ * When a broadcast proposal is set for, as it was asked: null for now, or an ISO time with its offset, or the refusal. With
+ * its offset: a bare date is midnight UTC, the evening before here, and the route refuses it after the person approved
+ * the card.
+ */
+function proposedWhen(asked: unknown): { when: string | null } | { refusal: string } {
+  const when = str(asked, 40) || null;
+  if (when && (Number.isNaN(Date.parse(when)) || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(when)))
+    return { refusal: "scheduled_for must be an ISO time with its offset, like 2026-09-20T15:00:00-04:00" };
+  return { when };
 }
 
 /** What a broadcast proposal takes (broadcastAction's input): the message and the audience, its values, when, and the channels it goes by. */
@@ -282,20 +294,20 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const { purpose } = message;
   const by = await broadcastBy(t, message, input.channels);
   if ("refusal" in by) return refuse(by.refusal);
-  const reach = await broadcastCount(t, rows, label, purpose, by);
+  const asWhen = proposedWhen(input.scheduled_for);
+  if ("refusal" in asWhen) return refuse(asWhen.refusal);
+  const { when } = asWhen;
+  const sendsAt = when ? new Date(Date.parse(when)) : t.now;
+  // Who heard is judged for the time it is set for, as the route judges it: the week before it goes.
+  const reach = await broadcastCount(t, { rows, label, purpose }, by, sendsAt);
   if ("refusal" in reach) return refuse(reach.refusal);
   const { count, says, kept, byChannel, leftOutSaid } = reach;
-  const when = str(input.scheduled_for, 40) || null;
-  // With its offset: a bare date is midnight UTC, the evening before here, and
-  // the route refuses it after the person approved the card.
-  if (when && (Number.isNaN(Date.parse(when)) || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(when)))
-    return refuse("scheduled_for must be an ISO time with its offset, like 2026-09-20T15:00:00-04:00");
   const said = cardSays(asked, params, by, 160);
   if ("refusal" in said) return refuse(said.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it.
   const name = str(input.name, 80) || broadcastName(message.name, t.timezone, t.now);
   // The moment it really goes, once: the month the allowance is counted in, and the time the card says.
-  const open = nextOpenMoment(t.timezone, when ? new Date(Date.parse(when)) : t.now);
+  const open = nextOpenMoment(t.timezone, sendsAt);
   const whenWords = goesWords(t, when, open);
   const held = await broadcastHeld(t, by.channels, byChannel, purpose, open.at);
   return propose({

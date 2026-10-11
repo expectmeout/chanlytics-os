@@ -150,7 +150,7 @@ export function bcSendActs({
     // Who it goes to: everyone it enrolled, less those it left out (contracts goesToOf), and how many it left out, as the
     // receipt says them (`left_out`).
     const n = goesToOf(r.data);
-    const leftOutSaid = heardWords(r.data.left_out, true);
+    const leftOutSaid = heardWords(r.data.left_out, true, scheduled && whenAt !== null && whenAt > Date.now());
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
     const words = bcWhenWords(r.data);

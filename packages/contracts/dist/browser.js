@@ -2499,6 +2499,13 @@ function standingChangeWords(p) {
   return from ? `from ${from} to ${to}` : to;
 }
 
+// src/playbooks/playbook-time.ts
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var SWEEP_TICK_MS = 5 * MIN_MS;
+function sweepTickAtOrAfter(ms2) {
+  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
+}
+
 // src/broadcasts/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
@@ -2513,10 +2520,25 @@ var LEFT_OUT_FACTS = { breath: RECIPIENT_REASON_HEARD };
 function leftOutByFacts(facts) {
   return facts.breath === RECIPIENT_REASON_HEARD;
 }
-function breathSplit(reached, idOf, touched) {
+function breathSince(sendsAt, now) {
+  return Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
+}
+function leftOutBy(touches, sendsAt, now) {
+  const since = breathSince(sendsAt, now);
+  return new Set(
+    Object.entries(touches).filter(([, at3]) => Date.parse(at3) >= since).map(([id]) => id)
+  );
+}
+function heardFor(heard, sendsAt, now) {
+  const since = breathSince(sendsAt, now);
+  const heardBy = { whatsapp: 0, sms: 0, email: 0 };
+  for (const h of heard) if (h.at >= since) heardBy[h.channel] += 1;
+  return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
+}
+function breathSplit(reached, idOf, out) {
   const goes = [];
   const leftOut2 = [];
-  for (const person of reached) (touched.has(idOf(person)) ? leftOut2 : goes).push(person);
+  for (const person of reached) (out.has(idOf(person)) ? leftOut2 : goes).push(person);
   return { goes, leftOut: leftOut2 };
 }
 function reachAfterBreath(split, heardBy, breathe) {
@@ -2528,17 +2550,17 @@ function reachAfterBreath(split, heardBy, breathe) {
   };
   return { ...split, byChannel, reached: byChannel.whatsapp + byChannel.sms + byChannel.email };
 }
-var leftOutWords = (n) => `${n} left out: heard from you this week`;
-function heardWords(n, breathe) {
+var heardWhen = (ahead) => ahead ? "within the week before it goes" : "this week";
+function heardWords(n, breathe, ahead) {
   if (!(n > 0)) return null;
-  if (breathe) return leftOutWords(n);
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
+  if (breathe) return `${n} left out: heard from you ${heardWhen(ahead)}`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast ${heardWhen(ahead)}.`;
 }
-function heardTooWords(n) {
-  return `Also send to the ${n === 1 ? "one" : n} who heard this week`;
+function heardTooWords(n, ahead) {
+  return `Also send to the ${n === 1 ? "one" : n} who heard ${heardWhen(ahead)}`;
 }
-function allLeftOutWords(label, n) {
-  return `Everyone it reaches on \u201C${label}\u201D heard from you this week, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
+function allLeftOutWords(label, n, ahead) {
+  return `Everyone it reaches on \u201C${label}\u201D heard from you ${heardWhen(ahead)}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
 }
 var HEARD_UNREAD_WORDS = "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.";
 function goesToOf(receipt) {
@@ -2851,12 +2873,6 @@ function splitQuotedReply(body) {
   return { text, quoted };
 }
 
-// src/playbooks/playbook-time.ts
-var SWEEP_TICK_MS = 5 * MIN_MS;
-function sweepTickAtOrAfter(ms2) {
-  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
-}
-
 // src/deals/sells-by.ts
 var SELLS_BY = ["booking", "proposal"];
 var SELLS_BY_QUESTION = "How customers buy";
@@ -3073,7 +3089,6 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
   const minutes = Math.round(ms2 / MIN_MS);
@@ -12017,7 +12032,7 @@ var broadcastSpec = {
     const d = rec(data);
     const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
-    const said = heardWords(leftOut2, true);
+    const said = heardWords(leftOut2, true, Boolean(pl.scheduled_for));
     return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
@@ -17695,8 +17710,8 @@ function audienceMembers(rows2, kind, id, savedIds) {
 function previewPerson(r2, refusal, channel) {
   return { id: r2.id, label: r2.name, firstName: firstNameOf(r2.givenName, r2.waName), refusal, channel };
 }
-var NO_ONE = /* @__PURE__ */ new Set();
-function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touched = NO_ONE) {
+var NO_TOUCHES = {};
+function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touches = NO_TOUCHES) {
   const pool = audienceMembers(rows2, kind, id, savedIds);
   const picks = pool.map((r2) => ({ r: r2, p: reachFor(r2, purpose, how) }));
   const sending = picks.filter((x) => x.p.channel !== null);
@@ -17707,17 +17722,18 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
   const people = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));
   for (const { r: r2, p } of held.slice(0, 2))
     people.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
-  const { leftOut: leftOut2 } = breathSplit(sending, (x) => x.r.id, touched);
-  const heardBy = { whatsapp: 0, sms: 0, email: 0 };
-  for (const x of leftOut2) if (x.p.channel) heardBy[x.p.channel] += 1;
+  const heardTouches = [];
+  for (const x of sending) {
+    const at3 = touches[x.r.id];
+    if (at3 !== void 0 && x.p.channel) heardTouches.push({ at: Date.parse(at3), channel: x.p.channel });
+  }
   return {
     people,
     split: reachSplit(pool, purpose, how),
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r2) => saidYesOnAny(r2, purpose, how)).length,
-    heard: leftOut2.length,
-    heardBy
+    heardTouches
   };
 }
 
@@ -39534,6 +39550,7 @@ export {
   hasHours,
   hasProfile,
   headlineOf,
+  heardFor,
   heardSinceProposal,
   heardTooWords,
   heardWords,
@@ -39734,6 +39751,7 @@ export {
   ledgerPeopleWords,
   ledgerPhoneLine,
   ledgerRowIn,
+  leftOutBy,
   leftOutByFacts,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,

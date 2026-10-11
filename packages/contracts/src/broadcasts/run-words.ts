@@ -1,5 +1,6 @@
 import type { DeliveryRefusal } from "../consent/consent";
 import type { ConsentChannel } from "../consent/consent-channels";
+import { PLAYBOOK_BREATH_MS } from "../playbooks/playbook-time";
 import { HOUR_MS } from "../shared/time";
 import type { ReachSplit } from "./reach-for";
 /**
@@ -48,20 +49,69 @@ export function leftOutByFacts(facts: Readonly<Record<string, unknown>>): boolea
 }
 
 /**
- * The week's breath on a send by hand: of the people a send reaches, who goes and who is left out, having heard from a
- * campaign or a broadcast within the week (`touched`: packages/db recentTouches, the one read the composer, Ask and core
- * createBroadcast are each handed). The composer's count (audiencePreview's `heard`, by channel `heardBy`) and Ask's card
- * count by it, and the send skips those left out with RECIPIENT_REASON_HEARD unless the person sends to them too
- * (`breathe: false`).
+ * The latest touch at which a send going at `sendsAt` leaves a person out (the week's breath, spec §5.6): the week before
+ * a person RECEIVES it. Its time is the one it is set for, or now; one set for a moment already past goes now.
+ */
+function breathSince(sendsAt: number, now: number): number {
+  return Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
+}
+
+/**
+ * Who a send leaves out, the one rule wherever the breath is applied: everyone whose latest touch (contact id -> when, as
+ * packages/db recentTouches answers it at the press) is at or after the week before the send goes. A send that goes now
+ * leaves out who heard within the last week, as it always did; one three days ahead, who heard within the last four; one
+ * a week or more ahead, nobody known at the press. The read's own window (now less the week) already holds every touch any
+ * send time can need, since a send never goes before now. Core createBroadcast and Ask's card apply it to the touches;
+ * the composer applies heardFor, the same rule, to a preview's.
+ */
+export function leftOutBy(
+  touches: Readonly<Record<string, string>>,
+  sendsAt: number,
+  now: number,
+): ReadonlySet<string> {
+  const since = breathSince(sendsAt, now);
+  return new Set(
+    Object.entries(touches)
+      .filter(([, at]) => Date.parse(at) >= since)
+      .map(([id]) => id),
+  );
+}
+
+/** One person a send reaches who heard from a run lately, as a preview keeps them: when last, and the channel they are on. */
+export interface HeardTouch {
+  at: number;
+  channel: ConsentChannel;
+}
+
+/**
+ * Of a preview's people who heard lately (audiencePreview's `heardTouches`), how many a send going at `sendsAt` leaves
+ * out, and on which channel: leftOutBy's rule, the week before it goes. What the composer says, counts and draws for the
+ * time picked (now, or a day ahead), and what Ask's audiences listing counts for a send now.
+ */
+export function heardFor(
+  heard: readonly HeardTouch[],
+  sendsAt: number,
+  now: number,
+): { heard: number; heardBy: Record<ConsentChannel, number> } {
+  const since = breathSince(sendsAt, now);
+  const heardBy: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
+  for (const h of heard) if (h.at >= since) heardBy[h.channel] += 1;
+  return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
+}
+
+/**
+ * The week's breath on a send by hand: of the people a send reaches, who goes and who is left out (`leftOut`: leftOutBy's
+ * set for the send's own time). Ask's card and core createBroadcast split by it, and the send skips those left out with
+ * RECIPIENT_REASON_HEARD unless the person sends to them too (`breathe: false`).
  */
 export function breathSplit<T>(
   reached: readonly T[],
   idOf: (person: T) => string,
-  touched: ReadonlySet<string>,
+  out: ReadonlySet<string>,
 ): { goes: T[]; leftOut: T[] } {
   const goes: T[] = [];
   const leftOut: T[] = [];
-  for (const person of reached) (touched.has(idOf(person)) ? leftOut : goes).push(person);
+  for (const person of reached) (out.has(idOf(person)) ? leftOut : goes).push(person);
   return { goes, leftOut };
 }
 
@@ -84,30 +134,34 @@ export function reachAfterBreath(
   return { ...split, byChannel, reached: byChannel.whatsapp + byChannel.sms + byChannel.email };
 }
 
-/** What a send says of the people it leaves out, before it goes: "3 left out: heard from you this week". */
-const leftOutWords = (n: number): string => `${n} left out: heard from you this week`;
+/**
+ * When they heard, as a send says it before it goes: "this week" for one that goes now, "within the week before it goes"
+ * for one set for later (`ahead`), whose week is the one before it reaches them.
+ */
+const heardWhen = (ahead: boolean): string => (ahead ? "within the week before it goes" : "this week");
 
 /**
- * The composer's note on who of those it reaches heard from a run this week, and Ask's card's: while the send breathes they
- * are left out ("3 left out: heard from you this week"); sent to them too, who they are. Null when none did.
+ * The composer's note on who of those it reaches heard from a run lately, and Ask's card's: while the send breathes they are
+ * left out ("3 left out: heard from you this week", or "…within the week before it goes" for one set for later); sent to
+ * them too, who they are. Null when none did.
  */
-export function heardWords(n: number, breathe: boolean): string | null {
+export function heardWords(n: number, breathe: boolean, ahead: boolean): string | null {
   if (!(n > 0)) return null;
-  if (breathe) return leftOutWords(n);
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
+  if (breathe) return `${n} left out: heard from you ${heardWhen(ahead)}`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast ${heardWhen(ahead)}.`;
 }
 
 /** The composer's switch that sends to them too, off by default, in the words beside it. Ask never offers it. */
-export function heardTooWords(n: number): string {
-  return `Also send to the ${n === 1 ? "one" : n} who heard this week`;
+export function heardTooWords(n: number, ahead: boolean): string {
+  return `Also send to the ${n === 1 ? "one" : n} who heard ${heardWhen(ahead)}`;
 }
 
 /**
- * Why a send that breathes reaches nobody: everyone it would reach heard this week. The composer's foot, the route's
- * refusal and Ask's. The plural rule is said once, here.
+ * Why a send that breathes reaches nobody: everyone it would reach heard within its week. The composer's foot, the
+ * route's refusal and Ask's. The plural rule is said once, here.
  */
-export function allLeftOutWords(label: string, n: number): string {
-  return `Everyone it reaches on “${label}” heard from you this week, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
+export function allLeftOutWords(label: string, n: number, ahead: boolean): string {
+  return `Everyone it reaches on “${label}” heard from you ${heardWhen(ahead)}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
 }
 
 /**

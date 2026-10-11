@@ -172,6 +172,8 @@ export {
   RECIPIENT_REASON_HEARD,
   LEFT_OUT_FACTS,
   leftOutByFacts,
+  leftOutBy,
+  heardFor,
   breathSplit,
   reachAfterBreath,
   heardWords,
@@ -186,7 +188,7 @@ export {
   finishedRunHeldWhy,
   isReplyTo,
 } from "./run-words";
-export type { EmailHold } from "./run-words";
+export type { EmailHold, HeardTouch } from "./run-words";
 
 /** The words a person will read: the body with its numbered slots filled. */
 export function renderTemplate(body: string | null | undefined, params: readonly string[]): string {

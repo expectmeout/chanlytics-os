@@ -127,7 +127,7 @@ export interface BroadcastsSurface {
   /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
   listsRead: boolean;
   /**
-   * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched`); false counts the
+   * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched_at`); false counts the
    * audiences with nobody left out, and the composer says the send still leaves them out (contracts HEARD_UNREAD_WORDS).
    */
   heardRead: boolean;
@@ -214,13 +214,13 @@ function savedHint(byHand: boolean): string {
 function optionReadings(
   rows: Parameters<typeof audiencePreview>[0],
   of: { kind: AudienceKind; id: string | null; ids: Set<string> | null },
-  how: { ready: ChannelsReady; touched: ReadonlySet<string> },
+  how: { ready: ChannelsReady; touches: Readonly<Record<string, string>> },
 ): Pick<AudienceOption, "counts" | "preview" | "by"> {
   const { kind, id, ids } = of;
-  const { ready, touched } = how;
+  const { ready, touches } = how;
   // A broadcast is the business's news: by email it asks for a yes covering email or a relationship (decision D1).
   const reading = (purpose: AskedPurpose, channels: readonly ConsentChannel[]) =>
-    audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touched);
+    audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touches);
   const preview = {
     conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS),
     marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS),
@@ -295,11 +295,11 @@ export const broadcastsOverride: SurfaceOverride = {
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand, for WhatsApp alone, as every broadcast
     // went; and one more for each other set of channels the owner could tick for the purpose, since who is reached on
-    // which channel depends on the set (reachFor). Who a run reached within the week, for the note on how many of an
-    // audience heard from one.
-    const touched = new Set(bc.touched ?? []);
+    // which channel depends on the set (reachFor). Who a run reached within the week and when last, for the note on how
+    // many of an audience heard from one within the week before the send goes (contracts heardFor, at the picked time).
+    const touches = bc.touched_at ?? {};
     const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) =>
-      optionReadings(rows, { kind, id, ids }, { ready, touched });
+      optionReadings(rows, { kind, id, ids }, { ready, touches });
     const audiences: AudienceOption[] = [
       {
         kind: "everyone",
@@ -364,7 +364,7 @@ export const broadcastsOverride: SurfaceOverride = {
       more: bc.more === true,
       listsRead: !(saved instanceof Error),
       // Null is a read that failed; a server from before it was carried says nothing, and is read as read.
-      heardRead: bc.touched !== null,
+      heardRead: bc.touched_at !== null,
       templates: offeredMessages(tpl),
       audiences,
       reach: reachCountsOf(rows),

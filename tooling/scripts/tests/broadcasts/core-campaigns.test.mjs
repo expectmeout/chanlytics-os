@@ -184,7 +184,7 @@ function fakes(over = {}) {
     holdRecipients: (_id, ids) => ({ skipped: ids, error: null }),
     // Who heard from a campaign or a broadcast this week (the week's breath): nobody, unless a test says who
     // (broadcasts/audience/a-send-breathes.test.mjs is about them).
-    touched: new Set(),
+    touches: {},
     fail: undefined,
     schedule: undefined,
     record: "d1",

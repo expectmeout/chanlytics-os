@@ -10,7 +10,7 @@ import type { PersonRowVM } from "../people/person-row";
 import type { RunReach } from "../playbooks/playbooks";
 import { firstNameOf } from "../templates/templates";
 import { type ChannelsReady, channelRefuses, type HeldOn, reachFor, type ReachSplit, reachSplit } from "./reach-for";
-import { breathSplit } from "./run-words";
+import type { HeardTouch } from "./run-words";
 
 export type AudienceKind = "everyone" | "list" | "saved" | "playbook";
 
@@ -262,16 +262,12 @@ export interface AudiencePreview {
    */
   saidYes: number;
   /**
-   * How many of those it reaches heard from a playbook or a broadcast within the week (the touches a playbook's run
-   * waits a week after, PLAYBOOK_BREATH_MS, split by breathSplit): a send by hand leaves them out too, unless the
-   * person sending it sends to them as well, and `sending` still counts them.
+   * Those it reaches who heard from a playbook or a broadcast lately, as known at the read (packages/db recentTouches,
+   * the week before it): when last, and the channel each is reached on. A send by hand leaves out those of them within the
+   * week before it goes, for the time it is set for (contracts heardFor, leftOutBy's rule), unless the person sending it
+   * sends to them as well; `sending` still counts them.
    */
-  heard: number;
-  /**
-   * The same, by the channel each was to be reached on (`split.byChannel`'s people): what the composer takes off each
-   * channel while the send leaves them out (contracts reachAfterBreath).
-   */
-  heardBy: Record<ConsentChannel, number>;
+  heardTouches: HeardTouch[];
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null, channel: ConsentChannel | null): PreviewPerson {
@@ -279,7 +275,7 @@ function previewPerson(r: PersonRowVM, refusal: string | null, channel: ConsentC
 }
 
 /** Nobody touched: an audience read with no touches in hand. */
-const NO_ONE: ReadonlySet<string> = new Set();
+const NO_TOUCHES: Readonly<Record<string, string>> = {};
 
 export function audiencePreview(
   rows: PersonRowVM[],
@@ -290,8 +286,8 @@ export function audiencePreview(
   /** The channels the send ticks and the workspace's channels now (reach-for.ts). */
   how: CampaignHow,
   limit = 5,
-  /** Who a run of any kind reached within the week (packages/db touchesSince); none when not read. */
-  touched: ReadonlySet<string> = NO_ONE,
+  /** Who a run of any kind reached lately, and when last (packages/db recentTouches); none when not read. */
+  touches: Readonly<Record<string, string>> = NO_TOUCHES,
 ): AudiencePreview {
   const pool = audienceMembers(rows, kind, id, savedIds);
   const picks = pool.map((r) => ({ r, p: reachFor(r, purpose, how) }));
@@ -306,17 +302,19 @@ export function audiencePreview(
   // the channels it may go by gave.
   for (const { r, p } of held.slice(0, 2))
     people.push(previewPerson(r, p.held ? heldWords(p.held, purpose) : null, null));
-  // Who of those it reaches heard this week, the one split, counted on the channel each was to be reached on.
-  const { leftOut } = breathSplit(sending, (x) => x.r.id, touched);
-  const heardBy: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
-  for (const x of leftOut) if (x.p.channel) heardBy[x.p.channel] += 1;
+  // Who of those it reaches heard lately, when, and on the channel each is reached on: whom a send leaves out is said for
+  // its own time (heardFor).
+  const heardTouches: HeardTouch[] = [];
+  for (const x of sending) {
+    const at = touches[x.r.id];
+    if (at !== undefined && x.p.channel) heardTouches.push({ at: Date.parse(at), channel: x.p.channel });
+  }
   return {
     people,
     split: reachSplit(pool, purpose, how),
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r) => saidYesOnAny(r, purpose, how)).length,
-    heard: leftOut.length,
-    heardBy,
+    heardTouches,
   };
 }

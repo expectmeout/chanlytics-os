@@ -23,22 +23,24 @@ import { broadcasts } from "@/server/readers/broadcasts";
  *      enrolled once, on the first one that reaches them, written on their
  *      row. The recipients are enrolled now, so the owner sees who and how
  *      many; the job re-checks each person at the wire. Whoever heard from a
- *      campaign or a broadcast this week is left out, never sent it: enrolled,
- *      marked on their row and skipped as heard_this_week, unless `breathe` is
- *      false (the composer's own switch; true or absent otherwise). Who heard
- *      is read at the press: a send scheduled ahead leaves out who had heard
- *      when it was made, as the composer counted them, not who will have by
- *      the time it goes. The ledger records the decision to send.
+ *      campaign or a broadcast within the week before it goes is left out,
+ *      never sent it: enrolled, marked on their row and skipped as
+ *      heard_this_week, unless `breathe` is false (the composer's own switch;
+ *      true or absent otherwise). It goes now, or at `scheduled_for`: a person
+ *      is left out when their latest touch, as known at the press, falls at or
+ *      after that time less a week (contracts leftOutBy), so a send set three
+ *      days ahead leaves out who heard in the last four, and one set a week or
+ *      more ahead leaves out nobody. The ledger records the decision to send.
  *      The body is the verb's own to read: every refusal is a sentence for
  *      the person composing, judged against the message's versions, which
  *      no schema knows.
  */
 export const GET = read({
   scope: workspace,
-  // { broadcasts, more, touched }: the recent fifty, whether older ones exist beyond them, and who a run of any kind
-  // reached within the week -- the composer says how many of an audience heard from one. Touches that cannot be read
-  // are null, and the composer says nothing, rather than a list of nobody. The body is its reader's
-  // (readers/broadcasts.ts).
+  // { broadcasts, more, touched_at }: the recent fifty, whether older ones exist beyond them, and who a run of any kind
+  // reached within the week and when last -- the composer says how many of an audience heard from one within the week
+  // before the time it picks. Touches that cannot be read are null, and the composer says nothing, rather than a list of
+  // nobody. The body is its reader's (readers/broadcasts.ts).
   handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), broadcasts, undefined)).data,
 });
 

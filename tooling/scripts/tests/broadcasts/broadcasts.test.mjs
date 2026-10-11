@@ -720,7 +720,7 @@ const reach = (sending, saidYes) => ({
   sending,
   held: 0,
   saidYes,
-  heard: 0,
+  heardTouches: [],
 });
 /** An audience the page offers, counted for each purpose as the surface counts it: a message and an offer each need their own yes. */
 const audienceOf = (id, label, counts, saidYes = counts) => ({
@@ -821,7 +821,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // pair every audience carries, and the others are its `by`, read by the composer as the owner ticks.
   // Each reading says what a broadcast is about, the business's own news (decision D1): by email it asks a yes or dealings.
   assert.ok(
-    s.includes('audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touched)'),
+    s.includes('audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touches)'),
   );
   assert.ok(s.includes('conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS)'));
   assert.ok(s.includes('marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS)'));

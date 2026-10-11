@@ -75,12 +75,13 @@ function bcWhoNotes(v: BcV) {
   );
 }
 
-// Who of those it reaches already heard from a campaign or a broadcast this week: the send leaves them out, as the route
-// skips them (the week's breath), and the kit's switch beside it, off, sends to them too (contracts heardWords,
-// heardTooWords). Said in the To row, where the count it changes is, and only where somebody heard. Where who heard could
-// not be read, one line says the send still leaves them out (contracts HEARD_UNREAD_WORDS), and there is nobody to switch.
+// Who of those it reaches already heard from a campaign or a broadcast within the week before it goes (this week, for a
+// send that goes now): the send leaves them out, as the route skips them (the week's breath), and the kit's switch beside
+// it, off, sends to them too (contracts heardWords, heardTooWords). Said in the To row, where the count it changes is, and
+// only where somebody heard. Where who heard could not be read, one line says the send still leaves them out (contracts
+// HEARD_UNREAD_WORDS), and there is nobody to switch.
 function bcHeard(v: BcV) {
-  const { active, heard, breathe, setHeardToo, data } = v;
+  const { active, heard, ahead, breathe, setHeardToo, data } = v;
   if (active && data.heardRead === false)
     return (
       <div className="bc-excl-hint" data-testid="bc-heard-unread">
@@ -90,7 +91,7 @@ function bcHeard(v: BcV) {
   if (!active || heard <= 0) return null;
   return (
     <div className="bc-excl-hint" data-testid="bc-heard-line">
-      <span data-testid="bc-heard">{broadcasts.heardWords(heard, breathe)}</span>{" "}
+      <span data-testid="bc-heard">{broadcasts.heardWords(heard, breathe, ahead)}</span>{" "}
       <span className="cm-via-one">
         <Switch
           labelledBy="bc-heard-too-word"
@@ -99,7 +100,7 @@ function bcHeard(v: BcV) {
           data-testid="bc-heard-too"
         />
         <span id="bc-heard-too-word" className="cm-via-word" data-testid="bc-heard-too-word">
-          {heardTooWords(heard)}
+          {heardTooWords(heard, ahead)}
         </span>
       </span>
     </div>

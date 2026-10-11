@@ -104,7 +104,7 @@ const ANSWERS = {
   },
   "lead-searches": { searches: [{ id: U(31), name: "Pilates studios · Denver" }], counts: {} },
   playbooks: { playbooks: [], deals_on: false },
-  broadcasts: { broadcasts: [], more: false, touched: null },
+  broadcasts: { broadcasts: [], more: false, touched_at: null },
   templates: { templates: [] },
 };
 

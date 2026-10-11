@@ -1243,8 +1243,8 @@ test("a broadcast card leaves out whoever heard this week, as the route skips th
   // Everyone it reaches heard: no card, in words, and the way to send to them anyway is a person's, on the composer.
   const all = await propose(BROADCAST, heardBy(PEOPLE[0], PEOPLE[2]));
   assert.equal(all.isError, true);
-  assert.ok(said(all).startsWith(allLeftOutWords("Everyone", 2)), said(all));
-  assert.ok(said(all).includes(heardTooWords(2)), said(all));
+  assert.ok(said(all).startsWith(allLeftOutWords("Everyone", 2, false)), said(all));
+  assert.ok(said(all).includes(heardTooWords(2, false)), said(all));
 });
 
 test("campaigns.audiences counts what a card would: who it sends to, with how many are left out beside it, and says so when who heard could not be read", async () => {
@@ -1316,4 +1316,76 @@ test("a card whose week could not be read is no card, and the failed read is sai
     ["propose_campaign.broadcast", "touches"],
     ["propose_campaign.playbook", "touches"],
   ]);
+});
+
+test("a card scheduled ahead leaves out who heard within the week before it goes, and agrees with the route's own verb over the same world", async () => {
+  const { allLeftOutWords, RECIPIENT_REASON_HEARD } = await import("@chanlytics/contracts");
+  const { createBroadcast } = await import(at("packages/core/src/campaigns/create-broadcast.ts"));
+  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
+  // The first heard two days ago, the third five days ago: each its own run, made when it was sent.
+  const run = (id, days, p) => ({
+    broadcasts: [
+      {
+        id,
+        tenant_id: A,
+        playbook_id: null,
+        state: "sent",
+        scheduled_for: ago(days * DAY),
+        created_at: ago(days * DAY),
+        run_for: null,
+        params: [],
+      },
+    ],
+    broadcast_recipients: [
+      {
+        broadcast_id: id,
+        tenant_id: A,
+        contact_id: p.id,
+        state: "sent",
+        reason: null,
+        sent_at: ago(days * DAY),
+        facts: null,
+      },
+    ],
+  });
+  const two = run("88888888-8888-4888-8888-888888888802", 2, PEOPLE[0]);
+  const five = run("88888888-8888-4888-8888-888888888805", 5, PEOPLE[2]);
+  const world = () => ({
+    broadcasts: [...two.broadcasts, ...five.broadcasts],
+    broadcast_recipients: [...two.broadcast_recipients, ...five.broadcast_recipients],
+  });
+  const inThree = new Date(NOW.getTime() + 3 * DAY).toISOString();
+  // Now, both heard this week: no card.
+  const now = await propose(BROADCAST, world());
+  assert.ok(said(now).startsWith(allLeftOutWords("Everyone", 2, false)), said(now));
+  // Three days ahead: only the first heard within the week before it goes.
+  const card = await propose({ ...BROADCAST, scheduled_for: inThree }, world());
+  assert.equal(card.isError, false, card.result);
+  assert.equal(card.proposal.payload.count, 1);
+  assert.match(
+    card.proposal.summary,
+    /^1 person who said yes · 1 left out: heard from you within the week before it goes · “visit_reminder” · /,
+  );
+  // The route's verb over the same world, the same press and the same time: the same one left out.
+  const tables_ = tables(world());
+  const supabase = fakeDb(tables_, {}, { people_list: () => PEOPLE });
+  const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
+  const holds = [];
+  const ports = {
+    ...createBroadcastPorts(ctx, A, { fresh: false }),
+    assemble: async (_row, _people, _at, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
+    holdRecipients: async (_id, ids, reason) => (holds.push([ids, reason]), { skipped: ids, error: null }),
+    monthSent: async () => 0,
+  };
+  const made = await createBroadcast(ports, {
+    userId: USER,
+    body: { template_id: REMINDER, params: [], audience: { kind: "everyone" }, scheduled_for: inThree },
+    now: NOW,
+  });
+  assert.deepEqual(holds, [[[PEOPLE[0].id], RECIPIENT_REASON_HEARD]]);
+  assert.equal(
+    made.recipient_count - made.left_out,
+    card.proposal.payload.count,
+    "one number: the card's and the route's",
+  );
 });

@@ -143,7 +143,8 @@ export const broadcastSpec: ProposalSpec = {
       typeof d.recipient_count === "number"
         ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut })
         : Number(pl.count ?? 0);
-    const said = heardWords(leftOut, true);
+    // A card set for later left out who heard within the week before it goes (contracts leftOutBy).
+    const said = heardWords(leftOut, true, Boolean(pl.scheduled_for));
     return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${said ? ` · ${said}` : ""}`;
   },
   undo: {

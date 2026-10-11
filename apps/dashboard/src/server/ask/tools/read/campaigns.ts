@@ -12,6 +12,7 @@ import {
   campaignsHomeOf,
   clockStamp,
   compareTemplates,
+  heardFor,
   isLedgerCampaign,
   journeyGuide,
   lifecyclePlaybooksOf,
@@ -166,7 +167,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // Who heard from a campaign or a broadcast this week, the breath's one read (context.ts touchesThisWeek, the cards'
     // own): a broadcast leaves them out, so the count said here is the card's. Null where it could not be read, which is
     // said in the log there and to the model below.
-    touchesThisWeek(t, "campaigns.audiences").then((r) => (r ? new Set(Object.keys(r)) : null)),
+    touchesThisWeek(t, "campaigns.audiences"),
   ]);
   const tpls = tplRead ? tplRead.data.templates : null;
   const messages = tplRead ? tplRead.data.messages : null;
@@ -181,19 +182,22 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // own counts (audiencePreview): `sending` is the number on its chip.
   // The number it goes out on and how a proposal that names no channel counts (numberFactsOf, above).
   const { how, number } = numberFactsOf(chans);
-  // Who it can be sent is who a broadcast goes to: those it reaches, less whoever heard from you this week, whom it leaves
-  // out (contracts breathSplit, the card's and the route's rule), said beside it where any is. Where who heard could not be
-  // read, no count is given that the card would not carry: the card itself is refused until it can be.
+  // Who it can be sent is who a broadcast that goes now goes to: those it reaches, less whoever heard from you this week,
+  // whom it leaves out (contracts heardFor, the card's and the route's rule, at now), said beside it where any is. Where
+  // who heard could not be read, no count is given that the card would not carry: the card itself is refused until it can be.
+  const now = t.now.getTime();
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
     const offers = audiencePreview(rows, kind, id, ids, "marketing", how, 5, touched ?? undefined);
     const messages = audiencePreview(rows, kind, id, ids, "conversational", how, 5, touched ?? undefined);
+    const offersOut = heardFor(offers.heardTouches, now, now).heard;
+    const messagesOut = heardFor(messages.heardTouches, now, now).heard;
     return {
       said_yes_to_offers: offers.saidYes,
-      can_be_sent_offers: touched ? offers.sending - offers.heard : null,
-      ...(offers.heard > 0 ? { left_out_offers: offers.heard } : {}),
+      can_be_sent_offers: touched ? offers.sending - offersOut : null,
+      ...(offersOut > 0 ? { left_out_offers: offersOut } : {}),
       said_yes_to_messages: messages.saidYes,
-      can_be_sent_messages: touched ? messages.sending - messages.heard : null,
-      ...(messages.heard > 0 ? { left_out_messages: messages.heard } : {}),
+      can_be_sent_messages: touched ? messages.sending - messagesOut : null,
+      ...(messagesOut > 0 ? { left_out_messages: messagesOut } : {}),
     };
   };
   // Every list the pool can offer (contracts listsFor): People's lists this workspace can count, then its own. Each

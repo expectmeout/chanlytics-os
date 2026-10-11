@@ -296,7 +296,10 @@ test("the broadcasts list carries who a run of any kind reached this week, for t
     ],
   };
   const out = await broadcasts.GET.run(get(inA), ctxFor(tables));
-  assert.deepEqual(out.touched, ["k1"], "sent this week; not held back, not canceled, not last month");
+  assert.deepEqual(Object.keys(out.touched_at), ["k1"], "sent this week; not held back, not canceled, not last month");
+  // And when last, so the composer judges a send set for later by the week before it goes (contracts heardFor).
+  const at = Date.parse(out.touched_at.k1);
+  assert.ok(at <= Date.now() && Date.now() - at < 2 * hour, `when it went, an hour ago: ${out.touched_at.k1}`);
 });
 
 test("a broadcast: the workspace must be named, a viewer is refused as a viewer, then the message, its values and the audience are judged in the person's words, before anything is written", async () => {

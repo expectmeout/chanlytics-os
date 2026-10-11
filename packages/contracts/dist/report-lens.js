@@ -9,6 +9,10 @@ function formatterOnUse(locales, options) {
 }
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 
+// src/playbooks/playbook-time.ts
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var SWEEP_TICK_MS = 5 * MIN_MS;
+
 // src/broadcasts/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;

@@ -170,8 +170,13 @@ export interface BcReach {
   sizeOf: (a: AudienceOption | null) => number;
   /** Who the send goes to now: those it reaches, less those it leaves out while it breathes. The count Send says. */
   activeCount: number;
-  /** Of those it reaches, how many heard from a campaign or a broadcast this week (the reading's `heard`). */
+  /**
+   * Of those it reaches, how many heard from a campaign or a broadcast within the week before the send goes: the time
+   * picked, else now (contracts heardFor over the reading's `heardTouches`, as the route judges it).
+   */
   heard: number;
+  /** The send is set for a time ahead of now: its words say "within the week before it goes", not "this week". */
+  ahead: boolean;
   /** Whether the send leaves them out: unless the switch sends to them too (and always where nobody heard). */
   breathe: boolean;
   /** The switch pressed: on sends to them too, for this message, list and channels alone. */
