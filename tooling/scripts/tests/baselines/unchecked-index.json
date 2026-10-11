@@ -77,7 +77,7 @@
   "packages/contracts/src/leads/lead-judge.ts": 44,
   "packages/contracts/src/leads/lead-peek.ts": 2,
   "packages/contracts/src/leads/lead-plan-schema.ts": 1,
-  "packages/contracts/src/leads/lead-review.ts": 3,
+  "packages/contracts/src/leads/lead-review.ts": 1,
   "packages/contracts/src/leads/lead-row.ts": 1,
   "packages/contracts/src/leads/lead-words.ts": 1,
   "packages/contracts/src/leads/search/clean.ts": 7,

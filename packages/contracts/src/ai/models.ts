@@ -46,7 +46,7 @@ export type ModelId = (typeof MODEL_IDS)[number];
 export const MODEL_EFFORTS = ["low", "medium", "high"] as const;
 export type ModelEffort = (typeof MODEL_EFFORTS)[number];
 
-const { OPUS_5_5, OPUS_5, SONNET_5, HAIKU_4_5 } = MODELS;
+const { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_4_5 } = MODELS;
 
 /** Why the platform spends its model key. The usage ledger (ai_usage.purpose) keeps these words. */
 export const MODEL_PURPOSES = [
@@ -61,6 +61,7 @@ export const MODEL_PURPOSES = [
   "reach_out_check",
   "reply_read",
   "booking_read",
+  "lead_suggest",
 ] as const;
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
@@ -139,6 +140,9 @@ export const MODEL_ROUTES = {
   // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
   // email into a fixed shape, as the reply's reading is; an overload is the ledger's retry, as there.
   booking_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 600 },
+  // The ideas for a new search (00398): four ready plans written from what a workspace's searches found, a page waiting
+  // on them (Ruben, 11 Oct 2026: Sonnet 5.5 for now). The fallback is the small drafts' own model.
+  lead_suggest: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 1800 },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 
 /** A purpose's route. */

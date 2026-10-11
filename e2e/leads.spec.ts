@@ -327,10 +327,15 @@ test.describe("Leads on a real workspace", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(
       0,
     );
-    // Search is the bar's button; pressed, the bar is one full-width field (it was a 64px box that said "Sear").
+    // Search is the bar's button; pressed, the bar is one full-width field (it was a 64px box that said "Sear"). There
+    // is no Cancel: the clear (×) stands in the field from the first word, and a field left empty rests as focus leaves.
     await bar.getByTestId("leads-phone-search-open").click();
-    await expect(page.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
-    await page.getByTestId("leads-phone-search-cancel").click();
+    const search = page.getByTestId("leads-phone-search");
+    await expect(search).toBeInViewport({ ratio: 1 });
+    await search.fill("zz");
+    await page.getByTestId("leads-phone-search-clear").click();
+    await expect(search).toHaveValue("");
+    await search.blur();
     await expect(bar.getByTestId("leads-phone-lists")).toBeVisible();
   });
 

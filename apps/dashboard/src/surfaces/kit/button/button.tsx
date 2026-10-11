@@ -1,7 +1,8 @@
 /**
  * The kit's button (kit.css, "Buttons"; docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4): what a
- * surface draws where the lint refuses a raw <button> (eslint.config.mjs, KIT_TAKES). Four kinds: secondary, the
- * default; primary; quiet, the ghost; and danger, the filled act that destroys or cannot be undone. Three sizes (the
+ * surface draws where the lint refuses a raw <button> (eslint.config.mjs, KIT_TAKES). Five kinds: secondary, the
+ * default; primary; quiet, the ghost; plain, a word in a row of words that never fills (a phone's bar: Select, Sort,
+ * Export); and danger, the filled act that destroys or cannot be undone. Three sizes (the
  * large one is Glass's: a page's head act, as a person's), one drawn as text (the quiet kind's alone), and a glyph alone. A button that opens a page is a link with the same classes (../press.tsx, "a door is a link").
  *
  * It draws what the gallery's Button family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs), and
@@ -19,14 +20,14 @@ const buttonClasses = variants({
   variants: {
     shape: { words: "", glyph: "btn-icon" },
     size: { md: "", sm: "btn-sm", lg: "btn-lg", text: "btn-text" },
-    variant: { secondary: "", primary: "btn-primary", quiet: "btn-ghost", danger: "btn-danger" },
+    variant: { secondary: "", primary: "btn-primary", quiet: "btn-ghost", plain: "btn-plain", danger: "btn-danger" },
     tone: { danger: "danger" },
   },
   defaults: { shape: "words", size: "md", variant: "secondary" },
 });
 
 /** Its kinds. */
-type ButtonKind = "secondary" | "primary" | "quiet" | "danger";
+type ButtonKind = "secondary" | "primary" | "quiet" | "plain" | "danger";
 
 /**
  * Its kind, and the tone of its words. Any kind may be chosen as the page runs (Confirm's Yes is danger or the

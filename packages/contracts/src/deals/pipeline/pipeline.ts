@@ -41,6 +41,7 @@ import type {
   PipelineSource,
   PipelineStep,
   PipelineVM,
+  PipelineFilter,
 } from "./pipeline-vm";
 import { pipelineRowId } from "./pipeline-vm";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";
@@ -364,5 +365,27 @@ export function pipelineOf<T extends PipelineSource>(
     part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null),
     part(clients.length ? worth(clients) : null, null, true),
   ].filter((x): x is PipelineLinePart => !!x);
-  return { summary: line.map((p) => p.words), line, groups, empty: groups.length === 0, pace };
+  // A phone's filters (Ruben, 10 Oct 2026): the line's counts, each the view it names and its dot's tone, and what they
+  // come to said once under them, where the line, the rail and the group heads each said it again.
+  const clientCount = new Set(clients.map((x) => x.r.id)).size;
+  const filter = (view: PipelineView, count: number, words: string, tone: PipelineFilter["tone"]) =>
+    count > 0 ? [{ view, count, words, tone }] : [];
+  const filters: PipelineFilter[] = [
+    ...filter(
+      "proposals",
+      proposals.length,
+      `${proposals.length} ${proposals.length === 1 ? "proposal" : "proposals"} out`,
+      "info",
+    ),
+    ...filter("waiting", waiting, `${waiting} waiting`, "warn"),
+    ...filter("lapsed", lapsed.length, `${lapsed.length} lapsed`, "warn"),
+    ...filter("clients", clientCount, plural(clientCount, "client", "clients"), "ok"),
+  ];
+  const proposed = proposals.length ? worth(proposals) : null;
+  const earning = clients.length ? worth(clients) : null;
+  const money =
+    [proposed ? `${proposed} proposed` : null, earning ? `${earning} from clients` : null]
+      .filter((x): x is string => !!x)
+      .join(" · ") || null;
+  return { summary: line.map((p) => p.words), line, filters, money, groups, empty: groups.length === 0, pace };
 }

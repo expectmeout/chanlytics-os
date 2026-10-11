@@ -20,6 +20,8 @@ export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z
     version: z.number().int().min(1),
     card: z.literal("local_businesses"),
     name: words(2, 80),
+    category_key: z.string().regex(KEY).optional(),
+    from: z.literal("idea").optional(),
     asked: words(1, 400),
     terms: z.array(words(2, 60)).min(1).max(5),
     area: z.object({

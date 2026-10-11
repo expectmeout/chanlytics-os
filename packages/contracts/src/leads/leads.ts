@@ -105,7 +105,6 @@ export {
   leadsRoute,
   parseLeadsRoute,
   LEAD_DRAFT_JSON_SCHEMA,
-  LEAD_SUGGEST_JSON_SCHEMA,
   leadDraftFooter,
   leadQuestionTitle,
   LEAD_QUESTION_WAIT_LINE,
@@ -114,6 +113,8 @@ export {
   LEAD_PRIOR_MIN_PLACES,
   leadPlanLikely,
   leadPlanFacts,
+  leadPlanFactLine,
+  leadMonthPlanFacts,
   leadPlanAsk,
 } from "./lead-plan";
 export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, LeadChips } from "./lead-plan";
@@ -150,6 +151,7 @@ export type {
   LeadCounts,
   LeadMonthDto,
   LeadSuggestionsDto,
+  LeadIdeaDto,
   LeadPlanFacts,
 } from "./lead-dtos";
 export {
@@ -165,6 +167,7 @@ export {
   LEAD_MAP_MAX_SPAN_M,
   leadMapPlot,
   leadMapAcross,
+  leadAreaFrom,
   leadMapNote,
 } from "./lead-review";
 export type { LeadReviewGroupId, LeadReviewAct, LeadReviewGroup, LeadMapPin, LeadMapPlot } from "./lead-review";
@@ -201,8 +204,12 @@ const LEAD_FIRST_DAY = {
   sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.",
   ask: "Describe the businesses you want",
   ideas: "Or start from an idea",
+  /** While another read writes them (00398): the page asks again in a moment. */
+  writing: "Writing your ideas…",
   from: "Written from what you do:",
   edit: "Edit",
+  /** New ideas from the same line, when the owner wants others (00399). */
+  newIdeas: "New ideas",
   lineTitle: "What your business does",
   lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.",
   lineLabel: "Your business, in a sentence",
@@ -316,8 +323,11 @@ export const LEAD_WORDS = {
   erase: LEAD_ERASE_WORDS,
 } as const;
 
-/** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
-export const LEAD_SUGGEST_DAYS = 7;
+/**
+ * How long a workspace's ideas stand before Claude is asked again (suggestionsFor), when nothing else asks sooner: a
+ * round that ends, or a business line saved (00398). A week while they were the line's alone.
+ */
+export const LEAD_SUGGEST_DAYS = 30;
 
 /** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
 export interface LeadNichePrior {

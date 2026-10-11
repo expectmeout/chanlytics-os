@@ -1,19 +1,21 @@
 /**
  * The bulk bar on a phone (spec 4.5; moved from legacy/pages/people.jsx PeopleBulkBar, decision 0015): one row docked
- * along the foot of the pane -- ✕, the count, Add to list and ⋯ -- and a sheet with the rest, where an act that asks
- * something first asks it as a step. The step is the page's (`sheet`), so its one keyboard listener shuts the sheet on
- * Esc; the drafts are this bar's, as on a desktop. The row stacked seven controls into a 312px pill over the rows, and
- * each of its three forms ran off the screen's edge. The row is the kit's capsule, docked (data-dock: the tab bar and
- * Ask's circle stand down for it, mobile.css), its parts the kit's Button and Menu.
+ * along the foot of the pane, the tab bar's twin: its place, its shape and four equal slots, each a glyph over a word,
+ * Clear, Add to list, Note and More (Ruben, 10 Oct 2026: a menu's chevron beside a bare ⋯ said neither what was there
+ * nor which came first, and a filled ✕ and the count beside acts packed to the right were four weights in one row). How
+ * many are selected is the top bar's, beside Select all and Cancel (screen.tsx phoneBar). A sheet opens for each act
+ * but Clear, where an act that asks something first asks it as a step. Add to list is a sheet of the lists kept by hand, as every step here is, never a menu. Select all is the
+ * bar's at the top (screen.tsx selectStep). The step is the page's (`sheet`), so its one keyboard listener shuts the
+ * sheet on Esc; the drafts are this bar's, as on a desktop. The row is the kit's capsule, docked (data-dock: the tab bar
+ * and Ask's circle stand down for it, mobile.css), its parts the kit's Button.
  */
 import type { ReactNode } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn, leaving, type GateProps } from "../../legacy-verbs";
 import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../sheets/phone-sheet";
 import { PL_MODES, PL_SOURCE_GLYPH, plModeWord } from "../words";
-import { addToListMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 
@@ -24,26 +26,18 @@ interface Step {
   body: ReactNode;
 }
 
-/** The steps' first page: what a selection can become, each behind the role that may do it. */
+/** More: what a selection can become past a list and a note, each behind the role that may do it. */
 function moreStep(b: BulkCtx, a: BulkActs): Step {
-  const { st, rows, onSheet, onSelectAll, canEdit, canExport, activeSaved, sources, isOwner, ids } = b;
-  const { busy, setNote } = st;
+  const { st, onSheet, canEdit, activeSaved, isOwner, ids, keeps } = b;
+  // What the page keeps of People's acts (the Pipeline keeps its lists and its file).
+  const canExport = b.canExport && keeps("export");
+  const sources = keeps("consent") ? b.sources : [];
+  const { busy } = st;
   const n = ids.length;
   return {
     title: `${n} selected`,
     body: (
       <div className="pp-sheet-rows">
-        {onSelectAll && n < rows.length ? (
-          <PhoneSheetRow
-            icon="check"
-            label={`Select all ${rows.length}`}
-            onClick={() => {
-              onSheet(null);
-              onSelectAll();
-            }}
-            testid="bulk-select-all"
-          />
-        ) : null}
         {canEdit && sources.length > 0 ? (
           <PhoneSheetRow
             icon="shield"
@@ -54,7 +48,7 @@ function moreStep(b: BulkCtx, a: BulkActs): Step {
             testid="bulk-yes"
           />
         ) : null}
-        {canEdit && isOwner ? (
+        {canEdit && isOwner && keeps("receptionist") ? (
           <PhoneSheetRow
             icon="agents"
             label="Receptionist"
@@ -62,19 +56,6 @@ function moreStep(b: BulkCtx, a: BulkActs): Step {
             disabled={busy}
             onClick={() => onSheet("receptionist")}
             testid="bulk-receptionist"
-          />
-        ) : null}
-        {canEdit ? (
-          <PhoneSheetRow
-            icon="edit"
-            label="Add a note"
-            next
-            disabled={busy}
-            onClick={() => {
-              setNote("");
-              onSheet("note");
-            }}
-            testid="bulk-note"
           />
         ) : null}
         {canExport ? (
@@ -102,11 +83,42 @@ function moreStep(b: BulkCtx, a: BulkActs): Step {
             testid="bulk-drop-list"
           />
         ) : null}
-        {!canEdit ? (
-          <p className="pp-sheet-hint pp-sheet-rows-note">
-            Only an owner or operator can add to lists or record a yes.
-          </p>
-        ) : null}
+      </div>
+    ),
+  };
+}
+
+/**
+ * Add to list: the lists kept by hand, one press each, then a new one, named as a step with its way back. Where the saved
+ * lists could not be read they are not offered, and a new one can still be made.
+ */
+function listsStep(b: BulkCtx, a: BulkActs, newList: () => void): Step {
+  const { st, saved, savedRead, onSheet } = b;
+  const { busy } = st;
+  return {
+    title: "Add to list",
+    body: (
+      <div className="pp-sheet-rows">
+        {savedRead ? (
+          saved
+            .filter((l) => l.byHand)
+            .map((l) => (
+              <PhoneSheetRow
+                key={l.id}
+                icon="filter"
+                label={l.name}
+                disabled={busy}
+                onClick={() => {
+                  onSheet(null);
+                  void a.addTo(l);
+                }}
+                testid={`bulk-list-${l.id}`}
+              />
+            ))
+        ) : (
+          <p className="pp-sheet-hint pp-sheet-rows-note">Your saved lists couldn't be read.</p>
+        )}
+        <PhoneSheetRow icon="plus" label="New list" next disabled={busy} onClick={newList} testid="bulk-list-new" />
       </div>
     ),
   };
@@ -223,7 +235,6 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
     },
     note: {
       title: "Add a note",
-      onBack: back,
       body: (
         <>
           <input
@@ -258,6 +269,7 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
     },
     naming: {
       title: "New list",
+      onBack: () => onSheet("lists"),
       body: (
         <>
           <input
@@ -293,8 +305,135 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
   };
 }
 
+/**
+ * One of the dock's acts, drawn as the tab bar draws a tab: its glyph over its word. People's and Leads' docks draw theirs
+ * with it (leads/scope/bulk-bar.tsx). An act a role may not take keeps its place and says why (`gate`, which comes last).
+ */
+export function dockAct(o: {
+  icon: string;
+  word: string;
+  onPress: () => void;
+  disabled: boolean;
+  testid: string;
+  sheet?: boolean;
+  gate?: GateProps | null;
+}) {
+  return (
+    <Button
+      variant="quiet"
+      className="pp-bulk-act"
+      aria-haspopup={o.sheet === false ? undefined : "dialog"}
+      disabled={o.disabled}
+      onClick={o.onPress}
+      data-testid={o.testid}
+      {...(o.gate || {})}
+    >
+      <Icon name={o.icon} size={19} />
+      <span>{o.word}</span>
+    </Button>
+  );
+}
+
+/**
+ * The dock's acts for who may use them: a list, a note and More for whoever may change people; a file alone for whoever
+ * may only export, which needs no sheet. With nobody picked yet they stand and wait.
+ */
+/** Whether More has anything past the acts up front: a yes, the receptionist, a list to take them off. */
+const moreHolds = (b: BulkCtx) =>
+  (b.canEdit && b.keeps("consent") && b.sources.length > 0) ||
+  (b.canEdit && b.isOwner && b.keeps("receptionist")) ||
+  (b.canEdit && !!b.activeSaved && !!b.activeSaved.byHand && b.keeps("lists"));
+
+function dockActs(b: BulkCtx, a: BulkActs) {
+  const { st, onSheet, onClear, canEdit, canExport, ids, keeps, lead } = b;
+  const { setNote } = st;
+  const off = st.busy || ids.length === 0;
+  const clear = dockAct({
+    icon: "x",
+    word: "Clear",
+    onPress: onClear,
+    disabled: false,
+    testid: "bulk-clear",
+    sheet: false,
+  });
+  const exportAct =
+    canExport && keeps("export")
+      ? dockAct({
+          icon: "download",
+          word: "Export",
+          onPress: a.exportCsv,
+          disabled: off,
+          testid: "bulk-export",
+          sheet: false,
+        })
+      : null;
+  if (!canEdit)
+    return (
+      <>
+        {clear}
+        {exportAct}
+      </>
+    );
+  // A page that keeps fewer of People's acts (the Pipeline: its lists and its file, after its own Mark as passed) draws
+  // what it keeps, its own act second; with nothing left for More, its file stands in More's place.
+  if (b.acts)
+    return (
+      <>
+        {clear}
+        {lead}
+        {keeps("lists")
+          ? dockAct({
+              icon: "list",
+              word: "Add to list",
+              onPress: () => onSheet("lists"),
+              disabled: off,
+              testid: "bulk-add-list",
+            })
+          : null}
+        {keeps("note")
+          ? dockAct({
+              icon: "edit",
+              word: "Note",
+              onPress: () => {
+                setNote("");
+                onSheet("note");
+              },
+              disabled: off,
+              testid: "bulk-note",
+            })
+          : null}
+        {moreHolds(b)
+          ? dockAct({ icon: "menu", word: "More", onPress: () => onSheet("more"), disabled: off, testid: "bulk-more" })
+          : exportAct}
+      </>
+    );
+  return (
+    <>
+      {clear}
+      {dockAct({
+        icon: "list",
+        word: "Add to list",
+        onPress: () => onSheet("lists"),
+        disabled: off,
+        testid: "bulk-add-list",
+      })}
+      {dockAct({
+        icon: "edit",
+        word: "Note",
+        onPress: () => {
+          setNote("");
+          onSheet("note");
+        },
+        disabled: off,
+        testid: "bulk-note",
+      })}
+      {dockAct({ icon: "menu", word: "More", onPress: () => onSheet("more"), disabled: off, testid: "bulk-more" })}
+    </>
+  );
+}
+
 export function phoneBulk(b: BulkCtx, a: BulkActs) {
-  const { st, sheet, onSheet, onClear, canEdit, ids } = b;
+  const { st, sheet, onSheet, ids } = b;
   const { setName, setSlips, setSlipsNote } = st;
   const n = ids.length;
   const back = () => onSheet("more");
@@ -315,6 +454,7 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
   };
   const steps: Record<string, Step | undefined> = {
     more: moreStep(b, a),
+    lists: listsStep(b, a, newList),
     yes: yesStep(b, back, yesOnPhone),
     ...askSteps(b, a, back),
   };
@@ -323,36 +463,13 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
     <>
       <div
         className="cl-bulk pp-bulk capsule"
+        ref={leaving("people-dock")}
         data-dock
         role="toolbar"
-        aria-label="Selected people"
+        aria-label={n ? `${n} people selected` : "Select people"}
         data-testid="bulk-bar"
       >
-        <Button iconOnly size="lg" aria-label="Clear the selection" onClick={onClear} data-testid="bulk-clear">
-          <Icon name="x" size={16} />
-        </Button>
-        <span className="cl-bulk-count">
-          {n ? (
-            <>
-              <b>{n}</b> selected
-            </>
-          ) : (
-            "Tap people to select them"
-          )}
-        </span>
-        {canEdit && n > 0 && addToListMenu(b, a, newList, "lg")}
-        {n > 0 && (
-          <Button
-            iconOnly
-            size="lg"
-            aria-label={`More for the ${n} selected`}
-            aria-haspopup="dialog"
-            onClick={() => onSheet("more")}
-            data-testid="bulk-more"
-          >
-            <Icon name="more" size={16} />
-          </Button>
-        )}
+        <div className="pp-bulk-acts">{dockActs(b, a)}</div>
       </div>
       <Sheet
         open={!!step}

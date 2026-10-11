@@ -7,14 +7,13 @@
  * in the path by usePeopleAddress), which is the page's own state saying where it stands. Its Leads scope (`clients/leads…`)
  * is one mount across every view of it: the Leads page follows its own address (../leads/page/leads-real.tsx).
  */
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { routeOfPath } from "@chanlytics/contracts";
 import { demoSession, navigate } from "../legacy-verbs";
 import { useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
 import { usePeopleStanding } from "./page/people-head";
 import { PeopleReal } from "./page/people-real";
-import { LeadsReal } from "../leads/page/leads-real";
 import { PipelineScope } from "./pipeline/scope";
 import { addressReplace } from "./shell-verbs";
 import { isPersonParam } from "./chrome";
@@ -61,9 +60,27 @@ const ownGo = (to: string, opts?: { replace?: boolean }) =>
  */
 function LeadsScopePage({ param }: { param: string }) {
   const leads = useSurface("leads");
-  return leads ? (
-    <LeadsReal key="leads" leadsRoute={param} onNavigate={ownGo} onOpenProfile={(id) => navigate(`clients/${id}`)} />
+  // Leads' page is a chunk of its own, asked for as its address opens, while the surface it waits for is read: People's
+  // first load carries none of it (the page's ceiling, tooling/scripts/checks/bundle-budget.mjs, 11 Oct 2026).
+  const [, landed] = useState(0);
+  useEffect(() => {
+    if (!leadsModule) void loadLeads().then(() => landed((n) => n + 1));
+  }, []);
+  const Page = leadsModule?.LeadsReal;
+  return leads && Page ? (
+    <Page key="leads" leadsRoute={param} onNavigate={ownGo} onOpenProfile={(id) => navigate(`clients/${id}`)} />
   ) : null;
+}
+
+type LeadsModule = Pick<typeof import("../leads/page/leads-real"), "LeadsReal">;
+let leadsModule: LeadsModule | null = null;
+let leadsLoading: Promise<LeadsModule> | null = null;
+
+/** Leads' page, loaded once for the tab, where it is first drawn. */
+function loadLeads(): Promise<LeadsModule> {
+  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
+  leadsLoading ??= import("../leads/page/leads-real").then(({ LeadsReal }) => (leadsModule = { LeadsReal }));
+  return leadsLoading;
 }
 
 export function PeopleRoute({ pathname }: { pathname: string | null }) {

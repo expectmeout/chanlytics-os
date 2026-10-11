@@ -885,7 +885,7 @@ export const FAMILIES = [
   {
     family: "Button",
     about:
-      "The button: secondary, primary, quiet and danger; small, and a glyph alone; the size of the words it holds, in their own type; a link drawn as one; off; refused by a role.",
+      "The button: secondary, primary, quiet, plain and danger; small, and a glyph alone; the size of the words it holds, in their own type; a link drawn as one; off; refused by a role.",
     entries: [
       {
         id: "btn",
@@ -893,6 +893,13 @@ export const FAMILIES = [
       },
       { id: "btn-primary", html: `<button type="button" class="btn btn-primary">${icon("check", 13)}Save</button>` },
       { id: "btn-ghost", html: `<button type="button" class="btn btn-ghost">Cancel</button>` },
+      {
+        id: "btn-plain",
+        html:
+          `<button type="button" class="btn btn-sm btn-plain">Select</button>` +
+          `<button type="button" class="btn btn-sm btn-plain" aria-haspopup="menu" aria-expanded="true">Sort</button>` +
+          `<button type="button" class="btn btn-sm btn-plain">Export</button>`,
+      },
       { id: "btn-danger", html: `<button type="button" class="btn btn-danger">${icon("x", 13)}Yes, delete</button>` },
       { id: "btn-danger-quiet", html: `<button type="button" class="btn danger">Delete…</button>` },
       {
@@ -977,8 +984,8 @@ export const FAMILIES = [
     family: "Search",
     about:
       "The capsule a list is searched from, Search (surfaces/kit/search/search.tsx), People's and the Inbox's: at rest on " +
-      "a phone a button saying what it finds; pressed, the field (16px on a phone) with its words, their clear and " +
-      "Cancel beside it; on a desk the field alone, at the page's size.",
+      "a phone a button saying what it finds; pressed, the field in the same capsule (typed at 16px on a phone, drawn at " +
+      "the rest's size) with its words and their clear in its end; on a desk the field alone, at the page's size.",
     entries: [
       {
         id: "search",
@@ -989,18 +996,17 @@ export const FAMILIES = [
       {
         id: "search-open",
         html:
-          `<div class="search" tabindex="-1"><label class="search-box">${icon("search", 15)}` +
-          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="Sam" ` +
-          `placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails">` +
-          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label>` +
-          `<button type="button" class="search-cancel">Cancel</button></div>`,
+          `<div class="search" data-rests="" tabindex="-1"><label class="search-box">${icon("search", 15)}` +
+          `<span class="search-field"><input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" ` +
+          `value="Sam" placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails"></span>` +
+          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label></div>`,
       },
       {
         id: "search-desk",
         html:
           `<div class="search"><label class="search-box">${icon("search", 15)}` +
-          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="" ` +
-          `placeholder="Search by name or message" aria-label="Search by name or message"></label></div>`,
+          `<span class="search-field"><input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" ` +
+          `value="" placeholder="Search by name or message" aria-label="Search by name or message"></span></label></div>`,
       },
     ],
   },

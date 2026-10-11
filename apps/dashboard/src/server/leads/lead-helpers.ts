@@ -60,14 +60,6 @@ export async function monthUsed(
   return { allowance: taken("allowance"), budget: taken("budget") };
 }
 
-export const SUGGEST_SYSTEM = [
-  "You suggest three or four kinds of LOCAL BUSINESS that a small business could usefully reach out to.",
-  "Each one is a kind of business with a listing and a front door -- never people at home, never a job title, never one named company.",
-  "For each: what to search for in plain words, who it is for and why in one short phrase, and a lower_snake_case key for the kind.",
-  "Also give one line naming the business you were told about, as its owner would say it.",
-  "No slogans, and no numbers you were not given.",
-].join("\n");
-
 /** The workspace's own facts a draft may quote: its name, the address the law asks for at the foot, and what it offers. */
 export async function workspaceOffer(
   ctx: Pick<RouteContext, "supabase">,

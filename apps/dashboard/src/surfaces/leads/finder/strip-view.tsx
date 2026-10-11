@@ -14,16 +14,20 @@ export const LeadStrip = ({
   vm,
   onAction,
   children = null,
+  act = null,
 }: {
   vm: StripVM | null;
   onAction: (id: string, arg?: unknown) => unknown;
   children?: ReactNode;
+  /** The page's own act at the end of the strip's actions: the search's door to a reach-out, on a phone (scope.tsx). */
+  act?: ReactNode;
 }) => {
   if (!vm) return null;
   const tone = vm.state === "question" ? "ask" : vm.state === "ended" ? "done" : "";
   // With the band inside, its tabs ARE the ways into each pile: the strip's own "14 need a look" link beside a tab saying
-  // "14 need a look" was the same door twice. A step that opens a pile stays -- it is the one next thing.
-  const actions = children ? vm.actions.filter((a) => !a.pile) : vm.actions;
+  // "14 need a look" was the same door twice, and so was an ending's step that only opens a pile ("1 left out" beside the
+  // tab saying it, Ruben, 10 Oct 2026): the tab is that door.
+  const actions = children ? vm.actions.filter((a) => !a.pile && a.id !== "excluded" && a.id !== "review") : vm.actions;
   const parts = vm.parts.map((t) => ` · ${t}`).join("");
   return (
     <div
@@ -67,7 +71,7 @@ export const LeadStrip = ({
       {children ? <span className="lf-strip-band">{children}</span> : <span className="sp" />}
       {/* .lf-acts is what the stylesheet already stacks at a phone's width, so the actions are one group here rather than
           loose buttons in the strip's flex row. */}
-      {actions.length ? (
+      {actions.length || act ? (
         <span className="lf-acts">
           {actions.map((a) => (
             <button
@@ -85,6 +89,7 @@ export const LeadStrip = ({
               {a.label}
             </button>
           ))}
+          {act}
         </span>
       ) : null}
       {vm.progress === null ? null : (

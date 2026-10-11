@@ -13,6 +13,9 @@ import { useEffect, useRef, useState } from "react";
 import { dealMenuActs } from "@chanlytics/contracts";
 import type { DealAct, DealSheetMode, PipelineRowVM, PipelineSource, PipelineStep } from "@chanlytics/contracts";
 import { Menu } from "../../kit/menu/menu";
+import { Sheet } from "../../kit/sheet/sheet";
+import { dockAct } from "../bulk/phone-bulk";
+import { JOB_CANCEL, PhoneSheetRow } from "../sheets/phone-sheet";
 import { menuGroups, moreButton } from "../menu-groups";
 import type { PeopleMenuItem } from "../menu-groups";
 import { Icon } from "../../kit/icon/icon";
@@ -115,6 +118,70 @@ export const PipelineRowMenu = ({
         groups={menuGroups(pipeRowItems(r, { canRecord, onPage, onThread }))}
       />
     </span>
+  );
+};
+
+/**
+ * Mark as passed on a phone (Ruben, 10 Oct 2026): a slot of the selection's dock, Passed, whose why is asked as a sheet of
+ * the reasons, a press each, where a desk asks it in the bar. The same record (people-detail.ts passDeals), the same
+ * words, and only those who passed leave the selection. Off where no proposal out is picked.
+ */
+export const PipelinePassDock = ({
+  rows,
+  flash,
+  onDone,
+}: {
+  rows: readonly PipelineSource[];
+  flash: Flash | null | undefined;
+  onDone: ((passed: string[]) => void) | null | undefined;
+}) => {
+  const W = P.words.pass;
+  const vm = P.passMany(rows);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const go = async (reason: (typeof vm.reasons)[number]["code"]) => {
+    if (busy) return;
+    setBusy(true);
+    const r = await passDeals(vm.deals, reason);
+    setBusy(false);
+    setOpen(false);
+    const said = P.passDone(r.passed.length, r.changed.length, r.failed.length);
+    if (flash) flash({ tone: said.tone, msg: said.words });
+    if (onDone) onDone(r.passed);
+  };
+  return (
+    <>
+      {dockAct({
+        icon: "ban",
+        word: "Passed",
+        onPress: () => setOpen(true),
+        disabled: busy || !vm.words,
+        testid: "pipe-pass-open",
+        gate: gate("approve", "mark a deal as passed"),
+      })}
+      <Sheet
+        open={open && !!vm.words}
+        shape="job"
+        title={W.ask}
+        close={JOB_CANCEL}
+        onClose={() => setOpen(false)}
+        testid="pipe-pass-sheet"
+      >
+        <div className="pp-sheet-rows">
+          {vm.rest ? <p className="pp-sheet-hint pp-sheet-rows-note">{vm.rest}</p> : null}
+          {vm.more ? <p className="pp-sheet-hint pp-sheet-rows-note">{vm.more}</p> : null}
+          {vm.reasons.map((x) => (
+            <PhoneSheetRow
+              key={x.code}
+              label={x.words}
+              disabled={busy}
+              onClick={() => void go(x.code)}
+              testid={`pipe-pass-${x.code}`}
+            />
+          ))}
+        </div>
+      </Sheet>
+    </>
   );
 };
 

@@ -125,6 +125,17 @@ export interface PipelineLinePart {
   joins: boolean;
 }
 
+/**
+ * One of a phone's filters over the Pipeline (Ruben, 10 Oct 2026): a count, the view it opens, and the tone of its dot
+ * -- proposals out, what waits on the owner, clients. What they come to is `money`, said once beside them.
+ */
+export interface PipelineFilter {
+  view: PipelineView;
+  count: number;
+  words: string;
+  tone: "info" | "warn" | "ok";
+}
+
 export interface PipelineVM<T extends PipelineSource = PersonRowVM> {
   /**
    * The line over the table, in the parts a page sets dots between -- "3 proposals out", "$4,250", "1 waiting over a
@@ -134,6 +145,10 @@ export interface PipelineVM<T extends PipelineSource = PersonRowVM> {
   summary: string[];
   /** The same parts, with the view each opens. */
   line: PipelineLinePart[];
+  /** A phone's line of filters: each count with the view it opens; only those that have something. */
+  filters: PipelineFilter[];
+  /** What the proposals out and the clients come to, once: "$2,500 proposed · $120 a month from clients"; null with neither. */
+  money: string | null;
   /** The groups with someone in them, in order. */
   groups: PipelineGroupVM<T>[];
   /** Nobody in any group: no deal, and no consultation to follow. */

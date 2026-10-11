@@ -657,7 +657,8 @@ var ERASURE_STRATEGIES = {
   },
   // What the owner asked the finder for, and the kinds of business it suggested.
   lead_searches: all(NOT_PERSONAL, "asked", "card", "name", "plan"),
-  lead_suggestions: all(NOT_PERSONAL, "business_line", "items"),
+  // The ideas for a search (00398, 00399): the business line, the plans, what they were written over and what was passed on.
+  lead_suggestions: all(NOT_PERSONAL, "business_line", "items", "basis", "passed"),
   lead_suppressions: { hash: DIGEST },
   leads: {
     ...all(
@@ -4703,6 +4704,50 @@ async function readLeadOne(db, tenantId, leadId, searchId) {
   if (!lead || lead.tenant_id !== tenantId || lead.blanked_at || lead.erased_at || !member) return null;
   return { lead, member, places: places.count ?? 1 };
 }
+async function readIdeaHistory(db, tenantId) {
+  const { data, error } = await db.rpc("lead_suggest_history", { p_tenant_id: tenantId });
+  if (error) throw new Error(`lead_suggest_history: ${error.message}`);
+  return data;
+}
+async function writeIdeas(db, args) {
+  const { data, error } = await db.rpc("lead_suggestions_write", args);
+  if (error) throw new Error(`lead_suggestions_write(${args.p_act}): ${error.message}`);
+  return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+}
+async function claimIdeas(db, tenantId, line) {
+  const got = await writeIdeas(db, { p_tenant_id: tenantId, p_act: "claim", p_line: line });
+  return typeof got.claim === "string" && got.claim ? got.claim : null;
+}
+async function keepIdeas(db, tenantId, claim, row) {
+  const got = await writeIdeas(db, {
+    p_tenant_id: tenantId,
+    p_act: "keep",
+    p_claim: claim,
+    p_line: row.business_line,
+    p_by_owner: row.by_owner,
+    p_items: row.items,
+    // A keep always has a basis ("" where no round has ended); null is the owner's line, saved apart.
+    p_basis: row.basis ?? "",
+    p_passed: row.passed
+  });
+  return got.kept === true;
+}
+async function failIdeas(db, tenantId, claim) {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "fail", p_claim: claim });
+}
+async function saveIdeasLine(db, tenantId, line) {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "line", p_line: line });
+}
+async function ideasClockAndLanguage(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("timezone, locale").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`tenants: ${error.message}`);
+  return data;
+}
+async function ideasBasis(db, tenantId) {
+  const { data, error } = await db.from("lead_rounds").select("ended_at").eq("tenant_id", tenantId).eq("state", "ended").not("ended_at", "is", null).order("ended_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`lead_rounds: ${error.message}`);
+  return data ? data.ended_at : null;
+}
 
 // src/lines.ts
 async function ownLineOf(db, tenantId) {
@@ -5209,6 +5254,7 @@ export {
   claimCallActivity,
   claimCallNotification,
   claimControl,
+  claimIdeas,
   claimIdempotencyKey,
   claimQueuedSend,
   claimReplyTell,
@@ -5258,6 +5304,7 @@ export {
   eventOfDelivery,
   everyoneIn,
   everyoneOnceIn,
+  failIdeas,
   failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
@@ -5292,6 +5339,8 @@ export {
   holdRecipients,
   holdTold,
   holdsReplyTurn,
+  ideasBasis,
+  ideasClockAndLanguage,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
@@ -5306,6 +5355,7 @@ export {
   keepChannelQuality,
   keepChannelStanding,
   keepForwardingConfirmation,
+  keepIdeas,
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
@@ -5404,6 +5454,7 @@ export {
   readAllRows,
   readAllRowsByKey,
   readDealForPhone,
+  readIdeaHistory,
   readJobToRequeue,
   readLeadContext,
   readLeadOne,
@@ -5460,6 +5511,7 @@ export {
   runSending,
   runningTwins,
   runsWaitingOf,
+  saveIdeasLine,
   saveReachOutChain,
   saveTemplateVersion,
   savedListFor,

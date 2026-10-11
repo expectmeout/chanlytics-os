@@ -14,9 +14,10 @@ import {
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { gate } from "../../legacy-verbs";
+import { gate, leaving } from "../../legacy-verbs";
 import { Sheet } from "../../kit/sheet/sheet";
-import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../../people/sheets/phone-sheet";
+import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";
+import { dockAct } from "../../people/bulk/phone-bulk";
 import type { ReviewDoors } from "../bench/types";
 import { LeadNotFitWhy } from "../peek/asks";
 
@@ -98,7 +99,7 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
       shape="job"
       title={why ? W.notFitTitle || "Not a fit" : `${count.toLocaleString()} selected`}
       close={JOB_CANCEL}
-      back={why ? jobBack(() => onSheet("more")) : null}
+      back={null}
       onClose={() => onSheet(null)}
       testid={why ? "leads-bulk-why" : "leads-bulk-sheet"}
     >
@@ -163,15 +164,6 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
             testid="leads-bulk-copy"
           />
           {p.write}
-          <PhoneSheetRow
-            icon="ban"
-            label="Not a fit"
-            next
-            disabled={busy}
-            onClick={() => onSheet("why")}
-            testid="leads-bulk-not-a-fit"
-            gate={canFind ? null : gate("find", "mark these leads not a fit")}
-          />
           {canExport ? (
             <a
               className="pp-sheet-row"
@@ -194,6 +186,11 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
               testid="leads-bulk-export"
             />
           )}
+          {f.hidden > 0 ? (
+            <p className="pp-sheet-hint pp-sheet-rows-note" data-testid="leads-bulk-hidden">
+              {f.hidden.toLocaleString()} more selected are not shown, and these leave them out.
+            </p>
+          ) : null}
           {whyNot ? <p className="pp-sheet-hint pp-sheet-rows-note">{whyNot}</p> : null}
         </div>
       )}
@@ -202,50 +199,61 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
 }
 
 /**
- * On a phone (spec 4.5): People's row -- ✕, the count, the act most selections get (Mark contacted) and ⋯ -- and a sheet
- * with the rest. Not a fit asks its five whys as the sheet's step: the peek's own list (LeadNotFitWhy) wears .pl-peek, which
- * a phone draws full screen (leads.css), so from this bar it covered the page. The whys are the peek's words, from their one
- * list (LEAD_WORDS.whys). The step is the page's (`sheet`), so its keyboard listener shuts the sheet on Esc.
+ * On a phone (spec 4.5): People's dock (people/bulk/phone-bulk.tsx), the tab bar's twin -- four equal slots, each a glyph
+ * over a word: Clear, Contacted, Not a fit and More (Ruben, 10 Oct 2026: parity with People's); how many are selected is
+ * the top bar's -- and a sheet with the rest. Not a fit asks its five whys as a sheet: the peek's own
+ * list (LeadNotFitWhy) wears .pl-peek, which a phone draws full screen (leads.css), so from this bar it covered the page.
+ * The whys are the peek's words, from their one list (LEAD_WORDS.whys). The step is the page's (`sheet`), so its keyboard
+ * listener shuts the sheet on Esc. Select on, with nobody picked yet, the acts stand and wait.
  */
 function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
   const { busy, canFind, onClear, onContacted, onSheet = () => undefined } = p;
-  const { count, hidden, scope } = f;
+  const { count, scope } = f;
+  const off = busy || count === 0;
   return (
     <>
-      <div className="cl-bulk ld-bulk pp-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
-        <button
-          type="button"
-          className="pp-bar-icon"
-          aria-label="Clear the selection"
-          onClick={onClear}
-          data-testid="leads-bulk-clear"
-        >
-          <Icon name="x" size={18} />
-        </button>
-        <span className="cl-bulk-count">
-          <b>{count.toLocaleString()}</b> selected
-          {hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}
-        </span>
-        <button
-          type="button"
-          className="btn btn-sm"
-          disabled={busy}
-          onClick={() => onContacted(scope("contacted"))}
-          data-testid="leads-bulk-contacted"
-          {...(canFind ? {} : gate("find", "mark these leads contacted"))}
-        >
-          Mark contacted
-        </button>
-        <button
-          type="button"
-          className="pp-bar-icon"
-          aria-label={`More for the ${count} selected`}
-          aria-haspopup="dialog"
-          onClick={() => onSheet("more")}
-          data-testid="leads-bulk-more"
-        >
-          <Icon name="more" size={18} />
-        </button>
+      <div
+        className="cl-bulk ld-bulk pp-bulk capsule"
+        ref={leaving("leads-dock")}
+        data-dock
+        role="toolbar"
+        aria-label={count ? `${count.toLocaleString()} leads selected` : "Select leads"}
+        data-testid="leads-bulk-bar"
+      >
+        <div className="pp-bulk-acts">
+          {dockAct({
+            icon: "x",
+            word: "Clear",
+            onPress: onClear,
+            disabled: false,
+            testid: "leads-bulk-clear",
+            sheet: false,
+          })}
+          {dockAct({
+            icon: "check",
+            word: "Contacted",
+            onPress: () => void onContacted(scope("contacted")),
+            disabled: off,
+            testid: "leads-bulk-contacted",
+            sheet: false,
+            gate: canFind ? null : gate("find", "mark these leads contacted"),
+          })}
+          {dockAct({
+            icon: "ban",
+            word: "Not a fit",
+            onPress: () => onSheet("why"),
+            disabled: off,
+            testid: "leads-bulk-not-a-fit",
+            gate: canFind ? null : gate("find", "mark these leads not a fit"),
+          })}
+          {dockAct({
+            icon: "menu",
+            word: "More",
+            onPress: () => onSheet("more"),
+            disabled: off,
+            testid: "leads-bulk-more",
+          })}
+        </div>
       </div>
       {phoneSheets(p, f)}
     </>

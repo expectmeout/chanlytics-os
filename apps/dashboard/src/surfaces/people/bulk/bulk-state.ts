@@ -62,7 +62,6 @@ export interface BulkProps {
   phone: boolean;
   sheet: string | null;
   onSheet: (step: string | null) => void;
-  onSelectAll: (() => void) | null;
   lead: ReactNode;
   acts: readonly string[] | null;
   /** The columns the table shows, which a file of the selection follows; none, and the file is who they are and their consent. */

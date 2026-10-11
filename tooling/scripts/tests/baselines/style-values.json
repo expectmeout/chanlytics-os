@@ -86,7 +86,7 @@
   "apps/dashboard/src/legacy/styles/leads.css": {
     "font": 33,
     "radius": 22,
-    "shadow": 15,
+    "shadow": 14,
     "colour": 9,
     "blur": 1
   },

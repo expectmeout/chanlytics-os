@@ -58,7 +58,7 @@ what the script writes.
 | [`lead_places`](#lead_places) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
 | [`lead_platform`](#lead_platform) | none | on, no policy, so only the service role reaches it |
 | [`lead_preferences`](#lead_preferences) | none | on, 1 policy |
-| [`lead_rounds`](#lead_rounds) | none | on, 1 policy |
+| [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
 | [`lead_runs`](#lead_runs) | none | on, 1 policy |
 | [`lead_search_members`](#lead_search_members) | none | on, 1 policy |
 | [`lead_searches`](#lead_searches) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 1 policy |
@@ -106,7 +106,7 @@ what the script writes.
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -1377,7 +1377,7 @@ Foreign keys:
 
 The unit of execution and of money: the probe (seq 1), each top-up and each Find new ones. Carries the plan it ran, its reservation and spend, one ending; final once ended (lead_rounds_guard). The search's state is its latest round's.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/leads.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1536,7 +1536,7 @@ Foreign keys:
 
 ### lead_suggestions
 
-The three or four kinds of business worth reaching, written from the workspace's business line (§8.9). One row per workspace; by_owner says the line is the owner's own words, not the workspace's name and services. The service writes it; members read it.
+The ideas for a new search (§8.9), each a ready plan, written from the workspace's business line and what its searches found (00398). One row per workspace; by_owner says the line is the owner's own words. The service writes it; members read it.
 
 - Owned by: none
 - Primary key: `tenant_id`
@@ -1549,6 +1549,10 @@ The three or four kinds of business worth reaching, written from the workspace's
 | `by_owner` | boolean | no | `false` |  |
 | `items` | jsonb | no | `'[]'::jsonb` |  |
 | `made_at` | timestamp with time zone | no | `now()` |  |
+| `basis` | text | yes |  | What the ideas were written over: the end of the workspace's newest ended round when they were written, so a round that ends since asks for new ones (server/leads/lead-suggestions.ts). Null on ideas written before 00398, which are asked for again. |
+| `making_at` | timestamp with time zone | yes |  | When a read claimed the writing of new ideas (lead_suggestions_claim); cleared when they are kept or fail. A claim older than two minutes is taken over. |
+| `failed_at` | timestamp with time zone | yes |  | When the model last would not write them: the next reads say so for a few minutes rather than ask again. |
+| `passed` | jsonb | no | `'[]'::jsonb` | Ideas offered before and not started since, as [{key, place, label, times}] (contracts ideaPassed, 00399): offered twice and not started is a no, and not offered again. |
 
 Foreign keys:
 
@@ -2903,7 +2907,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

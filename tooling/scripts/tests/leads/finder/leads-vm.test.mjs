@@ -18,7 +18,6 @@ import {
   stageArgs,
   leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA,
-  LEAD_SUGGEST_JSON_SCHEMA,
   LEAD_EMAIL_WORDS,
   outcomeMove,
   toLeadPeekVM,
@@ -361,8 +360,9 @@ test("a draft's foot is code's: the business's address and a way to say no, as U
   );
 });
 
+// The ideas' schema is built per workspace and held to the same shape in lead-ideas.test.mjs.
 test("the answer schemas are the structured-output shape: every property required, no length keywords", () => {
-  for (const s of [LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA]) {
+  for (const s of [LEAD_DRAFT_JSON_SCHEMA]) {
     assert.equal(s.additionalProperties, false);
     assert.deepEqual([...s.required].sort(), Object.keys(s.properties).sort());
     assert.equal(/minLength|maxLength|minimum|maximum/.test(JSON.stringify(s)), false);
@@ -814,7 +814,7 @@ test("Likely says what past searches found, and a kind never searched says the s
   assert.deepEqual(fresh, {
     emailPct: null,
     phonePct: null,
-    line: "How many have an email is checked after the first 25.",
+    line: "The share with an email shows after the first 25.",
   });
   const thin = leadPlanLikely(CARD_PLAN, { ...PLAN_FACTS, prior: { places: 12, matched: 7, with_email: 4 } });
   assert.equal(thin.emailPct, null, "too few places judged to say a number from");
@@ -1390,7 +1390,8 @@ test("D5: the map plots every lead the door placed, and the area the search aske
   // A search with no centre yet: the leads alone make the picture, and no ring is drawn.
   const loose = leadMapPlot([at("a", 30.2672, -97.7431), at("b", 30.2772, -97.7431)], { ...AREA, center: null });
   assert.equal(loose.ring, null);
-  assert.deepEqual([loose.pins.length, loose.center], [2, { lat: 30.2672, lng: -97.7431 }]);
+  // The square sits on the middle of the leads, not on whichever came first (Ruben, 10 Oct 2026).
+  assert.deepEqual([loose.pins.length, loose.center], [2, { lat: (30.2672 + 30.2772) / 2, lng: -97.7431 }]);
   // One lead alone is a place, not a pinpoint; nothing placed at all is no plot.
   assert.equal(leadMapPlot([at("a", 30.2672, -97.7431)], null).spanM, 1120);
   assert.deepEqual(leadMapPlot([{ id: "d", point: null }], null), {
@@ -1419,11 +1420,8 @@ test("D5: the map plots every lead the door placed, and the area the search aske
     null,
   );
   assert.equal(close.tooWide, false);
-  assert.equal(
-    leadMapNote(close, true),
-    "Where this search's leads are. It never measured a centre, so there is no area to draw.",
-    "a city ask has no centre until its probe measures one",
-  );
+  // One search with no centre: the leads are the picture, and no line says so (Ruben, 10 Oct 2026).
+  assert.equal(leadMapNote(close, true), "", "a city ask has no centre until its probe measures one");
   assert.equal(leadMapNote(close, false), "Every lead these searches placed on the ground.");
   // An area always anchors the square, however wide the search asked to look.
   const anchored = leadMapPlot(far, {

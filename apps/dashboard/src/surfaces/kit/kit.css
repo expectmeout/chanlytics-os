@@ -90,6 +90,36 @@ a.btn {
   color: var(--ink);
 }
 
+/* A word in a row of words, one press each (a phone's bar: People's Select, Sort and Export, Leads' Select, Sort, Import
+   and Map): never a ground, an edge or a capsule, at rest, under a pointer, pressed or with its menu open. The quiet
+   kind's fill, at a thumb's 44px and Glass's capsule radius, drew a circle around the word a finger had just left, since
+   a touch keeps :hover (Ruben, 10 Oct 2026: "too big and bulky"). Its ink is the quiet kind's and lifts to the ink under
+   a pointer and while its menu is open; a press dims it, as a text button on a phone does. A key's focus keeps the ring. */
+.btn-plain,
+.btn-plain:hover,
+.btn-plain:active,
+.btn-plain[data-popup-open] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.btn-plain {
+  color: var(--quiet-ink);
+}
+.btn-plain[data-popup-open],
+.btn-plain[aria-expanded="true"] {
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .btn-plain:hover {
+    color: var(--ink);
+  }
+}
+.btn-plain:active {
+  opacity: 0.55;
+  transition-duration: 0s;
+}
+
 /* The destructive act, filled: Confirm's Yes for anything that destroys or
    cannot be undone. A touch darker than the tone so its white words hold
    contrast in both themes. `.btn.danger` is the quiet form, for the control
@@ -175,8 +205,10 @@ a.btn {
 /* ---------- Search — the capsule a list is searched from (kit/search/search.tsx) ----------
    People's phone search, the one the Inbox's list wears too (10 Oct 2026): a 38px capsule on an inset's fill with its
    ring and depth, the glyph 15px and the words in the dim ink at the page's size. At rest on a phone it is a button
-   saying what it finds; pressed, it is the field, 16px on a phone so the phone never zooms into it, with Cancel beside
-   it. Its focus is a box's (--focus-field-edged: the capsule has no border of its own). The page places it (the room
+   saying what it finds; pressed, it is the field in the same capsule, where it stood: its words at the rest's size and
+   ink (typed at 16px on a phone, so the phone never zooms into it, and drawn at the page's), the clear in its end from
+   the first word, and no ring, since the caret says it is open; left empty, it rests as focus leaves (Ruben, 10 Oct 2026). On a desk its focus is a box's
+   (--focus-field-edged: the capsule has no border of its own). The page places it (the room
    round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the touch
    floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
 .search {
@@ -218,8 +250,17 @@ a.btn {
 .search > .search-box:focus-within {
   box-shadow: var(--focus-field-edged), var(--surface-inset-depth);
 }
-.search > .search-box > input {
+.search[data-rests] > .search-box:focus-within {
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+}
+.search-box > .search-field {
   flex: 1;
+  min-width: 0;
+  display: grid;
+  align-items: center;
+}
+.search-box > .search-field > input {
+  width: 100%;
   min-width: 0;
   height: 36px;
   min-height: 0;
@@ -230,19 +271,19 @@ a.btn {
   font: inherit;
   outline: none;
 }
-.search-box > input::placeholder {
-  color: var(--ink-faint);
+.search-field > input::placeholder {
+  color: var(--ink-dim);
 }
-.search-box > input::-webkit-search-cancel-button {
+.search-field > input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
 .search-box > .search-clear {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   min-height: 0;
-  margin-right: -10px;
+  margin-right: -8px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -252,21 +293,14 @@ a.btn {
   color: var(--ink-dim);
   cursor: pointer;
 }
-.search-cancel {
-  flex: none;
-  height: 44px;
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
+/* A phone's field: 16px, so the phone never zooms into it, and drawn at the rest's size (--text-base over 16px), its box
+   as wide as its room once drawn. A scale, not a size: the zoom is the phone's reading of the font's size alone. */
 @media (max-width: 900px) {
-  .search > .search-box > input {
+  .search-box > .search-field > input {
+    width: calc(100% / 0.84375);
     font-size: var(--field-text-touch);
+    scale: 0.84375;
+    transform-origin: 0 50%;
   }
 }
 
@@ -3715,6 +3749,7 @@ a.list-row {
   box-shadow: var(--primary-depth);
 }
 .btn-ghost,
+.btn-plain,
 .btn-danger {
   box-shadow: none;
 }

@@ -15,6 +15,8 @@ import type { FinderMore, FinderProposal, FinderStage, LeadSearchCardPayload } f
 
 interface PlanPanelProps {
   open: boolean;
+  /** A phone's sheet: pickers are its steps (plan-card.tsx). */
+  asSteps?: boolean;
   stage: FinderStage;
   words: string;
   proposal: FinderProposal | null;
@@ -118,7 +120,7 @@ export const LeadPlanPanel = (props: PlanPanelProps) => {
         <LeadPlanCard
           plan={shown}
           view={card.view || null}
-          facts={facts || card.facts || null}
+          facts={card.facts || facts || null}
           baseVersion={(card.plan && card.plan.version) || 1}
           busy={stage === "starting" || !!busy}
           refusal={refusal}
@@ -128,6 +130,7 @@ export const LeadPlanPanel = (props: PlanPanelProps) => {
           onApprove={onApprove}
           onBack={onBack}
           answering={answering}
+          asSteps={!!props.asSteps}
         />
       ) : null}
     </div>
