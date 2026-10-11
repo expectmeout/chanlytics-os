@@ -85,12 +85,6 @@ const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
 /** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
 const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
-/** What a picker's token says: the page's face, else the one chosen, else what it says with none. */
-const faceOf = (tree, testid) => {
-  const p = pickerOf(tree, testid);
-  const one = p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value);
-  return textOf(p.props.face ?? (one ? one.label : (p.props.placeholder ?? "")));
-};
 /** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
 const moreItem = (tree, label) => {
   const menu = find(tree, (n) => n.type === Menu);

@@ -60,7 +60,6 @@ const within = (tree, id, inner) => {
   const outer = byTestId(tree, id);
   return !!outer && !!find(outer, (n) => n.props?.["data-testid"] === inner);
 };
-const wordOf = (row) => textOf(find(row, (n) => String(n.props?.className || "").includes("-grow-word")));
 
 /** Campaigns' home over the two surfaces it is made from (the samples a demo draws), the month said as the test gives it. */
 const homeOf = (over = {}) => {
