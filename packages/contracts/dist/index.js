@@ -7740,19 +7740,24 @@ function leftOutByFacts(facts) {
   return facts.breath === RECIPIENT_REASON_HEARD;
 }
 function heardWithin(sendsAt, now) {
-  const since = Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
-  return (at3) => at3 >= since;
+  const t = Math.max(sendsAt, now);
+  return (at3) => at3 >= t - PLAYBOOK_BREATH_MS && at3 <= t + PLAYBOOK_BREATH_MS;
+}
+function breathTouchOf(times, sendsAt, now) {
+  const within2 = heardWithin(sendsAt, now);
+  let latest = null;
+  for (const at3 of times.map(Date.parse)) if (within2(at3) && (latest === null || at3 > latest)) latest = at3;
+  return latest;
 }
 function leftOutBy(touches, sendsAt, now) {
-  const heard = heardWithin(sendsAt, now);
   return new Set(
-    Object.entries(touches).filter(([, at3]) => heard(Date.parse(at3))).map(([id]) => id)
+    Object.entries(touches).filter(([, times]) => breathTouchOf(times, sendsAt, now) !== null).map(([id]) => id)
   );
 }
 function heardFor(heard, sendsAt, now) {
   const within2 = heardWithin(sendsAt, now);
   const heardBy = { whatsapp: 0, sms: 0, email: 0 };
-  for (const h of heard) if (within2(h.at)) heardBy[h.channel] += 1;
+  for (const h of heard) if (h.times.some(within2)) heardBy[h.channel] += 1;
   return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
 }
 function breathSplit(reached, idOf, out) {
@@ -7770,21 +7775,20 @@ function reachAfterBreath(split, heardBy, breathe) {
   };
   return { ...split, byChannel, reached: byChannel.whatsapp + byChannel.sms + byChannel.email };
 }
-var heardWhen = (ahead) => ahead ? "within the week before it goes" : "this week";
-function heardWords(n, breathe, ahead) {
+var BREATH_WHY = "from you within a week of it";
+var hearsOrHear = (n) => n === 1 ? "hears" : "hear";
+function heardWords(n, breathe) {
   if (!(n > 0)) return null;
-  if (breathe) return `${n} left out: heard from you ${heardWhen(ahead)}`;
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast ${heardWhen(ahead)}.`;
+  if (breathe) return `${n} left out: they hear ${BREATH_WHY}`;
+  return `${n === 1 ? "One" : n} of them ${hearsOrHear(n)} ${BREATH_WHY}.`;
 }
-function heardTooWords(n, ahead) {
-  return `Also send to the ${n === 1 ? "one" : n} who heard ${heardWhen(ahead)}`;
+function heardTooWords(n) {
+  return `Also send to the ${n === 1 ? "one" : n} who ${hearsOrHear(n)} ${BREATH_WHY}`;
 }
-function allLeftOutWords(label, n, ahead) {
-  return `Everyone it reaches on \u201C${label}\u201D heard from you ${heardWhen(ahead)}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
+function allLeftOutWords(label, n) {
+  return `Everyone it reaches on \u201C${label}\u201D hears ${BREATH_WHY}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
 }
-function heardUnreadWords(ahead) {
-  return `Who heard from you ${heardWhen(ahead)} could not be read just now: the send still leaves them out, so it may go to fewer.`;
-}
+var HEARD_UNREAD_WORDS = `Who hears ${BREATH_WHY} could not be read just now: the send still leaves them out, so it may go to fewer.`;
 function goesToOf(receipt) {
   return receipt.recipient_count - (receipt.left_out ?? 0);
 }
@@ -7804,10 +7808,10 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
-  // A send by hand left them out: they heard from a campaign or a broadcast within the week (the week's breath), and were
-  // never sent it. Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below;
-  // run-report.test.mjs holds the two spellings together.
-  heard_this_week: "not sent: heard from you within the week",
+  // A send by hand left them out: another message from a campaign or a broadcast reaches them within a week of it, before
+  // or after (the week's breath), and they were never sent it. Spelled out rather than computed from
+  // RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs holds the two spellings together.
+  heard_this_week: "not sent: they hear from you within a week of it",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored
@@ -10608,7 +10612,7 @@ var broadcastSpec = {
     const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
     const ahead = d.scheduled_ahead === true;
-    const said = heardWords(leftOut2, true, ahead);
+    const said = heardWords(leftOut2, true);
     return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
@@ -15726,8 +15730,9 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
     people.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
   const heardTouches = [];
   for (const x of sending) {
-    const at3 = touches[x.r.id];
-    if (at3 !== void 0 && x.p.channel) heardTouches.push({ at: Date.parse(at3), channel: x.p.channel });
+    const times = touches[x.r.id];
+    if (times && times.length > 0 && x.p.channel)
+      heardTouches.push({ times: times.map(Date.parse), channel: x.p.channel });
   }
   return {
     people,
@@ -22817,9 +22822,6 @@ function followUpNames(r2, nowMs, pace) {
 function breathEndsAt(atMs) {
   return atMs + PLAYBOOK_BREATH_MS;
 }
-function breathHolds(atMs, nowMs) {
-  return nowMs < breathEndsAt(atMs);
-}
 function followUpKey(about) {
   return about.deal ? `deal:${about.deal}` : about.link ? `link:${about.link}` : "bare";
 }
@@ -23048,6 +23050,7 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
     return done(allowed);
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
+  const breathHolds = heardWithin(nowMs, nowMs);
   const heardThis = (r2) => {
     if (t.kind === "deal") return !!r2.deal && followUpCovers(r2.deal, hadOf(r2.id));
     const mine = touches.byThis.get(r2.id);
@@ -23059,7 +23062,7 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
       return false;
     }
     const any = touches.byAny.get(r2.id);
-    if (any !== void 0 && breathHolds(any, nowMs)) {
+    if (any !== void 0 && breathHolds(any)) {
       reach.heardAny += 1;
       return false;
     }
@@ -40360,6 +40363,7 @@ export {
   HANDOVER_WORDS,
   HAND_KINDS,
   HAND_WORDS_MAX,
+  HEARD_UNREAD_WORDS,
   HELD_ON,
   HELD_REASONS,
   HELD_WORDS,
@@ -41084,8 +41088,8 @@ export {
   booksWithOptions,
   brainMetaOf,
   breathEndsAt,
-  breathHolds,
   breathSplit,
+  breathTouchOf,
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
@@ -41427,7 +41431,7 @@ export {
   heardFor,
   heardSinceProposal,
   heardTooWords,
-  heardUnreadWords,
+  heardWithin,
   heardWords,
   heldBackOfOneRun,
   heldBackWords,

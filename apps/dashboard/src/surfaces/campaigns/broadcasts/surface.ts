@@ -128,7 +128,7 @@ export interface BroadcastsSurface {
   listsRead: boolean;
   /**
    * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched_at`); false counts the
-   * audiences with nobody left out, and the composer says the send still leaves them out (contracts heardUnreadWords).
+   * audiences with nobody left out, and the composer says the send still leaves them out (contracts HEARD_UNREAD_WORDS).
    */
   heardRead: boolean;
   audiences: AudienceOption[];
@@ -214,7 +214,7 @@ function savedHint(byHand: boolean): string {
 function optionReadings(
   rows: Parameters<typeof audiencePreview>[0],
   of: { kind: AudienceKind; id: string | null; ids: Set<string> | null },
-  how: { ready: ChannelsReady; touches: Readonly<Record<string, string>> },
+  how: { ready: ChannelsReady; touches: Readonly<Record<string, readonly string[]>> },
 ): Pick<AudienceOption, "counts" | "preview" | "by"> {
   const { kind, id, ids } = of;
   const { ready, touches } = how;
@@ -295,8 +295,9 @@ export const broadcastsOverride: SurfaceOverride = {
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand, for WhatsApp alone, as every broadcast
     // went; and one more for each other set of channels the owner could tick for the purpose, since who is reached on
-    // which channel depends on the set (reachFor). Who a run reached within the week and when last, for the note on how
-    // many of an audience heard from one within the week before the send goes (contracts heardFor, at the picked time).
+    // which channel depends on the set (reachFor). Who a run reached from a week ago on, or is due to, and when, for the
+    // note on how many of an audience hear from one within a week of the send, either side (contracts heardFor, at the
+    // picked time).
     const touches = bc.touched_at ?? {};
     const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) =>
       optionReadings(rows, { kind, id, ids }, { ready, touches });

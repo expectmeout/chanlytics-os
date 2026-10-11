@@ -17,6 +17,8 @@ var SWEEP_TICK_MS = 5 * MIN_MS;
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var BREATH_WHY = "from you within a week of it";
+var HEARD_UNREAD_WORDS = `Who hears ${BREATH_WHY} could not be read just now: the send still leaves them out, so it may go to fewer.`;
 var HELD_REASONS = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
@@ -33,10 +35,10 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
-  // A send by hand left them out: they heard from a campaign or a broadcast within the week (the week's breath), and were
-  // never sent it. Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below;
-  // run-report.test.mjs holds the two spellings together.
-  heard_this_week: "not sent: heard from you within the week",
+  // A send by hand left them out: another message from a campaign or a broadcast reaches them within a week of it, before
+  // or after (the week's breath), and they were never sent it. Spelled out rather than computed from
+  // RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs holds the two spellings together.
+  heard_this_week: "not sent: they hear from you within a week of it",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored

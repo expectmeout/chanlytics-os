@@ -182,8 +182,8 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // own counts (audiencePreview): `sending` is the number on its chip.
   // The number it goes out on and how a proposal that names no channel counts (numberFactsOf, above).
   const { how, number } = numberFactsOf(chans);
-  // Who it can be sent is who a broadcast that goes now goes to: those it reaches, less whoever heard from you this week,
-  // whom it leaves out (contracts heardFor, the card's and the route's rule, at now), said beside it where any is. Where
+  // Who it can be sent is who a broadcast that goes now goes to: those it reaches, less whoever hears from you within a
+  // week of now, either side, whom it leaves out (contracts heardFor, the card's and the route's rule), said beside it where any is. Where
   // who heard could not be read, no count is given that the card would not carry: the card itself is refused until it can be.
   const now = t.now.getTime();
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
@@ -255,7 +255,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   ];
   // Said only where somebody is left out, so a listing with nobody left out reads as it always did.
   const leftOutSaid = audiences.some((a) => "left_out_offers" in a || "left_out_messages" in a)
-    ? " A broadcast leaves out whoever heard from you within the week before it goes: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out fewer."
+    ? " A broadcast leaves out whoever hears from you within a week of it, before or after: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out fewer."
     : "";
   return {
     route: "broadcasts",

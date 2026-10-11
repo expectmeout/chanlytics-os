@@ -144,10 +144,9 @@ export const broadcastSpec: ProposalSpec = {
         ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut })
         : Number(pl.count ?? 0);
     // Whether it was scheduled is the route's answer (`scheduled_ahead`), never the card's time: one set for a time that
-    // passed before it was approved went now, and left out who heard this week; one set for later, who heard within the
-    // week before it goes (contracts leftOutBy).
+    // passed before it was approved went now. Who it left out hear from you within a week of the time it goes (leftOutBy).
     const ahead = d.scheduled_ahead === true;
-    const said = heardWords(leftOut, true, ahead);
+    const said = heardWords(leftOut, true);
     return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : "sending now"}${said ? ` · ${said}` : ""}`;
   },
   undo: {

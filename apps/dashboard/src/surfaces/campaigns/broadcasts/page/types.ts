@@ -179,12 +179,10 @@ export interface BcReach {
    */
   sendNow: { count: number; splitWords: string | null };
   /**
-   * Of those it reaches, how many heard from a campaign or a broadcast within the week before the send goes: the time
+   * Of those it reaches, how many hear from a campaign or a broadcast within a week of the send, either side: the time
    * picked, else now (contracts heardFor over the reading's `heardTouches`, as the route judges it).
    */
   heard: number;
-  /** The send is set for a time ahead of now: its words say "within the week before it goes", not "this week". */
-  ahead: boolean;
   /** Whether the send leaves them out: unless the switch sends to them too (and always where nobody heard). */
   breathe: boolean;
   /** The switch pressed: on sends to them too, for this message, list and channels alone. */

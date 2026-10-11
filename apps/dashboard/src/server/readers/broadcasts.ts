@@ -18,9 +18,10 @@ const runRef = (b: BroadcastDto): RowRef => ({
 
 /**
  * GET broadcasts, as the route answers it: the recent fifty with what their messages earned, whether older ones exist
- * beyond them, and who a run of any kind reached within the week, from the turn's clock, and when last (`touched_at`,
- * contact id -> their latest touch) -- the composer says how many of an audience heard from one within the week before
- * the time a send is set for (contracts leftOutBy). Touches that cannot be read are null, said in the log, and the
+ * beyond them, and who a run of any kind reached from a week before the turn's clock on, or is due to, and when
+ * (`touched_at`, contact id -> the time of every touch of theirs, earliest first) -- the composer says how many of an
+ * audience hear from one within a week of the time a send is set for, either side (contracts heardFor, leftOutBy's rule).
+ * Touches that cannot be read are null, said in the log, and the
  * composer says nothing, rather than a list of nobody. And whether the workspace can send on each channel now (`ready`, channels-ready.ts), which
  * the composer's Send by ticks and its reach line are drawn from; null where that could not be read, which the composer
  * says. And what the workspace's campaigns have sent by email and by text this calendar month (`month_sent`,
@@ -34,7 +35,7 @@ export const broadcasts: Reader<
   {
     broadcasts: BroadcastDto[];
     more: boolean;
-    touched_at: Record<string, string> | null;
+    touched_at: Record<string, string[]> | null;
     ready: ChannelsReady | null;
     month_sent: MonthSent | null;
     month_sent_next: { from: number; sent: MonthSent | null } | null;

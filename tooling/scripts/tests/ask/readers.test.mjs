@@ -3665,11 +3665,12 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     [harbor.broadcasts.map((b) => b.id), harbor.broadcasts[0].counts.sent, harbor.broadcasts[0].counts.delivered],
     [[BC2, BC1], 1, 1],
   );
-  // 11 Oct 2026: who heard and when last (`touched_at`), so the composer judges a send set for later by the week before it
-  // goes (contracts heardFor).
+  // 11 Oct 2026: who heard and when (`touched_at`, every message's time), so the composer judges a send by those within a
+  // week of the time it is set for, either side (contracts heardFor).
   const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), broadcastsReader, undefined)).data.touched_at;
   assert.deepEqual(Object.keys(touched), ["k1"], "sent this week; not held back, not canceled, not last month");
-  const at = Date.parse(touched.k1);
+  assert.equal(touched.k1.length, 1);
+  const at = Date.parse(touched.k1[0]);
   assert.ok(at <= Date.now() && Date.now() - at < 2 * HOUR, `when it went, an hour ago: ${touched.k1}`);
   // The week is the turn's: at a clock eight days on, the run of an hour ago is last week's.
   const later = kernel.readerContext(

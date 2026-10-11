@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  HELD_REASONS,
   LEFT_OUT_FACTS,
   PLAYBOOK_BREATH_MS,
   RECIPIENT_REASON_HEARD,
@@ -48,8 +49,8 @@ const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = new Date("2026-09-06T14:00:00Z");
 const DAY = 86_400_000;
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
-/** Who heard, as db recentTouches answers it (contact id -> their latest touch): each two days ago, unless given. */
-const heard = (...ids) => Object.fromEntries(ids.map((id) => [id, ago(2 * DAY)]));
+/** Who heard, as db recentTouches answers it (contact id -> the times of their messages): each two days ago. */
+const heard = (...ids) => Object.fromEntries(ids.map((id) => [id, [ago(2 * DAY)]]));
 /** An instant `days` after NOW with its offset, as the route takes a scheduled send (10:00 in New York). */
 const ahead = (days) => new Date(NOW.getTime() + days * DAY).toISOString();
 const T1 = "77777777-7777-4777-8777-777777777771";
@@ -189,33 +190,25 @@ async function logged(p) {
 
 test("the words: who a send leaves out before it goes, the switch that sends to them too, and the reason a skipped row keeps after", () => {
   assert.equal(RECIPIENT_REASON_HEARD, "heard_this_week");
-  // A send that goes now says this week; one scheduled ahead, the week before it goes.
-  assert.equal(heardWords(1, true, false), "1 left out: heard from you this week");
-  assert.equal(heardWords(3, true, false), "3 left out: heard from you this week");
-  assert.equal(heardWords(3, true, true), "3 left out: heard from you within the week before it goes");
-  assert.equal(heardWords(3, false, false), "3 of them heard from a campaign or a broadcast this week.");
-  assert.equal(heardWords(1, false, false), "One of them heard from a campaign or a broadcast this week.");
+  // One phrasing whichever side of the send the other message falls, and whenever it goes: within a week of it.
+  assert.equal(heardWords(1, true), "1 left out: they hear from you within a week of it");
+  assert.equal(heardWords(3, true), "3 left out: they hear from you within a week of it");
+  assert.equal(heardWords(3, false), "3 of them hear from you within a week of it.");
+  assert.equal(heardWords(1, false), "One of them hears from you within a week of it.");
+  assert.equal(heardWords(0, true), null, "nobody to leave out, nothing said");
+  assert.equal(heardWords(undefined, true), null, "a receipt from before the breath says nothing");
+  assert.equal(heardTooWords(3), "Also send to the 3 who hear from you within a week of it");
+  assert.equal(heardTooWords(1), "Also send to the one who hears from you within a week of it");
   assert.equal(
-    heardWords(1, false, true),
-    "One of them heard from a campaign or a broadcast within the week before it goes.",
-  );
-  assert.equal(heardWords(0, true, false), null, "nobody heard, nothing said");
-  assert.equal(heardWords(undefined, true, false), null, "a receipt from before the breath says nothing");
-  assert.equal(heardTooWords(3, false), "Also send to the 3 who heard this week");
-  assert.equal(heardTooWords(1, false), "Also send to the one who heard this week");
-  assert.equal(heardTooWords(2, true), "Also send to the 2 who heard within the week before it goes");
-  assert.equal(
-    allLeftOutWords("Regulars", 3, false),
-    "Everyone it reaches on “Regulars” heard from you this week, so all 3 are left out.",
+    allLeftOutWords("Regulars", 3),
+    "Everyone it reaches on “Regulars” hears from you within a week of it, so all 3 are left out.",
   );
   assert.equal(
-    allLeftOutWords("Regulars", 1, false),
-    "Everyone it reaches on “Regulars” heard from you this week, so the one person is left out.",
+    allLeftOutWords("Regulars", 1),
+    "Everyone it reaches on “Regulars” hears from you within a week of it, so the one person is left out.",
   );
-  assert.equal(
-    allLeftOutWords("Regulars", 2, true),
-    "Everyone it reaches on “Regulars” heard from you within the week before it goes, so all 2 are left out.",
-  );
+  // And after, on the run's own page: the skip's reason in the same words.
+  assert.equal(HELD_REASONS[RECIPIENT_REASON_HEARD], "not sent: they hear from you within a week of it");
   // One split, whoever counts: the composer's preview, Ask's card and the verb.
   assert.deepEqual(
     breathSplit(["a", "b", "c"], (x) => x, new Set(["b", "z"])),
@@ -292,14 +285,14 @@ test("a breathe that is not true or false is refused in words before anything is
 
 test("everyone it reaches heard this week: refused in words, with nothing written -- never a run of skips", async () => {
   const f = fakes({ touches: heard(ANA, BEA, CY) });
-  await refused(make(f, {}), "conflict", 409, allLeftOutWords("Everyone", 3, false));
+  await refused(make(f, {}), "conflict", 409, allLeftOutWords("Everyone", 3));
   assert.deepEqual(f.ops(), []);
-  // Scheduled a day ahead, everyone it reaches heard within the week before it goes: said so.
+  // Scheduled a day ahead, everyone it reaches heard within a week of it: said the same way.
   await refused(
     make(fakes({ touches: heard(ANA, BEA, CY) }), { scheduled_for: ahead(1) }),
     "conflict",
     409,
-    allLeftOutWords("Everyone", 3, true),
+    allLeftOutWords("Everyone", 3),
   );
   // Sent to them too, it goes.
   const anyway = fakes({ touches: heard(ANA, BEA, CY) });
@@ -481,7 +474,7 @@ test("the window is the breath's constant: who heard is db recentTouches, two da
   assert.equal(PLAYBOOK_BREATH_MS, 7 * DAY, "a week");
   assert.deepEqual(Object.keys(await recentTouches(world(), TENANT, NOW)), [BEA]);
   const ports = createBroadcastPorts({ supabase: world(), userId: "u1" }, TENANT, { fresh: false });
-  assert.deepEqual(await ports.touches(NOW), { [BEA]: ago(2 * DAY) }, "who heard, and when last");
+  assert.deepEqual(await ports.touches(NOW), { [BEA]: [ago(2 * DAY)] }, "who heard, and when");
   // The verb over that port: Bea is left out, Cy (eight days ago) goes with Ana.
   const f = fakes({ touches: (now) => ports.touches(now) });
   const r = await make(f, {});
@@ -507,7 +500,7 @@ test("a run is read by when its touches count, not only by when it was made: mad
       broadcast_recipients: [sentTo(OLD_DUE, ANA, 2), sentTo(OLD_LATER, CY, 0, { state: "queued", sent_at: null })],
     });
   const touches = await recentTouches(db(), TENANT, NOW);
-  assert.deepEqual(touches, { [ANA]: ago(2 * DAY), [CY]: ahead(3) }, "each dated when it counts: sent, or due");
+  assert.deepEqual(touches, { [ANA]: [ago(2 * DAY)], [CY]: [ahead(3)] }, "each dated when it counts: sent, or due");
   assert.deepEqual([...leftOutBy(touches, NOW.getTime(), NOW.getTime())].sort(), [ANA, CY].sort(), "a send now");
   assert.ok(leftOutBy(touches, NOW.getTime() + 3 * DAY, NOW.getTime()).has(CY), "a send in three days");
   // The playbooks sweep reads the same: a run made long ago that went, or goes, within its window is a touch.
@@ -528,17 +521,52 @@ test("a run is read by when its touches count, not only by when it was made: mad
   assert.equal(r.left_out, 2);
 });
 
-/* ---- The week before it goes: a send scheduled ahead is judged by its own time ---- */
-
-test("a read of who heard that failed is said for the send's own time too, as the other breath words are", async () => {
-  const { heardUnreadWords } = await import("@chanlytics/contracts");
-  assert.equal(
-    heardUnreadWords(false),
-    "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.",
+test("who hears from you is read as the time of every message, so one far ahead hides none nearer: a person queued for twenty-five days ahead is no reason to leave them out of a send now, and the sweep's breath reads the same", async () => {
+  const PAST = "88888888-8888-4888-8888-88888888880c";
+  const FAR = "88888888-8888-4888-8888-88888888880d";
+  // Ana went two days ago and is queued for twenty-five days ahead; Cy is queued for twenty-five days ahead alone.
+  const run = (id, due, state) => ({
+    ...sentRun(id, 2),
+    state,
+    scheduled_for: due,
+    finished_at: state === "sent" ? due : null,
+  });
+  const db = () =>
+    fakeDb({
+      tenants: [{ id: TENANT, name: "Harbor", timezone: "America/New_York" }],
+      broadcasts: [run(PAST, ago(2 * DAY), "sent"), run(FAR, ahead(25), "scheduled")],
+      broadcast_recipients: [
+        sentTo(PAST, ANA, 2),
+        sentTo(FAR, ANA, 0, { state: "queued", sent_at: null }),
+        sentTo(FAR, CY, 0, { state: "queued", sent_at: null }),
+      ],
+    });
+  const touches = await recentTouches(db(), TENANT, NOW);
+  assert.deepEqual(touches, { [ANA]: [ago(2 * DAY), ahead(25)], [CY]: [ahead(25)] }, "every message, in order");
+  assert.deepEqual(
+    [...leftOutBy(touches, NOW.getTime(), NOW.getTime())],
+    [ANA],
+    "Ana's message two days ago holds her",
   );
+  // The sweep's breath: the message within a week of the run, by any playbook or by hand; the far one is none.
+  const { touchesSince, touchIndex } = await import("@chanlytics/db");
+  const index = touchIndex(await touchesSince(db(), TENANT, new Date(NOW.getTime() - PLAYBOOK_BREATH_MS), NOW), NOW);
+  assert.deepEqual([...index.byAny], [[ANA, NOW.getTime() - 2 * DAY]]);
+  // And a send now over the dashboard's port: Ana is left out, Bea and Cy go.
+  const ports = createBroadcastPorts({ supabase: db(), userId: "u1" }, TENANT, { fresh: false });
+  const f = fakes({ touches: (now) => ports.touches(now) });
+  const r = await make(f, {});
+  assert.deepEqual(f.of("holdRecipients"), [["holdRecipients", "b1", [ANA], RECIPIENT_REASON_HEARD]]);
+  assert.equal(r.left_out, 1);
+});
+
+/* ---- Within a week of the send: its scheduled time, or now, on either side ---- */
+
+test("a read of who heard that failed is said in the breath's words", async () => {
+  const { HEARD_UNREAD_WORDS } = await import("@chanlytics/contracts");
   assert.equal(
-    heardUnreadWords(true),
-    "Who heard from you within the week before it goes could not be read just now: the send still leaves them out, so it may go to fewer.",
+    HEARD_UNREAD_WORDS,
+    "Who hears from you within a week of it could not be read just now: the send still leaves them out, so it may go to fewer.",
   );
 });
 
@@ -555,9 +583,9 @@ test("the receipt says whether the send was set for a time still ahead at the pr
   assert.equal(passed.left_out, 1);
 });
 
-test("the one rule: a person is left out when their latest touch is within the week before the send goes -- its scheduled time, or now -- as known at the press", () => {
+test("the one rule: a person is left out when any message of theirs falls within a week of the send, on either side -- its scheduled time, or now -- as known at the press", () => {
   const now = NOW.getTime();
-  const touches = { a: ago(2 * DAY), b: ago(5 * DAY), c: ago(6.9 * DAY) };
+  const touches = { a: [ago(2 * DAY)], b: [ago(5 * DAY)], c: [ago(6.9 * DAY)] };
   const out = (sendsAt) => [...leftOutBy(touches, sendsAt, now)].sort();
   assert.deepEqual(out(now), ["a", "b", "c"], "now: the week before now, everyone the read holds");
   assert.deepEqual(out(now + 3 * DAY), ["a"], "three days ahead: the four days before now");
@@ -565,14 +593,43 @@ test("the one rule: a person is left out when their latest touch is within the w
   assert.deepEqual(out(now - 3 * DAY), ["a", "b", "c"], "a time before now is now");
   // A run due later that is already on its way counts from when it is due.
   assert.deepEqual(
-    [...leftOutBy({ d: ahead(1) }, now + 5 * DAY, now)],
+    [...leftOutBy({ d: [ahead(1)] }, now + 5 * DAY, now)],
     ["d"],
     "due tomorrow, four days before it goes",
   );
 });
 
+test("within a week on either side: queued for twenty-five days ahead is no reason to leave a person out of a send now, three days ahead is, two days ago is; a send ten days ahead leaves out who is queued for twelve days ahead and not who heard yesterday", () => {
+  const now = NOW.getTime();
+  const touches = {
+    far: [ahead(25)],
+    soon: [ahead(3)],
+    past: [ago(2 * DAY)],
+    yesterday: [ago(DAY)],
+    twelve: [ahead(12)],
+    // A message two days ago and one twenty-five days ahead: the far one hides nothing.
+    both: [ago(2 * DAY), ahead(25)],
+  };
+  const out = (sendsAt) => [...leftOutBy(touches, sendsAt, now)].sort();
+  assert.deepEqual(out(now), ["both", "past", "soon", "yesterday"]);
+  const tenAhead = leftOutBy(touches, now + 10 * DAY, now);
+  assert.ok(tenAhead.has("twelve"), "two days after it");
+  assert.ok(!tenAhead.has("yesterday"), "eleven days before it");
+  assert.ok(!tenAhead.has("far"), "fifteen days after it");
+});
+
+test("the send by hand over the rule: ten days ahead it leaves out a person queued for twelve days ahead and keeps one who heard yesterday; now, it keeps one queued for twenty-five days ahead", async () => {
+  const touches = { [ANA]: [ahead(12)], [BEA]: [ago(DAY)], [CY]: [ahead(25)] };
+  const later = fakes({ touches });
+  await make(later, { scheduled_for: ahead(10) });
+  assert.deepEqual(later.of("holdRecipients"), [["holdRecipients", "b1", [ANA], RECIPIENT_REASON_HEARD]]);
+  const now = fakes({ touches });
+  await make(now, {});
+  assert.deepEqual(now.of("holdRecipients"), [["holdRecipients", "b1", [BEA], RECIPIENT_REASON_HEARD]]);
+});
+
 test("a send scheduled three days ahead leaves out a person touched two days ago and keeps one touched five days ago; ten days ahead it leaves out nobody; and it reads who heard once, at the press", async () => {
-  const touches = { [BEA]: ago(2 * DAY), [CY]: ago(5 * DAY) };
+  const touches = { [BEA]: [ago(2 * DAY)], [CY]: [ago(5 * DAY)] };
   const soon = fakes({ touches });
   const r = await make(soon, { scheduled_for: ahead(3) });
   assert.deepEqual(soon.of("touches"), [["touches", NOW]], "read at the press, as the composer read it");

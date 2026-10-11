@@ -64,16 +64,16 @@ export interface BroadcastReceipt {
    */
   held_for_allowance: number;
   /**
-   * How many of the people enrolled heard from a campaign or a broadcast within the week and were left out (the week's
-   * breath), as written on their rows: skipped with contracts RECIPIENT_REASON_HEARD. Those whose skip the hold did not
+   * How many of the people enrolled hear from a campaign or a broadcast within a week of it, either side, and were left
+   * out (the week's breath), as written on their rows: skipped with contracts RECIPIENT_REASON_HEARD. Those whose skip the hold did not
    * write are queued, held at the wire by their row's mark, logged, and not counted here. Who it goes to is
    * recipient_count less these (contracts goesToOf).
    */
   left_out: number;
   /**
-   * Whether it was set for a time still ahead at the press: its breath was judged by the week before that time, and a
-   * receipt says it is scheduled and words who was left out so ("within the week before it goes"). False for a send that
-   * goes now, one asked for a time already past (which goes now), and one moved to the morning from now (`moved_from`).
+   * Whether it was set for a time still ahead at the press: its breath was judged within a week of that time, and a
+   * receipt says it is scheduled. False for a send that goes now, one asked for a time already past (which goes now), and
+   * one moved to the morning from now (`moved_from`).
    */
   scheduled_ahead: boolean;
   decision_id: string;
@@ -232,9 +232,9 @@ async function audienceOf(
 type Enrolled = ReturnType<typeof enrolFor>[number];
 
 /**
- * The week's breath on a send by hand (spec §5.6): of the people enrolled, who goes and who is left out, having heard
- * from a campaign or a broadcast within the week before the send goes -- its time as asked (`sendsAt`), or now -- by the
- * one read of who did and when (ports.touches, the composer's own), made once, at the press, and only when the send
+ * The week's breath on a send by hand (spec §5.6): of the people enrolled, who goes and who is left out, hearing from a
+ * campaign or a broadcast within a week of the send, before or after -- its time as asked (`sendsAt`), or now -- by the
+ * one read of who did or will and when (ports.touches, the composer's own), made once, at the press, and only when the send
  * breathes, and judged by contracts leftOutBy, the rule the composer and Ask's card count by. A read that fails refuses
  * the send: "nobody heard" is the reading that messages people twice.
  */
@@ -270,8 +270,8 @@ async function breathOf(
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. Whoever heard from a campaign or a broadcast within the week before it goes
- * (now, or the time it is set for) is left out (the week's breath, `breathe` true
+ * wire. Whoever hears from a campaign or a broadcast within a week of it, before or
+ * after (now, or the time it is set for) is left out (the week's breath, `breathe` true
  * unless the body says false; contracts leftOutBy): enrolled, their row
  * marked (LEFT_OUT_FACTS, which the wire's check skips them for), and skipped with
  * RECIPIENT_REASON_HEARD. The ledger records the decision to send, in the run's own write. The body is judged here, in
@@ -309,12 +309,12 @@ export async function createBroadcast(
   if (enrolled.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-  // 4a. Whoever heard from a campaign or a broadcast this week is left out (skipped at enrolment, in the assembly), unless
-  // the person sending it sends to them too: refused in words when nobody else is left, never a run of skips.
-  // Judged for the time it is set for (`when` as asked, now for a send that goes at once): the week before it goes.
+  // 4a. Whoever hears from a campaign or a broadcast within a week of it is left out (skipped at enrolment, in the
+  // assembly), unless the person sending it sends to them too: refused in words when nobody else is left, never a run
+  // of skips. Judged for the time it is set for (`when` as asked, now for a send that goes at once), on either side.
   const ahead = when.getTime() > now.getTime();
   const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
-  if (goes.length === 0) throw new AppError("conflict", allLeftOutWords(label, leftOut.length, ahead), 409);
+  if (goes.length === 0) throw new AppError("conflict", allLeftOutWords(label, leftOut.length), 409);
   // An audience past the day's limit is split, not silently cut: WhatsApp's limit is Meta's, so it counts the people
   // who go by WhatsApp alone, now.
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;

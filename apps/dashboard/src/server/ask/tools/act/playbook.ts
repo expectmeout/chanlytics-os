@@ -495,7 +495,7 @@ async function reachNow(
   const drawn = playbookRunReach(
     pool.rows,
     { trigger: trig.id, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0, message, ...how },
-    poolTouches(touched, followUps),
+    poolTouches(touched, followUps, t.now),
     t.now.getTime(),
     dealPaceOf(paceRead),
     listed.ids,

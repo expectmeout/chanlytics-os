@@ -353,10 +353,10 @@ test("the week's touches: who any broadcast reached, or is about to, within the 
   // packages/db recentTouches: the week's breath read where the touches are, which every page and the send read.
   const { recentTouches } = await import("@chanlytics/db");
   assert.deepEqual(await recentTouches(ctx(tables).supabase, T, now), {
-    a: "2026-09-11T14:00:05Z", // the later of the two, the one by hand
-    c: "2026-09-13T14:00:00Z", // on its way counts from when it is due
-    f: "2026-09-11T14:00:07Z", // sent before its run was stopped
-    h: "2026-09-12T11:00:00Z", // waiting for a person today: it may still go
+    a: ["2026-09-10T14:00:05Z", "2026-09-11T14:00:05Z"], // both, earliest first: the playbook's, then the one by hand
+    c: ["2026-09-13T14:00:00Z"], // on its way counts from when it is due
+    f: ["2026-09-11T14:00:07Z"], // sent before its run was stopped
+    h: ["2026-09-12T11:00:00Z"], // waiting for a person today: it may still go
   });
   assert.deepEqual(await recentTouches(ctx({ broadcasts: [], broadcast_recipients: [] }).supabase, T, now), {});
 });
@@ -390,10 +390,12 @@ test("a proposal's follow-up is a touch of its own (0006): from any playbook's r
     ],
   };
   const touches = await touchesSince(fakeDb(tables), T, new Date("2026-09-01T00:00:00Z"), now);
-  const idx = touchIndex(touches);
+  const idx = touchIndex(touches, now);
   assert.deepEqual([...idx.followUps.keys()], ["a"], "the follow-up, whoever sent it; the win-back is none");
   assert.equal(idx.followUps.get("a"), Date.parse("2026-09-05T14:00:03Z"));
-  assert.deepEqual([...idx.byAny.keys()].sort(), ["a", "b"], "and both count for the breath");
+  // The breath keeps the messages within a week of now, either side (contracts heardWithin): the win-back of the 6th;
+  // the follow-up of the 5th went a week and two hours ago.
+  assert.deepEqual([...idx.byAny.keys()].sort(), ["b"], "the win-back counts for the breath");
   assert.equal(idx.byThis.get("p1")?.get("b"), Date.parse("2026-09-06T14:00:03Z"), "the win-back for its own gap");
   // The follow-ups' own read (0006), as long as a proposal waits: their runs alone, the win-back left unread.
   assert.deepEqual(
@@ -499,7 +501,7 @@ test("a follow-up's touch keeps the proposal it was about (0029): the deal and t
     ),
     "the deal and the link alone of the words each recipient kept",
   );
-  const idx = touchIndex(touches);
+  const idx = touchIndex(touches, now);
   assert.deepEqual([...(idx.followUpKeys.get("a") ?? [])].sort(), [
     ["deal:d-ads", Date.parse("2026-09-08T14:00:03Z")],
     [`link:${SEO}`, Date.parse("2026-09-05T14:00:03Z")],

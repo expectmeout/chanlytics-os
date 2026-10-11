@@ -40519,11 +40519,12 @@ declare function deleteList(db: Db$7, id: string): Promise<{
  * and broadcast composer (apps/dashboard/src/server/campaigns/playbooks.ts) read through this file, so the rule below
  * is written once and what the page says a person waits for is what the sweep holds them for.
  *
- * touchesSince reads every touch since a moment, and recentTouches those within the week's breath, latest per person
- * (a send by hand leaves them out). followUpTouchesSince reads only the runs that carry a proposal's link, because its
- * window is as long as a proposal waits, far longer than the breath. touchIndex folds touches into the
- * latest one per person by any run (byAny, the breath), by each playbook (byThis, its gap) and by proposal follow-up
- * (followUps).
+ * touchesSince reads every touch since a moment, and recentTouches those from the week's breath before now on, every one
+ * per person in order (a send by hand leaves out who has one within a week of it, either side). followUpTouchesSince reads
+ * only the runs that carry a proposal's link, because its window is as long as a proposal waits, far longer than the
+ * breath. touchIndex folds touches into the latest one per person by each playbook (byThis, its gap) and by proposal
+ * follow-up (followUps), and, for the breath, the latest by any run within a week of now either side (byAny: contracts
+ * heardWithin, so a run due weeks ahead holds nobody today).
  *
  * The rule: a person sent to, or queued for a run on its way, was touched from the moment it went or is due. A run
  * canceled or failed touched only the people it had already sent to: stopped halfway, it had reached them, and read as
@@ -40560,8 +40561,8 @@ interface Touch {
     link: string | null;
 }
 /**
- * The touches by person: the latest by any run (the breath), the latest by each playbook (its gap), and the latest
- * proposal follow-up by any playbook (the follow-up's once per proposal). Epoch ms.
+ * The touches by person: the latest by any run within a week of the run's now, either side (the breath), the latest by
+ * each playbook (its gap), and the latest proposal follow-up by any playbook (the follow-up's once per proposal). Epoch ms.
  */
 interface TouchIndex {
     byThis: Map<string, Map<string, number>>;
@@ -40582,21 +40583,26 @@ interface TouchIndex {
 declare function touchesSince(db: Db$6, tenantId: string, since: Date, now: Date): Promise<Touch[]>;
 /**
  * Who a run of any kind reached, or is about to, from the week's breath before `now` on (contracts PLAYBOOK_BREATH_MS):
- * the breath's one read. contact id -> the time of their latest touch, as the row keeps it -- a run due later counts at
- * the time it is due. The Playbooks page says by it how many of a moment's people wait for it, the broadcast composer how
- * many a send leaves out (now, or for the time it is set for: contracts leftOutBy), Ask's cards the same, and a send by
- * hand (core createBroadcast's `touches` port) leaves them out by it, so all of them say one number. Throws as
- * touchesSince does: "nobody was touched" is the reading that messages people twice.
+ * the breath's one read. contact id -> the time of every touch of theirs, earliest first, as the rows keep them -- a run
+ * due later counts at the time it is due, and one due far ahead hides none nearer. A send counts those within a week of
+ * it, either side (contracts heardWithin): the Playbooks page says by it how many of a moment's people wait (at now), the
+ * broadcast composer how many a send leaves out (now, or for the time it is set for: contracts leftOutBy), Ask's cards the
+ * same, and a send by hand (core createBroadcast's `touches` port) leaves them out by it, so all of them say one number.
+ * Throws as touchesSince does: "nobody was touched" is the reading that messages people twice.
  */
-declare function recentTouches(db: Db$6, tenantId: string, now: Date): Promise<Record<string, string>>;
+declare function recentTouches(db: Db$6, tenantId: string, now: Date): Promise<Record<string, string[]>>;
 /**
  * The proposal follow-ups' touches alone since `since` (0006): the runs whose values carry a proposal's link, from
  * any playbook, one since deleted too. The window a follow-up needs is as long as a proposal waits, far longer than
  * the week's breath, so it is read for that one kind of run.
  */
 declare function followUpTouchesSince(db: Db$6, tenantId: string, since: Date, now: Date): Promise<Touch[]>;
-/** The touches by person, the way a run draws with them: the latest by any run, by each playbook, and follow-up. */
-declare function touchIndex(touches: readonly Touch[]): TouchIndex;
+/**
+ * The touches by person, the way a run at `now` draws with them: the latest by each playbook (its gap), and follow-up, as
+ * they are; and the latest by any run that the week's breath counts at `now` (contracts heardWithin, within a week either
+ * side), so a message due weeks ahead neither holds a person today nor hides a nearer one.
+ */
+declare function touchIndex(touches: readonly Touch[], now: Date): TouchIndex;
 
 /**
  * The deals a workspace's pace is read from (0008, amended): its yeses decided since a moment -- a deal standing won,

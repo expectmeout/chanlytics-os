@@ -125,8 +125,8 @@ async function broadcastMessage(
  * Who a broadcast proposal sends to and what its card says of the channels: the count, the words after it ("on WhatsApp and
  * by email (52 on WhatsApp, 32 by email)", none for a proposal that named no channel), the channels the card keeps
  * for its commit, how many each channel reaches, and how many are left out. Each person is reached once, on the first
- * channel that reaches them (contracts enrolFor, the route's own), and whoever heard from a campaign or a broadcast within
- * the week before it goes (`out`: contracts leftOutBy over the composer's read, for the card's own time) is left out, as
+ * channel that reaches them (contracts enrolFor, the route's own), and whoever hears from a campaign or a broadcast within
+ * a week of it, either side (`out`: contracts leftOutBy over the composer's read, for the card's own time) is left out, as
  * the route skips them (contracts breathSplit): the count, the split and the month are of who goes.
  */
 function broadcastReach(
@@ -156,13 +156,12 @@ function broadcastReach(
 
 /**
  * Who a broadcast card sends to (broadcastReach), with how many are left out in the composer's words and their separator
- * (" · 1 left out: heard from you this week", or "within the week before it goes" for a card set for later; none where
- * nobody heard), or why there is no card: who heard unread (context.ts touchesThisWeek, logged there) is no card, since
- * "nobody heard" would promise a send to people the route then leaves out. Who heard is judged for the time the card is
- * set for (`sendsAt`, now where it goes at once), as the route judges it (contracts leftOutBy). Nobody it reaches is said in
- * the route's words, which say which cause it is (nobody said this yes, or the ones who did have no number); everyone it
- * reaches having heard is said as the composer says it, and sending to them too is a person's own switch there, never
- * Ask's.
+ * (" · 1 left out: they hear from you within a week of it"; none where nobody does), or why there is no card: who heard
+ * unread (context.ts touchesThisWeek, logged there) is no card, since "nobody heard" would promise a send to people the
+ * route then leaves out. Who is left out is judged for the time the card is set for (`sendsAt`, now where it goes at
+ * once), either side, as the route judges it (contracts leftOutBy). Nobody it reaches is said in the route's words, which
+ * say which cause it is (nobody said this yes, or the ones who did have no number); everyone it reaches being left out is
+ * said as the composer says it, and sending to them too is a person's own switch there, never Ask's.
  */
 async function broadcastCount(
   t: ToolContext,
@@ -174,14 +173,13 @@ async function broadcastCount(
   const touches = await touchesThisWeek(t, "propose_campaign.broadcast");
   if (!touches) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
   const reach = broadcastReach(rows, purpose, by, leftOutBy(touches, sendsAt.getTime(), t.now.getTime()));
-  const ahead = sendsAt.getTime() > t.now.getTime();
   if (reach.count > 0) {
-    const said = heardWords(reach.leftOut, true, ahead);
+    const said = heardWords(reach.leftOut, true);
     return { ...reach, leftOutSaid: said ? ` · ${said}` : "" };
   }
   if (reach.leftOut > 0)
     return {
-      refusal: `${allLeftOutWords(label, reach.leftOut, ahead)} Say so; a person may send it to them anyway from the composer (“${heardTooWords(reach.leftOut, ahead)}”)`,
+      refusal: `${allLeftOutWords(label, reach.leftOut)} Say so; a person may send it to them anyway from the composer (“${heardTooWords(reach.leftOut)}”)`,
     };
   return {
     refusal: `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows, by.how)} Say so, and name what to do about it`,
@@ -298,7 +296,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   if ("refusal" in asWhen) return refuse(asWhen.refusal);
   const { when } = asWhen;
   const sendsAt = when ? new Date(Date.parse(when)) : t.now;
-  // Who heard is judged for the time it is set for, as the route judges it: the week before it goes.
+  // Who is left out is judged for the time it is set for, as the route judges it: within a week of it, either side.
   const reach = await broadcastCount(t, { rows, label, purpose }, by, sendsAt);
   if ("refusal" in reach) return refuse(reach.refusal);
   const { count, says, kept, byChannel, leftOutSaid } = reach;

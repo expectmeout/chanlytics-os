@@ -23,7 +23,8 @@ type Pools = Awaited<ReturnType<typeof triggerPools>>;
 interface PlaybooksPage {
   playbooks: PlaybookListRow[];
   timezone: string;
-  touched: Record<string, string>;
+  /** Who a run reached from a week ago on, or is due to, and when (db recentTouches): every message, earliest first. */
+  touched: Record<string, string[]>;
   pools: Pools["pools"];
   calendar: Pools["calendar"];
   lists: Pools["lists"];

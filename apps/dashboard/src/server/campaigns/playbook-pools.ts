@@ -362,7 +362,7 @@ function poolCounter({ vms, breath, nowMs, pace, ready, caps }: PoolCounting) {
 export async function triggerPools(
   ctx: RouteContext,
   tenantId: string,
-  touched: Record<string, string>,
+  touched: Record<string, readonly string[]>,
   tz: string,
   now: Date,
   /**
@@ -422,7 +422,7 @@ export async function triggerPools(
   // that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on;
   // unreadable, the moment is not counted.
   const followUps = followUpsOrNull(tenantId, await reads.followUps);
-  const breath = poolTouches(touched, followUps ?? noFollowUps());
+  const breath = poolTouches(touched, followUps ?? noFollowUps(), now);
   // One pass per moment, the runner's own: who it would pick, who waits for the
   // week's breath, and who it names and leaves out whatever the week. A moment
   // the calendar names is not counted when the calendar could not be read.

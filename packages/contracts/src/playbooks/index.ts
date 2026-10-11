@@ -34,7 +34,6 @@ export {
   REACH_OUT_IS_NOT_A_MOMENT,
   followUpNames,
   breathEndsAt,
-  breathHolds,
   followUpIsFor,
   followUpKey,
   playbookRunStop,

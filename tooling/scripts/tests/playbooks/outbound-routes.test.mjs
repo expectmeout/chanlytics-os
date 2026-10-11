@@ -298,7 +298,8 @@ test("the broadcasts list carries who a run of any kind reached this week, for t
   const out = await broadcasts.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(Object.keys(out.touched_at), ["k1"], "sent this week; not held back, not canceled, not last month");
   // And when last, so the composer judges a send set for later by the week before it goes (contracts heardFor).
-  const at = Date.parse(out.touched_at.k1);
+  assert.equal(out.touched_at.k1.length, 1, "the one message");
+  const at = Date.parse(out.touched_at.k1[0]);
   assert.ok(at <= Date.now() && Date.now() - at < 2 * hour, `when it went, an hour ago: ${out.touched_at.k1}`);
 });
 

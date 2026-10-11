@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   audienceTrigger,
+  breathTouchOf,
   campaignMessageOf,
   FOLLOW_UP_ONE,
   parseParamSpecs,
@@ -131,16 +132,21 @@ export const noFollowUps = (): FollowUpsRead => ({ followUps: new Map(), followU
 
 /**
  * The touches a moment is counted against before a campaign on it has run (contracts playbookRunReach): nobody heard from
- * that campaign yet, who any campaign reached this week (`touched`, db recentTouches: the week's breath), and who had a
- * proposal's follow-up. The page's pools (playbook-pools.ts triggerPools) and Ask's campaign card count by it, so the
- * card's count is the page's.
+ * that campaign yet, who any campaign reaches within a week of `now`, either side (`touched`, db recentTouches, by
+ * contracts breathTouchOf: the week's breath, as the sweep's touchIndex reads it), and who had a proposal's follow-up.
+ * The page's pools (playbook-pools.ts triggerPools) and Ask's campaign card count by it, so the card's count is the page's.
  */
-export function poolTouches(touched: Readonly<Record<string, string>>, followUps: FollowUpsRead): Touches {
-  return {
-    byThis: new Map(),
-    byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),
-    ...followUps,
-  };
+export function poolTouches(
+  touched: Readonly<Record<string, readonly string[]>>,
+  followUps: FollowUpsRead,
+  now: Date,
+): Touches {
+  const byAny = new Map<string, number>();
+  for (const [id, times] of Object.entries(touched)) {
+    const at = breathTouchOf(times, now.getTime(), now.getTime());
+    if (at !== null) byAny.set(id, at);
+  }
+  return { byThis: new Map(), byAny, ...followUps };
 }
 
 /**
@@ -151,7 +157,7 @@ export function poolTouches(touched: Readonly<Record<string, string>>, followUps
 export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpsRead> {
   const out = await proposalsOut(ctx, tenantId);
   if (!out) return noFollowUps();
-  const { followUps, followUpKeys } = touchIndex(await followUpTouchesFor(ctx, tenantId, now, out));
+  const { followUps, followUpKeys } = touchIndex(await followUpTouchesFor(ctx, tenantId, now, out), now);
   return { followUps, followUpKeys };
 }
 
@@ -239,7 +245,11 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   };
   // Only who holds a proposal out: the rows the facts are for.
   for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);
-  for (const [id, at] of Object.entries(recent)) if (out.contacts.has(id)) heard[id] = at;
+  // The message the breath holds them by now: the latest within a week of now, either side (contracts breathTouchOf).
+  for (const [id, times] of Object.entries(recent)) {
+    const at = out.contacts.has(id) ? breathTouchOf(times, now.getTime(), now.getTime()) : null;
+    if (at !== null) heard[id] = new Date(at).toISOString();
+  }
   return {
     run_hour: p.run_hour,
     last_run_for: p.last_run_for,

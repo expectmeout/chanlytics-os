@@ -2906,7 +2906,7 @@ async function createBroadcast(ports, cmd) {
     throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const ahead = when.getTime() > now.getTime();
   const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
-  if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length, ahead), 409);
+  if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length), 409);
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError12("validation", over);
   const tz = await ports.timezone();

@@ -2076,6 +2076,10 @@ interface RunContext {
     /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
     touches: {
         byThis: Map<string, Map<string, number>>;
+        /**
+         * The breath's: their latest message by any run within a week of the run's now, either side (packages/db touchIndex
+         * by contracts heardWithin), which the run asks the same predicate of (contracts eligibleForPlaybook).
+         */
         byAny: Map<string, number>;
         followUps: Map<string, number>;
         /** The latest follow-up by person and by what it was about (contracts followUpKey, 0029): which proposals had theirs. */
@@ -2213,13 +2217,14 @@ interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
         health: NumberHealth | null;
     }>;
     /**
-     * Who a run of any kind reached, or is about to reach, within the week's breath before `now` (contracts
-     * PLAYBOOK_BREATH_MS), and when last: contact id -> their latest touch, the read the composer counts who a send leaves
-     * out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are one number. A send set for
-     * later leaves out those of them within the week before it goes (contracts leftOutBy). Read once per send, at its press,
-     * and only when it breathes. Throws when it cannot be read: "nobody heard" is the reading that messages people twice.
+     * Who a run of any kind reached from the week's breath before `now` on (contracts PLAYBOOK_BREATH_MS), or is about to
+     * reach, and when: contact id -> the time of every touch of theirs, the read the composer
+     * counts who a send leaves out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are
+     * one number. A send leaves out those with one within a week of it, either side, for the time it goes (contracts
+     * leftOutBy). Read once per send, at its press, and only when it breathes. Throws when it cannot be read: "nobody
+     * heard" is the reading that messages people twice.
      */
-    touches(now: Date): Promise<Readonly<Record<string, string>>>;
+    touches(now: Date): Promise<Readonly<Record<string, readonly string[]>>>;
 }
 interface CreateBroadcastCommand {
     userId: string;
@@ -2373,16 +2378,16 @@ interface BroadcastReceipt {
      */
     held_for_allowance: number;
     /**
-     * How many of the people enrolled heard from a campaign or a broadcast within the week and were left out (the week's
-     * breath), as written on their rows: skipped with contracts RECIPIENT_REASON_HEARD. Those whose skip the hold did not
+     * How many of the people enrolled hear from a campaign or a broadcast within a week of it, either side, and were left
+     * out (the week's breath), as written on their rows: skipped with contracts RECIPIENT_REASON_HEARD. Those whose skip the hold did not
      * write are queued, held at the wire by their row's mark, logged, and not counted here. Who it goes to is
      * recipient_count less these (contracts goesToOf).
      */
     left_out: number;
     /**
-     * Whether it was set for a time still ahead at the press: its breath was judged by the week before that time, and a
-     * receipt says it is scheduled and words who was left out so ("within the week before it goes"). False for a send that
-     * goes now, one asked for a time already past (which goes now), and one moved to the morning from now (`moved_from`).
+     * Whether it was set for a time still ahead at the press: its breath was judged within a week of that time, and a
+     * receipt says it is scheduled. False for a send that goes now, one asked for a time already past (which goes now), and
+     * one moved to the morning from now (`moved_from`).
      */
     scheduled_ahead: boolean;
     decision_id: string;
@@ -2426,8 +2431,8 @@ declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, me
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. Whoever heard from a campaign or a broadcast within the week before it goes
- * (now, or the time it is set for) is left out (the week's breath, `breathe` true
+ * wire. Whoever hears from a campaign or a broadcast within a week of it, before or
+ * after (now, or the time it is set for) is left out (the week's breath, `breathe` true
  * unless the body says false; contracts leftOutBy): enrolled, their row
  * marked (LEFT_OUT_FACTS, which the wire's check skips them for), and skipped with
  * RECIPIENT_REASON_HEARD. The ledger records the decision to send, in the run's own write. The body is judged here, in

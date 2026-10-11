@@ -206,12 +206,12 @@ export const unread =
   };
 
 /**
- * Who heard from a campaign or a broadcast this week, as every page and the send read it (packages/db recentTouches, the
- * week's breath): contact id -> their latest touch. Null where it could not be read, said in the log by the tool that
- * asked (`unread`), which then counts nothing it would have to count with nobody heard: a card is refused
- * (PLAYBOOK_CARD_REFUSALS.weekUnread), a listing gives no count.
+ * Who heard from a campaign or a broadcast from a week ago on, or is due to, as every page and the send read it
+ * (packages/db recentTouches, the week's breath): contact id -> the time of every touch of theirs. Null where it could not
+ * be read, said in the log by the tool that asked (`unread`), which then counts nothing it would have to count with
+ * nobody heard: a card is refused (PLAYBOOK_CARD_REFUSALS.weekUnread), a listing gives no count.
  */
-export const touchesThisWeek = (t: ToolContext, tool: string): Promise<Record<string, string> | null> =>
+export const touchesThisWeek = (t: ToolContext, tool: string): Promise<Record<string, string[]> | null> =>
   recentTouches(t.ctx.supabase, t.tenantId, t.now).catch(unread(t, tool, "touches"));
 
 /**

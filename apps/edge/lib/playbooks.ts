@@ -224,9 +224,9 @@ export async function loadTenantRunContext(
   const cfg = channels.whatsapp ? channels.whatsapp.config : {};
   const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
-  // hand counts for the breath (byAny) and for no playbook's gap; a proposal follow-up by any playbook, for the
-  // follow-up's once per proposal (touchIndex, 0006).
-  const { byThis, byAny, followUps, followUpKeys } = touchIndex(touched.data ?? []);
+  // hand counts for the breath (byAny: within a week of now, either side) and for no playbook's gap; a proposal
+  // follow-up by any playbook, for the follow-up's once per proposal (touchIndex, 0006).
+  const { byThis, byAny, followUps, followUpKeys } = touchIndex(touched.data ?? [], now);
   // The calendar's appointments on every person, the way the People page
   // reads them: a visit playbook keys on the day, and its words come from
   // the visit itself. Read once per tenant per run.

@@ -2877,5 +2877,5 @@ test("a person a send by hand left out for the week's breath is skipped at the w
     ["k2"],
     "nothing went to the person left out",
   );
-  assert.equal(HELD_REASONS[RECIPIENT_REASON_HEARD], "not sent: heard from you within the week");
+  assert.equal(HELD_REASONS[RECIPIENT_REASON_HEARD], "not sent: they hear from you within a week of it");
 });

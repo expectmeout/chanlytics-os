@@ -262,10 +262,10 @@ export interface AudiencePreview {
    */
   saidYes: number;
   /**
-   * Those it reaches who heard from a playbook or a broadcast lately, as known at the read (packages/db recentTouches,
-   * the week before it): when last, and the channel each is reached on. A send by hand leaves out those of them within the
-   * week before it goes, for the time it is set for (contracts heardFor, leftOutBy's rule), unless the person sending it
-   * sends to them as well; `sending` still counts them.
+   * Those it reaches with a message from a playbook or a broadcast from the week before the read on, sent or due, as known
+   * at the read (packages/db recentTouches): the times of their messages, and the channel each is reached on. A send by
+   * hand leaves out those with one within a week of it, either side, for the time it is set for (contracts heardFor,
+   * leftOutBy's rule), unless the person sending it sends to them as well; `sending` still counts them.
    */
   heardTouches: HeardTouch[];
 }
@@ -275,7 +275,7 @@ function previewPerson(r: PersonRowVM, refusal: string | null, channel: ConsentC
 }
 
 /** Nobody touched: an audience read with no touches in hand. */
-const NO_TOUCHES: Readonly<Record<string, string>> = {};
+const NO_TOUCHES: Readonly<Record<string, readonly string[]>> = {};
 
 export function audiencePreview(
   rows: PersonRowVM[],
@@ -286,8 +286,8 @@ export function audiencePreview(
   /** The channels the send ticks and the workspace's channels now (reach-for.ts). */
   how: CampaignHow,
   limit = 5,
-  /** Who a run of any kind reached lately, and when last (packages/db recentTouches); none when not read. */
-  touches: Readonly<Record<string, string>> = NO_TOUCHES,
+  /** Who a run of any kind reached lately or is due to, and when (packages/db recentTouches); none when not read. */
+  touches: Readonly<Record<string, readonly string[]>> = NO_TOUCHES,
 ): AudiencePreview {
   const pool = audienceMembers(rows, kind, id, savedIds);
   const picks = pool.map((r) => ({ r, p: reachFor(r, purpose, how) }));
@@ -302,12 +302,13 @@ export function audiencePreview(
   // the channels it may go by gave.
   for (const { r, p } of held.slice(0, 2))
     people.push(previewPerson(r, p.held ? heldWords(p.held, purpose) : null, null));
-  // Who of those it reaches heard lately, when, and on the channel each is reached on: whom a send leaves out is said for
-  // its own time (heardFor).
+  // Who of those it reaches has messages around now, when, and on the channel each is reached on: whom a send leaves out
+  // is said for its own time (heardFor).
   const heardTouches: HeardTouch[] = [];
   for (const x of sending) {
-    const at = touches[x.r.id];
-    if (at !== undefined && x.p.channel) heardTouches.push({ at: Date.parse(at), channel: x.p.channel });
+    const times = touches[x.r.id];
+    if (times && times.length > 0 && x.p.channel)
+      heardTouches.push({ times: times.map(Date.parse), channel: x.p.channel });
   }
   return {
     people,

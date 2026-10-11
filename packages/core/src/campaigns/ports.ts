@@ -177,6 +177,10 @@ export interface RunContext {
   /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
   touches: {
     byThis: Map<string, Map<string, number>>;
+    /**
+     * The breath's: their latest message by any run within a week of the run's now, either side (packages/db touchIndex
+     * by contracts heardWithin), which the run asks the same predicate of (contracts eligibleForPlaybook).
+     */
     byAny: Map<string, number>;
     followUps: Map<string, number>;
     /** The latest follow-up by person and by what it was about (contracts followUpKey, 0029): which proposals had theirs. */
@@ -309,13 +313,14 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
    */
   channels(): Promise<{ ready: ChannelsReady; health: NumberHealth | null }>;
   /**
-   * Who a run of any kind reached, or is about to reach, within the week's breath before `now` (contracts
-   * PLAYBOOK_BREATH_MS), and when last: contact id -> their latest touch, the read the composer counts who a send leaves
-   * out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are one number. A send set for
-   * later leaves out those of them within the week before it goes (contracts leftOutBy). Read once per send, at its press,
-   * and only when it breathes. Throws when it cannot be read: "nobody heard" is the reading that messages people twice.
+   * Who a run of any kind reached from the week's breath before `now` on (contracts PLAYBOOK_BREATH_MS), or is about to
+   * reach, and when: contact id -> the time of every touch of theirs, the read the composer
+   * counts who a send leaves out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are
+   * one number. A send leaves out those with one within a week of it, either side, for the time it goes (contracts
+   * leftOutBy). Read once per send, at its press, and only when it breathes. Throws when it cannot be read: "nobody
+   * heard" is the reading that messages people twice.
    */
-  touches(now: Date): Promise<Readonly<Record<string, string>>>;
+  touches(now: Date): Promise<Readonly<Record<string, readonly string[]>>>;
 }
 export interface CreateBroadcastCommand {
   userId: string;

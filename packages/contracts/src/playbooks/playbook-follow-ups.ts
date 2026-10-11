@@ -75,21 +75,22 @@ export interface FollowUpFactsDto {
   queued: Record<string, string>;
   /** Contact id -> when the run they are in was made to wait for a person. */
   held: Record<string, string>;
-  /** Contact id -> their latest message from any run, while the week's breath still holds it. */
+  /**
+   * Contact id -> their latest message from any run that the week's breath counts now: within a week of now, either side
+   * (broadcasts/run-words.ts breathTouchOf over packages/db recentTouches).
+   */
   heard: Record<string, string>;
 }
 
 /** Where one person stands with the follow-up: in a run to come -- when, and whether it waits on the owner -- or had it. */
 export type FollowUpStand = { kind: "will"; atMs: number; asks: boolean } | { kind: "had"; atMs: number };
 
-/** When a message sent at `atMs` stops holding its person back: one playbook message a person a week, across all. */
+/**
+ * When a message sent at `atMs` stops holding its person back: one playbook message a person a week, across all. Whether
+ * one holds a run at all is the breath's one predicate (broadcasts/run-words.ts heardWithin), within a week either side.
+ */
 export function breathEndsAt(atMs: number): number {
   return atMs + PLAYBOOK_BREATH_MS;
-}
-
-/** Whether a message sent at `atMs` still holds its person back at `nowMs` (the week's breath). */
-export function breathHolds(atMs: number, nowMs: number): boolean {
-  return nowMs < breathEndsAt(atMs);
 }
 
 /**

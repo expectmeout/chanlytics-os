@@ -4,6 +4,7 @@
  */
 import { audienceMembers, type CampaignHow, saidYesOnAny } from "../broadcasts/broadcast-audience";
 import { reachFor } from "../broadcasts/reach-for";
+import { heardWithin } from "../broadcasts/run-words";
 import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
 import { visitDateKey, type MatchVia, type PersonVisitsDto, type VisitDto } from "../calendar/calendar-people";
 import { dayPlusInZone } from "../calendar/zone-math";
@@ -13,7 +14,7 @@ import type { DealPaceVM } from "../deals/deal-waits";
 import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 
-import { breathHolds, followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "./playbook-follow-ups";
+import { followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "./playbook-follow-ups";
 import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./playbook-purpose";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
@@ -358,6 +359,7 @@ export function playbookRunReach(
     return done(allowed);
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
+  const breathHolds = heardWithin(nowMs, nowMs);
   // One follow-up per proposal (0006): a follow-up since the proposal went, from whichever playbook, one since deleted
   // too, is the one it owed. Every other moment keeps to its own gap.
   // A follow-up's proposal had its own when a follow-up carrying its link went since (followUpCovers, 0029).
@@ -371,8 +373,10 @@ export function playbookRunReach(
       reach.heardThis += 1;
       return false;
     }
+    // The week's breath, the one predicate (heardWithin): a message from any run within a week of this one, before or
+    // after -- one due weeks ahead holds nobody today.
     const any = touches.byAny.get(r.id);
-    if (any !== undefined && breathHolds(any, nowMs)) {
+    if (any !== undefined && breathHolds(any)) {
       reach.heardAny += 1;
       return false;
     }

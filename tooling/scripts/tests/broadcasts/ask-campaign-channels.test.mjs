@@ -1219,7 +1219,7 @@ test("a broadcast card leaves out whoever heard this week, as the route skips th
   assert.equal(r.proposal.payload.count, 1, "who it sends to");
   assert.match(
     r.proposal.summary,
-    /^1 person who said yes · 1 left out: heard from you this week · “visit_reminder” · now: /,
+    /^1 person who said yes · 1 left out: they hear from you within a week of it · “visit_reminder” · now: /,
   );
   assert.equal("breathe" in commitBody(r.proposal), false, "absent is true: the route skips them as the card said");
   assert.equal("breathe" in r.proposal.payload, false);
@@ -1228,19 +1228,19 @@ test("a broadcast card leaves out whoever heard this week, as the route skips th
   // The receipt says who it went to and who was left out, from the route's answer.
   assert.equal(
     PROPOSAL_SPECS.broadcast.receipt(r.proposal, { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 }),
-    "Broadcast “Visit note” — 1 person, sending now · 1 left out: heard from you this week",
+    "Broadcast “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
   );
   // Whether it was scheduled is the route's answer, not the card's time: one set for a time that passed before it was
-  // approved went now, judged by this week; one the route set ahead, by the week before it goes.
+  // approved went now; one the route set ahead is scheduled.
   const lateCard = { ...r.proposal, payload: { ...r.proposal.payload, scheduled_for: "2026-09-01T09:00:00-04:00" } };
   const answer = { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 };
   assert.equal(
     PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: false }),
-    "Broadcast “Visit note” — 1 person, sending now · 1 left out: heard from you this week",
+    "Broadcast “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
   );
   assert.equal(
     PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: true }),
-    "Broadcast “Visit note” — 1 person, scheduled · 1 left out: heard from you within the week before it goes",
+    "Broadcast “Visit note” — 1 person, scheduled · 1 left out: they hear from you within a week of it",
   );
   // Nobody heard: the card is what it always was.
   const quiet = await propose(BROADCAST, heardBy());
@@ -1250,13 +1250,13 @@ test("a broadcast card leaves out whoever heard this week, as the route skips th
   assert.equal(both.proposal.payload.count, 2);
   assert.match(
     both.proposal.summary,
-    /^2 people who said yes · on WhatsApp and by email \(1 on WhatsApp, 1 by email\) · 1 left out: heard from you this week · /,
+    /^2 people who said yes · on WhatsApp and by email \(1 on WhatsApp, 1 by email\) · 1 left out: they hear from you within a week of it · /,
   );
   // Everyone it reaches heard: no card, in words, and the way to send to them anyway is a person's, on the composer.
   const all = await propose(BROADCAST, heardBy(PEOPLE[0], PEOPLE[2]));
   assert.equal(all.isError, true);
-  assert.ok(said(all).startsWith(allLeftOutWords("Everyone", 2, false)), said(all));
-  assert.ok(said(all).includes(heardTooWords(2, false)), said(all));
+  assert.ok(said(all).startsWith(allLeftOutWords("Everyone", 2)), said(all));
+  assert.ok(said(all).includes(heardTooWords(2)), said(all));
 });
 
 test("campaigns.audiences counts what a card would: who it sends to, with how many are left out beside it, and says so when who heard could not be read", async () => {
@@ -1333,7 +1333,37 @@ test("a card whose week could not be read is no card, and the failed read is sai
   ]);
 });
 
-test("a card scheduled ahead leaves out who heard within the week before it goes, and agrees with the route's own verb over the same world", async () => {
+test("a card leaves out nobody for a message due weeks ahead, and one due within a week of it, as the route does", async () => {
+  // The first is queued on a run due in twenty-five days, the third on one due in three: made today, waiting.
+  const queued = (id, days, p) => ({
+    broadcasts: [
+      {
+        id,
+        tenant_id: A,
+        playbook_id: null,
+        state: "scheduled",
+        scheduled_for: ago(-days * DAY),
+        created_at: ago(0),
+        run_for: null,
+        params: [],
+      },
+    ],
+    broadcast_recipients: [
+      { broadcast_id: id, tenant_id: A, contact_id: p.id, state: "queued", reason: null, sent_at: null, facts: null },
+    ],
+  });
+  const far = queued("88888888-8888-4888-8888-888888888825", 25, PEOPLE[0]);
+  const soon = queued("88888888-8888-4888-8888-888888888803", 3, PEOPLE[2]);
+  const card = await propose(BROADCAST, {
+    broadcasts: [...far.broadcasts, ...soon.broadcasts],
+    broadcast_recipients: [...far.broadcast_recipients, ...soon.broadcast_recipients],
+  });
+  assert.equal(card.isError, false, card.result);
+  assert.equal(card.proposal.payload.count, 1, "the first goes; the third, due another in three days, is left out");
+  assert.match(card.proposal.summary, /^1 person who said yes · 1 left out: they hear from you within a week of it · /);
+});
+
+test("a card scheduled ahead leaves out who hears from you within a week of it, and agrees with the route's own verb over the same world", async () => {
   const { allLeftOutWords, RECIPIENT_REASON_HEARD } = await import("@chanlytics/contracts");
   const { createBroadcast } = await import(at("packages/core/src/campaigns/create-broadcast.ts"));
   const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
@@ -1372,14 +1402,14 @@ test("a card scheduled ahead leaves out who heard within the week before it goes
   const inThree = new Date(NOW.getTime() + 3 * DAY).toISOString();
   // Now, both heard this week: no card.
   const now = await propose(BROADCAST, world());
-  assert.ok(said(now).startsWith(allLeftOutWords("Everyone", 2, false)), said(now));
-  // Three days ahead: only the first heard within the week before it goes.
+  assert.ok(said(now).startsWith(allLeftOutWords("Everyone", 2)), said(now));
+  // Three days ahead: only the first heard within a week of it.
   const card = await propose({ ...BROADCAST, scheduled_for: inThree }, world());
   assert.equal(card.isError, false, card.result);
   assert.equal(card.proposal.payload.count, 1);
   assert.match(
     card.proposal.summary,
-    /^1 person who said yes · 1 left out: heard from you within the week before it goes · “visit_reminder” · /,
+    /^1 person who said yes · 1 left out: they hear from you within a week of it · “visit_reminder” · /,
   );
   // The route's verb over the same world, the same press and the same time: the same one left out.
   const tables_ = tables(world());
@@ -1403,11 +1433,11 @@ test("a card scheduled ahead leaves out who heard within the week before it goes
     card.proposal.payload.count,
     "one number: the card's and the route's",
   );
-  // The receipt over the route's own answer: scheduled, and the week before it goes.
+  // The receipt over the route's own answer: scheduled, and who it left out.
   assert.ok(
     PROPOSAL_SPECS.broadcast
       .receipt(card.proposal, made)
-      .endsWith("1 person, scheduled · 1 left out: heard from you within the week before it goes"),
+      .endsWith("1 person, scheduled · 1 left out: they hear from you within a week of it"),
     PROPOSAL_SPECS.broadcast.receipt(card.proposal, made),
   );
 });

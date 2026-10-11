@@ -52,13 +52,13 @@ function bcNobodyOn(base: AudiencePreview): AudiencePreview {
   };
 }
 
-/** When the send goes (the time picked, else now) and the clock it is judged by: the week before it goes is the breath's. */
+/** When the send goes (the time picked, else now) and the clock it is judged by: a week either side of it is the breath's. */
 interface BcAt {
   sendsAt: number;
   now: number;
 }
 
-/** A reading of an audience: who it reaches, how many of them heard within the week before the send goes, on which channel. */
+/** A reading of an audience: who it reaches, how many of them hear from you within a week of the send, on which channel. */
 interface BcReading {
   sending: number;
   heard: number;
@@ -66,7 +66,7 @@ interface BcReading {
   preview: AudiencePreview | null;
 }
 
-/** Who of a preview's people heard within the week before the send goes (contracts heardFor, the route's own rule). */
+/** Who of a preview's people hear from you within a week of the send, either side (contracts heardFor, the route's rule). */
 const bcHeardOf = (sending: number, preview: AudiencePreview | null, at: BcAt): BcReading => ({
   sending,
   preview,
@@ -93,7 +93,7 @@ function bcReadingOf(
   return bcHeardOf(kept ? kept.preview.sending : 0, kept ? kept.preview : null, at);
 }
 
-/** Who a reading sends to: everyone it reaches, less who heard within the week before it goes while it leaves them out. */
+/** Who a reading sends to: everyone it reaches, less who hear from you within a week of it while it leaves them out. */
 const bcGoes = (r: { sending: number; heard: number }, breathe: boolean): number =>
   breathe ? r.sending - r.heard : r.sending;
 
@@ -158,13 +158,12 @@ export function bcReachOf({
   // sizes), but a switch closed by "Texts carry no offers" over no message would be a reason for nothing, as a missing
   // version's was. Only the workspace closes one until a message says what it is.
   const viaPurpose = tpl ? purpose : "conversational";
-  // The week's breath: whoever heard from a campaign or a broadcast within the week before the send goes (the time picked,
-  // else now: contracts heardFor, as the route judges it) is left out, as the route skips them, unless the switch sends to
-  // them too -- for this message, list and channels, which it was switched on for, and only while somebody on it heard: a
-  // switch nobody sees is off. Every number the screen says is who it sends to under the switch.
+  // The week's breath: whoever hears from a campaign or a broadcast within a week of the send, either side (the time
+  // picked, else now: contracts heardFor, as the route judges it) is left out, as the route skips them, unless the switch
+  // sends to them too -- for this message, list and channels, which it was switched on for, and only while somebody on it
+  // does: a switch nobody sees is off. Every number the screen says is who it sends to under the switch.
   const now = Date.now();
   const at = { sendsAt: whenAt ?? now, now };
-  const ahead = at.sendsAt > now;
   const reading = bcReadingOf(active, purpose, on, at);
   const sendKey = bcSendKey(tplId, aud, channels);
   const breathe = heardTooFor !== sendKey || reading.heard === 0;
@@ -192,7 +191,6 @@ export function bcReachOf({
     activeCount,
     sendNow: bcSendNowOf(active, purpose, on, { breathe, now }),
     heard: reading.heard,
-    ahead,
     breathe,
     setHeardToo,
     leftOut,
@@ -263,7 +261,6 @@ function bcStopOf(
     | "active"
     | "activeCount"
     | "leftOut"
-    | "ahead"
     | "on"
     | "purpose"
     | "number"
@@ -273,14 +270,14 @@ function bcStopOf(
   > &
     Pick<BcSlotChoices, "labels"> & { filled: readonly unknown[] },
 ): BcSay | null {
-  const { tpl, active, activeCount, leftOut, ahead, on, purpose, number, numberOk, overLimitWords, channelReady } = f;
+  const { tpl, active, activeCount, leftOut, on, purpose, number, numberOk, overLimitWords, channelReady } = f;
   const { labels, filled } = f;
   if (channelReady.paused) return { tone: "warn", words: CAMPAIGNS_PAUSED_WORDS };
   if (!tpl) return { tone: "plain", words: BC_SAYS.pickMessage };
   if (!active) return { tone: "plain", words: BC_SAYS.pickList };
   const blank = filled.findIndex((v) => !String(v).trim());
   if (blank >= 0) return { tone: "plain", words: BC_SAYS.fill(labels[blank] || `Value ${blank + 1}`) };
-  // Nobody on the list: no channel is on to reach them by, everyone it reaches heard within the week before it goes and is
+  // Nobody on the list: no channel is on to reach them by, everyone it reaches hears from you within a week of it and is
   // left out (the switch beside the count sends to them too), or none of them can be sent this.
   if (!(activeCount > 0))
     return {
@@ -289,7 +286,7 @@ function bcStopOf(
         on.length === 0
           ? CM_VIA_WORDS.nowhere
           : leftOut > 0
-            ? allLeftOutWords(active.label, leftOut, ahead)
+            ? allLeftOutWords(active.label, leftOut)
             : BC_SAYS.nobody(active.label, purpose),
     };
   if (!numberOk)
@@ -317,7 +314,6 @@ export function bcSlotWordsOf({
   active,
   activeCount,
   leftOut,
-  ahead,
   busy,
   numberOk,
   overLimitWords,
@@ -333,7 +329,6 @@ export function bcSlotWordsOf({
     | "active"
     | "activeCount"
     | "leftOut"
-    | "ahead"
     | "numberOk"
     | "overLimitWords"
     | "on"
@@ -371,7 +366,6 @@ export function bcSlotWordsOf({
     active,
     activeCount,
     leftOut,
-    ahead,
     on,
     purpose,
     number,

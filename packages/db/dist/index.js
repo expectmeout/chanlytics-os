@@ -4150,7 +4150,14 @@ async function deleteList(db, id) {
 }
 
 // src/repositories/touches.ts
-import { DEFAULT_TIMEZONE, PLAYBOOK_BREATH_MS, followUpKey, localDate, parseParamSpecs } from "../../contracts/dist/index.js";
+import {
+  DEFAULT_TIMEZONE,
+  PLAYBOOK_BREATH_MS,
+  followUpKey,
+  heardWithin,
+  localDate,
+  parseParamSpecs
+} from "../../contracts/dist/index.js";
 var RUN_IDS_PER_QUERY = 200;
 var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
 async function touchesSince(db, tenantId, since, now) {
@@ -4158,10 +4165,9 @@ async function touchesSince(db, tenantId, since, now) {
 }
 async function recentTouches(db, tenantId, now) {
   const touched = {};
-  for (const t of await touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now)) {
-    const was = touched[t.contact_id];
-    if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
-  }
+  for (const t of await touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now))
+    (touched[t.contact_id] ??= []).push(t.at);
+  for (const times of Object.values(touched)) times.sort((a, b) => Date.parse(a) - Date.parse(b));
   return touched;
 }
 async function followUpTouchesSince(db, tenantId, since, now) {
@@ -4223,11 +4229,12 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   return out;
 }
 var factString = (v) => typeof v === "string" && v ? v : null;
-function touchIndex(touches) {
+function touchIndex(touches, now) {
   const byThis = /* @__PURE__ */ new Map();
   const byAny = /* @__PURE__ */ new Map();
   const followUps = /* @__PURE__ */ new Map();
   const followUpKeys = /* @__PURE__ */ new Map();
+  const breath = heardWithin(now.getTime(), now.getTime());
   for (const t of touches) {
     const at = Date.parse(t.at);
     if (t.playbook_id) {
@@ -4235,7 +4242,7 @@ function touchIndex(touches) {
       m.set(t.contact_id, Math.max(m.get(t.contact_id) ?? 0, at));
       byThis.set(t.playbook_id, m);
     }
-    byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
+    if (breath(at)) byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
     if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
     if (t.follow_up) {
       const m = followUpKeys.get(t.contact_id) ?? /* @__PURE__ */ new Map();
