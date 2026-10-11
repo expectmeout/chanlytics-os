@@ -135,16 +135,16 @@ export const broadcastSpec: ProposalSpec = {
     },
   }),
   // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
-  // people it enrolled less those who wait a week for the breath (goesToOf), and how many wait.
+  // people it enrolled less those it left out for the breath (goesToOf), and how many were left out.
   receipt: ({ payload: pl }, data) => {
     const d = rec(data);
-    const waits = typeof d.waits_a_week === "number" ? d.waits_a_week : 0;
+    const leftOut = typeof d.left_out === "number" ? d.left_out : 0;
     const n =
       typeof d.recipient_count === "number"
-        ? goesToOf({ recipient_count: d.recipient_count, waits_a_week: waits })
+        ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut })
         : Number(pl.count ?? 0);
-    const waited = heardWords(waits, true);
-    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${waited ? ` · ${waited}` : ""}`;
+    const said = heardWords(leftOut, true);
+    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${said ? ` · ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",

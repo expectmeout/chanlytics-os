@@ -49,7 +49,7 @@ import {
   type StarterTemplate,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
-import { followUpOnFile, listPolicies, runningTwins } from "@chanlytics/db";
+import { followUpOnFile, listPolicies, recentTouches, runningTwins } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead, sellsByOf } from "../../../people/deals";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
@@ -60,7 +60,6 @@ import {
   noFollowUps,
   poolTouches,
   proposalFollowUps,
-  recentTouches,
   type PlaybookInput,
 } from "../../../campaigns/playbooks";
 import { checkStarterPlaybook } from "../../../campaigns/starter-templates";
@@ -482,7 +481,7 @@ async function reachNow(
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
     deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(noFollowUps()),
     // Who was messaged this week, by a campaign or a member (the week's breath), the page's own read of it.
-    recentTouches(t.ctx, t.tenantId, t.now).catch(() => null),
+    recentTouches(t.ctx.supabase, t.tenantId, t.now).catch(() => null),
   ]);
   if (!followUps) return { refusal: PLAYBOOK_CARD_REFUSALS.followUpsUnread };
   if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };

@@ -5,7 +5,7 @@ import {
   AppError,
   BUILTIN_LISTS,
   PLAYBOOK_CARD_REFUSALS,
-  allWaitWords,
+  allLeftOutWords,
   allowanceBeforeSend,
   breathSplit,
   CONSENT_CHANNELS,
@@ -29,8 +29,9 @@ import {
   type PersonRowVM,
 } from "@chanlytics/contracts";
 import { campaignHowOf } from "@chanlytics/core";
+import { recentTouches } from "@chanlytics/db";
+import { log } from "@/server/log";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
-import { recentTouches } from "../../../campaigns/playbooks";
 import { archivedListWords, poolList } from "../../../people/audience";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
@@ -123,9 +124,9 @@ async function broadcastMessage(
 /**
  * Who a broadcast proposal sends to and what its card says of the channels: the count, the words after it ("on WhatsApp and
  * by email (52 on WhatsApp, 32 by email)", none for a proposal that named no channel), the channels the card keeps
- * for its commit, how many each channel reaches, and how many wait a week. Each person is reached once, on the first
+ * for its commit, how many each channel reaches, and how many are left out. Each person is reached once, on the first
  * channel that reaches them (contracts enrolFor, the route's own), and whoever heard from a campaign or a broadcast this
- * week (`touched`, the composer's read) waits a week, as the route skips them (contracts breathSplit): the count, the split
+ * week (`touched`, the composer's read) is left out, as the route skips them (contracts breathSplit): the count, the split
  * and the month are of who goes.
  */
 function broadcastReach(
@@ -138,32 +139,45 @@ function broadcastReach(
   says: string;
   kept: { channels?: ConsentChannel[] };
   byChannel: Record<ConsentChannel, number>;
-  waits: number;
+  leftOut: number;
 } {
-  const { goes, waits } = breathSplit(
+  const { goes, leftOut } = breathSplit(
     enrolFor(rows, "everyone", null, null, purpose, by.how),
     (e) => e.row.id,
     touched,
   );
   const byChannel: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
   for (const e of goes) byChannel[e.channel] += 1;
-  if (!by.named) return { count: goes.length, says: "", kept: {}, byChannel, waits: waits.length };
+  if (!by.named) return { count: goes.length, says: "", kept: {}, byChannel, leftOut: leftOut.length };
   return {
     count: goes.length,
     says: ` · ${proposalChannelsWords(by.channels, byChannel)}`,
     kept: namedChannels(by),
     byChannel,
-    waits: waits.length,
+    leftOut: leftOut.length,
   };
 }
 
 /**
- * Who a broadcast card sends to (broadcastReach), with how many wait a week in the composer's words and their separator
- * (" · 1 waits a week", none where nobody heard), or why there is no card. Who heard from a campaign or a broadcast this
- * week is the composer's own read of it (GET broadcasts' `touched`): unread is no card, since "nobody heard" would promise
- * a send to people the route then skips. Nobody it reaches is said in the route's words, which say which cause it is
- * (nobody said this yes, or the ones who did have no number); everyone it reaches having heard is said as the composer says
- * it, and sending to them too is a person's own switch there, never Ask's.
+ * Who heard from a campaign or a broadcast this week, as the composer reads it (packages/db recentTouches, GET broadcasts'
+ * `touched`), by contact; null where it could not be read, which is said in the log by name, and to the model by the
+ * caller: "nobody heard" would promise a send to people the route then leaves out.
+ */
+async function heardThisWeek(t: ToolContext): Promise<ReadonlySet<string> | null> {
+  try {
+    return new Set(Object.keys(await recentTouches(t.ctx.supabase, t.tenantId, t.now)));
+  } catch (e) {
+    log.error("broadcast_touches_failed", { tenant_id: t.tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
+/**
+ * Who a broadcast card sends to (broadcastReach), with how many are left out in the composer's words and their separator
+ * (" · 1 left out: heard from you this week", none where nobody heard), or why there is no card: who heard unread is no
+ * card. Nobody it reaches is said in the route's words, which say which cause it is (nobody said this yes, or the ones who
+ * did have no number); everyone it reaches having heard is said as the composer says it, and sending to them too is a
+ * person's own switch there, never Ask's.
  */
 async function broadcastCount(
   t: ToolContext,
@@ -171,17 +185,17 @@ async function broadcastCount(
   label: string,
   purpose: AskedPurpose,
   by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
-): Promise<(ReturnType<typeof broadcastReach> & { waited: string }) | { refusal: string }> {
-  const touched = await recentTouches(t.ctx, t.tenantId, t.now).catch(() => null);
+): Promise<(ReturnType<typeof broadcastReach> & { leftOutSaid: string }) | { refusal: string }> {
+  const touched = await heardThisWeek(t);
   if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
-  const reach = broadcastReach(rows, purpose, by, new Set(Object.keys(touched)));
+  const reach = broadcastReach(rows, purpose, by, touched);
   if (reach.count > 0) {
-    const waited = heardWords(reach.waits, true);
-    return { ...reach, waited: waited ? ` · ${waited}` : "" };
+    const said = heardWords(reach.leftOut, true);
+    return { ...reach, leftOutSaid: said ? ` · ${said}` : "" };
   }
-  if (reach.waits > 0)
+  if (reach.leftOut > 0)
     return {
-      refusal: `${allWaitWords(label, reach.waits)} Say so; a person may send it to them anyway from the composer (“${heardTooWords(reach.waits)}”)`,
+      refusal: `${allLeftOutWords(label, reach.leftOut)} Say so; a person may send it to them anyway from the composer (“${heardTooWords(reach.leftOut)}”)`,
     };
   return {
     refusal: `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows, by.how)} Say so, and name what to do about it`,
@@ -284,7 +298,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   if ("refusal" in by) return refuse(by.refusal);
   const reach = await broadcastCount(t, rows, label, purpose, by);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { count, says, kept, byChannel, waited } = reach;
+  const { count, says, kept, byChannel, leftOutSaid } = reach;
   const when = str(input.scheduled_for, 40) || null;
   // With its offset: a bare date is midnight UTC, the evening before here, and
   // the route refuses it after the person approved the card.
@@ -301,7 +315,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,
-    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says}${held}${waited} · “${message.name}” · ${whenWords}: ${said.says}`,
+    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says}${held}${leftOutSaid} · “${message.name}” · ${whenWords}: ${said.says}`,
     payload: {
       template_id: message.anchor.id,
       template_name: message.name,

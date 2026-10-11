@@ -263,10 +263,15 @@ export interface AudiencePreview {
   saidYes: number;
   /**
    * How many of those it reaches heard from a playbook or a broadcast within the week (the touches a playbook's run
-   * waits a week after, PLAYBOOK_BREATH_MS, split by breathSplit): a send by hand waits a week for them too, unless the
+   * waits a week after, PLAYBOOK_BREATH_MS, split by breathSplit): a send by hand leaves them out too, unless the
    * person sending it sends to them as well, and `sending` still counts them.
    */
   heard: number;
+  /**
+   * The same, by the channel each was to be reached on (`split.byChannel`'s people): what the composer takes off each
+   * channel while the send leaves them out (contracts reachAfterBreath).
+   */
+  heardBy: Record<ConsentChannel, number>;
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null, channel: ConsentChannel | null): PreviewPerson {
@@ -301,12 +306,17 @@ export function audiencePreview(
   // the channels it may go by gave.
   for (const { r, p } of held.slice(0, 2))
     people.push(previewPerson(r, p.held ? heldWords(p.held, purpose) : null, null));
+  // Who of those it reaches heard this week, the one split, counted on the channel each was to be reached on.
+  const { leftOut } = breathSplit(sending, (x) => x.r.id, touched);
+  const heardBy: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
+  for (const x of leftOut) if (x.p.channel) heardBy[x.p.channel] += 1;
   return {
     people,
     split: reachSplit(pool, purpose, how),
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r) => saidYesOnAny(r, purpose, how)).length,
-    heard: breathSplit(sending, (x) => x.r.id, touched).waits.length,
+    heard: leftOut.length,
+    heardBy,
   };
 }

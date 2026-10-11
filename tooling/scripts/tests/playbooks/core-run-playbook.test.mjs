@@ -204,7 +204,8 @@ function fakes(over = {}) {
     // The month's allowance, counted before anyone is enrolled: what this workspace's campaigns have sent by email and by
     // text this month (none here), and the write that holds those past it the moment the run exists.
     monthSent: 0,
-    holdRecipients: undefined,
+    // The hold answers who it skipped (db holdRecipients): everyone it was handed, unless a test says otherwise.
+    holdRecipients: (_id, ids) => ({ skipped: ids, error: null }),
     notify: undefined,
     ...over,
   };

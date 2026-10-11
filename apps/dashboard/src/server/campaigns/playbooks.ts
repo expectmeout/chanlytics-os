@@ -5,7 +5,6 @@ import {
   campaignMessageOf,
   FOLLOW_UP_ONE,
   parseParamSpecs,
-  PLAYBOOK_BREATH_MS,
   PLAYBOOK_TOUCH_WINDOW_MS,
   playbookStopBy,
   purposeOfTemplate,
@@ -38,8 +37,8 @@ import {
   playbookChannels,
   playbookTotals,
   readAllRows,
+  recentTouches,
   touchIndex,
-  touchesSince,
   workspacePaused,
   type Touch,
 } from "@chanlytics/db";
@@ -89,20 +88,6 @@ export interface PlaybookTotals {
   history: RunSummary[];
 }
 
-/**
- * Who a broadcast of any kind reached, or is about to, within the week: the touches the sweep applies as the breath
- * (packages/db touchesSince, the sweep's own reader), so the Playbooks page can say how many of a trigger's people wait
- * for it rather than counting them as due. contact id -> the time of their latest touch, as the row keeps it.
- */
-export async function recentTouches(ctx: RouteContext, tenantId: string, now: Date): Promise<Record<string, string>> {
-  const touched: Record<string, string> = {};
-  for (const t of await touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now)) {
-    const was = touched[t.contact_id];
-    if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
-  }
-  return touched;
-}
-
 /** The proposals out here (0006): who holds one, and when the oldest went. Null with none. A read that fails throws. */
 async function proposalsOut(
   ctx: RouteContext,
@@ -146,7 +131,7 @@ export const noFollowUps = (): FollowUpsRead => ({ followUps: new Map(), followU
 
 /**
  * The touches a moment is counted against before a campaign on it has run (contracts playbookRunReach): nobody heard from
- * that campaign yet, who any campaign reached this week (`touched`, recentTouches: the week's breath), and who had a
+ * that campaign yet, who any campaign reached this week (`touched`, db recentTouches: the week's breath), and who had a
  * proposal's follow-up. The page's pools (playbook-pools.ts triggerPools) and Ask's campaign card count by it, so the
  * card's count is the page's.
  */
@@ -240,9 +225,10 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   ]);
   const message = campaignMessageOf(rows, p.template_name, p.template_language);
   if (whatsappStops(channels, number, message?.versions.whatsapp?.status ?? null)) return null;
+  // Who heard this week is the breath's one read (packages/db recentTouches), as every other page and the send read it.
   const [followUps, recent] = await Promise.all([
     followUpTouchesFor(ctx, tenantId, now, out),
-    touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now),
+    recentTouches(ctx.supabase, tenantId, now),
   ]);
   const had: Record<string, string> = {};
   const queued: Record<string, string> = {};
@@ -253,7 +239,7 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   };
   // Only who holds a proposal out: the rows the facts are for.
   for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);
-  for (const t of recent) if (out.contacts.has(t.contact_id)) latest(heard, t);
+  for (const [id, at] of Object.entries(recent)) if (out.contacts.has(id)) heard[id] = at;
   return {
     run_hour: p.run_hour,
     last_run_for: p.last_run_for,

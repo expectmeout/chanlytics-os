@@ -1357,7 +1357,6 @@ async function readReply(ports, cmd) {
 
 // src/messages/broadcast.ts
 import {
-  appointmentHolds,
   appointmentKeysOf,
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
@@ -1384,12 +1383,15 @@ import { errField as errField3, logger as logger4 } from "../../channels/dist/in
 
 // src/messages/broadcast-channels.ts
 import {
+  RECIPIENT_REASON_HEARD,
   allowanceRoom,
+  appointmentHolds,
   emailFoot,
   emailFootHtml,
   enrolPurpose,
   heldByAllowance,
   isOfferByEmail as isOfferByEmail4,
+  leftOutByFacts,
   messageAboutOfTrigger,
   purposeOfTemplate as purposeOfTemplate3,
   renderOwnVersion,
@@ -1431,6 +1433,11 @@ function startsInTime(cmd, r, now) {
 }
 function rowFacts(r) {
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
+}
+function rowHold(appointments, r) {
+  const facts = rowFacts(r);
+  if (leftOutByFacts(facts)) return RECIPIENT_REASON_HEARD;
+  return appointmentHolds(appointments, facts) ? null : "appointment_changed";
 }
 function metaOf2(b) {
   const label = b.audience?.label;
@@ -1783,7 +1790,8 @@ async function sendOne(w, r) {
     await w.mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
     return "go on";
   }
-  if (!appointmentHolds(w.appointments, rowFacts(r))) return skip("appointment_changed");
+  const rowHeld = rowHold(w.appointments, r);
+  if (rowHeld) return skip(rowHeld);
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
   if (channel === "email" && w.offersClosed) return skip("email_marketing_disabled");
   if (channel !== "whatsapp" && await overAllowance(w, channel)) return skip("month_allowance");
@@ -2321,7 +2329,7 @@ async function cancelled(ports, { tenantId, key, r, fresh }) {
 }
 
 // src/campaigns/assemble.ts
-import { RECIPIENT_REASON_HEARD } from "../../contracts/dist/index.js";
+import { RECIPIENT_REASON_HEARD as RECIPIENT_REASON_HEARD2 } from "../../contracts/dist/index.js";
 import { errField as errField4, logger as logger5 } from "../../channels/dist/index.js";
 
 // src/campaigns/allowance.ts
@@ -2355,24 +2363,31 @@ async function assembleRun(ports, cmd) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
   const { id, decisionId } = made;
-  const unwaited = await skipAt(ports, id, cmd.waits, RECIPIENT_REASON_HEARD);
+  const leftOutUnwritten = await skipAt(ports, id, cmd.leftOut, RECIPIENT_REASON_HEARD2);
   const unheld = await skipAt(ports, id, cmd.held, MONTH_ALLOWANCE_REASON);
-  return { ok: true, id, decisionId, unheld, unwaited };
+  return { ok: true, id, decisionId, unheld, leftOutUnwritten };
 }
+var UNWRITTEN_FIELD = {
+  [MONTH_ALLOWANCE_REASON]: "unheld",
+  [RECIPIENT_REASON_HEARD2]: "left_out_unwritten"
+};
 async function skipAt(ports, id, people, reason) {
   if (people.length === 0) return 0;
+  let done;
   try {
-    await ports.holdRecipients(id, [...people], reason);
-    return 0;
+    done = await ports.holdRecipients(id, [...people], reason);
   } catch (e) {
+    done = { skipped: [], error: errField4(e) };
+  }
+  const unwritten = people.length - done.skipped.length;
+  if (unwritten > 0)
     assembleLog.error("campaign_hold_unwritten", {
       broadcast_id: id,
       reason,
-      unheld: people.length,
-      error: errField4(e)
+      [UNWRITTEN_FIELD[reason] ?? "unheld"]: unwritten,
+      error: done.error ?? "no longer queued"
     });
-    return people.length;
-  }
+  return unwritten;
 }
 
 // src/campaigns/run-playbook.ts
@@ -2661,9 +2676,9 @@ async function runPlaybook(ports, cmd) {
     })),
     sendAt: open ? open.at : null,
     held: past.held,
-    // Nobody is enrolled to wait a week here: the run drew by its moment's own reading of the week's breath
+    // Nobody is enrolled to be left out here: the run drew by its moment's own reading of the week's breath
     // (eligibleForPlaybook over its touches), which leaves out who heard, or, for an appointment's message, sends anyway.
-    waits: [],
+    leftOut: [],
     // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
     // until a person approves it.
     decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null
@@ -2777,7 +2792,8 @@ import {
   BUILTIN_LISTS,
   CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
-  allWaitWords,
+  LEFT_OUT_FACTS,
+  allLeftOutWords,
   breathSplit,
   broadcastName,
   emptyAudienceRefusal,
@@ -2797,7 +2813,7 @@ function askedBreath(breathe) {
   if (typeof breathe !== "boolean")
     throw new AppError12(
       "validation",
-      "breathe is true or false: whether the people who heard from you this week wait a week."
+      "breathe is true or false: whether the people who heard from you this week are left out."
     );
   return breathe;
 }
@@ -2859,7 +2875,7 @@ async function audienceOf(ports, ref, now) {
   };
 }
 async function breathOf(ports, enrolled, breathe, now) {
-  if (!breathe) return { goes: enrolled, waits: [] };
+  if (!breathe) return { goes: enrolled, leftOut: [] };
   const touched = await ports.touched(now).catch((e) => {
     createLog.error("campaign_step_failed", { step: "touches", error: errField5(e) });
     throw new AppError12(
@@ -2887,8 +2903,8 @@ async function createBroadcast(ports, cmd) {
   if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-  const { goes, waits } = await breathOf(ports, enrolled, want.breathe, now);
-  if (goes.length === 0) throw new AppError12("conflict", allWaitWords(label, waits.length), 409);
+  const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, now);
+  if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length), 409);
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError12("validation", over);
   const tz = await ports.timezone();
@@ -2917,6 +2933,7 @@ async function createBroadcast(ports, cmd) {
     label,
     ...kept ? { list: kept } : {}
   };
+  const out = new Set(leftOut.map((e) => e.row.id));
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -2932,19 +2949,19 @@ async function createBroadcast(ports, cmd) {
       created_by: cmd.userId,
       channels: [...how.channels]
     },
-    recipients: enrolled.map((e) => ({ contact_id: e.row.id, facts: null, channel: e.channel })),
+    recipients: enrolled.map((e) => ({
+      contact_id: e.row.id,
+      facts: out.has(e.row.id) ? { ...LEFT_OUT_FACTS } : null,
+      channel: e.channel
+    })),
     sendAt: when,
     held: past.map((p) => p.id),
-    waits: waits.map((e) => e.row.id),
+    leftOut: [...out],
     decision: {
       by: { kind: "user", userId: cmd.userId },
       payload: decisionPayload(
         { name, message, audience, kept, how, specs, enrolled, when, movedFrom },
-        {
-          held: past.length,
-          waits: waits.length,
-          breathe: want.breathe
-        }
+        { held: past.length, leftOut: out.size, breathe: want.breathe }
       )
     }
   });
@@ -2963,8 +2980,9 @@ async function createBroadcast(ports, cmd) {
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
     held_for_allowance: past.length - made.unheld,
-    // And who was written as waiting a week: a skip that could not be written is queued, and is not claimed either.
-    waits_a_week: waits.length - made.unwaited,
+    // And who was written as left out: a skip the hold did not write is queued, held at the wire by the row's mark, and
+    // is not claimed either.
+    left_out: out.size - made.leftOutUnwritten,
     decision_id: made.decisionId
   };
 }
@@ -2982,7 +3000,7 @@ function decisionPayload(s, skipped) {
     scheduled_for: when.toISOString(),
     ...movedFrom ? { moved_from: movedFrom } : {},
     ...allowanceRecord(skipped.held, 0),
-    ...skipped.waits > 0 ? { waits_a_week: skipped.waits } : {},
+    ...skipped.leftOut > 0 ? { left_out: skipped.leftOut } : {},
     ...skipped.breathe ? {} : { breathe: false }
   };
 }

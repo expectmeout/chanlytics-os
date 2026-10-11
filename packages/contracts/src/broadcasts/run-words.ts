@@ -1,9 +1,12 @@
 import type { DeliveryRefusal } from "../consent/consent";
+import type { ConsentChannel } from "../consent/consent-channels";
 import { HOUR_MS } from "../shared/time";
+import type { ReachSplit } from "./reach-for";
 /**
- * What a run is read by, wherever it is read: the window a reply counts in, the reasons a person is held back at
- * the wire, in the owner's words, and the week's breath a send by hand keeps (who waits a week, and the words for them). The broadcast's run report, the Playbooks page and a person's page all read them;
- * they live apart from broadcasts.ts, which imports People's lists, so People can read them without a cycle.
+ * What a run is read by, wherever it is read: the window a reply counts in, the reasons a person is held back at the
+ * wire, in the owner's words, and the week's breath a send by hand keeps (who it leaves out, and the words for them).
+ * The broadcast's run report, the Playbooks page and a person's page all read them; they live apart from broadcasts.ts,
+ * which imports People's lists, so People can read them without a cycle.
  */
 
 /**
@@ -26,36 +29,71 @@ export function isReplyTo(sentAt: string, at: string): boolean {
 
 /**
  * The reason a person a send by hand enrols is skipped for when they heard from a campaign or a broadcast within the
- * week (the week's breath, PLAYBOOK_BREATH_MS): written on their row the moment the run exists (core createBroadcast),
- * never by the wire, unless the person sending it chose to send to them too. HELD_REASONS words it, spelled out there.
+ * week (the week's breath, PLAYBOOK_BREATH_MS): they are left out, never sent it. Written on their row the moment the run
+ * exists (core createBroadcast), and by the send's own check at the wire for a row whose skip that write did not reach
+ * (LEFT_OUT_FACTS), unless the person sending it chose to send to them too. HELD_REASONS words it, spelled out there.
  */
 export const RECIPIENT_REASON_HEARD = "heard_this_week";
 
 /**
- * The week's breath on a send by hand: of the people a send reaches, who goes now and who waits a week, having heard from a
- * campaign or a broadcast within it (`touched`: packages/db touchesSince over PLAYBOOK_BREATH_MS, the one read the
- * composer, Ask's card and core createBroadcast are each handed). The composer's "N wait a week" (audiencePreview's
- * `heard`) and Ask's card count by it, and the send skips the waiting with RECIPIENT_REASON_HEARD unless the person sends
- * to them too (`breathe: false`).
+ * What the row of a person a send leaves out keeps (`broadcast_recipients.facts`), written with the run in its own
+ * transaction (00381 assemble_broadcast): the send's check at the wire skips them for it (core messages/broadcast.ts),
+ * whatever the hold after the run did. Its one word is the reason.
+ */
+export const LEFT_OUT_FACTS: Readonly<Record<string, string>> = { breath: RECIPIENT_REASON_HEARD };
+
+/** Whether a recipient's facts say the send left them out for the week's breath (LEFT_OUT_FACTS). */
+export function leftOutByFacts(facts: Readonly<Record<string, unknown>>): boolean {
+  return facts.breath === RECIPIENT_REASON_HEARD;
+}
+
+/**
+ * The week's breath on a send by hand: of the people a send reaches, who goes and who is left out, having heard from a
+ * campaign or a broadcast within the week (`touched`: packages/db recentTouches, the one read the composer, Ask and core
+ * createBroadcast are each handed). The composer's count (audiencePreview's `heard`, by channel `heardBy`) and Ask's card
+ * count by it, and the send skips those left out with RECIPIENT_REASON_HEARD unless the person sends to them too
+ * (`breathe: false`).
  */
 export function breathSplit<T>(
   reached: readonly T[],
   idOf: (person: T) => string,
   touched: ReadonlySet<string>,
-): { goes: T[]; waits: T[] } {
+): { goes: T[]; leftOut: T[] } {
   const goes: T[] = [];
-  const waits: T[] = [];
-  for (const person of reached) (touched.has(idOf(person)) ? waits : goes).push(person);
-  return { goes, waits };
+  const leftOut: T[] = [];
+  for (const person of reached) (touched.has(idOf(person)) ? leftOut : goes).push(person);
+  return { goes, leftOut };
 }
 
 /**
+ * Who a send reaches by channel, under the week's breath: while it breathes, each channel less those on it who heard this
+ * week (`heardBy`, the preview's), who are left out and so neither reached nor held; sent to them too, as it was. The
+ * composer's channel clause, its bar, its month's line and its day's limit read this, never the split unbroken.
+ */
+export function reachAfterBreath(
+  split: ReachSplit,
+  heardBy: Readonly<Partial<Record<ConsentChannel, number>>>,
+  breathe: boolean,
+): ReachSplit {
+  if (!breathe) return split;
+  const byChannel = {
+    whatsapp: split.byChannel.whatsapp - (heardBy.whatsapp ?? 0),
+    sms: split.byChannel.sms - (heardBy.sms ?? 0),
+    email: split.byChannel.email - (heardBy.email ?? 0),
+  };
+  return { ...split, byChannel, reached: byChannel.whatsapp + byChannel.sms + byChannel.email };
+}
+
+/** What a send says of the people it leaves out, before it goes: "3 left out: heard from you this week". */
+const leftOutWords = (n: number): string => `${n} left out: heard from you this week`;
+
+/**
  * The composer's note on who of those it reaches heard from a run this week, and Ask's card's: while the send breathes they
- * wait a week ("3 wait a week"); sent to them too, who they are. Null when none did.
+ * are left out ("3 left out: heard from you this week"); sent to them too, who they are. Null when none did.
  */
 export function heardWords(n: number, breathe: boolean): string | null {
-  if (n <= 0) return null;
-  if (breathe) return `${n} ${n === 1 ? "waits" : "wait"} a week`;
+  if (!(n > 0)) return null;
+  if (breathe) return leftOutWords(n);
   return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
 }
 
@@ -64,19 +102,27 @@ export function heardTooWords(n: number): string {
   return `Also send to the ${n === 1 ? "one" : n} who heard this week`;
 }
 
-/** Why a send that breathes reaches nobody: everyone it would reach heard this week. The composer's foot, Ask's and the route's. */
-export function allWaitWords(label: string, n: number): string {
-  return n === 1
-    ? `The one person on “${label}” it reaches heard from a campaign or a broadcast this week, so it waits a week.`
-    : `All ${n} on “${label}” it reaches heard from a campaign or a broadcast this week, so they wait a week.`;
+/**
+ * Why a send that breathes reaches nobody: everyone it would reach heard this week. The composer's foot, the route's
+ * refusal and Ask's. The plural rule is said once, here.
+ */
+export function allLeftOutWords(label: string, n: number): string {
+  return `Everyone it reaches on “${label}” heard from you this week, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
 }
 
 /**
- * How many a send's receipt says it goes to (POST broadcasts' answer): everyone it enrolled less those who wait a week.
- * A receipt from before the breath has no `waits_a_week`, and went to everyone it enrolled.
+ * What the composer says when who heard this week could not be read: the send still leaves them out (it reads them again,
+ * and is refused while it cannot), so its count may be fewer than the page's.
  */
-export function goesToOf(receipt: { recipient_count: number; waits_a_week?: number }): number {
-  return receipt.recipient_count - (receipt.waits_a_week ?? 0);
+export const HEARD_UNREAD_WORDS =
+  "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.";
+
+/**
+ * How many a send's receipt says it goes to (POST broadcasts' answer): everyone it enrolled less those left out. A
+ * receipt from before the breath has no `left_out`, and went to everyone it enrolled.
+ */
+export function goesToOf(receipt: { recipient_count: number; left_out?: number }): number {
+  return receipt.recipient_count - (receipt.left_out ?? 0);
 }
 
 /**
@@ -99,10 +145,10 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
-  // A send by hand skipped them at enrolment: they heard from a campaign or a broadcast that week (the week's breath).
-  // Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs
-  // holds the two spellings together.
-  heard_this_week: "waited a week: heard from you this week",
+  // A send by hand left them out: they heard from a campaign or a broadcast within the week (the week's breath), and were
+  // never sent it. Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below;
+  // run-report.test.mjs holds the two spellings together.
+  heard_this_week: "not sent: heard from you within the week",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored

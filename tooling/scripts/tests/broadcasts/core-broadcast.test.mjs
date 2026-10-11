@@ -2851,3 +2851,31 @@ test("a reminder asks its appointment again at the send: one cancelled, or gone 
     [["k1", "sent", null]],
   );
 });
+
+/* ---------------------------------------------- the week's breath, at the wire (a send by hand) */
+
+test("a person a send by hand left out for the week's breath is skipped at the wire with its reason and sent nothing, whatever the hold after the run did; a row with no such mark is sent as before", async () => {
+  const { LEFT_OUT_FACTS, RECIPIENT_REASON_HEARD } = await import("@chanlytics/contracts");
+  const f = fakes({
+    batch: [
+      // Marked in the run's own write (core createBroadcast); the hold after it lost the race to this batch.
+      { contact_id: "k1", facts: LEFT_OUT_FACTS },
+      // A row of the older shape, written before the breath: no facts at all.
+      { contact_id: "k2", facts: null },
+    ],
+  });
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.deepEqual(
+    f.marks().filter(([, state]) => state !== "failed"),
+    [
+      ["k1", "skipped", RECIPIENT_REASON_HEARD],
+      ["k2", "sent", null],
+    ],
+  );
+  assert.deepEqual(
+    f.of("deliver").map(([, d]) => d.contactId),
+    ["k2"],
+    "nothing went to the person left out",
+  );
+  assert.equal(HELD_REASONS[RECIPIENT_REASON_HEARD], "not sent: heard from you within the week");
+});

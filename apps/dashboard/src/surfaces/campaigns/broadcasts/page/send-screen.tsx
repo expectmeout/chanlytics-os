@@ -10,6 +10,7 @@
 import type { ReactNode } from "react";
 import {
   CAMPAIGN_ROOMS,
+  HEARD_UNREAD_WORDS,
   NO_TEMPLATE_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
@@ -74,11 +75,18 @@ function bcWhoNotes(v: BcV) {
   );
 }
 
-// Who of those it reaches already heard from a campaign or a broadcast this week: they wait a week, as the route skips them
-// (the week's breath), and the kit's switch beside it, off, sends to them too (contracts heardWords, heardTooWords). Said in
-// the To row, where the count it changes is, and only where somebody heard.
+// Who of those it reaches already heard from a campaign or a broadcast this week: the send leaves them out, as the route
+// skips them (the week's breath), and the kit's switch beside it, off, sends to them too (contracts heardWords,
+// heardTooWords). Said in the To row, where the count it changes is, and only where somebody heard. Where who heard could
+// not be read, one line says the send still leaves them out (contracts HEARD_UNREAD_WORDS), and there is nobody to switch.
 function bcHeard(v: BcV) {
-  const { active, heard, breathe, setHeardToo } = v;
+  const { active, heard, breathe, setHeardToo, data } = v;
+  if (active && data.heardRead === false)
+    return (
+      <div className="bc-excl-hint" data-testid="bc-heard-unread">
+        {HEARD_UNREAD_WORDS}
+      </div>
+    );
   if (!active || heard <= 0) return null;
   return (
     <div className="bc-excl-hint" data-testid="bc-heard-line">
@@ -102,13 +110,12 @@ function bcHeard(v: BcV) {
 // the list, the month's emails or texts running out (contracts allowanceBeforeSend; a broadcast is held at it), and nobody
 // to send it to -- with the door to where their yes is got.
 function bcBlockers(v: BcV) {
-  const { active, overLimit, number, activeCount, waiting, canSend, noNumber, yesDoor, on, purpose, sample } = v;
+  const { active, overLimit, number, activeCount, leftOut, canSend, noNumber, yesDoor, on, purpose, split } = v;
   const { data, goesAt } = v;
   // The month the send is set to go in, not the month it is made in: one set for the 1st, made on the 28th, counts against the new month.
+  // Of who it sends to, by channel: a person it leaves out is sent nothing, and counts against no month.
   const allowance =
-    active && sample && sample.split
-      ? allowanceBeforeSend(sample.split.byChannel, monthSentAt(data, goesAt), null, purpose)
-      : null;
+    active && split ? allowanceBeforeSend(split.byChannel, monthSentAt(data, goesAt), null, purpose) : null;
   return (
     <>
       {allowance && (
@@ -122,8 +129,8 @@ function bcBlockers(v: BcV) {
           {active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.
         </div>
       )}
-      {/* Nobody it reaches, not everyone waiting a week: that is the heard line's, with its switch, and the foot's. */}
-      {canSend && active && activeCount === 0 && waiting === 0 && (
+      {/* Nobody it reaches, not everyone left out: that is the heard line's, with its switch, and the foot's. */}
+      {canSend && active && activeCount === 0 && leftOut === 0 && (
         <div className="bc-excl-hint" data-testid="bc-nobody">
           {on.length === 0 ? (
             CM_VIA_WORDS.nowhere
@@ -151,14 +158,15 @@ function bcBlockers(v: BcV) {
 function bcColWho(v: BcV) {
   const { audiences, active, sizeOf, setAud, data, sample, people, setWho, activeCount, heldLines, reachBy, yesLink } =
     v;
-  // Who waits a week is out of the count it sends to, and into the list's whole: "1 of 2 can hear it".
-  const { waiting } = v;
+  // Who it leaves out is out of the count it sends to, and into the list's whole: "1 of 3 can hear it". The bar by channel
+  // is of who it sends to (`split`, contracts reachAfterBreath), as the clause beside the count is.
+  const { leftOut, split } = v;
   return (
     <div className="bc-col" data-testid="bc-col-who">
       <span className="bc-col-label">Who</span>
       <p className="bc-to-line">
         <BcAudiencePick audiences={audiences} active={active} sizeOf={sizeOf} onPick={setAud} />
-        {active ? <BcCount sending={activeCount} held={sample ? sample.held + waiting : null} /> : null}
+        {active ? <BcCount sending={activeCount} held={sample ? sample.held + leftOut : null} /> : null}
         {reachBy ? <BcReachBy words={reachBy} /> : null}
         {active ? (
           <BcHeldBack
@@ -181,10 +189,10 @@ function bcColWho(v: BcV) {
         />
       )}
       {/* Where the send goes by more than WhatsApp alone the bar is who it reaches on which channel, its words on hover. */}
-      {sample && reachBy && sample.split ? (
-        <CmSplitBar split={sample.split} className="bc-to-bar" testid="bc-reach-bar" />
+      {sample && reachBy && split ? (
+        <CmSplitBar split={split} className="bc-to-bar" testid="bc-reach-bar" />
       ) : sample ? (
-        <BcReachBar sending={activeCount} held={sample.held + waiting} />
+        <BcReachBar sending={activeCount} held={sample.held + leftOut} />
       ) : null}
       {bcHeard(v)}
       {bcBlockers(v)}

@@ -5,8 +5,9 @@
  * and broadcast composer (apps/dashboard/src/server/campaigns/playbooks.ts) read through this file, so the rule below
  * is written once and what the page says a person waits for is what the sweep holds them for.
  *
- * touchesSince reads every touch since a moment. followUpTouchesSince reads only the runs that carry a proposal's link,
- * because its window is as long as a proposal waits, far longer than the breath. touchIndex folds touches into the
+ * touchesSince reads every touch since a moment, and recentTouches those within the week's breath, latest per person
+ * (a send by hand leaves them out). followUpTouchesSince reads only the runs that carry a proposal's link, because its
+ * window is as long as a proposal waits, far longer than the breath. touchIndex folds touches into the
  * latest one per person by any run (byAny, the breath), by each playbook (byThis, its gap) and by proposal follow-up
  * (followUps).
  *
@@ -23,7 +24,7 @@
  * holds its people.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_TIMEZONE, followUpKey, localDate, parseParamSpecs } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, PLAYBOOK_BREATH_MS, followUpKey, localDate, parseParamSpecs } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 import { readAllRows } from "../paged";
 
@@ -78,6 +79,22 @@ const STOPPED = new Set(["canceled", "failed"]);
  */
 export async function touchesSince(db: Db, tenantId: string, since: Date, now: Date): Promise<Touch[]> {
   return touchesOf(db, tenantId, since, now, false);
+}
+
+/**
+ * Who a run of any kind reached, or is about to, within the week's breath before `now` (contracts PLAYBOOK_BREATH_MS): the
+ * breath's one read. contact id -> the time of their latest touch, as the row keeps it. The Playbooks page says by it how
+ * many of a moment's people wait for it, the broadcast composer how many a send leaves out, Ask's cards the same, and a
+ * send by hand (core createBroadcast's `touched` port) leaves them out by it, so all of them say one number. Throws as
+ * touchesSince does: "nobody was touched" is the reading that messages people twice.
+ */
+export async function recentTouches(db: Db, tenantId: string, now: Date): Promise<Record<string, string>> {
+  const touched: Record<string, string> = {};
+  for (const t of await touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now)) {
+    const was = touched[t.contact_id];
+    if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
+  }
+  return touched;
 }
 
 /**

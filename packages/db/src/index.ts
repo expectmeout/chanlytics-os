@@ -434,7 +434,7 @@ export {
 export type { SavedListRow, ListRow, WriteError } from "./repositories/lists";
 export { activitySubjects } from "./events";
 export type { ActivitySubject, ActivitySubjects } from "./events";
-export { touchesSince, followUpTouchesSince, touchIndex } from "./repositories/touches";
+export { touchesSince, recentTouches, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
 export { yesesSince, recordDeal } from "./repositories/deals";
 export type { YesRow, DealMove } from "./repositories/deals";

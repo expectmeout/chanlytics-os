@@ -327,23 +327,29 @@ export async function campaignMonthSent(db: Db, tenantId: string, channel: Conse
 
 /**
  * People of a run just assembled, held at once: each still queued is skipped, with `reason`, which is what the send would
- * have done at the wire (the month's allowance, core campaigns/allowance.ts). Only a person still queued is touched, so
- * one the send already settled is left as it is, and the write is the same one the send's own hold makes (jobs
- * broadcast-send: state skipped, a reason). In steps of IDS_PER_READ, a request's address being as long as its ids. Throws
- * on a failed write; people already held in an earlier step stay held, the rest queued, and the send holds those.
+ * have done at the wire (the month's allowance, core campaigns/allowance.ts; the week's breath, core createBroadcast).
+ * Only a person still queued is touched, so one the send already claimed or settled is left as it is, and the write is
+ * the same one the send's own hold makes (jobs broadcast-send: state skipped, a reason). In steps of IDS_PER_READ, a
+ * request's address being as long as its ids. Answers who it skipped, the rows the writes changed and no others, so one
+ * the send claimed first is never counted as held; and a failed step's words, where the steps stopped: the people of the
+ * steps before it stay skipped and are counted, the rest stay queued, and the send's own check holds them.
  */
 export async function holdRecipients(
   db: Db,
   p: { tenantId: string; broadcastId: string; contactIds: readonly string[]; reason: string },
-): Promise<void> {
+): Promise<{ skipped: string[]; error: string | null }> {
+  const skipped: string[] = [];
   for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ) {
-    const { error } = await db
+    const { data, error } = await db
       .from("broadcast_recipients")
       .update({ state: "skipped", reason: p.reason })
       .eq("tenant_id", p.tenantId)
       .eq("broadcast_id", p.broadcastId)
       .eq("state", "queued")
-      .in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`hold_recipients: ${error.message}`);
+      .in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ))
+      .select("contact_id");
+    if (error) return { skipped, error: `hold_recipients: ${error.message}` };
+    for (const r of data) skipped.push(r.contact_id);
   }
+  return { skipped, error: null };
 }

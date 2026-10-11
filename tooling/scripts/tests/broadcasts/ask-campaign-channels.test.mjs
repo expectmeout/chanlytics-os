@@ -1183,7 +1183,7 @@ test("Ask is told what a message is: a name with a version on each channel it is
     assert.ok(!/approved (WhatsApp )?templates?/i.test(text), text.slice(0, 120));
 });
 
-/* ---- The week's breath (spec §5.6): a broadcast card waits a week for whoever heard this week, as the route does ---- */
+/* ---- The week's breath (spec §5.6): a broadcast card leaves out whoever heard this week, as the route does ---- */
 
 const HEARD_RUN = "88888888-8888-4888-8888-888888888881";
 /** A run sent two days ago to these people: who heard from a campaign or a broadcast this week (packages/db touchesSince). */
@@ -1211,21 +1211,24 @@ const heardBy = (...people) => ({
   })),
 });
 
-test("a broadcast card waits a week for whoever heard this week, as the route skips them: it counts who it sends to, says how many wait, and its commit never carries breathe", async () => {
-  const { allWaitWords, heardTooWords } = await import("@chanlytics/contracts");
+test("a broadcast card leaves out whoever heard this week, as the route skips them: it counts who it sends to, says how many are left out, and its commit never carries breathe", async () => {
+  const { allLeftOutWords, heardTooWords } = await import("@chanlytics/contracts");
   // By WhatsApp alone it reaches the two with a number: the first heard from a run two days ago.
   const r = await propose(BROADCAST, heardBy(PEOPLE[0]));
   assert.equal(r.isError, false, r.result);
   assert.equal(r.proposal.payload.count, 1, "who it sends to");
-  assert.match(r.proposal.summary, /^1 person who said yes · 1 waits a week · “visit_reminder” · now: /);
+  assert.match(
+    r.proposal.summary,
+    /^1 person who said yes · 1 left out: heard from you this week · “visit_reminder” · now: /,
+  );
   assert.equal("breathe" in commitBody(r.proposal), false, "absent is true: the route skips them as the card said");
   assert.equal("breathe" in r.proposal.payload, false);
   // Its action takes no breathe: the model cannot ask for one.
   assert.equal(JSON.stringify(toApiTools("owner", true)).includes("breathe"), false);
-  // The receipt says who it went to and who waits, from the route's answer.
+  // The receipt says who it went to and who was left out, from the route's answer.
   assert.equal(
-    PROPOSAL_SPECS.broadcast.receipt(r.proposal, { id: "b1", name: "Visit note", recipient_count: 2, waits_a_week: 1 }),
-    "Broadcast “Visit note” — 1 person, sending now · 1 waits a week",
+    PROPOSAL_SPECS.broadcast.receipt(r.proposal, { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 }),
+    "Broadcast “Visit note” — 1 person, sending now · 1 left out: heard from you this week",
   );
   // Nobody heard: the card is what it always was.
   const quiet = await propose(BROADCAST, heardBy());
@@ -1235,11 +1238,42 @@ test("a broadcast card waits a week for whoever heard this week, as the route sk
   assert.equal(both.proposal.payload.count, 2);
   assert.match(
     both.proposal.summary,
-    /^2 people who said yes · on WhatsApp and by email \(1 on WhatsApp, 1 by email\) · 1 waits a week · /,
+    /^2 people who said yes · on WhatsApp and by email \(1 on WhatsApp, 1 by email\) · 1 left out: heard from you this week · /,
   );
   // Everyone it reaches heard: no card, in words, and the way to send to them anyway is a person's, on the composer.
   const all = await propose(BROADCAST, heardBy(PEOPLE[0], PEOPLE[2]));
   assert.equal(all.isError, true);
-  assert.ok(said(all).startsWith(allWaitWords("Everyone", 2)), said(all));
+  assert.ok(said(all).startsWith(allLeftOutWords("Everyone", 2)), said(all));
   assert.ok(said(all).includes(heardTooWords(2)), said(all));
+});
+
+test("campaigns.audiences counts what a card would: who it sends to, with how many are left out beside it, and says so when who heard could not be read", async () => {
+  const listing = async (db, faults = {}) => {
+    const supabase = fakeDb(tables(db), faults, { people_list: () => PEOPLE });
+    const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+    return JSON.parse((await runTool(t, { name: "campaigns", input: { action: "audiences" } })).result);
+  };
+  const everyone = (r) => r.audiences.find((a) => a.kind === "everyone");
+  // Nobody heard: the counts and the note are what they always were, and nothing is said of anyone left out.
+  const quiet = await listing(heardBy());
+  assert.equal(everyone(quiet).can_be_sent_messages, 2);
+  assert.equal("left_out_messages" in everyone(quiet), false);
+  // The first heard two days ago: the count is the card's (1), and the one left out is beside it.
+  const heard = await listing(heardBy(PEOPLE[0]));
+  assert.equal(everyone(heard).can_be_sent_messages, 1);
+  assert.equal(everyone(heard).left_out_messages, 1);
+  assert.ok(heard.note.includes("left out"), heard.note);
+  const card = await propose(BROADCAST, heardBy(PEOPLE[0]));
+  assert.equal(
+    card.proposal.payload.count,
+    everyone(heard).can_be_sent_messages,
+    "one number: the listing's and the card's",
+  );
+  // Who heard could not be read: no count it cannot stand behind, and it says why.
+  const broken = await listing(heardBy(PEOPLE[0]), { "broadcasts.select": { message: "connection reset" } });
+  assert.equal(everyone(broken).can_be_sent_messages, null);
+  assert.ok(
+    broken.could_not_read.some((w) => w.startsWith("Who heard from you this week could not be read just now")),
+    JSON.stringify(broken.could_not_read),
+  );
 });

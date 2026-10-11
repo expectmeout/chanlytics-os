@@ -133,8 +133,8 @@ export function bcSendActs({
       channels: on,
       scheduled_for: scheduled && whenAt !== null ? new Date(whenAt).toISOString() : null,
       name: name.trim() || null,
-      // Sent to whoever heard this week too, by the switch beside the count; else nothing said, and the send waits a week
-      // for them, as the route does by default.
+      // Sent to whoever heard this week too, by the switch beside the count; else nothing said, and the send leaves them
+      // out, as the route does by default.
       ...(breathe ? {} : { breathe: false }),
     });
     setBusy(false);
@@ -147,9 +147,10 @@ export function bcSendActs({
     clearWords();
     // Sent, the screen closes onto the ledger, where the run now is -- and "See who" opens it.
     setWriting(false);
-    // Who it goes to: everyone it enrolled, less those who wait a week (contracts goesToOf), and how many wait.
+    // Who it goes to: everyone it enrolled, less those it left out (contracts goesToOf), and how many it left out, as the
+    // receipt says them (`left_out`).
     const n = goesToOf(r.data);
-    const waited = heardWords(r.data.recipient_count - n, true);
+    const leftOutSaid = heardWords(r.data.left_out, true);
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
     const words = bcWhenWords(r.data);
@@ -163,7 +164,7 @@ export function bcSendActs({
         <>
           <b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} —{" "}
           {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}
-          {waited ? ` · ${waited}` : null}
+          {leftOutSaid ? ` · ${leftOutSaid}` : null}
         </>
       ),
       action: canSend

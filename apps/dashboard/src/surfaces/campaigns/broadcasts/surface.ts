@@ -126,6 +126,11 @@ export interface BroadcastsSurface {
   month_sent_next: { from: number; sent: MonthSent | null } | null;
   /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
   listsRead: boolean;
+  /**
+   * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched`); false counts the
+   * audiences with nobody left out, and the composer says the send still leaves them out (contracts HEARD_UNREAD_WORDS).
+   */
+  heardRead: boolean;
   audiences: AudienceOption[];
   /**
    * Who can hear the workspace, counted once over everyone read from the one rule every page asks (contracts
@@ -358,6 +363,8 @@ export const broadcastsOverride: SurfaceOverride = {
       scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
       more: bc.more === true,
       listsRead: !(saved instanceof Error),
+      // Null is a read that failed; a server from before it was carried says nothing, and is read as read.
+      heardRead: bc.touched !== null,
       templates: offeredMessages(tpl),
       audiences,
       reach: reachCountsOf(rows),

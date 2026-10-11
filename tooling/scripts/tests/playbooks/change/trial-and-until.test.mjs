@@ -131,7 +131,7 @@ function fakes() {
     record: undefined,
     assemble: (_row, _recipients, _sendAt, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
     monthSent: 0,
-    holdRecipients: undefined,
+    holdRecipients: (_id, ids) => ({ skipped: ids, error: null }),
     notify: undefined,
   };
   const ports = {};

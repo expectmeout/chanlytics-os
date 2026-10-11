@@ -16,13 +16,13 @@ const assembleLog = logger();
  * answered with a 500 that a person presses again. The caller decides what a failure means to whoever asked: the
  * sweep counts it, a person is told.
  *
- * Who waits a week for the breath (`cmd.waits`) and whom the month's allowance already holds (`cmd.held`) are written
- * as skipped once the run exists, not before: the run's people are enrolled whole and each is skipped in its own write,
- * the breath's first, since nothing at the wire holds a person who heard this week, where the send holds a person past
- * the month's room all the same (overAllowance, the backstop). A write that fails never fails the run, but it is never
- * silent: the failure is logged (`campaign_hold_unwritten`, with its reason) and the answer says how many were left
- * queued (`unwaited`, `unheld`), which the caller records beside what it did write, so a receipt never claims a skip that
- * was not written.
+ * Who a send by hand leaves out for the breath (`cmd.leftOut`) and whom the month's allowance already holds (`cmd.held`)
+ * are written as skipped once the run exists, so its report says so before anything is sent: the breath's first, then
+ * the month's, each in its own write. Neither is the only thing that holds them: the left out carry their row's mark,
+ * written with the run (contracts LEFT_OUT_FACTS), and a person past the month's room is held by the send's own count
+ * (overAllowance), so a skip the hold did not write -- it failed, failed part-way, or the send claimed the person first
+ * -- is still a person never sent. It never fails the run, but it is never silent: logged (`campaign_hold_unwritten`,
+ * with its reason) and answered (`leftOutUnwritten`, `unheld`), so a receipt never claims a skip that was not written.
  */
 export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promise<Assembled> {
   let made: AssembledRun;
@@ -32,24 +32,37 @@ export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): P
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
   const { id, decisionId } = made;
-  const unwaited = await skipAt(ports, id, cmd.waits, RECIPIENT_REASON_HEARD);
+  const leftOutUnwritten = await skipAt(ports, id, cmd.leftOut, RECIPIENT_REASON_HEARD);
   const unheld = await skipAt(ports, id, cmd.held, MONTH_ALLOWANCE_REASON);
-  return { ok: true, id, decisionId, unheld, unwaited };
+  return { ok: true, id, decisionId, unheld, leftOutUnwritten };
 }
 
-/** The people of a run just made skipped with `reason`, at once: how many could not be written (none asked: none). */
+/** What the log calls the people a skip did not write, by its reason: the month's are unheld, the breath's left out. */
+const UNWRITTEN_FIELD: Readonly<Record<string, string>> = {
+  [MONTH_ALLOWANCE_REASON]: "unheld",
+  [RECIPIENT_REASON_HEARD]: "left_out_unwritten",
+};
+
+/**
+ * The people of a run just made skipped with `reason`, at once: how many were not written, counted from who the hold
+ * says it skipped (none asked: none), so a step that failed after others wrote counts only its own, and a person the
+ * send claimed first is not counted as skipped.
+ */
 async function skipAt(ports: AssemblePorts, id: string, people: readonly string[], reason: string): Promise<number> {
   if (people.length === 0) return 0;
+  let done: { skipped: readonly string[]; error: string | null };
   try {
-    await ports.holdRecipients(id, [...people], reason);
-    return 0;
+    done = await ports.holdRecipients(id, [...people], reason);
   } catch (e) {
+    done = { skipped: [], error: errField(e) };
+  }
+  const unwritten = people.length - done.skipped.length;
+  if (unwritten > 0)
     assembleLog.error("campaign_hold_unwritten", {
       broadcast_id: id,
       reason,
-      unheld: people.length,
-      error: errField(e),
+      [UNWRITTEN_FIELD[reason] ?? "unheld"]: unwritten,
+      error: done.error ?? "no longer queued",
     });
-    return people.length;
-  }
+  return unwritten;
 }

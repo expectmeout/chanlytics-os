@@ -104,7 +104,7 @@ export function useBcWords(kept: BcKept | null) {
   const [busy, setBusy] = useState(false);
   // The switch that sends to whoever heard from a campaign or a broadcast this week too, kept as the send it was switched on
   // for (reach.ts bcSendKey): on any other message, list or channels it is off, as it is once the send is cleared, and the
-  // send waits a week for them, as the route does unless told otherwise. A choice, never kept in the tab.
+  // send leaves them out, as the route does unless told otherwise. A choice, never kept in the tab.
   const [heardTooFor, setHeardTooFor] = useState<string | null>(null);
   // The words of the send -- a name, a value typed into a slot, a time picked -- are what is kept and what Cancel asks
   // about; the list and the message are choices, and a choice alone keeps nothing. Sent, or thrown away, they clear.

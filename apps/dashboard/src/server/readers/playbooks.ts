@@ -8,7 +8,8 @@ import {
 } from "@chanlytics/contracts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { monthSentOrNull } from "../campaigns/month-sent";
-import { listPlaybooks, recentTouches, type PlaybookListRow } from "../campaigns/playbooks";
+import { recentTouches } from "@chanlytics/db";
+import { listPlaybooks, type PlaybookListRow } from "../campaigns/playbooks";
 import { chainsOf } from "../campaigns/reach-outs";
 import { poolReads, triggerPools } from "../campaigns/playbook-pools";
 import { dealPaceRead } from "../people/deals";
@@ -79,7 +80,7 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
     const [playbooks, facts, touched, shape, paceRead, ready, month_sent, policyRows] = await Promise.all([
       listed,
       load(rc, readers.facts, undefined).then((r) => r.data),
-      recentTouches(ctx, tenantId, now),
+      recentTouches(ctx.supabase, tenantId, now),
       shaped,
       // The pace the edge's sweep reads (packages/db yesesSince): the follow-up's pool is the run's own. Read where
       // deals are on, which is the only place it is counted by.

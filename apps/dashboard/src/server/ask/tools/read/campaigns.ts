@@ -50,6 +50,7 @@ import {
   type LifecyclePlaybooks,
   type LifecycleStage,
 } from "@chanlytics/contracts";
+import { recentTouches } from "@chanlytics/db";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { broadcast as broadcastReader, broadcasts as broadcastsReader } from "../../../readers/broadcasts";
@@ -151,7 +152,7 @@ function numberFactsOf(chans: ChannelDto[] | null) {
  * assistant says is the number the card will carry.
  */
 async function listAudiences(t: ToolContext): Promise<unknown> {
-  const [pool, lists, tplRead, chans] = await Promise.all([
+  const [pool, lists, tplRead, chans, touched] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
     // The workspace's own lists as People's rail reads them (readers/lists.ts), once a turn.
     load(t.rc, listsReader, undefined).then((r) => r.data.lists),
@@ -162,6 +163,12 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: workspace.settings reads the
     // same. A read that fails is no number known, as the page takes it -- said as such, never as no number.
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "campaigns.audiences", "channels")),
+    // Who heard from a campaign or a broadcast this week, the breath's one read (packages/db recentTouches): a broadcast
+    // leaves them out, so the count said here is the card's. Null where it could not be read, which is said.
+    recentTouches(t.ctx.supabase, t.tenantId, t.now).then(
+      (r) => new Set(Object.keys(r)),
+      unread(t, "campaigns.audiences", "touches"),
+    ),
   ]);
   const tpls = tplRead ? tplRead.data.templates : null;
   const messages = tplRead ? tplRead.data.messages : null;
@@ -176,14 +183,19 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // own counts (audiencePreview): `sending` is the number on its chip.
   // The number it goes out on and how a proposal that names no channel counts (numberFactsOf, above).
   const { how, number } = numberFactsOf(chans);
+  // Who it can be sent is who a broadcast goes to: those it reaches, less whoever heard from you this week, whom it leaves
+  // out (contracts breathSplit, the card's and the route's rule), said beside it where any is. Where who heard could not be
+  // read, no count is given that the card would not carry: the card itself is refused until it can be.
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
-    const offers = audiencePreview(rows, kind, id, ids, "marketing", how);
-    const messages = audiencePreview(rows, kind, id, ids, "conversational", how);
+    const offers = audiencePreview(rows, kind, id, ids, "marketing", how, 5, touched ?? undefined);
+    const messages = audiencePreview(rows, kind, id, ids, "conversational", how, 5, touched ?? undefined);
     return {
       said_yes_to_offers: offers.saidYes,
-      can_be_sent_offers: offers.sending,
+      can_be_sent_offers: touched ? offers.sending - offers.heard : null,
+      ...(offers.heard > 0 ? { left_out_offers: offers.heard } : {}),
       said_yes_to_messages: messages.saidYes,
-      can_be_sent_messages: messages.sending,
+      can_be_sent_messages: touched ? messages.sending - messages.heard : null,
+      ...(messages.heard > 0 ? { left_out_messages: messages.heard } : {}),
     };
   };
   // Every list the pool can offer (contracts listsFor): People's lists this workspace can count, then its own. Each
@@ -233,7 +245,16 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   const couldNotRead = [
     ...(tpls ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
     ...(chans ? [] : ["The WhatsApp number's state could not be read just now."]),
+    ...(touched
+      ? []
+      : [
+          "Who heard from you this week could not be read just now, so who a broadcast goes to is not counted (can_be_sent is null): say so, and propose no broadcast until it can be read.",
+        ]),
   ];
+  // Said only where somebody is left out, so a listing with nobody left out reads as it always did.
+  const leftOutSaid = audiences.some((a) => "left_out_offers" in a || "left_out_messages" in a)
+    ? " A broadcast leaves out whoever heard from you this week: can_be_sent counts who it goes to, and left_out_offers and left_out_messages how many are left out, which the card says too."
+    : "";
   return {
     route: "broadcasts",
     audiences,
@@ -241,7 +262,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     cannot_send: split?.why ?? null,
     number,
     ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
-    note: `Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.`,
+    note: `Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.${leftOutSaid}`,
   };
 }
 

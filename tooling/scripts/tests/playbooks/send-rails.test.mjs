@@ -350,13 +350,15 @@ test("the week's touches: who any broadcast reached, or is about to, within the 
     ],
     tenants: [{ id: T, timezone: NY }],
   };
-  assert.deepEqual(await P.recentTouches(ctx(tables), T, now), {
+  // packages/db recentTouches: the week's breath read where the touches are, which every page and the send read.
+  const { recentTouches } = await import("@chanlytics/db");
+  assert.deepEqual(await recentTouches(ctx(tables).supabase, T, now), {
     a: "2026-09-11T14:00:05Z", // the later of the two, the one by hand
     c: "2026-09-13T14:00:00Z", // on its way counts from when it is due
     f: "2026-09-11T14:00:07Z", // sent before its run was stopped
     h: "2026-09-12T11:00:00Z", // waiting for a person today: it may still go
   });
-  assert.deepEqual(await P.recentTouches(ctx({ broadcasts: [], broadcast_recipients: [] }), T, now), {});
+  assert.deepEqual(await recentTouches(ctx({ broadcasts: [], broadcast_recipients: [] }).supabase, T, now), {});
 });
 
 test("a proposal's follow-up is a touch of its own (0006): from any playbook's run, one since deleted too, and never a run that only carried other words", async () => {

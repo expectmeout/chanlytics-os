@@ -38,7 +38,7 @@ export interface SendBody {
   channels?: ConsentChannel[];
   scheduled_for?: string | null;
   name?: string | null;
-  /** False sends to whoever heard from a campaign or a broadcast this week too (the composer's switch); absent, they wait a week. */
+  /** False sends to whoever heard from a campaign or a broadcast this week too (the composer's switch); absent, they are left out. */
   breathe?: boolean;
 }
 
@@ -75,7 +75,7 @@ export const broadcasts = {
   noNumberWords,
   /** How many on an audience said yes, as the line under it says it: the reach, and who said yes when nobody can be sent it. */
   saidYesWords,
-  /** How many of those it reaches heard from a run this week, in the composer's words: they wait a week while it breathes. */
+  /** How many of those it reaches heard from a run this week, in the composer's words: left out while it breathes. */
   heardWords,
   /**
    * One run's report, as the opened run draws it: its five figures, everyone it touched in words, every reply, and

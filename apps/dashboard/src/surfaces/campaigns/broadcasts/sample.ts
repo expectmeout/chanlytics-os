@@ -82,6 +82,7 @@ function preview(sending: number, held: number, names: string[]): AudiencePrevie
     held,
     saidYes: sending,
     heard: 0,
+    heardBy: { whatsapp: 0, sms: 0, email: 0 },
   };
 }
 
@@ -172,6 +173,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     month_sent: null,
     month_sent_next: null,
     listsRead: true,
+    heardRead: true,
     audiences: [
       audience(
         {

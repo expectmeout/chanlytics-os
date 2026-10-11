@@ -3,7 +3,7 @@ import type { BroadcastDetailDto, BroadcastDto, ChannelsReady, MonthSent } from 
 import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { monthSentNext, monthSentOrNull } from "../campaigns/month-sent";
-import { recentTouches } from "../campaigns/playbooks";
+import { recentTouches } from "@chanlytics/db";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as readers from "./facts";
 import { log } from "@/server/log";
@@ -43,7 +43,7 @@ export const broadcasts: Reader<
   async read(rc) {
     const [list, touched, ready, month_sent, month_sent_next] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
-      recentTouches(rc.ctx, rc.tenantId, rc.now).catch((e: unknown) => {
+      recentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
         log.error("broadcast_touches_failed", {
           tenant_id: rc.tenantId,
           error: e instanceof Error ? e.message : String(e),

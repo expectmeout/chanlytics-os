@@ -301,7 +301,7 @@ A broadcast's recipients who heard from a campaign or a broadcast this week are 
 skipped with reason `heard_this_week`, through the recipient door) unless the send carries `breathe: false`;
 `create-broadcast.ts`'s audience step reads the touches it already counts (`broadcast-audience.ts:262-274`,
 `db/repositories/touches.ts`). The composer keeps its sentence and gains a switch "Also send to the N who heard this
-week", off by default; Ask's `broadcast` card says "N wait a week" and never sets `breathe: false`. If
+week", off by default; Ask's `broadcast` card says "N left out: heard from you this week" and never sets `breathe: false`. If
 `broadcast_recipients`' reasons are a closed set in SQL, the migration widens it; `gen:schema-sets` follows.
 
 ### 5.7 The prompt and the offer (`srv/ask/prompt.ts`, `offer.ts`)

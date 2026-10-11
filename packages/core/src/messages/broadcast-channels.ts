@@ -22,12 +22,15 @@
 import {
   type AppointmentState,
   type AskedPurpose,
+  RECIPIENT_REASON_HEARD,
   allowanceRoom,
+  appointmentHolds,
   emailFoot,
   emailFootHtml,
   enrolPurpose,
   heldByAllowance,
   isOfferByEmail,
+  leftOutByFacts,
   messageAboutOfTrigger,
   purposeOfTemplate,
   renderOwnVersion,
@@ -136,6 +139,20 @@ export function rowFacts(r: Pick<RecipientRow, "facts">): Record<string, unknown
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts)
     ? (r.facts as Record<string, unknown>)
     : {};
+}
+
+/**
+ * Why a person's own row holds them at the wire, or null: a send by hand left them out for the week's breath, in the run's
+ * own write (contracts LEFT_OUT_FACTS: never sent, whatever the hold after the run wrote), or a reminder's appointment moved,
+ * was cancelled or left the calendar since the run drew it (decision 0002: never a message for a time that no longer stands).
+ */
+export function rowHold(
+  appointments: ReadonlyMap<string, AppointmentState>,
+  r: Pick<RecipientRow, "facts">,
+): string | null {
+  const facts = rowFacts(r);
+  if (leftOutByFacts(facts)) return RECIPIENT_REASON_HEARD;
+  return appointmentHolds(appointments, facts) ? null : "appointment_changed";
 }
 
 /** What a run's messages record: that a broadcast sent them, which, and for a run, its playbook (a thread reads "by the Win-back playbook"). */

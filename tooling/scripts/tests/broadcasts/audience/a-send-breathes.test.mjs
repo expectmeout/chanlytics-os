@@ -1,28 +1,32 @@
 /**
  * A one-off send honours the breath (spec §5.6): a person who heard from a campaign or a broadcast within the week
- * (contracts PLAYBOOK_BREATH_MS) waits a week on a broadcast too. They are enrolled with everyone and skipped the moment the
- * run exists, with RECIPIENT_REASON_HEARD, so the run's page says who waited and why; a person sending it may switch that
- * off on the composer (`breathe: false`), and Ask never does. Who heard is ONE read, the composer's own: the dashboard's
- * port is recentTouches over packages/db touchesSince, so "N wait a week" on the page, on Ask's card and in the skips the
- * send writes are one number for one moment.
+ * (contracts PLAYBOOK_BREATH_MS) is left out of a broadcast too, never sent it. They are enrolled with everyone, their row
+ * marked in the run's own transaction (LEFT_OUT_FACTS, which the send's check at the wire skips them for), and skipped the
+ * moment the run exists with RECIPIENT_REASON_HEARD, so the run's page says who was left out and why; a person sending it
+ * may switch that off on the composer (`breathe: false`), and Ask never does. Who heard is ONE read, the composer's own:
+ * packages/db recentTouches over touchesSince, so the number on the page, on Ask's card and in the skips the send writes is
+ * one number for one moment.
  *
- * Run over the core verb (createBroadcast) with its ports faked, and over the dashboard's port on a database in memory for
- * the window: two days ago is this week, eight days ago is not.
+ * Run over the core verb (createBroadcast) with its ports faked, over packages/db's hold and read on a database in memory,
+ * and over the dashboard's port for the window: two days ago is this week, eight days ago is not.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  LEFT_OUT_FACTS,
   PLAYBOOK_BREATH_MS,
   RECIPIENT_REASON_HEARD,
-  allWaitWords,
+  allLeftOutWords,
   breathSplit,
   channelsReady,
   heardTooWords,
   heardWords,
+  leftOutByFacts,
   numberHealth,
 } from "@chanlytics/contracts";
+import { holdRecipients, recentTouches } from "@chanlytics/db";
 import { fakeDb } from "../../_fake-db.mjs";
 import { importSrc } from "../../_source.mjs";
 
@@ -125,7 +129,8 @@ function fakes(over = {}) {
     timezone: "America/New_York",
     assemble: (_row, _recipients, _sendAt, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
     monthSent: 0,
-    holdRecipients: undefined,
+    // The hold skips everyone it was handed, unless a case says it found fewer still queued, or failed part-way.
+    holdRecipients: (_id, ids) => ({ skipped: ids, error: null }),
     // Who heard from a campaign or a broadcast this week: nobody, unless a case says who.
     touched: new Set(),
     ...over,
@@ -173,42 +178,56 @@ async function logged(p) {
   }
 }
 
-test("the words: who waits a week while a send breathes, the switch that sends to them too, and the reason a skipped row keeps", () => {
+test("the words: who a send leaves out before it goes, the switch that sends to them too, and the reason a skipped row keeps after", () => {
   assert.equal(RECIPIENT_REASON_HEARD, "heard_this_week");
-  assert.equal(heardWords(1, true), "1 waits a week");
-  assert.equal(heardWords(3, true), "3 wait a week");
+  assert.equal(heardWords(1, true), "1 left out: heard from you this week");
+  assert.equal(heardWords(3, true), "3 left out: heard from you this week");
   assert.equal(heardWords(3, false), "3 of them heard from a campaign or a broadcast this week.");
   assert.equal(heardWords(1, false), "One of them heard from a campaign or a broadcast this week.");
   assert.equal(heardWords(0, true), null, "nobody heard, nothing said");
+  assert.equal(heardWords(undefined, true), null, "a receipt from before the breath says nothing");
   assert.equal(heardTooWords(3), "Also send to the 3 who heard this week");
   assert.equal(heardTooWords(1), "Also send to the one who heard this week");
   assert.equal(
-    allWaitWords("Regulars", 3),
-    "All 3 on “Regulars” it reaches heard from a campaign or a broadcast this week, so they wait a week.",
+    allLeftOutWords("Regulars", 3),
+    "Everyone it reaches on “Regulars” heard from you this week, so all 3 are left out.",
+  );
+  assert.equal(
+    allLeftOutWords("Regulars", 1),
+    "Everyone it reaches on “Regulars” heard from you this week, so the one person is left out.",
   );
   // One split, whoever counts: the composer's preview, Ask's card and the verb.
   assert.deepEqual(
     breathSplit(["a", "b", "c"], (x) => x, new Set(["b", "z"])),
-    { goes: ["a", "c"], waits: ["b"] },
+    { goes: ["a", "c"], leftOut: ["b"] },
   );
+  // The row's own word for it, one spelling: the reason.
+  assert.deepEqual(LEFT_OUT_FACTS, { breath: RECIPIENT_REASON_HEARD });
+  assert.equal(leftOutByFacts(LEFT_OUT_FACTS), true);
+  assert.equal(leftOutByFacts({}), false);
+  assert.equal(leftOutByFacts({ breath: "something_else", appointment: "a1" }), false);
 });
 
-test("three people, one of whom heard from a run two days ago: all three are enrolled, two go, and the one who heard is skipped as heard_this_week the moment the run exists", async () => {
+test("three people, one of whom heard from a run two days ago: all three are enrolled, the one who heard marked on the row in the run's own write, two go, and the one is skipped as heard_this_week the moment the run exists", async () => {
   const f = fakes({ touched: new Set([BEA]) });
   const r = await make(f, {});
   assert.deepEqual(f.of("touched"), [["touched", NOW]], "who heard is read once, at the send's own clock");
   const [, run, recipients] = f.of("assemble")[0];
   assert.deepEqual(
-    recipients.map((x) => x.contact_id),
-    [ANA, BEA, CY],
-    "everyone is on the run, so its page says who waited and why",
+    recipients.map((x) => [x.contact_id, x.facts]),
+    [
+      [ANA, null],
+      [BEA, LEFT_OUT_FACTS],
+      [CY, null],
+    ],
+    "everyone is on the run, so its page says who was left out and why; the left out carry it on their row",
   );
   assert.equal(run.recipient_count, 3);
   assert.deepEqual(f.of("holdRecipients"), [["holdRecipients", "b1", [BEA], RECIPIENT_REASON_HEARD]]);
-  assert.equal(r.waits_a_week, 1, "the receipt says how many wait");
+  assert.equal(r.left_out, 1, "the receipt says how many were left out");
   assert.equal(r.recipient_count, 3);
   const payload = f.of("assemble")[0][4].payload;
-  assert.equal(payload.waits_a_week, 1, "and the ledger's line");
+  assert.equal(payload.left_out, 1, "and the ledger's line");
   assert.equal("breathe" in payload, false, "a send that breathes says nothing of it");
 });
 
@@ -218,10 +237,14 @@ test("breathe: false sends to all three, and who heard is never read", async () 
   assert.deepEqual(f.of("touched"), [], "not read: nothing waits on it");
   assert.deepEqual(f.ops(), ["assemble"], "nobody held");
   assert.deepEqual(
-    f.of("assemble")[0][2].map((x) => x.contact_id),
-    [ANA, BEA, CY],
+    f.of("assemble")[0][2].map((x) => [x.contact_id, x.facts]),
+    [
+      [ANA, null],
+      [BEA, null],
+      [CY, null],
+    ],
   );
-  assert.equal(r.waits_a_week, 0);
+  assert.equal(r.left_out, 0);
   assert.equal(f.of("assemble")[0][4].payload.breathe, false, "the ledger says the person sent past the breath");
   // `breathe: true`, or none, is the default: the same send as above.
   const named = fakes({ touched: new Set([BEA]) });
@@ -236,7 +259,7 @@ test("a breathe that is not true or false is refused in words before anything is
       make(f, { breathe }),
       "validation",
       400,
-      "breathe is true or false: whether the people who heard from you this week wait a week.",
+      "breathe is true or false: whether the people who heard from you this week are left out.",
     );
     assert.deepEqual(f.of("touched"), []);
     assert.deepEqual(f.ops(), []);
@@ -249,7 +272,7 @@ test("a breathe that is not true or false is refused in words before anything is
 
 test("everyone it reaches heard this week: refused in words, with nothing written -- never a run of skips", async () => {
   const f = fakes({ touched: new Set([ANA, BEA, CY]) });
-  await refused(make(f, {}), "conflict", 409, allWaitWords("Everyone", 3));
+  await refused(make(f, {}), "conflict", 409, allLeftOutWords("Everyone", 3));
   assert.deepEqual(f.ops(), []);
   // Sent to them too, it goes.
   const anyway = fakes({ touched: new Set([ANA, BEA, CY]) });
@@ -271,9 +294,9 @@ test("who heard this week could not be read: refused, nothing written, and the l
   );
 });
 
-test("the breath's skip is written before the month's hold, and who waits is never counted against the month", async () => {
+test("the breath's skip is written before the month's hold, and who is left out is never counted against the month", async () => {
   // Four people by email, room for two this month: Ana heard this week. The month counts Bea, Cy and Dee, who go, and holds
-  // the last of them; Ana is skipped for the breath, first -- nothing at the wire would hold her, as the allowance has.
+  // the last of them; Ana is skipped for the breath, first.
   const DEE = "99999999-9999-4999-8999-999999999994";
   const byEmail = (id) => ({
     ...person(id, { phone: null }),
@@ -299,26 +322,68 @@ test("the breath's skip is written before the month's hold, and who waits is nev
     ],
   );
   assert.equal(f.of("assemble")[0][1].recipient_count, 4, "all four are on the run");
-  assert.deepEqual([r.waits_a_week, r.held_for_allowance], [1, 1]);
+  assert.deepEqual([r.left_out, r.held_for_allowance], [1, 1]);
 });
 
-test("a breath's skip that could not be written leaves them queued, and the receipt claims no skip it did not write; the log says so by name", async () => {
-  const f = fakes({ touched: new Set([BEA]), holdRecipients: new Error("write failed") });
-  const { out, said } = await logged(make(f, {}));
-  assert.equal(out.v.id, "b1", "the run stands");
-  assert.equal(out.v.waits_a_week, 0, "nothing was written as waiting");
+test("a skip the hold did not write -- it failed, failed part-way, or found the person already claimed -- is never claimed on the receipt, and the log names it for what it is; the row's mark still holds them at the wire", async () => {
+  // It failed.
+  const failed = fakes({ touched: new Set([BEA]), holdRecipients: new Error("write failed") });
+  const one = await logged(make(failed, {}));
+  assert.equal(one.out.v.id, "b1", "the run stands");
+  assert.equal(one.out.v.left_out, 0, "nothing was written as left out");
   assert.equal(
-    f.of("assemble")[0][4].payload.waits_a_week,
+    failed.of("assemble")[0][4].payload.left_out,
     1,
     "the ledger's line, written with the run, says what was asked",
   );
   assert.deepEqual(
-    said.map((l) => [l.event, l.broadcast_id, l.reason, l.unheld, l.error]),
+    failed.of("assemble")[0][2][1].facts,
+    LEFT_OUT_FACTS,
+    "and the row's mark was in the run's own write",
+  );
+  assert.deepEqual(
+    one.said.map((l) => [l.event, l.broadcast_id, l.reason, l.left_out_unwritten, l.error]),
     [["campaign_hold_unwritten", "b1", RECIPIENT_REASON_HEARD, 1, "Error: write failed"]],
+  );
+  // Part-way: what the hold wrote before it failed is claimed, and only that.
+  const partWay = fakes({
+    touched: new Set([ANA, BEA]),
+    holdRecipients: (_id, ids) => ({ skipped: ids.slice(0, 1), error: "hold_recipients: connection reset" }),
+  });
+  const two = await logged(make(partWay, {}));
+  assert.equal(two.out.v.left_out, 1, "the first step was written, the second not");
+  assert.deepEqual(
+    two.said.map((l) => [l.event, l.reason, l.left_out_unwritten, l.error]),
+    [["campaign_hold_unwritten", RECIPIENT_REASON_HEARD, 1, "hold_recipients: connection reset"]],
+  );
+  // The send's first batch claimed her first: the hold skipped nobody, and the wire's own check is what holds her.
+  const raced = fakes({ touched: new Set([BEA]), holdRecipients: () => ({ skipped: [], error: null }) });
+  const three = await logged(make(raced, {}));
+  assert.equal(three.out.v.left_out, 0);
+  assert.deepEqual(
+    three.said.map((l) => [l.event, l.reason, l.left_out_unwritten, l.error]),
+    [["campaign_hold_unwritten", RECIPIENT_REASON_HEARD, 1, "no longer queued"]],
+  );
+  // The month's hold keeps its own field's name.
+  const month = fakes({
+    message: messageOf({ email: true, category: "utility" }),
+    channels: workspace({ email: true }),
+    people: [person(ANA, { phone: null, email: "a@example.com", lastChannel: null })].map((p) => ({
+      ...p,
+      consent: { ...p.consent, channels: ["whatsapp", "sms"], marketingChannels: null, relationship: true },
+    })),
+    monthSent: (channel) => (channel === "email" ? 2000 : 0),
+    holdRecipients: new Error("write failed"),
+  });
+  const four = await logged(make(month, { channels: ["email"] }));
+  assert.equal(four.out.v.held_for_allowance, 0);
+  assert.deepEqual(
+    four.said.map((l) => [l.event, l.reason, l.unheld, "left_out_unwritten" in l]),
+    [["campaign_hold_unwritten", "month_allowance", 1, false]],
   );
 });
 
-/* ---- The window: the dashboard's port is the composer's own read of who heard ---- */
+/* ---- packages/db: the hold answers who it skipped; who heard is read where the touches are ---- */
 
 const RUN_2 = "88888888-8888-4888-8888-888888888882";
 const RUN_8 = "88888888-8888-4888-8888-888888888888";
@@ -342,7 +407,7 @@ const sentRun = (id, days) => ({
   playbook_id: null,
   run_for: null,
 });
-const sentTo = (run, contact, days) => ({
+const sentTo = (run, contact, days, over = {}) => ({
   broadcast_id: run,
   tenant_id: TENANT,
   contact_id: contact,
@@ -350,22 +415,49 @@ const sentTo = (run, contact, days) => ({
   reason: null,
   sent_at: ago(days * DAY),
   facts: null,
+  ...over,
 });
-const world = () =>
+const world = (over = {}) =>
   fakeDb({
     tenants: [{ id: TENANT, name: "Harbor", timezone: "America/New_York" }],
     broadcasts: [sentRun(RUN_2, 2), sentRun(RUN_8, 8)],
     broadcast_recipients: [sentTo(RUN_2, BEA, 2), sentTo(RUN_8, CY, 8)],
+    ...over,
   });
 
-test("the window is the breath's constant: the dashboard's port reads who a run reached two days ago, and not eight", async () => {
+test("the hold answers who it skipped: a person still queued is skipped with the reason, one the send already claimed is left as it is and not counted", async () => {
+  const tables = {
+    broadcast_recipients: [
+      sentTo(RUN_2, ANA, 0, { state: "queued", sent_at: null }),
+      // Claimed by the send's first batch before the hold came: the row it writes before the wire (outcome_unknown).
+      sentTo(RUN_2, BEA, 0, { state: "failed", reason: "outcome_unknown", sent_at: null }),
+    ],
+  };
+  const db = fakeDb(tables);
+  const done = await holdRecipients(db, {
+    tenantId: TENANT,
+    broadcastId: RUN_2,
+    contactIds: [ANA, BEA],
+    reason: RECIPIENT_REASON_HEARD,
+  });
+  assert.deepEqual(done, { skipped: [ANA], error: null });
+  assert.deepEqual(
+    tables.broadcast_recipients.map((r) => [r.contact_id, r.state, r.reason]),
+    [
+      [ANA, "skipped", RECIPIENT_REASON_HEARD],
+      [BEA, "failed", "outcome_unknown"],
+    ],
+  );
+});
+
+test("the window is the breath's constant: who heard is db recentTouches, two days ago in and eight out, and the dashboard's port is it", async () => {
   assert.equal(PLAYBOOK_BREATH_MS, 7 * DAY, "a week");
-  const db = world();
-  const ports = createBroadcastPorts({ supabase: db, userId: "u1" }, TENANT, { fresh: false });
+  assert.deepEqual(Object.keys(await recentTouches(world(), TENANT, NOW)), [BEA]);
+  const ports = createBroadcastPorts({ supabase: world(), userId: "u1" }, TENANT, { fresh: false });
   assert.deepEqual([...(await ports.touched(NOW))], [BEA]);
-  // The verb over that port: Bea waits a week, Cy (eight days ago) goes with Ana.
+  // The verb over that port: Bea is left out, Cy (eight days ago) goes with Ana.
   const f = fakes({ touched: (now) => ports.touched(now) });
   const r = await make(f, {});
   assert.deepEqual(f.of("holdRecipients"), [["holdRecipients", "b1", [BEA], RECIPIENT_REASON_HEARD]]);
-  assert.equal(r.waits_a_week, 1);
+  assert.equal(r.left_out, 1);
 });

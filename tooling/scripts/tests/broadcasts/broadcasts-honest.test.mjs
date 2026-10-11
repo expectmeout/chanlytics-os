@@ -4097,7 +4097,7 @@ test("A button cannot take a value, and needs somewhere to go", () => {
   assert.ok(textOf(none).includes("booking link"), textOf(none));
 });
 
-test("the send screen says how many of an audience heard from a playbook or a broadcast this week, and they wait a week -- a send by hand was not held back by the week a playbook waits; a switch sends to them too", async () => {
+test("the send screen says how many of an audience heard from a playbook or a broadcast this week, and leaves them out -- a send by hand was not held back by the week a playbook waits; a switch sends to them too", async () => {
   const rows = [
     {
       id: "a",
@@ -4135,9 +4135,9 @@ test("the send screen says how many of an audience heard from a playbook or a br
     0,
     "no touches read, nobody said",
   );
-  // While the send breathes they wait a week; switched to send to them too, the note says who they are.
-  assert.equal(contracts.heardWords(2, true), "2 wait a week");
-  assert.equal(contracts.heardWords(1, true), "1 waits a week");
+  // While the send breathes they are left out; switched to send to them too, the note says who they are.
+  assert.equal(contracts.heardWords(2, true), "2 left out: heard from you this week");
+  assert.equal(contracts.heardWords(1, true), "1 left out: heard from you this week");
   assert.equal(contracts.heardWords(2, false), "2 of them heard from a campaign or a broadcast this week.");
   assert.equal(contracts.heardWords(1, false), "One of them heard from a campaign or a broadcast this week.");
   assert.equal(contracts.heardWords(0, true), null);
@@ -4173,7 +4173,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
         id: "b-new",
         name: "Fall offer",
         recipient_count: 2,
-        waits_a_week: body.breathe === false ? 0 : 1,
+        left_out: body.breathe === false ? 0 : 1,
         scheduled_for: new Date().toISOString(),
         moved_from: null,
       },
@@ -4187,7 +4187,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
   };
   setSurfaceValue("broadcasts", heardSurface());
   let tree = writing({ initialSegment: null, initialRun: null });
-  assert.equal(textOf(byTestId(tree, "bc-heard")), "1 waits a week");
+  assert.equal(textOf(byTestId(tree, "bc-heard")), "1 left out: heard from you this week");
   // The count is who it sends to: of the two it reaches, the one who heard waits; Cy, with no yes to offers, is held back.
   assert.equal(textOf(byTestId(tree, "bc-who-n")), "1");
   assert.equal(textOf(byTestId(tree, "bc-who-count")), "·1 of 3 can hear it");
@@ -4201,7 +4201,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
   assert.equal(sent.length, 1);
   assert.equal("breathe" in sent[0], false, "off: the body says nothing, and the send breathes");
   assert.ok(textOf({ props: { children: toasts.at(-1).msg } }).includes("1 person"), "the toast says who it went to");
-  assert.ok(textOf({ props: { children: toasts.at(-1).msg } }).includes("1 waits a week"));
+  assert.ok(textOf({ props: { children: toasts.at(-1).msg } }).includes("1 left out: heard from you this week"));
 
   // Switched on: the note says who they are, the count is everyone it reaches, and the send carries breathe: false.
   setSurfaceValue("broadcasts", heardSurface());
@@ -4263,7 +4263,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
     }),
   );
   tree = writing({ initialSegment: null, initialRun: null });
-  assert.equal(textOf(byTestId(tree, "bc-foot-say")), contracts.allWaitWords("Everyone", 2));
+  assert.equal(textOf(byTestId(tree, "bc-foot-say")), contracts.allLeftOutWords("Everyone", 2));
   assert.equal(byTestId(tree, "bc-nobody"), null, "they said yes: the line about a missing yes is not drawn");
   heardToo(tree).props.onCheckedChange(true);
   tree = again({ initialSegment: null, initialRun: null });
@@ -4429,10 +4429,11 @@ const viaRows = () =>
     contact({ id: "c-none", display_name: "Nia None", phone_e164: null, email: null }),
   ].map((c) => contracts.toPersonRowVM(c, ZONE, new Date(NOW)));
 /** An audience as the surface publishes it (broadcasts/surface.ts): WhatsApp alone, and the preview for each other set. */
-const viaAudience = (rows, ready) => {
-  // A broadcast is the business's own news (surface.ts passes "ours", decision D1).
+const viaAudience = (rows, ready, touched = new Set()) => {
+  // A broadcast is the business's own news (surface.ts passes "ours", decision D1). Who heard from a run this week, as
+  // GET broadcasts' `touched` says it: nobody, unless a test says who.
   const reading = (purpose, channels) =>
-    contracts.audiencePreview(rows, "everyone", null, null, purpose, { channels, ready, about: "ours" });
+    contracts.audiencePreview(rows, "everyone", null, null, purpose, { channels, ready, about: "ours" }, 5, touched);
   const preview = {
     conversational: reading("conversational", ["whatsapp"]),
     marketing: reading("marketing", ["whatsapp"]),
@@ -5249,6 +5250,57 @@ test("the send says under the To line when the month's emails cannot carry every
     byTestId(tree, "bc-allowance"),
     null,
     "a month that could not be counted says nothing it cannot support",
+  );
+});
+
+test("by more than WhatsApp, every number beside the count is who it sends to: the channel clause, the bar and the month's line leave out whoever heard this week, and the switch puts them back", () => {
+  // Mia, reached by email alone, heard from a run this week; the month's emails are used up.
+  const surface = () =>
+    viaSurface({
+      audiences: [viaAudience(viaRows(), ALL_READY, new Set(["c-mail"]))],
+      month_sent: { email: 2000, sms: 0 },
+    });
+  setSurfaceValue("broadcasts", surface());
+  let tree = writing({ initialSegment: null, initialRun: null });
+  viaOf(tree).email.props.onCheckedChange(true);
+  tree = viaAgain();
+  assert.equal(textOf(byTestId(tree, "bc-heard")), contracts.heardWords(1, true));
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  assert.equal(textOf(byTestId(tree, "bc-reach-by")), "2 on WhatsApp", "nobody by email: Mia is left out");
+  assert.deepEqual(
+    byTestId(tree, "bc-reach-bar").props.parts.map((p) => p.share),
+    [2],
+    "the bar draws who it sends to, WhatsApp's two alone",
+  );
+  assert.equal(byTestId(tree, "bc-allowance"), null, "nobody goes by email, so the month holds nobody");
+  // Sent to her too: by email again, and held by the month as before.
+  find(
+    tree,
+    (n) => n.props?.["data-testid"] === "bc-heard-too" && typeof n.props.onCheckedChange === "function",
+  ).props.onCheckedChange(true);
+  tree = viaAgain();
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "3");
+  assert.equal(textOf(byTestId(tree, "bc-reach-by")), "2 on WhatsApp, 1 by email");
+  assert.deepEqual(
+    byTestId(tree, "bc-reach-bar").props.parts.map((p) => p.share),
+    [2, 1],
+  );
+  assert.equal(
+    textOf(byTestId(tree, "bc-allowance")),
+    "This month's 2,000 emails are used up: 1 person will be held back.",
+  );
+});
+
+test("a composer whose read of who heard this week failed says the send still leaves them out, and counts as it can", () => {
+  setSurfaceValue("broadcasts", viaSurface({ heardRead: false }));
+  const tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(textOf(byTestId(tree, "bc-heard-unread")), contracts.HEARD_UNREAD_WORDS);
+  assert.equal(byTestId(tree, "bc-heard-too"), null, "no switch for people it cannot name");
+  setSurfaceValue("broadcasts", viaSurface());
+  assert.equal(
+    byTestId(writing({ initialSegment: null, initialRun: null }), "bc-heard-unread"),
+    null,
+    "read: nothing said",
   );
 });
 

@@ -180,7 +180,8 @@ function fakes(over = {}) {
     // The month's allowance, counted before anyone is enrolled: the emails and texts this workspace's campaigns have sent
     // this month. None here; a test gives the count, or a refusal to read it.
     monthSent: 0,
-    holdRecipients: undefined,
+    // The hold answers who it skipped (db holdRecipients): everyone it was handed, unless a test says otherwise.
+    holdRecipients: (_id, ids) => ({ skipped: ids, error: null }),
     // Who heard from a campaign or a broadcast this week (the week's breath): nobody, unless a test says who
     // (broadcasts/audience/a-send-breathes.test.mjs is about them).
     touched: new Set(),
@@ -1045,7 +1046,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     scheduled_for: NOW.toISOString(),
     moved_from: null,
     held_for_allowance: 0,
-    waits_a_week: 0,
+    left_out: 0,
     decision_id: "d1",
   });
 });

@@ -19,6 +19,7 @@ import {
   campaignMonthSent,
   holdRecipients,
   messageVersionRowsOf,
+  recentTouches,
   reviewLinkOf,
   workspacePaused,
   type Json,
@@ -40,9 +41,6 @@ import { storedConfigOf } from "../workspace/config-row";
 import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
 import { channelsReadyOf, channelsReadyOrNull, whatsappHealthOf } from "../campaigns/channels-ready";
-// The week's breath, as the composer reads it. campaigns/playbooks.ts imports templateValuePorts from here in turn: each
-// side calls the other only inside a function, never as the module loads.
-import { recentTouches } from "../campaigns/playbooks";
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
   return {
@@ -164,10 +162,10 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
       ]);
       return { ready, health };
     },
-    // Who heard from a campaign or a broadcast this week: the composer's own read (GET broadcasts' `touched`, the
-    // recentTouches it answers from), over the same window (contracts PLAYBOOK_BREATH_MS), so the page's "N wait a week"
+    // Who heard from a campaign or a broadcast this week: the composer's own read (GET broadcasts' `touched`, db
+    // recentTouches), over the same window (contracts PLAYBOOK_BREATH_MS), so the people the page says a send leaves out
     // and the people the send skips are one number for one moment. A read that fails throws, and the send is refused.
-    touched: async (now) => new Set(Object.keys(await recentTouches(ctx, tenantId, now))),
+    touched: async (now) => new Set(Object.keys(await recentTouches(ctx.supabase, tenantId, now))),
   };
 }
 

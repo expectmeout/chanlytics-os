@@ -23,9 +23,12 @@ import { broadcasts } from "@/server/readers/broadcasts";
  *      enrolled once, on the first one that reaches them, written on their
  *      row. The recipients are enrolled now, so the owner sees who and how
  *      many; the job re-checks each person at the wire. Whoever heard from a
- *      campaign or a broadcast this week waits a week, enrolled and skipped
- *      as heard_this_week, unless `breathe` is false (the composer's own
- *      switch; true or absent otherwise). The ledger records the decision to send.
+ *      campaign or a broadcast this week is left out, never sent it: enrolled,
+ *      marked on their row and skipped as heard_this_week, unless `breathe` is
+ *      false (the composer's own switch; true or absent otherwise). Who heard
+ *      is read at the press: a send scheduled ahead leaves out who had heard
+ *      when it was made, as the composer counted them, not who will have by
+ *      the time it goes. The ledger records the decision to send.
  *      The body is the verb's own to read: every refusal is a sentence for
  *      the person composing, judged against the message's versions, which
  *      no schema knows.

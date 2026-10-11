@@ -1065,10 +1065,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // for a call that reaches its card, and no read of the runs' people where the week holds no run. Its bytes are
     // unchanged: nobody here heard from a campaign this week.
     const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
-    // 11 Oct 2026 (a one-off send honours the breath): a broadcast proposed waits a week for whoever heard this week, as the
-    // composer counts them and the route skips them (recentTouches, db touchesSince): the same two reads more for a call
-    // that reaches its card. Its bytes are unchanged: nobody here heard from a campaign this week.
-    const readsBreath = NAMES[old] === "propose_campaign.broadcast" && !want.isError;
+    // 11 Oct 2026 (a one-off send honours the breath): a broadcast proposed leaves out whoever heard this week, as the
+    // composer counts them and the route skips them (db recentTouches over touchesSince): the same two reads more for a
+    // call that reaches its card, and for the audiences listing, which counts as the card does. Their bytes are unchanged:
+    // nobody here heard from a campaign this week.
+    const readsBreath =
+      (NAMES[old] === "propose_campaign.broadcast" && !want.isError) || NAMES[old] === "campaigns.audiences";
     const withBreath = readsBreath ? [...withWeek, "broadcasts.select", "tenants.select"] : withWeek;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
     const reads = NAMES[old] === "report" ? withReceptionistReads(withReviewReads(withBreath)) : withBreath;

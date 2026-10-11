@@ -1,5 +1,4 @@
 import {
-  appointmentHolds,
   appointmentKeysOf,
   type AppointmentState,
   BROADCAST_CHUNK,
@@ -35,6 +34,7 @@ import {
   purposeAtTheDoor,
   queueEmailRow,
   rowFacts,
+  rowHold,
   prepare,
   startsInTime,
   type Work,
@@ -213,9 +213,9 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
     await w.mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
     return "go on";
   }
-  // A reminder's appointment, asked again at the send (decision 0002): one that moved, was cancelled or left the calendar
-  // since the run drew it holds the person, never a message for a time that no longer stands.
-  if (!appointmentHolds(w.appointments, rowFacts(r))) return skip("appointment_changed");
+  // Their own row holds them: left out for the week's breath, or a reminder whose appointment no longer stands (rowHold).
+  const rowHeld = rowHold(w.appointments, r);
+  if (rowHeld) return skip(rowHeld);
   // Meta no longer approves WhatsApp's template: that holds the people who go by WhatsApp, and by no other channel, who
   // stay as they were and go on their own versions (the run fails only when nobody else is on it, below).
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");

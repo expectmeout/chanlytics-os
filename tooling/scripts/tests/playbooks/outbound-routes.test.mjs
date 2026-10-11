@@ -397,7 +397,7 @@ test("a broadcast's breathe is the body's to say, true or false: anything else i
       broadcasts.POST.run(send("POST", { template_id: T2, audience: everyone, breathe }, inB), ctx),
       "validation",
       400,
-      "breathe is true or false: whether the people who heard from you this week wait a week.",
+      "breathe is true or false: whether the people who heard from you this week are left out.",
     );
     assert.equal(writes(ctx), 0);
   }

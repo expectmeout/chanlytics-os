@@ -949,9 +949,9 @@ test("a person a send skipped for the week's breath is held back, in words: they
   const [p] = vm.people;
   assert.deepEqual(
     [p.pill.label, p.words, p.in.includes("held")],
-    ["Held back", "waited a week: heard from you this week", true],
+    ["Held back", "not sent: heard from you within the week", true],
   );
   // Spelled out in the map, as the bundler needs it, and held to the one name core writes on the row.
-  assert.equal(C.HELD_REASONS[C.RECIPIENT_REASON_HEARD], "waited a week: heard from you this week");
+  assert.equal(C.HELD_REASONS[C.RECIPIENT_REASON_HEARD], "not sent: heard from you within the week");
   assert.equal(C.HELD_REASONS.heard_this_week, C.HELD_REASONS[C.RECIPIENT_REASON_HEARD]);
 });

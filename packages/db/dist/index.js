@@ -1415,10 +1415,13 @@ async function campaignMonthSent(db, tenantId, channel, at) {
   return data;
 }
 async function holdRecipients(db, p) {
+  const skipped = [];
   for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ2) {
-    const { error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2));
-    if (error) throw new Error(`hold_recipients: ${error.message}`);
+    const { data, error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2)).select("contact_id");
+    if (error) return { skipped, error: `hold_recipients: ${error.message}` };
+    for (const r of data) skipped.push(r.contact_id);
   }
+  return { skipped, error: null };
 }
 
 // src/repositories/ingest.ts
@@ -4147,11 +4150,19 @@ async function deleteList(db, id) {
 }
 
 // src/repositories/touches.ts
-import { DEFAULT_TIMEZONE, followUpKey, localDate, parseParamSpecs } from "../../contracts/dist/index.js";
+import { DEFAULT_TIMEZONE, PLAYBOOK_BREATH_MS, followUpKey, localDate, parseParamSpecs } from "../../contracts/dist/index.js";
 var RUN_IDS_PER_QUERY = 200;
 var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
 async function touchesSince(db, tenantId, since, now) {
   return touchesOf(db, tenantId, since, now, false);
+}
+async function recentTouches(db, tenantId, now) {
+  const touched = {};
+  for (const t of await touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now)) {
+    const was = touched[t.contact_id];
+    if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
+  }
+  return touched;
 }
 async function followUpTouchesSince(db, tenantId, since, now) {
   return touchesOf(db, tenantId, since, now, true);
@@ -5224,6 +5235,7 @@ export {
   readThreadState,
   readVoiceSession,
   readVoiceSessionByConversation,
+  recentTouches,
   receptionistSeries,
   recheckSends,
   recordActivation,

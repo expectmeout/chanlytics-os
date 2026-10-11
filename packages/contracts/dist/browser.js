@@ -2509,25 +2509,40 @@ function isReplyTo(sentAt, at3) {
   return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
 }
 var RECIPIENT_REASON_HEARD = "heard_this_week";
+var LEFT_OUT_FACTS = { breath: RECIPIENT_REASON_HEARD };
+function leftOutByFacts(facts) {
+  return facts.breath === RECIPIENT_REASON_HEARD;
+}
 function breathSplit(reached, idOf, touched) {
   const goes = [];
-  const waits = [];
-  for (const person of reached) (touched.has(idOf(person)) ? waits : goes).push(person);
-  return { goes, waits };
+  const leftOut2 = [];
+  for (const person of reached) (touched.has(idOf(person)) ? leftOut2 : goes).push(person);
+  return { goes, leftOut: leftOut2 };
 }
+function reachAfterBreath(split, heardBy, breathe) {
+  if (!breathe) return split;
+  const byChannel = {
+    whatsapp: split.byChannel.whatsapp - (heardBy.whatsapp ?? 0),
+    sms: split.byChannel.sms - (heardBy.sms ?? 0),
+    email: split.byChannel.email - (heardBy.email ?? 0)
+  };
+  return { ...split, byChannel, reached: byChannel.whatsapp + byChannel.sms + byChannel.email };
+}
+var leftOutWords = (n) => `${n} left out: heard from you this week`;
 function heardWords(n, breathe) {
-  if (n <= 0) return null;
-  if (breathe) return `${n} ${n === 1 ? "waits" : "wait"} a week`;
+  if (!(n > 0)) return null;
+  if (breathe) return leftOutWords(n);
   return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
 }
 function heardTooWords(n) {
   return `Also send to the ${n === 1 ? "one" : n} who heard this week`;
 }
-function allWaitWords(label, n) {
-  return n === 1 ? `The one person on \u201C${label}\u201D it reaches heard from a campaign or a broadcast this week, so it waits a week.` : `All ${n} on \u201C${label}\u201D it reaches heard from a campaign or a broadcast this week, so they wait a week.`;
+function allLeftOutWords(label, n) {
+  return `Everyone it reaches on \u201C${label}\u201D heard from you this week, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
 }
+var HEARD_UNREAD_WORDS = "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.";
 function goesToOf(receipt) {
-  return receipt.recipient_count - (receipt.waits_a_week ?? 0);
+  return receipt.recipient_count - (receipt.left_out ?? 0);
 }
 var HELD_REASONS = {
   opted_out: "asked to stop",
@@ -2545,10 +2560,10 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
-  // A send by hand skipped them at enrolment: they heard from a campaign or a broadcast that week (the week's breath).
-  // Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs
-  // holds the two spellings together.
-  heard_this_week: "waited a week: heard from you this week",
+  // A send by hand left them out: they heard from a campaign or a broadcast within the week (the week's breath), and were
+  // never sent it. Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below;
+  // run-report.test.mjs holds the two spellings together.
+  heard_this_week: "not sent: heard from you within the week",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored
@@ -11997,13 +12012,13 @@ var broadcastSpec = {
     }
   }),
   // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
-  // people it enrolled less those who wait a week for the breath (goesToOf), and how many wait.
+  // people it enrolled less those it left out for the breath (goesToOf), and how many were left out.
   receipt: ({ payload: pl }, data) => {
     const d = rec(data);
-    const waits = typeof d.waits_a_week === "number" ? d.waits_a_week : 0;
-    const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, waits_a_week: waits }) : Number(pl.count ?? 0);
-    const waited = heardWords(waits, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${waited ? ` \xB7 ${waited}` : ""}`;
+    const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
+    const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
+    const said = heardWords(leftOut2, true);
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -17355,13 +17370,17 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
   const people = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));
   for (const { r: r2, p } of held.slice(0, 2))
     people.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
+  const { leftOut: leftOut2 } = breathSplit(sending, (x) => x.r.id, touched);
+  const heardBy = { whatsapp: 0, sms: 0, email: 0 };
+  for (const x of leftOut2) if (x.p.channel) heardBy[x.p.channel] += 1;
   return {
     people,
     split: reachSplit(pool, purpose, how),
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r2) => saidYesOnAny(r2, purpose, how)).length,
-    heard: breathSplit(sending, (x) => x.r.id, touched).waits.length
+    heard: leftOut2.length,
+    heardBy
   };
 }
 
@@ -38157,6 +38176,7 @@ export {
   HANDOVER_WORDS,
   HAND_KINDS,
   HAND_WORDS_MAX,
+  HEARD_UNREAD_WORDS,
   HELD_ON,
   HELD_REASONS,
   HELD_WORDS,
@@ -38280,6 +38300,7 @@ export {
   LEAD_WORDS,
   LEDGER_SORTS,
   LEDGER_STATUSES,
+  LEFT_OUT_FACTS,
   LENS_ROUTES,
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
@@ -38740,8 +38761,8 @@ export {
   alertAddressesOf,
   alertGrid,
   alertTestMail,
+  allLeftOutWords,
   allVisitsIn,
-  allWaitWords,
   allowanceBeforeSend,
   allowanceLine,
   allowanceLines,
@@ -39359,6 +39380,7 @@ export {
   ledgerPeopleWords,
   ledgerPhoneLine,
   ledgerRowIn,
+  leftOutByFacts,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
@@ -39709,6 +39731,7 @@ export {
   quantile,
   questionAfterProbe,
   ratingWords,
+  reachAfterBreath,
   reachBarParts,
   reachBarWords,
   reachByWords,
