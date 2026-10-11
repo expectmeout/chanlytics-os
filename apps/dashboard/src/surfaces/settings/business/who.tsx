@@ -114,7 +114,7 @@ function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { dr
         Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.
       </>
     );
-  return <>The receptionist has no line of its own yet, so this is the number it gives out.</>;
+  return <>The number it gives customers.</>;
 }
 
 /**
@@ -263,7 +263,6 @@ export const BtAddressRow = ({ brain, base = null, canEdit, flash, saver }: RowS
       body={btTextBox({
         placeholder: "123 Example St, Brooklyn, NY 11208",
         autoComplete: "street-address",
-        hint: "Given when someone asks how to find you.",
       })}
     />
   );
@@ -288,7 +287,7 @@ export const BtWebsiteRow = ({ brain, base = null, canEdit, flash, saver }: RowS
       // has none to give, since the owner's own words may name one. Nor what the canvas said, that empty sent
       // customers and the carriers to the page we publish, /b/<slug>: no receptionist is told that page, and the
       // carriers are filed the business record's own website (Connections), or that page when the record has none.
-      hint={website.value ? null : "Optional. Left empty, the receptionist is given no website."}
+      hint={website.value ? null : "Optional"}
       source={btSourceOf(website)}
       disputed={btDispute(website, btConflictOn("website"), BT_TAKE_THEIRS)}
       gate={btChangeGate("website")}
@@ -299,7 +298,9 @@ export const BtWebsiteRow = ({ brain, base = null, canEdit, flash, saver }: RowS
         placeholder: "https://example.com",
         inputMode: "url",
         autoComplete: "url",
-        hint: "Optional. Given when someone asks.",
+        // The row says "Optional" while empty, and its editor says it too, so the row keeps its height as it becomes
+        // its editor (record.css measures both).
+        hint: "Optional",
       })}
     />
   );
@@ -492,7 +493,7 @@ const BtTransferRow = ({ shared, brain, numbers }: { shared: RowShared; brain: B
         placeholder: "+1 212 555 0143",
         inputMode: "tel",
         autoComplete: "tel",
-        hint: "A line a person answers, with the country code. Empty and the phone receptionist takes a message instead of transferring — which is better than a number nobody picks up.",
+        hint: "A number a person answers, with the country code. Empty, it takes a message.",
       })}
     />
   );

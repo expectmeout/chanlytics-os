@@ -3,7 +3,7 @@
  *
  * The timezone is saved through its own route (PATCH workspaces, window.__workspace.setTimezone), not through the
  * settings save, and nothing re-read settings after it. So the settings read's prompt preview, which carries the zone
- * every fold's "Your receptionist will be told" is resolved with, kept the old zone until something else was saved:
+ * every fold's "Preview what it's told" is resolved with, kept the old zone until something else was saved:
  * the hours fold would have shown "all times America/New_York" to an owner who had just moved the business to Chicago.
  *
  * RUN, never read: the real courier (identity.ts), the real typed client and its refresh map, the real runner and the

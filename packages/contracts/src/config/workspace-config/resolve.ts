@@ -61,7 +61,7 @@ export function instructionsDraft(
  * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
  * whether either is said.
  */
-export const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+export const NO_FIELDS_COMPOSED_WORDS = "Your details aren't in what it reads yet.";
 
 /** True when a profile carries anything worth composing from. */
 export function hasProfile(p: BusinessProfile | undefined | null): boolean {

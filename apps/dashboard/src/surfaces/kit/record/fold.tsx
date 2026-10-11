@@ -98,6 +98,10 @@ interface RecordFoldProps {
   focusOn?: FocusOn | null;
   changed?: number[] | null;
   goneChanged?: number[] | null;
+  /** Beside the folded lines in a sheet: what is worth knowing without opening them ("Changed"). */
+  saysMark?: ReactNode;
+  /** A sentence about whose lines they are, drawn inside the fold with them (RecordSays' `aside`). */
+  saysAside?: ReactNode;
   onSave?: ((e?: MouseEvent<HTMLButtonElement>) => void) | null;
   onCancel?: CancelFold | null;
   saving?: boolean;
@@ -119,17 +123,25 @@ interface FoldDraw {
   foot: ReactNode;
   told: ReactNode;
   cancel: CancelFold;
+  phone: boolean;
   keys: ReturnType<typeof recKeys>;
   onFocus: ReturnType<typeof useRecFocus>;
   leaving: ReturnType<typeof useRecLeaving>;
 }
 
-/** What saving writes, drawn under the fold's fields. */
-function foldTold(props: RecordFoldProps) {
+/**
+ * What saving writes, drawn under the fold's fields: in a sheet, folded behind one line (RecordSays' `folded`), so the
+ * fields are the sheet and the composer's words are one press away (Ruben, 10 Oct 2026: the sheets "too wordy, too
+ * explanatory"); under its row, on show, as it always was.
+ */
+function foldTold(props: RecordFoldProps, sheet: boolean) {
   const { id, says = null, saysLabel = null, gone = null, goneLabel = null, note = null } = props;
-  const { changed = null, goneChanged = null } = props;
+  const { changed = null, goneChanged = null, saysMark = null, saysAside = null } = props;
   return (
     <RecordSays
+      folded={sheet}
+      mark={saysMark}
+      aside={saysAside}
       id={`rec-fold-${id}-says`}
       testid={`rec-fold-says-${id}`}
       text={says}
@@ -194,6 +206,8 @@ function foldSheetNode(props: RecordFoldProps, d: FoldDraw) {
       <section
         ref={d.box}
         className="rec-sheet rec-fold-sheet"
+        // From the bottom, on a phone (kit.css draws its grabber, and steps its ✕ out of sight beside a foot that closes).
+        data-phone={d.phone ? "true" : undefined}
         role="dialog"
         // Focusable by the fold's own rule and never by Tab: on a touch screen the sheet opens on itself (focus.ts).
         tabIndex={-1}
@@ -378,7 +392,7 @@ export function RecordFold(props: RecordFoldProps) {
     }
     if (onCancel) onCancel(e);
   };
-  const told = foldTold(props);
-  const draw: FoldDraw = { box, ask, foot: foldFoot(props), told, cancel, keys, onFocus, leaving };
+  const told = foldTold(props, sheet);
+  const draw: FoldDraw = { box, ask, foot: foldFoot(props), told, cancel, phone, keys, onFocus, leaving };
   return sheet ? foldSheet(props, draw) : foldRow(props, draw);
 }

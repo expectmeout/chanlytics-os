@@ -14,11 +14,8 @@ export const SELLS_BY = ["booking", "proposal"] as const;
 export type SellsBy = SchemaSet<"tenants.sells_by">;
 export const SELLS_BY_QUESTION = "How customers buy";
 export const SELLS_BY_WORDS: Record<SellsBy, { label: string; sentence: string }> = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports.",
-  },
+  booking: { label: "They book an appointment", sentence: "Bookings and reminders." },
+  proposal: { label: "Some get a proposal first", sentence: "Adds proposals, a Pipeline and Deals in Reports." },
 };
 
 export function isSellsBy(s: unknown): s is SellsBy {
