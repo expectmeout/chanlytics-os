@@ -1295,7 +1295,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(ui.includes('data-testid="ask-card"') && ui.includes('data-testid="ask-card-approve"'));
   // The card checks the role gate before Approve (the route re-checks): executed in ask-palette.test.mjs, "a card's
   // Approve is gated by the shell's rule".
-  assert.ok(ui.includes("A.outcome(messageId, p.id, o)"), "what became of the card is kept on the turn");
+  // What became of the card is kept on the turn (A.outcome, the outcome route): executed in ask-palette.test.mjs, "a card
+  // approved records what its commit made with its outcome" and, through the real route, "REGRESSION (ruling 3)".
   assert.ok(ui.includes('p.outcome ? p.outcome.state : "idle"'), "a thread reads back with the card's outcome");
   const thread = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
   assert.ok(thread.includes("if (words) setText(words);"), "Edit in the composer lands the words in the composer");
