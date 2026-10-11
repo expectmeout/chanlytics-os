@@ -2624,15 +2624,30 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
   });
   const maria = { phone: PEOPLE[0].phone, name: null };
   try {
-    const noLink = await visitsFor(rt(quotes), maria, new Date(NOW));
+    // Asked from a chat (calendar/availability.ts linkOfferedOn): any link is one it can send in the thread.
+    const noLink = await visitsFor(rt(quotes), maria, "chat", new Date(NOW));
     assert.ok(
       noLink.includes("to change or cancel it, say the team will follow up — nothing is changed from here."),
       noLink,
     );
-    const linked = await visitsFor(rt({ ...quotes, booking_link: "https://book.example/luna" }), maria, new Date(NOW));
+    const linked = await visitsFor(
+      rt({ ...quotes, booking_link: "https://book.example/luna" }),
+      maria,
+      "chat",
+      new Date(NOW),
+    );
     assert.ok(linked.includes("to change or cancel it, send the booking link"), linked);
-    const unknown = await visitsFor(rt(null), maria, new Date(NOW));
+    const unknown = await visitsFor(rt(null), maria, "chat", new Date(NOW));
     assert.ok(unknown.includes("send the booking link"), "nothing known: the link, as the call itself is told");
+    // On a call the link goes by WhatsApp alone: with no WhatsApp line it is the team, as with no link (offersLinkOn).
+    const call = await visitsFor(
+      rt({ ...quotes, booking_link: "https://book.example/luna" }),
+      maria,
+      "call",
+      new Date(NOW),
+    );
+    assert.ok(call.includes("say the team will follow up"), call);
+    assert.ok(!call.includes("booking link"), call);
   } finally {
     globalThis.fetch = realFetch;
     forgetFeeds();

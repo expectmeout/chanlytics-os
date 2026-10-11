@@ -200,8 +200,8 @@
     "depth": 2
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
-    "lines": 128,
-    "branches": 35,
+    "lines": 123,
+    "branches": 34,
     "depth": 1
   },
   "apps/edge/lib/tenant-runtime.ts::loadTenantRuntime#1": {
@@ -210,13 +210,13 @@
     "depth": 2
   },
   "apps/edge/lib/voice/call-booking-link.ts::sendBookingLinkOnCall#1": {
-    "lines": 269,
+    "lines": 267,
     "branches": 40,
     "depth": 3
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
-    "lines": 149,
-    "branches": 34,
+    "lines": 148,
+    "branches": 33,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {

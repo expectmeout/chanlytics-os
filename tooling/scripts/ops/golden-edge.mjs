@@ -178,9 +178,12 @@ await secretCheck("POST /api/retell-inbound with key returns caller_context", as
   const j = await r.json();
   assert(typeof j.call_inbound?.dynamic_variables?.caller_context === "string", "missing caller_context");
 });
-await check("POST /api/retell-fn bad secret is 401", async () => {
+// A tool's refusal is words the agent speaks, never a 401 that leaves the call silent (11 Oct 2026): nothing is sent.
+await check("POST /api/retell-fn bad secret is turned away in words that send nothing", async () => {
   const r = await post("/api/retell-fn", JSON.stringify({}), { "x-fn-secret": "WRONG" });
-  assert(r.status === 401, `status ${r.status}`);
+  assert(r.status === 200, `status ${r.status}`);
+  const j = await r.json();
+  assert(/^I can't send anything just now./.test(j.result || ""), `result ${JSON.stringify(j.result)}`);
 });
 await secretCheck("POST /api/retell-fn short number gets graceful spoken fallback", async () => {
   const r = await post(

@@ -149,6 +149,10 @@ function durationWords(seconds) {
 // src/config/workspace-config/config-rules.ts
 var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
+// src/config/no-booking-link.ts
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+
 // src/calendar/availability.ts
 function hhmm(s) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());

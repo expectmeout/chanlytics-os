@@ -33,7 +33,7 @@
  * agent SPEAKS this string, so an error status would make it say nothing at all
  * while the caller waits.
  */
-import { json, refuse } from "../http.js";
+import { json } from "../http.js";
 import { pg } from "../pg.js";
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { effectiveReplyMode, deliver, whatsappSender } from "../packages/core.js";
@@ -58,7 +58,7 @@ import {
   resolveParams,
 } from "../packages/contracts.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../packages/core.js";
-import { voiceDoorAuth } from "./voice-door-auth.js";
+import { refusedOutLoud, voiceDoorAuth } from "./voice-door-auth.js";
 import { logger, errField, type Logger } from "../log.js";
 
 /**
@@ -101,6 +101,13 @@ const VOICE_SENDS_PER_DAY = 3;
  * they are on: theirs (contracts MessageAbout, decision D1), and no playbook's run, so no moment's (Delivery.trigger).
  */
 const onTheCall = (isCaller: boolean) => ({ proactive: !isCaller, about: "theirs" as const, trigger: null });
+
+/**
+ * Spoken to a knock the door turned away, before anything is read or sent. A 401 has no words, so a call whose knock
+ * this edge refused (Retell's own, unsigned, once the signature is required) went silent mid-call; voiceDoorAuth logs
+ * the knock under the switch (11 Oct 2026). Only a call back is offered.
+ */
+const KNOCK_REFUSED = "I can't send anything just now. Take the caller's name and say someone will call them back.";
 
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =
@@ -148,9 +155,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   const raw = await request.text();
   // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
   // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
-  if (!voiceDoorAuth("fn", request, raw).ok) {
-    return refuse(401, "bad_secret");
-  }
+  if (!voiceDoorAuth("fn", request, raw).ok) return refusedOutLoud("fn", KNOCK_REFUSED);
 
   let body: {
     call?: { call_id?: string; from_number?: string; agent_id?: string };

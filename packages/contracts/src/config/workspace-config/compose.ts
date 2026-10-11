@@ -4,10 +4,16 @@
  * beside them (describeNow).
  * Which instructions a workspace is actually given is resolve.ts; the week's lines are prompt-hours.ts.
  */
-import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "../no-booking-link";
+import {
+  NO_LINK_DETAILS,
+  NO_WAY_TO_SEND_LINK,
+  offersBookingLink,
+  offersLinkOn,
+  priceNextStep,
+} from "../no-booking-link";
 import type { BookingRules, BusinessProfile, Closure } from "./business-profile";
 import { guardrailsInForce } from "./config-rules";
-import { policyRules } from "./policy-classes";
+import { bookingHeld, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAskRule } from "./offers-ask";
 import { hoursLines, joinList } from "./prompt-hours";
@@ -217,7 +223,8 @@ export function composeSystemPrompt(
     whatsapp_line: string | null;
   },
   profile: BusinessProfile,
-  channel: "whatsapp" | "voice" = "whatsapp",
+  /** Where it answers: a text is a chat, as WhatsApp is, and is told it is answering texts. */
+  channel: "whatsapp" | "sms" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
   tz?: string | null,
   /**
@@ -242,15 +249,19 @@ function composeSystemPromptWith(
     whatsapp_line: string | null;
   },
   profile: BusinessProfile,
-  channel: "whatsapp" | "voice",
+  wire: "whatsapp" | "sms" | "voice",
   tz: string | null | undefined,
   now: Date,
   policy: Record<string, { mode: string }> | null | undefined,
 ): string {
+  // A text is a chat: every section reads it as WhatsApp's, and only the line saying where it answers names the wire.
+  const channel = wire === "voice" ? "voice" : "whatsapp";
   // A business that quotes each job has no booking link (the first run's decision 2). Each place below that offers
   // the link says instead what the receptionist takes for the team (NO_LINK_DETAILS). With a link, every word is as
   // it was.
   const link = offersBookingLink(base) ? base.booking_link : null;
+  // The link it may offer to hand over here: in chat any link, on a call only one WhatsApp can carry (offersLinkOn).
+  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line) ? link : null;
   const hrs = hoursLines(profile.hours);
   // EVERY upcoming closure, not the first handful. A cap here and a larger cap
   // on the schema is a silent divergence between what an owner can store and
@@ -258,7 +269,7 @@ function composeSystemPromptWith(
   // oldest-first, the ones a cap drops are the furthest out: exactly the dates
   // customers book against months ahead.
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  const facts: SectionFacts = { base, profile, channel, tz, policy, link, hrs, closed };
+  const facts: SectionFacts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 
@@ -270,11 +281,16 @@ interface SectionFacts {
   /** The business as the composer is handed it: its name, its phone number and its booking link. */
   base: Parameters<typeof composeSystemPromptWith>[0];
   profile: BusinessProfile;
+  /** A chat (WhatsApp or a text) or a call: what every section but the first decides by. */
   channel: "whatsapp" | "voice";
+  /** The wire itself, which the first line names. */
+  wire: "whatsapp" | "sms" | "voice";
   tz: string | null | undefined;
   policy: Record<string, { mode: string }> | null | undefined;
-  /** The booking link the prompt offers, or null for a business that quotes each job. */
+  /** The booking link, or null for a business that quotes each job: a fact the prompt states. */
   link: string | null;
+  /** The link it may offer to hand over here, or null: on a call, only one WhatsApp can carry (offersLinkOn). */
+  handed: string | null;
   /** The week's lines (hoursLines): the hours section says them, and the owner's words are told it did. */
   hrs: string[];
   /** The closures still ahead, a line each: the closures section says them, and the owner's words are told it did. */
@@ -309,9 +325,10 @@ const PROMPT_SECTIONS: readonly PromptSection[] = [
 ];
 
 /** Who the receptionist is and where it answers, its tone, and the languages it speaks. */
-function identitySection({ base, profile, channel }: SectionFacts): string[] {
+function identitySection({ base, profile, channel, wire }: SectionFacts): string[] {
   const s: string[] = [];
-  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
+  // The wire it answers on, never one it does not: a text was told it answered over WhatsApp until 11 Oct 2026.
+  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
   if (profile.languages?.length) {
@@ -425,9 +442,10 @@ function bookingRuleLines(br: BookingRules): string[] {
     );
   // The receptionist never books: the visit is made on the business's own site, so "ask when booking" is "ask when
   // the link goes out". Once, and only where no address is on file (what is on file is the lead's description).
+  // No confirmation is promised: nothing sends one yet (the engine review's second pass, 11 Oct 2026).
   if (br.ask_email)
     lines.push(
-      "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
+      "When you send the booking link and no email address is on file for them, ask once for their best email address, then move on. Never insist; thank them if they give one.",
     );
   for (const n of br.notes ?? []) lines.push(n);
   return lines;
@@ -454,12 +472,16 @@ function handoffSection({ profile, channel }: SectionFacts): string[] {
   // than no handoff at all.
   if (channel === "whatsapp") {
     const when = profile.escalate_when?.length ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    // Said around escalate, the record's own field, which every answer carries and the rules below name: it read
+    // as though the token were the only way, a few lines above rules that say to set escalate (the engine review's
+    // second pass, 11 Oct 2026). The token stays for the one reply read without its record (brain.ts legacyReply).
     s.push(
       `\n${PROMPT_OPENINGS.handoffChat}\n` +
-        `Put the exact token [[HUMAN]] at the very end of your reply. It is removed ` +
-        `before the customer sees it, and it is the only thing that alerts a human — ` +
-        `saying you will fetch someone does nothing on its own. Write the reply you ` +
-        `would normally send, then add the token.\n` +
+        `Set escalate to true: that is what tells a person and holds the conversation for ` +
+        `them — saying you will fetch someone does nothing on its own. Write the reply you ` +
+        `would normally send. If you ever answer in plain words, without that record, put ` +
+        `the exact token [[HUMAN]] at the very end of your reply instead; it is removed ` +
+        `before the customer sees it.\n` +
         `Do this whenever the customer asks for a person, is upset, or asks something ` +
         `these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
@@ -491,22 +513,28 @@ function handoffSection({ profile, channel }: SectionFacts): string[] {
  * On a call, after its hand-off, the call's tools: check_availability, send_booking_link (or, with no link, what to
  * take) and end_call.
  */
-function callToolsSection({ channel, link }: SectionFacts): string[] {
+function callToolsSection({ base, channel, link, handed }: SectionFacts): string[] {
   const s: string[] = [];
   if (channel !== "whatsapp") {
     // The booking link is a WhatsApp message and nothing else: retell-fn
     // delivers it on channel "whatsapp", and texting is not sold until the
     // carriers approve a line (capabilities.ts). This used to say the tool
     // "texts" the link, so a caller could be promised a text and get a
-    // WhatsApp message -- or nothing, on a number with no WhatsApp.
+    // WhatsApp message -- or nothing, on a number with no WhatsApp. A
+    // workspace with a link and no WhatsApp line is told it cannot send it.
     s.push(
       `\n${PROMPT_OPENINGS.callTools} before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n` +
-        (link
+        (handed
           ? "Booking: when the caller wants to book, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
             "so do not ask them for a number unless they want it sent somewhere else. " +
             "Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " +
-            "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n"
-          : `${noLinkBooking("voice")}\n`) +
+            // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
+            (base.phone_display
+              ? "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n"
+              : "If it fails, or they do not have WhatsApp on that number, offer to have someone follow up.\n")
+          : link
+            ? `${NO_WAY_TO_SEND_LINK}\n`
+            : `${noLinkBooking("voice")}\n`) +
         "Ending: once the caller has said goodbye, use end_call.",
     );
   }
@@ -554,10 +582,10 @@ function ownWordsSection({ profile, channel, hrs, closed }: SectionFacts): strin
 }
 
 /** How to speak on this medium: short, with no URL read out, on a call; the booking link (or what to take) in chat. */
-function mediumSection({ channel, link }: SectionFacts): string[] {
+function mediumSection({ channel, link, handed }: SectionFacts): string[] {
   const s: string[] = [];
   // Medium, not facts. A phone caller cannot re-read a paragraph.
-  const callMedium = link
+  const callMedium = handed
     ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead."
     : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
@@ -570,16 +598,20 @@ function mediumSection({ channel, link }: SectionFacts): string[] {
 }
 
 /** What to do with the open times listed after these instructions: offer up to three, then the link or the details. */
-function openTimesSection({ link }: SectionFacts): string[] {
+function openTimesSection({ handed, policy }: SectionFacts): string[] {
   const s: string[] = [];
   // Open times, when the workspace has a calendar feed, arrive AFTER these
   // instructions (with the clock: they change by the minute and must not
   // evict the cached profile). The receptionist names them; it never books.
+  // Under a booking hold a person confirms, as the openings block and the Autonomy rule say: never the link here. A
+  // business with no link to hand over has nothing to hold back, as the openings block reads it (describeOpenings).
   s.push(
     `\n${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` +
-      (link
-        ? "then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link."
-        : `then take ${NO_LINK_DETAILS} so the team can confirm one — the calendar decides, never you. If none are listed, do not guess at open times.`),
+      (handed && bookingHeld(policy)
+        ? "then say a member of the team will call or text them to confirm one, and take their name — the calendar decides, never you. If none are listed, do not guess at open times."
+        : handed
+          ? "then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link."
+          : `then take ${NO_LINK_DETAILS} so the team can confirm one — the calendar decides, never you. If none are listed, do not guess at open times.`),
   );
   return s;
 }
@@ -599,14 +631,14 @@ export function standingRules(
  * The rules: the guardrails in force, the reply to YES OFFERS and, on WhatsApp for a workspace with a WhatsApp number,
  * the ask for that yes (offers-ask.ts), and the standing rules (the Autonomy rows, the fence).
  */
-function rulesSection({ base, profile, channel, policy, link }: SectionFacts): string[] {
+function rulesSection({ base, profile, channel, policy, link, handed }: SectionFacts): string[] {
   const s: string[] = [];
   // LAST, and never optional.
   const g = guardrailsInForce(profile.guardrails);
   const rules: string[] = [];
   if (g.never_quote_prices) {
     rules.push(
-      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!link)}.`,
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`,
     );
   }
   if (g.never_confirm_booking) {
@@ -619,15 +651,19 @@ function rulesSection({ base, profile, channel, policy, link }: SectionFacts): s
       "If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
     );
   }
+  // Offers go by WhatsApp alone (core reply-gates confirmedYes), so the yes is one to WhatsApp offers only where a
+  // WhatsApp line answers; elsewhere nothing is promised.
   rules.push(
-    "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
+    base.whatsapp_line
+      ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else."
+      : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message.",
   );
   // The ask for that yes, once: offers go by WhatsApp alone, so the voice prompt and a workspace with no WhatsApp number
   // are never told to ask, and the person's own facts (describeLead) say whether they have been.
   if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
   if (g.no_health_advice) {
     rules.push(
-      `Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`,
+      `Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`,
     );
   }
   // The Autonomy pane's Booking, FAQ and Money rows, as rules — the same words

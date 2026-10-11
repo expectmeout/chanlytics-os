@@ -54,11 +54,19 @@ import { markProcessed } from "../packages/db.js";
 import { upsertEscalation } from "../packages/jobs.js";
 import { sweepUnfinished } from "./unfinished.js";
 import { sweepStrandedRuns } from "../ops/stranded-runs.js";
-import { MIN_MS } from "../packages/contracts.js";
+import { MIN_MS, type EscalationReason } from "../packages/contracts.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
+
+/**
+ * Hand-offs on which nobody owes the customer an answer: a person who asked to stop. "A customer has had no answer for
+ * N hours" about them was untrue, and each held a place among the oldest fifty every tick (the engine review's second
+ * pass, 11 Oct 2026); each is settled once, unwarned, so it leaves the list. A person the owner handles is not one of
+ * them: they wait on the owner, which is what this warns of (the review of 11 Oct 2026).
+ */
+const WAITS_FOR_NOBODY: ReadonlySet<string> = new Set<EscalationReason>(["opt_out"]);
 
 interface Candidate {
   escalation_id: string;
@@ -137,6 +145,10 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
   const unaddressable = new Set<string>();
 
   for (const [i, c] of candidates.entries()) {
+    if (WAITS_FOR_NOBODY.has(c.reason)) {
+      await markAlerted(db, L, c);
+      continue;
+    }
     // Out of time: the rest wait for the next tick, unstamped and oldest first, so none is warned twice and none is
     // skipped. Started past it, a warning could still be in flight when the platform ends the function: a mail that
     // left with no stamp to say so.

@@ -290,7 +290,8 @@ const heldDraft = (w, over = {}) =>
     direction: "outbound",
     status: "queued",
     created_at: ago(60_000),
-    meta: { source: "veto_window", delay_ms: 45_000 },
+    // The customer's message it answers, as the draft writer names it (whatsapp/persist.ts).
+    meta: { source: "veto_window", delay_ms: 45_000, reply_to: `m3-${seq}` },
     ...over,
   });
 /** The job that would send it. */
@@ -621,10 +622,19 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
     ],
     [w.T, w.C, w.P, "ai", "outbound", "whatsapp", ANSWER.text],
   );
+  const asked = tables.messages.find((m) => m.body === "Can I come at 4 on Saturday?").id;
   assert.deepEqual(
     draft.meta,
-    { source: "steered", delay_ms: 45_000, ...ANSWER.meta, steer: OWNER_SAYS, steered_from: w.M, escalate: false },
-    "the row remembers the answer, the instruction and what it replaced",
+    {
+      source: "steered",
+      delay_ms: 45_000,
+      ...ANSWER.meta,
+      steer: OWNER_SAYS,
+      steered_from: w.M,
+      escalate: false,
+      reply_to: asked,
+    },
+    "the row remembers the answer, the instruction, what it replaced, and the message it answers: a second steer reads it",
   );
   const old = tables.messages.find((m) => m.id === w.M);
   assert.deepEqual([old.status, old.error], ["canceled", { reason: "steered", replaced_by: draft.id }]);

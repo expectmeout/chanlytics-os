@@ -5926,6 +5926,10 @@ var NO_LINK_DETAILS = "their name, what they need, and where and when";
 function offersBookingLink(brain) {
   return !brain || !!brain.booking_link;
 }
+function offersLinkOn(on, brain, whatsappLine) {
+  return offersBookingLink(brain) && (on === "chat" || !!whatsappLine);
+}
+var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 function priceNextStep(hasBookingLink) {
   return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
 }
@@ -18563,11 +18567,13 @@ function noLinkBooking(channel) {
 function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
-function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
+function composeSystemPromptWith(base, profile, wire, tz, now, policy) {
+  const channel = wire === "voice" ? "voice" : "whatsapp";
   const link = offersBookingLink(base) ? base.booking_link : null;
+  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line) ? link : null;
   const hrs = hoursLines(profile.hours);
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  const facts = { base, profile, channel, tz, policy, link, hrs, closed };
+  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 var PROMPT_SECTIONS = [
@@ -18585,9 +18591,9 @@ var PROMPT_SECTIONS = [
   openTimesSection,
   rulesSection
 ];
-function identitySection({ base, profile, channel }) {
+function identitySection({ base, profile, channel, wire }) {
   const s = [];
-  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
+  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
   if (profile.languages?.length) {
@@ -18682,7 +18688,7 @@ function bookingRuleLines(br) {
     );
   if (br.ask_email)
     lines.push(
-      "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
+      "When you send the booking link and no email address is on file for them, ask once for their best email address, then move on. Never insist; thank them if they give one."
     );
   for (const n of br.notes ?? []) lines.push(n);
   return lines;
@@ -18695,7 +18701,7 @@ ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     s.push(
       `
 ${PROMPT_OPENINGS.handoffChat}
-Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
+Set escalate to true: that is what tells a person and holds the conversation for them \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send. If you ever answer in plain words, without that record, put the exact token [[HUMAN]] at the very end of your reply instead; it is removed before the customer sees it.
 Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
   } else {
@@ -18711,13 +18717,15 @@ Do this whenever the caller asks for a person, is upset, or asks something these
   }
   return s;
 }
-function callToolsSection({ channel, link }) {
+function callToolsSection({ base, channel, link, handed }) {
   const s = [];
   if (channel !== "whatsapp") {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `${noLinkBooking("voice")}
+` + (handed ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " + // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
+      (base.phone_display ? "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : "If it fails, or they do not have WhatsApp on that number, offer to have someone follow up.\n") : link ? `${NO_WAY_TO_SEND_LINK}
+` : `${noLinkBooking("voice")}
 `) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
@@ -18745,9 +18753,9 @@ ${text}`);
   }
   return s;
 }
-function mediumSection({ channel, link }) {
+function mediumSection({ channel, link, handed }) {
   const s = [];
-  const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const callMedium = handed ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
     channel === "voice" ? `
@@ -18756,24 +18764,24 @@ ${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
   return s;
 }
-function openTimesSection({ link }) {
+function openTimesSection({ handed, policy }) {
   const s = [];
   s.push(
     `
-${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (handed && bookingHeld(policy) ? "then say a member of the team will call or text them to confirm one, and take their name \u2014 the calendar decides, never you. If none are listed, do not guess at open times." : handed ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
   return s;
 }
 function standingRules(policy, channel) {
   return [...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
 }
-function rulesSection({ base, profile, channel, policy, link }) {
+function rulesSection({ base, profile, channel, policy, link, handed }) {
   const s = [];
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
     rules.push(
-      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!link)}.`
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`
     );
   }
   if (g.never_confirm_booking) {
@@ -18787,12 +18795,12 @@ function rulesSection({ base, profile, channel, policy, link }) {
     );
   }
   rules.push(
-    "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else."
+    base.whatsapp_line ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else." : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message."
   );
   if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
   if (g.no_health_advice) {
     rules.push(
-      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`
+      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`
     );
   }
   rules.push(...standingRules(policy, channel));
@@ -18814,25 +18822,28 @@ function hasProfile(p) {
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
   return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
 }
-function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
+function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
+  const channel = wire === "voice" ? "voice" : "whatsapp";
+  const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
-    const rules = [...offersBookingLink(brain) ? [] : [noLinkBooking(channel)], ...standingRules(policy, channel)];
+    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value) ? [NO_WAY_TO_SEND_LINK] : [];
+    const rules = [...link, ...standingRules(policy, channel)];
     return `${brain.system_prompt}
 
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r2) => `- ${r2}`).join("\n")}`;
   }
   const profile = brain.profile;
-  const facts = resolveFacts(brain, known);
+  const ringing = wire === "voice" && (samePhone(facts.phone_display.value, facts.voice_line.value) || samePhone(facts.phone_display.value, facts.kept_line.value));
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
-    phone_display: facts.phone_display.value,
+    phone_display: ringing ? null : facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
     // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
     whatsapp_line: facts.whatsapp_line.value
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
-  return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+  return composeSystemPrompt(resolved, carried, wire, tz, now, policy);
 }
 function ownWordsOf(brain) {
   const own = brain?.profile?.extra_instructions;
@@ -34771,7 +34782,6 @@ var EDGE_ERROR_CODES = [
   "already_subscribed",
   "ask_budget",
   "bad_request",
-  "bad_secret",
   "bad_signature",
   "bad_template",
   "bad_tenant",
@@ -41233,6 +41243,7 @@ export {
   NO_REPLY_AFTER_MS,
   NO_TEMPLATE_WORDS,
   NO_USAGE,
+  NO_WAY_TO_SEND_LINK,
   NoteSchema,
   NotificationsConfigSchema,
   OFFERS_BY_EMAIL_WORDS,
@@ -42431,6 +42442,7 @@ export {
   offersAfterStart,
   offersBookingLink,
   offersFacts,
+  offersLinkOn,
   offersNote,
   offersPausedLine,
   offersYesRefusal,

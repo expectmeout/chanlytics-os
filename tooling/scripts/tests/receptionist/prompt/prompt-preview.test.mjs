@@ -167,6 +167,21 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
     );
     assert.equal(fetched[0], "https://cal.example/harbor.ics", "webcal is https in a hat, as on the edge");
 
+    // Under a booking hold the block ends in a person confirming, never the link, as the edge's says it (11 Oct 2026).
+    const held = await openingsBlock(
+      "t-preview-1",
+      {
+        url: "webcal://cal.example/harbor.ics",
+        brain: BRAIN,
+        tz: TZ,
+        taken: none,
+        policy: { booking: { mode: "ask" } },
+      },
+      NOW,
+    );
+    assert.match(held, /a member of the team will call or text them to confirm/, held);
+    assert.ok(!/send the booking link/i.test(held), held);
+
     // A booking that arrived by email took its hours too (00345): the block leaves them out beside the feed's, as the
     // edge's does, asked for with the days the rules offer. Tuesday afternoon, three to five, New York.
     const emailed = [{ start: Date.parse("2026-09-15T19:00:00.000Z"), end: Date.parse("2026-09-15T21:00:00.000Z") }];

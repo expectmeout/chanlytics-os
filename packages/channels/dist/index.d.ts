@@ -848,9 +848,11 @@ declare const HANDOFF_VAR = "{{handoff_number}}";
  * agent with no knowledge and no idea that it has none. This is the third
  * option: no facts, and told so. The call-start judgement on the edge
  * (apps/edge/lib/voice/call-start.ts) sends this same constant as its fallback, so
- * the shell's default and the webhook's answer cannot drift apart.
+ * the shell's default and the webhook's answer cannot drift apart. It offers nothing it may not be able to do: with no
+ * details there is no knowing whether the business has a booking link or a WhatsApp line to send one by, so it takes a
+ * message (11 Oct 2026: it offered the link by WhatsApp to every call it was said on).
  */
-declare const FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
+declare const FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, and offer to take their name and a message so the team can call them back. Do not offer to send anything.";
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 declare const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
 /** The availability tool posts beside it, on the same host and secret. */

@@ -29,7 +29,9 @@ import {
   offeringHorizon,
   visitsOf,
   ownAddressesOf,
-  offersBookingLink,
+  offersLinkOn,
+  bookingHeld,
+  resolveFacts,
   feedMarksOf,
   feedWithRecord,
   busyOfAppointments,
@@ -240,13 +242,24 @@ async function recordBusy(tenantId: string, now: Date, daysAhead: number): Promi
   }
 }
 
+/**
+ * Whether what follows an opening or a visit may offer the booking link, where it is said: in chat any link, on a call
+ * only one WhatsApp can carry (contracts offersLinkOn).
+ */
+export function linkOfferedOn(on: "call" | "chat", rt: Pick<TenantRuntime, "brain" | "known">): boolean {
+  return offersLinkOn(on, rt.brain, resolveFacts(rt.brain, rt.known).whatsapp_line.value);
+}
+
 /** The openings block for the prompt, or null when there is nothing to say. */
-export async function openingsFor(rt: TenantRuntime, now = new Date()): Promise<string | null> {
+export async function openingsFor(rt: TenantRuntime, on: "call" | "chat", now = new Date()): Promise<string | null> {
   const data = await openingsData(rt, now);
   return data
     ? describeOpenings(data.openings, data.tz, {
         daysAhead: data.daysAhead,
-        hasBookingLink: offersBookingLink(rt.brain),
+        hasBookingLink: linkOfferedOn(on, rt),
+        // Under a booking hold the times end in a person confirming, never the link: the same rule the availability
+        // tool reads (11 Oct 2026: the openings handed to chat and to a call's start still ended in the link).
+        bookingHeld: bookingHeld(rt.policy),
       })
     : null;
 }
@@ -268,6 +281,7 @@ export function forgetFeeds(): void {
 export async function visitsFor(
   rt: TenantRuntime,
   who: { phone: string | null; name: string | null },
+  on: "call" | "chat",
   now = new Date(),
 ): Promise<string | null> {
   const L = logger({ tenant_id: rt.tenantId });
@@ -292,7 +306,7 @@ export async function visitsFor(
       visitsOf(items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own),
       rt.timezone,
       now.getTime(),
-      { hasBookingLink: offersBookingLink(rt.brain) },
+      { hasBookingLink: linkOfferedOn(on, rt) },
     );
   } catch (e) {
     L.error("availability_visits_failed", { error: errField(e) });

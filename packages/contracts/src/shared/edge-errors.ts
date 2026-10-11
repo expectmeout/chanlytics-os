@@ -23,7 +23,6 @@ export const EDGE_ERROR_CODES = [
   "already_subscribed",
   "ask_budget",
   "bad_request",
-  "bad_secret",
   "bad_signature",
   "bad_template",
   "bad_tenant",

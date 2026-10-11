@@ -22,7 +22,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
 import { readLeadContext, personReplyMode, offersAnswerOf, describeLead } from "../packages/db.js";
-import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
+import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
 import { pgThread, pgIngest, pgSink, queueReply, replyTurn, pgAnswered } from "./persist.js";
@@ -42,7 +42,10 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
     personReplyMode: typeof personReplyMode;
     offersAnswer?: typeof offersAnswerOf;
   };
-  calendar: { openings: typeof openingsFor; visits: typeof visitsFor };
+  calendar: {
+    openings(rt: TenantRuntime, now?: Date): Promise<string | null>;
+    visits(rt: TenantRuntime, who: { phone: string | null; name: string | null }, now?: Date): Promise<string | null>;
+  };
   budget: { tokensLast24h: typeof tokensLast24h };
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
   persist: {
@@ -94,7 +97,11 @@ export function realPorts(): InboundPorts {
     db: pg,
     runtime: loadTenantRuntime,
     leads: { read: readLeadContext, personReplyMode, offersAnswer: offersAnswerOf },
-    calendar: { openings: openingsFor, visits: visitsFor },
+    // A chat: what follows an opening or a visit may offer any link (calendar/availability.ts linkOfferedOn).
+    calendar: {
+      openings: (rt, now) => openingsFor(rt, "chat", now),
+      visits: (rt, who, now) => visitsFor(rt, who, "chat", now),
+    },
     budget: { tokensLast24h },
     persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn, answered: pgAnswered },
     alertStaff,

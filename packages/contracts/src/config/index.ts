@@ -192,7 +192,13 @@ export {
 export type { HandoffWordsVM } from "./business-tab/handoff-words";
 export { abilityRows, cannotRows } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
-export { offersBookingLink, priceNextStep, NO_LINK_DETAILS } from "./no-booking-link";
+export {
+  offersBookingLink,
+  offersLinkOn,
+  priceNextStep,
+  NO_LINK_DETAILS,
+  NO_WAY_TO_SEND_LINK,
+} from "./no-booking-link";
 export {
   brainMetaOf,
   replyWhy,

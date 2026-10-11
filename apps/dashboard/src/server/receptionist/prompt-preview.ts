@@ -5,6 +5,7 @@ import {
   describeOpenings,
   freeWindows,
   offersBookingLink,
+  bookingHeld,
   parseIcs,
   resolveSystemPrompt,
   seasonHorizon,
@@ -89,6 +90,8 @@ export async function openingsBlock(
     brain: BrainConfig | null;
     tz: string | null;
     taken: (daysAhead: number) => Promise<BusyBlock[]>;
+    /** The Autonomy rows: under a booking hold the openings end in a person confirming, as the edge says them. */
+    policy: Record<string, { mode: string }>;
   },
   now = new Date(),
 ): Promise<string | null> {
@@ -111,7 +114,11 @@ export async function openingsBlock(
       rules,
       now,
     });
-    return describeOpenings(openings, cfg.tz, { daysAhead, hasBookingLink: offersBookingLink(cfg.brain) });
+    return describeOpenings(openings, cfg.tz, {
+      daysAhead,
+      hasBookingLink: offersBookingLink(cfg.brain),
+      bookingHeld: bookingHeld(cfg.policy),
+    });
   } catch (e) {
     log.error("prompt_preview_openings_failed", {
       tenant_id: tenantId,
@@ -149,7 +156,7 @@ export async function promptPreview(
     return null;
   }
   const taken = (daysAhead: number) => recordBusy(ctx, tenantId, now, daysAhead);
-  const openings = await openingsBlock(tenantId, { url: cfg.calendarUrl, brain, tz, taken }, now);
+  const openings = await openingsBlock(tenantId, { url: cfg.calendarUrl, brain, tz, taken, policy }, now);
   try {
     return composePromptPreview(brain, { tz, policy, known, openings }, now);
   } catch (e) {

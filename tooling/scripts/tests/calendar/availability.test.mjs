@@ -415,11 +415,11 @@ test("booking rules and the calendar feed are config the schemas accept, and the
   const textAsking = composeSystemPrompt(brain, asking.brain.profile, "whatsapp");
   assert.ok(
     textAsking.includes(
-      "- When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
+      "- When you send the booking link and no email address is on file for them, ask once for their best email address, then move on. Never insist; thank them if they give one.",
     ),
   );
   assert.ok(
-    !text.includes("ask once for the best email"),
+    !text.includes("ask once for their best email"),
     "off by default: the switch adds the line, nothing else does",
   );
   // The switch alone opens the block, and it is the block's one line; off, with no other rule set, there is no block.
@@ -429,7 +429,7 @@ test("booking rules and the calendar feed are config the schemas accept, and the
   const end = alone.indexOf("\n\n", at);
   assert.equal(
     alone.slice(at, end < 0 ? undefined : end),
-    "Booking rules:\n- When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
+    "Booking rules:\n- When you send the booking link and no email address is on file for them, ask once for their best email address, then move on. Never insist; thank them if they give one.",
   );
   assert.ok(
     !composeSystemPrompt(brain, { hours, booking_rules: { ask_email: false } }, "whatsapp").includes("Booking rules:"),
@@ -443,9 +443,16 @@ test("booking rules and the calendar feed are config the schemas accept, and the
     text.indexOf("If open times are listed") < text.indexOf("Rules you must follow"),
     "and the guardrails still come last",
   );
+  // A call sends the link by WhatsApp alone, so a workspace with a WhatsApp line is told to send it (offersLinkOn), and one
+  // without is told to take the details.
+  assert.ok(
+    composeSystemPrompt({ ...brain, whatsapp_line: "+12125550199" }, { hours }, "voice").includes(
+      "If none are listed, do not guess at open times; send the link.",
+    ),
+  );
   assert.ok(
     composeSystemPrompt(brain, { hours }, "voice").includes(
-      "If none are listed, do not guess at open times; send the link.",
+      "then take their name, what they need, and where and when so the team can confirm one",
     ),
   );
 });

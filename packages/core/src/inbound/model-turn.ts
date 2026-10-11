@@ -25,7 +25,7 @@ export interface Turn {
 
 /** Who this person is and their visits, for the model; nothing when they cannot be read, which is never fatal. */
 async function leadNoteFor(at: Answering): Promise<string | undefined> {
-  const { db, tenantId, from, ports, rt, L, channel } = at;
+  const { db, tenantId, from, ports, rt, L, channel, ing } = at;
   // The same description the voice agent is given, from the same reader.
   // One receptionist means one account of who this person is — not a name
   // on the phone and an anonymous stranger over text.
@@ -36,7 +36,8 @@ async function leadNoteFor(at: Answering): Promise<string | undefined> {
   if (db && tenantId) {
     try {
       const e164 = from.startsWith("+") ? from : `+${from}`;
-      const lead = await ports.leads.read(db, tenantId, e164, 1);
+      // The message being answered is not their history: it was stored before they were read.
+      const lead = await ports.leads.read(db, tenantId, e164, 1, ing?.message_id);
       // The conversation's channel rides along: the prompt says WhatsApp even on a text, and the ask for the yes to offers
       // is for WhatsApp alone (contracts offers-ask.ts).
       leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC", channel);
@@ -85,7 +86,7 @@ export async function modelTurn(
   bodyText: string,
   photo: { mime: string; base64: string } | null,
 ): Promise<Turn> {
-  const { ports, db, rt, thread, n, fallbacks, L } = at;
+  const { ports, db, rt, thread, n, fallbacks, L, channel } = at;
   // A persona is certain here: the mode in force held every message of a workspace without one (./reply-gates.ts).
   const brainCfg = at.brainCfg as BrainConfig;
   let replyText: string;
@@ -116,8 +117,8 @@ export async function modelTurn(
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
-        // about when the business opens.
-        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known),
+        // about when the business opens. A text is told it answers texts (compose.ts).
+        resolveSystemPrompt(brainCfg, channel, rt?.timezone, new Date(), rt?.policy, rt?.known),
         fallbacks!.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"

@@ -77,7 +77,12 @@ test("the new fields parse, and a handoff number that is not E.164 is refused by
 /* ------------------------------ the composer ------------------------------ */
 
 test("on the phone the composer names its tools; on WhatsApp it keeps the token and never names them", () => {
-  const voice = composeSystemPrompt(brain, { ...profile, handoff_number: "+12125550142" }, "voice");
+  // A workspace with a WhatsApp line, which the call sends the booking link by (contracts offersLinkOn).
+  const voice = composeSystemPrompt(
+    { ...brain, whatsapp_line: "+13055550199" },
+    { ...profile, handoff_number: "+12125550142" },
+    "voice",
+  );
   assert.ok(
     voice.includes("Use transfer_to_staff during opening hours"),
     "REGRESSION: the phone agent was told WHEN to fetch a person and never HOW",
