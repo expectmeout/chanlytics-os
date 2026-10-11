@@ -842,6 +842,51 @@ test("REGRESSION: a card sent once says Sent wherever it is drawn again -- a fol
   await closes();
 });
 
+test("a card approved records what its commit made with its outcome, so a plan's made is read back after a reload; one that made nothing records null", async () => {
+  const calls = ask([]);
+  const recorded = [];
+  const MSG = "cccccccc-cccc-4ccc-8ccc-000000000009";
+  const made = { kind: "message", id: "77777777-7777-4777-8777-000000000001" };
+  Object.assign(globalThis.window.__ask, {
+    commit: async (p) => ({ ok: true, receipt: "Filed", undo: null, made: p.id === "p1" ? made : null }),
+    outcome: async (messageId, proposalId, o) => {
+      recorded.push([messageId, proposalId, o.state, o.made]);
+      return true;
+    },
+    undoOpen: () => false,
+    editReply() {},
+    send: async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(9).id, title: input.text });
+      const card = (id) => ({
+        id,
+        kind: "message",
+        needs: "operator",
+        title: `Message ${id}`,
+        summary: "A message for the Library.",
+        payload: { name: "offer" },
+        undo: null,
+      });
+      on({ t: "final", message: { ...said(MSG, "Two cards."), proposals: [card("p1"), card("p2")] } });
+    },
+  });
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "write the offer");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  press(byTestId(tree, "ask-card-approve"));
+  tree = await later(Palette, OPEN);
+  press(byTestId(tree, "ask-card-approve"));
+  await later(Palette, OPEN);
+  assert.deepEqual(recorded, [
+    [MSG, "p1", "done", made],
+    [MSG, "p2", "done", null],
+  ]);
+  await closes();
+});
+
 test("a card's Approve is gated by the shell's rule: a role its gate refuses sees Approve, reads why at the control, and a press commits nothing; a role it lets commits (D8)", async () => {
   const calls = ask([]);
   const committed = [];

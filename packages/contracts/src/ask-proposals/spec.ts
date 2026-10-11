@@ -118,6 +118,12 @@ export const PROPOSAL_WORDS = {
     "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
   /** A plan's card naming a step that has made nothing yet: that step is approved first. */
   waitsForStep: (n: number): string => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  /**
+   * A plan's card naming a step that was approved and made nothing it can use (a message whose every version was
+   * refused): waiting would never help, so the plan is asked for again.
+   */
+  stepMadeNothing: (n: number): string =>
+    `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
   planStopped: (n: number, why: string): string =>
     `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,

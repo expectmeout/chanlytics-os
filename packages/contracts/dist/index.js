@@ -10535,6 +10535,11 @@ var PROPOSAL_WORDS = {
   planUndone: "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
   /** A plan's card naming a step that has made nothing yet: that step is approved first. */
   waitsForStep: (n) => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  /**
+   * A plan's card naming a step that was approved and made nothing it can use (a message whose every version was
+   * refused): waiting would never help, so the plan is asked for again.
+   */
+  stepMadeNothing: (n) => `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
   planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
 };
@@ -14433,7 +14438,10 @@ var AskProposalOutcomeSchema = z4.object({
   state: z4.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z4.string().max(300).catch(""),
   atMs: z4.number().catch(0),
-  undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
+  undo: z4.record(z4.string(), z4.unknown()).nullable().optional(),
+  // What the commit made that a plan's later step names (AskProposalOutcome.made): kept, never stripped, so a plan's
+  // made survives a reload; absent (every outcome saved before) or unreadable, it made nothing a token names.
+  made: z4.object({ kind: z4.string().min(1).max(40), id: z4.string().min(1).max(120) }).nullable().catch(null)
 });
 var CalendarDay = z4.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
@@ -16554,7 +16562,7 @@ function resolveSteps(payload, made) {
       if (!m) return v;
       const n = Number(m[1]);
       const step2 = made[n];
-      if (step2) return step2.id;
+      if (step2 && !("undone" in step2) && step2.id !== null) return step2.id;
       unresolved ??= n;
       return v;
     }
@@ -16564,6 +16572,15 @@ function resolveSteps(payload, made) {
   };
   const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill2(x)]));
   return unresolved === null ? out : { unresolved };
+}
+function planMadeOf(planId, cards) {
+  const made = {};
+  for (const p of cards) {
+    if (p.plan?.id !== planId || !p.outcome) continue;
+    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
+    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
+  }
+  return made;
 }
 function offerDates(offer, world) {
   if (!isDayKey(offer.from) || !isDayKey(offer.until)) return { refused: SAY.notADay };
@@ -41921,6 +41938,7 @@ export {
   planCeiling,
   planLeadSearch,
   planLeavingOut,
+  planMadeOf,
   planMinutes,
   planNoteOf,
   planOf,

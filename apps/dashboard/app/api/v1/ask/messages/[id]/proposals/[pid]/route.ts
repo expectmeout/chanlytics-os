@@ -26,7 +26,7 @@ export const POST = write({
     if (!/^p-[a-z0-9-]+$/.test(pid)) throw new AppError("validation", "Which card?");
     const body = await req.json().catch(() => null);
     const parsed = AskProposalOutcomeSchema.safeParse(body);
-    if (!parsed.success) throw new AppError("validation", "An outcome is { state, receipt, atMs, undo? }.");
+    if (!parsed.success) throw new AppError("validation", "An outcome is { state, receipt, atMs, undo?, made? }.");
     const proposal = await setProposalOutcome(ctx, id, pid, { ...parsed.data, atMs: parsed.data.atMs || Date.now() });
     return { proposal };
   },

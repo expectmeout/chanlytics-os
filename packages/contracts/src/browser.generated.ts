@@ -34,7 +34,7 @@ export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-
 export { cacheHitOf } from "./ask/ask-shape";
 export { buildAskSuggestions } from "./ask/ask-suggestions";
 export { emptyReadSet, noteRows, groundCitations, citationRoute, ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS } from "./ask/citations";
-export { planOf, resolveSteps, stepToken, STEP_TOKEN, PLAN_WORDS } from "./ask/plan";
+export { planOf, planMadeOf, resolveSteps, stepToken, STEP_TOKEN, PLAN_WORDS } from "./ask/plan";
 export { eligibleFor, enrolFor, saidYesOnAny, heldWords, heldBackWords, audienceMembers, audiencePreview, audienceTrigger, AUDIENCE_KINDS, EVERYONE_LABEL, EVERYONE_HINT, UNKNOWN_AUDIENCE_WORDS, CONSENT_LIST_IDS, doorNamesNoAudience } from "./broadcasts/broadcast-audience";
 export { broadcastFailureWords, BROADCAST_FAILURES, BROADCAST_FAILURE_WORDS } from "./broadcasts/broadcast-failure-words";
 export { broadcastFailureFix, emailRunStop, playbookRunNext, stoppedRunFix, wireFailure, BROADCAST_FAILURE_FIX } from "./broadcasts/broadcast-failures";

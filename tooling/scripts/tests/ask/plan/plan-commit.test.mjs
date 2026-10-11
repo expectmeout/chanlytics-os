@@ -203,6 +203,13 @@ test("the silent steps commit together, in step order, each under its step's key
   );
   assert.deepEqual(run.results[0].result.made, { kind: "message", id: V(1) }, "the commit's result says what it made");
   assert.equal(run.results[1].result.made, null);
+  // Every step committed is in the run's made, the ones that made nothing a token names with no id.
+  assert.deepEqual(run.made, {
+    1: { kind: "message", id: V(1) },
+    2: { kind: "settings", id: null },
+    3: { kind: "playbook_change", id: null },
+  });
+  assert.deepEqual([run.done, run.undone], [[], []]);
   // Each step's own receipt and undo, as its card's own press would have them.
   assert.equal(run.results[2].result.receipt, C.PROPOSAL_SPECS.playbook_change.receipt(pause, ANSWERS[keys(t)[2][0]]));
   assert.deepEqual(run.results[2].result.undo, { playbook_id: PB, was: { state: "running" }, decision_id: D(1) });
@@ -261,7 +268,8 @@ test("a silent step may name what an earlier silent step made: its token is fill
   ]);
   assert.equal(run.stoppedAt, null);
 
-  // Step 1 filed nothing (every version refused): it made nothing, so step 2 waits for it, and is not sent.
+  // Step 1 was committed but filed nothing (every version refused): it is done and made nothing a token can name, so
+  // step 2 is refused in words that say so (waiting for step 1 would never help), and is not sent.
   const none = tab(() =>
     envelope({ name: "offer", language: "en_US", versions: [], refused: { channel: "email", words: "x" } }),
   );
@@ -271,12 +279,117 @@ test("a silent step may name what an earlier silent step made: its token is fill
     ["POST /api/v1/templates/message"],
   );
   assert.deepEqual(stopped.results[0].result.made, null);
+  assert.deepEqual(stopped.made, { 1: { kind: "message", id: null } });
   assert.equal(stopped.stoppedAt, 2);
-  assert.equal(stopped.results[1].result.message, C.PROPOSAL_WORDS.planStopped(2, C.PROPOSAL_WORDS.waitsForStep(1)));
+  assert.equal(stopped.results[1].result.message, C.PROPOSAL_WORDS.planStopped(2, C.PROPOSAL_WORDS.stepMadeNothing(1)));
 });
 
-test("a plan approved twice (a double press, a reload part-way) sends the same keys, and the routes answer the first press: nothing is filed twice", async () => {
+test("a step already in made is never sent again: a press after a note was approved on its own sends only the rest, and a press after every step sends nothing and says they were done", async () => {
+  const t = tab();
+  // The note was approved on its own press (it made nothing a token names).
+  const run = await commit.commitPlan(
+    t.win,
+    [message, note, pause],
+    { 2: { kind: "settings", id: null } },
+    { client: t.client, nowMs: NOW },
+  );
+  assert.deepEqual(keys(t), [
+    ["POST /api/v1/templates/message", `plan:${PLAN}:1`],
+    [`PUT /api/v1/playbooks/${PB}`, `plan:${PLAN}:3`],
+  ]);
+  assert.deepEqual([run.done, run.undone, run.stoppedAt], [[2], [], null]);
+  assert.deepEqual(
+    run.results.map((r) => r.step),
+    [1, 3],
+  );
+
+  // Pressed again with what that press made: every step is done, so nothing leaves the tab, whatever a key's life.
+  const again = tab();
+  const twice = await commit.commitPlan(again.win, [message, note, pause], run.made, {
+    client: again.client,
+    nowMs: NOW,
+  });
+  assert.deepEqual(again.sent, [], "REGRESSION: a second press sent a step that was done");
+  assert.deepEqual(
+    [twice.results, twice.done, twice.undone, twice.stoppedAt, twice.made],
+    [[], [1, 2, 3], [], null, run.made],
+  );
+});
+
+test("a silent step the owner undid is never run again: the group's press skips it and approves the rest, and a step that names it stops there with the plan's words", async () => {
+  const t = tab();
+  const run = await commit.commitPlan(
+    t.win,
+    [message, note, pause],
+    { 2: { undone: true } },
+    { client: t.client, nowMs: NOW },
+  );
+  assert.deepEqual(
+    keys(t).map(([k]) => k),
+    ["POST /api/v1/templates/message", `PUT /api/v1/playbooks/${PB}`],
+    "the note the owner took back is not written again",
+  );
+  assert.deepEqual([run.done, run.undone, run.stoppedAt], [[], [2], null]);
+  assert.deepEqual(run.made[2], { undone: true }, "and stays undone in what the run hands back");
+});
+
+test("what a step made survives a reload: the outcome a commit records keeps it through the outcome's schema (an older outcome reads as made nothing), and planMadeOf rebuilds the plan's made from the cards' outcomes in one pass", async () => {
+  const t = tab();
+  const run = await commit.commitPlan(t.win, [message, note, pause], {}, { client: t.client, nowMs: NOW });
+  // The outcome each card records (the Line's record of an Approve), read back through the route's schema.
+  const recorded = run.results.map((r) =>
+    C.AskProposalOutcomeSchema.parse({
+      state: "done",
+      receipt: r.result.receipt,
+      atMs: 1,
+      undo: r.result.undo,
+      made: r.result.made,
+    }),
+  );
+  assert.deepEqual(recorded[0].made, { kind: "message", id: V(1) }, "kept, not stripped");
+  assert.equal(recorded[1].made, null);
+  // An outcome saved before outcomes kept what was made reads as having made nothing.
+  const older = C.AskProposalOutcomeSchema.parse({ state: "done", receipt: "Paused", atMs: 1 });
+  assert.equal(older.made, null);
+
+  const reloaded = [
+    { ...message, outcome: recorded[0] },
+    { ...note, outcome: recorded[1] },
+    { ...pause, outcome: older },
+    { ...send, outcome: null },
+    // Another plan's card in the same turn, undone there, is not this plan's step.
+    stamped("message", 1, message.payload, {
+      id: "p-other",
+      plan: { id: "plan-other", step: 1, of: 1, silent: true },
+      outcome: { state: "undone", receipt: "x", atMs: 1 },
+    }),
+  ];
+  assert.deepEqual(C.planMadeOf(PLAN, reloaded), run.made, "the same made the press handed back");
+  // An undone card is undone in it.
+  assert.deepEqual(
+    C.planMadeOf(PLAN, [{ ...note, outcome: { state: "undone", receipt: "Previous settings are back", atMs: 2 } }]),
+    { 2: { undone: true } },
+  );
+  // A card dismissed or failed made nothing: it is not in made, and may be pressed again.
+  assert.deepEqual(
+    C.planMadeOf(PLAN, [
+      { ...note, outcome: { state: "failed", receipt: "x", atMs: 2 } },
+      { ...pause, outcome: { state: "dismissed", receipt: "Not now", atMs: 2 } },
+    ]),
+    {},
+  );
+  // Pressed after the reload, on this plan's cards: nothing is sent again.
+  const after = tab();
+  const pressed = await commit.commitPlan(after.win, reloaded.slice(0, 4), C.planMadeOf(PLAN, reloaded), {
+    client: after.client,
+    nowMs: NOW,
+  });
+  assert.deepEqual([after.sent, pressed.done], [[], [1, 2, 3]]);
+});
+
+test("two presses that each know nothing was made (two tabs at once, a reload before an outcome was kept) send the same keys, and the routes answer the first press: nothing is filed twice", async () => {
   // The write routes keep a card's answer under its key (server/route.ts onceForKey: a card's key, whatever its body).
+  // What made says is the guard for as long as a plan lives; the key is the guard for the press that cannot know it.
   const kept = new Map();
   const filed = {};
   const t = tab((key, init) => {

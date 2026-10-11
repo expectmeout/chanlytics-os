@@ -234,6 +234,12 @@ export interface AskProposalOutcome {
   atMs: number;
   /** What Undo needs, when the verb has one: an id, a previous value. */
   undo?: Record<string, unknown> | null;
+  /**
+   * What the commit made that a later step of its plan names by its token (commit.ts CommitResult.made): kept with the
+   * outcome so a plan's made is read back after a reload (planMadeOf). Null, or absent on an outcome saved before, where
+   * it made nothing a token names.
+   */
+  made?: { kind: string; id: string } | null;
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */

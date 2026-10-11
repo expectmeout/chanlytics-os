@@ -190,7 +190,7 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit }
     if (r.ok) {
       const at = Date.now();
       setState("done"); setReceipt(r.receipt); setUndoData(r.undo || null); setDoneAt(at);
-      record({ state: "done", receipt: r.receipt, atMs: at, undo: r.undo || null });
+      record({ state: "done", receipt: r.receipt, atMs: at, undo: r.undo || null, made: r.made || null });
       // A search approved is opened (spec F4), and a search answered likewise (G4): the receipt's "Leads shows it" is
       // kept true by going where the contract says the card opens.
       if (p.kind === "lead_search" && onNav && A && A.cardOpenRoute) {

@@ -94,20 +94,22 @@ function tell(win: Window, c: ProposalCall): void {
 /** A plan's step's key: one per step of one plan, whichever way the step is pressed (Review Focus 3). */
 const stepKey = (plan: AskPlanStamp): string => `plan:${plan.id}:${plan.step}`;
 
+/** Why a token names nothing, in the person's words: its step undone, done with nothing to name, or not done yet. */
+function unnamed(made: PlanMade, n: number): string {
+  const step = made[n];
+  if (!step) return PROPOSAL_WORDS.waitsForStep(n);
+  return "undone" in step ? PROPOSAL_WORDS.planUndone : PROPOSAL_WORDS.stepMadeNothing(n);
+}
+
 /**
  * A plan's card with what its earlier steps made in place of their tokens (`@step:n`, contracts resolveSteps); or the
- * refusal, where a step it names was undone (what it made is gone) or has made nothing yet (it is approved first), and
- * nothing is sent. A card of no plan is as it was.
+ * refusal where a step it names was undone (what it made is gone), made nothing a token names (waiting would never
+ * help), or is not committed yet (it is approved first), and nothing is sent. A card of no plan is as it was.
  */
 function withSteps(p: AskProposal, made: PlanMade): AskProposal | ProposalRefusal {
   if (!p.plan) return p;
-  const ids: Record<number, { kind: string; id: string }> = {};
-  for (const [n, m] of Object.entries(made)) if ("id" in m) ids[Number(n)] = m;
-  const filled = resolveSteps(p.payload, ids);
-  if (!("unresolved" in filled)) return { ...p, payload: filled };
-  const n = Number(filled.unresolved);
-  const step = made[n];
-  return { refused: step && "undone" in step ? PROPOSAL_WORDS.planUndone : PROPOSAL_WORDS.waitsForStep(n) };
+  const filled = resolveSteps(p.payload, made);
+  return "unresolved" in filled ? { refused: unnamed(made, Number(filled.unresolved)) } : { ...p, payload: filled };
 }
 
 /**
@@ -154,19 +156,30 @@ export async function commitProposal(
   };
 }
 
-/** What a plan's silent steps did: each step's result and the id it made, in step order, and the step it stopped at. */
+/**
+ * What a press of a plan's silent steps did: each step it sent, with its result and the id it made, in step order; the
+ * steps it did not send because they were committed before (`done`) or undone by the owner (`undone`); every step
+ * committed so far, as the plan's made (`made`); and the step it stopped at, if any.
+ */
 export interface PlanRun {
   results: { step: number; result: CommitResult; id: string | null }[];
+  done: number[];
+  undone: number[];
+  made: PlanMade;
   stoppedAt: number | null;
 }
 
 /**
- * A plan's silent steps, approved together (the marketing manager's spec §5.4): every card stamped silent, in step
- * order, each through commitProposal under its step's key, so a second press, or a press again after a reload part-way,
- * is answered by each route with what the first made and nothing is filed twice (server/route.ts, onceForKey, which
- * keeps a key a day). A step's tokens are filled from `made` and from what the run makes as it goes. The first step
- * refused or failed ends the run: its result says the plan stopped there (PROPOSAL_WORDS.planStopped), and no later
- * step is sent. A send is not among them: each is its own press.
+ * A plan's silent steps, approved together (the marketing manager's spec §5.4): the cards of one plan stamped silent,
+ * in step order, each through commitProposal under its step's key. A step `made` holds is never sent again: one
+ * committed before is done, and one the owner undid stays undone, skipped, since an undo is the owner's word on that
+ * step and any later step that names it is refused on its own (planUndone); the rest of the plan still goes. So a
+ * second press, however long after, files nothing twice; and two presses that each know nothing was made (two tabs at
+ * once) are answered by each route under the step's key with what the first made (server/route.ts, onceForKey, a key
+ * kept a day). A step's tokens are filled from `made` and what the press makes as it goes, and every step it commits
+ * joins the made it hands back, with no id where it made nothing a token names. The first step refused or failed ends
+ * the press: its result says the plan stopped there (PROPOSAL_WORDS.planStopped), and no later step is sent. A send is
+ * not among them: each is its own press.
  */
 export async function commitPlan(
   win: Window,
@@ -179,22 +192,24 @@ export async function commitPlan(
   const silent = cards
     .flatMap((p) => (p.plan?.silent ? [{ p, step: p.plan.step }] : []))
     .sort((a, b) => a.step - b.step);
-  const known: PlanMade = { ...made };
-  const results: PlanRun["results"] = [];
+  const run: PlanRun = { results: [], done: [], undone: [], made: { ...made }, stoppedAt: null };
   for (const { p, step } of silent) {
-    const result = await commitProposal(win, p, client, { nowMs, made: known });
-    if (!result.ok) {
-      results.push({
-        step,
-        result: { ...result, message: PROPOSAL_WORDS.planStopped(step, result.message) },
-        id: null,
-      });
-      return { results, stoppedAt: step };
+    const was = run.made[step];
+    if (was) {
+      ("undone" in was ? run.undone : run.done).push(step);
+      continue;
     }
-    if (result.made) known[step] = result.made;
-    results.push({ step, result, id: result.made?.id ?? null });
+    const result = await commitProposal(win, p, client, { nowMs, made: run.made });
+    if (!result.ok) {
+      const stopped = { ...result, message: PROPOSAL_WORDS.planStopped(step, result.message) };
+      run.results.push({ step, result: stopped, id: null });
+      return { ...run, stoppedAt: step };
+    }
+    const id = result.made?.id ?? null;
+    run.made[step] = { kind: p.kind, id };
+    run.results.push({ step, result, id });
   }
-  return { results, stoppedAt: null };
+  return run;
 }
 
 export async function undoProposal(

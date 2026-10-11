@@ -31,6 +31,12 @@ export const AskProposalOutcomeSchema = z.object({
   receipt: z.string().max(300).catch(""),
   atMs: z.number().catch(0),
   undo: z.record(z.string(), z.unknown()).nullable().optional(),
+  // What the commit made that a plan's later step names (AskProposalOutcome.made): kept, never stripped, so a plan's
+  // made survives a reload; absent (every outcome saved before) or unreadable, it made nothing a token names.
+  made: z
+    .object({ kind: z.string().min(1).max(40), id: z.string().min(1).max(120) })
+    .nullable()
+    .catch(null),
 });
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */
