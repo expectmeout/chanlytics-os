@@ -1,7 +1,7 @@
 # 0043 · The owner hears of a hold from its event
 
 **Status:** Decided on 10 October 2026 (Ruben: "review and go with the best suggestions for chanlytics"), as recommended
-here. Steps 1 to 3 are built (00394, `owner_notice`); step 4 moved to 0044 and is built with its due rows. Phase 3's
+here. Steps 1 to 3 are built (00396, `owner_notice`); step 4 moved to 0044 and is built with its due rows. Phase 3's
 first real subscriber in 0031's order (its review of 9 October). Written against commit
 `ef0aea36a` (main, 10 October 2026). Where this note and the code disagree, the code wins.
 
@@ -47,7 +47,10 @@ The owner hears of a hold from the hold's event, once, after the commit.
 4. **Every hold is told alike.** A call's callback and price rule, and a receipt's failed send, get the `handoff` notice
    the text receptionist's holds get; the call's own summary stays as it is.
 5. **Once, however often it is delivered.** The notice keeps the event it answers (`notifications.source_event`,
-   unique): a second delivery, a re-drive, or an old edge that already told finds it and sends nothing.
+   unique): a second delivery, a re-drive, or an old edge that already told finds it and sends nothing. As built
+   (`notifyEvent`): no mail without the row, a mail that failed takes the row back and the delivery tries again, and a
+   twin delivery's row refuses a second notice. A hold that has taken another reason since its event is told by the
+   later event, so deliveries out of order tell the hold once, as it stands.
 6. **Nobody erased is named.** A person erased, or being erased, is told of as a thread, never by name or words.
 7. **The platform's copy says what the hold is.** `JobNews` takes a `redactedBody`, so a workspace with no address sends
    the platform a line about a person waiting, not "a reply could not be delivered".
@@ -66,7 +69,7 @@ Each step works whichever app deploys first.
 1. **Words and the record.** The reason-to-words map and `handoffMessage` in contracts; `JobNews.redactedBody`;
    `notifications.source_event`, a unique column, in a migration. Nothing reads them yet.
 2. **The subscriber.** `owner_notice` in `EVENT_SUBSCRIBERS` and `SUBSCRIBERS`, its ports in `packages/jobs`, the
-   double-delivery harness's case. Built with step 1 in 00394, which subscribes it at once: an old edge still tells
+   double-delivery harness's case. Built with step 1 in 00396, which subscribes it at once: an old edge still tells
    inline, and the subscriber finds that notice (a `handoff` about the thread since a minute before the hold, the
    `holdTold` read) and sends nothing, so either deploy order tells once.
 3. **The doors stop telling.** The fifteen `tell` calls and the send-failed paths keep only the failed-write branch;

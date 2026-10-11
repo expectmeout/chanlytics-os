@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
+import { DELIVERED } from "./thread";
 
 type Db = SupabaseClient<Database>;
 
@@ -225,6 +226,8 @@ export async function holdFactsOf(db: Db, tenantId: string, ref: HoldRef, nowMs:
           .eq("conversation_id", hold.conversation_id)
           .eq("direction", "outbound")
           .eq("sender", "ai")
+          // Words that reached them: a held draft, a failed or a withdrawn reply was never said.
+          .in("status", DELIVERED)
           .gte("created_at", theirs.created_at)
           .order("created_at", { ascending: false })
           .limit(1),
@@ -248,8 +251,9 @@ export async function holdFactsOf(db: Db, tenantId: string, ref: HoldRef, nowMs:
 
 /**
  * Whether the workspace was already told of this hold: the notice answering this event, or (while an edge from before
- * decision 0043 still tells inline) a handoff about this thread kept within a minute of the event. A read that fails
- * throws: "could not check" is not "never told".
+ * decision 0043 still tells inline) a handoff about this thread kept within a minute of the event and answering no event:
+ * a notice this subscriber kept for an earlier event of the thread is that event's, and a hold that changed its reason a
+ * moment later is news of its own. A read that fails throws: "could not check" is not "never told".
  */
 export async function holdTold(
   db: Db,
@@ -271,6 +275,7 @@ export async function holdTold(
     .eq("kind", "handoff")
     .eq("subject_type", "conversation")
     .eq("subject_id", p.conversationId)
+    .is("source_event", null)
     .gte("created_at", since)
     .limit(1);
   if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);

@@ -38770,8 +38770,9 @@ interface HoldFactsRow {
 declare function holdFactsOf(db: Db$k, tenantId: string, ref: HoldRef, nowMs: number): Promise<HoldFactsRow | null>;
 /**
  * Whether the workspace was already told of this hold: the notice answering this event, or (while an edge from before
- * decision 0043 still tells inline) a handoff about this thread kept within a minute of the event. A read that fails
- * throws: "could not check" is not "never told".
+ * decision 0043 still tells inline) a handoff about this thread kept within a minute of the event and answering no event:
+ * a notice this subscriber kept for an earlier event of the thread is that event's, and a hold that changed its reason a
+ * moment later is news of its own. A read that fails throws: "could not check" is not "never told".
  */
 declare function holdTold(db: Db$k, p: {
     tenantId: string;

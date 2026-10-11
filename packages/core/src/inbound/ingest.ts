@@ -34,7 +34,7 @@ import { toldFromItsEvent } from "../subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
 import { errField } from "@chanlytics/channels";
-import type { InboundContext, Ingested } from "./context";
+import type { HoldWords, InboundContext, Ingested } from "./context";
 
 // Persist first, or say so. An ingest write that fails is the one loss the
 // provider can undo: the customer's words go to the workspace mailbox as a
@@ -212,15 +212,12 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
    */
   const tell = async (
     asked: Promise<EscalateOutcome> | null,
-    userText: string,
-    botText: string,
-    reason: string,
-    pausedHours: number | null = null,
+    { said, answered, why, pausedHours = null }: HoldWords,
   ) => {
     // A hold written is told from its event (decision 0043): once, after the commit, out of this request. One whose
     // write failed, or a deployment with no database to write it in, is told here, as it was decided.
     if (toldFromItsEvent(asked ? await asked.catch(() => undefined) : undefined)) return;
-    await ports.alertStaff(from, userText, botText, reason, {
+    await ports.alertStaff(from, said, answered, why, {
       target: notifyTarget,
       channel,
       pausedHours,

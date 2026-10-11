@@ -55,12 +55,11 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     );
     await Promise.all([
       asked,
-      tell(
-        asked,
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent — the receptionist could not read the thread state)",
-        "state unavailable",
-      ),
+      tell(asked, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent — the receptionist could not read the thread state)",
+        why: "state unavailable",
+      }),
       processedAfter(sink, asked, "none"),
     ]);
     return;
@@ -107,7 +106,14 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     await Promise.all([
       processedAfter(sink, asked, "none"),
       ...(asked
-        ? [asked, tell(asked, n.body ?? `[${raw.type}]`, "(no reply sent — the customer opted out)", "opt-out")]
+        ? [
+            asked,
+            tell(asked, {
+              said: n.body ?? `[${raw.type}]`,
+              answered: "(no reply sent — the customer opted out)",
+              why: "opt-out",
+            }),
+          ]
         : []),
     ]);
     // `decided_by` matters after the fact: which of the two sources held them out.
@@ -127,12 +133,11 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     const asked = sink.escalate(carrier.held.reason, carrier.held.details);
     await Promise.all([
       asked,
-      tell(
-        asked,
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent — the carriers have not approved this line for texting yet)",
-        "carriers",
-      ),
+      tell(asked, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent — the carriers have not approved this line for texting yet)",
+        why: "carriers",
+      }),
       processedAfter(sink, asked, "none"),
     ]);
     L.info("sms_held_for_carriers");
@@ -166,7 +171,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
     await Promise.all([
       asked,
-      tell(asked, n.body ?? `[${raw.type}]`, "(no reply sent — passed to a human)", n.kind),
+      tell(asked, { said: n.body ?? `[${raw.type}]`, answered: "(no reply sent — passed to a human)", why: n.kind }),
       processedAfter(sink, asked, "none"),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });

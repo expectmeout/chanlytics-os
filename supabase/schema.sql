@@ -24223,7 +24223,7 @@ COMMENT ON COLUMN public.notifications.recipient_user_id IS 'The one member this
 -- Name: COLUMN notifications.source_event; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice answers (decision 0043, 00394): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised.';
+COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice answers (decision 0043, 00396): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised.';
 
 
 --

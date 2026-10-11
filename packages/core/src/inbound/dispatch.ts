@@ -117,13 +117,12 @@ export async function heldOrKept(
     );
     post.push(asked);
     post.push(
-      tell(
-        asked,
-        bodyText,
-        replyText,
-        "held for low confidence; the hold could not be scheduled, so nothing was sent",
-        pauseHours,
-      ),
+      tell(asked, {
+        said: bodyText,
+        answered: replyText,
+        why: "held for low confidence; the hold could not be scheduled, so nothing was sent",
+        pausedHours: pauseHours,
+      }),
     );
     await Promise.all(post);
     await processedAfter(sink, asked, "none", brainMeta?.intent ?? null);
@@ -150,7 +149,14 @@ export async function heldOrKept(
             : bodyText,
       );
       post.push(asked);
-      post.push(tell(asked, bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
+      post.push(
+        tell(asked, {
+          said: bodyText,
+          answered: replyText,
+          why: "assistant flagged handoff (reply held for review)",
+          pausedHours: pauseHours,
+        }),
+      );
     }
     await Promise.all(post);
     await processedAfter(sink, asked, "queued", brainMeta?.intent ?? null);
@@ -187,7 +193,12 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
       );
       post.push(asked);
       post.push(
-        tell(asked, bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours),
+        tell(asked, {
+          said: bodyText,
+          answered: replyText,
+          why: fallback ? fallback.alertReason : "assistant flagged handoff",
+          pausedHours: pauseHours,
+        }),
       );
     }
     await Promise.all(post);
@@ -211,7 +222,11 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
         : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`,
     );
     await Promise.all([
-      tell(asked, bodyText, "(send failed — the customer received no reply)", "wa_send_failed"),
+      tell(asked, {
+        said: bodyText,
+        answered: "(send failed — the customer received no reply)",
+        why: "wa_send_failed",
+      }),
       asked,
     ]);
     await noteHandledAfter(sink, asked, "none", brainMeta?.intent ?? null);

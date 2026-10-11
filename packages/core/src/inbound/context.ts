@@ -81,6 +81,18 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
 /** Everything fixed for this whole message, as openInbound bound it. */
 export type InboundContext = Awaited<ReturnType<typeof openInbound>>;
 
+/** What the owner's handoff notice says, when a branch tells it itself. */
+export interface HoldWords {
+  /** What the customer sent: their words, or what kind of message it was. */
+  said: string;
+  /** What the receptionist answered, or why nothing was. */
+  answered: string;
+  /** Why it is a person's, in the notice's words. */
+  why: string;
+  /** The hours this thread is paused for, when this branch paused it. */
+  pausedHours?: number | null;
+}
+
 /** What the ingest adds for the phases after it: the rows, the memory, the sink, and the three ways out. */
 export interface Ingested {
   ing: IngestResult | null;
@@ -93,13 +105,7 @@ export interface Ingested {
    * The owner's handoff notice, for a hold that was not written (`asked` answered failed, or nothing: no database): a hold
    * that was is told from its event, once, after the commit (decision 0043, core SUBSCRIBERS.owner_notice).
    */
-  tell: (
-    asked: Promise<EscalateOutcome> | null,
-    userText: string,
-    botText: string,
-    reason: string,
-    pausedHours?: number | null,
-  ) => Promise<void>;
+  tell: (asked: Promise<EscalateOutcome> | null, words: HoldWords) => Promise<void>;
 }
 
 /** The mode in force for this one message, once the person's own setting is known. */

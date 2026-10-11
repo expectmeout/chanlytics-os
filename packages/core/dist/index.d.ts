@@ -4377,7 +4377,7 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
  *                     run moves nothing.
  *   owner_notice      a thread handed to a person (escalation.opened, or an open hold taking another reason:
- *                     escalation.changed; 00388, 00394) is told to its workspace once, from its rows (decision 0043):
+ *                     escalation.changed; 00388, 00396) is told to its workspace once, from its rows (decision 0043):
  *                     the hold read again, so one answered since tells nobody; the notice keeps its event, so a second
  *                     run, or a notice an edge from before told inline, sends nothing again.
  */
@@ -4398,7 +4398,10 @@ interface SubscriberPorts {
         conversationId: string;
         at: string;
     }): Promise<boolean>;
-    /** Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040). */
+    /**
+     * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
+     * once for the event the news names. Throws when it could not, so the delivery tries again.
+     */
     tell(news: JobNews): Promise<void>;
 }
 /** A subscriber: the event, once; nothing to return, a throw is a failed delivery. */

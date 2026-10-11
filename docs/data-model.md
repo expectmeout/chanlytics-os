@@ -1874,7 +1874,7 @@ What needed the workspace's attention, kept: each alert the edge raised, where t
 | `subject_id` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `recipient_user_id` | uuid | yes |  | The one member this is for (0007); null for everyone in the workspace. Only the recipient reads an addressed row. |
-| `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00394): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised. |
+| `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00396): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised. |
 
 Foreign keys:
 

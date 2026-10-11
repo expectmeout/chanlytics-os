@@ -336,6 +336,81 @@ test("owner_notice reads a change by its hold, and names nobody erased", async (
   assert.doesNotMatch(n.body, /Rosa|Friday|305|Thread hit/, "no name, no words, no number of someone erased");
 });
 
+test("owner_notice tells a hold's new reason a moment after it told the first: its own notice answers that event, not this one", async () => {
+  const w = world({ subscriber: "owner_notice" });
+  Object.assign(w.tables.events[0], {
+    kind: "escalation.changed",
+    subject_type: "escalation",
+    subject_id: w.tables.escalations[0].id,
+    data: { from: "human_token", to: "rate_cap" },
+  });
+  // Told of the first reason seconds ago, by this subscriber, for the event that opened the hold.
+  w.tables.notifications.push({
+    id: "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
+    tenant_id: T,
+    kind: "handoff",
+    title: "Rosa Diaz needs a person — asked for a person",
+    body: "They wrote: …",
+    route: `inbox/th-${CONV}`,
+    subject_type: "conversation",
+    subject_id: CONV,
+    source_event: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    recipient_user_id: null,
+    created_at: "2026-10-05T23:59:50Z",
+  });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.deepEqual(
+    w.told.map((n) => n.subject),
+    ["Rosa Diaz needs a person — the receptionist reached its daily limit"],
+    "REGRESSION: a reason changed within the minute was swallowed by the first notice",
+  );
+});
+
+test("owner_notice tells a hold as it stands: an opened event whose hold took another reason since tells nothing, its change tells", async () => {
+  const w = world({ subscriber: "owner_notice" });
+  Object.assign(w.tables.events[0], { data: { reason: "policy_block" } });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.deepEqual(w.told, [], "two deliveries out of order tell the hold once");
+  assert.equal(w.delivery().state, "done");
+});
+
+test("owner_notice quotes the receptionist only in words that reached them: a failed or held reply was never said", async () => {
+  for (const status of ["failed", "queued", "canceled"]) {
+    const w = world({ subscriber: "owner_notice" });
+    w.tables.messages.push(
+      rows.message({
+        tenant_id: T,
+        conversation_id: CONV,
+        contact_id: PERSON,
+        direction: "outbound",
+        sender: "ai",
+        channel: "whatsapp",
+        status,
+        body: "Friday at 3 is yours.",
+        created_at: "2026-10-05T23:59:30Z",
+      }),
+    );
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", status);
+    assert.doesNotMatch(w.told[0].body, /The receptionist|Friday at 3/, status);
+  }
+  const said = world({ subscriber: "owner_notice" });
+  said.tables.messages.push(
+    rows.message({
+      tenant_id: T,
+      conversation_id: CONV,
+      contact_id: PERSON,
+      direction: "outbound",
+      sender: "ai",
+      channel: "whatsapp",
+      status: "delivered",
+      body: "Friday at 3 is yours.",
+      created_at: "2026-10-05T23:59:30Z",
+    }),
+  );
+  assert.equal(await dispatchJob(said.ctx, said.job), "done");
+  assert.match(said.told[0].body, /The receptionist: “Friday at 3 is yours\.”/);
+});
+
 test("owner_notice leaves an email's hold to where it is taken in: opened, changed to it, or holding it now", async () => {
   // The intake tells it in its job (sender, subject), a reach-out's reading tells its reply, a dead job's notice tells
   // the rest: told here too, one email would be heard of twice.

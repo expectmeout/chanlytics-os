@@ -14,7 +14,7 @@
  *                     hourly sweep hands the door the feed's items itself. The door stamps a lead once, so a second
  *                     run moves nothing.
  *   owner_notice      a thread handed to a person (escalation.opened, or an open hold taking another reason:
- *                     escalation.changed; 00388, 00394) is told to its workspace once, from its rows (decision 0043):
+ *                     escalation.changed; 00388, 00396) is told to its workspace once, from its rows (decision 0043):
  *                     the hold read again, so one answered since tells nobody; the notice keeps its event, so a second
  *                     run, or a notice an edge from before told inline, sends nothing again.
  */
@@ -29,7 +29,10 @@ export interface SubscriberPorts {
   holdFacts(tenantId: string, ref: { conversationId: string } | { escalationId: string }): Promise<HoldFacts | null>;
   /** Whether the workspace was told of this hold already: this event's notice, or an inline one about the thread. */
   holdTold(tenantId: string, p: { eventId: string; conversationId: string; at: string }): Promise<boolean>;
-  /** Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040). */
+  /**
+   * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
+   * once for the event the news names. Throws when it could not, so the delivery tries again.
+   */
   tell(news: JobNews): Promise<void>;
 }
 
@@ -84,6 +87,9 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     if (!ref || reasonOfEvent(event) === TOLD_WHERE_TAKEN_IN) return;
     const facts = await ports.holdFacts(event.tenant_id, ref);
     if (!facts || facts.reason === TOLD_WHERE_TAKEN_IN) return;
+    // A hold that has taken another reason since this event is told by the event that gave it that reason, so two
+    // deliveries out of order tell the hold once, as it stands.
+    if (reasonOfEvent(event) !== facts.reason) return;
     const told = await ports.holdTold(event.tenant_id, {
       eventId: event.id,
       conversationId: facts.conversationId,

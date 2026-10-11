@@ -99,12 +99,11 @@ export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
     );
     await Promise.all([
       asked,
-      tell(
-        asked,
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent — arrived too late to answer automatically)",
-        "late message",
-      ),
+      tell(asked, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent — arrived too late to answer automatically)",
+        why: "late message",
+      }),
       processedAfter(sink, asked, "none"),
       ...(n.media ? [sink.media(n)] : []),
     ]);
@@ -172,7 +171,11 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
       );
       await Promise.all([
         asked,
-        tell(asked, bodyText, `(the confirmation of their yes was not delivered — ${why})`, "opt-in not confirmed"),
+        tell(asked, {
+          said: bodyText,
+          answered: `(the confirmation of their yes was not delivered — ${why})`,
+          why: "opt-in not confirmed",
+        }),
       ]);
     }
     await processedAfter(sink, asked, confirmed.outcome === "sent" ? "sent" : "none");
@@ -232,7 +235,11 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     );
     await Promise.all([
       asked,
-      tell(asked, bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap"),
+      tell(asked, {
+        said: bodyText,
+        answered: "(no reply sent — daily automatic-reply limit reached)",
+        why: "rate cap",
+      }),
       processedAfter(sink, asked, "none"),
     ]);
     return;
@@ -253,7 +260,11 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     );
     await Promise.all([
       asked,
-      tell(asked, bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused"),
+      tell(asked, {
+        said: bodyText,
+        answered: "(no reply sent — the workspace is paused until billing resumes)",
+        why: "paused",
+      }),
       processedAfter(sink, asked, "none"),
     ]);
     return;
@@ -277,7 +288,7 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
       );
       await Promise.all([
         asked,
-        tell(asked, bodyText, "(no reply sent — the day's model budget is used up)", "budget"),
+        tell(asked, { said: bodyText, answered: "(no reply sent — the day's model budget is used up)", why: "budget" }),
         processedAfter(sink, asked, "none"),
       ]);
       return;
@@ -309,7 +320,7 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     // is no news, which the alert here used to have to remember.
     const alertNeeded = !toldFromItsEvent(outcome);
     await Promise.all([
-      tell(Promise.resolve(outcome), bodyText, hold.botText, hold.why),
+      tell(Promise.resolve(outcome), { said: bodyText, answered: hold.botText, why: hold.why }),
       sink.processed(handledOf({ escalation: escalationOf(outcome), reply: "none" })),
     ]);
     L.info("wa_held_by_policy", {

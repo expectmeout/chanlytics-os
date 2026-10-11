@@ -909,6 +909,7 @@ var SUBSCRIBERS = {
     if (!ref || reasonOfEvent(event2) === TOLD_WHERE_TAKEN_IN) return;
     const facts = await ports.holdFacts(event2.tenant_id, ref);
     if (!facts || facts.reason === TOLD_WHERE_TAKEN_IN) return;
+    if (reasonOfEvent(event2) !== facts.reason) return;
     const told = await ports.holdTold(event2.tenant_id, {
       eventId: event2.id,
       conversationId: facts.conversationId,
@@ -38386,9 +38387,9 @@ async function ingestMessage(cx, resume = false) {
   const firstReply = thread.textedBefore === void 0 ? thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant") : !thread.textedBefore;
   const wire = (text) => carrier ? carrier.body(text, firstReply) : text;
   const send = (text, meta, purpose, kind) => sink.deliver(from, wire(text), meta, purpose, kind);
-  const tell = async (asked2, userText, botText, reason, pausedHours = null) => {
+  const tell = async (asked2, { said, answered, why, pausedHours = null }) => {
     if (toldFromItsEvent(asked2 ? await asked2.catch(() => void 0) : void 0)) return;
-    await ports.alertStaff(from, userText, botText, reason, {
+    await ports.alertStaff(from, said, answered, why, {
       target: notifyTarget,
       channel,
       pausedHours,
@@ -38430,12 +38431,11 @@ async function firstGates(at) {
     );
     await Promise.all([
       asked2,
-      tell(
-        asked2,
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent \u2014 the receptionist could not read the thread state)",
-        "state unavailable"
-      ),
+      tell(asked2, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent \u2014 the receptionist could not read the thread state)",
+        why: "state unavailable"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     return;
@@ -38459,7 +38459,14 @@ async function firstGates(at) {
     ) : null;
     await Promise.all([
       processedAfter(sink, asked2, "none"),
-      ...asked2 ? [asked2, tell(asked2, n.body ?? `[${raw.type}]`, "(no reply sent \u2014 the customer opted out)", "opt-out")] : []
+      ...asked2 ? [
+        asked2,
+        tell(asked2, {
+          said: n.body ?? `[${raw.type}]`,
+          answered: "(no reply sent \u2014 the customer opted out)",
+          why: "opt-out"
+        })
+      ] : []
     ]);
     L.info("wa_skip_opt_out", {
       this_message: n.optOut,
@@ -38472,12 +38479,11 @@ async function firstGates(at) {
     const asked2 = sink.escalate(carrier.held.reason, carrier.held.details);
     await Promise.all([
       asked2,
-      tell(
-        asked2,
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent \u2014 the carriers have not approved this line for texting yet)",
-        "carriers"
-      ),
+      tell(asked2, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent \u2014 the carriers have not approved this line for texting yet)",
+        why: "carriers"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     L.info("sms_held_for_carriers");
@@ -38492,7 +38498,7 @@ async function firstGates(at) {
     const asked2 = sink.escalate("non_text", `${n.body} \u2014 needs a person.`);
     await Promise.all([
       asked2,
-      tell(asked2, n.body ?? `[${raw.type}]`, "(no reply sent \u2014 passed to a human)", n.kind),
+      tell(asked2, { said: n.body ?? `[${raw.type}]`, answered: "(no reply sent \u2014 passed to a human)", why: n.kind }),
       processedAfter(sink, asked2, "none")
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
@@ -38518,7 +38524,12 @@ function seeingOf(at) {
     await Promise.all([
       ...pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : [],
       asked2,
-      tell(asked2, `[${raw.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null)
+      tell(asked2, {
+        said: `[${raw.type} message]`,
+        answered: `(${why})`,
+        why: "non-text message",
+        pausedHours: pausedUntil ? pauseHours : null
+      })
     ]);
     L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
     return { pausedUntil, way: { escalation: escalationOf(await asked2), reply: acked ? "sent" : "none" } };
@@ -38596,12 +38607,11 @@ async function tooLate(at) {
     );
     await Promise.all([
       asked2,
-      tell(
-        asked2,
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent \u2014 arrived too late to answer automatically)",
-        "late message"
-      ),
+      tell(asked2, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent \u2014 arrived too late to answer automatically)",
+        why: "late message"
+      }),
       processedAfter(sink, asked2, "none"),
       ...n.media ? [sink.media(n)] : []
     ]);
@@ -38633,7 +38643,11 @@ async function confirmedYes(at, bodyText) {
       );
       await Promise.all([
         asked2,
-        tell(asked2, bodyText, `(the confirmation of their yes was not delivered \u2014 ${why})`, "opt-in not confirmed")
+        tell(asked2, {
+          said: bodyText,
+          answered: `(the confirmation of their yes was not delivered \u2014 ${why})`,
+          why: "opt-in not confirmed"
+        })
       ]);
     }
     await processedAfter(sink, asked2, confirmed.outcome === "sent" ? "sent" : "none");
@@ -38685,7 +38699,11 @@ async function heldForThePerson(at, bodyText) {
     );
     await Promise.all([
       asked2,
-      tell(asked2, bodyText, "(no reply sent \u2014 daily automatic-reply limit reached)", "rate cap"),
+      tell(asked2, {
+        said: bodyText,
+        answered: "(no reply sent \u2014 daily automatic-reply limit reached)",
+        why: "rate cap"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     return;
@@ -38698,7 +38716,11 @@ async function heldForThePerson(at, bodyText) {
     );
     await Promise.all([
       asked2,
-      tell(asked2, bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
+      tell(asked2, {
+        said: bodyText,
+        answered: "(no reply sent \u2014 the workspace is paused until billing resumes)",
+        why: "paused"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     return;
@@ -38714,7 +38736,7 @@ async function heldForThePerson(at, bodyText) {
       );
       await Promise.all([
         asked2,
-        tell(asked2, bodyText, "(no reply sent \u2014 the day's model budget is used up)", "budget"),
+        tell(asked2, { said: bodyText, answered: "(no reply sent \u2014 the day's model budget is used up)", why: "budget" }),
         processedAfter(sink, asked2, "none")
       ]);
       return;
@@ -38731,7 +38753,7 @@ async function heldForThePerson(at, bodyText) {
     const outcome = await sink.escalate(hold.reason, hold.details);
     const alertNeeded = !toldFromItsEvent(outcome);
     await Promise.all([
-      tell(Promise.resolve(outcome), bodyText, hold.botText, hold.why),
+      tell(Promise.resolve(outcome), { said: bodyText, answered: hold.botText, why: hold.why }),
       sink.processed(handledOf({ escalation: escalationOf(outcome), reply: "none" }))
     ]);
     L.info("wa_held_by_policy", {
@@ -38910,13 +38932,12 @@ async function heldOrKept(at, turn, hold, bodyText) {
     );
     post.push(asked2);
     post.push(
-      tell(
-        asked2,
-        bodyText,
-        replyText,
-        "held for low confidence; the hold could not be scheduled, so nothing was sent",
-        pauseHours
-      )
+      tell(asked2, {
+        said: bodyText,
+        answered: replyText,
+        why: "held for low confidence; the hold could not be scheduled, so nothing was sent",
+        pausedHours: pauseHours
+      })
     );
     await Promise.all(post);
     await processedAfter(sink, asked2, "none", brainMeta?.intent ?? null);
@@ -38936,7 +38957,14 @@ async function heldOrKept(at, turn, hold, bodyText) {
         fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
       );
       post.push(asked2);
-      post.push(tell(asked2, bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
+      post.push(
+        tell(asked2, {
+          said: bodyText,
+          answered: replyText,
+          why: "assistant flagged handoff (reply held for review)",
+          pausedHours: pauseHours
+        })
+      );
     }
     await Promise.all(post);
     await processedAfter(sink, asked2, "queued", brainMeta?.intent ?? null);
@@ -38966,7 +38994,12 @@ async function sendNow(at, turn, hold, bodyText) {
       );
       post.push(asked2);
       post.push(
-        tell(asked2, bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours)
+        tell(asked2, {
+          said: bodyText,
+          answered: replyText,
+          why: fallback ? fallback.alertReason : "assistant flagged handoff",
+          pausedHours: pauseHours
+        })
       );
     }
     await Promise.all(post);
@@ -38980,7 +39013,11 @@ async function sendNow(at, turn, hold, bodyText) {
       sent.reason === "wire_unreadable" ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer." : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`
     );
     await Promise.all([
-      tell(asked2, bodyText, "(send failed \u2014 the customer received no reply)", "wa_send_failed"),
+      tell(asked2, {
+        said: bodyText,
+        answered: "(send failed \u2014 the customer received no reply)",
+        why: "wa_send_failed"
+      }),
       asked2
     ]);
     await noteHandledAfter(sink, asked2, "none", brainMeta?.intent ?? null);
