@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   greetingFor,
+  pausedGreetingFor,
   GREETING_DEFAULT,
   setupSteps,
   firstRunOf,
@@ -43,14 +44,27 @@ import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from 
 test("the phone greeting is one sentence, composed once: contracts', and the voice shell says the same", () => {
   assert.equal(
     greetingFor("Harbor Moving"),
-    "Thank you for calling Harbor Moving! This call may be recorded. I'm the automated assistant — how can I help you today?",
+    "Hi, Harbor Moving. I'm the automated assistant, and calls are recorded. How can I help?",
   );
   assert.equal(shellGreeting("Harbor Moving"), greetingFor("Harbor Moving"));
   assert.equal(GREETING_DEFAULT, SHELL_DEFAULT);
   assert.equal(
     GREETING_DEFAULT,
-    "Thank you for calling! This call may be recorded. I'm the automated assistant — how can I help you today?",
+    "Hi, thanks for calling. I'm the automated assistant, and calls are recorded. How can I help?",
   );
+});
+
+test("the greeting is short and says both things a caller is owed first, the paused one too", () => {
+  // The engine review's second pass: a 22-word line lost callers before it ended. Every line under its 35 words, and
+  // the everyday one under twenty, with a long name.
+  const name = "Northside Family Hair & Beauty Studio";
+  for (const line of [greetingFor(name), greetingFor(null), pausedGreetingFor(name), pausedGreetingFor(null)]) {
+    const words = line.split(/\s+/).filter(Boolean).length;
+    assert.ok(words < 35, `${words} words: ${line}`);
+    assert.match(line, /automated assistant/, "the caller is told it is not a person");
+    assert.match(line, /calls are recorded/, "the caller is told the call is recorded");
+  }
+  assert.ok(greetingFor(name).split(/\s+/).length < 20, "the everyday line stays under twenty words");
 });
 
 /* ---- the first run's view model, on setup.test.mjs's own fixtures ---- */
