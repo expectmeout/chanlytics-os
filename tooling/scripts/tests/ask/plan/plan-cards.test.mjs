@@ -643,6 +643,27 @@ test("the receptionist's notes are the settings read's own (the notes in force t
   // A configuration that does not parse: not "no notes", which would make a second note over the first.
   const broken = tables({ tenant_config: withNotes("not a list") });
   refusedFor(await plan(offer(), broken), W.notesUnread);
+  // Every note in force is read, with no cap of the prompt's: the offer's note last of as many as a profile holds
+  // (PROFILE_LIMITS.notes) is held, and no second one is proposed.
+  const others = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      title: `House rule ${i + 1}`,
+      text: "Ask at the desk.",
+      until: "2026-12-31",
+    }));
+  const offersNote = { title: `Offer: ${WORDS}`, text: "Ten percent off colour.", until: "2026-11-30" };
+  const full = await plan(
+    offer(),
+    tables({ tenant_config: withNotes([...others(C.PROFILE_LIMITS.notes - 1), offersNote]) }),
+  );
+  assert.equal(full.isError, false, full.result);
+  assert.ok(!full.proposals.some((p) => p.kind === "settings"), "the offer's note, last, is held");
+  assert.ok(said(full).words.includes(W.noteKnown));
+  // One past what a profile holds does not parse (the profile's own limit), so it is unread, never planned on.
+  refusedFor(
+    await plan(offer(), tables({ tenant_config: withNotes([...others(C.PROFILE_LIMITS.notes), offersNote]) })),
+    W.notesUnread,
+  );
 });
 
 /* ------------------------------------------------------------------ the journey */

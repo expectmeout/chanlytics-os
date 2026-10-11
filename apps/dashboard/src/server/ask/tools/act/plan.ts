@@ -7,6 +7,7 @@ import {
   PLAN_WORDS,
   channelChoices,
   listToken,
+  notesInForce,
   parseTenantConfigResult,
   planOf,
   type AskProposal,
@@ -17,7 +18,6 @@ import {
 import { load } from "../../../readers";
 import { channelsReady, config, facts as factsReader } from "../../../readers/facts";
 import { playbooks } from "../../../readers/playbooks";
-import { workspaceFacts } from "../../prompt";
 import {
   actAction,
   offeredTo,
@@ -106,15 +106,17 @@ async function worldReads(t: ToolContext) {
 }
 
 /**
- * The receptionist's notes as Ask's settings read says them (prompt.ts workspaceFacts: the notes in force the receptionist
- * is told), or null where they could not be read: a read that failed, or a configuration that does not parse, which would
- * otherwise read as no notes and make a second note over the first.
+ * The receptionist's notes that still hold, by the one rule for it (contracts notesInForce, the rule Ask's settings read
+ * says them by) over the profile as the settings read parses it, every one of them; or null where they could not be
+ * read: a read that failed, or a configuration that does not parse, which would otherwise read as no notes and make a
+ * second note over the first.
  */
 function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorld["notes"] | null {
   if (!r.settings || !r.facts) return null;
-  const raw = r.settings.row?.config ?? null;
-  if (!parseTenantConfigResult(raw).ok) return null;
-  return workspaceFacts(r.facts.name, r.facts.timezone, raw, now).notes;
+  const parsed = parseTenantConfigResult(r.settings.row?.config ?? null);
+  if (!parsed.ok) return null;
+  // The rule for which notes still hold, with no cap: the prompt's ten (workspaceFacts) is its size, not the rule.
+  return notesInForce(parsed.config.brain?.profile?.notes, r.facts.timezone, now);
 }
 
 /**
@@ -122,7 +124,7 @@ function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorl
  * so what the plan reuses, counts and covers is what those actions say: the Library (campaigns.messages), the lists and
  * their counts (people.lists: People's offered here and the workspace's own), the journey (campaigns.journey, as
  * Campaigns' home composes it), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
- * none where no calendar can say it, or one with no slot either way), the receptionist's notes (workspace.settings'), and
+ * none where no calendar can say it, or one with no slot either way), the receptionist's notes in force (notesOf), and
  * the channels an offer may go by now (the channels' readiness with the offer's own rule, contracts channelChoices). Each
  * read once a turn, the independent ones together. And whether the member asking may approve a note for the
  * receptionist (context.ts offeredTo, the registry's own predicate), so a plan is never dead at a step its member may
