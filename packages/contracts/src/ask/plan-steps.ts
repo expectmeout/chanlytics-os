@@ -1,10 +1,13 @@
 /**
- * A plan's steps as a commit reads them (the marketing manager's spec §5.4): the token a step names what an earlier step
- * makes by (`@step:n`), filled from what the plan made, and that made read back from its cards' outcomes. Apart from the
- * plan itself (plan.ts, which reads the starters, the lists and the journey to make the steps), so the browser's commit
- * runner (legacy-bridge/ask/commit.ts) reads these and nothing of how a plan is made.
+ * A plan's steps as a commit and the Line read them (the marketing manager's spec §5.4, §5.8): the token a step names
+ * what an earlier step makes by (`@step:n`), filled from what the plan made, and that made read back from its cards'
+ * outcomes; which steps a card waits for; the plan's group as the Line draws it; and the answer's sentence for a plan's
+ * cards. Apart from the plan itself (plan.ts, which reads the starters, the lists and the journey to make the steps), so
+ * the browser's commit runner (legacy-bridge/ask/commit.ts) and the Line read these and nothing of how a plan is made.
  */
-import type { AskProposal } from "./ask";
+import type { AskPlanStamp, AskProposal } from "./ask";
+import type { AskLanguage } from "./ask-language";
+import { PROPOSAL_WORDS, rec } from "../ask-proposals/spec";
 
 /**
  * Every step of a plan committed so far, by step, as a card's commit fills its tokens from it and a press of the plan
@@ -63,4 +66,153 @@ export function planMadeOf(planId: string, cards: readonly Pick<AskProposal, "ki
     else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
   }
   return made;
+}
+
+/**
+ * The step a plan's card waits for before it may be approved (AskPlanStamp.after: a send's, every step of its plan that
+ * sends nothing): the first of them undone, since what it made is gone and the card never goes (PROPOSAL_WORDS
+ * .planUndone); else the first not committed yet, which is approved first (waitsForStep). Null where every step it waits
+ * for is committed, and for a card of no plan. One rule: commit.ts refuses a card that waits before its spec is read, and
+ * the Line draws what it waits for in place of its Approve (planGroupOf).
+ */
+export function planWaits(
+  plan: AskPlanStamp | undefined,
+  made: PlanMade,
+): { undone: number } | { waits: number } | null {
+  if (!plan) return null;
+  const undone = plan.after.find((n) => {
+    const step = made[n];
+    return !!step && "undone" in step;
+  });
+  if (undone !== undefined) return { undone };
+  const waits = plan.after.find((n) => !made[n]);
+  return waits === undefined ? null : { waits };
+}
+
+/**
+ * A turn's cards as the Line draws them: each plan's cards together, where its first card stands, and every other card on
+ * its own and in its place. The order within a plan is planGroupOf's.
+ */
+export function cardsInPlans<P extends Pick<AskProposal, "plan">>(
+  cards: readonly P[],
+): ({ card: P } | { plan: P[] })[] {
+  const out: ({ card: P } | { plan: P[] })[] = [];
+  const plans = new Map<string, P[]>();
+  for (const p of cards) {
+    const id = p.plan?.id;
+    const held = id === undefined ? undefined : plans.get(id);
+    if (id === undefined) out.push({ card: p });
+    else if (held) held.push(p);
+    else {
+      const group = [p];
+      plans.set(id, group);
+      out.push({ plan: group });
+    }
+  }
+  return out;
+}
+
+/** A plan's card as the Line holds it, its outcome as it stands: what its group is drawn from. */
+type HeldCard = Pick<AskProposal, "id" | "kind" | "payload" | "plan" | "outcome">;
+
+/** One step of a plan's group on the Line (planGroupOf). */
+interface GroupStep<P extends HeldCard> {
+  card: P;
+  /** Where it stands in its plan: "Step 1 of 6". */
+  head: string;
+  /** What it waits for, in place of its Approve ("Waits for step 2"); null where it may be pressed. */
+  waits: string | null;
+  /** The line said before its press: why it never goes (a step it waits for was undone), or WhatsApp's review; or null. */
+  note: string | null;
+}
+
+/**
+ * The step whose message a send goes on (its template_id, `@step:n`), where that step writes the message with a WhatsApp
+ * version and the send goes by WhatsApp the way core holds for WhatsApp's review: a broadcast that ticks WhatsApp (core
+ * refuseTicks answers 409 while the version is in review), or a campaign by WhatsApp alone (check-playbook's
+ * refuseMessageNoTickHolds); a campaign by email too keeps its WhatsApp tick and holds those people until it is approved,
+ * so it can be approved now. Null for every other card. Read from the cards alone: no review state is held.
+ */
+function reviewedStep(p: HeldCard, steps: ReadonlyMap<number, HeldCard>): number | null {
+  const token = typeof p.payload.template_id === "string" ? STEP_TOKEN.exec(p.payload.template_id) : null;
+  if (!token) return null;
+  const n = Number(token[1]);
+  const message = steps.get(n);
+  const writesWhatsApp = message?.kind === "message" && !!rec(message.payload.versions).whatsapp;
+  const channels: unknown[] = Array.isArray(p.payload.channels) ? p.payload.channels : [];
+  const held =
+    p.kind === "broadcast"
+      ? channels.includes("whatsapp")
+      : p.kind === "playbook" && channels.length > 0 && channels.every((c) => c === "whatsapp");
+  return writesWhatsApp && held ? n : null;
+}
+
+/**
+ * A plan's group as the Line draws it (the marketing manager's spec §5.8), from its cards as they stand now: each step in
+ * step order under its head, with what it waits for in place of its Approve (planWaits, over what its plan's cards
+ * became: planMadeOf) and the line said before its press; and the words of the one press over them (`press`), counting
+ * the steps that send nothing and are not committed yet, null where none is left. The plan is the first stamped card's;
+ * a card of any other plan, or of none, is not read.
+ */
+export function planGroupOf<P extends HeldCard>(
+  cards: readonly P[],
+): { id: string; steps: GroupStep<P>[]; press: string | null } {
+  const id = cards.find((p) => p.plan)?.plan?.id ?? "";
+  const mine = cards
+    .flatMap((card) => (card.plan && card.plan.id === id ? [{ card, plan: card.plan }] : []))
+    .sort((a, b) => a.plan.step - b.plan.step);
+  const made = planMadeOf(
+    id,
+    mine.map((s) => s.card),
+  );
+  const byStep = new Map<number, HeldCard>(mine.map((s) => [s.plan.step, s.card]));
+  const steps = mine.map(({ card, plan }): GroupStep<P> => {
+    const wait = planWaits(plan, made);
+    const review = reviewedStep(card, byStep);
+    const undone = wait !== null && "undone" in wait;
+    return {
+      card,
+      head: PROPOSAL_WORDS.stepOf(plan.step, plan.of),
+      waits:
+        wait === null
+          ? null
+          : "undone" in wait
+            ? PROPOSAL_WORDS.stepUndone(wait.undone)
+            : PROPOSAL_WORDS.waitingFor(wait.waits),
+      note: undone ? PROPOSAL_WORDS.planUndone : review === null ? null : PROPOSAL_WORDS.afterReview(review),
+    };
+  });
+  const left = mine.filter((s) => s.plan.silent && !made[s.plan.step]).length;
+  return { id, steps, press: left > 0 ? PROPOSAL_WORDS.approveSilent(left) : null };
+}
+
+/**
+ * The answer's sentence for a plan's cards (ask-answer.ts answerForCards: the turn that proposed and said nothing else,
+ * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8): its steps that send
+ * nothing and its sends, counted ("A plan of 4 steps and 2 sends to review."), and how they are approved where some send
+ * nothing (null where none does: each card is its own press, as several cards are). Null where the cards are not every
+ * one a step of one plan, which are counted as cards.
+ */
+export function planCountWords(
+  cards: readonly Pick<AskProposal, "plan">[],
+  language: AskLanguage,
+): { headline: string; detail: string | null } | null {
+  const id = cards[0]?.plan?.id;
+  if (id === undefined || cards.some((p) => p.plan?.id !== id)) return null;
+  const steps = cards.filter((p) => p.plan?.silent).length;
+  const sends = cards.length - steps;
+  const es = language === "es";
+  const count = (n: number, one: string, many: string): string[] => (n === 0 ? [] : [`${n} ${n === 1 ? one : many}`]);
+  const parts = [
+    ...count(steps, es ? "paso" : "step", es ? "pasos" : "steps"),
+    ...count(sends, es ? "envío" : "send", es ? "envíos" : "sends"),
+  ];
+  const headline = es ? `Un plan de ${parts.join(" y ")} para revisar.` : `A plan of ${parts.join(" and ")} to review.`;
+  if (steps === 0) return { headline, detail: null };
+  return {
+    headline,
+    detail: es
+      ? "Los pasos que no envían nada se aprueban con un toque; cada envío se aprueba aparte cuando estén hechos los pasos que espera. Nada pasa hasta que lo hagas."
+      : "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
+  };
 }

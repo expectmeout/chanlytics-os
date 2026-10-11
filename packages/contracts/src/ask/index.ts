@@ -113,7 +113,7 @@ export type {
 export { ASK_ANSWER_FORMAT } from "./answer-format";
 export { planOf, PLAN_WORDS } from "./plan";
 export type { PlanIntent, PlanWorld, PlanStep } from "./plan";
-export { planMadeOf, resolveSteps, stepToken, STEP_TOKEN } from "./plan-steps";
+export { planMadeOf, resolveSteps, stepToken, STEP_TOKEN, planWaits, cardsInPlans, planGroupOf } from "./plan-steps";
 export type { PlanMade } from "./plan-steps";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask-context";
 export { PageContextSchema } from "./ask-schemas";

@@ -10541,7 +10541,21 @@ var PROPOSAL_WORDS = {
    */
   stepMadeNothing: (n) => `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
-  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
+  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
+  /** A plan's step's head on the Line (ask/plan-steps.ts planGroupOf): where it stands in its plan. */
+  stepOf: (n, of) => `Step ${n} of ${of}`,
+  /** The one press over a plan's group: its steps that send nothing and are not approved yet, approved together. */
+  approveSilent: (n) => n === 1 ? "Approve the silent step" : `Approve the ${n} silent steps`,
+  /** In place of a send's Approve while a step it waits for is not approved yet (waitsForStep is its press's refusal). */
+  waitingFor: (n) => `Waits for step ${n}`,
+  /** In place of a send's Approve once a step it waits for was undone: it never goes, and planUndone says why. */
+  stepUndone: (n) => `Step ${n} was undone`,
+  /**
+   * Before a send's press, where the message it sends is one a step of its plan writes with a WhatsApp version and the
+   * send goes by WhatsApp: WhatsApp reviews that version first, and a press before it is answered by core's refusal.
+   * Static words: the Line holds no review state.
+   */
+  afterReview: (n) => `This can be approved once WhatsApp has reviewed step ${n}'s message.`
 };
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
@@ -13961,6 +13975,116 @@ function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
   return true;
 }
 
+// src/ask/plan-steps.ts
+var STEP_TOKEN = /^@step:(\d+)$/;
+function stepToken(n) {
+  return `@step:${n}`;
+}
+function resolveSteps(payload, made) {
+  let unresolved = null;
+  const fill2 = (v) => {
+    if (typeof v === "string") {
+      const m = STEP_TOKEN.exec(v);
+      if (!m) return v;
+      const n = Number(m[1]);
+      const step2 = made[n];
+      if (step2 && !("undone" in step2) && step2.id !== null) return step2.id;
+      unresolved ??= n;
+      return v;
+    }
+    if (Array.isArray(v)) return v.map(fill2);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill2(x)]));
+    return v;
+  };
+  const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill2(x)]));
+  return unresolved === null ? out : { unresolved };
+}
+function planMadeOf(planId, cards) {
+  const made = {};
+  for (const p of cards) {
+    if (p.plan?.id !== planId || !p.outcome) continue;
+    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
+    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
+  }
+  return made;
+}
+function planWaits(plan, made) {
+  if (!plan) return null;
+  const undone = plan.after.find((n) => {
+    const step2 = made[n];
+    return !!step2 && "undone" in step2;
+  });
+  if (undone !== void 0) return { undone };
+  const waits = plan.after.find((n) => !made[n]);
+  return waits === void 0 ? null : { waits };
+}
+function cardsInPlans(cards) {
+  const out = [];
+  const plans = /* @__PURE__ */ new Map();
+  for (const p of cards) {
+    const id = p.plan?.id;
+    const held = id === void 0 ? void 0 : plans.get(id);
+    if (id === void 0) out.push({ card: p });
+    else if (held) held.push(p);
+    else {
+      const group = [p];
+      plans.set(id, group);
+      out.push({ plan: group });
+    }
+  }
+  return out;
+}
+function reviewedStep(p, steps) {
+  const token2 = typeof p.payload.template_id === "string" ? STEP_TOKEN.exec(p.payload.template_id) : null;
+  if (!token2) return null;
+  const n = Number(token2[1]);
+  const message = steps.get(n);
+  const writesWhatsApp = message?.kind === "message" && !!rec(message.payload.versions).whatsapp;
+  const channels = Array.isArray(p.payload.channels) ? p.payload.channels : [];
+  const held = p.kind === "broadcast" ? channels.includes("whatsapp") : p.kind === "playbook" && channels.length > 0 && channels.every((c) => c === "whatsapp");
+  return writesWhatsApp && held ? n : null;
+}
+function planGroupOf(cards) {
+  const id = cards.find((p) => p.plan)?.plan?.id ?? "";
+  const mine = cards.flatMap((card) => card.plan && card.plan.id === id ? [{ card, plan: card.plan }] : []).sort((a, b) => a.plan.step - b.plan.step);
+  const made = planMadeOf(
+    id,
+    mine.map((s) => s.card)
+  );
+  const byStep = new Map(mine.map((s) => [s.plan.step, s.card]));
+  const steps = mine.map(({ card, plan }) => {
+    const wait = planWaits(plan, made);
+    const review = reviewedStep(card, byStep);
+    const undone = wait !== null && "undone" in wait;
+    return {
+      card,
+      head: PROPOSAL_WORDS.stepOf(plan.step, plan.of),
+      waits: wait === null ? null : "undone" in wait ? PROPOSAL_WORDS.stepUndone(wait.undone) : PROPOSAL_WORDS.waitingFor(wait.waits),
+      note: undone ? PROPOSAL_WORDS.planUndone : review === null ? null : PROPOSAL_WORDS.afterReview(review)
+    };
+  });
+  const left = mine.filter((s) => s.plan.silent && !made[s.plan.step]).length;
+  return { id, steps, press: left > 0 ? PROPOSAL_WORDS.approveSilent(left) : null };
+}
+function planCountWords(cards, language) {
+  const id = cards[0]?.plan?.id;
+  if (id === void 0 || cards.some((p) => p.plan?.id !== id)) return null;
+  const steps = cards.filter((p) => p.plan?.silent).length;
+  const sends2 = cards.length - steps;
+  const es = language === "es";
+  const count2 = (n, one, many) => n === 0 ? [] : [`${n} ${n === 1 ? one : many}`];
+  const parts2 = [
+    ...count2(steps, es ? "paso" : "step", es ? "pasos" : "steps"),
+    ...count2(sends2, es ? "env\xEDo" : "send", es ? "env\xEDos" : "sends")
+  ];
+  const headline = es ? `Un plan de ${parts2.join(" y ")} para revisar.` : `A plan of ${parts2.join(" and ")} to review.`;
+  if (steps === 0) return { headline, detail: null };
+  return {
+    headline,
+    detail: es ? "Los pasos que no env\xEDan nada se aprueban con un toque; cada env\xEDo se aprueba aparte cuando est\xE9n hechos los pasos que espera. Nada pasa hasta que lo hagas." : "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do."
+  };
+}
+
 // src/ask/ask-answer.ts
 var ASK_ANSWER_CAPS = {
   headline: 160,
@@ -14362,11 +14486,12 @@ var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
 function answerForCards(cards, language) {
   const es = language === "es";
   const n = cards.length;
+  const plan = planCountWords(cards, language);
   const a = structured(
-    n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`,
+    plan ? plan.headline : n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`,
     language
   );
-  a.say.detail = n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do.";
+  a.say.detail = plan?.detail ?? (n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do.");
   return a;
 }
 function failedAnswer(sentenceText, language) {
@@ -16441,40 +16566,6 @@ function nextRunOf(p, tz, now) {
     if (hour <= PLAYBOOK_HOURS.max) return { day: "today", hour: p.run_hour, soon: true };
   }
   return { day: "tomorrow", hour: p.run_hour, soon: false };
-}
-
-// src/ask/plan-steps.ts
-var STEP_TOKEN = /^@step:(\d+)$/;
-function stepToken(n) {
-  return `@step:${n}`;
-}
-function resolveSteps(payload, made) {
-  let unresolved = null;
-  const fill2 = (v) => {
-    if (typeof v === "string") {
-      const m = STEP_TOKEN.exec(v);
-      if (!m) return v;
-      const n = Number(m[1]);
-      const step2 = made[n];
-      if (step2 && !("undone" in step2) && step2.id !== null) return step2.id;
-      unresolved ??= n;
-      return v;
-    }
-    if (Array.isArray(v)) return v.map(fill2);
-    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill2(x)]));
-    return v;
-  };
-  const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill2(x)]));
-  return unresolved === null ? out : { unresolved };
-}
-function planMadeOf(planId, cards) {
-  const made = {};
-  for (const p of cards) {
-    if (p.plan?.id !== planId || !p.outcome) continue;
-    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
-    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
-  }
-  return made;
 }
 
 // src/ask/plan.ts
@@ -41200,6 +41291,7 @@ export {
   cannotRows,
   capabilityStatus,
   cardOpenRoute,
+  cardsInPlans,
   chainHintOf,
   chainIssueWords,
   chainOf,
@@ -41969,6 +42061,7 @@ export {
   planArea,
   planBilling,
   planCeiling,
+  planGroupOf,
   planLeadSearch,
   planLeavingOut,
   planMadeOf,
@@ -41979,6 +42072,7 @@ export {
   planSaid,
   planSentence,
   planVersionOf,
+  planWaits,
   planWhere,
   planWho,
   planWords,

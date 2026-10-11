@@ -755,7 +755,7 @@ test("an offer starting today on a calendar with less room than half its audienc
 
 /* ------------------------------------------------------------------ the loop */
 
-test("the loop keeps every card one call made: a plan's three cards are the turn's, said as cards to review", async () => {
+test("the loop keeps every card one call made: a plan's three cards are the turn's, said as a plan to review (its steps that send nothing and its send, counted)", async () => {
   const blocks = [
     {
       type: "tool_use",
@@ -813,7 +813,11 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
       ["broadcast", 3],
     ],
   );
-  assert.equal(r.answer.say.headline, "3 cards to review.");
+  assert.equal(r.answer.say.headline, "A plan of 2 steps and 1 send to review.");
+  assert.equal(
+    r.answer.say.detail,
+    "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
+  );
   assert.deepEqual(r.tools, ["propose_campaign.plan"]);
 });
 

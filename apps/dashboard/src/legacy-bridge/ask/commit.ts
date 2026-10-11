@@ -15,10 +15,12 @@
  * timestamps. Policy and settings changes live in the events ledger, which has no row ids to hand back, so their undo
  * is a change like any other there.
  *
- * A plan's cards (AskProposal.plan) are ordinary cards with two differences: a step's calls go under the step's key
- * (`plan:<id>:<n>`), so the plan pressed twice, or once as a group and once card by card, makes nothing twice; and a
- * token in a step's payload (`@step:n`) is filled with what step n made before the spec reads it. commitPlan approves a
- * plan's silent steps together, in step order, stopping at the first refused.
+ * A plan's cards (AskProposal.plan) are ordinary cards with three differences: a step's calls go under the step's key
+ * (`plan:<id>:<n>`), so the plan pressed twice, or once as a group and once card by card, makes nothing twice; a send
+ * waits for the steps its stamp names (`after`), refused before its spec is read until each is committed; and a token
+ * in a step's payload (`@step:n`) is filled with what step n made before the spec reads it. commitPlan approves one
+ * plan's silent steps together, in step order, stopping at the first refused; commitCard is a card pressed on the Line,
+ * judged by what the turn's other cards of its plan became.
  *
  * The client is a parameter with the tab's own as the default, so a test hands in one bound to a fake fetch and runs
  * every branch for real.
@@ -26,6 +28,8 @@
 import {
   PROPOSAL_WORDS,
   askCardLapsed,
+  planMadeOf,
+  planWaits,
   proposalSpec,
   resolveSteps,
   type AskPlanStamp,
@@ -103,11 +107,15 @@ function unnamed(made: PlanMade, n: number): string {
 
 /**
  * A plan's card with what its earlier steps made in place of their tokens (`@step:n`, contracts resolveSteps); or the
- * refusal where a step it names was undone (what it made is gone), made nothing a token names (waiting would never
- * help), or is not committed yet (it is approved first), and nothing is sent. A card of no plan is as it was.
+ * refusal, and nothing is sent: where a step it waits for (its stamp's `after`, contracts planWaits: every step of its
+ * plan that sends nothing, not only those its tokens name) was undone or is not committed yet, and where a step it names
+ * was undone (what it made is gone), made nothing a token names (waiting would never help), or is not committed yet (it
+ * is approved first). A card of no plan is as it was.
  */
 function withSteps(p: AskProposal, made: PlanMade): AskProposal | ProposalRefusal {
   if (!p.plan) return p;
+  const wait = planWaits(p.plan, made);
+  if (wait) return { refused: "undone" in wait ? PROPOSAL_WORDS.planUndone : PROPOSAL_WORDS.waitsForStep(wait.waits) };
   const filled = resolveSteps(p.payload, made);
   return "unresolved" in filled ? { refused: unnamed(made, Number(filled.unresolved)) } : { ...p, payload: filled };
 }
@@ -156,6 +164,31 @@ export async function commitProposal(
   };
 }
 
+/** A press's client and clock: the tab's own and now, unless a test hands its own. */
+interface PressWith {
+  client?: Api;
+  nowMs?: number;
+}
+
+/**
+ * A card pressed on the Line (AskApi.commit): commitProposal, judged by what the other cards of its plan, as the turn
+ * holds them (`cards`, their outcomes as they stand), became (contracts planMadeOf). So a send whose steps were approved,
+ * on the group's press, one by one or before a reload, fills its tokens from what they made; one whose steps are not
+ * approved yet waits for them; and a card of another plan in the same turn is never read as one of its steps. A card of
+ * no plan is pressed as it always was.
+ */
+export function commitCard(
+  win: Window,
+  p: AskProposal,
+  cards: readonly AskProposal[],
+  use: PressWith = {},
+): Promise<CommitResult> {
+  return commitProposal(win, p, use.client ?? apiFor(win), {
+    nowMs: use.nowMs,
+    made: p.plan ? planMadeOf(p.plan.id, cards) : undefined,
+  });
+}
+
 /**
  * What a press of a plan's silent steps did: each step it sent, with its result and the id it made, in step order; the
  * steps it did not send because they were committed before (`done`) or undone by the owner (`undone`); every step
@@ -180,19 +213,27 @@ export interface PlanRun {
  * joins the made it hands back, with no id where it made nothing a token names. The first step refused or failed ends
  * the press: its result says the plan stopped there (PROPOSAL_WORDS.planStopped), and no later step is sent. A send is
  * not among them: each is its own press.
+ *
+ * One plan a press: the plan the first stamped card is a step of, and only its cards, so a turn's two plans never share a
+ * step's number (another plan's step 1 is never skipped as this one's, nor fills a token from this one's made[1]). Handed
+ * no `made` (the Line's press, AskApi.commitPlan), it reads what the plan's cards became (contracts planMadeOf), so a
+ * step approved on its own, or before a reload, is done.
  */
 export async function commitPlan(
   win: Window,
   cards: readonly AskProposal[],
-  made: PlanMade,
-  use: { client?: Api; nowMs?: number } = {},
+  made?: PlanMade,
+  use: PressWith = {},
 ): Promise<PlanRun> {
   const client = use.client ?? apiFor(win);
   const nowMs = use.nowMs ?? Date.now();
-  const silent = cards
+  const planId = cards.find((p) => p.plan)?.plan?.id;
+  const mine = cards.filter((p) => planId !== undefined && p.plan?.id === planId);
+  const silent = mine
     .flatMap((p) => (p.plan?.silent ? [{ p, step: p.plan.step }] : []))
     .sort((a, b) => a.step - b.step);
-  const run: PlanRun = { results: [], done: [], undone: [], made: { ...made }, stoppedAt: null };
+  const known = made ?? (planId === undefined ? {} : planMadeOf(planId, mine));
+  const run: PlanRun = { results: [], done: [], undone: [], made: { ...known }, stoppedAt: null };
   for (const { p, step } of silent) {
     const was = run.made[step];
     if (was) {

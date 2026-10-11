@@ -414,7 +414,13 @@ test("two presses that each know nothing was made (two tabs at once, a reload be
 });
 
 test("a send names what earlier steps made: refused while a step it names has made nothing, sent with the ids once they have, under its step's key", async () => {
-  const listed = stamped("broadcast", 4, { ...send.payload, audience_kind: "saved", audience_id: C.stepToken(2) });
+  // It waits for the two steps its tokens name (its stamp's after), as a plan stamps a send.
+  const listed = stamped(
+    "broadcast",
+    4,
+    { ...send.payload, audience_kind: "saved", audience_id: C.stepToken(2) },
+    { plan: { id: PLAN, step: 4, of: 4, silent: false, after: [1, 2] } },
+  );
   const t = tab();
   // Step 1 made the message; step 2's list is not made yet.
   const made = { 1: { kind: "message", id: V(1) } };
@@ -454,6 +460,137 @@ test("a send whose step was undone is refused in words and sends nothing: never 
   assert.equal(run.stoppedAt, 2);
   assert.equal(run.results[0].result.message, C.PROPOSAL_WORDS.planStopped(2, C.PROPOSAL_WORDS.planUndone));
   assert.deepEqual(t.sent, []);
+});
+
+test("a send waits for every step its stamp waits for (after), not only the steps its tokens name: refused in words before its spec is read, and nothing leaves the tab", async () => {
+  const t = tab();
+  // Its message is made, so its one token resolves; the note and the pause it waits for are not approved yet.
+  const one = { 1: { kind: "message", id: V(1) } };
+  assert.deepEqual(await commitProposal(t.win, send, t.client, { nowMs: NOW, made: one }), {
+    ok: false,
+    message: C.PROPOSAL_WORDS.waitsForStep(2),
+  });
+  // Settings not loaded in this tab: the wait is said first, since no spec is read for a card that waits.
+  const cold = tab();
+  cold.win.__SETTINGS = null;
+  assert.deepEqual(
+    await commitProposal(cold.win, send, cold.client, {
+      nowMs: NOW,
+      made: { ...one, 2: { kind: "settings", id: null } },
+    }),
+    { ok: false, message: C.PROPOSAL_WORDS.waitsForStep(3) },
+  );
+  // A step it waits for was undone: it never goes, whichever comes first in its list.
+  const undone = { ...one, 2: { undone: true } };
+  assert.deepEqual(await commitProposal(t.win, send, t.client, { nowMs: NOW, made: undone }), {
+    ok: false,
+    message: C.PROPOSAL_WORDS.planUndone,
+  });
+  assert.deepEqual([t.sent, cold.sent], [[], []], "REGRESSION: a send went before the steps it waits for");
+  // The one rule both the commit and the Line read: the first undone, else the first not committed, else none.
+  assert.deepEqual(C.planWaits(send.plan, {}), { waits: 1 });
+  assert.deepEqual(C.planWaits(send.plan, { 1: { kind: "message", id: V(1) }, 3: { undone: true } }), { undone: 3 });
+  assert.equal(C.planWaits(note.plan, {}), null, "a silent step waits for nothing");
+  assert.equal(C.planWaits(undefined, {}), null, "a card of no plan waits for nothing");
+
+  // Every step it waits for committed, the note and the pause with nothing a token names: it goes.
+  const all = { ...one, 2: { kind: "settings", id: null }, 3: { kind: "playbook_change", id: null } };
+  assert.equal(C.planWaits(send.plan, all), null);
+  const r = await commitProposal(t.win, send, t.client, { nowMs: NOW, made: all });
+  assert.equal(r.ok, true, r.message);
+  assert.deepEqual(keys(t), [["POST /api/v1/broadcasts", `plan:${PLAN}:4`]]);
+  assert.equal(t.sent[0].body.template_id, V(1));
+});
+
+test("REGRESSION: commitPlan presses one plan: handed two plans' cards, it takes the first card's plan alone, so another plan's step never reads this plan's made, nor is skipped as done by it", async () => {
+  const other = (kind, step, payload) =>
+    stamped(kind, step, payload, {
+      id: `p-o${step}`,
+      plan: { id: "plan-other", step, of: 2, silent: true, after: [] },
+    });
+  // The other plan's message, and its step 2 naming that message: pressed among this plan's steps, its step 1 was
+  // skipped as done (this plan's made[1]) and its step 2 sent to this plan's message, and this plan's note skipped.
+  const theirs = [
+    other("message", 1, message.payload),
+    other("playbook_change", 2, { playbook_id: C.stepToken(1), state: "paused" }),
+  ];
+  const t = tab();
+  const run = await commit.commitPlan(
+    t.win,
+    [message, theirs[1], note, theirs[0], pause],
+    {},
+    {
+      client: t.client,
+      nowMs: NOW,
+    },
+  );
+  assert.deepEqual(
+    keys(t),
+    [
+      ["POST /api/v1/templates/message", `plan:${PLAN}:1`],
+      ["PUT /api/v1/settings", `plan:${PLAN}:2`],
+      [`PUT /api/v1/playbooks/${PB}`, `plan:${PLAN}:3`],
+    ],
+    "this plan's three steps, and none of the other's",
+  );
+  assert.deepEqual([run.results.map((r) => r.step), run.done, run.stoppedAt], [[1, 2, 3], [], null]);
+  assert.deepEqual(Object.keys(run.made), ["1", "2", "3"]);
+  // The other plan first: its own steps alone, its step 2 filled from its own step 1.
+  const o = tab((key) => envelope(key === `PUT /api/v1/playbooks/${V(1)}` ? { id: V(1), state: "paused" } : FILED));
+  await commit.commitPlan(o.win, [...theirs, message, note], {}, { client: o.client, nowMs: NOW });
+  assert.deepEqual(keys(o), [
+    ["POST /api/v1/templates/message", "plan:plan-other:1"],
+    [`PUT /api/v1/playbooks/${V(1)}`, "plan:plan-other:2"],
+  ]);
+});
+
+test("a press handed no made reads what its cards became (planMadeOf), so the Line hands the group's press the turn's cards and nothing else", async () => {
+  const t = tab();
+  const approved = {
+    ...message,
+    outcome: { state: "done", receipt: "Filed", atMs: 1, made: { kind: "message", id: V(1) } },
+  };
+  const run = await commit.commitPlan(t.win, [approved, note, pause, send], undefined, {
+    client: t.client,
+    nowMs: NOW,
+  });
+  assert.deepEqual(
+    keys(t).map(([k]) => k),
+    ["PUT /api/v1/settings", `PUT /api/v1/playbooks/${PB}`],
+    "the message approved before is not filed again",
+  );
+  assert.deepEqual([run.done, run.made[1]], [[1], { kind: "message", id: V(1) }]);
+});
+
+test("REGRESSION: a send pressed on its own on the Line is judged by what its plan's other cards became (commitCard): with the turn's cards it goes, with none it waits", async () => {
+  const done = (p, made) => ({ ...p, outcome: { state: "done", receipt: "x", atMs: 1, made } });
+  const turn = [done(message, { kind: "message", id: V(1) }), done(note, null), done(pause, null), send];
+  const alone = tab();
+  assert.deepEqual(await commit.commitCard(alone.win, send, [], { client: alone.client, nowMs: NOW }), {
+    ok: false,
+    message: C.PROPOSAL_WORDS.waitsForStep(1),
+  });
+  assert.deepEqual(alone.sent, []);
+  const t = tab();
+  const r = await commit.commitCard(t.win, send, turn, { client: t.client, nowMs: NOW });
+  assert.equal(r.ok, true, r.message);
+  assert.deepEqual(keys(t), [["POST /api/v1/broadcasts", `plan:${PLAN}:4`]]);
+  assert.equal(t.sent[0].body.template_id, V(1), "its token filled from step 1's outcome");
+  // Another plan's step 1 in the same turn is not this plan's.
+  const elsewhere = { ...turn[0], plan: { ...message.plan, id: "plan-other" } };
+  const e = tab();
+  assert.equal(
+    (await commit.commitCard(e.win, send, [elsewhere, ...turn.slice(1)], { client: e.client, nowMs: NOW })).message,
+    C.PROPOSAL_WORDS.waitsForStep(1),
+  );
+  // A card of no plan is pressed as it always was.
+  const bare = tab();
+  const b = await commit.commitCard(bare.win, { ...note, plan: undefined, id: "p-9" }, turn, {
+    client: bare.client,
+    nowMs: NOW,
+  });
+  assert.equal(b.ok, true, b.message);
+  assert.deepEqual(keys(bare), [["PUT /api/v1/settings", "p-9"]]);
 });
 
 test("a card of no plan keeps its own key and its payload as written, tokens and all", async () => {

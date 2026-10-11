@@ -127,6 +127,20 @@ export const PROPOSAL_WORDS = {
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
   planStopped: (n: number, why: string): string =>
     `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
+  /** A plan's step's head on the Line (ask/plan-steps.ts planGroupOf): where it stands in its plan. */
+  stepOf: (n: number, of: number): string => `Step ${n} of ${of}`,
+  /** The one press over a plan's group: its steps that send nothing and are not approved yet, approved together. */
+  approveSilent: (n: number): string => (n === 1 ? "Approve the silent step" : `Approve the ${n} silent steps`),
+  /** In place of a send's Approve while a step it waits for is not approved yet (waitsForStep is its press's refusal). */
+  waitingFor: (n: number): string => `Waits for step ${n}`,
+  /** In place of a send's Approve once a step it waits for was undone: it never goes, and planUndone says why. */
+  stepUndone: (n: number): string => `Step ${n} was undone`,
+  /**
+   * Before a send's press, where the message it sends is one a step of its plan writes with a WhatsApp version and the
+   * send goes by WhatsApp: WhatsApp reviews that version first, and a press before it is answered by core's refusal.
+   * Static words: the Line holds no review state.
+   */
+  afterReview: (n: number): string => `This can be approved once WhatsApp has reviewed step ${n}'s message.`,
 } as const;
 
 /* ------------------------------------------------------------ shared by the families */

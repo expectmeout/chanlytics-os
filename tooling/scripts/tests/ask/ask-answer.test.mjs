@@ -942,6 +942,41 @@ test("cards only: the cards are the Do, said in a sentence, in English and Spani
   assert.equal(es.language, "es");
 });
 
+test("a plan's cards are said as a plan (the marketing manager's spec §5.8): its steps that send nothing and its sends, counted, in English and Spanish; cards of no one plan are counted as cards", () => {
+  const stamp = (step, silent, id = "plan-1") => ({
+    title: `Step ${step}`,
+    plan: { id, step, of: 6, silent, after: silent ? [] : [1, 2, 3, 4] },
+  });
+  const six = [1, 2, 3, 4].map((n) => stamp(n, true)).concat([stamp(5, false), stamp(6, false)]);
+  const en = answerForCards(six, "en");
+  assert.equal(en.say.headline, "A plan of 4 steps and 2 sends to review.");
+  assert.equal(
+    en.say.detail,
+    "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
+  );
+  const es = answerForCards(six, "es");
+  assert.equal(es.say.headline, "Un plan de 4 pasos y 2 envíos para revisar.");
+  assert.equal(
+    es.say.detail,
+    "Los pasos que no envían nada se aprueban con un toque; cada envío se aprueba aparte cuando estén hechos los pasos que espera. Nada pasa hasta que lo hagas.",
+  );
+  assert.equal(
+    answerForCards([stamp(1, true), stamp(2, false)], "en").say.headline,
+    "A plan of 1 step and 1 send to review.",
+  );
+  assert.equal(
+    answerForCards([stamp(1, true), stamp(2, false)], "es").say.headline,
+    "Un plan de 1 paso y 1 envío para revisar.",
+  );
+  // A setup's plan is its campaigns alone, each its own press: counted as sends, and said as several cards are.
+  const journey = answerForCards([stamp(1, false), stamp(2, false), stamp(3, false)], "en");
+  assert.equal(journey.say.headline, "A plan of 3 sends to review.");
+  assert.equal(journey.say.detail, answerForCards([{ title: "a" }, { title: "b" }], "en").say.detail);
+  // Not one plan's cards: a card of no plan beside it, or two plans, are cards.
+  assert.equal(answerForCards([...six, { title: "Reply to Nora" }], "en").say.headline, "7 cards to review.");
+  assert.equal(answerForCards([stamp(1, true), stamp(2, false, "plan-2")], "en").say.headline, "2 cards to review.");
+});
+
 test("a turn that could not be answered says why as its headline; words the format could not shape are prose", () => {
   assert.deepEqual(failedAnswer("The answer took too long. Ask again.", "en"), {
     v: 2,
