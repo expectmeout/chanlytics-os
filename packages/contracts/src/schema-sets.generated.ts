@@ -55,6 +55,7 @@ export const SCHEMA_SETS = {
   "decisions.subject_type": [
     "conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation",
     "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list",
+    "appointment",
   ],
   "decisions.verb": [
     "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive",
@@ -63,7 +64,7 @@ export const SCHEMA_SETS = {
     "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call",
     "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list",
     "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge",
-    "change_playbook",
+    "change_playbook", "mark_visit",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

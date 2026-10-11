@@ -366,7 +366,7 @@ function consentItems({ profile, stamp }: PersonCardContext): PersonTimelineItem
 
 /**
  * Their visits, from the calendar: what happened in the chair belongs on
- * the same line as what was said. A visit ahead reads as booked.
+ * the same line as what was said. A visit ahead reads as booked, one behind as past.
  */
 function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
@@ -383,7 +383,8 @@ function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonT
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        text: `${ahead ? "Booked" : "Visited"} · ${visitTitleFor(v.title, base.name)}`,
+        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3).
+        text: `${ahead ? "Booked" : "Past visit"} · ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, zone)} · from ${profile.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` },
       });

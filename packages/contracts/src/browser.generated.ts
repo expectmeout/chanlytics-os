@@ -48,14 +48,14 @@ export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_
 export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
-export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments } from "./calendar/appointment-item";
+export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments, feedMarksOf } from "./calendar/appointment-item";
 export { appointmentKeyOf } from "./calendar/appointment-key";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { isBookingTool, bookingToolName, bookingToolOfAddress, bookingNoticeOf, NOTICE_SCHEMA, NOTICE_READ_MAX_TOKENS, noticePrompt, isNoticeHold, NOTICE_DEFAULT_LENGTH_MS, noticeAnswerOf, clientKeyOf, appointmentKey, SAME_VISIT_MS, BOOKING_TOOL_IDS, bookingToolCalendar, bookingToolOptions, BOOKING_TOOL_STEPS, GMAIL_FORWARD_NOTE, BOOKING_TRY_NOTE, NOTICE_HOLD_WORDS, forwardingConfirmationOf } from "./calendar/booking-notice";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";
 export { calendarOwnerOf, ownAddressesOf, extractContacts, personInText, matchPerson, indexFeed, allVisitsIn, visitsIn, visitsOf, visitDay, visitTime, visitDateKey, visitStartTime, visitLine, describeVisits, feedSourceLabel, eventText, toVisitDto, guessName, peopleFromItems, afterPersonRefused, bookedAfterAsk, visitAnswersAsk } from "./calendar/calendar-people";
 export { spanForView, windowFor, coversSpan, frameOf } from "./calendar/calendar-views";
-export { clockLabel, closureDatesLabel, closuresFrom, readAgoLabel, ruleParts, rulesLine, feedNotes, hoursLines, CALENDAR_FEED_WORDS } from "./calendar/calendar-words";
+export { clockLabel, closureDatesLabel, closuresFrom, readAgoLabel, ruleParts, rulesLine, feedNotes, hoursLines, CALENDAR_FEED_WORDS, VISIT_WORDS, VISIT_REFUSALS, visitStateOf, visitActsOf } from "./calendar/calendar-words";
 export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./calendar/day-keys";
 export { parseIcs } from "./calendar/feed";
 export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, feedAppointmentRows } from "./calendar/feed-appointments";
@@ -305,7 +305,7 @@ export { guessSlotKind, defaultSlotKinds, defaultParamSpecs, slotChoices, templa
 export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/template-titles";
 export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSendsOf, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_NAME_MAX, TEMPLATE_NAME_WORDS, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
 export { ALERT_TOPICS, ALERT_PANE_WORDS, BELL_LINE_KINDS, EMAIL_ALWAYS_KINDS, EMAILED_NOTIFICATION_KINDS, emailsNotificationKind, emailsFor, withTopicEmail, withTopicPush, alertTestMail, alertGrid, bellLineFor, phoneLine } from "./today/notification-kinds";
-export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, noteWhose, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX, REACH_OUT_DAY_ROUTE } from "./today/notifications";
+export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, noteWhose, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX, REACH_OUT_DAY_ROUTE, holdNotice } from "./today/notifications";
 export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, pushOffOf, pushesFor, parseMemberAlerts, unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";
 export { todayAwayGrouped, bellSections } from "./today/today-away";
 export { toTodayVM } from "./today/today-brief";
