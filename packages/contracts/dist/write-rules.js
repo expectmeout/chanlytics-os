@@ -254,7 +254,8 @@ var GuardrailsSchema = z.object({
 }).strip();
 var NoteSchema = z.object({
   title: z.string().min(1).max(PROFILE_LIMITS.noteTitle),
-  text: z.string().min(1).max(PROFILE_LIMITS.noteText)
+  text: z.string().min(1).max(PROFILE_LIMITS.noteText),
+  until: DATE.optional()
 }).strip();
 var rule = (key) => z.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
 var BookingRulesSchema = z.object({

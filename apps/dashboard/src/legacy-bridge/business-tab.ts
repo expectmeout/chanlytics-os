@@ -51,6 +51,7 @@ import {
   handoffChatWords,
   handoffCallWords,
   notesWords,
+  noteEndedWords,
   CHIPS_SHOWN,
   chipsMoreWords,
   instructionsWords,
@@ -324,7 +325,8 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // CHIPS_SHOWN and chipsMoreWords are how many chips any row of the record draws at rest and how the rest are said:
 // one number and one spelling for the services, the notes and the rules alike (the kit's RecordChips keeps the cap).
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
-// handoffCallWords), the notes' (notesWords), the owner's own words' (instructionsWords), the three messages'
+// handoffCallWords), the notes' (notesWords, and noteEndedWords beside a note whose last day has passed), the owner's
+// own words' (instructionsWords), the three messages'
 // (fallbacksWords), and what the rules fold says on a record whose details compose nothing (rulesWithoutFieldsWords),
 // which it asks the resolver's own test of (hasProfile), never a copy of it. guardrailsInForce is which rules are in
 // force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by,
@@ -377,6 +379,7 @@ export const BUSINESS_TAB = {
   handoffChatWords,
   handoffCallWords,
   notesWords,
+  noteEndedWords,
   CHIPS_SHOWN,
   chipsMoreWords,
   instructionsWords,

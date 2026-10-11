@@ -91,6 +91,7 @@ const CHANGED = [
   "propose_autonomy",
   "propose_campaign",
   "propose_list",
+  "propose_settings",
   "propose_thread_verb",
   "report",
 ];
@@ -201,6 +202,14 @@ const LANE_ACTIONS = { calendar: ["room"], campaigns: ["messages", "journey"] };
 const AUTONOMY_MODES_WORDS = [
   "veto is for replies only.",
   `Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for ${PLAYBOOK_VETO_DELAY_WORDS}, so a person can stop it), and a mode a class does not take is refused in that page's words.`,
+];
+/**
+ * 11 Oct 2026 (Task 13, a note ends): propose_settings' add_note takes the until add_closure already took, a note's last
+ * day, and its words say so. The one clause; the flat shape the model is shown held `until` already.
+ */
+const NOTE_UNTIL_WORDS = [
+  "add_note (a title and the text the receptionist reads)",
+  "add_note (a title, the text the receptionist reads, and an optional until, its last day)",
 ];
 /**
  * What the report tool's description gained after PR 4.7 (the Reports fix wave, spec D14): its median and p90 reply time
@@ -393,7 +402,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey) and calendar (the room in the book) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey) and calendar (the room in the book) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -526,6 +535,16 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       role,
     );
     assert.deepEqual(words(tool(role, "propose_autonomy")), words(was(role, "propose_autonomy")), role);
+    // propose_settings (11 Oct 2026, Task 13): a note's last day, in the one clause that names add_note's fields, to
+    // the roles it was offered (a partner and an owner); nothing else it says, takes or shows moved.
+    if (was(role, "propose_settings")) {
+      assert.equal(
+        tool(role, "propose_settings").description,
+        was(role, "propose_settings").description.replace(...NOTE_UNTIL_WORDS),
+        role,
+      );
+      assert.deepEqual(words(tool(role, "propose_settings")), words(was(role, "propose_settings")), role);
+    }
     // propose_campaign: what it sent before is now's less the run and less the channels action (8 Oct 2026: its one
     // field of its own, playbook_id, beside the channels the broadcast and the playbook already take) -- the
     // broadcast's and the playbook's own fields and examples, byte for byte -- and the run's own words and the channels

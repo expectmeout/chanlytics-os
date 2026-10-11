@@ -113,7 +113,7 @@ export function resolveSystemPrompt(
   channel: "whatsapp" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
   tz?: string | null,
-  /** Only used to drop closures that have already passed. */
+  /** Only used to drop closures, and notes with a last day, that have already passed. */
   now: Date = new Date(),
   /** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
   policy?: Record<string, { mode: string }> | null,

@@ -50,10 +50,11 @@ export interface StoredService {
   price_note?: string;
 }
 
-/** A note as it is stored. */
+/** A note as it is stored: its last day too, when it has one. */
 export interface StoredNote {
   title?: string;
   text?: string;
+  until?: string;
 }
 
 /** The booking rules as they are stored: the five numbers, the notes, the email switch and the consult-first list. */

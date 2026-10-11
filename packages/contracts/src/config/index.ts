@@ -172,6 +172,7 @@ export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS } from "./busi
 export type { ProfileCrossing, ProfileRefusalKey } from "./business-tab/fold-limits";
 export {
   notesWords,
+  noteEndedWords,
   instructionsWords,
   fallbacksWords,
   COMMON_LANGUAGES,

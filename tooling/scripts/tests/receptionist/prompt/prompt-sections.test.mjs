@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composeSystemPrompt, DATA_NOT_INSTRUCTIONS } from "@chanlytics/contracts";
+import { composeSystemPrompt, DATA_NOT_INSTRUCTIONS, PROMPT_OPENINGS } from "@chanlytics/contracts";
 
 /** A Monday: the salon's September closure has passed and is not said; its December one is ahead and is. */
 const NOW = new Date("2026-09-28T15:00:00Z");
@@ -367,3 +367,78 @@ for (const [name, w] of Object.entries(WORKSPACES))
       );
       assert.equal(got.length, want.length, `the ${name}, ${channel}: nothing after the ${want.at(-1)[0]} section`);
     });
+
+/* ------------------------------------ a note that ends ------------------------------------ */
+
+/** The salon's prompt on WhatsApp with these notes, at this clock, in this zone. */
+const withNotes = (notes, at = NOW, tz = SALON.tz) =>
+  composeSystemPrompt(SALON.base, { ...SALON.profile, notes }, "whatsapp", tz, at, SALON.policy);
+/** The notes section's lines, or null when the prompt has none. */
+const notesOf = (prompt) =>
+  prompt
+    .split("\n\n")
+    .find((s) => s.startsWith("Other things to know:"))
+    ?.split("\n") ?? null;
+const PARKING = { title: "Parking", text: "Free parking behind the building." };
+const note = (title, until) => ({ title, text: `${title} is said.`, until });
+
+test("a note with a last day is said with it while it lasts, by the date the closures spell a single day in, and one without is said as it always was", () => {
+  // NOW is Monday 28 September in Chicago: the 29th is tomorrow, the 27th yesterday.
+  assert.deepEqual(
+    notesOf(withNotes([PARKING, note("Holiday hours", "2026-09-29"), note("Summer offer", "2026-09-27")])),
+    [
+      "Other things to know:",
+      "- Parking: Free parking behind the building.",
+      "- Holiday hours (until Tuesday, September 29, 2026): Holiday hours is said.",
+    ],
+  );
+  // Its last day is today, on the business's clock: still said.
+  assert.deepEqual(notesOf(withNotes([note("Holiday hours", "2026-09-28")])), [
+    "Other things to know:",
+    "- Holiday hours (until Monday, September 28, 2026): Holiday hours is said.",
+  ]);
+  // A note with no end is the line it always was, at any clock: the salon's own prompt above pins it word for word.
+  for (const at of [NOW, new Date("2031-01-01T12:00:00Z")])
+    assert.deepEqual(notesOf(withNotes([PARKING], at)), [
+      "Other things to know:",
+      "- Parking: Free parking behind the building.",
+    ]);
+});
+
+test("a note's last day is the business's own day: at 23:30 in New York it is still said, and once New York's day has passed it is not, though UTC's has turned at 20:00", () => {
+  const ny = "America/New_York";
+  const lastDay = [PARKING, note("Holiday hours", "2026-10-10")];
+  // 03:30 UTC on the 11th is 23:30 on the 10th in New York (EDT): the note's last day, so it is said.
+  assert.deepEqual(notesOf(withNotes(lastDay, new Date("2026-10-11T03:30:00Z"), ny)), [
+    "Other things to know:",
+    "- Parking: Free parking behind the building.",
+    "- Holiday hours (until Saturday, October 10, 2026): Holiday hours is said.",
+  ]);
+  // 04:30 UTC on the 11th is 00:30 on the 11th in New York: its day has passed, and it is no longer said.
+  assert.deepEqual(notesOf(withNotes(lastDay, new Date("2026-10-11T04:30:00Z"), ny)), [
+    "Other things to know:",
+    "- Parking: Free parking behind the building.",
+  ]);
+});
+
+test("with no zone a note keeps the closures' fallback: a day longer rather than hiding one that lasts, and the two agree", () => {
+  // NOW is 15:00 UTC on the 28th; with no zone the day is read as the 27th (UTC, a day back), for a closure and a note alike.
+  const profile = {
+    ...SALON.profile,
+    closures: [{ date: "2026-09-27", note: "Staff day" }],
+    notes: [note("Yesterday's note", "2026-09-27"), note("Older note", "2026-09-26")],
+  };
+  const prompt = composeSystemPrompt(SALON.base, profile, "whatsapp", null, NOW, SALON.policy);
+  assert.ok(prompt.includes("- Sunday, September 27, 2026 — Staff day"), "the closure on the 27th is still said");
+  assert.deepEqual(notesOf(prompt), [
+    "Other things to know:",
+    "- Yesterday's note (until Sunday, September 27, 2026): Yesterday's note is said.",
+  ]);
+});
+
+test("when every note has ended the prompt says nothing of them: no heading over an empty list", () => {
+  const ended = withNotes([note("Summer offer", "2026-09-27"), note("Spring offer", "2026-04-30")]);
+  assert.equal(notesOf(ended), null);
+  assert.ok(!ended.includes(PROMPT_OPENINGS.notes));
+  assert.equal(ended, withNotes(undefined), "the prompt of a profile with no notes at all");
+});

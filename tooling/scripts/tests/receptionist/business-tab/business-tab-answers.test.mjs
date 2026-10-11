@@ -14,6 +14,7 @@ import {
   handoffChatWords,
   handoffCallWords,
   notesWords,
+  noteEndedWords,
   instructionsWords,
   fallbacksWords,
   chipsMoreWords,
@@ -955,7 +956,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
       find(foldOf(tree, "notes"), (n) => classes(n).includes("bt-note-head")),
       (n) => n.type === "span",
     ).map(textOf),
-    ["Title", "What it says", ""],
+    ["Title", "What it says", "Until (optional)", ""],
   );
   assert.equal(labelled(tree, "Note 2 title").props.value, "B");
   assert.equal(labelled(tree, "Note 2, what it says").type, "textarea");
@@ -1006,7 +1007,8 @@ test("the notes stop at ten through Add and through an Undo, and half a note is 
   tree = redrawTab(flash);
   assert.equal(undo(), false, "full again, nothing is put back");
   assert.equal(said(flashes.at(-1)), "Not put back — That is the most notes it keeps. Remove one to add another.");
-  // The new row has a title and no text: half a note, said once under its row, both its boxes wrong by it.
+  // The new row has a title and no text: half a note, said once under its row, both its boxes wrong by it, and its
+  // Until box, which half a note says nothing of, not.
   const sent = saving();
   find(noteRows(tree)[9], (n) => n.type === "input").props.onChange({ target: { value: "Parking" } });
   tree = redrawTab(flash);
@@ -1016,8 +1018,63 @@ test("the notes stop at ten through Add and through an Undo, and half a note is 
   assert.equal(textOf(byTestId(tree, "rec-note-problem-9")), "Each note needs both a title and the text to say.");
   assert.deepEqual(
     all(noteRows(tree)[9], (n) => n.type === "input" || n.type === "textarea").map((b) => b.props["aria-invalid"]),
-    [true, true],
+    [true, true, undefined],
   );
+});
+
+test("a note's last day is its Until box, a date: a save of another note writes it back as it was stored, and the box sets and clears it", () => {
+  const sent = saving();
+  const ending = { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2099-12-31" };
+  let tree = drawTab({ profile: { ...marisa, notes: [ending, ...notesOf(2)] } });
+  const stored = structuredClone(W.__SETTINGS.config);
+  openFold(tree, "notes");
+  tree = redrawTab();
+  // Drawn as a closure's day is: the kit's RecordBox, type date, named for its row.
+  const until = labelled(tree, "Note 1, until");
+  assert.deepEqual([until.props.type, until.props.value], ["date", "2099-12-31"]);
+  assert.equal(labelled(tree, "Note 2, until").props.value, "", "a note with no end has an empty box");
+  // Another note changed and saved: the note with its last day is written back exactly as it was stored.
+  find(noteRows(tree)[2], (n) => n.type === "textarea").props.onChange({ target: { value: "Note B, again." } });
+  tree = redrawTab();
+  saveFoldOf(tree, "notes");
+  const expected = structuredClone(stored);
+  expected.brain.profile.notes = [ending, notesOf(1)[0], { title: "B", text: "Note B, again." }];
+  assert.deepEqual(
+    sent.map((s) => s.config),
+    [expected],
+  );
+  // Set on a note that had none, and cleared on the one that had it: the save writes the one and drops the other.
+  const again = saving();
+  tree = drawTab({ profile: { ...marisa, notes: [ending, ...notesOf(1)] } });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  labelled(tree, "Note 2, until").props.onChange({ target: { value: "2099-01-15" } });
+  tree = redrawTab();
+  labelled(tree, "Note 1, until").props.onChange({ target: { value: "" } });
+  tree = redrawTab();
+  saveFoldOf(tree, "notes");
+  assert.equal(again.length, 1);
+  assert.deepEqual(again[0].config.brain.profile.notes, [
+    { title: "Holiday hours", text: "Open 10 to 2 this week." },
+    { title: "A", text: "Note A says this.", until: "2099-01-15" },
+  ]);
+});
+
+test("a note whose last day has passed on the business's own day reads ended, with the day, beside its title", () => {
+  const ended = { title: "Summer offer", text: "Colour at 20% off.", until: "2020-06-30" };
+  const lasting = { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2099-12-31" };
+  let tree = drawTab({ profile: { ...marisa, notes: [lasting, ended, ...notesOf(1)] }, zone: "Pacific/Auckland" });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  const endedOf = (i) => find(noteRows(tree)[i], (n) => classes(n).includes("rec-input-unit"));
+  // Contracts' words, on the workspace's day, as the closed days' row counts what is still ahead.
+  const words = noteEndedWords("2020-06-30", "Pacific/Auckland", new Date());
+  assert.equal(words, "ended Jun 30");
+  assert.equal(textOf(endedOf(1)), words);
+  const title = labelled(tree, "Note 2 title");
+  assert.equal(title.props.value, "Summer offer", "the title box keeps its name and its words");
+  assert.equal(title.props["aria-describedby"], "bt-note-1-ended", "and is described by the words beside it");
+  assert.deepEqual([endedOf(0), endedOf(2)], [null, null], "a note still lasting, and one with no end, say nothing");
 });
 
 test("a note's sentence goes when that note is changed or a note before it is taken out, and stays while another is changed", () => {

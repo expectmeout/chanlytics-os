@@ -631,6 +631,20 @@ test("a settings change: applied to the loaded config and sent with its version;
   assert.equal(cold.sent.length, 0);
 });
 
+test("a note's card with its last day: its Approve saves the note with until on it, and the rest of the config as it was", async () => {
+  const t = tab();
+  const change = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
+  const before = structuredClone(t.win.__SETTINGS.config);
+  const r = await commitProposal(t.win, card("settings", { change }), t.client);
+  assert.equal(r.ok, true, r.message);
+  const { config, version } = one(t).body;
+  assert.equal(version, 3);
+  assert.deepEqual(config.brain.profile.notes, [
+    { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" },
+  ]);
+  assert.deepEqual(config.brain.profile.hours, before.brain.profile.hours, "the hours ride along untouched");
+});
+
 test("a broadcast and a playbook: the body the route expects, the receipt from the server's answer, the ids and the ledger rows kept for undo", async () => {
   const t = tab();
   const b = await commitProposal(

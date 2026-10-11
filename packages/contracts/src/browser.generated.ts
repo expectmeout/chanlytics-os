@@ -69,7 +69,7 @@ export { bookingLinkRowWords, businessGap } from "./config/business-tab/business
 export { chipsMoreWords, CHIPS_SHOWN } from "./config/business-tab/counts";
 export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS } from "./config/business-tab/fold-limits";
 export { handoffChatWords, handoffCallWords, handoffWords } from "./config/business-tab/handoff-words";
-export { notesWords, instructionsWords, fallbacksWords, COMMON_LANGUAGES, TONE_PRESETS } from "./config/business-tab/how-it-answers";
+export { notesWords, noteEndedWords, instructionsWords, fallbacksWords, COMMON_LANGUAGES, TONE_PRESETS } from "./config/business-tab/how-it-answers";
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./config/business-tab/open-week";
 export { blockShareWords, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "./config/business-tab/prompt-cost-words";
 export { ruleStrength, rulesKept, rulesWithoutFieldsWords, ABILITY_CHANNEL_WORDS, VISION_STRENGTH, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS } from "./config/business-tab/rule-strengths";

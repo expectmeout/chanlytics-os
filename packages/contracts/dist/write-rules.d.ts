@@ -56,6 +56,7 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
             notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 title: z.ZodString;
                 text: z.ZodString;
+                until: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>>>;
             booking_rules: z.ZodOptional<z.ZodObject<{
                 lead_hours: z.ZodOptional<z.ZodNumber>;

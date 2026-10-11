@@ -67,8 +67,11 @@ const btoHoursLine = (hours: HoursIn): string | null => {
   return lines(hours).join(" · ") || null;
 };
 
-/** The workspace's zone, as the workspace list carries it: the one every time on this card is in until a read says otherwise. */
-const btoWorkspaceZone = (): string => {
+/**
+ * The workspace's zone, as the workspace list carries it: the one every time on this card is in until a read says
+ * otherwise, and the day the notes' fold (answers.tsx) says a note has ended on, as the closed days' row counts on it.
+ */
+export const btoWorkspaceZone = (): string => {
   // The list carries each workspace's zone (surface-data.ts), whatever else a page types of it.
   const listed: { id: string; timezone?: string | null }[] = workspacesNow() || [];
   const ws = listed.find((t) => t.id === activeWorkspaceNow()) || null;

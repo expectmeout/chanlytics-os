@@ -358,7 +358,13 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
     btPutProfile(next, "languages", draft && (draft as string[]).length ? (draft as string[]).slice() : undefined),
   notes: (next, draft) => {
     const notes = ((draft || []) as StoredNote[])
-      .map((n) => ({ title: trimmed(n.title), text: trimmed(n.text) }))
+      .map((n) => {
+        const o: StoredNote = { title: trimmed(n.title), text: trimmed(n.text) };
+        // Its last day as the box or Ask left it, so a save of the fold never drops an end it did not change; an
+        // emptied box is no end.
+        if (trimmed(n.until)) o.until = trimmed(n.until);
+        return o;
+      })
       .filter((n) => n.title || n.text);
     btPutProfile(next, "notes", notes.length ? notes : undefined);
   },

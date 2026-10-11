@@ -15718,7 +15718,7 @@ function applySettingsChange(config2, change) {
     }
     case "add_note": {
       const notes = [...profile.notes ?? []];
-      notes.push({ title: change.title, text: change.text });
+      notes.push({ title: change.title, text: change.text, ...change.until ? { until: change.until } : {} });
       profile.notes = notes;
       break;
     }
@@ -15739,7 +15739,7 @@ function describeSettingsChange(change) {
     case "set_hours":
       return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
     case "add_note":
-      return `Note for the receptionist: \u201C${change.title}\u201D`;
+      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}`;
     case "add_service":
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }
@@ -20567,6 +20567,10 @@ function notesWords(notes) {
     more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
   };
 }
+function noteEndedWords(until, tz, now) {
+  if (typeof until !== "string" || !until) return null;
+  return until < zoneDayKey(now.getTime(), tz) ? `ended ${closureDatesLabel({ date: until })}` : null;
+}
 var OPENING_SHOWN = 72;
 function instructionsWords(text) {
   const t = typeof text === "string" ? text.trim() : "";
@@ -20731,11 +20735,23 @@ function labelDate(key, withWeekday) {
     year: "numeric"
   }).format(at3);
 }
-function upcomingClosures(closures, tz, at3) {
+function businessToday(tz, at3) {
+  return tz && dateKeyInZone(tz, at3) || dateKeyInZone("UTC", new Date(at3.getTime() - 864e5));
+}
+function upcomingClosures(closures, today) {
   if (!closures?.length) return [];
-  const today = tz && dateKeyInZone(tz, at3) || dateKeyInZone("UTC", new Date(at3.getTime() - 864e5));
   if (!today) return closures;
   return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+function notesInForce(notes, today) {
+  if (!notes?.length) return [];
+  if (!today) return notes;
+  return notes.filter((n) => !n.until || n.until >= today);
+}
+function noteLines(notes) {
+  return notes.map(
+    (n) => n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`
+  );
 }
 function closureLines(closures) {
   return closures.map((c) => {
@@ -20801,8 +20817,10 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   const link = offersBookingLink(base) ? base.booking_link : null;
   const hrs = hoursLines(profile.hours);
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  const facts = { base, profile, channel, tz, policy, link, hrs, closed };
+  const today = businessToday(tz, now);
+  const closed = closureLines(upcomingClosures(profile.closures, today));
+  const notes = noteLines(notesInForce(profile.notes, today));
+  const facts = { base, profile, channel, tz, policy, link, hrs, closed, notes };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 var PROMPT_SECTIONS = [
@@ -20882,13 +20900,11 @@ ${lines.join("\n")}`);
   }
   return s;
 }
-function notesSection({ profile }) {
+function notesSection({ notes }) {
   const s = [];
-  if (profile.notes?.length) {
-    s.push(`
+  if (notes.length) s.push(`
 ${PROMPT_OPENINGS.notes}
-${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
-  }
+${notes.map((l) => `- ${l}`).join("\n")}`);
   return s;
 }
 function bookingRulesSection({ profile }) {
@@ -39438,6 +39454,7 @@ export {
   normalizePhone,
   notFoundPageMetadata,
   notNowDayOf,
+  noteEndedWords,
   noteRows,
   noteSuggestSystemPrompt,
   noteSuggestUserContent,

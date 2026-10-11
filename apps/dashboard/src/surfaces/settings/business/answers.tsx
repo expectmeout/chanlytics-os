@@ -10,7 +10,7 @@
 // and no form drew a box for it (spec D5).
 //
 // The page composes and never derives. Every sentence here with a number in it is contracts' (handoffWords,
-// handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, TONE_PRESETS and
+// handoffChatWords, handoffCallWords, notesWords, noteEndedWords, instructionsWords, fallbacksWords, TONE_PRESETS and
 // rulesWithoutFieldsWords, through BUSINESS_TAB); what each fold opens with, refuses and writes is folds.ts's; the
 // gesture is BtFold.
 //
@@ -33,6 +33,7 @@ import { RecordChips } from "../../kit/record/row";
 import { BtaHandoff, BtaLanguages, BtaRules, BtaVoice } from "./answers-fields";
 import type { Fields, HandoffWords } from "./answers-fields";
 import { BtFold } from "./gestures/fold";
+import { btoWorkspaceZone } from "./open";
 import { phoneShown } from "./save";
 import type { Brain, Config, Profile } from "./save";
 import { businessTabSave } from "./saver";
@@ -97,15 +98,20 @@ const BTA_FALLBACK_ROWS: { key: FallbackKey; label: string; when: string }[] = [
 const BTA_NOTES_FULL = "That is the most notes it keeps. Remove one to add another.";
 
 /** A note in the draft, as far as a hand-edited record can be trusted. */
-type NoteDraft = { title?: unknown; text?: unknown } | null;
+type NoteDraft = { title?: unknown; text?: unknown; until?: unknown } | null;
 
-/** One note: a title and what it says, each in its box, with its remove. */
+/**
+ * One note: a title, what it says and its last day, each in its box, with its remove. The last day is a date box, as a
+ * closed day's is (open.tsx), and optional; once it has passed on the business's day, `ended` (contracts
+ * noteEndedWords) is said beside the title and describes its box, since the receptionist no longer says the note.
+ */
 const BtaNote = ({
   note,
   i,
   notes,
   press,
   bad,
+  ended,
   readOnly,
 }: {
   note: NoteDraft;
@@ -113,9 +119,11 @@ const BtaNote = ({
   notes: ReturnType<Fields["rows"]>;
   press: Fields["press"];
   bad: string | null;
+  ended: string | null;
   readOnly: boolean;
 }) => {
   const problemId = `bt-note-${i}-problem`;
+  const endedId = `bt-note-${i}-ended`;
   const title = note && typeof note.title === "string" ? note.title : "";
   return (
     <div className="bt-note" data-testid={`rec-note-${i}`} {...notes.row(i)}>
@@ -126,6 +134,8 @@ const BtaNote = ({
         placeholder="Gift cards"
         onChange={(v) => notes.setAt(i, { title: v })}
         invalid={bad ? problemId : null}
+        unit={ended ? <span id={endedId}>{ended}</span> : null}
+        aria-describedby={ended ? endedId : undefined}
         readOnly={readOnly}
       />
       <RecordBox
@@ -136,6 +146,14 @@ const BtaNote = ({
         placeholder="Gift cards are sold at the front desk, any amount — ask for the owner."
         onChange={(v) => notes.setAt(i, { text: v })}
         invalid={bad ? problemId : null}
+        readOnly={readOnly}
+      />
+      <RecordBox
+        id={`bt-note-${i}-until`}
+        label={`Note ${i + 1}, until`}
+        type="date"
+        value={note && typeof note.until === "string" ? note.until : ""}
+        onChange={(v) => notes.setAt(i, { until: v })}
         readOnly={readOnly}
       />
       <button
@@ -158,7 +176,8 @@ const BtaNote = ({
 };
 
 /**
- * The notes, each a title and what it says, with a remove. A note is words somebody typed, the same as a closure, and
+ * The notes, each a title, what it says and an optional last day, with a remove. A note is words somebody typed, the
+ * same as a closure, and
  * each went with one press and no Undo (S18): now the removal says so and offers it back at its own place (BtFold's
  * rows), and the list stops at the profile's ten, where the old form stopped by hiding Add. Hookless (the kit's
  * RecordBox, a textarea for what a note says): its rows come and go. What stops a note (half of one, or more than the
@@ -181,6 +200,9 @@ const BtaNotes = ({
     full: BTA_NOTES_FULL,
   });
   const list = Array.isArray(draft) ? (draft as NoteDraft[]) : [];
+  // Whether a note has ended is judged on the workspace's day, as the closed days' row judges what is still ahead.
+  const zone = btoWorkspaceZone();
+  const now = new Date();
   return (
     <div className="bt-notes" data-testid="rec-notes-rows">
       {/* The columns' names, on screen and not read out: each box carries its own, with its row's place in it. */}
@@ -188,6 +210,7 @@ const BtaNotes = ({
         <div className="bt-note-head" aria-hidden="true">
           <span>Title</span>
           <span>What it says</span>
+          <span>Until (optional)</span>
           <span />
         </div>
       ) : null}
@@ -199,6 +222,7 @@ const BtaNotes = ({
           notes={notes}
           press={press}
           bad={(problems[`note-${i}`] as string | undefined) || null}
+          ended={BUSINESS_TAB.noteEndedWords(n && n.until, zone, now)}
           readOnly={readOnly}
         />
       ))}

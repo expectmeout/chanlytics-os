@@ -2532,7 +2532,7 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title and the text the receptionist reads), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3846,7 +3846,7 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title and the text the receptionist reads), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {

@@ -654,6 +654,17 @@ test("language, scope and settings changes", () => {
     applySettingsChange(cfg, { op: "add_note", title: "Parking", text: "Behind the building." }).brain.profile.notes,
     [{ title: "Parking", text: "Behind the building." }],
   );
+  // A note with its last day is written with it, and the card's line says it in the date its closure's line uses.
+  const holiday = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
+  assert.deepEqual(applySettingsChange(cfg, holiday).brain.profile.notes, [
+    { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" },
+  ]);
+  assert.equal(describeSettingsChange(holiday), "Note for the receptionist: “Holiday hours”, until 2026-12-31");
+  assert.equal(
+    describeSettingsChange({ op: "add_note", title: "Parking", text: "Behind the building." }),
+    "Note for the receptionist: “Parking”",
+    "a note with no last day says none",
+  );
   assert.equal(
     applySettingsChange(cfg, { op: "add_service", name: "Gloss", duration_min: 45 }).brain.profile.services[0]
       .duration_min,

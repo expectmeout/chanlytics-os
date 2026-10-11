@@ -4,6 +4,8 @@
  */
 import { INSTRUCTIONS_MAX } from "../workspace-config/config-rules";
 import { FALLBACK_DEFAULTS, isProductFallback } from "../workspace-config/fallbacks";
+import { closureDatesLabel } from "../../calendar/calendar-words";
+import { zoneDayKey } from "../../shared/clock";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
 
 /* ---- How it answers ---- */
@@ -90,6 +92,17 @@ export function notesWords(
     chips: titles.slice(0, NOTE_CHIPS),
     more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null,
   };
+}
+
+/**
+ * A note's end, beside its title in the notes fold once its last day has passed: "ended Oct 10". Null while it lasts
+ * (its last day included) and for a note with no end. The day is the business's (zoneDayKey), as the closed days' row
+ * counts what is still ahead (closuresAheadWords), and the date is spelled as that row spells a closed day
+ * (closureDatesLabel). The receptionist stops saying the note on the same day (compose.ts).
+ */
+export function noteEndedWords(until: unknown, tz: string, now: Date): string | null {
+  if (typeof until !== "string" || !until) return null;
+  return until < zoneDayKey(now.getTime(), tz) ? `ended ${closureDatesLabel({ date: until })}` : null;
 }
 
 /** The owner's own words, at rest and in their box. */

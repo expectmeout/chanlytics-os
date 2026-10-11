@@ -15,7 +15,7 @@
 export type AskSettingsChange =
   | { op: "add_closure"; date: string; until?: string; note?: string }
   | { op: "set_hours"; day: string; open: string | null; close: string | null }
-  | { op: "add_note"; title: string; text: string }
+  | { op: "add_note"; title: string; text: string; until?: string }
   | { op: "add_service"; name: string; duration_min?: number };
 
 type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unknown> } & Record<string, unknown>;
@@ -43,7 +43,8 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
     }
     case "add_note": {
       const notes = [...((profile.notes as unknown[]) ?? [])];
-      notes.push({ title: change.title, text: change.text });
+      // Its last day only when it has one: a note with none is said for good, as every note was before it had one.
+      notes.push({ title: change.title, text: change.text, ...(change.until ? { until: change.until } : {}) });
       profile.notes = notes;
       break;
     }
@@ -68,7 +69,8 @@ export function describeSettingsChange(change: AskSettingsChange): string {
     case "set_hours":
       return change.open && change.close ? `${change.day}: ${change.open}–${change.close}` : `${change.day}: closed`;
     case "add_note":
-      return `Note for the receptionist: “${change.title}”`;
+      // Its last day as the closure's line above says a day: the date as typed.
+      return `Note for the receptionist: “${change.title}”${change.until ? `, until ${change.until}` : ""}`;
     case "add_service":
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }

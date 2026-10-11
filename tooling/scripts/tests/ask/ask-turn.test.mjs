@@ -2358,6 +2358,19 @@ test("the proposal builders run against the database in memory: each kind is a c
     (await p("propose_settings", { change: { op: "add_closure", date: "tomorrow" } })).result,
     /change rejected/,
   );
+  // A note with its last day: the same until a closure takes, judged by its shape alone, said on the card and carried
+  // in the change its Approve applies.
+  const ending = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
+  const noted = await p("propose_settings", { change: ending });
+  assert.equal(noted.isError, false, noted.result);
+  assert.deepEqual(
+    [noted.proposal.title, noted.proposal.summary, noted.proposal.payload.change],
+    ["Remember this", "Note for the receptionist: “Holiday hours”, until 2026-12-31", ending],
+  );
+  assert.match(
+    (await p("propose_settings", { change: { ...ending, until: "New Year's Eve" } })).result,
+    /change rejected: until/,
+  );
   assert.match(
     JSON.parse((await p("propose_settings", {})).result).error,
     /^propose_settings: change Invalid input/,
