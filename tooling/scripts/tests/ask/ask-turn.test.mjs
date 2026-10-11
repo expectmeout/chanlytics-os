@@ -5315,7 +5315,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
     ],
     "the page's reason where its read carries one, and never a reason guessed for a list of the workspace's own",
   );
-  assert.ok(read.note.includes("can_be_sent_now") && read.note.includes("this week"), read.note);
+  assert.ok(read.note.includes("can_be_sent_now") && read.note.includes("within a week of today"), read.note);
   assert.ok(read.note.includes("A null count means the page could not count it just now."), read.note);
   // Everyone could not be read: no moment and no list is counted, and each says so -- never a calendar to connect or a
   // service to add, which is what a People read that failed looked like (no People list offered at all).
