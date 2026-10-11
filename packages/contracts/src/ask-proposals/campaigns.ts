@@ -23,7 +23,8 @@ import {
   type OwnVersionChannel,
   type VersionChannel,
 } from "../templates/message-versions";
-import { TEMPLATE_BODY_WORDS, TEMPLATE_LANGUAGES, TEMPLATE_SAME_NAME_WORDS } from "../templates/templates";
+import { languageName } from "../templates/template-languages";
+import { TEMPLATE_BODY_WORDS, TEMPLATE_SAME_NAME_WORDS } from "../templates/templates";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -390,17 +391,18 @@ export const MESSAGE_WORDS = {
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
   twin: (name: string): string =>
     `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
-  /** The card's title: the name the door files the message under, and its language. */
+  /** The card's title: the name the door files the message under, and its language in words ("in English"). */
   title: (name: string, language: string): string =>
-    `${CAMPAIGN_ROOMS.newMessage}: ${name} (${TEMPLATE_LANGUAGES.find((l) => l.id === language)?.label ?? language})`,
-  /** When its versions can go: an email's and a text's once Approve files them, WhatsApp's once it is reviewed. */
-  goes: (now: readonly OwnVersionChannel[], review: boolean): string =>
-    [
-      now.length > 0 ? `Goes ${channelsWords(now)} now` : "",
-      review ? "WhatsApp waits on Meta's review (usually minutes, sometimes a day)" : "",
-    ]
-      .filter(Boolean)
-      .join("; "),
+    `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
+  /**
+   * When its versions can go: an email's and a text's once Approve files them, WhatsApp's once WhatsApp has reviewed it,
+   * in the product's voice (a person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
+   */
+  goes: (now: readonly OwnVersionChannel[], review: boolean): string => {
+    const reviewed = "WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day)";
+    if (now.length === 0) return review ? `Its ${reviewed}` : "";
+    return `Goes ${channelsWords(now)} now${review ? `; its ${reviewed}` : ""}`;
+  },
   /** What the door filed (its answer): each version, ready or in review, and the one it could not file, in its words. */
   filed: (
     name: string,

@@ -25,6 +25,7 @@
  */
 import type { PlaybookTrigger } from "../playbooks/playbook-triggers";
 import { SENDER_WORDS } from "./sender-words";
+import { languageBase } from "./template-languages";
 import type { ParamSourceKind } from "./templates";
 
 /** What a starter's slot takes: one of the sources a campaign fills a slot from (templates.ts). */
@@ -80,6 +81,17 @@ export const STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
   { id: "es", label: "Spanish" },
 ] as const;
+
+/**
+ * The code a message is filed under, from its language alone as Ask names it ("en", "es"): the one of STARTER_LANGUAGES
+ * with that base, English under en_US as the starters and Meta file it, so a message written in English sits beside the
+ * starters under one code and a twin of it is found there; a language the list does not hold is filed as it is named.
+ * The one reading of the list, for every writer that takes a language by name.
+ */
+export function messageLanguageCode(language: string): string {
+  const base = languageBase(language);
+  return STARTER_LANGUAGES.find((l) => languageBase(l.id) === base)?.id ?? language;
+}
 
 const FIRST = { kind: "first_name" as const, label: "First name", example: "Dani" };
 const BUSINESS = { kind: "business_name" as const, label: "Business name", example: "Luna Studio" };

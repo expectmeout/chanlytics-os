@@ -295,7 +295,7 @@ export { VERSION_CHANNELS, OWN_VERSION_CHANNELS, VERSION_CHANNEL_WORDS, EMAIL_SU
 export { SENDER_WORDS, senderWords, senderLanguage } from "./templates/sender-words";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./templates/slot-sets";
 export { starterByName, starterByKey, startersOffered, starterForTrigger, startersForTrigger, starterText, starterDraft, starterEmailText, starterSmsText } from "./templates/starter-lookup";
-export { STARTER_LANGUAGES, STARTER_TEMPLATES } from "./templates/starter-templates";
+export { STARTER_LANGUAGES, STARTER_TEMPLATES, messageLanguageCode } from "./templates/starter-templates";
 export { templateLanguage, languageName, languageLabel, languageTag, findLanguages, WHATSAPP_LANGUAGES, languageBase } from "./templates/template-languages";
 export { starterIndex, compareTemplates, defaultTemplate, groupTemplates, bookingTemplate } from "./templates/template-order";
 export { footerOf, templateFooter, templateParts, templateBlocked, refusedWords, sendableTemplates, templateLinkButton } from "./templates/template-parts";

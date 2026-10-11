@@ -50,7 +50,7 @@ export type {
   TemplateSendSource,
   TemplateSentWords,
 } from "./templates";
-export { STARTER_LANGUAGES, STARTER_TEMPLATES } from "./starter-templates";
+export { STARTER_LANGUAGES, STARTER_TEMPLATES, messageLanguageCode } from "./starter-templates";
 export type {
   StarterSlotKind,
   StarterSlot,

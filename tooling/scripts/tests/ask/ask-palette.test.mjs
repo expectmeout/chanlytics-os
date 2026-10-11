@@ -3233,14 +3233,22 @@ test("a message the card writes (the marketing manager, §5.2) is drawn whole: i
     },
   ];
   const follows =
-    "Goes by email now; WhatsApp waits on Meta's review (usually minutes, sometimes a day) · On WhatsApp: only people with a recorded yes to offers and a phone number.";
+    "Goes by email now; its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day) · On WhatsApp: only people with a recorded yes to offers and a phone number.";
   const p = {
     id: "p1",
     kind: "message",
     needs: "operator",
-    title: "New message: october_offer (English)",
+    title: "New message: october_offer, in English",
     summary: `On WhatsApp: Hi Dani, … · By email: “This month at the business” — Hi Dani, … · ${follows}`,
-    payload: { name: "october_offer", language: "en", category: "marketing", versions: {}, slots: [], said, follows },
+    payload: {
+      name: "october_offer",
+      language: "en_US",
+      category: "marketing",
+      versions: {},
+      slots: [],
+      said,
+      follows,
+    },
     undo: "Delete its email version",
   };
   for (const [lang, word] of [

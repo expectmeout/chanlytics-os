@@ -8,6 +8,7 @@ import {
   PARAM_SOURCES,
   channelNeverCarries,
   consentGuardWords,
+  messageLanguageCode,
   purposeOfTemplate,
   slugTemplateName,
   templateBodyTooLong,
@@ -103,7 +104,8 @@ async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<Prop
   const body: WriteMessageBody = {
     // The name a person typed, as Meta takes one: "Autumn offer" is autumn_offer.
     name: slugTemplateName(input.name),
-    language: input.language,
+    // The language as the product files it (English under en_US, beside the starters), never as Ask named it.
+    language: messageLanguageCode(input.language),
     category: input.category,
     versions: input.versions,
     slots,

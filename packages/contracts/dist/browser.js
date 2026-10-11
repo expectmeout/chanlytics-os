@@ -10739,6 +10739,10 @@ var STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
   { id: "es", label: "Spanish" }
 ];
+function messageLanguageCode(language) {
+  const base = languageBase(language);
+  return STARTER_LANGUAGES.find((l) => languageBase(l.id) === base)?.id ?? language;
+}
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -12105,13 +12109,17 @@ var MESSAGE_WORDS = {
   noMailbox: (why) => `${why} Say so, and write it without an email version.`,
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
   twin: (name) => `${TEMPLATE_SAME_NAME_WORDS} Say so: \u201C${name}\u201D in this language is in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
-  /** The card's title: the name the door files the message under, and its language. */
-  title: (name, language) => `${CAMPAIGN_ROOMS.newMessage}: ${name} (${TEMPLATE_LANGUAGES.find((l) => l.id === language)?.label ?? language})`,
-  /** When its versions can go: an email's and a text's once Approve files them, WhatsApp's once it is reviewed. */
-  goes: (now, review) => [
-    now.length > 0 ? `Goes ${channelsWords(now)} now` : "",
-    review ? "WhatsApp waits on Meta's review (usually minutes, sometimes a day)" : ""
-  ].filter(Boolean).join("; "),
+  /** The card's title: the name the door files the message under, and its language in words ("in English"). */
+  title: (name, language) => `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
+  /**
+   * When its versions can go: an email's and a text's once Approve files them, WhatsApp's once WhatsApp has reviewed it,
+   * in the product's voice (a person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
+   */
+  goes: (now, review) => {
+    const reviewed = "WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day)";
+    if (now.length === 0) return review ? `Its ${reviewed}` : "";
+    return `Goes ${channelsWords(now)} now${review ? `; its ${reviewed}` : ""}`;
+  },
   /** What the door filed (its answer): each version, ready or in review, and the one it could not file, in its words. */
   filed: (name, filed, refused) => {
     const said = filed.map(
@@ -39269,6 +39277,7 @@ export {
   messageFitsMoment,
   messageHolds,
   messageLanguageChoices,
+  messageLanguageCode,
   messageStandingWords,
   messageStatusLabel,
   messageText,

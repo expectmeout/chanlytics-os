@@ -42,16 +42,16 @@ const USER = "u1";
 const TZ = "America/New_York";
 const NOW = new Date("2026-10-10T14:00:00Z");
 const V = (n) => `77777777-7777-4777-8777-${String(n).padStart(12, "0")}`;
-/** The sentence the card says of when each version can go, word for word (the task's brief). */
-const GOES = "Goes by email now; WhatsApp waits on Meta's review (usually minutes, sometimes a day)";
+/** The sentence the card says of when each version can go, word for word: WhatsApp's review, never Meta's. */
+const GOES = "Goes by email now; its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day)";
 
-/** A template row as the table holds it. */
+/** A template row as the table holds it: English is filed under en_US, as the starters are. */
 const tpl = (n, over = {}) => ({
   id: V(n),
   tenant_id: A,
   channel: "email",
   name: "autumn_offer",
-  language: "en",
+  language: "en_US",
   body_preview: "Hi {{1}}",
   variables: [
     { position: 1, label: "First name", example: "Dani" },
@@ -228,6 +228,29 @@ test("a name and language the Library holds, on any channel, is a twin: refused 
   assert.equal(es.isError, false, es.result);
 });
 
+test("the language Ask names is filed under the product's code, through the one mapping: en is en_US, beside the starters, es is es; and a twin of an English name is found where it is held, under en_US", async () => {
+  assert.deepEqual(
+    ["en", "es"].map((l) => C.messageLanguageCode(l)),
+    C.STARTER_LANGUAGES.map((l) => l.id),
+    "the starters' own codes",
+  );
+  const commitOf = (p) => C.PROPOSAL_SPECS.message.commit(p, { settings: null }).body;
+  const en = await propose(OFFER);
+  assert.equal(en.isError, false, en.result);
+  assert.deepEqual([en.proposal.payload.language, commitOf(en.proposal).language], ["en_US", "en_US"]);
+  assert.equal(en.proposal.title, "New message: autumn_offer, in English", "the card says the language in words");
+  const es = await propose({ ...OFFER, language: "es" });
+  assert.deepEqual([es.proposal.payload.language, commitOf(es.proposal).language], ["es", "es"]);
+  assert.equal(es.proposal.title, "New message: autumn_offer, in Spanish");
+  // An English message the Library holds, as the starters and the composer file it: a twin, never a second message.
+  const held = await propose(OFFER, { templates: [tpl(1, { language: "en_US" })] });
+  assert.equal(said(held), C.MESSAGE_WORDS.twin("autumn_offer"));
+  // A Spanish one held under es is the Spanish card's twin, and not the English card's.
+  const spanish = { templates: [tpl(1, { language: "es" })] };
+  assert.equal(said(await propose({ ...OFFER, language: "es" }, spanish)), C.MESSAGE_WORDS.twin("autumn_offer"));
+  assert.equal((await propose(OFFER, spanish)).isError, false);
+});
+
 test("a language of a message held in another, said as another kind or with other values, is refused in the door's words", async () => {
   const held = { templates: [tpl(1, { language: "es", category: "utility" })] };
   const r = await propose(OFFER, held);
@@ -259,11 +282,11 @@ test("an offer by WhatsApp and email is a card that quotes every version as the 
   const p = r.proposal;
   assert.equal(p.kind, "message");
   assert.equal(p.needs, "operator");
-  assert.equal(p.title, C.MESSAGE_WORDS.title("autumn_offer", "en"));
+  assert.equal(p.title, C.MESSAGE_WORDS.title("autumn_offer", "en_US"));
   const slots = SLOTS.map((s, i) => ({ ...s, example: ["Dani", "the business"][i] }));
   assert.deepEqual(p.payload, {
     name: "autumn_offer",
-    language: "en",
+    language: "en_US",
     category: "marketing",
     versions: OFFER.versions,
     slots,
@@ -289,6 +312,7 @@ test("an offer by WhatsApp and email is a card that quotes every version as the 
   for (const line of C.consentGuardWords(["whatsapp", "email"], "marketing", "ours"))
     assert.ok(p.summary.includes(line), `who an offer reaches: ${line}`);
   assert.ok(p.summary.includes("yes to offers"), "an offer reaches only those who said yes to offers");
+  assert.doesNotMatch(p.summary, /Meta/, "a person reads WhatsApp's review, never Meta's");
   assert.equal(p.undo, "Delete its email version");
   assert.match(JSON.parse(r.result).note, /Nothing has happened yet/);
   wroteNothing(r);
@@ -311,7 +335,7 @@ test("a message about their appointment in Spanish, on all three channels: each 
   assert.ok(text.endsWith(C.smsStopLine("es")), "a text as it goes, with the STOP line the sender adds");
   assert.ok(
     p.summary.includes(
-      " · Goes by email and by text now; WhatsApp waits on Meta's review (usually minutes, sometimes a day) · ",
+      " · Goes by email and by text now; its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day) · ",
     ),
     p.summary,
   );
@@ -327,7 +351,9 @@ test("a message with no WhatsApp version goes at once, and one with WhatsApp alo
   assert.doesNotMatch(email.proposal.summary, /review/);
   const wa = await propose(without(OFFER, "email"));
   assert.ok(
-    wa.proposal.summary.includes(" · WhatsApp waits on Meta's review (usually minutes, sometimes a day) · "),
+    wa.proposal.summary.includes(
+      " · Its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day) · ",
+    ),
     wa.proposal.summary,
   );
   assert.equal(wa.proposal.undo, null, "nothing an undo can delete: WhatsApp holds its version");
@@ -566,11 +592,11 @@ test("an approved card's body is what the door files: an offer by email alone, b
     const row = tables.templates.find((t) => t.name === "autumn_offer");
     assert.deepEqual(
       [row.channel, row.language, row.category, row.meta_status],
-      ["email", "en", "marketing", "approved"],
+      ["email", "en_US", "marketing", "approved"],
     );
     assert.deepEqual(answer, {
       name: "autumn_offer",
-      language: "en",
+      language: "en_US",
       versions: [{ channel: "email", id: row.id, state: "approved" }],
     });
     // What the undo would delete is the row the door filed.

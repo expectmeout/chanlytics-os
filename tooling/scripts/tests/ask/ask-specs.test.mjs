@@ -319,7 +319,7 @@ const SHAPES = {
   message: [
     card("message", {
       name: "october_offer",
-      language: "en",
+      language: "en_US",
       category: "marketing",
       versions: { whatsapp: { body: "Hi {{1}}" }, email: { subject: "Hi", body: "Hi {{1}}" } },
       slots: [{ position: 1, label: "First name", example: "Dani", kind: "first_name" }],
