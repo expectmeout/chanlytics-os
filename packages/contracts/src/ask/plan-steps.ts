@@ -193,8 +193,8 @@ export function planGroupOf<P extends HeldCard>(
  * The answer's sentence for a plan's cards (ask-answer.ts answerForCards: the turn that proposed and said nothing else,
  * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8): its steps that send
  * nothing and its sends, counted ("A plan of 4 steps and 2 sends to review."), and how they are approved where some send
- * nothing (null where none does: each card is its own press, as several cards are). Null where the cards are not every
- * one a step of one plan, which are counted as cards.
+ * nothing, the sends' own press said only where there is a send (null where none sends nothing: each card is its own
+ * press, as several cards are). Null where the cards are not every one a step of one plan, which are counted as cards.
  */
 export function planCountWords(
   cards: readonly Pick<AskProposal, "plan">[],
@@ -212,10 +212,13 @@ export function planCountWords(
   ];
   const headline = es ? `Un plan de ${parts.join(" y ")} para revisar.` : `A plan of ${parts.join(" and ")} to review.`;
   if (steps === 0) return { headline, detail: null };
-  return {
-    headline,
-    detail: es
-      ? "Los pasos que no envían nada se aprueban con un toque; cada envío se aprueba aparte cuando estén hechos los pasos que espera. Nada pasa hasta que lo hagas."
-      : "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
-  };
+  // The sends' half only where the plan has a send to say it of.
+  const together = es
+    ? "Los pasos que no envían nada se aprueban con un toque"
+    : "The steps that send nothing are approved with one press";
+  const apart = es
+    ? "; cada envío se aprueba aparte cuando estén hechos los pasos que espera"
+    : "; each send is its own press once the steps it waits for are done";
+  const after = es ? ". Nada pasa hasta que lo hagas." : ". Nothing happens until you do.";
+  return { headline, detail: `${together}${sends > 0 ? apart : ""}${after}` };
 }

@@ -98,7 +98,10 @@ function tell(win: Window, c: ProposalCall): void {
 /** A plan's step's key: one per step of one plan, whichever way the step is pressed (Review Focus 3). */
 const stepKey = (plan: AskPlanStamp): string => `plan:${plan.id}:${plan.step}`;
 
-/** Why a token names nothing, in the person's words: its step undone, done with nothing to name, or not done yet. */
+/**
+ * Why a step a card waits for or names by its token gives it nothing, in the person's words: the step undone, done with
+ * nothing to name, or not done yet. The one spelling of a step's state as a refusal.
+ */
 function unnamed(made: PlanMade, n: number): string {
   const step = made[n];
   if (!step) return PROPOSAL_WORDS.waitsForStep(n);
@@ -115,7 +118,7 @@ function unnamed(made: PlanMade, n: number): string {
 function withSteps(p: AskProposal, made: PlanMade): AskProposal | ProposalRefusal {
   if (!p.plan) return p;
   const wait = planWaits(p.plan, made);
-  if (wait) return { refused: "undone" in wait ? PROPOSAL_WORDS.planUndone : PROPOSAL_WORDS.waitsForStep(wait.waits) };
+  if (wait) return { refused: unnamed(made, "undone" in wait ? wait.undone : wait.waits) };
   const filled = resolveSteps(p.payload, made);
   return "unresolved" in filled ? { refused: unnamed(made, Number(filled.unresolved)) } : { ...p, payload: filled };
 }

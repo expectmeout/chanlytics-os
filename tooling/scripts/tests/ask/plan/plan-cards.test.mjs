@@ -755,20 +755,34 @@ test("an offer starting today on a calendar with less room than half its audienc
 
 /* ------------------------------------------------------------------ the loop */
 
-test("the loop keeps every card one call made: a plan's three cards are the turn's, said as a plan to review (its steps that send nothing and its send, counted)", async () => {
-  const blocks = [
-    {
-      type: "tool_use",
-      id: "t-plan",
-      name: "propose_campaign",
-      text: "",
-      json: JSON.stringify({ action: "plan", ...offer() }),
-    },
-  ];
+/** The plan's call, as the model writes it. */
+const PLAN_CALL = {
+  type: "tool_use",
+  id: "t-plan",
+  name: "propose_campaign",
+  text: "",
+  json: JSON.stringify({ action: "plan", ...offer() }),
+};
+/** An answer the model writes beside its calls (ASK_ANSWER_FORMAT): its Say, and nothing shown or offered. */
+const NO_SOURCE = { kind: "none", id: "", label: "" };
+const saidBeside = (headline, detail) => ({
+  type: "text",
+  id: "",
+  name: "",
+  json: "",
+  text: JSON.stringify({
+    say: { headline, detail },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: NO_SOURCE } },
+    do: { open: { source: NO_SOURCE, label: "", now: false }, next: [] },
+    language: "en",
+  }),
+});
+/** The November offer asked for, the model's one round scripted as `blocks`, the plan's tool run for real. */
+const planTurn = (blocks) => {
   const rounds = [{ blocks, stopReason: "tool_use", streamError: null }];
   const events = [];
   const ctx = ctxOf(tables());
-  const r = await runAskTurn(
+  return runAskTurn(
     {
       ctx,
       tenantId: A,
@@ -804,6 +818,10 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
       propose: buildProposal,
     },
   );
+};
+
+test("the loop keeps every card one call made: a plan's three cards are the turn's, said as a plan to review (its steps that send nothing and its send, counted)", async () => {
+  const r = await planTurn([PLAN_CALL]);
   assert.equal(r.failed, false, JSON.stringify(r));
   assert.deepEqual(
     r.proposals.map((p) => [p.kind, p.plan.step]),
@@ -819,6 +837,19 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
     "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
   );
   assert.deepEqual(r.tools, ["propose_campaign.plan"]);
+});
+
+test("an answer beside a plan's cards that claims a write is said as the plan's own count sentence, its detail kept (loop.ts withoutClaimedWrite): nothing is done until a person presses", async () => {
+  const r = await planTurn([saidBeside("I've set up your November offer.", "It starts on Nov 1."), PLAN_CALL]);
+  assert.equal(r.failed, false, JSON.stringify(r));
+  assert.equal(r.proposals.length, 3);
+  assert.deepEqual(
+    [r.answer.say.headline, r.answer.say.detail],
+    ["A plan of 2 steps and 1 send to review.", "It starts on Nov 1."],
+  );
+  // An answer that claims nothing stands as the model wrote it.
+  const honest = await planTurn([saidBeside("Here is a plan for your November offer.", ""), PLAN_CALL]);
+  assert.equal(honest.answer.say.headline, "Here is a plan for your November offer.");
 });
 
 /* ------------------------------------------------------------------ a campaign's last day */

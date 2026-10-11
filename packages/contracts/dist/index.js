@@ -14066,10 +14066,10 @@ function planCountWords(cards, language) {
   ];
   const headline = es ? `Un plan de ${parts2.join(" y ")} para revisar.` : `A plan of ${parts2.join(" and ")} to review.`;
   if (steps === 0) return { headline, detail: null };
-  return {
-    headline,
-    detail: es ? "Los pasos que no env\xEDan nada se aprueban con un toque; cada env\xEDo se aprueba aparte cuando est\xE9n hechos los pasos que espera. Nada pasa hasta que lo hagas." : "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do."
-  };
+  const together = es ? "Los pasos que no env\xEDan nada se aprueban con un toque" : "The steps that send nothing are approved with one press";
+  const apart = es ? "; cada env\xEDo se aprueba aparte cuando est\xE9n hechos los pasos que espera" : "; each send is its own press once the steps it waits for are done";
+  const after = es ? ". Nada pasa hasta que lo hagas." : ". Nothing happens until you do.";
+  return { headline, detail: `${together}${sends2 > 0 ? apart : ""}${after}` };
 }
 
 // src/ask/ask-answer.ts

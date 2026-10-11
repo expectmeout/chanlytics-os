@@ -282,7 +282,8 @@ const atStepWords = (t, s) => ({
 // outcomes as the turn holds them, over what this group saw become of them since (`seen`); its words are the Line's own,
 // in its language (`t`, atStepWords). The press is held while any
 // of its cards is busy, records each step's outcome as that card's own press would (atDone, atFailed), one after another,
-// and hands each card it decided that outcome to draw (`ran`); a stop is the step it stopped at, failed in commitPlan's
+// holding every card of the plan until the last is kept, and hands each card it decided that outcome to draw (`ran`); a
+// stop is the step it stopped at, failed in commitPlan's
 // own words (PROPOSAL_WORDS.planStopped, never wrapped again), and the rest stay pressable one by one.
 const AskPlan = ({ cards, messageId, t, onNav, onOutcome, onEdit, cardOpen }) => {
   const A = window.__ask;
@@ -294,20 +295,25 @@ const AskPlan = ({ cards, messageId, t, onNav, onOutcome, onEdit, cardOpen }) =>
   const g = A.planGroupOf(now);
   const held = busy || Object.values(working).some(Boolean);
   const saw = (pid, o) => setSeen((prev) => ({ ...prev, [pid]: o }));
+  // Every card of the plan is held from the press until the last outcome is recorded: the store writes a turn whole, so
+  // a send or an Undo pressed while the group's outcomes are on their way would record over one of them.
   const press = async () => {
     if (held || !A.commitPlan) return;
     setBusy(true);
-    const run = await A.commitPlan(now);
-    const at = Date.now();
-    const got = {};
-    for (const { step, result } of run.results) {
-      const p = now.find((c) => c.plan && c.plan.step === step);
-      if (p) got[p.id] = result.ok ? atDone(result, at) : atFailed(result.message, at);
+    try {
+      const run = await A.commitPlan(now);
+      const at = Date.now();
+      const got = {};
+      for (const { step, result } of run.results) {
+        const p = now.find((c) => c.plan && c.plan.step === step);
+        if (p) got[p.id] = result.ok ? atDone(result, at) : atFailed(result.message, at);
+      }
+      setSeen((prev) => ({ ...prev, ...got }));
+      setRan((prev) => ({ ...prev, ...got }));
+      for (const pid of Object.keys(got)) await atRecord(A, messageId, onOutcome, pid, got[pid]);
+    } finally {
+      setBusy(false);
     }
-    setSeen((prev) => ({ ...prev, ...got }));
-    setRan((prev) => ({ ...prev, ...got }));
-    setBusy(false);
-    for (const pid of Object.keys(got)) await atRecord(A, messageId, onOutcome, pid, got[pid]);
   };
   // The press is gated as the steps it approves are: the first whose gate the member's role is refused, else Approve's.
   const gates = window.PROPOSAL_GATE || {};
@@ -315,7 +321,7 @@ const AskPlan = ({ cards, messageId, t, onNav, onOutcome, onEdit, cardOpen }) =>
   return (
     <div className="ask-steps" data-testid="ask-plan">
       {g.left > 0 ? (
-        <div className="ask-step-n">
+        <div className="ask-steps-press">
           <button type="button" className="btn btn-primary btn-sm" onClick={press} disabled={held} data-testid="ask-plan-approve" {...window.gate(gateKey, "approve these steps")}>{busy ? t.working : t.approveSilent(g.left)}</button>
         </div>
       ) : null}
@@ -330,7 +336,7 @@ const AskPlan = ({ cards, messageId, t, onNav, onOutcome, onEdit, cardOpen }) =>
             onOutcome={onOutcome}
             onEdit={onEdit}
             hideOpen={!!cardOpen && cardOpen[s.card.id] === false}
-            step={{ waits: w.waits, note: w.note, cards: now, held: busy && s.card.plan.silent, ran: ran[s.card.id] || null, saw, onBusy: (b) => setWorking((prev) => ({ ...prev, [s.card.id]: b })) }}
+            step={{ waits: w.waits, note: w.note, cards: now, held: busy, ran: ran[s.card.id] || null, saw, onBusy: (b) => setWorking((prev) => ({ ...prev, [s.card.id]: b })) }}
           />
         </div>
       ); })}

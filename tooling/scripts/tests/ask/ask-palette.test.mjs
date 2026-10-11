@@ -4386,6 +4386,131 @@ test("the group's one press approves the steps that send nothing through commitP
   }
 });
 
+test("REGRESSION (fix round 1): the group holds every card of its plan until each step's outcome is recorded: no send's Approve and no step's Undo can be pressed while the outcomes are on their way, since a press then would record over one of them", async () => {
+  const queued = [];
+  const undone = [];
+  const steps = SIX.map((p) => (p.plan.silent ? { ...p, undo: `Take back ${p.title}` } : p));
+  const calls = planBridge({
+    undoOpen: () => true,
+    commitPlan: async (cards) => {
+      calls.plan.push(cards);
+      return {
+        results: [1, 2, 3].map((step) => ({
+          step,
+          id: step === 1 ? PV(1) : null,
+          result: { ok: true, receipt: `Step ${step} done`, undo: { step }, made: step === 1 ? MADE_MESSAGE : null },
+        })),
+        done: [],
+        undone: [],
+        stoppedAt: null,
+        made: { 1: MADE_MESSAGE, 2: { kind: "settings", id: null }, 3: { kind: "playbook_change", id: null } },
+      };
+    },
+    undo: async (p) => {
+      undone.push(p.id);
+      return { ok: true, receipt: "Taken back", undo: null };
+    },
+    // Each outcome is kept only when the test lets it land, as a slow route would answer.
+    outcome: (mid, pid, o) =>
+      new Promise((resolve) =>
+        queued.push(() => {
+          calls.outcomes.push([mid, pid, o]);
+          resolve(true);
+        }),
+      ),
+  });
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const pressable = (tree) => {
+    const plan = byTestId(tree, "ask-plan");
+    const approve = all(plan, (n) => n.props?.["data-testid"] === "ask-card-approve");
+    const undo = byClass(plan, "ask-card-undo");
+    return {
+      approve: approve.map((b) => !b.props.disabled),
+      undo: undo.map((b) => !b.props.disabled),
+      approve$: approve,
+      undo$: undo,
+    };
+  };
+  try {
+    const props = planProps(steps);
+    let tree = render(AskAnswer, props);
+    press(byTestId(tree, "ask-plan-approve"));
+    tree = await later(AskAnswer, props);
+    assert.equal(queued.length, 1, "the press is back, and its outcomes are recorded one at a time");
+    const during = pressable(tree);
+    assert.deepEqual(
+      [during.approve, during.undo],
+      [
+        [false, false, false],
+        [false, false, false],
+      ],
+      "REGRESSION: a send's Approve or a step's Undo was pressable while the group's outcomes were on their way",
+    );
+    // A press in that window does nothing: no send, no undo, nothing recorded beside the group's.
+    press(during.approve$[0]);
+    press(during.undo$[0]);
+    tree = await later(AskAnswer, props);
+    assert.deepEqual([calls.commit, undone], [[], []]);
+    while (queued.length) {
+      queued.shift()();
+      tree = await later(AskAnswer, props);
+    }
+    assert.deepEqual(
+      calls.outcomes.map(([, pid]) => pid),
+      ["p-1", "p-2", "p-3"],
+      "every outcome recorded, the group's alone",
+    );
+    const after = pressable(tree);
+    assert.deepEqual(
+      [after.approve, after.undo],
+      [
+        [true, true, true],
+        [true, true, true],
+      ],
+      "once every outcome is kept, each send and each Undo is the person's again",
+    );
+  } finally {
+    calls.restore();
+  }
+});
+
+test("two plans in one turn are two groups: each one's press is handed its own cards alone and counts its own steps", async () => {
+  const other = [1, 2, 3].map((n) =>
+    planCard(n, n < 3 ? "settings" : "broadcast", `Other step ${n}`, SIX[n === 3 ? 4 : 1].payload, {
+      id: `p-o${n}`,
+      plan: { id: "plan-other", step: n, of: 3, silent: n < 3, after: n < 3 ? [] : [1, 2] },
+    }),
+  );
+  const calls = planBridge();
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  try {
+    const props = planProps([...SIX, ...other]);
+    let tree = render(AskAnswer, props);
+    const groups = all(tree, (n) => n.props?.["data-testid"] === "ask-plan");
+    assert.equal(groups.length, 2);
+    const presses = groups.map((g) => byTestId(g, "ask-plan-approve"));
+    assert.deepEqual(presses.map(textOf), ["Approve the 3 silent steps", "Approve the 2 silent steps"]);
+    assert.deepEqual(
+      groups.map((g) => all(g, (n) => n.props?.["data-testid"] === "ask-card").length),
+      [6, 3],
+    );
+    press(presses[1]);
+    tree = await later(AskAnswer, props);
+    press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "ask-plan")[0], "ask-plan-approve"));
+    tree = await later(AskAnswer, props);
+    assert.deepEqual(
+      calls.plan.map((cards) => cards.map((p) => p.id)),
+      [
+        ["p-o1", "p-o2", "p-o3"],
+        ["p-1", "p-2", "p-3", "p-4", "p-5", "p-6"],
+      ],
+      "each group's press reaches its own plan's cards and none of the other's",
+    );
+  } finally {
+    calls.restore();
+  }
+});
+
 test("a stop is said on the step it stopped at in the plan's own words, never wrapped again; the steps after it stay pressable one by one, and the group's press counts what is left", async () => {
   const stopped = PC.PROPOSAL_WORDS.planStopped(2, "Someone saved the settings first. Open Settings and try again.");
   const calls = planBridge({

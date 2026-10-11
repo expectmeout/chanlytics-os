@@ -972,6 +972,22 @@ test("a plan's cards are said as a plan (the marketing manager's spec §5.8): it
   const journey = answerForCards([stamp(1, false), stamp(2, false), stamp(3, false)], "en");
   assert.equal(journey.say.headline, "A plan of 3 sends to review.");
   assert.equal(journey.say.detail, answerForCards([{ title: "a" }, { title: "b" }], "en").say.detail);
+  // A plan of steps that send nothing alone says nothing of sends.
+  const quiet = [stamp(1, true), stamp(2, true)];
+  assert.deepEqual(
+    [answerForCards(quiet, "en").say.headline, answerForCards(quiet, "en").say.detail],
+    [
+      "A plan of 2 steps to review.",
+      "The steps that send nothing are approved with one press. Nothing happens until you do.",
+    ],
+  );
+  assert.deepEqual(
+    [answerForCards(quiet, "es").say.headline, answerForCards(quiet, "es").say.detail],
+    [
+      "Un plan de 2 pasos para revisar.",
+      "Los pasos que no envían nada se aprueban con un toque. Nada pasa hasta que lo hagas.",
+    ],
+  );
   // Not one plan's cards: a card of no plan beside it, or two plans, are cards.
   assert.equal(answerForCards([...six, { title: "Reply to Nora" }], "en").say.headline, "7 cards to review.");
   assert.equal(answerForCards([stamp(1, true), stamp(2, false, "plan-2")], "en").say.headline, "2 cards to review.");
