@@ -4,7 +4,7 @@
 -- text it was made with. Two columns, both null until written: `until`, the last day it runs (a run on a day past it
 -- sends nothing), and `trial_until`, before which a run its policy would send by itself (auto) waits for a person
 -- (veto). The change_playbook door (00377) is replaced whole, its signature, rights and answer the same, to take three
--- keys beside its six: `params` (the message's slot text, an array of strings), `until` and `trial_until`. The two
+-- keys beside its six: `params` (the message's slots, an array of core's specs), `until` and `trial_until`. The two
 -- dates take null, which clears them, so an undo can put back what was there; the seven others are never empty. A key
 -- outside the nine is refused, as before. The decision is the caller's, naming what it changes (core checkPlaybookPatch
 -- judges each value first). A member's session writes both columns, as it writes the rest of a campaign's settings.
@@ -72,13 +72,10 @@ begin
     raise exception 'change_playbook: name a value for each column named: only until and trial_until may be cleared'
       using errcode = '22023';
   end if;
-  -- The message's slot text is an array of strings, as a run reads it; anything else is refused.
-  if v_set ? 'params' and (case when jsonb_typeof(v_set -> 'params') = 'array'
-                                then exists (select 1 from jsonb_array_elements(v_set -> 'params') e
-                                              where jsonb_typeof(e) <> 'string')
-                                else true
-                           end) then
-    raise exception 'change_playbook: params is the message''s slot text, an array of strings' using errcode = '22023';
+  -- The message's slots are an array, as a run reads them; anything else is refused. What each element is (the slot
+  -- specs the route builds) is core's to judge, so whatever a row holds is written back by an undo.
+  if v_set ? 'params' and jsonb_typeof(v_set -> 'params') <> 'array' then
+    raise exception 'change_playbook: params is the message''s slots, an array' using errcode = '22023';
   end if;
   -- The two dates in the spelling the row's own are read in (to_jsonb of the cast), so the same day or instant written
   -- another way differs from nothing; a value that is no date is refused by its cast here (22007), before the lock.
@@ -139,4 +136,4 @@ end $$;
 revoke execute on function public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid) from public, anon;
 grant execute on function public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid) to authenticated, service_role;
 comment on function public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid) is
-  'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and params that is not an array of strings. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null (00377, 00395).';
+  'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null (00377, 00395).';

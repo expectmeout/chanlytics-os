@@ -7,8 +7,10 @@
  *   2. The door takes the three keys beside the six: `until`, `trial_until` and `params` are each written where they
  *      differ from the row, answered as `was`, and recorded in the same transaction with the decision the caller names
  *      (its payload names each key changed, as it does for the six). The two dates take null, which clears them (an
- *      undo puts back what was there, and a campaign may stop ending or leave its trial); `params` is an array of
- *      strings, never null. A key outside the nine is refused as before, and nothing is written.
+ *      undo puts back what was there, and a campaign may stop ending or leave its trial); `params` is an array, never
+ *      null, whose elements are core's to judge (the ParamSpecs the route builds, contracts parseParamSpecs), so what a
+ *      campaign's params held is written back by an undo. A key outside the nine is refused as before, and nothing is
+ *      written.
  *
  * Local stack only: it makes workspaces, members and playbooks with the service key and removes them after, and runs
  * the migration through ../../google/_db-stack.mjs, which first holds the stack under SUPABASE_WORKDIR to the one
@@ -91,7 +93,7 @@ async function operator() {
 }
 
 /** A win-back by silence, running at ten, as the service role writes one for the suite. */
-const winBack = async () =>
+const winBack = async (over = {}) =>
   ok(
     await db
       .from("playbooks")
@@ -109,6 +111,7 @@ const winBack = async () =>
         cap_per_run: 25,
         gap_days: 90,
         cadence_days: 30,
+        ...over,
       })
       .select("id")
       .single(),
@@ -120,18 +123,19 @@ const decisions = async (id) =>
   ok(
     await db
       .from("decisions")
-      .select("verb, actor_user_id, payload")
+      .select("verb, actor_user_id, payload, undo_of")
       .eq("tenant_id", tenantId)
       .eq("subject_id", id)
       .order("created_at", { ascending: true }),
   );
 /** The member's one call, the decision naming what it changes as the route names it. */
-const change = (who, id, set) =>
+const change = (who, id, set, over = {}) =>
   who.client.rpc("change_playbook", {
     p_tenant_id: tenantId,
     p_playbook_id: id,
     p_set: set,
     p_decision: { name: "Win-back", ...set },
+    ...over,
   });
 /** An instant as a number, however it was spelled. */
 const at = (iso) => (iso == null ? null : Date.parse(iso));
@@ -249,7 +253,7 @@ test(
 );
 
 test(
-  "change_playbook takes params: the message's slot text written whole, its line naming it; anything but an array of strings is refused and nothing is written",
+  "change_playbook takes params: the array written whole, its line naming it; a params that is no array is refused and nothing is written",
   { skip },
   async () => {
     const id = await winBack();
@@ -261,12 +265,38 @@ test(
     assert.deepEqual([line.verb, line.payload.params], ["change_playbook", ["10% off colour"]]);
     const same = ok(await change(who, id, { params: ["10% off colour"] }));
     assert.deepEqual([same.was, same.decision_id], [{}, null]);
-    for (const params of [null, "10% off colour", [1], [["10% off"]], { offer: "10% off" }]) {
+    // The door holds the shape a run reads, an array; what each element is, core judges before it is called.
+    for (const params of [null, "10% off colour", { kind: "text", value: "10% off colour" }, 3]) {
       const refused = await change(who, id, { params });
       assert.equal(refused.error?.code, "22023", `${JSON.stringify(params)}: ${refused.error?.message}`);
     }
     assert.deepEqual((await row(id)).params, ["10% off colour"]);
     assert.equal((await decisions(id)).length, 1);
+  },
+);
+
+test(
+  "a campaign's params as the route stores them, slot specs, are changed and written back by an undo through the same door, the undo's line linked to the line it undoes",
+  { skip },
+  async () => {
+    const held = [{ kind: "first_name" }, { kind: "text", value: "10% off" }];
+    const next = [{ kind: "first_name" }, { kind: "text", value: "15% off a colour" }];
+    const id = await winBack({ params: held });
+    const who = await operator();
+    const out = ok(await change(who, id, { params: next }));
+    assert.deepEqual([out.was, typeof out.decision_id], [{ params: held }, "string"]);
+    assert.deepEqual((await row(id)).params, next);
+    // The undo: what it held, written back, naming the line it undoes.
+    const undone = ok(await change(who, id, out.was, { p_undo_of: out.decision_id }));
+    assert.deepEqual([undone.was, undone.undo_dropped], [{ params: next }, false]);
+    assert.deepEqual((await row(id)).params, held);
+    assert.deepEqual(
+      (await decisions(id)).map((d) => [d.verb, d.payload.params, d.undo_of]),
+      [
+        ["change_playbook", next, null],
+        ["change_playbook", held, out.decision_id],
+      ],
+    );
   },
 );
 

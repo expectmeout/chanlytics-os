@@ -1347,13 +1347,10 @@ begin
     raise exception 'change_playbook: name a value for each column named: only until and trial_until may be cleared'
       using errcode = '22023';
   end if;
-  -- The message's slot text is an array of strings, as a run reads it; anything else is refused.
-  if v_set ? 'params' and (case when jsonb_typeof(v_set -> 'params') = 'array'
-                                then exists (select 1 from jsonb_array_elements(v_set -> 'params') e
-                                              where jsonb_typeof(e) <> 'string')
-                                else true
-                           end) then
-    raise exception 'change_playbook: params is the message''s slot text, an array of strings' using errcode = '22023';
+  -- The message's slots are an array, as a run reads them; anything else is refused. What each element is (the slot
+  -- specs the route builds) is core's to judge, so whatever a row holds is written back by an undo.
+  if v_set ? 'params' and jsonb_typeof(v_set -> 'params') <> 'array' then
+    raise exception 'change_playbook: params is the message''s slots, an array' using errcode = '22023';
   end if;
   -- The two dates in the spelling the row's own are read in (to_jsonb of the cast), so the same day or instant written
   -- another way differs from nothing; a value that is no date is refused by its cast here (22007), before the lock.
@@ -1416,7 +1413,7 @@ end $$;
 -- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and params that is not an array of strings. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null (00377, 00395).';
+COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null (00377, 00395).';
 
 
 --

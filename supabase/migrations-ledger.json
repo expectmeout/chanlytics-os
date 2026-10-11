@@ -397,6 +397,6 @@
     "00390_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "d6775bf1d2836ce20f21b193c85ab236e072d81af4e464dab717f69d91157b81",
     "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd",
     "00394_a_listing_keeps_its_review_link.sql": "7f084b462347d86e40b09d3b17464c57b7145cb39faf42ec722816a6b1fd6d7a",
-    "00395_a_campaign_ends_and_runs_on_trial.sql": "b0ff7ac3b09c9007a714cdd9b211a1beda0be6b8bad731384982f645435cbe7d"
+    "00395_a_campaign_ends_and_runs_on_trial.sql": "d7bc86f654aedce0ff67e5f682f09b1d8e3fe63ef682a3291e0e365d45eebc78"
   }
 }
