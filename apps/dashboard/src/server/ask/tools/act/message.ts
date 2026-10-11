@@ -74,7 +74,8 @@ function wordsRefusal(body: WriteMessageBody): string | null {
 /**
  * The checks that read the workspace, each the rule the door or its send applies: a WhatsApp version needs the
  * workspace's WhatsApp line (contracts whatsappLineOf, the line the edge files a template for); an email version, a
- * workspace that can send email (contracts channelsReady, in its sentence); and the Library may hold neither the message
+ * workspace that can send email (contracts channelsReady, in its sentence), or, where that could not be asked just now
+ * (its `unchecked`), a moment's wait, never a message without its email; and the Library may hold neither the message
  * (a twin, in MESSAGE_WORDS) nor a language of it said otherwise (the door's words). Null where all pass.
  */
 async function workspaceRefusal(t: ToolContext, body: WriteMessageBody): Promise<string | null> {
@@ -84,7 +85,9 @@ async function workspaceRefusal(t: ToolContext, body: WriteMessageBody): Promise
     messageOnFile(t.ctx, t.tenantId, body),
   ]);
   if (body.versions.whatsapp && !whatsappLineOf(chans)) return MESSAGE_WORDS.noNumber;
-  if (ready && !ready.email.ready) return MESSAGE_WORDS.noMailbox(ready.email.why ?? "");
+  // Not known (the edge did not answer) is no "no": the email stays in the message, and the card is asked for again.
+  if (ready && !ready.email.ready)
+    return ready.email.unchecked ? MESSAGE_WORDS.emailUnchecked : MESSAGE_WORDS.noMailbox(ready.email.why);
   if (twin) return MESSAGE_WORDS.twin(body.name);
   return doorSaysAfter(() => heldValues(t.ctx, t.tenantId, body));
 }

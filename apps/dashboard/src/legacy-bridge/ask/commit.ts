@@ -114,15 +114,19 @@ export async function undoProposal(
   const undoOf = typeof record.decision_id === "string" && record.decision_id ? record.decision_id : undefined;
   const made = undo.call(record, tabOf(win));
   if (!isCalls(made) && isRefusal(made)) return { ok: false, message: made.refused };
-  // Several rows, each through its own door (a message's versions): one call each, in order, stopping at the first
-  // refused, each under a key of its own, so pressing Undo again after a refusal answers the ones that landed as they
-  // landed (server/route.ts onceForKey) and sends the rest.
+  // Several rows, each through its own door (a message's versions): one call each, in order, each under a key of its own,
+  // stopping at the first refused, and saying what landed before it. Pressed again, a call whose row an earlier press
+  // took answers 404 before its key is read (a row-scoped write reads its row first, server/route.ts), which a call that
+  // says so (`goneIsDone`) counts as done; a refused call let its key go, so it runs again.
   const calls = isCalls(made) ? made : [made];
   if (calls.length === 0) return { ok: false, message: PROPOSAL_WORDS.noUndo };
   let data: unknown = null;
   for (const [i, call] of calls.entries()) {
     const r = await send(client, call, i === 0 ? `${p.id}:undo` : `${p.id}:undo:${i + 1}`, undoOf);
-    if (!r.ok) return r;
+    // Its row gone already (an earlier press took it): what it undoes is not there, so it is done; on to the next.
+    if (!r.ok && call.goneIsDone && r.status === 404) continue;
+    // Refused after some landed: what they did, then the refusal (the spec's words), never the refusal alone.
+    if (!r.ok) return i > 0 && undo.partial ? { ok: false, message: undo.partial(record, i, r.message) } : r;
     tell(win, call);
     data = r.data;
   }

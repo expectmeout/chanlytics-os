@@ -8506,6 +8506,11 @@ interface ChannelReady {
      * offers on WhatsApp are then open, as every campaign went before.
      */
     offers?: EmailOffers;
+    /**
+     * True where whether it can send could not be asked just now (email: the edge did not answer about its wire): not a
+     * no, and asked again in a moment, so a reader branches on this and never on `why`'s sentence. Absent where it was read.
+     */
+    unchecked?: true;
 }
 type ChannelsReady = Record<ConsentChannel, ChannelReady> & {
     /**
@@ -13708,6 +13713,12 @@ interface ProposalCall {
     refresh?: "behind";
     /** What the window is told once this call lands. */
     events?: ProposalEvent[];
+    /**
+     * An undo's call whose row may already be gone (deleted by an earlier press of Undo whose later call was refused, or by
+     * hand): its route's 404 counts as done, since what it undoes is not there, and the walk goes on. A row-scoped write
+     * reads its row before its key (server/route.ts), so a pressed-again delete is never answered from the key.
+     */
+    goneIsDone?: true;
 }
 /** A call the card cannot make from this tab, in the person's words; nothing is sent. */
 interface ProposalRefusal {
@@ -13745,6 +13756,11 @@ interface ProposalUndo {
     call(record: Record<string, unknown>, tab: ProposalTab): ProposalCall | readonly ProposalCall[] | ProposalRefusal;
     /** What the undo did: from the last call's answer, and what the commit kept. */
     receipt(data: unknown, record: Record<string, unknown>): string;
+    /**
+     * What an undo of several calls says when one after the first is refused: what the `landed` calls before it did, then
+     * the refusal, so a person is never told only of the refusal after part of it went. Absent, the refusal alone.
+     */
+    partial?(record: Record<string, unknown>, landed: number, refused: string): string;
 }
 interface ProposalSpec {
     needs: ProposalNeeds;
@@ -14884,8 +14900,16 @@ declare const MESSAGE_WORDS: {
     readonly tooLong: "The message must be under 1024 characters. Shorten its WhatsApp version, and propose it again.";
     /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
     readonly noNumber: "Connect a WhatsApp number first — templates belong to a number's account. Say so, and write it for email or text alone, or once a number is connected.";
-    /** An email version where email cannot send: why, in channelsReady's sentence (the mailbox, or the deployment's email). */
-    readonly noMailbox: (why: string) => string;
+    /**
+     * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
+     * why, in its sentence, else the mailbox's.
+     */
+    readonly noMailbox: (why: string | null) => string;
+    /**
+     * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
+     * the email stays in the message, and the card is asked for again in a moment.
+     */
+    readonly emailUnchecked: "Whether email can send here could not be checked just now. Say so, and propose it again in a moment, with its email version.";
     /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
     readonly twin: (name: string) => string;
     /** The card's title: the name the door files the message under, and its language in words ("in English"). */
@@ -14907,6 +14931,11 @@ declare const MESSAGE_WORDS: {
     readonly undo: (own: readonly OwnVersionChannel[]) => string | null;
     /** What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left and said. */
     readonly undone: (own: readonly OwnVersionChannel[], whatsapp: boolean) => string;
+    /**
+     * An undo refused part-way: the versions already deleted, the ones that are not, and the door's refusal; nothing deleted
+     * yet, the refusal alone. Pressed again, the deleted ones are answered as they were and the rest is tried.
+     */
+    readonly partlyUndone: (gone: readonly OwnVersionChannel[], left: readonly OwnVersionChannel[], refused: string) => string;
 };
 
 /**

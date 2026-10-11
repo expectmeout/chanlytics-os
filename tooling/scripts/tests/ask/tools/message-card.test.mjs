@@ -215,6 +215,28 @@ test("an email version where email is not set up is refused with the reason chan
   assert.equal(wa.isError, false, wa.result);
 });
 
+test("email that could not be checked (the edge did not answer) is no missing mailbox: the card waits a moment, and never says to write it without its email version", async () => {
+  // The edge's email wire unreachable: the deployment's answer is not known, so email is not guessed either way.
+  globalThis.fetch = async (url) => {
+    throw new Error(`connect ECONNREFUSED ${url}`);
+  };
+  await emailWire({ fresh: true });
+  const r = await propose(OFFER);
+  assert.equal(r.isError, true);
+  assert.equal(said(r), C.MESSAGE_WORDS.emailUnchecked);
+  assert.doesNotMatch(said(r), /without an email version/);
+  // The state is the readiness's own field, not its sentence.
+  const unknown = C.channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: null } }).email;
+  assert.equal(unknown.unchecked, true);
+  assert.equal(
+    C.channelsReady({ whatsapp: null, textLine: null, email: { mailbox: false, domain: true } }).email.unchecked,
+    undefined,
+    "a missing mailbox is known",
+  );
+  // A WhatsApp-only card needs no answer about email.
+  assert.equal((await propose(without(OFFER, "email"))).isError, false);
+});
+
 test("a name and language the Library holds, on any channel, is a twin: refused in the door's sentence, naming the message", async () => {
   for (const channel of ["email", "whatsapp"]) {
     const r = await propose(OFFER, { templates: [tpl(1, { channel })] });
@@ -455,8 +477,8 @@ test("the undo keeps the email and text versions the door filed, deletes each th
     whatsapp: "pending",
   });
   assert.deepEqual(spec.undo.call(kept, { settings: null }), [
-    { route: "DELETE templates/versions/[id]", params: { id: V(1) } },
-    { route: "DELETE templates/versions/[id]", params: { id: V(2) } },
+    { route: "DELETE templates/versions/[id]", params: { id: V(1) }, goneIsDone: true },
+    { route: "DELETE templates/versions/[id]", params: { id: V(2) }, goneIsDone: true },
   ]);
   assert.equal(
     spec.undo.receipt({ deleted: true }, kept),
@@ -542,12 +564,132 @@ test("Approve sends the card's body to POST templates/message, marked as a card'
     ],
   );
   assert.deepEqual(sent[0].body, C.PROPOSAL_SPECS.message.commit(p, { settings: null }).body);
-  // A delete the door refuses stops the walk there, in the door's words; the versions deleted before it stay deleted.
-  sent.length = 0;
-  delete answers[`DELETE /api/v1/templates/versions/${V(2)}`];
-  const half = await undoProposal(win, p, { state: "done", receipt: r.receipt, atMs: 1, undo: r.undo }, client);
-  assert.equal(half.ok, false);
-  assert.equal(sent.length, 2);
+});
+
+test("an undo refused part-way says what is already deleted, then the refusal; pressed again, the version that went is not deleted twice and only the refused one runs again (the real DELETE templates/versions/[id])", async () => {
+  setRateStore(memoryStore());
+  const deleteRoute = await import(at("apps/dashboard/app/api/v1/templates/versions/[id]/route.ts"));
+  const tables = world({
+    templates: [
+      tpl(1, { name: "thanks_for_coming", language: "es", channel: "email", category: "utility" }),
+      tpl(2, { name: "thanks_for_coming", language: "es", channel: "sms", category: "utility" }),
+    ],
+    idempotency_keys: [],
+  });
+  // The member's door (remove_template_version, 00296): a version a playbook still names is refused in its words, and the
+  // text's is, until the case lets it go.
+  const STILL_USED = "A playbook or broadcast still uses this version.";
+  const removed = [];
+  let textHeld = true;
+  const door = {
+    remove_template_version({ p_template_id: id }) {
+      const i = tables.templates.findIndex((t) => t.id === id);
+      const row = tables.templates[i];
+      if (!row || !["email", "sms"].includes(row.channel))
+        throw Object.assign(new Error("Version not found."), { code: "P0002" });
+      if (row.channel === "sms" && textHeld) {
+        removed.push(`refused:${row.channel}`);
+        throw Object.assign(new Error(STILL_USED), { code: "P0001" });
+      }
+      tables.templates.splice(i, 1);
+      removed.push(row.channel);
+      return { id: row.id, channel: row.channel, name: row.name, language: row.language };
+    },
+  };
+  // The typed client's every request runs the route itself: its row scope, then its key ledger (server/route.ts).
+  const sent = [];
+  const answered = [];
+  const client = createApi({
+    fetch: async (url, init) => {
+      const where = String(url);
+      const id = where.replace(/\?.*$/, "").split("/").pop();
+      sent.push(init.headers["idempotency-key"]);
+      // Any other route: a list this world does not hold, as DELETE segments/[id] answers one.
+      if (!where.includes("/templates/versions/"))
+        return new Response(JSON.stringify({ ok: false, error: { code: "not_found", message: "List not found." } }), {
+          status: 404,
+        });
+      try {
+        const data = await deleteRoute.DELETE.run(
+          new Request(new URL(where, "http://localhost"), { method: init.method, headers: init.headers }),
+          { supabase: fakeDb(tables, {}, door), userId: USER, email: "ada@example.com", params: { id } },
+        );
+        answered.push(200);
+        return new Response(JSON.stringify({ ok: true, data }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      } catch (e) {
+        answered.push(e.status ?? 500);
+        return new Response(JSON.stringify({ ok: false, error: { code: e.code, message: e.message } }), {
+          status: e.status ?? 500,
+        });
+      }
+    },
+    workspace: () => A,
+    onSignedOut: () => {},
+    onChooseWorkspace: () => {},
+    refresh: async () => {},
+    now: () => 1_000,
+  });
+  const win = {
+    __SETTINGS: null,
+    location: { hash: "", pathname: "/w/harbor" },
+    history: { pushState() {}, replaceState() {} },
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent: () => true,
+    setTimeout: (fn) => {
+      fn();
+      return 1;
+    },
+  };
+  const p = (await propose(THANKS)).proposal;
+  const kept = C.PROPOSAL_SPECS.message.undo.record(
+    p,
+    {
+      ...FILED,
+      versions: [
+        { channel: "email", id: V(1), state: "approved" },
+        { channel: "sms", id: V(2), state: "approved" },
+        FILED.versions[2],
+      ],
+    },
+    { settings: null },
+  );
+  const outcome = { state: "done", receipt: "r", atMs: 1, undo: kept };
+  const first = await undoProposal(win, p, outcome, client);
+  assert.equal(first.ok, false);
+  assert.equal(first.message, `Its email version is deleted; its text version is not: ${STILL_USED}`);
+  assert.equal(first.message, C.PROPOSAL_SPECS.message.undo.partial(kept, 1, STILL_USED));
+  assert.deepEqual(removed, ["email", "refused:sms"]);
+  assert.deepEqual(sent, [`${p.id}:undo`, `${p.id}:undo:2`]);
+  assert.deepEqual(answered, [200, 409]);
+  // The refused delete let its key go; the one that landed keeps its answer under its own.
+  assert.deepEqual(
+    tables.idempotency_keys.map((k) => k.key),
+    [`card:${p.id}:undo`],
+  );
+  // Pressed again once the text is free. The email's row is gone, and the route reads its row before its key, so that
+  // delete answers 404 and never reaches the key or the door: gone is what the undo wants (`goneIsDone`), so it counts
+  // as done, and nothing is deleted twice. The text's runs again under its own key.
+  textHeld = false;
+  const second = await undoProposal(win, p, outcome, client);
+  assert.equal(second.ok, true, second.message);
+  assert.equal(second.receipt, C.PROPOSAL_SPECS.message.undo.receipt(null, kept));
+  assert.deepEqual(removed, ["email", "refused:sms", "sms"], "the email's delete ran once");
+  assert.deepEqual(sent, [`${p.id}:undo`, `${p.id}:undo:2`, `${p.id}:undo`, `${p.id}:undo:2`]);
+  assert.deepEqual(answered, [200, 409, 404, 200]);
+  assert.deepEqual(tables.idempotency_keys.map((k) => k.key).sort(), [`card:${p.id}:undo`, `card:${p.id}:undo:2`]);
+  assert.deepEqual(tables.templates, [], "both versions are gone");
+  // A 404 counts as done only for a call that says so: another kind's undo (a list's delete, whose call does not) is
+  // refused in the route's words when its row is gone.
+  const listCard = { ...p, kind: "list", payload: { name: "Lapsed", rule: {} } };
+  const listGone = await undoProposal(win, listCard, { ...outcome, undo: { list_id: V(9) } }, client);
+  assert.deepEqual([listGone.ok, listGone.status, listGone.message], [false, 404, "List not found."]);
+  // A refusal of the first call has nothing before it: the refusal alone, as an undo of one call says it.
+  const alone = C.PROPOSAL_SPECS.message.undo.partial(kept, 0, STILL_USED);
+  assert.equal(alone, STILL_USED);
 });
 
 /* ------------------------------------------------------------------ through the door */
@@ -602,7 +744,7 @@ test("an approved card's body is what the door files: an offer by email alone, b
     // What the undo would delete is the row the door filed.
     const kept = C.PROPOSAL_SPECS.message.undo.record(r.proposal, answer, { settings: null });
     assert.deepEqual(C.PROPOSAL_SPECS.message.undo.call(kept, { settings: null }), [
-      { route: "DELETE templates/versions/[id]", params: { id: row.id } },
+      { route: "DELETE templates/versions/[id]", params: { id: row.id }, goneIsDone: true },
     ]);
   } finally {
     setServiceClient(null);

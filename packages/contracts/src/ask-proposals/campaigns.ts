@@ -386,8 +386,17 @@ export const MESSAGE_WORDS = {
   tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
   /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
   noNumber: `${LIBRARY_WORDS.writeNeedsNumber} Say so, and write it for email or text alone, or once a number is connected.`,
-  /** An email version where email cannot send: why, in channelsReady's sentence (the mailbox, or the deployment's email). */
-  noMailbox: (why: string): string => `${why} Say so, and write it without an email version.`,
+  /**
+   * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
+   * why, in its sentence, else the mailbox's.
+   */
+  noMailbox: (why: string | null): string =>
+    `${why ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
+  /**
+   * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
+   * the email stays in the message, and the card is asked for again in a moment.
+   */
+  emailUnchecked: `Whether email can send here could not be checked just now. Say so, and propose it again in a moment, with its email version.`,
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
   twin: (name: string): string =>
     `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
@@ -428,6 +437,14 @@ export const MESSAGE_WORDS = {
       ? `${gone}. Its WhatsApp version stays: WhatsApp holds it, and it is deleted from ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}`
       : gone;
   },
+  /**
+   * An undo refused part-way: the versions already deleted, the ones that are not, and the door's refusal; nothing deleted
+   * yet, the refusal alone. Pressed again, the deleted ones are answered as they were and the rest is tried.
+   */
+  partlyUndone: (gone: readonly OwnVersionChannel[], left: readonly OwnVersionChannel[], refused: string): string =>
+    gone.length === 0
+      ? refused
+      : `Its ${versionsWords(gone)} ${gone.length === 1 ? "is" : "are"} deleted; its ${versionsWords(left)} ${left.length === 1 ? "is" : "are"} not: ${refused}`,
 } as const;
 
 /** A version the door filed, as its answer and the undo's record say it: its channel, its id and its state. */
@@ -450,6 +467,11 @@ const versionsIn = (v: unknown): VersionAnswered[] =>
     : [];
 /** An email's or a text's version: one written here, which its own door deletes. WhatsApp's is WhatsApp's. */
 const writtenHere = (c: ConsentChannel): c is OwnVersionChannel => c !== "whatsapp";
+/** The email and text versions an undo's record keeps, in the order its calls delete them. */
+const ownKept = (u: Record<string, unknown>): OwnVersionChannel[] =>
+  versionsIn(u.versions)
+    .map((v) => v.channel)
+    .filter(writtenHere);
 
 /**
  * A message written for the Library from a card (the marketing manager's spec §5.2): the commit is POST templates/message
@@ -501,15 +523,17 @@ export const messageSpec: ProposalSpec = {
       const own = versionsIn(u.versions).filter((v) => writtenHere(v.channel));
       return own.length === 0
         ? refuseWith(PROPOSAL_WORDS.noUndo)
-        : own.map((v): ProposalCall => ({ route: "DELETE templates/versions/[id]", params: { id: v.id } }));
+        : own.map(
+            // A version gone already (an earlier press deleted it, or a member did) is what the undo wants.
+            (v): ProposalCall => ({ route: "DELETE templates/versions/[id]", params: { id: v.id }, goneIsDone: true }),
+          );
     },
-    receipt: (_data, u) =>
-      MESSAGE_WORDS.undone(
-        versionsIn(u.versions)
-          .map((v) => v.channel)
-          .filter(writtenHere),
-        u.whatsapp != null,
-      ),
+    receipt: (_data, u) => MESSAGE_WORDS.undone(ownKept(u), u.whatsapp != null),
+    // The calls go in the order the kept versions are named, so the first `landed` of them are the ones deleted.
+    partial: (u, landed, refused) => {
+      const own = ownKept(u);
+      return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
+    },
   },
   open: () => "messages",
 };

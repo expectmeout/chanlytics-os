@@ -7599,7 +7599,7 @@ function channelsReady(f) {
   const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
   const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
   const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
-  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
+  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked, unchecked: true } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
   const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
   return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
 }
@@ -10589,8 +10589,16 @@ var MESSAGE_WORDS = {
   tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
   /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
   noNumber: `${LIBRARY_WORDS.writeNeedsNumber} Say so, and write it for email or text alone, or once a number is connected.`,
-  /** An email version where email cannot send: why, in channelsReady's sentence (the mailbox, or the deployment's email). */
-  noMailbox: (why) => `${why} Say so, and write it without an email version.`,
+  /**
+   * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
+   * why, in its sentence, else the mailbox's.
+   */
+  noMailbox: (why) => `${why ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
+  /**
+   * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
+   * the email stays in the message, and the card is asked for again in a moment.
+   */
+  emailUnchecked: `Whether email can send here could not be checked just now. Say so, and propose it again in a moment, with its email version.`,
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
   twin: (name) => `${TEMPLATE_SAME_NAME_WORDS} Say so: \u201C${name}\u201D in this language is in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
   /** The card's title: the name the door files the message under, and its language in words ("in English"). */
@@ -10619,12 +10627,18 @@ var MESSAGE_WORDS = {
   undone: (own, whatsapp) => {
     const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
     return whatsapp ? `${gone}. Its WhatsApp version stays: WhatsApp holds it, and it is deleted from ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}` : gone;
-  }
+  },
+  /**
+   * An undo refused part-way: the versions already deleted, the ones that are not, and the door's refusal; nothing deleted
+   * yet, the refusal alone. Pressed again, the deleted ones are answered as they were and the rest is tried.
+   */
+  partlyUndone: (gone, left, refused) => gone.length === 0 ? refused : `Its ${versionsWords(gone)} ${gone.length === 1 ? "is" : "are"} deleted; its ${versionsWords(left)} ${left.length === 1 ? "is" : "are"} not: ${refused}`
 };
 var versionsIn = (v) => Array.isArray(v) ? v.map(rec).flatMap(
   (x) => CONSENT_CHANNELS.includes(x.channel) && typeof x.id === "string" && x.id ? [{ channel: x.channel, id: x.id, state: asText(x.state) }] : []
 ) : [];
 var writtenHere = (c) => c !== "whatsapp";
+var ownKept = (u) => versionsIn(u.versions).map((v) => v.channel).filter(writtenHere);
 var messageSpec = {
   needs: "operator",
   gate: "approve",
@@ -10662,12 +10676,17 @@ var messageSpec = {
     },
     call: (u) => {
       const own = versionsIn(u.versions).filter((v) => writtenHere(v.channel));
-      return own.length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : own.map((v) => ({ route: "DELETE templates/versions/[id]", params: { id: v.id } }));
+      return own.length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : own.map(
+        // A version gone already (an earlier press deleted it, or a member did) is what the undo wants.
+        (v) => ({ route: "DELETE templates/versions/[id]", params: { id: v.id }, goneIsDone: true })
+      );
     },
-    receipt: (_data, u) => MESSAGE_WORDS.undone(
-      versionsIn(u.versions).map((v) => v.channel).filter(writtenHere),
-      u.whatsapp != null
-    )
+    receipt: (_data, u) => MESSAGE_WORDS.undone(ownKept(u), u.whatsapp != null),
+    // The calls go in the order the kept versions are named, so the first `landed` of them are the ones deleted.
+    partial: (u, landed, refused) => {
+      const own = ownKept(u);
+      return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
+    }
   },
   open: () => "messages"
 };

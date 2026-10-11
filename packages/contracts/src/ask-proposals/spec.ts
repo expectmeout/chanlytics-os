@@ -27,6 +27,12 @@ export interface ProposalCall {
   refresh?: "behind";
   /** What the window is told once this call lands. */
   events?: ProposalEvent[];
+  /**
+   * An undo's call whose row may already be gone (deleted by an earlier press of Undo whose later call was refused, or by
+   * hand): its route's 404 counts as done, since what it undoes is not there, and the walk goes on. A row-scoped write
+   * reads its row before its key (server/route.ts), so a pressed-again delete is never answered from the key.
+   */
+  goneIsDone?: true;
 }
 
 /** A call the card cannot make from this tab, in the person's words; nothing is sent. */
@@ -60,6 +66,11 @@ export interface ProposalUndo {
   call(record: Record<string, unknown>, tab: ProposalTab): ProposalCall | readonly ProposalCall[] | ProposalRefusal;
   /** What the undo did: from the last call's answer, and what the commit kept. */
   receipt(data: unknown, record: Record<string, unknown>): string;
+  /**
+   * What an undo of several calls says when one after the first is refused: what the `landed` calls before it did, then
+   * the refusal, so a person is never told only of the refusal after part of it went. Absent, the refusal alone.
+   */
+  partial?(record: Record<string, unknown>, landed: number, refused: string): string;
 }
 
 export interface ProposalSpec {
