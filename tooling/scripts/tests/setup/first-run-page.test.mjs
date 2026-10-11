@@ -1612,7 +1612,7 @@ test("Live (canvas R9): the four lines and the greeting, and Finish switches cal
     );
     assert.match(
       textOf(byTestId(tree, "fr-live-greeting")),
-      /^Every caller hears “Thank you for calling Harbor Moving!/,
+      /^Every caller hears “Hi, Harbor Moving\. I'm the automated assistant, and calls are recorded\./,
     );
     assert.equal(textOf(byTestId(tree, "fr-live-note")), "We'll email you a copy of this.");
     await byTestId(tree, "fr-onward").props.onClick();

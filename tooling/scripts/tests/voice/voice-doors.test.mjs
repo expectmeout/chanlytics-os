@@ -34,6 +34,8 @@ import {
   voiceEndpoints,
   planVoiceProvision,
   planAgentSettings,
+  unpublishedLatestNote,
+  newDraftNote,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
   VOICE_WEBHOOK_EVENTS,
@@ -145,10 +147,14 @@ const voiceRow = (over = {}) => ({
   created_at: "2026-09-01T00:00:00Z",
   ...over,
 });
-/** The database the door will find. */
+/**
+ * The database the door will find. The workspace's runtime (the converger reads its languages) is stamped anew on every
+ * read, so no case answers from another's cached copy.
+ */
+let stamps = 0;
 function use(over = {}, faults = {}) {
   const tables = { tenants: tenants(), tenant_channels: [], notifications: [], events: [], ...over };
-  const db = fakeDb(tables, faults, {});
+  const db = fakeDb(tables, faults, { runtime_stamp: () => `stamp-${++stamps}` });
   setPg(db);
   return { tables, db };
 }
@@ -812,9 +818,11 @@ const onSettings = (id, over = {}) => ({
   opt_in_signed_url: true,
   data_storage_retention_days: 90,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+  reminder_trigger_ms: 4000,
+  reminder_max_count: 2,
   ...over,
 });
-/** The same agent as the live one was found: Retell's default events, its default budget, public recording links, no analysis fields, and the retired ?key= still on its call webhook. */
+/** The same agent as the live one was found: Retell's default events, its default budget, public recording links, no analysis fields, the retired ?key= still on its call webhook, and the provider's single ten-second reminder. */
 const drifted = (id, over = {}) =>
   onSettings(id, {
     webhook_events: ["call_started", "call_ended", "call_analyzed"],
@@ -822,6 +830,8 @@ const drifted = (id, over = {}) =>
     opt_in_signed_url: false,
     post_call_analysis_data: [],
     webhook_url: `https://chanlytics-messaging.vercel.app/api/retell-webhook?key=${FN_SECRET}`,
+    reminder_trigger_ms: null,
+    reminder_max_count: null,
     ...over,
   });
 const DRIFT_KEYS = [
@@ -830,6 +840,8 @@ const DRIFT_KEYS = [
   "opt_in_signed_url",
   "post_call_analysis_data",
   "webhook_url",
+  "reminder_trigger_ms",
+  "reminder_max_count",
 ];
 
 test("converge, the door: a token for another door, a forgery and no credential are 403; no provider key is a 503; without an agent named the voice rows decide, so no database is a 503 -- with one named, no database is needed", async () => {
@@ -973,10 +985,7 @@ test("converge, the apply: a published version cannot change, so the patch goes 
   );
   assert.deepEqual(Object.keys(JSON.parse(p.seen[2].body)), DRIFT_KEYS);
   const [a] = body.agents;
-  assert.deepEqual(
-    [a.applied, a.draft_version, a.published_version, a.note],
-    [true, 4, undefined, "v4 is a draft: a pinned line stays on v3 until it is published"],
-  );
+  assert.deepEqual([a.applied, a.draft_version, a.published_version, a.note], [true, 4, undefined, newDraftNote(4, 3)]);
   assert.deepEqual(
     a.after,
     { version: 4, is_published: false, drift: [] },
@@ -1012,7 +1021,7 @@ test("converge, the apply: a published version cannot change, so the patch goes 
   assert.equal(body.publish, true);
 });
 
-test("converge, the apply on a draft and on a converged agent: an unpublished version takes the patch directly and nothing is published even when asked; a converged agent is not written to at all; the LLM is never touched by any of it", async () => {
+test("converge, the apply on a draft and on a converged agent: an unpublished version takes the patch directly and nothing is published even when asked, and the answer says so; a converged agent is not written to at all; the LLM is never touched by any of it", async () => {
   const p = retell({
     agents: {
       agent_draft: drifted("agent_draft", { is_published: false, version: 5 }),
@@ -1029,9 +1038,11 @@ test("converge, the apply on a draft and on a converged agent: an unpublished ve
     );
     const [a] = body.agents;
     assert.deepEqual(
-      [a.applied, "draft_version" in a, "published_version" in a, "note" in a, a.after],
-      [true, false, false, false, { version: 5, is_published: false, drift: [] }],
+      [a.applied, "draft_version" in a, "published_version" in a, a.after],
+      [true, false, false, { version: 5, is_published: false, drift: [] }],
     );
+    // 11 Oct 2026: the script patched a draft this way and said nothing, and the line kept the old words.
+    assert.equal(a.note, unpublishedLatestNote(5));
     p.seen.length = 0;
     [, body] = await answer(await knockConverge({ agent_id: "agent_fine", apply: true, publish: true }));
     assert.deepEqual(p.paths(), ["GET /get-agent/agent_fine"], "nothing to change, nothing written");
@@ -1039,6 +1050,120 @@ test("converge, the apply on a draft and on a converged agent: an unpublished ve
   } finally {
     p.restore();
   }
+});
+
+const MULTI = ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"];
+const C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const D = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+/** A workspace's settings, speaking these languages (none named when null). */
+const brainSpeaking = (languages) => ({
+  business_name: "Harbor Moving",
+  system_prompt: "Answer as the front desk of Harbor Moving.",
+  fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  profile: languages ? { languages } : {},
+});
+
+test("converge, the languages: an agent listens for what its workspace speaks, English always among them; a workspace that names none, or a language with no locale, keeps what its agent listens for", async () => {
+  use({
+    tenants: [
+      ...tenants(),
+      { id: C, name: "Typed by hand", slug: "typed-by-hand", status: "active" },
+      { id: D, name: "Spanish only", slug: "spanish-only", status: "active" },
+    ],
+    tenant_channels: [
+      voiceRow({ id: "ch-1", external_id: "agent_two" }),
+      voiceRow({ id: "ch-2", tenant_id: B, external_id: "agent_none", number_e164: "+13055550101" }),
+      voiceRow({ id: "ch-3", tenant_id: C, external_id: "agent_typed", number_e164: "+13055550102" }),
+      voiceRow({ id: "ch-4", tenant_id: D, external_id: "agent_es", number_e164: "+13055550103" }),
+    ],
+    tenant_config: [
+      { tenant_id: A, config: { brain: brainSpeaking(["English", "Spanish"]) } },
+      { tenant_id: B, config: { brain: brainSpeaking(null) } },
+      { tenant_id: C, config: { brain: brainSpeaking(["English", "Spanish (Mexico)"]) } },
+      { tenant_id: D, config: { brain: brainSpeaking(["Spanish"]) } },
+    ],
+    policies: [],
+    google_listings: [],
+  });
+  const p = retell({
+    agents: {
+      agent_two: onSettings("agent_two", { language: MULTI }),
+      agent_none: onSettings("agent_none", { language: "multi" }),
+      agent_typed: onSettings("agent_typed", { language: MULTI }),
+      agent_es: onSettings("agent_es", { language: MULTI }),
+    },
+  });
+  let body;
+  try {
+    [, body] = await answer(await knockConverge({ apply: true, publish: true }));
+  } finally {
+    p.restore();
+  }
+  const [two, none, typed, es] = body.agents;
+  assert.deepEqual(two.patch_keys, ["language"]);
+  assert.ok(two.drift[0].includes("the workspace speaks en-US, es-419"), two.drift[0]);
+  const patch = p.seen.find((s) => s.method === "PATCH" && s.url.endsWith("/update-agent/agent_two"));
+  assert.deepEqual(JSON.parse(patch.body), { language: ["en-US", "es-419"] }, "English, and Latin American Spanish");
+  assert.deepEqual([two.published_version, two.after.drift], [4, []], "published, and the read-back plans nothing");
+  assert.deepEqual([none.patch_keys, none.applied], [[], false], "no language named: the ten locales are kept");
+  assert.ok(
+    none.notes.some((n) => n.includes("names no language")),
+    JSON.stringify(none.notes),
+  );
+  assert.ok(!p.seen.some((s) => s.url.endsWith("/update-agent/agent_none")), "nothing written to it");
+  // One name typed by hand beside English: the line is not narrowed to English, and the name is said.
+  assert.deepEqual([typed.patch_keys, typed.applied], [[], false]);
+  assert.ok(
+    typed.notes.some((n) => n.includes("Spanish (Mexico)")),
+    JSON.stringify(typed.notes),
+  );
+  // Spanish alone still hears English: the greeting is English, and a caller may answer in it.
+  const esPatch = p.seen.find((s) => s.method === "PATCH" && s.url.endsWith("/update-agent/agent_es"));
+  assert.deepEqual(JSON.parse(esPatch.body), { language: ["en-US", "es-419"] });
+  assert.equal(es.published_version, 4);
+});
+
+test("converge, a line whose workspace is not found or cannot be read keeps its languages and says why; a draft found as the latest is named on the dry run", async () => {
+  // Named by id, held by no voice row: no workspace to read.
+  use({});
+  const stray = retell({ agents: { agent_stray: onSettings("agent_stray", { language: MULTI }) } });
+  let body;
+  try {
+    [, body] = await answer(await knockConverge({ agent_id: "agent_stray", apply: true }));
+  } finally {
+    stray.restore();
+  }
+  assert.deepEqual([body.agents[0].patch_keys, body.agents[0].applied], [[], false]);
+  assert.ok(body.agents[0].notes.includes("no workspace was found for this agent: what it listens for is kept"));
+  assert.deepEqual(stray.paths(), ["GET /get-agent/agent_stray"], "nothing to change, nothing written");
+
+  // Held by a voice row, but its settings refuse to be read: a blip is never a change to the line.
+  use(
+    {
+      tenant_channels: [voiceRow({ external_id: "agent_blip" })],
+      tenant_config: [{ tenant_id: A, config: { brain: brainSpeaking(["English"]) } }],
+      policies: [],
+      google_listings: [],
+    },
+    { "tenant_config.select": { message: "connection reset" } },
+  );
+  const blip = retell({ agents: { agent_blip: onSettings("agent_blip", { language: MULTI }) } });
+  try {
+    [, body] = await answer(await knockConverge({ apply: true }));
+  } finally {
+    blip.restore();
+  }
+  assert.deepEqual([body.agents[0].patch_keys, body.agents[0].applied], [[], false]);
+  assert.ok(body.agents[0].notes.includes("the workspace could not be read: what the agent listens for is kept"));
+
+  // The latest version is a draft: named on the dry run, before anything is applied.
+  const draft = retell({ agents: { agent_draft: drifted("agent_draft", { is_published: false, version: 5 }) } });
+  try {
+    [, body] = await answer(await knockConverge({ agent_id: "agent_draft" }));
+  } finally {
+    draft.restore();
+  }
+  assert.deepEqual([body.agents[0].applied, body.agents[0].note], [false, unpublishedLatestNote(5)]);
 });
 
 test("converge, a provider that refuses: the step that failed is named on that agent with the provider's answer, the others are still planned, and a refusal to publish still reports the patch applied", async () => {

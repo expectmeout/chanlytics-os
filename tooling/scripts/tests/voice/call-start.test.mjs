@@ -202,7 +202,7 @@ test("a routed call: the facts are the workspace's own composition with the cloc
   assert.equal(r.variables.greeting, greetingFor("Harbor Moving"));
   assert.ok(
     r.variables.greeting.includes("Harbor Moving") &&
-      r.variables.greeting.includes("may be recorded") &&
+      r.variables.greeting.includes("calls are recorded") &&
       r.variables.greeting.includes("automated assistant"),
   );
   assert.equal(r.variables.handoff_number, "+13055550199");
@@ -455,7 +455,7 @@ test("the shell's defaults are the judgement's fallbacks, one constant each: a c
   assert.match(FACTS_UNAVAILABLE, /do not state/i, "it must forbid inventing the facts it lacks");
   for (const g of [greetingFor("Aurora Nails"), greetingFor(null)]) {
     assert.ok(
-      g.includes("may be recorded") && g.includes("automated assistant"),
+      g.includes("calls are recorded") && g.includes("automated assistant"),
       "both disclosures are the product's promises, not a dashboard setting",
     );
   }

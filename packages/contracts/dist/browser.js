@@ -23178,18 +23178,18 @@ function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
 var REACH_OUT_LANGUAGE = "en";
-function reachOutValues(lead, workspace, opening) {
+function reachOutValues(lead, workspace, opening2) {
   return slotValues(REACH_OUT_SLOT_SET, {
     business: lead.business_name,
     city: lead.city,
     "your business": workspace.businessName,
     "your name": workspace.yourName,
     "booking link": workspace.bookingLink,
-    opening
+    opening: opening2
   });
 }
-function reachOutEmailOf(words2, lead, workspace, opening = null) {
-  const values = reachOutValues(lead, workspace, opening);
+function reachOutEmailOf(words2, lead, workspace, opening2 = null) {
+  const values = reachOutValues(lead, workspace, opening2);
   const texts = words2.subject === null ? [words2.body] : [words2.subject, words2.body];
   if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
   const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
@@ -32498,12 +32498,13 @@ function checkChipsOf(i) {
 
 // src/voice/greeting.ts
 function greetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+}
+function opening(name) {
+  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
 }
 function pausedGreetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant, and today I can only take a message for the team.`;
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
 
