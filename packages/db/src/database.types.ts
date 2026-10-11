@@ -2522,6 +2522,7 @@ export type Database = {
           linked_by: string | null
           maps_uri: string | null
           name: string
+          new_review_uri: string | null
           place_id: string
           rating: number | null
           review_count: number | null
@@ -2539,6 +2540,7 @@ export type Database = {
           linked_by?: string | null
           maps_uri?: string | null
           name: string
+          new_review_uri?: string | null
           place_id: string
           rating?: number | null
           review_count?: number | null
@@ -2556,6 +2558,7 @@ export type Database = {
           linked_by?: string | null
           maps_uri?: string | null
           name?: string
+          new_review_uri?: string | null
           place_id?: string
           rating?: number | null
           review_count?: number | null

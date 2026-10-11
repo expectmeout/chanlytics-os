@@ -35,6 +35,7 @@ import {
   releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
+  reviewLinkOf,
   runGoesByOthers,
   withdrawEmail,
   workspacePaused,
@@ -492,15 +493,23 @@ export function carriedBy(payload: unknown): Required<BatchCarry> {
 /**
  * The workspace's own words for the slots that name it, and the zone its sending hours are kept by. An empty business
  * name is not a fallback: it resolves to an empty slot, and the verb marks everyone in the batch permanently
- * "missing_value". An unreadable zone reads as UTC where the hours are judged (contracts playbook-schedule).
+ * "missing_value", as it does a review slot where the Google listing keeps no link (db reviewLinkOf). An unreadable
+ * zone reads as UTC where the hours are judged (contracts playbook-schedule).
  */
 async function workspaceFacts(
   db: JobContext["db"],
   tenantId: string,
-): Promise<{ businessName: string; bookingLink: string | null; timezone: string; address: string | null }> {
-  const [tenantRes, cfgRes] = await Promise.all([
+): Promise<{
+  businessName: string;
+  bookingLink: string | null;
+  reviewLink: string | null;
+  timezone: string;
+  address: string | null;
+}> {
+  const [tenantRes, cfgRes, reviewLink] = await Promise.all([
     db.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    reviewLinkOf(db, tenantId),
   ]);
   const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
   const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
@@ -509,6 +518,7 @@ async function workspaceFacts(
   return {
     businessName,
     bookingLink: parsedCfg?.brain?.booking_link ?? null,
+    reviewLink,
     timezone: tenantRow?.timezone || "UTC",
     // The postal address an email's foot gives, as the Business record keeps it; none, none.
     address: parsedCfg?.brain?.profile?.address?.trim() || null,

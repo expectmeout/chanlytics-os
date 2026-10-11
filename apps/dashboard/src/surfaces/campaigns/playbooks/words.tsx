@@ -94,6 +94,7 @@ export const pbFooter = (t: Parameters<typeof starters.footer>[0] | null | undef
 
 // What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
 const PB_EXAMPLES: Record<string, string> = {
+  review_link: "your review link",
   visit_when: "tomorrow at 2:00 PM",
   visit_service: "a consultation",
   proposal_link: "their proposal's link",
@@ -129,6 +130,7 @@ export const pbWrongSlot = (
   const choices = starters.slots(t, {
     visits: !!(trig && trig.kind === "visit"),
     bookingLink: true,
+    reviewLink: true,
     proposal: !!(trig && trig.kind === "deal"),
   });
   if (!choices) return null;

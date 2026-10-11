@@ -240,7 +240,7 @@ export {
   membersPushedFor,
 } from "./repositories/notifications";
 export type { MemberAlertsRow } from "./repositories/notifications";
-export { workspacePaused } from "./repositories/campaigns/workspace";
+export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
 export {
   resolveChannelDetailed,
   resolveChannel,

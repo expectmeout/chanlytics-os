@@ -7,9 +7,12 @@ import { purposeOfTemplate } from "../consent/consent";
 import { languageWords } from "./message-languages";
 import { templateBlocked } from "./template-parts";
 import { languageBase, languageLabel } from "./template-languages";
-import type { ParamSpec } from "./templates";
+import type { ParamSourceKind, ParamSpec } from "./templates";
 import { defaultParamSpecs, slotLabels } from "./template-slots";
 import { templateTitle } from "./template-titles";
+
+/** The slots the Inbox fills from what it holds of the person and the workspace (core reply.ts shapeTemplate). */
+const INBOX_FILLS: ReadonlySet<ParamSourceKind> = new Set(["first_name", "business_name", "booking_link"]);
 
 /** An approved template as the Inbox composer is given it (GET templates). */
 export interface InboxTemplateLike {
@@ -171,14 +174,13 @@ export function inboxSlots(t: { name: string; variables?: unknown }): ParamSpec[
 }
 
 /**
- * The first slot of a template the Inbox cannot fill by itself -- words to write, a visit's time or its service --
- * by its label; null when every slot is a fact the Inbox has: the first name, the business name, the booking link.
- * The reply route refuses such a template in these words, and the composer does not offer it (I6).
+ * The first slot of a template the Inbox cannot fill by itself -- words to write, a visit's time or its service, a
+ * proposal's or a review's link -- by its label; null when every slot is a fact the Inbox has: the first name, the
+ * business name, the booking link. The reply route refuses such a template in these words, and the composer does not
+ * offer it (I6).
  */
 export function slotToWrite(t: { name: string; language?: string | null; variables?: unknown }): string | null {
-  const at = inboxSlots(t).findIndex(
-    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link",
-  );
+  const at = inboxSlots(t).findIndex((s) => !INBOX_FILLS.has(s.kind));
   if (at < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at] ?? `Value ${at + 1}`;
 }

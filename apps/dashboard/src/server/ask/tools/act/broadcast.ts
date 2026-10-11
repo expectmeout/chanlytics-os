@@ -54,7 +54,7 @@ function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: st
   const specs: ParamSpec[] = [];
   for (const p of Array.isArray(params) ? (params as unknown[]) : []) {
     const spec = parseParamSpec(p);
-    if (!spec) return { refusal: "each value is text, or @first_name, @business_name or @booking_link" };
+    if (!spec) return { refusal: "each value is text, or @first_name, @business_name, @booking_link or @review_link" };
     if (spec.kind !== "text") {
       specs.push(spec);
       continue;
@@ -301,6 +301,6 @@ export const broadcastAction = actAction({
   ],
   label: "Preparing a broadcast",
   words:
-    "Action broadcast takes template_id, one message (the id of any of its versions, as action audiences lists it), and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the message's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), an optional name, and optional channels (whatsapp, sms, email; whatsapp when none is named, so for a message that holds email or text name the channels its `channels` in action audiences say it holds): each person is reached once, on the first it can, and a channel the workspace cannot send on, or the message has no version for, is refused.",
+    "Action broadcast takes template_id, one message (the id of any of its versions, as action audiences lists it), and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the message's values in order (typed text, or @first_name, @business_name, @booking_link or @review_link, the link its Google listing keeps for a review, to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), an optional name, and optional channels (whatsapp, sms, email; whatsapp when none is named, so for a message that holds email or text name the channels its `channels` in action audiences say it holds): each person is reached once, on the first it can, and a channel the workspace cannot send on, or the message has no version for, is refused.",
   build: proposeBroadcast,
 });

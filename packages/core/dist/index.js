@@ -1794,6 +1794,7 @@ async function sendOne(w, r) {
     firstName: firstNameOf2(c.display_name, c.wa_profile_name),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
+    reviewLink: w.facts.reviewLink,
     visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
     visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
     // A follow-up's link, frozen when the run was made (0006).
@@ -2679,6 +2680,10 @@ import {
   parseParamSpec,
   UUID
 } from "../../contracts/dist/index.js";
+var TEMPLATE_VALUE_WORDS = {
+  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
+  noReviewLink: "Connect your Google listing so the review link can be filled."
+};
 async function readCampaignMessage(ports, id) {
   if (!UUID.test(id)) throw new AppError11("validation", "Pick a template.");
   const rows = await ports.message(id);
@@ -2703,7 +2708,7 @@ async function templateValues(ports, cmd) {
     if (!spec)
       throw new AppError11(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, the booked time or service, or a proposal's link."
+        "Each value is typed text, their first name, the business name, the booking link, the review link, the booked time or service, or a proposal's link."
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -2727,15 +2732,17 @@ async function templateValues(ports, cmd) {
     }
   }
   await refuseWithoutBookingLink(ports, specs);
+  await refuseWithoutReviewLink(ports, specs);
   return { message, specs };
 }
 async function refuseWithoutBookingLink(ports, specs) {
   if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
-    throw new AppError11(
-      "conflict",
-      "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
-      409
-    );
+    throw new AppError11("conflict", TEMPLATE_VALUE_WORDS.noBookingLink, 409);
+  }
+}
+async function refuseWithoutReviewLink(ports, specs) {
+  if (specs.some((s) => s.kind === "review_link") && !await ports.reviewLink()) {
+    throw new AppError11("conflict", TEMPLATE_VALUE_WORDS.noReviewLink, 409);
   }
 }
 
@@ -39103,6 +39110,7 @@ export {
   STALE_MS,
   STALE_REPLY_MS,
   SUBSCRIBERS,
+  TEMPLATE_VALUE_WORDS,
   UNKNOWN_START_GRACE_MS,
   VISION_MAX_BYTES,
   VISION_MIMES,
@@ -39184,6 +39192,7 @@ export {
   recordInbound,
   refusalScript,
   refuseWithoutBookingLink,
+  refuseWithoutReviewLink,
   rejudgeProbe,
   replyPosture,
   replyToConversation,

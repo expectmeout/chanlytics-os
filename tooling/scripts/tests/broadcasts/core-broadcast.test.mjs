@@ -602,6 +602,29 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
   );
 });
 
+test("a review ask's send: the link the workspace's Google listing keeps (00394) fills its slot for each person, and a workspace with none holds them, never a bare ask", async () => {
+  const ask = broadcast({ params: [{ kind: "first_name" }, { kind: "review_link" }] });
+  const words = { meta_status: "approved", body_preview: "Thanks, {{1}}! A review helps: {{2}}", category: "utility" };
+  const link = "https://example.com/review/harbor-studio";
+  const facts = (reviewLink) => ({ businessName: "Marisa's", bookingLink: null, reviewLink, timezone: "UTC" });
+  const filled = fakes({ broadcast: ask, message: rowsOf({ whatsapp: words }), facts: facts(link) });
+  await sendBroadcastBatch(filled.ports, cmd());
+  assert.deepEqual(
+    filled.log.filter((l) => l[0] === "deliver").map((l) => [l[1].contactId, l[1].template.params]),
+    [
+      ["k1", ["Ada", link]],
+      ["k2", ["Bo", link]],
+    ],
+  );
+  const none = fakes({ broadcast: ask, message: rowsOf({ whatsapp: words }), facts: facts(null) });
+  await sendBroadcastBatch(none.ports, cmd());
+  assert.equal(none.log.filter((l) => l[0] === "deliver").length, 0);
+  assert.deepEqual(none.marks(), [
+    ["k1", "skipped", "missing_value"],
+    ["k2", "skipped", "missing_value"],
+  ]);
+});
+
 test("a playbook's run asks the door for the stricter of its moment's class and its message's category, as its enrolment did: a no to offers said after a Win-back enrolled someone holds them at the wire", async () => {
   // The run enrolled by the stricter of the two (contracts enrolPurpose), but the door was handed the message's own
   // category alone: a re-engage or offer moment carrying a utility message went to someone who had since said "no more

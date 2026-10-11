@@ -231,6 +231,8 @@ export async function bindLocation(
           name: loc.title,
           address: loc.address,
           maps_uri: loc.maps_uri,
+          // Where a customer leaves it a review (00394): a message's review_link slot is filled from it.
+          new_review_uri: loc.new_review_uri,
         }
       : {
           tenant_id: conn.tenant_id,
@@ -238,6 +240,7 @@ export async function bindLocation(
           name: loc.title,
           address: loc.address,
           maps_uri: loc.maps_uri,
+          new_review_uri: loc.new_review_uri,
           business_status: null,
           // The old place's hours and number are not this one's; the next Places read fills them.
           facts: {},

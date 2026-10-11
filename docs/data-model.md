@@ -45,7 +45,7 @@ what the script writes.
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
-| [`google_listings`](#google_listings) | none | on, 1 policy |
+| [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts` | on, 1 policy |
 | [`google_reviews`](#google_reviews) | none | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`invitations`](#invitations) | none | on, 1 policy |
@@ -1043,7 +1043,7 @@ Foreign keys:
 
 A workspace's business on Google Maps, as the public listing says it: the place, the rating, the count, when it was last read. Members read; the edge writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/campaigns/workspace.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -1064,6 +1064,7 @@ A workspace's business on Google Maps, as the public listing says it: the place,
 | `facts` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `new_review_uri` | text | yes |  | Where a customer leaves this business a review on Google: the bound Business Profile location's newReviewUri, null until one is bound or when the place was linked by the public read. Filled into a message's review_link slot. |
 
 Foreign keys:
 

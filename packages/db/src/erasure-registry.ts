@@ -226,6 +226,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "facts",
     "maps_uri",
     "name",
+    "new_review_uri",
     "place_id",
   ),
   // A review's ids and language. Its reviewer, words and reply are counted (above).

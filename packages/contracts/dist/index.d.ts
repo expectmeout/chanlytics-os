@@ -5284,7 +5284,7 @@ type TemplateDraftCheck = {
 declare function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck;
 /** The components Meta's create call takes, from a checked draft. */
 declare function templateComponents(v: TemplateDraft): Array<Record<string, unknown>>;
-declare const PARAM_SOURCES: readonly ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service", "proposal_link"];
+declare const PARAM_SOURCES: readonly ["text", "first_name", "business_name", "booking_link", "review_link", "visit_when", "visit_service", "proposal_link"];
 type ParamSourceKind = (typeof PARAM_SOURCES)[number];
 type ParamSpec = {
     kind: "text";
@@ -5295,6 +5295,10 @@ type ParamSpec = {
     kind: "business_name";
 } | {
     kind: "booking_link";
+}
+/** Where a customer leaves the business a review: the link its Google listing keeps (google_listings.new_review_uri). */
+ | {
+    kind: "review_link";
 }
 /** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
  | {
@@ -5335,6 +5339,12 @@ interface ParamFacts {
     firstName: string | null;
     businessName: string;
     bookingLink: string | null;
+    /**
+     * The link the workspace's Google listing keeps for a review (00394), as a broadcast's send reads it; absent where
+     * nothing fills a review slot: the Inbox and a call's booking link turn such a template away (inbox-templates
+     * slotToWrite).
+     */
+    reviewLink?: string | null;
     /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */
     visitWhen?: string | null;
     visitService?: string | null;
@@ -30995,6 +31005,8 @@ declare function senderWords(language: string | null): SenderWords;
 interface OwnFacts {
     business_name?: string | null;
     booking_link?: string | null;
+    /** Where a customer leaves it a review, as its Google listing keeps it (google_listings.new_review_uri). */
+    review_link?: string | null;
 }
 /**
  * One filled value per slot, in order -- the words alone, before they are put
@@ -31354,9 +31366,10 @@ declare function inboxSlots(t: {
     variables?: unknown;
 }): ParamSpec[];
 /**
- * The first slot of a template the Inbox cannot fill by itself -- words to write, a visit's time or its service --
- * by its label; null when every slot is a fact the Inbox has: the first name, the business name, the booking link.
- * The reply route refuses such a template in these words, and the composer does not offer it (I6).
+ * The first slot of a template the Inbox cannot fill by itself -- words to write, a visit's time or its service, a
+ * proposal's or a review's link -- by its label; null when every slot is a fact the Inbox has: the first name, the
+ * business name, the booking link. The reply route refuses such a template in these words, and the composer does not
+ * offer it (I6).
  */
 declare function slotToWrite(t: {
     name: string;
@@ -31392,7 +31405,9 @@ declare function defaultParamSpecs(t: {
  * is a visit only on a visit moment -- anywhere else nothing fills it, and
  * the list is empty. The business name and the booking link are the ones on
  * file, or words typed once for everyone; a booking link with none on file
- * can only be typed. Typed words are typed.
+ * can only be typed, and so can a review link where the Google listing keeps
+ * none (`reviewLink`: whether the one choosing knows of one). Typed words are
+ * typed.
  *
  * A slot whose kind is only GUESSED, on a template written elsewhere, may be
  * any of them, the guess first: the guess is ours, the template is theirs.
@@ -31401,6 +31416,7 @@ declare function slotChoices(kind: StarterSlotKind, o: {
     known: boolean;
     visits: boolean;
     bookingLink: boolean;
+    reviewLink: boolean;
     proposal: boolean;
 }): ParamSourceKind[];
 /**
@@ -31415,6 +31431,7 @@ declare function templateSlots(t: {
 }, o: {
     visits: boolean;
     bookingLink: boolean;
+    reviewLink: boolean;
     proposal: boolean;
 }): ParamSourceKind[][] | null;
 declare function slotLabels(t: {

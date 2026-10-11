@@ -231,14 +231,14 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   const target = channel === "email" ? await ports.targetOfContact(c.id) : await ports.target(where.to);
   if (!target) return skip("no_thread");
 
-  // Their own words in the slots: a first name nobody has on file reads
-  // "there"; a slot nothing can fill holds the person, never a blank send.
-  // A visit run's words for this person, resolved when the run was made.
+  // Their own words in the slots: a first name nobody has on file reads "there"; a slot nothing can fill (a review link
+  // nobody keeps) holds the person, never a blank send. A visit run's words were resolved when the run was made.
   const facts = rowFacts(r);
   const params = resolveParams(w.specs, {
     firstName: firstNameOf(c.display_name, c.wa_profile_name),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
+    reviewLink: w.facts.reviewLink,
     visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
     visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
     // A follow-up's link, frozen when the run was made (0006).

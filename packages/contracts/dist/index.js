@@ -14277,6 +14277,7 @@ var PARAM_SOURCES = [
   "first_name",
   "business_name",
   "booking_link",
+  "review_link",
   "visit_when",
   "visit_service",
   "proposal_link"
@@ -14286,6 +14287,7 @@ var PARAM_SOURCE_LABELS = {
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
+  review_link: "The review link",
   visit_when: "Their booked time",
   visit_service: "Their booked service",
   proposal_link: "Their proposal's link"
@@ -14294,20 +14296,23 @@ var PARAM_SOURCE_HINTS = {
   first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
   business_name: "From Settings \u203A Business",
   booking_link: "From Settings \u203A Business",
+  review_link: "From your Google listing",
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal"
 };
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|review_link|visit_when|visit_service|proposal_link)$/.exec(
+      raw.trim()
+    );
     if (m) return { kind: m[1] };
     return { kind: "text", value: raw };
   }
   if (raw && typeof raw === "object") {
     const o = raw;
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "review_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
       return { kind: o.kind };
   }
   return null;
@@ -14341,6 +14346,8 @@ function resolveParams(specs, f) {
         return f.businessName;
       case "booking_link":
         return f.bookingLink ?? "";
+      case "review_link":
+        return f.reviewLink ?? "";
       case "visit_when":
         return f.visitWhen ?? "";
       case "visit_service":
@@ -14355,6 +14362,7 @@ function exampleParams(specs, businessName) {
     firstName: "Dani",
     businessName,
     bookingLink: "your booking link",
+    reviewLink: "your review link",
     visitWhen: "tomorrow at 2:00 PM",
     visitService: "a consultation",
     proposalLink: "their proposal's link"
@@ -25099,6 +25107,7 @@ function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
   if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
+  if (/review|reseña/.test(l) || /writereview|g\.page\/r\//.test(e)) return "review_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
@@ -25120,7 +25129,7 @@ function defaultParamSpecs(t) {
   return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
 }
 function slotChoices(kind, o) {
-  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : k === "proposal_link" ? o.proposal : true;
+  const may = (k) => k === "booking_link" ? o.bookingLink : k === "review_link" ? o.reviewLink : k === "visit_when" || k === "visit_service" ? o.visits : k === "proposal_link" ? o.proposal : true;
   if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
   switch (kind) {
     case "first_name":
@@ -25129,6 +25138,8 @@ function slotChoices(kind, o) {
       return ["business_name", "text"];
     case "booking_link":
       return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "review_link":
+      return o.reviewLink ? ["review_link", "text"] : ["text"];
     case "visit_when":
     case "visit_service":
       return o.visits ? [kind] : [];
@@ -25142,7 +25153,13 @@ function slotChoices(kind, o) {
 function templateSlots(t, o) {
   const known = starterByName(t.name) !== null;
   const each = defaultSlotKinds(t).map(
-    (k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal })
+    (k) => slotChoices(k, {
+      known,
+      visits: o.visits,
+      bookingLink: o.bookingLink,
+      reviewLink: o.reviewLink,
+      proposal: o.proposal
+    })
   );
   if (!each.every((c) => c.length > 0)) return null;
   return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;
@@ -25162,6 +25179,7 @@ function slotLabels(t) {
 }
 
 // src/templates/inbox-templates.ts
+var INBOX_FILLS = /* @__PURE__ */ new Set(["first_name", "business_name", "booking_link"]);
 function titleWithoutLanguage(title, code2) {
   for (const words3 of [languageLabel(code2), languageWords(code2)]) {
     const tail = ` (${words3})`;
@@ -25242,9 +25260,7 @@ function inboxSlots(t) {
   return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
 }
 function slotToWrite(t) {
-  const at3 = inboxSlots(t).findIndex(
-    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
-  );
+  const at3 = inboxSlots(t).findIndex((s) => !INBOX_FILLS.has(s.kind));
   if (at3 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at3] ?? `Value ${at3 + 1}`;
 }
@@ -34876,7 +34892,8 @@ function fill(body, values) {
 }
 var OWN_SLOT_LABEL = /* @__PURE__ */ new Map([
   ["business_name", "Business name"],
-  ["booking_link", "Booking link"]
+  ["booking_link", "Booking link"],
+  ["review_link", "Review link"]
 ]);
 function slotWords(kind, label, example, own) {
   if (kind && OWN_SLOT_LABEL.has(kind)) {

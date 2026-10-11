@@ -560,6 +560,7 @@ var ERASURE_STRATEGIES = {
     "facts",
     "maps_uri",
     "name",
+    "new_review_uri",
     "place_id"
   ),
   // A review's ids and language. Its reviewer, words and reply are counted (above).
@@ -3231,6 +3232,12 @@ async function workspacePaused(db, tenantId) {
   if (error) throw new Error(`cannot read the workspace: ${error.message}`);
   return data?.status === "paused";
 }
+async function reviewLinkOf(db, tenantId) {
+  const { data, error } = await db.from("google_listings").select("new_review_uri").eq("tenant_id", tenantId).maybeSingle();
+  if (error && error.code === "42703" && error.message.includes("new_review_uri")) return null;
+  if (error) throw new Error(`cannot read the workspace's review link: ${error.message}`);
+  return data?.new_review_uri?.trim() || null;
+}
 
 // src/repositories/routing.ts
 import { MIN_MS } from "../../contracts/dist/index.js";
@@ -5254,6 +5261,7 @@ export {
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   resolvePerson,
+  reviewLinkOf,
   reviewsLedger,
   runCounts,
   runGoesByOthers,

@@ -58,7 +58,7 @@ import {
   type StarterTemplate,
   type triggerOf,
 } from "@chanlytics/contracts";
-import { parseChannels, playbookNumber, refuseWithoutBookingLink } from "@chanlytics/core";
+import { parseChannels, playbookNumber, refuseWithoutBookingLink, refuseWithoutReviewLink } from "@chanlytics/core";
 import {
   followUpOnFile,
   messageVersionRowsOf,
@@ -404,8 +404,11 @@ export async function checkStarterPlaybook(
   if (!fit.ok) throw new AppError("validation", fit.words);
   for (const k of NUMBERS) playbookNumber(k, body[k], PLAYBOOK_LIMITS[k].min);
   const params = defaultParamSpecs({ name: starter.name, variables: [] });
-  // A booking-link slot needs a link on file, as a message's values are held to it (core refuseWithoutBookingLink).
-  await refuseWithoutBookingLink(templateValuePorts(ctx, tenantId), params);
+  // A booking-link slot needs a link on file, and a review-link slot the link the Google listing keeps, as a message's
+  // values are held to them (core refuseWithoutBookingLink, refuseWithoutReviewLink).
+  const values = templateValuePorts(ctx, tenantId);
+  await refuseWithoutBookingLink(values, params);
+  await refuseWithoutReviewLink(values, params);
   const purpose = enrolPurpose(cls, { category: starter.category });
   const named = body.channels === undefined || body.channels === null ? null : parseChannels(body.channels);
   const never = (named ?? []).map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);

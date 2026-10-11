@@ -342,6 +342,10 @@ test("a saved template reads as this business's message: its own name and bookin
 test("a slot's source: a starter's own, or a guess from the label and the example a template written elsewhere carries", () => {
   assert.equal(guessSlotKind("Booking link", null), "booking_link");
   assert.equal(guessSlotKind("Value 2", "https://booksy.com/x"), "booking_link");
+  // A review's link is a link too, and the drafter labels it so: the review link, never the booking link (00394).
+  assert.equal(guessSlotKind("Review link", null), "review_link");
+  assert.equal(guessSlotKind("Enlace para la reseña", null), "review_link");
+  assert.equal(guessSlotKind("Value 3", "https://search.google.com/local/writereview?placeid=x"), "review_link");
   assert.equal(guessSlotKind("Business name", null), "business_name");
   assert.equal(guessSlotKind("First name", null), "first_name");
   assert.equal(guessSlotKind("Name", null), "first_name");

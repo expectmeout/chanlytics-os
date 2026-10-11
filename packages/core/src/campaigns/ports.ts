@@ -245,6 +245,11 @@ export interface TemplateValuesPorts {
   message(id: string): Promise<MessageVersionRow[]>;
   /** The booking link on file, or null. */
   bookingLink(): Promise<string | null>;
+  /**
+   * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00394), or
+   * null: no listing, or none bound from a Business Profile. Throws when it cannot be read: unreadable is not absent.
+   */
+  reviewLink(): Promise<string | null>;
 }
 
 /** A run or broadcast as the route's scope loaded it. */

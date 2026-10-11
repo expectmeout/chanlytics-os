@@ -6,10 +6,11 @@
  * (00046) and `scheduled_for` (00119). A broadcast, its people and its job are
  * assembled through one door (00282) that is the service role's alone.
  *
- * Beside the writes, the reads a send is judged by: the message and the booking link, the audience pool (every person,
- * and a built-in or saved list over it) read once, in the workspace's own zone, and the WhatsApp number's health. A
- * release or a cancel puts the broadcast_send job on the ledger, or takes it off (schedule, cancelKindFor), and every
- * act is recorded as a decision: a broadcast's and an approval's in the door's own write, a cancel's after it.
+ * Beside the writes, the reads a send is judged by: the message, the booking link and the review link, the audience
+ * pool (every person, and a built-in or saved list over it) read once, in the workspace's own zone, and the WhatsApp
+ * number's health. A release or a cancel puts the broadcast_send job on the ledger, or takes it off (schedule,
+ * cancelKindFor), and every act is recorded as a decision: a broadcast's and an approval's in the door's own write, a
+ * cancel's after it.
  */
 import { AppError, parseTenantConfig } from "@chanlytics/contracts";
 import {
@@ -18,6 +19,7 @@ import {
   campaignMonthSent,
   holdRecipients,
   messageVersionRowsOf,
+  reviewLinkOf,
   workspacePaused,
   type Json,
 } from "@chanlytics/db";
@@ -48,6 +50,9 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
       const config = await storedConfigOf(ctx.supabase, tenantId).catch(() => null);
       return parseTenantConfig(config)?.brain?.booking_link ?? null;
     },
+    // The link the workspace's Google listing keeps, read as the member reads the listing (its row policy). A read that
+    // fails throws: "Connect your Google listing" would be a wrong thing to tell someone whose listing is there.
+    reviewLink: () => reviewLinkOf(ctx.supabase, tenantId),
   };
 }
 

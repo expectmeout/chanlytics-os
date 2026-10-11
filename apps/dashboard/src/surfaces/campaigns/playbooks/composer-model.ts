@@ -160,9 +160,15 @@ type Moment = ReturnType<typeof momentOf>;
 /** The message: which of the offered ones it sends, the moment's own, and the languages it has. */
 function composerMessage({ editing, offered, templatesAll, f }: ModelIn, { trig, link }: Moment) {
   // What each slot of a message may take on a moment -- a visit's time and service on a visit, a proposal's link on
-  // the follow-up (0006) -- or null when one of them can take nothing there.
+  // the follow-up (0006) -- or null when one of them can take nothing there. The review link is not offered: the
+  // composer does not read whether the Google listing keeps one.
   const slotsOf = (t: TemplateDto, m: PlaybookTriggerOption | null = trig) =>
-    starters.slots(t, { visits: !!(m && m.kind === "visit"), bookingLink: link, proposal: !!(m && m.kind === "deal") });
+    starters.slots(t, {
+      visits: !!(m && m.kind === "visit"),
+      bookingLink: link,
+      reviewLink: false,
+      proposal: !!(m && m.kind === "deal"),
+    });
   const usable = offered.sendable.filter((t) => slotsOf(t) !== null);
   // One entry per message, whatever languages it has: the language is its own control.
   const groups = starters.group(usable);

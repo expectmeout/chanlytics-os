@@ -653,7 +653,13 @@ test("past status and search every op needs a database and a workspace on record
 
 test("link: the place is read BEFORE any row is written -- a wrong id is a 502 and leaves the listing on record alone -- then the listing is kept for the workspace, the old place's reviews and days forgotten, the new one read at once as history, and the ledger says who linked what", async () => {
   const tables = world({
-    google_listings: [listingRow({ place_id: PLACE2, name: "Harbor Moving Warehouse" })],
+    google_listings: [
+      listingRow({
+        place_id: PLACE2,
+        name: "Harbor Moving Warehouse",
+        new_review_uri: "https://example.com/review/harbor-moving-warehouse",
+      }),
+    ],
     google_reviews: [reviewRow(R1, { origin: "places", review_id: "p-old", body: "about the warehouse" })],
     google_listing_days: [{ tenant_id: A, day: "2026-09-01", rating: 4.5, review_count: 10 }],
   });
@@ -757,6 +763,11 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
   assert.deepEqual(
     [row.tenant_id, row.place_id, row.name, row.linked_by, row.rating, row.review_count, row.check_error],
     [A, PLACE, "Harbor Moving", U, 4.6, 11, null],
+  );
+  assert.equal(
+    row.new_review_uri,
+    null,
+    "the warehouse's review link is not the new place's, and the public read gives none (00394)",
   );
   assert.deepEqual(
     row.facts,
@@ -1112,6 +1123,11 @@ test("connect: the code from Google becomes the connection -- the token traded w
     [PLACE, "Harbor Moving", "1 Main St, Brooklyn, NY 11201", 4.7, 12, U],
     "the same place the public listing named, so the row is kept and takes the profile's numbers",
   );
+  assert.equal(
+    listing.new_review_uri,
+    LOC.metadata.newReviewUri,
+    "and the location's review link (00394), which a message's review_link slot is filled from",
+  );
   assert.deepEqual(
     listing.facts,
     { phone_e164: "+17185550142", website: "https://harbormoving.example" },
@@ -1249,9 +1265,10 @@ test("connect with several locations on Maps waits for the owner's choice: the c
       listing.name,
       listing.linked_by,
       listing.facts,
+      listing.new_review_uri,
     ],
-    [1, A, PLACE2, "Harbor Moving Warehouse", U, {}],
-    "the chosen location's place on Maps becomes the listing",
+    [1, A, PLACE2, "Harbor Moving Warehouse", U, {}, null],
+    "the chosen location's place on Maps becomes the listing, with the review link it has: none",
   );
   assert.ok(Date.parse(listing.linked_at) >= t0);
   const conn = tables.google_connections[0];

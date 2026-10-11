@@ -9,6 +9,12 @@ import {
 } from "@chanlytics/contracts";
 import type { TemplateValuesPorts } from "./ports";
 
+/** The refusals a message's values meet for a link the workspace has not given, in the words the composer shows. */
+export const TEMPLATE_VALUE_WORDS = {
+  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings › Business first.",
+  noReviewLink: "Connect your Google listing so the review link can be filled.",
+} as const;
+
 /**
  * The message a version's id names, read once from the rows this workspace holds of it (contracts campaignMessageOf):
  * the one verb a broadcast, a playbook and Ask's proposals read a message by. The id is any version's, WhatsApp's or an
@@ -31,8 +37,8 @@ export async function readCampaignMessage(
 /**
  * The message and the values as its channels will accept them: what a broadcast and a playbook both name, judged once.
  * As many values as the message takes (contracts' one count, whichever version carries it); each typed text once or a
- * value the job fills per person; a booking-link slot needs a link on file. Every refusal is a sentence for the person
- * composing.
+ * value the job fills per person; a booking-link slot needs a link on file, and a review-link slot the link the Google
+ * listing keeps. Every refusal is a sentence for the person composing.
  */
 export async function templateValues(
   ports: TemplateValuesPorts,
@@ -57,7 +63,7 @@ export async function templateValues(
     if (!spec)
       throw new AppError(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, the booked time or service, or a proposal's link.",
+        "Each value is typed text, their first name, the business name, the booking link, the review link, the booked time or service, or a proposal's link.",
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -84,6 +90,7 @@ export async function templateValues(
     }
   }
   await refuseWithoutBookingLink(ports, specs);
+  await refuseWithoutReviewLink(ports, specs);
   return { message, specs };
 }
 
@@ -97,10 +104,19 @@ export async function refuseWithoutBookingLink(
   specs: readonly ParamSpec[],
 ): Promise<void> {
   if (specs.some((s) => s.kind === "booking_link") && !(await ports.bookingLink())) {
-    throw new AppError(
-      "conflict",
-      "This message takes the booking link, and none is on file. Add it in Settings › Business first.",
-      409,
-    );
+    throw new AppError("conflict", TEMPLATE_VALUE_WORDS.noBookingLink, 409);
+  }
+}
+
+/**
+ * A review-link slot needs the link the workspace's Google listing keeps (a bound Business Profile's, 00394): refused
+ * in words where there is none, and the link read only where a slot asks for it, as the booking link is.
+ */
+export async function refuseWithoutReviewLink(
+  ports: Pick<TemplateValuesPorts, "reviewLink">,
+  specs: readonly ParamSpec[],
+): Promise<void> {
+  if (specs.some((s) => s.kind === "review_link") && !(await ports.reviewLink())) {
+    throw new AppError("conflict", TEMPLATE_VALUE_WORDS.noReviewLink, 409);
   }
 }

@@ -23056,6 +23056,7 @@ CREATE TABLE public.google_listings (
     facts jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    new_review_uri text,
     CONSTRAINT google_listings_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 200))),
     CONSTRAINT google_listings_place_id_check CHECK (((char_length(place_id) >= 10) AND (char_length(place_id) <= 300))),
     CONSTRAINT google_listings_rating_check CHECK (((rating IS NULL) OR ((rating >= (1)::numeric) AND (rating <= (5)::numeric)))),
@@ -23068,6 +23069,13 @@ CREATE TABLE public.google_listings (
 --
 
 COMMENT ON TABLE public.google_listings IS 'A workspace''s business on Google Maps, as the public listing says it: the place, the rating, the count, when it was last read. Members read; the edge writes.';
+
+
+--
+-- Name: COLUMN google_listings.new_review_uri; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.google_listings.new_review_uri IS 'Where a customer leaves this business a review on Google: the bound Business Profile location''s newReviewUri, null until one is bound or when the place was linked by the public read. Filled into a message''s review_link slot.';
 
 
 --

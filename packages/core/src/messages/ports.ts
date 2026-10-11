@@ -173,10 +173,17 @@ export interface BroadcastBatchPorts {
    */
   message(name: string, language: string): Promise<MessageVersionRow[]>;
   /**
-   * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept
-   * by; and the postal address its emails' foot gives (the Business record's), null when it has none.
+   * The workspace's own words for the slots that name it (its review link the one its Google listing keeps, 00394), and
+   * its clock (IANA zone), which the sending hours are kept by; and the postal address its emails' foot gives (the
+   * Business record's), null when it has none.
    */
-  facts(): Promise<{ businessName: string; bookingLink: string | null; timezone: string; address?: string | null }>;
+  facts(): Promise<{
+    businessName: string;
+    bookingLink: string | null;
+    reviewLink: string | null;
+    timezone: string;
+    address?: string | null;
+  }>;
   /** Up to `limit` people still queued; throws when it cannot be read. */
   batch(id: string, limit: number): Promise<RecipientRow[]>;
   /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */

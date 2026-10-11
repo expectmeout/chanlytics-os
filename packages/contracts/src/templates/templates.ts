@@ -196,6 +196,7 @@ export const PARAM_SOURCES = [
   "first_name",
   "business_name",
   "booking_link",
+  "review_link",
   "visit_when",
   "visit_service",
   "proposal_link",
@@ -207,6 +208,8 @@ export type ParamSpec =
   | { kind: "first_name" }
   | { kind: "business_name" }
   | { kind: "booking_link" }
+  /** Where a customer leaves the business a review: the link its Google listing keeps (google_listings.new_review_uri). */
+  | { kind: "review_link" }
   /** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
   | { kind: "visit_when" }
   | { kind: "visit_service" }
@@ -218,6 +221,7 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
+  review_link: "The review link",
   visit_when: "Their booked time",
   visit_service: "Their booked service",
   proposal_link: "Their proposal's link",
@@ -232,6 +236,7 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
   first_name: "Each person's own — “there” when none is on file",
   business_name: "From Settings › Business",
   booking_link: "From Settings › Business",
+  review_link: "From your Google listing",
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal",
@@ -244,7 +249,9 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
  */
 export function parseParamSpec(raw: unknown): ParamSpec | null {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|review_link|visit_when|visit_service|proposal_link)$/.exec(
+      raw.trim(),
+    );
     if (m) return { kind: m[1] as Exclude<ParamSourceKind, "text"> };
     return { kind: "text", value: raw };
   }
@@ -255,6 +262,7 @@ export function parseParamSpec(raw: unknown): ParamSpec | null {
       o.kind === "first_name" ||
       o.kind === "business_name" ||
       o.kind === "booking_link" ||
+      o.kind === "review_link" ||
       o.kind === "visit_when" ||
       o.kind === "visit_service" ||
       o.kind === "proposal_link"
@@ -294,6 +302,12 @@ export interface ParamFacts {
   firstName: string | null;
   businessName: string;
   bookingLink: string | null;
+  /**
+   * The link the workspace's Google listing keeps for a review (00394), as a broadcast's send reads it; absent where
+   * nothing fills a review slot: the Inbox and a call's booking link turn such a template away (inbox-templates
+   * slotToWrite).
+   */
+  reviewLink?: string | null;
   /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */
   visitWhen?: string | null;
   visitService?: string | null;
@@ -328,6 +342,8 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
         return f.businessName;
       case "booking_link":
         return f.bookingLink ?? "";
+      case "review_link":
+        return f.reviewLink ?? "";
       case "visit_when":
         return f.visitWhen ?? "";
       case "visit_service":
@@ -344,6 +360,7 @@ export function exampleParams(specs: readonly ParamSpec[], businessName: string)
     firstName: "Dani",
     businessName,
     bookingLink: "your booking link",
+    reviewLink: "your review link",
     visitWhen: "tomorrow at 2:00 PM",
     visitService: "a consultation",
     proposalLink: "their proposal's link",

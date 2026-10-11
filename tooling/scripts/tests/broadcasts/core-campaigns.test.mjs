@@ -2164,3 +2164,49 @@ test("a booking-link slot needs a link on file, by one rule a message's values a
   await refuseWithoutBookingLink(ports(null), [{ kind: "first_name" }, { kind: "business_name" }]);
   assert.equal(asked, 0, "no slot for it, no read");
 });
+
+test("a review-link slot needs the link the workspace's Google listing keeps: refused in TEMPLATE_VALUE_WORDS' words when the port answers none, filled with it when it answers one, and read only where a slot asks for it", async () => {
+  const { templateValues, TEMPLATE_VALUE_WORDS } = await importSrc("packages/core/src/campaigns/template-values.ts");
+  const { resolveParams } = await importSrc("packages/contracts/src/templates/templates.ts");
+  assert.equal(TEMPLATE_VALUE_WORDS.noReviewLink, "Connect your Google listing so the review link can be filled.");
+  const link = "https://example.com/review/harbor-studio";
+  let asked = 0;
+  const f = (reviewLink) =>
+    fakes({
+      message: messageOf({ whatsapp: template({ variables: ["1", "2"] }) }),
+      reviewLink: () => {
+        asked += 1;
+        return reviewLink;
+      },
+    });
+  const cmd = (params) => ({ templateId: T1, params, visits: false, proposal: false });
+
+  await refused(
+    templateValues(f(null).ports, cmd(["@first_name", "@review_link"])),
+    "conflict",
+    409,
+    TEMPLATE_VALUE_WORDS.noReviewLink,
+  );
+  // The same refusal reaches a person's broadcast, before anyone is counted.
+  await refused(
+    make(f(null), { template_id: T1, params: ["@first_name", "@review_link"], audience: everyone }),
+    "conflict",
+    409,
+    TEMPLATE_VALUE_WORDS.noReviewLink,
+  );
+
+  const { specs } = await templateValues(f(link).ports, cmd(["@first_name", { kind: "review_link" }]));
+  assert.deepEqual(specs, [{ kind: "first_name" }, { kind: "review_link" }]);
+  // Filled as the send fills it (core sendBroadcastBatch over the facts port).
+  assert.deepEqual(
+    resolveParams(specs, { firstName: "Dani", businessName: "Harbor Studio", bookingLink: null, reviewLink: link }),
+    ["Dani", link],
+  );
+  const made = f(link);
+  await make(made, { template_id: T1, params: ["@first_name", "@review_link"], audience: everyone });
+  assert.deepEqual(made.of("assemble")[0][1].params, [{ kind: "first_name" }, { kind: "review_link" }]);
+
+  asked = 0;
+  await templateValues(f(null).ports, cmd(["@first_name", "@business_name"]));
+  assert.equal(asked, 0, "no slot for it, no read");
+});

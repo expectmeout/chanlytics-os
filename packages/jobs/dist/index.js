@@ -285,6 +285,7 @@ import {
   releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
+  reviewLinkOf,
   runGoesByOthers,
   withdrawEmail,
   workspacePaused,
@@ -589,9 +590,10 @@ function carriedBy(payload) {
   return { waits: count(p.waits), stalls: count(p.stalls) };
 }
 async function workspaceFacts(db, tenantId) {
-  const [tenantRes, cfgRes] = await Promise.all([
+  const [tenantRes, cfgRes, reviewLink] = await Promise.all([
     db.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
-    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle()
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    reviewLinkOf(db, tenantId)
   ]);
   const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
   const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
@@ -600,6 +602,7 @@ async function workspaceFacts(db, tenantId) {
   return {
     businessName,
     bookingLink: parsedCfg?.brain?.booking_link ?? null,
+    reviewLink,
     timezone: tenantRow?.timezone || "UTC",
     // The postal address an email's foot gives, as the Business record keeps it; none, none.
     address: parsedCfg?.brain?.profile?.address?.trim() || null
