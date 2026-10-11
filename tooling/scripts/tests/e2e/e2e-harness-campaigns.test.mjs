@@ -471,7 +471,10 @@ const library = async (record) => {
 };
 
 test("the Library draws the rows the spec counts, the quiet line only where there is no number, and its composer opens where the spec says", async () => {
-  const starterNames = contracts.startersOffered(contracts.dealsAreOn(null)).map((s) => s.name);
+  // The recorded settings answers say no review link (none predates it), so the Library offers no review ask.
+  const starterNames = contracts
+    .startersOffered({ dealsOn: contracts.dealsAreOn(null), reviewLink: false })
+    .map((s) => s.name);
   for (const [name, record] of WORKSPACES) {
     const tree = await library(record);
     const messages = messagesOf(read(record, "/api/v1/templates", { all: "1" }));

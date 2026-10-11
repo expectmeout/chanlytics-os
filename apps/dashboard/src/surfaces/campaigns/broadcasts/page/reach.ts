@@ -133,18 +133,19 @@ export function bcReachOf({
 export function bcSlotChoicesOf({
   tpl,
   link,
+  review,
   sources,
   tplId,
   data,
-}: Pick<BcBase, "link" | "sources" | "tplId" | "data"> & Pick<BcReach, "tpl">): BcSlotChoices {
+}: Pick<BcBase, "link" | "review" | "sources" | "tplId" | "data"> & Pick<BcReach, "tpl">): BcSlotChoices {
   const vars = tpl && Array.isArray(tpl.variables) ? (tpl.variables as BcSlotVar[]) : [];
   const SRC = starters.sources;
   const HINTS = starters.sourceHints;
   // What each slot may take, its default first: a starter's slots come filled in,
   // and a template written elsewhere gets a guess from its labels. A booking link
-  // the workspace has not set can only be typed, so nothing is offered that
-  // cannot be sent.
-  const choices = tpl ? bcSlots(tpl, link) || BC_NONE : BC_NONE;
+  // the workspace has not set, or a review link its Google listing does not keep,
+  // can only be typed, so nothing is offered that cannot be sent.
+  const choices = tpl ? bcSlots(tpl, { bookingLink: link, reviewLink: review }) || BC_NONE : BC_NONE;
   // A slot's source: the one chosen when the slot may take it, else its first. A
   // source kept from before that the slot may not take -- a run sent again, a
   // link since removed -- is not kept.
@@ -160,7 +161,9 @@ export function bcSlotChoicesOf({
         ? data.businessName || "the business"
         : kind === "booking_link"
           ? "your booking link"
-          : "";
+          : kind === "review_link"
+            ? "your review link"
+            : "";
   // Each slot's words: a starter's own, else the labels the row carries.
   const labels = tpl ? starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   return { vars, SRC, HINTS, choices, srcOf, exampleOf, labels };

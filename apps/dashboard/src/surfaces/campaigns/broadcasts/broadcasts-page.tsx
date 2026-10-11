@@ -111,7 +111,7 @@ function useBroadcastsPage({
   const audiences = data.audiences || BC_NONE;
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
-  const { offered, link, templates } = useBcOffered(data);
+  const { offered, link, review, templates } = useBcOffered(data);
   const { kept, aud, setAud, writing, setWriting } = useBcList(initialSegment, audiences, opened);
   useUnknownAudienceNotice(initialSegment, data.audiences, flash);
   const [tplId, setTplId] = useState(() => {
@@ -203,6 +203,7 @@ function useBroadcastsPage({
     templatesRead,
     offered,
     link,
+    review,
     templates,
     aud,
     setAud,

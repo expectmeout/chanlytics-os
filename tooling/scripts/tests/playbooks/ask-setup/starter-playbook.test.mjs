@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { rows } from "../../_rows.mjs";
 import {
   FOLLOW_UP_ONE,
   LIBRARY_STARTER_WORDS,
@@ -426,6 +427,51 @@ test("WhatsApp named alone where there is no number is refused in the words that
     LIBRARY_WORDS.writeNeedsNumber,
   );
   assert.deepEqual([tables.templates, tables.playbooks, meta.calls], [[], [], []]);
+});
+
+test("the day after's review ask is refused before anything is filed where the Google listing keeps no review link, in the words a message's values are refused in; where it keeps one, the campaign goes by it, its third slot the listing's link", async () => {
+  const { TEMPLATE_VALUE_WORDS } = await import(at("packages/core/src/campaigns/template-values.ts"));
+  const REVIEW = startersForTrigger("visited").find((s) => s.key === "after_visit_review");
+  assert.ok(REVIEW && !REVIEW.retired, "the review ask is a starter of the day after");
+  // A calendar is connected: the day after is a moment a new campaign may start from only where one is (D44).
+  const calendar = {
+    tenant_config: [
+      { tenant_id: B, config: { calendar: { ical_url: "https://calendar.example/bayside.ics" } }, version: 1 },
+    ],
+  };
+  const card = { trigger: "visited", starter_key: REVIEW.key };
+  // No listing at all, and a listing with no Business Profile location bound: no link either way.
+  for (const google_listings of [[], [rows.googleListing({ tenant_id: B, new_review_uri: null })]]) {
+    const post = open({ ...calendar, google_listings });
+    await refused(post(card), "conflict", 409, TEMPLATE_VALUE_WORDS.noReviewLink);
+    assert.deepEqual(
+      [tables.templates, tables.playbooks, tables.decisions, meta.calls],
+      [[], [], [], []],
+      "nothing filed, nothing started, nothing reached Meta",
+    );
+  }
+  // How did it go asks for no review: the same day after, on the same workspace, starts.
+  const check = open({ ...calendar, google_listings: [] });
+  const checked = await check({ trigger: "visited", starter_key: "after_visit_check" });
+  assert.equal(checked.state, "running");
+
+  const link = "https://example.com/review/bayside";
+  const post = open({ ...calendar, google_listings: [rows.googleListing({ tenant_id: B, new_review_uri: link })] });
+  const made = await post(card);
+  assert.deepEqual(made.starter, { key: REVIEW.key, status: "submitted", meta_status: "pending" });
+  assert.equal(meta.calls.length, 1, "its WhatsApp version went to Meta for review");
+  const row = tables.playbooks.find((p) => p.id === made.id);
+  assert.equal(row.trigger, "visited");
+  assert.deepEqual(
+    row.params,
+    [{ kind: "first_name" }, { kind: "business_name" }, { kind: "review_link" }],
+    "the starter's own sources: the review link is the listing's, filled at the send",
+  );
+  assert.deepEqual(
+    tables.templates.filter((t) => t.name === REVIEW.name).map((t) => t.channel),
+    ["whatsapp", "email", "sms"],
+    "its WhatsApp version in review, its email and text versions written at once",
+  );
 });
 
 test("no channel named: a WhatsApp version on file that WhatsApp refused, paused or disabled will never send, so the campaign goes by what holds it and not by WhatsApp", async () => {

@@ -22,6 +22,8 @@ import {
   channelsReady,
   numberHealth,
   playbookPoolKey,
+  starterByKey,
+  starterText,
   stateOf,
   triggerOf,
   triggerOffered,
@@ -185,7 +187,8 @@ const answer = (data) =>
 /**
  * The surface the bridge builds from what GET playbooks answers for a workspace whose calendar is `calendar`; `shape` is
  * what the answer says of the business beside it (its word and its booking tool), absent from a server from before them.
- * `templates` is GET templates' answer: by default one from before it named the call's text (`booking`).
+ * `templates` is GET templates' answer: by default one from before it named the call's text (`booking`). `settings` is
+ * what GET settings answers beside the config (whether the Google listing keeps a review link), absent from an older server.
  */
 async function surfaceFor({
   calendar,
@@ -195,6 +198,7 @@ async function surfaceFor({
   shape = {},
   templates = { templates: [] },
   channels = [],
+  settings = {},
 }) {
   const kept = globalThis.fetch;
   globalThis.fetch = async (url) => {
@@ -212,7 +216,7 @@ async function surfaceFor({
       });
     if (path === "/api/v1/templates") return answer(templates);
     if (path === "/api/v1/channels") return answer({ channels });
-    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
+    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1, ...settings });
   };
   try {
     await playbooksOverride.apply();
@@ -450,6 +454,63 @@ test("the composer's moment picker offers a new playbook the moments it may star
   assert.deepEqual(choices(made, made.rows[0]).picks, ["quiet_30", ...OFFERED(true)]);
   // A new playbook opens on a moment nothing is doing: with a win-back made, not on the other win-back.
   assert.equal(choices(made).opens, "everyone_monthly");
+});
+
+test("the composer offers the review ask's review-link slot the listing's link only where GET settings says the Google listing keeps one, as it offers the booking link only where one is on file; else the slot is typed", async () => {
+  const s = starterByKey("after_visit_review");
+  const t = starterText(s, "en_US");
+  // The review ask as GET templates hands it down once WhatsApp approved it: the starter's own words and slots.
+  const review = {
+    id: "tpl-review",
+    channel: "whatsapp",
+    name: s.name,
+    language: "en_US",
+    body_preview: t.body,
+    variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
+    category: s.category,
+    meta_status: "approved",
+    quality: null,
+    rejected_reason: null,
+    synced_at: null,
+    source: "chanlytics",
+    hidden_at: null,
+    title: null,
+    header: null,
+    footer: null,
+    buttons: [],
+    blocked: null,
+  };
+  const composerFor = async (settings) => {
+    const data = await surfaceFor({ calendar: "ok", templates: { templates: [review] }, settings });
+    const f = { ...composerOpened(null, "visited", data), tplId: review.id, picked: true };
+    const model = composerModel({
+      data,
+      editing: null,
+      offered: composerOffered(data.templates),
+      templatesAll: data.templates,
+      f,
+      busy: false,
+      error: null,
+    });
+    const sub = model.messageChoices.find((c) => c.id === s.name)?.sub ?? "";
+    return { reviewLink: data.reviewLink, tpl: model.tpl?.name ?? null, choices: model.choices, sub };
+  };
+  const linked = await composerFor({ review_link: true });
+  assert.deepEqual(
+    [linked.reviewLink, linked.tpl, linked.choices],
+    [true, s.name, [["first_name"], ["business_name", "text"], ["review_link", "text"]]],
+    "the listing keeps one: the review link fills it, or words typed over it",
+  );
+  assert.ok(linked.sub.includes("your review link"), linked.sub);
+  const none = await composerFor({ review_link: false });
+  assert.deepEqual(
+    [none.reviewLink, none.tpl, none.choices],
+    [false, s.name, [["first_name"], ["business_name", "text"], ["text"]]],
+    "none kept: the slot can only be typed, as a booking link with none on file",
+  );
+  assert.ok(none.sub.includes("[Review link]"), none.sub);
+  // A server from before GET settings said it says nothing of the listing: none.
+  assert.equal((await composerFor({})).reviewLink, false);
 });
 
 /* ------------------------------ the run ------------------------------ */

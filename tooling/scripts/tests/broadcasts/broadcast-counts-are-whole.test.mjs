@@ -450,13 +450,15 @@ console.error = realConsoleError;
 
 /**
  * Everyone the People read holds, one person a page -- two by default -- and the lists kept by hand; the route's word
- * on whether more than fifty broadcasts exist.
+ * on whether more than fifty broadcasts exist; and what GET settings answers beside the config (`settings`: whether the
+ * Google listing keeps a review link), absent from an older server.
  */
 const wire = ({
   more = false,
   people = [row({ id: "p1" }), row({ id: "p2", phone_e164: "+17865550182" })],
   lists = [],
   templates = { templates: [] },
+  settings = {},
 } = {}) => {
   const offsets = [];
   globalThis.window.fetch = async (url) => {
@@ -477,7 +479,8 @@ const wire = ({
     if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists } });
     if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: templates });
     if (u.pathname === "/api/v1/channels") return json(200, { ok: true, data: { channels: [] } });
-    if (u.pathname === "/api/v1/settings") return json(200, { ok: true, data: { config: { brain: {} }, version: 1 } });
+    if (u.pathname === "/api/v1/settings")
+      return json(200, { ok: true, data: { config: { brain: {} }, version: 1, ...settings } });
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
   };
   return offsets;
@@ -498,6 +501,18 @@ test("the surface carries the route's word that more than fifty broadcasts exist
   wire({ more: false });
   await broadcastsOverride.apply();
   assert.equal(surfaceValue("broadcasts").more, false);
+});
+
+test("the surface says whether the workspace's Google listing keeps a review link, as GET settings says it, so the send screen offers it to a review-link slot; an older server's answer, or one that failed, says none", async () => {
+  for (const [settings, said] of [
+    [{ review_link: true }, true],
+    [{ review_link: false }, false],
+    [{}, false],
+  ]) {
+    wire({ settings });
+    await broadcastsOverride.apply();
+    assert.equal(surfaceValue("broadcasts").reviewLink, said, JSON.stringify(settings));
+  }
 });
 
 test("the surface says where a yes is got, in contracts' one spelling -- the send screen's 'nobody has said yes' is a door there", async () => {

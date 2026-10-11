@@ -121,6 +121,7 @@ const broadcastsSurface = (over = {}) => ({
   scheduleMaxDays: 30,
   businessName: "Northside Studio",
   bookingLink: false,
+  reviewLink: false,
   ...over,
 });
 const playbook = (over = {}) => ({
@@ -172,6 +173,7 @@ const playbooksSurface = (over = {}) => ({
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: false,
+  reviewLink: false,
   fetchedAt: NOW,
   ...over,
 });
@@ -707,6 +709,24 @@ test("REGRESSION: Send it again puts right a slot a run filled with what it cann
     typedOf(tree).map((x) => x.props.typed),
     ["Northside", ""],
   );
+});
+
+test("the review ask's review-link slot is the Google listing's link on a broadcast only where the listing keeps one; with none it can only be typed, as a booking link with none on file", () => {
+  for (const [reviewLink, last] of [
+    [true, { kind: "review_link", offers: ["review_link", "text"] }],
+    [false, { kind: "text", offers: [] }],
+  ]) {
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({ templates: [starterTemplate("after_visit_review")], number: healthyNumber, reviewLink }),
+    );
+    const tree = writing({ initialSegment: null, initialRun: null });
+    assert.deepEqual(
+      slotsOf(tree),
+      [{ kind: "first_name", offers: [] }, { kind: "business_name", offers: ["business_name", "text"] }, last],
+      `the listing keeps ${reviewLink ? "one" : "none"}`,
+    );
+  }
 });
 
 /* ------------------------------ a broadcast's state ------------------------------ */

@@ -552,10 +552,10 @@ function journeyStageLine(stage: LifecycleStage, group: LifecycleGroup | undefin
  * read as the page's surfaces answer from them, through the surface's own reading of GET playbooks' answer (contracts
  * lifecyclePlaybooksOf, cmp/home/use-home.ts), and the channels for the WhatsApp line First contact is answered on, so
  * the number Ask says is the page's (the rail's own `covered` of `of`); and the guide (contracts journeyGuide), what a
- * business of any trade sends at each touch point, for the workspace's shape. Only what the rail reads is read: the
- * reach-outs, the library and the campaigns' last 30 days are the ledger's, the head's and the tiles', and the home takes
- * each as not read yet. The campaigns it names are rows a citation names, opened on their drawer. A read the rail can do
- * without that fails is the page's failed read: the rail stands, and the log says it.
+ * business of any trade sends at each touch point, for the workspace's shape and in its word. Only what the rail reads
+ * is read: the reach-outs, the library and the campaigns' last 30 days are the ledger's, the head's and the tiles', and
+ * the home takes each as not read yet. The campaigns it names are rows a citation names, opened on their drawer. A read
+ * the rail can do without that fails is the page's failed read: the rail stands, and the log says it.
  */
 async function readJourney(t: ToolContext): Promise<unknown> {
   const failed = (read: string) => unread(t, "campaigns.journey", read);
@@ -595,7 +595,7 @@ async function readJourney(t: ToolContext): Promise<unknown> {
     covered: home.rail.covered,
     of: home.rail.of,
     stages,
-    guide: journeyGuide({ calendarOn: shape.calendar === "feed", dealsOn: shape.dealsOn }),
+    guide: journeyGuide({ calendarOn: shape.calendar === "feed", dealsOn: shape.dealsOn, word: shape.word }),
   };
 }
 

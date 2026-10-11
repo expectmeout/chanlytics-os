@@ -221,6 +221,8 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     getYes: GET_YES_ROUTE,
     businessName: "Marisa's Studio",
     bookingLink: true,
+    // The sample has no Google listing: no review link to fill a slot with.
+    reviewLink: false,
     more: false,
     scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
     fetchedAt: now.getTime(),

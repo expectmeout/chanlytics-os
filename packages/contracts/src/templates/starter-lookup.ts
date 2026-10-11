@@ -23,13 +23,17 @@ const STARTER_OF: Partial<Record<string, PlaybookTrigger>> = { lapsed: "quiet_30
 /**
  * The starter set a workspace is offered (0006): each starter not retired whose moment is offered here
  * (triggerOffered), so a workspace where deals are off is never offered the proposal follow-up, nor has it filed with
- * WhatsApp for it, and no workspace is offered a starter the set replaced (2 Oct 2026).
+ * WhatsApp for it, and no workspace is offered a starter the set replaced (2 Oct 2026). A starter that takes the review
+ * link (the review ask) is offered only where the workspace's Google listing keeps one (`reviewLink`, db reviewLinkOf,
+ * 00394): its slot is filled from nothing else, and a message's values are refused without it (core
+ * refuseWithoutReviewLink). Both facts are the caller's to read, every time: neither has a default.
  */
-export function startersOffered(dealsOn: boolean): StarterTemplate[] {
+export function startersOffered(here: { dealsOn: boolean; reviewLink: boolean }): StarterTemplate[] {
   return STARTER_TEMPLATES.filter((s) => {
     if (s.retired) return false;
+    if (!here.reviewLink && starterText(s, "en_US").slots.some((x) => x.kind === "review_link")) return false;
     const t = s.trigger ? triggerOf(s.trigger) : null;
-    return !t || triggerOffered(t, dealsOn);
+    return !t || triggerOffered(t, here.dealsOn);
   });
 }
 

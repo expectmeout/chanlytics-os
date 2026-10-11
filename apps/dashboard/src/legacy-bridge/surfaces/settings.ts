@@ -60,6 +60,11 @@ export interface SettingsRecord {
   prompt: PromptPreviewDto | null;
   updatedBy: string | null;
   updatedAt: string | null;
+  /**
+   * Whether the Google listing keeps a review link (GET settings' `review_link`): the Library and its composer offer the
+   * review ask only where it does (templates/verbs.ts starters.list). False on a broken config and from an older server.
+   */
+  reviewLink: boolean;
 }
 
 /** A member of the workspace, and an invitation nobody has taken yet, as the team read answers them. */
@@ -210,6 +215,7 @@ export const settingsOverride: SurfaceOverride = {
           prompt: null,
           updatedBy: null,
           updatedAt: null,
+          reviewLink: false,
         }
       : {
           config: cfg.config ?? {},
@@ -219,6 +225,7 @@ export const settingsOverride: SurfaceOverride = {
           prompt: cfg.prompt ?? null,
           updatedBy: cfg.updatedBy ?? null,
           updatedAt: cfg.updatedAt ?? null,
+          reviewLink: cfg.review_link === true,
         };
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing

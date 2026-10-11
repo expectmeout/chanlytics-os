@@ -20896,8 +20896,9 @@ declare function journeyOf(s: {
  * point of the journey it can run, and why, as Ask reads it beside the stages and their coverage (campaigns.journey). One
  * guide, keyed by the workspace's shape and never by a trade's words, until a second trade's facts differ: its stages are
  * the journey's own (journeyOf), less the appointment moments a workspace with no calendar cannot count, each on the
- * moment that runs it here; then the month's offer, which stands on no stage (journeyStageOf). Every sentence says
- * appointment, the word any trade's customer reads, never one trade's.
+ * moment that runs it here; then the month's offer, which stands on no stage (journeyStageOf). Every sentence says the
+ * workspace's own word for an appointment (appointmentWords), the word its customers read, never one trade's; the day
+ * after names the review ask, which the day after's review starter sends (starter-templates.ts after_visit_review).
  */
 
 /** One touch point: the stage it stands on, the moment a campaign on it starts from, what goes out and why. */
@@ -20910,13 +20911,15 @@ interface GuideRow {
     why: string;
 }
 /**
- * The guide for a workspace's shape: `calendarOn` a calendar connected, `dealsOn` some customers get a proposal first.
- * The stages in the journey's order, those that need a calendar only with one and a proposal's only where deals are on,
- * then the month's offer. Pure and total.
+ * The guide for a workspace's shape: `calendarOn` a calendar connected, `dealsOn` some customers get a proposal first,
+ * `word` what it calls an appointment (contracts appointmentWordOf: "appointment" where it never picked). The stages in
+ * the journey's order, those that need a calendar only with one and a proposal's only where deals are on, then the
+ * month's offer. Pure and total.
  */
 declare function journeyGuide(input: {
     calendarOn: boolean;
     dealsOn: boolean;
+    word: AppointmentWord;
 }): GuideRow[];
 
 /** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
@@ -30751,13 +30754,14 @@ declare function clientErrorOf(boundary: ClientErrorBoundary, error: unknown, pa
 /**
  * The starter set: the messages Chanlytics writes for the moments it acts on, one for each moment of a customer's
  * life with the business (2 Oct 2026, the lifecycle set): the call's text, the visit reminder, how did it go, the
- * proposal follow-up, the win-back, the month's offer and a quick note. Each in English and Spanish, with the slots
- * the wire fills per person, and with its email and text versions where the channel means something for it (One
- * message, every channel; message-versions.ts). Meta approves the WhatsApp words; a workspace adds the set with one
- * click, the playbooks pick from it, and a broadcast starts from it.
+ * proposal follow-up, the win-back, the month's offer and a quick note; and the review ask (10 Oct 2026), offered where
+ * the Google listing keeps a review link. Each in English and Spanish, with the slots the wire fills per person, and with
+ * its email and text versions where the channel means something for it (One message, every channel;
+ * message-versions.ts). Meta approves the WhatsApp words; a workspace adds the set with one click, the playbooks pick
+ * from it, and a broadcast starts from it.
  *
  * A message's kind is the yes it needs, and the set is cut so the cycle can start on the yes people give first: the
- * four about a person's own call, visit or proposal are utility and reach a yes to texts; the three offers are
+ * five about a person's own call, appointment or proposal are utility and reach a yes to texts; the three offers are
  * marketing and wait for a yes to offers. An offer has no text version: texts carry no offers (deliver.ts).
  *
  * Every WhatsApp version passes the same check a template written by hand passes, with no warnings (a test holds it to
@@ -30833,9 +30837,15 @@ declare function starterByKey(key: string): StarterTemplate | null;
 /**
  * The starter set a workspace is offered (0006): each starter not retired whose moment is offered here
  * (triggerOffered), so a workspace where deals are off is never offered the proposal follow-up, nor has it filed with
- * WhatsApp for it, and no workspace is offered a starter the set replaced (2 Oct 2026).
+ * WhatsApp for it, and no workspace is offered a starter the set replaced (2 Oct 2026). A starter that takes the review
+ * link (the review ask) is offered only where the workspace's Google listing keeps one (`reviewLink`, db reviewLinkOf,
+ * 00394): its slot is filled from nothing else, and a message's values are refused without it (core
+ * refuseWithoutReviewLink). Both facts are the caller's to read, every time: neither has a default.
  */
-declare function startersOffered(dealsOn: boolean): StarterTemplate[];
+declare function startersOffered(here: {
+    dealsOn: boolean;
+    reviewLink: boolean;
+}): StarterTemplate[];
 /**
  * The starter written for a moment: the set's own, else the one it replaced. A moment no longer offered for a new
  * playbook (Welcome, Save our number) still finds the starter it was made with.

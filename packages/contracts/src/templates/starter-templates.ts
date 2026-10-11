@@ -1,13 +1,14 @@
 /**
  * The starter set: the messages Chanlytics writes for the moments it acts on, one for each moment of a customer's
  * life with the business (2 Oct 2026, the lifecycle set): the call's text, the visit reminder, how did it go, the
- * proposal follow-up, the win-back, the month's offer and a quick note. Each in English and Spanish, with the slots
- * the wire fills per person, and with its email and text versions where the channel means something for it (One
- * message, every channel; message-versions.ts). Meta approves the WhatsApp words; a workspace adds the set with one
- * click, the playbooks pick from it, and a broadcast starts from it.
+ * proposal follow-up, the win-back, the month's offer and a quick note; and the review ask (10 Oct 2026), offered where
+ * the Google listing keeps a review link. Each in English and Spanish, with the slots the wire fills per person, and with
+ * its email and text versions where the channel means something for it (One message, every channel;
+ * message-versions.ts). Meta approves the WhatsApp words; a workspace adds the set with one click, the playbooks pick
+ * from it, and a broadcast starts from it.
  *
  * A message's kind is the yes it needs, and the set is cut so the cycle can start on the yes people give first: the
- * four about a person's own call, visit or proposal are utility and reach a yes to texts; the three offers are
+ * five about a person's own call, appointment or proposal are utility and reach a yes to texts; the three offers are
  * marketing and wait for a yes to offers. An offer has no text version: texts carry no offers (deliver.ts).
  *
  * Every WhatsApp version passes the same check a template written by hand passes, with no warnings (a test holds it to
@@ -96,6 +97,9 @@ const PROPOSAL = {
   example: "https://docs.example.com/proposal",
 };
 const PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+// Where a customer leaves the business a review: the link its Google listing keeps (00394), filled at the send.
+const REVIEW = { kind: "review_link" as const, label: "Review link", example: "https://g.page/r/example/review" };
+const REVIEW_ES = { ...REVIEW, label: "Enlace de reseñas" };
 const OFFER = { kind: "text" as const, label: "The offer", example: "20% off any service booked before Friday." };
 const OFFER_ES = {
   kind: "text" as const,
@@ -246,6 +250,48 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       },
       es: {
         body: "Hola {{1}}, gracias por venir ayer a {{2}}. ¿Qué tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos.",
+      },
+    },
+  },
+  {
+    // The day after's other message (10 Oct 2026): the thank-you with a review ask, the link the Google listing keeps.
+    // About the appointment they just had, with no offer and no booking push, so it is utility like How did it go. It is
+    // offered only where the listing keeps a review link (startersOffered), as its slot is filled from nothing else, and
+    // How did it go stays the moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
+    key: "after_visit_review",
+    name: "after_visit_review",
+    title: "After the appointment, with a review ask",
+    purpose: "for the day after an appointment, asking for a review",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}. If anything wasn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS, REVIEW],
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Si tienes un minuto, tu reseña ayuda a otros a encontrarnos: {{3}}. Si algo no estuvo bien, responde aquí y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES],
+      },
+    },
+    email: {
+      en_US: {
+        subject: "Thanks for coming to {{2}}",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}\n\nIf anything wasn't right, just reply to this email and we'll sort it out.",
+      },
+      es: {
+        subject: "Gracias por venir a {{2}}",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. Si tienes un minuto, tu reseña ayuda a otros a encontrarnos: {{3}}\n\nSi algo no estuvo bien, responde a este correo y lo solucionamos.",
+      },
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. A review helps others find us: {{3}} If anything wasn't right, reply here.",
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Tu reseña ayuda a otros a encontrarnos: {{3}} Si algo no estuvo bien, responde a este mensaje.",
       },
     },
   },

@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 import {
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
@@ -1131,4 +1132,35 @@ test("the body takes `message` as the wire names it, and refuses one that is not
   );
   assert.deepEqual(w.calls.at(-1)[1].p_variables, [{ position: 1, label: "Name", example: null }]);
   assert.equal(w.calls.at(-1)[1].p_title, "");
+});
+
+/* ------------------------------ the review ask ------------------------------ */
+
+test("the starter set holds the review ask only where the workspace's Google listing keeps a review link, which its slot is filled from; asked for by its key without one, it is refused in the words a message's values are, and nothing is filed", async () => {
+  const { TEMPLATE_VALUE_WORDS } = await import(at("packages/core/src/campaigns/template-values.ts"));
+  const keysOf = (r) => [...new Set(r.results.map((x) => x.key))];
+  const workspace = (google_listings) => ({ memberships: both("viewer", "operator"), templates: [], google_listings });
+  // No listing: every starter the workspace is offered, less the review ask (no number: emails and texts, Meta not asked).
+  const plain = await post(world(workspace([])), {});
+  assert.ok(keysOf(plain).includes("after_visit_check"), keysOf(plain).join());
+  assert.ok(!keysOf(plain).includes("after_visit_review"), keysOf(plain).join());
+  // A listing with no Business Profile location bound keeps none either.
+  const unbound = await post(world(workspace([rows.googleListing({ tenant_id: B, new_review_uri: null })])), {});
+  assert.deepEqual(keysOf(unbound), keysOf(plain));
+  // Asked for by its key where there is no link: refused, and no door is called.
+  const asked = workspace([]);
+  const w = world(asked);
+  await refused(post(w, { keys: ["after_visit_review"] }), "conflict", 409, TEMPLATE_VALUE_WORDS.noReviewLink);
+  assert.deepEqual([w.calls, asked.templates], [[], []]);
+  // With one: the review ask beside the day after's other starter, its email and text versions written.
+  const link = "https://example.com/review/bayside";
+  const linked = await post(world(workspace([rows.googleListing({ tenant_id: B, new_review_uri: link })])), {});
+  assert.deepEqual(
+    keysOf(linked),
+    keysOf(plain).flatMap((k) => (k === "after_visit_check" ? [k, "after_visit_review"] : [k])),
+  );
+  assert.deepEqual(
+    detailed(linked).find(([key]) => key === "after_visit_review"),
+    ["after_visit_review", "en_US", "skipped", NO_CHANNEL, ["email:saved", "sms:saved"]],
+  );
 });

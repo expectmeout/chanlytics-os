@@ -152,6 +152,8 @@ export interface BroadcastsSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
+  /** Whether the Google listing keeps a review link (GET settings' `review_link`): what may fill a review-link slot. */
+  reviewLink: boolean;
   /** Older broadcasts exist beyond the rows: the history's numbers are the latest fifty, and the page says so. */
   more: boolean;
   /** How far ahead a send may be scheduled, in days: the schedule box stops where the route does. */
@@ -251,7 +253,8 @@ export const broadcastsOverride: SurfaceOverride = {
       read("GET segments").catch((e: unknown) => e as Error),
       read("GET templates").catch((e: unknown) => e as Error),
       read("GET channels").catch((e: unknown) => e as Error),
-      // The business's name and whether a booking link is on file, for the slots that name them.
+      // The business's name, whether a booking link is on file and whether the listing keeps a review link, for the
+      // slots that name them.
       read("GET settings").catch((e: unknown) => e as Error),
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
@@ -368,6 +371,8 @@ export const broadcastsOverride: SurfaceOverride = {
       businessName: brain?.business_name || "the business",
       businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
+      // A read that failed, a broken config and an older server's answer all say nothing of the listing: none.
+      reviewLink: !(cfg instanceof Error) && !cfg.configBroken && cfg.review_link === true,
       optIn: {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,

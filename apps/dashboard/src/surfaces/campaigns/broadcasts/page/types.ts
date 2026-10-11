@@ -104,6 +104,8 @@ export interface BcBase {
   templatesRead: boolean;
   offered: BcOffered;
   link: boolean;
+  /** Whether the Google listing keeps a review link: what a review-link slot may be filled with. */
+  review: boolean;
   templates: BroadcastTemplate[];
   aud: string;
   setAud: Setter<string>;

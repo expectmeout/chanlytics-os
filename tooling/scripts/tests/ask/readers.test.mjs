@@ -4384,10 +4384,14 @@ const forwardedWorld = () => ({
     },
   ],
 });
-/** What GET settings asked of the database at origin/main, after the workspace's door, in its order. */
-const SETTINGS_ASKED_AT_MAIN = [
+/**
+ * What GET settings asks of the database, after the workspace's door, in its order: what it asked at origin/main, and
+ * the listing's review link (db reviewLinkOf, 00394) read beside the platform's facts.
+ */
+const SETTINGS_ASKED = [
   "tenant_config.select",
   "tenants.select",
+  "google_listings.select",
   "google_listings.select",
   "lines.select",
   "tenant_channels.select",
@@ -4396,7 +4400,7 @@ const SETTINGS_ASKED_AT_MAIN = [
 /** The preview's clock, apart: the rest of what the settings read answers does not move with the minute. */
 const withoutClock = (d) => (d.prompt ? { ...d, prompt: { ...d.prompt, now: "<clock>" } } : d);
 
-test("the settings read, for Ask and for the page: GET settings answers its reader's payload, key for key, over settings-routes' fixtures -- a viewer's feed masked and an owner's whole, who last changed the row, a config the parser refuses as its own state, the platform's facts with the number the business forwards -- asking what it asked at origin/main in its order: the row once, the platform's facts at once, then the Autonomy rows inside the preview; no configuration row is the route's 404; the preview's clock is the turn's, and a turn that holds the row reads it once", async () => {
+test("the settings read, for Ask and for the page: GET settings answers its reader's payload, key for key, over settings-routes' fixtures -- a viewer's feed masked and an owner's whole, who last changed the row, a config the parser refuses as its own state, the platform's facts with the number the business forwards, whether the listing keeps a review link -- asking in its order: the row once, the platform's facts and the review link at once, then the Autonomy rows inside the preview; no configuration row is the route's 404; the preview's clock is the turn's, and a turn that holds the row reads it once", async () => {
   for (const [tenant, role, version] of [
     [A, "viewer", 3],
     [B, "owner", 1],
@@ -4416,14 +4420,16 @@ test("the settings read, for Ask and for the page: GET settings answers its read
       "prompt",
       "updatedBy",
       "updatedAt",
+      "review_link",
     ]);
+    assert.equal(r.data.review_link, false, "no listing, no review link");
     assert.deepEqual(
       [r.data.version, r.data.role, r.data.configBroken, r.data.prompt, r.data.updatedBy, r.data.updatedAt],
       [version, role, false, null, null, "2026-09-01T00:00:00Z"],
       "no receptionist, no prompt; a row written before its author was kept says so with null",
     );
     assert.deepEqual(r.rows, []);
-    assert.deepEqual(asked(ctx), SETTINGS_ASKED_AT_MAIN.slice(0, -1), "no receptionist: no Autonomy rows to read");
+    assert.deepEqual(asked(ctx), SETTINGS_ASKED.slice(0, -1), "no receptionist: no Autonomy rows to read");
   }
   const viewer = await kernel.load(memberIn(dayCtx(settingsWorld()), A, "viewer"), settingsReader, undefined);
   assert.ok(
@@ -4481,18 +4487,22 @@ test("the settings read, for Ask and for the page: GET settings answers its read
     describeNow("America/New_York", NOW, undefined),
     "the preview says the turn's clock: one clock for the turn",
   );
-  assert.deepEqual(
-    asked(routed),
-    ["memberships.select", ...SETTINGS_ASKED_AT_MAIN],
-    "the workspace's door, then the reads",
-  );
-  assert.deepEqual(asked(ctx), SETTINGS_ASKED_AT_MAIN);
+  assert.deepEqual(asked(routed), ["memberships.select", ...SETTINGS_ASKED], "the workspace's door, then the reads");
+  assert.deepEqual(asked(ctx), SETTINGS_ASKED);
+  // The listing keeps a review link (00394): the composers offer it to a review-link slot, and the review ask with it.
+  const reviewed = () => ({
+    ...forwardedWorld(),
+    google_listings: [rows.googleListing({ tenant_id: A, new_review_uri: "https://example.com/review/harbor" })],
+  });
+  const linked = await kernel.load(memberIn(dayCtx(reviewed()), A, "owner", NOW), settingsReader, undefined);
+  assert.equal(linked.data.review_link, true, "the listing's link is said as there being one, never the link");
+  assert.equal((await settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(reviewed()))).review_link, true);
   // A turn that holds the row reads it once: the settings read is the turn's one read of the config.
   const turn = memberIn(dayCtx(forwardedWorld()), A, "owner", NOW);
   await kernel.load(turn, config, undefined);
   const held = turn.ctx.supabase.seen.length;
   const again = await kernel.load(turn, settingsReader, undefined);
-  assert.deepEqual(asked(turn.ctx).slice(held), SETTINGS_ASKED_AT_MAIN.slice(1), "the row was the turn's");
+  assert.deepEqual(asked(turn.ctx).slice(held), SETTINGS_ASKED.slice(1), "the row was the turn's");
   assert.deepEqual(again.data, r.data);
 });
 
@@ -5512,7 +5522,12 @@ test("campaigns.journey says the journey as Campaigns' home draws it: 2 of 4 mom
       [[], [], []],
       "the receptionist and the call's text are no campaign",
     );
-    assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, dealsOn: false }));
+    // The guide for the workspace's shape, in its word (the stages' "Appointment tomorrow"): the page's word, once.
+    assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, dealsOn: false, word: "appointment" }));
+    assert.equal(
+      said.guide.find((r) => r.stage === "after").sends,
+      "the day after an appointment, a thank-you and a review ask",
+    );
     const before = said.guide.find((r) => r.stage === "before");
     assert.deepEqual(
       [Object.keys(before), before.moment, before.sends],

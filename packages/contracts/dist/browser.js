@@ -16479,6 +16479,8 @@ var PROPOSAL = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var REVIEW = { kind: "review_link", label: "Review link", example: "https://g.page/r/example/review" };
+var REVIEW_ES = { ...REVIEW, label: "Enlace de rese\xF1as" };
 var OFFER = { kind: "text", label: "The offer", example: "20% off any service booked before Friday." };
 var OFFER_ES = {
   kind: "text",
@@ -16627,6 +16629,48 @@ var STARTER_TEMPLATES = [
       },
       es: {
         body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos."
+      }
+    }
+  },
+  {
+    // The day after's other message (10 Oct 2026): the thank-you with a review ask, the link the Google listing keeps.
+    // About the appointment they just had, with no offer and no booking push, so it is utility like How did it go. It is
+    // offered only where the listing keeps a review link (startersOffered), as its slot is filled from nothing else, and
+    // How did it go stays the moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
+    key: "after_visit_review",
+    name: "after_visit_review",
+    title: "After the appointment, with a review ask",
+    purpose: "for the day after an appointment, asking for a review",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}. If anything wasn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS, REVIEW]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}. Si algo no estuvo bien, responde aqu\xED y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Thanks for coming to {{2}}",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}\n\nIf anything wasn't right, just reply to this email and we'll sort it out."
+      },
+      es: {
+        subject: "Gracias por venir a {{2}}",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}\n\nSi algo no estuvo bien, responde a este correo y lo solucionamos."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. A review helps others find us: {{3}} If anything wasn't right, reply here."
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Tu rese\xF1a ayuda a otros a encontrarnos: {{3}} Si algo no estuvo bien, responde a este mensaje."
       }
     }
   },
@@ -16895,11 +16939,12 @@ function starterByKey(key) {
   return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
 }
 var STARTER_OF = { lapsed: "quiet_30" };
-function startersOffered(dealsOn) {
+function startersOffered(here) {
   return STARTER_TEMPLATES.filter((s) => {
     if (s.retired) return false;
+    if (!here.reviewLink && starterText(s, "en_US").slots.some((x) => x.kind === "review_link")) return false;
     const t = s.trigger ? triggerOf(s.trigger) : null;
-    return !t || triggerOffered(t, dealsOn);
+    return !t || triggerOffered(t, here.dealsOn);
   });
 }
 function starterForTrigger(trigger) {
@@ -24449,28 +24494,30 @@ function journeyOf(s) {
 }
 
 // src/journey/journey-guide.ts
-var STAGE_WORDS = {
-  first_contact: {
-    sends: "the first reply, from your receptionist, which asks for the yes to offers",
-    why: "a first message answered at once is the one most likely to book, and every offer later needs that yes"
-  },
-  before: {
-    sends: "the day before an appointment, a reminder",
-    why: "a reminder keeps an appointment from being missed, and a change comes early enough to fill the time"
-  },
-  after: {
-    sends: "the day after, a thank-you and a review ask",
-    why: "the day after is when a customer most often leaves a review and books the next appointment"
-  },
-  proposal: {
-    sends: "a proposal waiting with nothing back, one follow-up with its link",
-    why: "a proposal left unanswered is often only waiting for a nudge, and its link makes the answer one tap"
-  },
-  quiet: {
-    sends: "quiet six weeks or more, a win-back",
-    why: "a customer who has gone quiet is easier to bring back with one message than a new one is to find"
-  }
-};
+function guideStageWords(W) {
+  return {
+    first_contact: {
+      sends: "the first reply, from your receptionist, which asks for the yes to offers",
+      why: "a first message answered at once is the one most likely to book, and every offer later needs that yes"
+    },
+    before: {
+      sends: `the day before ${W.a}, a reminder`,
+      why: `a reminder keeps ${W.a} from being missed, and a change comes early enough to fill the time`
+    },
+    after: {
+      sends: `the day after ${W.a}, a thank-you and a review ask`,
+      why: `the day after is when a customer most often leaves a review and books the next ${W.one}`
+    },
+    proposal: {
+      sends: "a proposal waiting with nothing back, one follow-up with its link",
+      why: "a proposal left unanswered is often only waiting for a nudge, and its link makes the answer one tap"
+    },
+    quiet: {
+      sends: "quiet six weeks or more, a win-back",
+      why: "a customer who has gone quiet is easier to bring back with one message than a new one is to find"
+    }
+  };
+}
 var MONTHS_OFFER = {
   stage: null,
   moment: "everyone_monthly",
@@ -24478,12 +24525,13 @@ var MONTHS_OFFER = {
   why: "one offer a month keeps the business in mind without wearing out the yes, and it reaches only those who gave it"
 };
 function journeyGuide(input) {
-  const stages = journeyOf({ ...input, word: "appointment", held: /* @__PURE__ */ new Set() }).filter((s) => s.unmet === null);
+  const words2 = guideStageWords(appointmentWords(input.word));
+  const stages = journeyOf({ ...input, held: /* @__PURE__ */ new Set() }).filter((s) => s.unmet === null);
   return [
     ...stages.map((s) => ({
       stage: s.id,
       moment: s.trigger === null ? null : triggerOf(s.trigger)?.id ?? null,
-      ...STAGE_WORDS[s.id]
+      ...words2[s.id]
     })),
     { ...MONTHS_OFFER }
   ];

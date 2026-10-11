@@ -31,8 +31,12 @@ export function useBcOffered(data: BroadcastsSurface) {
   // And of those, only one whose every slot a broadcast can fill (bcSlots). The visit's reminder is a visit
   // playbook's: offered here, its time and service were typed once for everyone.
   const link = !!data.bookingLink;
-  const templates = useMemo(() => offered.sendable.filter((t) => bcSlots(t, link) !== null), [offered, link]);
-  return { offered, link, templates };
+  const review = !!data.reviewLink;
+  const templates = useMemo(
+    () => offered.sendable.filter((t) => bcSlots(t, { bookingLink: link, reviewLink: review }) !== null),
+    [offered, link, review],
+  );
+  return { offered, link, review, templates };
 }
 
 // Who a send goes to, and whether the send screen is open: the send the tab kept, and the list a link names.

@@ -194,12 +194,16 @@ function bcLanguageChoices(g: BcGroup) {
 // The message it sends, one entry per message whatever languages it has (the language is its own control, and only a
 // message in more than one has one), and, where the library holds what cannot go on the wire, why that is not offered.
 function bcMessagePicks(v: BcV) {
-  const { templates, tpl, tplId, setTplId, data, link, offered } = v;
+  const { templates, tpl, tplId, setTplId, data, link, review, offered } = v;
   if (templates.length === 0) return null;
   const groups: BcGroup[] = starters.group(templates);
   const group = groups.find((g) => g.rows.some((r) => r.id === tplId)) ?? null;
   const lang = tpl ? tpl.language : null;
-  const own = { business_name: data.businessName, booking_link: link ? "your booking link" : null };
+  const own = {
+    business_name: data.businessName,
+    booking_link: link ? "your booking link" : null,
+    review_link: review ? "your review link" : null,
+  };
   return (
     <>
       <Picker

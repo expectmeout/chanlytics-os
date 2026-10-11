@@ -47,6 +47,7 @@ import {
   type OwnVersionChannel,
   type StarterTemplate,
 } from "@chanlytics/contracts";
+import { surfaceValue } from "../../surface-values";
 
 /**
  * A draft from a brief, or a message the workspace has written again in
@@ -129,7 +130,10 @@ export function titleOf(t: string | { name: string; title?: string | null } | nu
 
 /** The starter set as the pages read it: the library, and the words and slots for any template. */
 export interface StarterLibrary {
-  /** The starters this workspace is offered (contracts startersOffered): the proposal follow-up's only where deals are on (0006). */
+  /**
+   * The starters this workspace is offered (contracts startersOffered): the proposal follow-up's only where deals are on
+   * (0006), the review ask's only where the Google listing keeps a review link (00394).
+   */
   readonly list: readonly StarterTemplate[];
   languages: typeof STARTER_LANGUAGES;
   byName: typeof starterByName;
@@ -199,9 +203,13 @@ declare global {
 
 /** The starter set as the pages read it, from contracts: the library, and the words and slots for any template. */
 export const starters: StarterLibrary = {
-  // Read each time a page draws the set: an answer changed in Settings › Business changes it.
+  // Read each time a page draws the set: an answer changed in Settings › Business changes it, and so does a Google
+  // listing bound or unbound (the settings surface's `reviewLink`, which the starter route reads the same way).
   get list() {
-    return startersOffered(dealsAreOn(viewedSellsBy()));
+    return startersOffered({
+      dealsOn: dealsAreOn(viewedSellsBy()),
+      reviewLink: surfaceValue("settings")?.settings?.reviewLink === true,
+    });
   },
   languages: STARTER_LANGUAGES,
   byName: starterByName,

@@ -282,6 +282,8 @@ export interface PlaybooksSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
+  /** Whether the Google listing keeps a review link (GET settings' `review_link`): what may fill a review-link slot. */
+  reviewLink: boolean;
   /** The reply window in words, for the tips that say what a reply is (contracts REPLY_WINDOW_WORDS). */
   replyWindow: string;
   fetchedAt: number;
@@ -422,6 +424,8 @@ export const playbooksOverride: SurfaceOverride = {
       businessName: brain?.business_name || "the business",
       businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
+      // A read that failed, a broken config and an older server's answer all say nothing of the listing: none.
+      reviewLink: !(cfg instanceof Error) && !cfg.configBroken && cfg.review_link === true,
       replyWindow: REPLY_WINDOW_WORDS,
       fetchedAt: now.getTime(),
     });
