@@ -319,7 +319,9 @@ test("its trial (00395 trial_until): an instant says its last day; null ends it,
     [set.proposal.payload.trial_until, set.proposal.payload.was],
     ["2026-09-21T14:00:00.000Z", { trial_until: null }],
   );
-  const onTrial = { trial_until: "2026-09-21T14:00:00Z" };
+  // A trial still to come when the PUT judges it, at the route's own clock (core trialUntilOf refuses one past): its
+  // undo writes it back.
+  const onTrial = { trial_until: "2099-09-21T14:00:00Z" };
   const rows = tables({ playbooks: [playbookRow(onTrial)] });
   const ended = await change({ trial_until: null }, rows);
   assert.equal(ended.isError, false, ended.result);
@@ -333,7 +335,13 @@ test("its trial (00395 trial_until): an instant says its last day; null ends it,
   assert.equal(rows.playbooks[0].trial_until, null);
   await sendTo(rows, spec.undo.call(spec.undo.record(p, approved, { settings: null }), { settings: null }));
   // The same instant, kept in the one spelling a change writes (core trialUntilOf).
-  assert.equal(rows.playbooks[0].trial_until, "2026-09-21T14:00:00.000Z");
+  assert.equal(rows.playbooks[0].trial_until, "2099-09-21T14:00:00.000Z");
+  // A trial's end already past is refused: null is how a trial ends now.
+  assert.equal(
+    PLAYBOOK_PATCH_WORDS.trialPast,
+    "A trial ends at a time still to come: name a later one, or null, which ends it now.",
+  );
+  assert.equal(said(await change({ trial_until: "2026-09-14T13:59:00Z" })), PLAYBOOK_PATCH_WORDS.trialPast);
   // A resume that ends the trial too goes under its auto class at once, and says so in full.
   const resume = await change(
     { state: "running", trial_until: null },
@@ -347,4 +355,38 @@ test("its trial (00395 trial_until): an instant says its last day; null ends it,
     ].join(" · "),
   );
   assert.equal(said(await change({ trial_until: "next week" })), PLAYBOOK_PATCH_WORDS.trialWhen);
+});
+
+test("a trial follows its class's mode: under ask or never a trial changes nothing, and the card says so with what a run does there, never that each run waits half an hour; under veto its runs wait as they did; a trial whose mode could not be read is no card", async () => {
+  const trial = { trial_until: "2026-09-21T14:00:00Z" };
+  const asks = await change(trial, tables({ policies: [] }));
+  assert.equal(asks.isError, false, asks.result);
+  assert.equal(asks.proposal.summary, PLAYBOOK_PATCH_WORDS.trialInert("Sep 21", "Re-engage", "ask", MODE_WORDS.ask));
+  assert.equal(
+    asks.proposal.summary,
+    "On trial until Sep 21, which changes nothing under “Re-engage” (ask): each run waits for you on Today",
+  );
+  const never = await change(
+    trial,
+    tables({ policies: [{ tenant_id: A, class: "reengage", mode: "never", subject_type: null, limits: null }] }),
+  );
+  assert.equal(
+    never.proposal.summary,
+    PLAYBOOK_PATCH_WORDS.trialInert("Sep 21", "Re-engage", "never", MODE_WORDS.never),
+  );
+  const veto = await change(
+    trial,
+    tables({ policies: [{ tenant_id: A, class: "reengage", mode: "veto", subject_type: null, limits: null }] }),
+  );
+  assert.equal(veto.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until("Sep 21"));
+  const unread = await change(trial, tables(), { "policies.select": { message: "the read failed" } });
+  assert.equal(unread.isError, true);
+  assert.match(said(unread), /sending mode .* could not be read/);
+  // Ending a trial says the same under any mode, so it reads none.
+  const ends = await change(
+    { trial_until: null },
+    tables({ playbooks: [playbookRow({ trial_until: "2099-09-21T14:00:00Z" })] }),
+    { "policies.select": { message: "the read failed" } },
+  );
+  assert.equal(ends.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until(null));
 });

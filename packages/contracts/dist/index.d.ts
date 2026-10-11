@@ -9345,12 +9345,12 @@ declare function effectiveMode<M extends string>(p: {
     trial_until?: string | null;
 }, mode: M, now: Date): M | "veto";
 /**
- * Until when a new campaign Ask proposes runs on trial (D5 of the 10 October 2026 spec): a week from `now` where its
- * class's mode is auto, so for its first seven days each run waits for a Stop as veto's does (effectiveMode). Null under
- * ask, veto or never, where a trial would change nothing: a run there waits for a person already, or runs nothing. The
- * composer's own campaigns start on none.
+ * Until when a new campaign that starts on trial runs on it (D5 of the 10 October 2026 spec): a week from `now`, the
+ * moment it is approved (POST playbooks with `trial: true`, at the route's own clock), never the moment its card was
+ * made. For those seven days each run its class would send by itself waits for a Stop, as veto's does (effectiveMode).
+ * Ask's card asks for a trial under an auto class only; the composer's own campaigns start on none.
  */
-declare function newCampaignTrialUntil(mode: string, now: Date): string | null;
+declare function newCampaignTrialUntil(now: Date): string;
 /**
  * A campaign's last day (00395 `until`, YYYY-MM-DD by the business's clock) where `day`, the business's day, is past it:
  * it has ended, and a run on such a day sends nothing (core run-playbook's `ended`). Null where it has no end, or `day`
@@ -14923,10 +14923,10 @@ declare const PLAYBOOK_CARD_REFUSALS: {
 /** What a new campaign's card says beside its moment, its reach and its class's mode (propose_campaign.playbook). */
 declare const PLAYBOOK_CARD_WORDS: {
     /**
-     * A campaign that starts on trial (D5, contracts newCampaignTrialUntil: under an auto class only): for its first week
-     * each run waits half an hour for a Stop, as veto's do, whatever its class says.
+     * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
+     * (contracts newCampaignTrialUntil, at the route's clock), each run waits half an hour for a Stop, as veto's do.
      */
-    readonly trial: "on trial for a week: for seven days each run waits half an hour with a Stop";
+    readonly trial: "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop";
     /**
      * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
      * the person heard this week, since the run is daily and the appointment is on one day (contracts playbookRunReach),
@@ -25342,6 +25342,11 @@ declare const PLAYBOOK_PATCH_WORDS: {
     readonly until: (day: string | null) => string;
     /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
     readonly trial_until: (day: string | null) => string;
+    /**
+     * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
+     * what a run does under that mode (`does`), never that each run waits for a Stop.
+     */
+    readonly trialInert: (day: string, cls: string, mode: string, does: string) => string;
     readonly paused: "Nothing more runs until it is resumed";
     /** D8: a pause leaves the run that waits; skipping it is a second card. */
     readonly pausedWaits: (people: number) => string;
@@ -25360,6 +25365,8 @@ declare const PLAYBOOK_PATCH_WORDS: {
     readonly untilPast: (today: string) => string;
     /** A trial's end that is no instant with its zone. */
     readonly trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.";
+    /** A trial's end that has already passed: a trial that ended is none. */
+    readonly trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.";
     /**
      * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
      * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.

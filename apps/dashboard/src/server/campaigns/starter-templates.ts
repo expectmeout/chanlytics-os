@@ -65,7 +65,6 @@ import {
   playbookNumber,
   refuseWithoutBookingLink,
   refuseWithoutReviewLink,
-  trialUntilOf,
 } from "@chanlytics/core";
 import {
   followUpOnFile,
@@ -405,9 +404,8 @@ function starterChannels(
  * refused in. Its moment, list and class as a new campaign's (checkPlaybookMomentInput, core checkPlaybookMoment: the
  * moment offered here, contracts momentOffered); the starter is that moment's own and still offered, takes no words of its
  * own, and its kind of message fits the class (contracts messageFitsMoment); its numbers keep their bounds (core
- * playbookNumber) and a trial's end is an instant (core trialUntilOf); a channel it names is one its purpose carries
- * (contracts channelNeverCarries). And it goes by a channel its message holds at once (heldAtOnce): a WhatsApp version
- * in review carries nothing until WhatsApp approves it, so a
+ * playbookNumber); a channel it names is one its purpose carries (contracts channelNeverCarries). And it goes by a channel
+ * its message holds at once (heldAtOnce): a WhatsApp version in review carries nothing until WhatsApp approves it, so a
  * campaign on that alone is refused and nothing is filed. Named none, it goes by the channels held at once and by WhatsApp
  * where there is a number, its people there held until WhatsApp approves, as a run holds the people on any channel not
  * ready yet. POST playbooks runs it before it files (withStarterMessage), and Ask's starter card runs it at the card
@@ -433,8 +431,6 @@ export async function checkStarterPlaybook(
   const fit = messageFitsMoment(cls, starter.category);
   if (!fit.ok) throw new AppError("validation", fit.words);
   for (const k of NUMBERS) playbookNumber(k, body[k], PLAYBOOK_LIMITS[k].min);
-  // The end of a trial it names is an instant (core trialUntilOf, as checkPlaybook asks it after the filing).
-  trialUntilOf(body.trial_until);
   const params = defaultParamSpecs({ name: starter.name, variables: [] });
   // A booking-link slot needs a link on file, and a review-link slot the link the Google listing keeps, as a message's
   // values are held to them (core refuseWithoutBookingLink, refuseWithoutReviewLink).

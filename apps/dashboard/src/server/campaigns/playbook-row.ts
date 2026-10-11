@@ -18,10 +18,11 @@ import {
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
   isPlaybookState,
+  newCampaignTrialUntil,
   triggerOf,
   type PlaybookPatch,
 } from "@chanlytics/contracts";
-import { checkPlaybookPatch } from "@chanlytics/core";
+import { checkPlaybookPatch, trialUntilOf } from "@chanlytics/core";
 import {
   emitEvent,
   playbookForChange,
@@ -107,18 +108,31 @@ export const PLAYBOOK_PUT_BODY = z.union([PATCH_BODY, CHANNELS_BODY, WHOLE_BODY]
 type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
 
 /**
+ * The end of the trial a new playbook starts on (00395, D5), at `now`, this route's clock: `trial: true` (Ask's card,
+ * which asks it under an auto class) is a week from now, counted from the Approve and never from when the card was made
+ * (contracts newCampaignTrialUntil); an explicit `trial_until` is an instant still to come (core trialUntilOf, a change's
+ * own judge); neither is none, as the composer's campaigns start.
+ */
+function trialAsked(asked: Record<string, unknown> | null, now: Date): string | null {
+  if (asked?.trial === true) return newCampaignTrialUntil(now);
+  return trialUntilOf(asked?.trial_until, now) ?? null;
+}
+
+/**
  * A new playbook (POST /api/v1/playbooks): everything it names checked the way the send route checks a broadcast
  * (checkPlaybookInput, in its own words, so the body is this verb's to read), then started with its line in the
  * ledger in one transaction (00357 start_playbook). The door runs on the member's own session, so the table's policy
  * judges the row as it judged the insert this replaced, and a start that cannot be recorded starts nothing: no
  * playbook sends with nobody on record as having started it, and a person who presses Start again makes one. A body
  * naming `starter_key` and no message is judged whole, then files that starter (withStarterMessage: a refused one files
- * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`).
+ * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`). The trial it
+ * starts on (trialAsked) is judged first, at this route's clock.
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
-  // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const asked = (await jsonBody(req)) as Record<string, unknown> | null;
+  const trialUntil = trialAsked(asked, new Date());
+  // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const { body, starter } = await withStarterMessage(ctx, member, asked);
   const v = await checkPlaybookInput(ctx, tenantId, body, null);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
@@ -138,8 +152,7 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       gap_days: v.gap_days,
       cadence_days: v.cadence_days,
       channels: v.channels,
-      // The end of the trial it starts on (00395, D5): Ask's card names one under an auto class, the composer none.
-      trial_until: v.trial_until,
+      trial_until: trialUntil,
     },
     decision: {
       name: v.name,
@@ -149,7 +162,7 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       run_hour: v.run_hour,
       cap_per_run: v.cap_per_run,
       channels: v.channels,
-      ...(v.trial_until ? { trial_until: v.trial_until } : {}),
+      ...(trialUntil ? { trial_until: trialUntil } : {}),
     },
     via: ctx.via ?? null,
     undoOf: ctx.undoOf ?? null,
@@ -170,9 +183,9 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
  * A change in place (the moment spec §4.9 A5; decision D26): the drawer's Pause and Resume, Ask's change card, the
  * reach-out sheet's Pause. Judged against the playbook as the database holds it now (core checkPlaybookPatch: the six
  * fields' bounds, a cadence for the month's offer alone, a resume refused on an archived list, its words held to its
- * message's slots, its end a day today or later by the business's clock, its trial's end an instant, a reach-out's step
- * paused or resumed and nothing else), then written with its line in the ledger in one transaction (the change_playbook door):
- * the row locked, only what differs set, and what each field held answered as `was`, which an undo puts back. Nothing
+ * message's slots, its end a day today or later by the business's clock, its trial's end an instant to come, a
+ * reach-out's step paused or resumed and nothing else), then written with its line in the ledger in one transaction
+ * (the change_playbook door): the row locked, only what differs set, and what each field held answered as `was`, which an undo puts back. Nothing
  * that differs writes nothing and answers what it is, so a second press of Pause is no second line. On a database before
  * the door, written the way it was before (changeTheOldWay), for one release.
  */

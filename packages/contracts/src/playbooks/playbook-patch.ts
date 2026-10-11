@@ -73,6 +73,12 @@ export const PLAYBOOK_PATCH_WORDS = {
     day
       ? `On trial until ${day}: each run waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it`
       : "No longer on trial: its runs go as its class is set in Settings › Autonomy",
+  /**
+   * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
+   * what a run does under that mode (`does`), never that each run waits for a Stop.
+   */
+  trialInert: (day: string, cls: string, mode: string, does: string): string =>
+    `On trial until ${day}, which changes nothing under “${cls}” (${mode}): ${does}`,
   paused: "Nothing more runs until it is resumed",
   /** D8: a pause leaves the run that waits; skipping it is a second card. */
   pausedWaits: (people: number): string =>
@@ -93,6 +99,8 @@ export const PLAYBOOK_PATCH_WORDS = {
   untilPast: (today: string): string => `An end is today or later: today is ${today} by your clock.`,
   /** A trial's end that is no instant with its zone. */
   trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
+  /** A trial's end that has already passed: a trial that ended is none. */
+  trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.",
   /**
    * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
    * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.

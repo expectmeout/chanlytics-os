@@ -13,6 +13,7 @@ import {
   effectiveMode,
   isPlaybookState,
   noteRows,
+  planRun,
   trialDayWords,
   triggerOf,
   type PlaybookPatch,
@@ -36,14 +37,25 @@ const resumeDoes = (mode: string): string =>
   mode === "auto" ? LIFECYCLE_WORDS.ledger.resume.auto : (MODE_WORDS[mode] ?? mode);
 
 /**
+ * What a change of its trial says (00395): its last day, by the business's calendar (contracts trialDayWords), and what
+ * the trial does, by its class's mode. Where a run sends by itself or after a Stop (contracts planRun: auto, veto) each
+ * waits for a Stop; under ask or never the trial changes nothing, and the card says so with what a run does there,
+ * never that each run waits for a Stop. Null ends it, which reads the same under any mode.
+ */
+function trialSaid(set: PlaybookPatch, how: { cls: string; classMode: string }, at: { tz: string; now: Date }): string {
+  const day = trialDayWords(set, at.tz, at.now);
+  if (!day || planRun(how.classMode, at.now).kind === "send") return PLAYBOOK_PATCH_WORDS.trial_until(day);
+  return PLAYBOOK_PATCH_WORDS.trialInert(day, how.cls, how.classMode, MODE_WORDS[how.classMode] ?? how.classMode);
+}
+
+/**
  * A change's parts, in the card's words and the keys' order. Its words are quoted as the run fills them; its last day
- * and its trial's are said by the business's calendar at `at` (contracts campaignDayWords, trialDayWords: "Nov 30"), a
- * trial whose end is already past as no trial.
+ * is said by the business's calendar at `at` (contracts campaignDayWords: "Nov 30"), and its trial by trialSaid.
  */
 function changeParts(
   set: PlaybookPatch,
   was: PlaybookPatch,
-  how: { cls: string; mode: string; waits: number | null },
+  how: { cls: string; mode: string; classMode: string; waits: number | null },
   at: { tz: string; now: Date },
 ) {
   const W = PLAYBOOK_PATCH_WORDS;
@@ -57,7 +69,7 @@ function changeParts(
   }
   if (set.params !== undefined) parts.push(W.params(set.params));
   if (set.until !== undefined) parts.push(W.until(set.until && campaignDayWords(set.until, at.tz, at.now)));
-  if (set.trial_until !== undefined) parts.push(W.trial_until(trialDayWords(set, at.tz, at.now)));
+  if (set.trial_until !== undefined) parts.push(trialSaid(set, how, at));
   return parts;
 }
 
@@ -104,13 +116,15 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   if (Object.keys(set).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.same(row.name));
   // The table's check holds the class to the set (playbooks.policy_class).
   const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
-  // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), and for a
-  // pause, whose undo resumes it and says it the same way. A resume whose read fails makes no card: the card would say a
-  // mode it does not know. A pause needs none, so it is still a card, and its undo claims no mode (`mode` null).
-  const policies = set.state ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];
-  if (!policies && set.state === "running")
+  // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), for a
+  // pause, whose undo resumes it and says it the same way, and for a trial set, whose words follow it (trialSaid). A
+  // resume or a trial whose read fails makes no card: the card would say a mode it does not know. A pause needs none, so
+  // it is still a card, and its undo claims no mode (`mode` null); a trial ended says the same under any mode.
+  const trialSet = typeof set.trial_until === "string";
+  const policies = set.state || trialSet ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];
+  if (!policies && (set.state === "running" || trialSet))
     return refuse(
-      `the sending mode of “${cls}” could not be read just now, so a resume cannot say what its runs would do; say so, and try again in a moment`,
+      `the sending mode of “${cls}” could not be read just now, so ${set.state === "running" ? "a resume" : "a trial"} cannot say what its runs would do; say so, and try again in a moment`,
     );
   // A class with no row of its own runs under ask, as a run reads it (core run-playbook). And a run goes as the campaign
   // will stand after this change: under auto while it is on trial, as veto does (contracts effectiveMode, 00395), so the
@@ -121,7 +135,12 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   return propose({
     kind: "playbook_change",
     title: PLAYBOOK_PATCH_WORDS.title(set, row.name),
-    summary: changeParts(set, was, { cls, mode: mode ?? "ask", waits }, { tz: t.timezone, now: t.now }).join(" · "),
+    summary: changeParts(
+      set,
+      was,
+      { cls, mode: mode ?? "ask", classMode: classMode ?? "ask", waits },
+      { tz: t.timezone, now: t.now },
+    ).join(" · "),
     payload: {
       playbook_id: row.id,
       playbook_name: row.name,
@@ -156,6 +175,6 @@ export const playbookChangeAction = actAction({
     { playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", params: ["@first_name", "15% off"], until: "2026-11-30" },
   ],
   label: "Preparing a campaign's change",
-  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action playbook takes them: new words, the same message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time with its offset until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action run with verb skip beside it when they want that run gone. A reach-out's step, a value outside its bounds and a playbook that already reads so are refused in words.`,
+  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action playbook takes them: new words, the same message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time still to come, with its offset, until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action run with verb skip beside it when they want that run gone. A reach-out's step, a value outside its bounds and a playbook that already reads so are refused in words.`,
   build: proposePlaybookChange,
 });

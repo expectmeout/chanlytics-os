@@ -2450,11 +2450,6 @@ interface PlaybookInput {
     cadence_days: number;
     /** The channels it may go by: WhatsApp alone when none is named (an edit that names none keeps the ones it has). */
     channels: ConsentChannel[];
-    /**
-     * Until when a new campaign runs on trial (00395, D5), an instant, as Ask's card names it under an auto class; null
-     * where the body names none. A whole rewrite never writes it: its trial is a change's (checkPlaybookPatch).
-     */
-    trial_until: string | null;
 }
 /**
  * One whole number of a playbook, by its field's bounds (contracts PLAYBOOK_LIMITS): `fallback` when none is sent, and a
@@ -2526,18 +2521,20 @@ interface PlaybookPatchRow {
     trial_until: string | null;
 }
 /**
- * The end of its trial a change or a new campaign names (00395 `trial_until`): an instant, kept in one spelling (UTC);
- * null ends it, or starts none. The one judgement checkPlaybookPatch, checkPlaybook and a starter card's check (the
- * dashboard's checkStarterPlaybook, before anything is filed) ask.
+ * The end of its trial a change or a new campaign names (00395 `trial_until`): an instant still to come at `now`, kept
+ * in one spelling (UTC); null ends it, or starts none. A trial that has already ended is none, so an instant past is
+ * refused, from any caller. The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook,
+ * before a starter is filed) ask.
  */
-declare function trialUntilOf(v: unknown): string | null | undefined;
+declare function trialUntilOf(v: unknown, now: Date): string | null | undefined;
 /**
  * A playbook changed in place (the moment spec §4.9 A5): what Ask's change card proposes and PUT playbooks/:id's patch
  * writes, judged one way. `asked` names any of the nine (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each number is
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
  * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
  * message's slots (patchParams), its end to a day today or later by the business's clock at `now`, its trial's end to an
- * instant, and a reach-out's step to its state alone (its sheet changes the rest). It answers only what differs from the
+ * instant after `now` (trialUntilOf), and a reach-out's step to its state alone (its sheet changes the rest). It answers
+ * only what differs from the
  * row as it stands, `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the
  * card refuses in words and the route answers without a write.
  */

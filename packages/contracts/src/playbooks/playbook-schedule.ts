@@ -30,13 +30,13 @@ export function effectiveMode<M extends string>(p: { trial_until?: string | null
 }
 
 /**
- * Until when a new campaign Ask proposes runs on trial (D5 of the 10 October 2026 spec): a week from `now` where its
- * class's mode is auto, so for its first seven days each run waits for a Stop as veto's does (effectiveMode). Null under
- * ask, veto or never, where a trial would change nothing: a run there waits for a person already, or runs nothing. The
- * composer's own campaigns start on none.
+ * Until when a new campaign that starts on trial runs on it (D5 of the 10 October 2026 spec): a week from `now`, the
+ * moment it is approved (POST playbooks with `trial: true`, at the route's own clock), never the moment its card was
+ * made. For those seven days each run its class would send by itself waits for a Stop, as veto's does (effectiveMode).
+ * Ask's card asks for a trial under an auto class only; the composer's own campaigns start on none.
  */
-export function newCampaignTrialUntil(mode: string, now: Date): string | null {
-  return mode === "auto" ? new Date(now.getTime() + WEEK_MS).toISOString() : null;
+export function newCampaignTrialUntil(now: Date): string {
+  return new Date(now.getTime() + WEEK_MS).toISOString();
 }
 
 /**

@@ -3166,10 +3166,11 @@ async function patchUntil(ports, v, now) {
   return v;
 }
 var INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
-function trialUntilOf(v) {
+function trialUntilOf(v, now) {
   if (v === void 0 || v === null) return v;
   const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
   if (!Number.isFinite(at)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
+  if (at <= now.getTime()) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialPast);
   return new Date(at).toISOString();
 }
 function patchHeldOf(row) {
@@ -3208,7 +3209,7 @@ async function checkPlaybookPatch(ports, row, asked2, now) {
     cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked2.params),
     until: await patchUntil(ports, asked2.until, now),
-    trial_until: trialUntilOf(asked2.trial_until)
+    trial_until: trialUntilOf(asked2.trial_until, now)
   };
   const held = patchHeldOf(row);
   const set = {};
@@ -3274,8 +3275,7 @@ async function checkPlaybook(ports, body, existing) {
     cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun),
     gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
     cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
-    channels,
-    trial_until: trialUntilOf(body?.trial_until) ?? null
+    channels
   };
 }
 

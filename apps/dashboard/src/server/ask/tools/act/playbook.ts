@@ -22,7 +22,6 @@ import {
   dealsAreOn,
   defaultParamSpecs,
   heldBackOfOneRun,
-  newCampaignTrialUntil,
   parseListToken,
   parseParamSpec,
   playbookChannelsRead,
@@ -383,14 +382,14 @@ const breathSaid = (trig: Trigger): string =>
   trig.kind === "visit" ? ` · ${PLAYBOOK_CARD_WORDS.appointmentBreath}` : "";
 
 /**
- * The trial a new campaign starts on, where its class sends on its own (contracts newCampaignTrialUntil, D5: a week from
- * now under auto, none otherwise), what its payload carries for the commit, and what the card says of it, before its
- * class's mode.
+ * Whether a new campaign starts on trial (D5): only where its class sends on its own (auto). Under ask, veto or never a
+ * trial changes nothing: a run there waits for a person, waits for a Stop already, or runs nothing. The payload carries
+ * the flag and no instant: the week starts at its Approve, counted by POST playbooks at its own clock (contracts
+ * newCampaignTrialUntil), never when the card was made. And what the card says of it, before its class's mode.
  */
-function trialOf(mode: string, now: Date): { payload: { trial_until?: string }; said: string } {
-  const until = newCampaignTrialUntil(mode, now);
-  return until
-    ? { payload: { trial_until: until }, said: `${PLAYBOOK_CARD_WORDS.trial} · ` }
+function trialOf(mode: string): { payload: { trial?: true }; said: string } {
+  return mode === "auto"
+    ? { payload: { trial: true }, said: `${PLAYBOOK_CARD_WORDS.trial} · ` }
     : { payload: {}, said: "" };
 }
 
@@ -604,7 +603,7 @@ async function proposeOnStarter(
   const { drawn, reading, policies, listLabel } = reach;
   const held = await allowanceHeld(t, channels, reading, clock, purposeOfPlaybook(cls));
   const under = underMode(cls, policies);
-  const trial = trialOf(under.mode, t.now);
+  const trial = trialOf(under.mode);
   const name = str(input.name, PLAYBOOK_NAME_MAX);
   // Its WhatsApp version goes for review at Approve only where none is on file; one on file is said as it stands, by the
   // drawer's reading (in review, refused), and the filing leaves it so.
@@ -680,7 +679,7 @@ async function proposePlaybook(t: ToolContext, input: PlaybookProposed): Promise
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
-  const trial = trialOf(under.mode, t.now);
+  const trial = trialOf(under.mode);
   const said = cardSays(asked, specs, by, 140);
   if ("refusal" in said) return refuse(said.refusal);
   // The moment and its schedule in the workspace's word: read once the check has passed.
@@ -743,6 +742,6 @@ export const playbookAction = actAction({
   words:
     "Action playbook takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected), visit_tomorrow (a reminder the day before an appointment) or visited (a check the day after one), both only where a calendar is connected and each sent whatever else the person heard that week, everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link), a moment this workspace is not offered being refused in words to say; template_id is a message from action audiences (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to WhatsApp for review where none is on file, which the card says), but for a starter that takes words of its own such as the month's offer; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @review_link, the link its Google listing keeps for a review, @visit_when and @visit_service on an appointment's moment, or @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by " +
     UNNAMED_GOES_BY +
-    ` the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can. Under a class that sends on its own (auto) a new playbook starts on trial for a week, each run waiting ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, and the card says so.`,
+    ` the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can. Under a class that sends on its own (auto) a new playbook starts on trial for a week from when it is approved, each run waiting ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, and the card says so.`,
   build: proposePlaybook,
 });

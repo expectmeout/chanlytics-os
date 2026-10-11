@@ -10,7 +10,7 @@
  * way, and one the workspace hid is never added back. The world is
  * tooling/scripts/tests/broadcasts/ask-campaign-channels.test.mjs's, copied whole.
  */
-import { test, beforeEach, after } from "node:test";
+import { test, beforeEach, after, mock } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -37,6 +37,8 @@ const {
 } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -376,36 +378,96 @@ test("a starter that takes words of its own (the month's offer) is not proposed 
 /** Each class's Autonomy row: the win-back's (reengage) and the appointment moments' (booking) at `mode`. */
 const modes = (mode) =>
   ["reengage", "booking"].map((cls) => ({ tenant_id: A, class: cls, mode, subject_type: null, limits: null }));
-/** A week from NOW: the end of the trial a new campaign Ask proposes starts on (D5). */
-const WEEK_ON = new Date(NOW.getTime() + 7 * DAY).toISOString();
+/**
+ * `start_playbook` (00357, as 00395 replaced it) for a database in memory: the row the door writes, of the columns it
+ * names and no other, running and the caller's, with its start_playbook line; the row's id with the line's.
+ */
+const START_COLUMNS = [
+  "name",
+  "trigger",
+  "list_id",
+  "list_key",
+  "template_id",
+  "template_name",
+  "template_language",
+  "params",
+  "policy_class",
+  "run_hour",
+  "cap_per_run",
+  "gap_days",
+  "cadence_days",
+  "channels",
+  "until",
+  "trial_until",
+];
+const startDoor = (rows) => ({
+  start_playbook: (a) => {
+    const named = Object.fromEntries(START_COLUMNS.map((k) => [k, a.p_playbook[k] ?? null]));
+    const made = { id: crypto.randomUUID(), tenant_id: a.p_tenant_id, ...named, state: "running", created_by: USER };
+    rows.playbooks.push(made);
+    (rows.decisions ??= []).push({
+      id: `decision-${rows.playbooks.length}`,
+      verb: "start_playbook",
+      payload: a.p_decision,
+    });
+    return { id: made.id, decision_id: `decision-${rows.playbooks.length}`, undo_dropped: false };
+  },
+});
+/** A card's commit, sent to the real POST playbooks over the same rows, with the route's clock at `clock`. */
+const approveAt = async (rows, call, clock) => {
+  assert.equal(call.route, "POST playbooks");
+  setRateStore(memoryStore());
+  mock.timers.enable({ apis: ["Date"], now: clock });
+  try {
+    return await playbooksRoute.POST.run(
+      new Request(`http://localhost/api/v1/x?workspace=${A}`, { method: "POST", body: JSON.stringify(call.body) }),
+      { supabase: fakeDb(rows, {}, startDoor(rows)), userId: USER, email: "ada@example.com", params: {} },
+    );
+  } finally {
+    mock.timers.reset();
+  }
+};
 
-test("a new campaign under an auto class starts on trial for a week (D5): its payload's trial_until is seven days out, its card says so and its commit carries it, on a starter and on a message on file; under ask or veto there is no trial and nothing said of one", async () => {
+test("a new campaign under an auto class starts on trial for a week from when it is approved (D5): its card carries the flag and no instant, says so, and commits the flag; the route counts the week from its own clock at Approve, never from the card's; under ask or veto there is no trial and nothing said of one", async () => {
   assert.equal(
     PLAYBOOK_CARD_WORDS.trial,
-    "on trial for a week: for seven days each run waits half an hour with a Stop",
+    "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop",
   );
   const onStarter = await propose({ trigger: "quiet_30" }, { policies: modes("auto") }).made;
   // Its WhatsApp version approved, with the starter's two values: the message-on-file path.
   const approved = onFile("approved", { variables: ["1", "2"] });
-  const onFile_ = await propose({ trigger: "quiet_30" }, { policies: modes("auto"), templates: [approved] }).made;
+  const held = propose({ trigger: "quiet_30" }, { policies: modes("auto"), templates: [approved] });
+  const onFile_ = await held.made;
   for (const r of [onStarter, onFile_]) {
     assert.equal(r.isError, false, r.result);
     const p = r.proposal;
-    assert.deepEqual([p.payload.mode, p.payload.trial_until], ["auto", WEEK_ON]);
+    assert.deepEqual([p.payload.mode, p.payload.trial], ["auto", true]);
+    assert.equal("trial_until" in p.payload, false, "no instant: the week starts at Approve");
     assert.ok(p.summary.includes(` · ${PLAYBOOK_CARD_WORDS.trial} · `), p.summary);
     // Its class's mode is still said: the trial is this campaign's first week, never a change to the class.
     assert.ok(p.summary.includes("(auto): each run sends on its own."), p.summary);
-    assert.equal(PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body.trial_until, WEEK_ON);
+    const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
+    assert.deepEqual([body.trial, "trial_until" in body], [true, false]);
   }
   assert.equal(onStarter.proposal.payload.starter_key, STARTER.key, "the starter path");
   assert.ok(onFile_.proposal.payload.template_id, "the message-on-file path");
+  // Approved a week after it was made: the trial is the week after the Approve, as the card said.
+  const approvedAt = new Date(NOW.getTime() + 7 * DAY);
+  const made = await approveAt(
+    held.rows,
+    PROPOSAL_SPECS.playbook.commit(onFile_.proposal, { settings: null }),
+    approvedAt,
+  );
+  const filed = held.rows.playbooks.find((x) => x.id === made.id);
+  assert.equal(filed.trial_until, new Date(approvedAt.getTime() + 7 * DAY).toISOString());
+  assert.notEqual(filed.trial_until, new Date(NOW.getTime() + 7 * DAY).toISOString(), "never the card's week");
   // Under ask each run waits for a person anyway, and under veto each already waits half an hour: no trial.
   for (const policies of [[], modes("ask"), modes("veto")]) {
     const r = await propose({ trigger: "quiet_30" }, { policies }).made;
     assert.equal(r.isError, false, r.result);
-    assert.equal("trial_until" in r.proposal.payload, false, JSON.stringify(policies));
+    assert.equal("trial" in r.proposal.payload, false, JSON.stringify(policies));
     assert.ok(!r.proposal.summary.includes("on trial"), r.proposal.summary);
-    assert.equal("trial_until" in PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body, false);
+    assert.equal("trial" in PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body, false);
   }
 });
 

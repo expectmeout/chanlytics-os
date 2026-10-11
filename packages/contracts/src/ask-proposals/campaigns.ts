@@ -91,10 +91,10 @@ export const PLAYBOOK_CARD_REFUSALS = {
 /** What a new campaign's card says beside its moment, its reach and its class's mode (propose_campaign.playbook). */
 export const PLAYBOOK_CARD_WORDS = {
   /**
-   * A campaign that starts on trial (D5, contracts newCampaignTrialUntil: under an auto class only): for its first week
-   * each run waits half an hour for a Stop, as veto's do, whatever its class says.
+   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
+   * (contracts newCampaignTrialUntil, at the route's clock), each run waits half an hour for a Stop, as veto's do.
    */
-  trial: "on trial for a week: for seven days each run waits half an hour with a Stop",
+  trial: "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person heard this week, since the run is daily and the appointment is on one day (contracts playbookRunReach),
@@ -167,8 +167,8 @@ export const playbookSpec: ProposalSpec = {
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
-      // The end of the trial it starts on (D5), where the card set one: the route judges it as a change's (00395).
-      ...(typeof pl.trial_until === "string" ? { trial_until: pl.trial_until } : {}),
+      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
+      ...(pl.trial === true ? { trial: true } : {}),
     },
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.

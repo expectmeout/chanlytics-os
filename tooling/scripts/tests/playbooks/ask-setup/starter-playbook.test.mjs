@@ -488,7 +488,7 @@ test("no channel named: a WhatsApp version on file that WhatsApp refused, paused
   assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["whatsapp", "email"]);
 });
 
-test("a new campaign may name the end of its trial (D5, 00395 trial_until), as Ask's card does under an auto class: written as the instant it is, by a starter's key or a message's id; one that is no instant is refused in the change's own words before anything is filed or reaches Meta", async () => {
+test("a new campaign may name the end of its trial (D5, 00395 trial_until): written as the instant it is, by a starter's key or a message's id; one that is no instant, or already past, is refused in the change's own words before anything is filed or reaches Meta", async () => {
   const post = open({ templates: [starterRow(T1, WIN_BACK)] });
   const made = await post({
     trigger: "quiet_30",
@@ -511,4 +511,13 @@ test("a new campaign may name the end of its trial (D5, 00395 trial_until), as A
     );
     assert.deepEqual([meta.calls, tables.templates, tables.playbooks], [[], [], []], JSON.stringify(trial_until));
   }
+  // An instant already past is refused as a change's is, before anything is filed: a trial that ended is none.
+  const past = open();
+  await refused(
+    past({ trigger: "quiet_30", starter_key: WIN_BACK.key, trial_until: "2020-01-08T10:00:00Z" }),
+    "validation",
+    400,
+    PLAYBOOK_PATCH_WORDS.trialPast,
+  );
+  assert.deepEqual([meta.calls, tables.templates, tables.playbooks], [[], [], []], "a past trial files nothing");
 });

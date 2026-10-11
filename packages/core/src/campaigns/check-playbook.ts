@@ -65,11 +65,6 @@ export interface PlaybookInput {
   cadence_days: number;
   /** The channels it may go by: WhatsApp alone when none is named (an edit that names none keeps the ones it has). */
   channels: ConsentChannel[];
-  /**
-   * Until when a new campaign runs on trial (00395, D5), an instant, as Ask's card names it under an auto class; null
-   * where the body names none. A whole rewrite never writes it: its trial is a change's (checkPlaybookPatch).
-   */
-  trial_until: string | null;
 }
 
 /**
@@ -320,14 +315,16 @@ async function patchUntil(
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 
 /**
- * The end of its trial a change or a new campaign names (00395 `trial_until`): an instant, kept in one spelling (UTC);
- * null ends it, or starts none. The one judgement checkPlaybookPatch, checkPlaybook and a starter card's check (the
- * dashboard's checkStarterPlaybook, before anything is filed) ask.
+ * The end of its trial a change or a new campaign names (00395 `trial_until`): an instant still to come at `now`, kept
+ * in one spelling (UTC); null ends it, or starts none. A trial that has already ended is none, so an instant past is
+ * refused, from any caller. The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook,
+ * before a starter is filed) ask.
  */
-export function trialUntilOf(v: unknown): string | null | undefined {
+export function trialUntilOf(v: unknown, now: Date): string | null | undefined {
   if (v === undefined || v === null) return v;
   const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
   if (!Number.isFinite(at)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
+  if (at <= now.getTime()) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialPast);
   return new Date(at).toISOString();
 }
 
@@ -360,7 +357,8 @@ function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean 
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
  * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
  * message's slots (patchParams), its end to a day today or later by the business's clock at `now`, its trial's end to an
- * instant, and a reach-out's step to its state alone (its sheet changes the rest). It answers only what differs from the
+ * instant after `now` (trialUntilOf), and a reach-out's step to its state alone (its sheet changes the rest). It answers
+ * only what differs from the
  * row as it stands, `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the
  * card refuses in words and the route answers without a write.
  */
@@ -388,7 +386,7 @@ export async function checkPlaybookPatch(
     cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked.params),
     until: await patchUntil(ports, asked.until, now),
-    trial_until: trialUntilOf(asked.trial_until),
+    trial_until: trialUntilOf(asked.trial_until, now),
   };
   const held = patchHeldOf(row);
   const set: PlaybookPatch = {};
@@ -489,6 +487,5 @@ export async function checkPlaybook(
     gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
     cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
     channels,
-    trial_until: trialUntilOf(body?.trial_until) ?? null,
   };
 }

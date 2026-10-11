@@ -11045,6 +11045,11 @@ var PLAYBOOK_PATCH_WORDS = {
   until: (day) => day ? `Ends ${day}` : "Runs until it is paused, with no last day",
   /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
   trial_until: (day) => day ? `On trial until ${day}: each run waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it` : "No longer on trial: its runs go as its class is set in Settings \u203A Autonomy",
+  /**
+   * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
+   * what a run does under that mode (`does`), never that each run waits for a Stop.
+   */
+  trialInert: (day, cls, mode, does) => `On trial until ${day}, which changes nothing under \u201C${cls}\u201D (${mode}): ${does}`,
   paused: "Nothing more runs until it is resumed",
   /** D8: a pause leaves the run that waits; skipping it is a second card. */
   pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
@@ -11063,6 +11068,8 @@ var PLAYBOOK_PATCH_WORDS = {
   untilPast: (today) => `An end is today or later: today is ${today} by your clock.`,
   /** A trial's end that is no instant with its zone. */
   trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
+  /** A trial's end that has already passed: a trial that ended is none. */
+  trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.",
   /**
    * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
    * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
@@ -11933,10 +11940,10 @@ var PLAYBOOK_CARD_REFUSALS = {
 };
 var PLAYBOOK_CARD_WORDS = {
   /**
-   * A campaign that starts on trial (D5, contracts newCampaignTrialUntil: under an auto class only): for its first week
-   * each run waits half an hour for a Stop, as veto's do, whatever its class says.
+   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
+   * (contracts newCampaignTrialUntil, at the route's clock), each run waits half an hour for a Stop, as veto's do.
    */
-  trial: "on trial for a week: for seven days each run waits half an hour with a Stop",
+  trial: "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person heard this week, since the run is daily and the appointment is on one day (contracts playbookRunReach),
@@ -11997,8 +12004,8 @@ var playbookSpec = {
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
-      // The end of the trial it starts on (D5), where the card set one: the route judges it as a change's (00395).
-      ...typeof pl.trial_until === "string" ? { trial_until: pl.trial_until } : {}
+      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
+      ...pl.trial === true ? { trial: true } : {}
     }
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
@@ -22866,8 +22873,8 @@ function onTrialAt(p, now) {
 function effectiveMode(p, mode, now) {
   return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
 }
-function newCampaignTrialUntil(mode, now) {
-  return mode === "auto" ? new Date(now.getTime() + WEEK_MS).toISOString() : null;
+function newCampaignTrialUntil(now) {
+  return new Date(now.getTime() + WEEK_MS).toISOString();
 }
 function campaignEnded(p, day) {
   return p.until && day > p.until ? p.until : null;
