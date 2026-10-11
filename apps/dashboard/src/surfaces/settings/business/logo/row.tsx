@@ -20,7 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Face } from "../../../kit/face/face";
-import { Menu, type MenuItem } from "../../../kit/menu/menu";
+import { MoreMenu } from "../../../kit/more-menu/more-menu";
 import { RecordRow } from "../../../kit/record/row";
 import { gate } from "../../../legacy-verbs";
 import type { LegacyFlash } from "../../../legacy-verbs";
@@ -132,11 +132,13 @@ export function BtLogoRow({ canEdit, flash }: { canEdit: boolean; flash: (flash:
     flash({ tone: "ok", msg: LOGO_WORDS.removed });
   };
 
-  const items: MenuItem[] = [
-    { label: LOGO_WORDS.choose, onSelect: () => picker.current?.click(), gate: changeGate },
-    ...(ownSite ? [{ label: LOGO_WORDS.fromWebsite, onSelect: () => void look(), gate: changeGate }] : []),
+  // The house menu the route already loads (kit/more-menu), not the Base UI one: this row is drawn with the workspace's
+  // route, and a Base UI menu here moved its chunk out of every page into the route (#1558's first build, +69 KB).
+  const items = [
+    { label: LOGO_WORDS.choose, onClick: () => picker.current?.click(), gate: changeGate },
+    ...(ownSite ? [{ label: LOGO_WORDS.fromWebsite, onClick: () => void look(), gate: changeGate }] : []),
     ...(shown && !draft
-      ? [{ label: LOGO_WORDS.remove, onSelect: () => void remove(), tone: "danger" as const, gate: changeGate }]
+      ? [{ label: LOGO_WORDS.remove, onClick: () => void remove(), danger: true, gate: changeGate }]
       : []),
   ];
 
@@ -153,7 +155,16 @@ export function BtLogoRow({ canEdit, flash }: { canEdit: boolean; flash: (flash:
               label: shown ? LOGO_WORDS.change : LOGO_WORDS.add,
               gate: changeGate,
               testid: "rec-row-act-logo",
-              wrap: (button) => <Menu trigger={button} groups={[{ items }]} align="end" label={LOGO_WORDS.menuLabel} />,
+              wrap: (_button, face) => (
+                <MoreMenu
+                  items={items}
+                  face={face}
+                  btnClass="rec-row-act"
+                  testid="rec-row-act-logo"
+                  title={LOGO_WORDS.menuLabel}
+                  ariaLabel={`${shown ? LOGO_WORDS.change : LOGO_WORDS.add} — ${LOGO_WORDS.label}`}
+                />
+              ),
             }
           : null
       }

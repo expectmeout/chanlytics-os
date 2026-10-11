@@ -62,6 +62,8 @@ interface MoreMenuProps {
   btnClass?: string;
   /** Words on the trigger, over its glyph. */
   label?: ReactNode;
+  /** What the trigger draws in place of words and glyph: a record row's act, which keeps its own (RecordAct `wrap`). */
+  face?: ReactNode;
   /** The trigger's glyph where the menu is not a "more". */
   icon?: string;
   /** A sentence: the whole menu stays shut and says why. */
@@ -204,6 +206,7 @@ export function MoreMenu({
   title = "More",
   btnClass = "btn btn-ghost btn-icon btn-sm",
   label = null,
+  face = null,
   icon = "more",
   gated = null,
   escape = false,
@@ -310,7 +313,9 @@ export function MoreMenu({
         }}
         {...(gated ? gatedProps(gated) : {})}
       >
-        {label ? (
+        {face ? (
+          face
+        ) : label ? (
           <>
             {label} <Icon name="chevron-down" size={10} />
           </>

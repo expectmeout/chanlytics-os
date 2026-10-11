@@ -63,11 +63,11 @@ interface RecordAct {
   name?: string | null;
   icon?: string | null;
   /**
-   * The act's button handed to the page, for an act that opens something of its own: a page's Menu takes it as its
-   * control (`trigger`), so a row that offers a few choices keeps the one act every row has, and the record kit asks
-   * nothing of the menu.
+   * The act handed to the page, for an act that opens something of its own: the button, and what it draws (its words
+   * and the phone's chevron). A page's menu draws the act's face on its own control (MoreMenu's `face`), so a row that
+   * offers a few choices keeps the one act every row has, and the record kit asks nothing of the menu.
    */
-  wrap?: ((button: ReactElement) => ReactElement) | null;
+  wrap?: ((button: ReactElement, face: ReactNode) => ReactElement) | null;
 }
 
 /** A second answer that disagrees with the row's own. */
@@ -237,18 +237,8 @@ interface RowIds {
 /** The row's one act: its words, an arrow for an act that goes elsewhere, and the phone's chevron. */
 function rowAct(act: RecordAct, ids: RowIds) {
   const { id, keyId, wordsId, wrongId } = ids;
-  const button = (
-    <button
-      type="button"
-      className="rec-row-act"
-      onClick={act.onClick}
-      aria-label={act.name || undefined}
-      aria-labelledby={id && !act.name ? `${wordsId} ${keyId}` : undefined}
-      aria-describedby={wrongId}
-      data-rec-act={id || undefined}
-      data-testid={act.testid || (id ? `rec-row-act-${id}` : undefined)}
-      {...(act.gate || {})}
-    >
+  const face = (
+    <>
       <span className="rec-row-act-words" id={wordsId}>
         {act.label}
       </span>
@@ -262,9 +252,24 @@ function rowAct(act: RecordAct, ids: RowIds) {
       <span className="rec-row-chev" aria-hidden="true">
         <Icon name="chevron" size={11} />
       </span>
+    </>
+  );
+  const button = (
+    <button
+      type="button"
+      className="rec-row-act"
+      onClick={act.onClick}
+      aria-label={act.name || undefined}
+      aria-labelledby={id && !act.name ? `${wordsId} ${keyId}` : undefined}
+      aria-describedby={wrongId}
+      data-rec-act={id || undefined}
+      data-testid={act.testid || (id ? `rec-row-act-${id}` : undefined)}
+      {...(act.gate || {})}
+    >
+      {face}
     </button>
   );
-  return act.wrap ? act.wrap(button) : button;
+  return act.wrap ? act.wrap(button, face) : button;
 }
 
 /** A record's row: a label, its value, where the value came from, and one act. */

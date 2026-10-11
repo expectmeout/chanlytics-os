@@ -126,8 +126,9 @@ test("a press on a row is a press on its act, never for a press on something of 
   }
 });
 
-test("an act that opens something of its own hands its button to the page, which draws it as its menu's control", () => {
-  // The Logo row (00407): one act, as every row has, whose press opens a few choices. The kit asks nothing of the menu.
+test("an act that opens something of its own hands its button and its face to the page, which draws them as its menu's control", () => {
+  // The Logo row (00407): one act, as every row has, whose press opens a few choices. The kit asks nothing of the menu:
+  // the page's MoreMenu draws the act's face (its words and chevron) on its own trigger.
   const handed = [];
   const tree = draw(W.RecordRow, {
     id: "logo",
@@ -135,17 +136,21 @@ test("an act that opens something of its own hands its button to the page, which
     value: "BC",
     act: {
       label: "Add",
-      wrap: (button) => {
-        handed.push(button);
-        return W.React.createElement("span", { "data-testid": "the-pages-menu" }, button);
+      wrap: (button, face) => {
+        handed.push({ button, face });
+        return W.React.createElement("button", { className: "rec-row-act", "data-testid": "the-pages-menu" }, face);
       },
     },
   });
   assert.equal(handed.length, 1);
-  assert.ok(classes(handed[0]).includes("rec-row-act"), "the row's own act, its words and its chevron");
+  assert.ok(classes(handed[0].button).includes("rec-row-act"), "the row's own act");
   const menu = find(tree, (n) => n.props?.["data-testid"] === "the-pages-menu");
   assert.ok(menu, "drawn where the act stands");
-  assert.equal(textOf(find(menu, (n) => classes(n).includes("rec-row-act-words"))), "Add");
+  assert.equal(textOf(find(menu, (n) => classes(n).includes("rec-row-act-words"))), "Add", "the act's words");
+  assert.ok(
+    find(menu, (n) => classes(n).includes("rec-row-chev")),
+    "and the phone's chevron",
+  );
 });
 
 test("an act's arrow is drawn beside its words, never inside the box a phone clips to a pixel", () => {
@@ -169,8 +174,12 @@ test("an act's arrow is drawn beside its words, never inside the box a phone cli
   const icon = find(act, (n) => classes(n).includes("rec-row-act-icon"));
   assert.equal(find(icon, isIcon).props.name, "arrow-right", "the arrow, beside them");
   assert.equal(icon.props["aria-hidden"], "true", "a picture of where it goes, which the act's name already says");
-  const kids = [].concat(act.props.children).filter(Boolean);
-  assert.ok(kids.indexOf(words) < kids.indexOf(icon), "after the words");
+  // The act draws its face (one fragment, which a page's menu may draw on its own control): its parts, in order.
+  const kids = []
+    .concat(act.props.children)
+    .flatMap((k) => (k && k.type === W.React.Fragment ? [].concat(k.props.children) : [k]))
+    .filter(Boolean);
+  assert.ok(kids.indexOf(words) >= 0 && kids.indexOf(words) < kids.indexOf(icon), "after the words");
   // An act with no icon draws none.
   const plain = draw(W.RecordRow, {
     id: "website",
