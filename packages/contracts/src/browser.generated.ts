@@ -73,7 +73,7 @@ export { notesWords, instructionsWords, fallbacksWords, COMMON_LANGUAGES, TONE_P
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./config/business-tab/open-week";
 export { blockShareWords, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "./config/business-tab/prompt-cost-words";
 export { ruleStrength, rulesKept, rulesWithoutFieldsWords, ABILITY_CHANNEL_WORDS, VISION_STRENGTH, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS } from "./config/business-tab/rule-strengths";
-export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords } from "./config/business-tab/services-words";
+export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords, serviceLineWords, lengthWords, SERVICE_PRICE_EMPTY } from "./config/business-tab/services-words";
 export { knownForwarding, sameAddress, sameName, resolveFacts, factConflicts, changedConfigFields, SOURCE_WORDS } from "./config/facts";
 export { INTENT_LABELS } from "./config/intent-labels";
 export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./config/limits";
@@ -305,7 +305,7 @@ export { guessSlotKind, defaultSlotKinds, defaultParamSpecs, slotChoices, templa
 export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/template-titles";
 export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSendsOf, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_NAME_MAX, TEMPLATE_NAME_WORDS, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
 export { ALERT_TOPICS, ALERT_PANE_WORDS, BELL_LINE_KINDS, EMAIL_ALWAYS_KINDS, EMAILED_NOTIFICATION_KINDS, emailsNotificationKind, emailsFor, withTopicEmail, withTopicPush, alertTestMail, alertGrid, bellLineFor, phoneLine } from "./today/notification-kinds";
-export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, noteWhose, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX, REACH_OUT_DAY_ROUTE } from "./today/notifications";
+export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, noteWhose, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX, REACH_OUT_DAY_ROUTE, holdNotice } from "./today/notifications";
 export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, pushOffOf, pushesFor, parseMemberAlerts, unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";
 export { todayAwayGrouped, bellSections } from "./today/today-away";
 export { toTodayVM } from "./today/today-brief";

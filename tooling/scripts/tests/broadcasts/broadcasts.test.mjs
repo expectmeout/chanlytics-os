@@ -897,10 +897,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // sent the owner to record a consent that message does not need.
   const nobody = { audiences: [NOBODY] };
   const offers = textOf(byTestId(drawn({ initialSegment: "s-nobody" }, nobody), "bc-nobody"));
-  assert.ok(
-    offers.includes("has said yes to offers yet — that is a separate answer from saying yes to messages"),
-    offers,
-  );
+  assert.ok(offers.includes("has said yes to offers yet. Record it under “Offers and news”"), offers);
   const messages = textOf(
     byTestId(drawn({ initialSegment: "s-nobody" }, { ...nobody, templates: [utility] }), "bc-nobody"),
   );

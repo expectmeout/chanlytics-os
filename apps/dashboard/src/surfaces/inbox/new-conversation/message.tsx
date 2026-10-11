@@ -34,9 +34,14 @@ function heldLines(ways: readonly WriteWay[]) {
     ));
 }
 
-/** The wire: chosen where more than one can carry it, and said with what it carries. */
+/**
+ * The wire: chosen where more than one can carry it, and said with what it carries. The ways it cannot go are one press
+ * away under it ("Why not Text or Email?"), each with why: said, never hidden, and never three lines in the way of the
+ * words (Ruben, 10 Oct 2026). Where no way is open they are the whole of what is said (NewMessage).
+ */
 function wirePart(s: SheetState, reach: PersonReachDto, way: WriteWay) {
   const open = reach.ways.filter((w) => w.ok);
+  const held = reach.ways.filter((w) => !w.ok);
   return (
     <section className="ix-new-part">
       {open.length > 1 ? (
@@ -50,7 +55,12 @@ function wirePart(s: SheetState, reach: PersonReachDto, way: WriteWay) {
       <p className="ix-new-said" data-testid="ix-new-way">
         {writeWayWords(way)}
       </p>
-      {heldLines(reach.ways)}
+      {held.length ? (
+        <details className="ix-new-held" data-testid="ix-new-held">
+          <summary className="ix-new-held-why">{W.heldWhy(held.map((w) => writeWireName(w.wire)))}</summary>
+          {heldLines(reach.ways)}
+        </details>
+      ) : null}
     </section>
   );
 }

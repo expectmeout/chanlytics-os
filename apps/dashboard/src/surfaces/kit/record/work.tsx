@@ -82,25 +82,25 @@ export function useUnsavedWork(
   };
 }
 
-/** The one question, where the Cancel was. `what` is what has not happened: sent, saved, submitted. */
+/**
+ * The one question, where the Cancel was, and its two answers. Nothing under it: a line saying nothing had been sent
+ * said the question again (Ruben, 10 Oct 2026, the sheets made shorter).
+ */
 export function UnsavedAsk({
   onYes,
   onNo,
   busy = false,
-  what = "sent",
   testid = null,
 }: {
   onYes: () => void;
   onNo?: () => void;
   busy?: boolean;
-  what?: string;
   testid?: string | null;
 }) {
   return (
     <Confirm
-      question="Throw away what you've written?"
-      detail={`Nothing has been ${what}.`}
-      yes="Yes, throw it away"
+      question="Discard what you wrote?"
+      yes="Discard"
       no="Keep writing"
       discard
       busy={busy}

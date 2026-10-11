@@ -93,7 +93,7 @@ declare const ALERT_PANE_WORDS: {
     readonly bellOn: "Always on";
     readonly email: "Email";
     readonly emailNobody: "Nobody yet";
-    readonly emailNobodyHint: "Until an address is added, a customer who needs a person reaches nobody by email: Chanlytics is told the workspace needs one, without the customer's message.";
+    readonly emailNobodyHint: "Until one is added, nobody is emailed when a customer needs a person.";
     readonly emailMore: (n: number) => string;
     readonly change: "Change";
     readonly done: "Done";
@@ -112,7 +112,7 @@ declare const ALERT_PANE_WORDS: {
     readonly phoneHint: "Signing out on a phone stops its alerts.";
     readonly browser: "This browser";
     readonly browserValue: "When someone needs you right now";
-    readonly browserHint: "A customer who needs a person, a reply waiting for your OK, a missed call, or a search's question, while Chanlytics is open in a tab.";
+    readonly browserHint: "While Chanlytics is open in a tab.";
     readonly browserBlocked: "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.";
     readonly what: "What you're told about";
     readonly whatSub: "Tick where else each one reaches you. Email is the business's; your phone is yours.";

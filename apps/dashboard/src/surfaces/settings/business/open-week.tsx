@@ -5,14 +5,19 @@
 // carried the same week as a ribbon; the sentence says the week in full, and the graphic said nothing it did not.
 // Split from open.tsx so no file is over the length the build holds; nothing of it changed.
 //
-// The rows that come and go inside a fold (a day's shifts) are drawn hookless, as plain boxes wearing the kit's class,
-// and the one menu is always drawn.
+// The rows that come and go inside a fold (a day's shifts) are drawn hookless but for their times, each the house's
+// menu (MoreMenu) standing in the kit's box: a glass list of the day's half hours, the one held in the middle of it, where
+// the browser's own picker drew in the system's colours (Ruben, 10 Oct 2026). The menu, not the kit's Picker: Settings
+// loads no Base UI popup, and the Picker's Select and Combobox would put them on every Settings tab (the interface
+// skill, "A list on a page that loads no Base UI popup"). The copy menu is always drawn.
 import { Fragment } from "react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, KeyboardEvent, ReactNode } from "react";
+import { clockLabel } from "@chanlytics/contracts";
+import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
-import { RecordBox, RecordSwitch } from "../../kit/record/field";
+import { RecordSwitch } from "../../kit/record/field";
 import type { BtFold } from "./gestures/fold";
 import { businessTabSave } from "./saver";
 
@@ -61,6 +66,86 @@ const btoSameShifts = (a: Day, b: Day) =>
 
 /** What BtFold hands the week's body. */
 type WeekFields = FoldFields<Week>;
+
+/** A time as the week stores it ("09:30"), in minutes from midnight. */
+const btoMinutes = (t: string) => {
+  const [h = 0, m = 0] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+
+/** A time as the page says one: "9 AM", "9:30 AM" (contracts clockLabel, the Calendar's). */
+const btoTimeWords = (t: string) => clockLabel(btoMinutes(t) / 60);
+
+/** The times a shift is picked from: every half hour of the day, as the week stores them, "00:00" to "23:30". */
+const BTO_TIMES = Array.from(
+  { length: 48 },
+  (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`,
+);
+
+/** The part of the day each time falls in, from its first minute: a heading over its times, so a long list is read. */
+const BTO_PARTS: [number, string][] = [
+  [0, "Night"],
+  [5 * 60, "Morning"],
+  [12 * 60, "Afternoon"],
+  [17 * 60, "Evening"],
+];
+
+/** What one time menu picks from: the time it holds, what it does, where it starts, and the opening a closing follows. */
+interface TimeChoice {
+  value: string;
+  does: "opens" | "closes";
+  /** Where the list opens when it holds no time: nine in the morning, or eight hours after the opening. */
+  start: string;
+  /** The opening a closing is picked after: its times are the ones after it, each with how long the shift runs. */
+  after: string | null;
+  pick: (time: string) => void;
+}
+
+/**
+ * A time menu's items: the half hours under the part of the day each falls in, the one held ticked (kept in the list
+ * where it is off the half hour: a record typed elsewhere), and for a closing only the times after its opening, each
+ * with how long the shift would run ("8 h 30 min", contracts lengthWords), so the closing is picked by the day it
+ * makes.
+ */
+const btoTimeItems = (c: TimeChoice): NonNullable<ComponentProps<typeof MoreMenu>["items"]> => {
+  const from = c.after ? btoMinutes(c.after) : -1;
+  const times = [...new Set([...BTO_TIMES, ...(c.value ? [c.value] : [])])]
+    .filter((t) => t === c.value || btoMinutes(t) > from)
+    .sort((a, b) => btoMinutes(a) - btoMinutes(b));
+  const items: NonNullable<ComponentProps<typeof MoreMenu>["items"]> = [];
+  let part = "";
+  for (const t of times) {
+    const heading = [...BTO_PARTS].reverse().find(([at]) => btoMinutes(t) >= at)?.[1] ?? "";
+    if (heading !== part) {
+      items.push({ header: heading });
+      part = heading;
+    }
+    items.push({
+      label: btoTimeWords(t),
+      value: t,
+      checked: t === c.value,
+      start: !c.value && t === c.start,
+      hint: c.after ? BUSINESS_TAB.lengthWords(btoMinutes(t) - from) : undefined,
+      onClick: () => c.pick(t),
+    });
+  }
+  return items;
+};
+
+/**
+ * Escape closes an open menu (a time's, the copy's) and nothing else: the fold's own Escape is Cancel, and with a menu
+ * open over it one key would have closed the menu and asked to discard the week. The fold leaves a key alone once
+ * something inside took it (the kit's recKeys). Held once, by the week, for every menu in it.
+ */
+const btoHoldEscape = (e: KeyboardEvent<HTMLElement>) => {
+  const up =
+    e.key === "Escape" &&
+    e.currentTarget &&
+    "querySelector" in e.currentTarget &&
+    e.currentTarget.querySelector<HTMLElement>('[aria-expanded="true"]');
+  if (up) e.preventDefault();
+};
+
 type Press = WeekFields["press"];
 type Change = WeekFields["change"];
 
@@ -208,8 +293,49 @@ const btoWeekActs = (week: Week, f: WeekFields): WeekActs => {
 };
 
 /**
- * One day of the week: a switch, its times as boxes, a break to add, and what is wrong with it. Hookless: a day's
- * shifts come and go.
+ * One time of a shift: the house's menu in the kit's box, its words the time it holds ("9:30 AM", or "Set" while it
+ * holds none), named for its day, what it does and its place ("Monday opens: 9:30 AM"), wrong by the day's sentence,
+ * and shut while a save is out. Its value and id are the box's, so a reader and a test find it as they found the box.
+ */
+const BtoTime = ({
+  id,
+  name,
+  bad,
+  readOnly,
+  choice,
+}: {
+  id: string;
+  name: string;
+  bad: string | null;
+  readOnly: boolean;
+  choice: TimeChoice;
+}) => (
+  <span className="bt-time-pick">
+    <MoreMenu
+      // While a save is out a time takes no change, as the box it replaced took no typing (aria-disabled, below).
+      items={btoTimeItems(readOnly ? { ...choice, pick: () => undefined } : choice)}
+      label={choice.value ? btoTimeWords(choice.value) : "Set"}
+      title={name}
+      ariaLabel={choice.value ? `${name}: ${btoTimeWords(choice.value)}` : name}
+      btnClass="rec-input rec-select bt-time"
+      align="left"
+      escape
+      boxAttrs={{
+        id,
+        value: choice.value,
+        "data-empty": choice.value ? undefined : "true",
+        "aria-invalid": bad ? true : undefined,
+        "aria-describedby": bad || undefined,
+        "aria-disabled": readOnly ? true : undefined,
+      }}
+      gated={readOnly ? "Saving — the hours can be changed once this is saved." : null}
+    />
+  </span>
+);
+
+/**
+ * One day of the week, on one line: a switch, its times as boxes, a break to add at the end of its first shift, and
+ * what is wrong with it. Hookless: a day's shifts come and go.
  */
 const BtoDay = ({
   d,
@@ -252,32 +378,41 @@ const BtoDay = ({
               <span key={n} className="bt-week-shift" {...list.row(n)}>
                 {/* The kit's box for a row of a list, named for its day and its place ("Monday closes, second
                     shift"): the day's one sentence is drawn once, under the row, and both boxes are wrong by it. */}
-                <RecordBox
+                <BtoTime
                   id={`bt-hours-${d}-${n}-open`}
-                  label={btoShiftName(long, n, "opens")}
-                  type="time"
-                  size="sm"
-                  className="bt-time"
-                  value={sh.open}
-                  onChange={(v) => acts.setShift(d, n, "open", v)}
-                  invalid={bad ? problemId : null}
+                  name={btoShiftName(long, n, "opens")}
+                  bad={bad ? problemId : null}
                   readOnly={readOnly}
+                  choice={{
+                    value: sh.open,
+                    does: "opens",
+                    start: (n > 0 && day.shifts[n - 1]?.close) || "09:00",
+                    after: null,
+                    pick: (t) => acts.setShift(d, n, "open", t),
+                  }}
                 />
-                <span className="bt-week-to">to</span>
-                <RecordBox
+                <span className="bt-week-to" aria-hidden="true">
+                  –
+                </span>
+                <BtoTime
                   id={`bt-hours-${d}-${n}-close`}
-                  label={btoShiftName(long, n, "closes")}
-                  type="time"
-                  size="sm"
-                  className="bt-time"
-                  value={sh.close}
-                  onChange={(v) => acts.setShift(d, n, "close", v)}
-                  invalid={bad ? problemId : null}
+                  name={btoShiftName(long, n, "closes")}
+                  bad={bad ? problemId : null}
                   readOnly={readOnly}
+                  choice={{
+                    value: sh.close,
+                    does: "closes",
+                    start: sh.open
+                      ? BTO_TIMES.find((t) => btoMinutes(t) >= btoMinutes(sh.open) + 8 * 60) || "23:30"
+                      : "17:00",
+                    after: sh.open || null,
+                    pick: (t) => acts.setShift(d, n, "close", t),
+                  }}
                 />
-                {/* The first shift has no remove control: the switch on
-                    the left already means "closed", and two ways to say
-                    the same thing is how one of them gets misread. */}
+                {/* Each shift's line ends in its one act: the first shift's adds a break, where the day takes one more
+                    (rows' canAdd: the write schema refuses more), and a later shift's removes it. The first shift has
+                    no remove: the switch on the left already means "closed", and two ways to say the same thing is
+                    how one of them gets misread. */}
                 {n > 0 ? (
                   <button
                     type="button"
@@ -288,6 +423,18 @@ const BtoDay = ({
                   >
                     <Icon name="x" size={11} />
                   </button>
+                ) : list.canAdd ? (
+                  <button
+                    type="button"
+                    className="bt-week-break"
+                    {...press(() => acts.addShift(d))}
+                    aria-label={`Add a break to ${long}`}
+                    data-tip="Add a break"
+                    data-testid={`rec-hours-add-${d}`}
+                  >
+                    <Icon name="plus" size={10} />
+                    <span className="bt-week-break-word"> break</span>
+                  </button>
                 ) : null}
               </span>
             ))}
@@ -295,20 +442,6 @@ const BtoDay = ({
         ) : (
           <span className="bt-week-closed">{kept ? "Closed — times kept" : "Closed"}</span>
         )}
-      </span>
-      <span className="bt-week-more">
-        {/* The write schema refuses more than this, so the fold must not offer it (rows' canAdd). */}
-        {day.isOpen && list.canAdd ? (
-          <button
-            type="button"
-            className="bt-week-break"
-            {...press(() => acts.addShift(d))}
-            aria-label={`Add a break to ${long}`}
-            data-testid={`rec-hours-add-${d}`}
-          >
-            <Icon name="plus" size={10} /> break
-          </button>
-        ) : null}
       </span>
       <FieldError id={problemId} message={bad} testid={`rec-hours-problem-${d}`} />
     </div>
@@ -339,22 +472,7 @@ const btoCopies = (from: DayKey | null, apply: (from: DayKey, days: DayKey[]) =>
  */
 const BtoWeekCopy = ({ from, copies, readOnly }: { from: DayKey | null; copies: MenuItems; readOnly: boolean }) => (
   <div className="bt-week-copy">
-    {/* Escape closes the menu and nothing else: the fold's own Escape is Cancel, and with the menu open over it one
-        key would have closed the menu and asked to discard the week. The fold leaves a key alone once something
-        inside took it (the kit's recKeys). */}
-    <div
-      className="bt-week-copy-menu"
-      hidden={from ? undefined : true}
-      onKeyDown={(e) => {
-        const up =
-          e.key === "Escape" &&
-          e.currentTarget &&
-          "querySelector" in e.currentTarget &&
-          e.currentTarget.querySelector<HTMLElement>('[aria-expanded="true"]');
-        if (up) e.preventDefault();
-      }}
-      data-testid="rec-hours-copy"
-    >
+    <div className="bt-week-copy-menu" hidden={from ? undefined : true} data-testid="rec-hours-copy">
       <MoreMenu
         items={copies}
         label={`Copy ${from ? BTO_LONG[from] : "a day"} to…`}
@@ -383,7 +501,8 @@ export const BtoWeek = (f: WeekFields) => {
   const from = (BTO_DAYS.find(([d]) => week[d].isOpen) || [null])[0];
   const copies = btoCopies(from, (day, days) => btoApplyToAll(week, f.change, day, days));
   return (
-    <div className="bt-week" data-testid="rec-hours-week">
+    // eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- the week only holds Escape for the menus in it (btoHoldEscape); every control in it is a real button
+    <div className="bt-week" data-testid="rec-hours-week" onKeyDown={btoHoldEscape}>
       {BTO_DAYS.map(([d, long, short]) => (
         <BtoDay
           key={d}

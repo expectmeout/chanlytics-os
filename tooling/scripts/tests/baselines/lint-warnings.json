@@ -283,9 +283,6 @@
   "apps/dashboard/src/surfaces/settings/business/open-calendar.tsx": {
     "react-hooks/exhaustive-deps": 3
   },
-  "apps/dashboard/src/surfaces/settings/business/open-week.tsx": {
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
   "apps/dashboard/src/surfaces/settings/connections/row.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1
   },

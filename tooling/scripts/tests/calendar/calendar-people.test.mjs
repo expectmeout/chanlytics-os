@@ -861,10 +861,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   const page = readCode("apps/dashboard/src/surfaces/calendar/panel.tsx");
   for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"])
     assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(
-    page.includes("From ${source}. The receptionist treats this time as taken; to change or cancel it, edit it there."),
-    "one line, no feed counts",
-  );
+  assert.ok(page.includes("`From ${source}. Change or cancel it there.`"), "one line, no feed counts");
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
   assert.ok(page.includes("matched by {person.via}") && page.includes("Not in People yet"));
   const dto = readCode("packages/contracts/src/calendar/calendar.ts");

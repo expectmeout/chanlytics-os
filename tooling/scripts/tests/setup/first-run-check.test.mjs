@@ -212,7 +212,7 @@ test("a tap on how customers buy saves through the workspace's door, and the boo
     assert.equal(byTestId(tree, "rec-row-booking_link"), null, "a business that quotes is asked for no link");
     assert.equal(
       textOf(byTestId(tree, "fr-check-quotes")),
-      "Optional for a business that quotes: without one, it takes their details instead.",
+      "Optional. Without one, it takes their details.",
       "and is told what it does without one, in the row's own words",
     );
     assert.equal(textOf(flashes.at(-1).msg), "Saved — deals are on.");

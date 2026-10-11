@@ -1364,7 +1364,7 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
     const line = byTestId(tree, "bc-nobody");
     assert.equal(
       textOf(line),
-      "Nobody on “Everyone who said yes” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.",
+      "Nobody on “Everyone who said yes” has said yes to offers yet. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.",
       "REGRESSION: '…with the phrase and QR below'",
     );
     const door = byTestId(line, "bc-nobody-door");
@@ -1457,7 +1457,7 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
     tree = writing(props);
     assert.equal(
       textOf(byTestId(tree, "bc-nobody")),
-      "Nobody on “Everyone who said yes” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile.",
+      "Nobody on “Everyone who said yes” has said yes to offers yet. Record it under “Offers and news” on their profile.",
     );
     assert.equal(byTestId(tree, "bc-nobody-door"), null);
     // A surface cached before the page knew where the card is: the sentence ends at the profile until it is read again.
@@ -1580,7 +1580,7 @@ test("REGRESSION: the send screen tells a list with no number from a list with n
   line = nobodyOn("s-walk", offer);
   assert.equal(
     textOf(line),
-    "Nobody on “Walk-ins” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.",
+    "Nobody on “Walk-ins” has said yes to offers yet. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.",
   );
   assert.ok(byTestId(line, "bc-nobody-door"), "the door, for the list that needs a yes");
   assert.equal(
@@ -4018,7 +4018,7 @@ test("A message written here can carry a Book now button, and it is the one kind
     assert.ok(buttonLabel.includes("booksy.com/luna-studio"), buttonLabel);
     byTestId(tree, "tpl-button-text").props.onValueChange("Book now");
     all(tree, (n) => n.props?.["data-testid"] === "tpl-examples").length;
-    const ex = find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").includes("what a real value"));
+    const ex = find(tree, (n) => n.type === Field && n.props?.placeholder === "Ana");
     if (ex) ex.props.onValueChange("Dani");
     tree = drawAgain(() => TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} }));
 
@@ -4368,7 +4368,7 @@ test("Send by: a switch for each channel under To, WhatsApp alone on by default,
       .split(" ")
       .includes("bc-col"),
   ).map((n) => n.props["data-testid"]);
-  assert.deepEqual(cols, ["bc-col-who", "bc-col-via", "bc-col-what", "bc-col-when"]);
+  assert.deepEqual(cols, ["bc-col-who", "bc-col-via", "bc-col-what", "bc-col-when", "bc-col-name"]);
   // An offer: texts carry no offers, and offers by email wait for their release.
   setSurfaceValue("broadcasts", viaSurface({ templates: [offerRow()], ready: OFFERS_CLOSED }));
   tree = writing({ initialSegment: null, initialRun: null });
@@ -4628,8 +4628,11 @@ test("the number matters to a send only where it goes by WhatsApp: a paused numb
   assert.equal(reasonsOf(tree).whatsapp, paused.refusal);
   assert.equal(byTestId(tree, "bc-send").props.disabled, true);
   assert.ok(byTestId(tree, "bc-number-refusal"), "the number's own words stand, as it is the channel that was ticked");
+  // The line says nothing can carry it, not that nobody said yes: once, in the foot by the send it stops (10 Oct 2026:
+  // the row under To said the same sentence a second time).
+  assert.equal(byTestId(tree, "bc-nobody"), null);
   assert.equal(
-    textOf(byTestId(tree, "bc-nobody")),
+    textOf(byTestId(tree, "bc-foot-say")),
     "None of the channels ticked can carry this message yet.",
     "and the line says nothing can carry it, not that nobody said yes",
   );

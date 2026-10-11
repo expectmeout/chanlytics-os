@@ -20,13 +20,45 @@ export interface ServicesWordsVM {
   count: number;
   /** "33"; null with none, and the row says it has none. The key says what it counts. */
   line: string | null;
-  /** The first three in the stored order, which is the order the receptionist reads them in: each name, and "180 min" where it has a duration ("180m" a screen reader may say as metres). */
+  /** The first three in the stored order, which is the order the receptionist reads them in: each name, and how long it takes where it has a duration ("3 h", serviceTakesWords). */
   chips: { name: string; takes: string | null }[];
   /** "+30" past the three; null when every one is a chip. */
   more: string | null;
 }
 
 const SERVICE_CHIPS = CHIPS_SHOWN;
+
+/**
+ * How long something takes, in an owner's words: a service ("3 h"), or a shift of the hours from its opening to its
+ * closing ("8 h 30 min"). "45 min" under an hour, then hours and what is left (never "180m", which a screen reader may
+ * say as metres). Minutes as typed are read too ("90"), since the sheet's box holds a string while it is typed in;
+ * anything that is not a positive number of minutes says nothing.
+ */
+export function lengthWords(minutes: number | string | null | undefined): string | null {
+  const m = typeof minutes === "string" ? Number(minutes.trim()) : minutes;
+  if (typeof m !== "number" || !Number.isFinite(m) || m <= 0) return null;
+  const whole = Math.round(m);
+  if (whole < 60) return `${whole} min`;
+  const h = Math.floor(whole / 60);
+  const rest = whole % 60;
+  return rest ? `${h} h ${rest} min` : `${h} h`;
+}
+
+/** What a service's price says when none is written: the receptionist quotes it at a consultation. */
+export const SERVICE_PRICE_EMPTY = "At consult";
+
+/**
+ * A service's one line in the services sheet on a phone, under its name: how long it takes, its price or that it is
+ * quoted at a consultation, and that it is booked as a consultation first where the booking rules say so: "3 h · At
+ * consult", "45 min · $40 · Consult first". The row opens onto its boxes when pressed.
+ */
+export function serviceLineWords(
+  s: { duration_min?: number | string | null; price_note?: string | null },
+  consultFirst: boolean,
+): string {
+  const price = typeof s.price_note === "string" && s.price_note.trim() ? s.price_note.trim() : SERVICE_PRICE_EMPTY;
+  return [lengthWords(s.duration_min), price, consultFirst ? "Consult first" : null].filter(Boolean).join(" · ");
+}
 
 /**
  * The services row at rest: how many are on record, and the first few by name with how long each takes.
@@ -45,7 +77,7 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
   if (!n) return { count: 0, line: null, chips: [], more: null };
   const chips = list.slice(0, SERVICE_CHIPS).map((s) => ({
     name: s.name.trim(),
-    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null,
+    takes: lengthWords(s.duration_min),
   }));
   return {
     count: n,

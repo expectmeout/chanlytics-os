@@ -741,13 +741,17 @@ a.more-item {
   /* The house's MoreMenu (Settings' filters and rows) is the same sheet (10 Oct 2026: a phone's menu is a bottom action
      sheet, always), drawn on the document's body there (more-menu.tsx, `data-sheet`) so no card that isolates its
      layers holds it under the tab bar. */
+  /* Over a sheet it opens from, as the kit's own menu on its positioner is (.pop-place, 420): at the menus' own 250 a
+     time's or a copy's list opened behind the Hours sheet that held its trigger, and only its veil showed. */
   .more-menu[data-sheet] {
     position: fixed;
     inset: auto 0 0 0;
+    z-index: 420;
     min-width: 0;
     transform-origin: bottom center;
   }
   .more-backdrop[data-sheet] {
+    z-index: 419;
     background: var(--surface-veil);
   }
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
@@ -4108,7 +4112,9 @@ footer.rec-sheet-foot .btn {
 .rec-sheet[data-phone="true"] .rec-sheet-head {
   padding-top: 22px;
 }
-.rec-sheet[data-phone="true"]:has(.rec-sheet-foot :is(.rec-foot, [data-foot-pair]))
+/* The question that stands in the foot's place while a Cancel asks (Confirm) keeps the corner's Close out of sight too:
+   it came back for the length of the question, and went again with the answer. */
+.rec-sheet[data-phone="true"]:has(.rec-sheet-foot :is(.rec-foot, [data-foot-pair], .confirm))
   .rec-sheet-close:not(:focus-visible) {
   position: absolute;
   width: 1px;

@@ -417,10 +417,29 @@ const openFolds = (tree) =>
   );
 const saveFoldOf = (tree, id) => press(byTestId(tree, `rec-fold-save-${id}`));
 const cancelFoldOf = (tree, id) => press(byTestId(tree, `rec-fold-cancel-${id}`));
-/** A box by the name a screen reader hears, and typing into it the way a person does. */
+/**
+ * A box by the name a screen reader hears, and typing into it the way a person does. A time of the hours is a menu in
+ * the kit's box (open-week.tsx BtoTime), named for what it does and the time it holds ("Monday opens: 9:30 AM"): found
+ * by the first, and "typed into" by opening it and pressing the time.
+ */
+const isTimeMenu = (n) => n.type === "button" && n.props["aria-haspopup"] === "menu" && "value" in n.props;
 const labelled = (tree, label) =>
-  find(tree, (n) => (n.type === "input" || n.type === "textarea") && n.props["aria-label"] === label);
-const typeAt = (tree, label, text) => labelled(tree, label).props.onChange({ target: { value: text } });
+  find(
+    tree,
+    (n) =>
+      ((n.type === "input" || n.type === "textarea") && n.props["aria-label"] === label) ||
+      (isTimeMenu(n) && String(n.props["aria-label"] || "").replace(/: .*$/, "") === label),
+  );
+const typeAt = (tree, label, text) => {
+  const box = labelled(tree, label);
+  if (!isTimeMenu(box)) return box.props.onChange({ target: { value: text } });
+  box.props.onClick({ stopPropagation() {}, preventDefault() {}, detail: 1 });
+  const time = find(redrawTab(), (n) => n.props?.role === "menuitemradio" && n.props["data-value"] === text);
+  // Shut while a save is out, as the box took no typing then: nothing opens, and nothing is picked.
+  if (!time && box.props["aria-disabled"]) return undefined;
+  if (!time) throw new Error(`${label}: no ${JSON.stringify(text)} among its times`);
+  return time.props.onClick();
+};
 /** What a box in a row of a list says is wrong with it: the kit's FieldError under the box (RecordBox), or null. */
 const problemUnder = (tree, boxTestid) => {
   const box = byTestId(tree, boxTestid);

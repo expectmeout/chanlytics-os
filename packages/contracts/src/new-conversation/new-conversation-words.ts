@@ -45,7 +45,8 @@ export const NEW_CONVERSATION_WORDS = {
   how: { label: "Message or call", message: "Message", call: "Call" },
   about: {
     label: "What is it about?",
-    hint: "A line is enough: follow up on their quote, tell them Saturday opened up.",
+    // What a line looks like is the box's own, until something is typed (Ruben, 10 Oct 2026: a sentence under it said it).
+    placeholder: "Follow up on their quote, or Saturday opened up",
   },
   write: {
     message: "Write it",
@@ -57,6 +58,9 @@ export const NEW_CONVERSATION_WORDS = {
   },
   asks: "Before it is written",
   wire: "How it goes",
+  /** The ways it cannot go, one press away under the way it goes: "Why not Text or Email?". */
+  heldWhy: (names: readonly string[]) =>
+    `Why not ${names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}` : names[0]}?`,
   subject: "Subject",
   words: "Message",
   approved: {
@@ -70,25 +74,25 @@ export const NEW_CONVERSATION_WORDS = {
   then: {
     label: "When they answer",
     receptionist: "The receptionist answers",
-    receptionistHint: "It will know your plan.",
+    receptionistHint: "Knows your plan",
     me: "I answer",
-    meHint: "The receptionist stays quiet until you hand the thread back.",
+    meHint: "It stays quiet until you hand it back",
     comesToYou: "Their answer comes to you, in Needs you.",
   },
   note: {
-    label: "The receptionist will know",
+    label: "Note for the receptionist",
     leaveOut: "Leave it out",
-    putBack: "Tell the receptionist",
-    empty: "Say what it is about above, or write the note here.",
+    putBack: "Add a note for the receptionist",
+    empty: "What it should know",
   },
   send: "Send",
   cancel: "Cancel",
   close: "Close",
   // The house's one question about what was typed and not sent, word for word (the record kit's UnsavedAsk).
   leave: {
-    question: "Throw away what you've written?",
-    detail: "Nothing has been sent.",
-    yes: "Yes, throw it away",
+    question: "Discard what you wrote?",
+    detail: null,
+    yes: "Discard",
     no: "Keep writing",
   },
   done: "Done",

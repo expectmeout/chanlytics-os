@@ -735,7 +735,7 @@ test("the email row's form: offered from the business's name, judged under its o
   const box = () => find(byTestId(tree, "email-local"), (n) => n.type === "input");
   assert.equal(box().props.value, "best-movers", "an address to start from, never a blank box");
   assert.match(textOf(byTestId(tree, "email-local")), /@mail\.chanlytics\.com/);
-  assert.match(textOf(byTestId(tree, "email-local")), /cannot be changed later/);
+  assert.match(textOf(byTestId(tree, "email-local")), /can't be changed later/);
 
   box().props.onChange({ target: { value: "best movers" } });
   tree = settle(Connections);

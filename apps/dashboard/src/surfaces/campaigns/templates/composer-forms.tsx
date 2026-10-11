@@ -140,7 +140,7 @@ export function composerFields({ st, facts }: ComposerCtx) {
                   return next;
                 })
               }
-              placeholder="what a real value looks like"
+              placeholder="Ana"
             />
           ))}
         </div>
@@ -223,7 +223,7 @@ export function translationForm(c: ComposerCtx, translate: TemplateTranslation, 
       {!drafting && !failed && <FieldError message={error} testid="tpl-error" />}
       <div className="bc-actions">
         {work.asking ? (
-          <UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" />
+          <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="tpl-leave" />
         ) : (
           <>
             <span className="bc-excl-hint">
@@ -437,10 +437,11 @@ function ownForm(c: ComposerCtx) {
       <Field label="Language" control={languagePicker(st)} />
       <div className="tpl-own-values" data-testid="tpl-own-values">
         {values.map((v, i) => (
-          // A value is its place in the message ({{1}}, {{2}}): the row's key is that place.
+          // A value is its place in the message ({{1}}, {{2}}): the row's key is that place. Its name and its example
+          // share a line on a phone (Ruben, 10 Oct 2026: each value took two full-width boxes).
           <div className="tpl-own-value" key={i}>
             <Field
-              label={`Name of value ${i + 1}`}
+              label={`Value ${i + 1}`}
               value={v.label}
               maxLength={TEMPLATE_LABEL_MAX}
               onValueChange={(label) => change(i, { label })}
@@ -448,11 +449,11 @@ function ownForm(c: ComposerCtx) {
               data-testid={`tpl-own-value-${i + 1}-name`}
             />
             <Field
-              label={`Example for value ${i + 1}`}
+              label={`Value ${i + 1} example`}
               value={v.example}
               maxLength={TEMPLATE_EXAMPLE_MAX}
               onValueChange={(example) => change(i, { example })}
-              placeholder="what a real value looks like"
+              placeholder="Ana"
               data-testid={`tpl-own-value-${i + 1}-example`}
             />
           </div>
@@ -507,7 +508,7 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
   const { ready } = facts;
   // Where the composer cannot begin a message of its own, it is WhatsApp's whatever a kept draft says.
   const where = begins ? st.where : "whatsapp";
-  const leave = <UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" />;
+  const leave = <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="tpl-leave" />;
   return (
     <CmPane
       testid="messages-composer"
@@ -587,7 +588,7 @@ export function newTemplateForm(c: ComposerCtx, made: Made) {
       <div className="bc-actions">
         {/* Close, with words in it: the one question first (UnsavedAsk), where the submit was. */}
         {work.asking ? (
-          <UnsavedAsk onYes={work.discard} onNo={work.stay} what="submitted" testid="tpl-leave" />
+          <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="tpl-leave" />
         ) : (
           <>
             <span className="bc-excl-hint">
