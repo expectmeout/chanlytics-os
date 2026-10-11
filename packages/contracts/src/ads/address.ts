@@ -44,6 +44,19 @@ const NONE: AdsAddress = { ad: null, compose: null, results: false };
 /** Whether a param of `campaigns` is the Ads view's: `ads`, or `ads:` and more. */
 export const isAdsParam = (param: string): boolean => /^ads(:|$)/.test(param);
 
+/**
+ * Whether a workspace's config turns its Ads preview on (`features.ads_preview`, the flag registry's `ads_preview`): its
+ * Campaigns › Ads drawn from the sample, as a demo session draws it, until the Ads read is wired (0049). Read off the
+ * config as stored, so anything but `true` is off.
+ */
+export function adsPreviewOf(config: unknown): boolean {
+  if (typeof config !== "object" || config === null || !("features" in config)) return false;
+  const features: unknown = config.features;
+  return (
+    typeof features === "object" && features !== null && "ads_preview" in features && features.ads_preview === true
+  );
+}
+
 const adStartOf = (word: string): AdStart | undefined => STARTS.find((s) => s === word);
 
 /** What the composer's words say: a door, or an ad to start from. */

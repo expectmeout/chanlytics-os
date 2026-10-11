@@ -384,7 +384,11 @@ var CalendarConfigSchema = z3.object({
   ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strip();
 var BookingsConfigSchema = z3.object({ tool: z3.string().max(40).optional(), by_hand: z3.boolean().optional() }).strip();
-var FeaturesConfigSchema = z3.object({ vision: z3.boolean().optional() }).strip();
+var FeaturesConfigSchema = z3.object({
+  vision: z3.boolean().optional(),
+  /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
+  ads_preview: z3.boolean().optional()
+}).strip();
 var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),

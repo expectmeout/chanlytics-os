@@ -23,7 +23,7 @@ import { googleVerbs } from "@/legacy-bridge/google";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
-import { demoSession } from "../../legacy-verbs";
+import { useAdsShown } from "../../campaigns/ads/shown";
 import { useSurface } from "../../use-surface";
 import type { SetupSurface } from "../../setup/surface";
 import { SendingDomains } from "./domains-block";
@@ -250,6 +250,8 @@ export const PaneIntegrationsReal = () => {
   const G = useSurface("google");
   const waCfg = useWhatsAppConfig();
   const [busy, setBusy] = useState(false);
+  // Ad accounts, a demo's card or a workspace's whose Ads preview is on (campaigns/ads/shown.ts); no other workspace draws it.
+  const adsShown = useAdsShown();
   const [arm, setArm] = useState<Arm | null>(null);
   // The email row's form, open only once its verb is pressed.
   const [emailOpen, setEmailOpen] = useState(false);
@@ -355,7 +357,7 @@ export const PaneIntegrationsReal = () => {
   return (
     <>
       {groups.map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
-      {demoSession() && (
+      {adsShown && (
         <Suspense fallback={null}>
           <AdAccounts flash={flash} />
         </Suspense>

@@ -7954,6 +7954,11 @@ var DOORS = ["whatsapp", "call", "form"];
 var STARTS = ["copy", "again", "google"];
 var NONE = { ad: null, compose: null, results: false };
 var isAdsParam = (param) => /^ads(:|$)/.test(param);
+function adsPreviewOf(config2) {
+  if (typeof config2 !== "object" || config2 === null || !("features" in config2)) return false;
+  const features = config2.features;
+  return typeof features === "object" && features !== null && "ads_preview" in features && features.ads_preview === true;
+}
 var adStartOf = (word) => STARTS.find((s) => s === word);
 function composeOf(rest) {
   const [first = "", ...more] = rest.split(":");
@@ -9349,6 +9354,13 @@ var FLAGS = [
     name: "vision",
     mechanism: "workspace_feature",
     does: "The receptionist looks at photos customers send over WhatsApp.",
+    owner: "Ruben",
+    sunset: "2026-12-31"
+  },
+  {
+    name: "ads_preview",
+    mechanism: "workspace_feature",
+    does: "Campaigns \u203A Ads (its page, its Reports lens, Ad accounts in Connections) drawn from its sample in this workspace, as a demo session draws it, before the Ads read is wired (0049).",
     owner: "Ruben",
     sunset: "2026-12-31"
   },
@@ -40080,6 +40092,7 @@ export {
   addDays,
   addressAlreadyKnown,
   addressInMessage,
+  adsPreviewOf,
   adsReportRoute,
   adsResultsRoute,
   adsScopeKey,

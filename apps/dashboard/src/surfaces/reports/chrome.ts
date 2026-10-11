@@ -16,7 +16,7 @@ import {
   type ReportDays,
 } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/legacy-bridge/surface-data";
-import { demoSession } from "../legacy-verbs";
+import { adsShown } from "../campaigns/ads/shown";
 import type { SurfaceViews } from "../routes";
 
 /**
@@ -26,11 +26,12 @@ import type { SurfaceViews } from "../routes";
 export const reportsTakes = (param: string): boolean => reportsParamParts(param) !== null;
 
 /**
- * Whether the workspace has ads to report: a demo session, drawn from the Ads sample. MOCKUP: the wiring lane (decision 0049) sets
+ * Whether the workspace has ads to report: a demo session, or a workspace whose Ads preview is on (campaigns/ads/shown.ts),
+ * drawn from the Ads sample. MOCKUP: the wiring lane (decision 0049) sets
  * this from the workspace's connected ad accounts, and the lens is then a real one. A test reads a chrome with no window, which is
  * no demo.
  */
-export const adsAreOn = (): boolean => typeof window !== "undefined" && demoSession();
+export const adsAreOn = (): boolean => adsShown();
 
 /**
  * Who is looking and how their customers buy, as the workspace list the shell holds says it: the one place Reports asks, for the
