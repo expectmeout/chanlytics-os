@@ -10,6 +10,7 @@ import {
   emptyReadSet,
   messageWhyNot,
   noteRows,
+  purposeOfTemplate,
   readyForMessage,
   roleAtLeast,
   type AskCitationKind,
@@ -327,7 +328,7 @@ export async function askedMessage(t: ToolContext, id: string): Promise<AskedMes
  */
 export async function whatsappAloneRefusal(
   t: ToolContext,
-  message: CampaignMessage,
+  message: Pick<CampaignMessage, "versions" | "purpose">,
   about: MessageAbout,
 ): Promise<string | null> {
   const why = messageWhyNot(message, "whatsapp");
@@ -353,15 +354,24 @@ export function stepNamed(t: ToolContext, v: string): number | null {
   return n >= 1 && n < t.step ? n : null;
 }
 
+/** A message a plan writes is an offer (contracts planOf writes its category marketing). */
+const STEP_CATEGORY = "marketing";
+
 /**
- * The message an earlier step of a plan writes, as a campaign card on it judges its channels before it is filed: a
- * version on each channel the card goes by, as the plan writes one for each (contracts planOf), so the workspace alone
- * says whether each can send. Its versions' own standing (WhatsApp's review) is the route's to judge at the press, by
- * then filled with the message the step made (Task 16's commit).
+ * The message an earlier step of a plan writes, as a campaign card on it judges its channels and its people before it is
+ * filed: an offer (its category and the yes it needs, STEP_CATEGORY), with a version on each channel the card goes by,
+ * as the plan writes one for each (contracts planOf), so the workspace alone says whether each can send; a card that
+ * names none passes every channel, and the composer's own rule picks among them as for any message. Its versions' own
+ * standing (WhatsApp's review) is the route's to judge at the press, by then filled with the message the step made
+ * (Task 16's commit).
  */
-export function stepMessage(channels: readonly ConsentChannel[]): Pick<CampaignMessage, "versions"> {
+export function stepMessage(
+  channels: readonly ConsentChannel[],
+): Pick<CampaignMessage, "versions" | "category" | "purpose"> {
   const on = (c: ConsentChannel) => channels.includes(c);
   return {
+    category: STEP_CATEGORY,
+    purpose: purposeOfTemplate(STEP_CATEGORY),
     versions: {
       whatsapp: on("whatsapp") ? { id: "", status: "approved", hidden: false, blocked: null, reason: null } : null,
       email: on("email") ? { id: "" } : null,

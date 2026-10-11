@@ -22,7 +22,6 @@ import {
   nextOpenMoment,
   parseParamSpec,
   proposalChannelsWords,
-  purposeOfTemplate,
   sendsWaitWords,
   type AskedPurpose,
   type CampaignHow,
@@ -279,24 +278,22 @@ async function broadcastAudience(
 
 /**
  * The message a broadcast proposal sends, from the id the model gave (broadcastMessage), held to its values; or, for an
- * earlier step of the plan's (`@step:n`, context.ts stepNamed), none yet: its values are the step's to fit, and it is an
- * offer's yes it needs, the strictest (contracts purposeOfTemplate of a category not known), as a plan's message is.
+ * earlier step of the plan's (`@step:n`, context.ts stepNamed), none yet: its values are the step's to fit, and the yes
+ * it needs is the offer's a plan's message is (context.ts stepMessage).
  */
 async function sentMessage(
   t: ToolContext,
-  input: BroadcastProposed,
+  named: { templateId: string; step: number | null; channels: unknown },
   params: readonly ParamSpec[],
 ): Promise<
   | { asked: AskedMessage; purpose: AskedPurpose }
   | { asked: null; step: number; purpose: AskedPurpose }
   | { refusal: string }
 > {
-  const templateId = str(input.template_id, 40);
-  const step = stepNamed(t, templateId);
-  if (step !== null) return { asked: null, step, purpose: purposeOfTemplate(null) };
-  if (!UUID.test(templateId)) return { refusal: `template_id must be an id ${AUDIENCES_CALL} returned` };
+  const { templateId, step } = named;
+  if (step !== null) return { asked: null, step, purpose: stepMessage([]).purpose };
   // The message the route will read, by any of its versions' ids: the same verb, so the same words.
-  const asked = await broadcastMessage(t, templateId, input.channels);
+  const asked = await broadcastMessage(t, templateId, named.channels);
   if ("refusal" in asked) return asked;
   const { slots } = asked.message;
   if (params.length !== slots)
@@ -319,8 +316,9 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const templateId = str(input.template_id, 40);
   const kind = str(input.audience_kind, 10);
   const audienceId = str(input.audience_id, 60) || null;
-  if (stepNamed(t, templateId) === null && !UUID.test(templateId))
-    return refuse(`template_id must be an id ${AUDIENCES_CALL} returned`);
+  // An earlier step of Ask's plan's message, named by its token (context.ts stepNamed), or an id the reads returned.
+  const step = stepNamed(t, templateId);
+  if (step === null && !UUID.test(templateId)) return refuse(`template_id must be an id ${AUDIENCES_CALL} returned`);
   if (!(AUDIENCE_KINDS as readonly string[]).includes(kind))
     return refuse("audience_kind must be everyone, list or saved");
   if (kind === "list" && !BUILTIN_LISTS.some((l) => l.id === audienceId))
@@ -330,7 +328,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const given = proposedValues(input.params);
   if ("refusal" in given) return refuse(given.refusal);
   const params = given.specs;
-  const sent = await sentMessage(t, input, params);
+  const sent = await sentMessage(t, { templateId, step, channels: input.channels }, params);
   if ("refusal" in sent) return refuse(sent.refusal);
   const { asked, purpose } = sent;
   const audience = await broadcastAudience(t, kind, audienceId);

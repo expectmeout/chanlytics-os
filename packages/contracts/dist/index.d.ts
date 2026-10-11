@@ -15163,6 +15163,12 @@ declare const PLAN_WORDS: {
     readonly textOnly: "Texts carry no offers. An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.";
     readonly noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.";
     readonly journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.";
+    /** A read the plan is made against that failed (Task 17's world): never a plan on a guess of what it would have said. */
+    readonly channelsUnread: string;
+    readonly libraryUnread: string;
+    readonly playbooksUnread: string;
+    readonly listsUnread: string;
+    readonly notesUnread: string;
     readonly nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.";
     /** What an offer is called: the receptionist's note, the send and the campaign. */
     readonly offerTitle: (words: string) => string;

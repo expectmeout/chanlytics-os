@@ -20,6 +20,7 @@ import {
   campaignDayWords,
   channelNeverCarries,
   cleanParam,
+  enrolPurpose,
   dealsAreOn,
   defaultParamSpecs,
   parseListToken,
@@ -194,7 +195,7 @@ async function proposedMessage(t: ToolContext, id: string): Promise<AskedMessage
  */
 async function unnamedChannels(
   t: ToolContext,
-  message: CampaignMessage,
+  message: Pick<CampaignMessage, "versions" | "category" | "purpose">,
   moment: { trigger: string; policy_class: string },
   about: MessageAbout,
 ): Promise<{ channels: ConsentChannel[] | undefined } | { refusal: string }> {
@@ -485,9 +486,11 @@ async function proposeOnStarter(
  * that message is filed, as a starter card is (proposeOnStarter) and by the same judges: its moment, its list and its
  * class by the route's own judgement before a message (checkPlaybookMomentInput, core checkPlaybookMoment); its numbers
  * by their bounds (core playbookNumber); its values as the route stores them (paramSpecsOf), a link they name on file
- * (core refuseWithoutBookingLink, refuseWithoutReviewLink); and its channels, named or WhatsApp alone, none its purpose
- * never carries (contracts channelNeverCarries). How the message fits its moment and its values is the route's to judge
- * at the press, by then filed and named by the token's fill (Task 16's commit). Or the first refusal, in its words.
+ * (core refuseWithoutBookingLink, refuseWithoutReviewLink); and its channels, the ones named or else what the composer
+ * would tick for it (unnamedChannels, as for any message), none its purpose never carries (contracts enrolPurpose,
+ * channelNeverCarries, as the check reads them). The message is the offer the step writes (context.ts stepMessage). How
+ * it fits its moment and its values is the route's to judge at the press, by then filed and named by the token's fill
+ * (Task 16's commit). Or the first refusal, in its words.
  */
 async function stepJudged(t: ToolContext, input: PlaybookProposed, trig: Trigger, listRef: ListRef | null) {
   try {
@@ -502,9 +505,17 @@ async function stepJudged(t: ToolContext, input: PlaybookProposed, trig: Trigger
     const ports = templateValuePorts(t.ctx, t.tenantId);
     await refuseWithoutBookingLink(ports, values.specs);
     await refuseWithoutReviewLink(ports, values.specs);
-    const by = proposedChannels(input.channels);
+    const about = messageAboutOfTrigger(trig.id);
+    const picked =
+      input.channels !== undefined
+        ? { channels: input.channels }
+        : await unnamedChannels(t, stepMessage(CONSENT_CHANNELS), { trigger: trig.id, policy_class: cls }, about);
+    if ("refusal" in picked) return picked;
+    const by = proposedChannels(picked.channels);
     if ("refusal" in by) return by;
-    const never = by.channels.map((c) => channelNeverCarries(c, purposeOfPlaybook(cls))).find((w) => w !== null);
+    const message = stepMessage(by.channels);
+    const purpose = enrolPurpose(cls, message);
+    const never = by.channels.map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
     if (never) return { refusal: never };
     const clock = {
       trigger: trig.id,
@@ -513,7 +524,7 @@ async function stepJudged(t: ToolContext, input: PlaybookProposed, trig: Trigger
       gap_days: PLAYBOOK_DEFAULTS.gapDays,
       cadence_days: PLAYBOOK_DEFAULTS.cadenceDays,
     };
-    return { cls, specs: values.specs, by, clock };
+    return { cls, specs: values.specs, by, clock, message, about };
   } catch (e) {
     return { refusal: e instanceof Error ? e.message : String(e) };
   }
@@ -521,9 +532,10 @@ async function stepJudged(t: ToolContext, input: PlaybookProposed, trig: Trigger
 
 /**
  * A new campaign on the message step `step` of the plan writes (stepJudged): who a run reaches, counted by the
- * workspace's channels alone (context.ts stepMessage) and the offer's yes, the strictest, as a category not known reads;
- * the month's allowance, its class's mode, its trial and its last day, as every new campaign's card says them. It says
- * which step makes its message and quotes nothing; a name not given is the route's to give once the message is filed.
+ * workspace's channels alone with the step's message, an offer, laid over them (context.ts stepMessage) and the yes it
+ * needs; the month's allowance, its class's mode, its trial and its last day, as every new campaign's card says them. It
+ * says which step makes its message and quotes nothing; a name not given is the route's to give once the message is
+ * filed.
  */
 async function proposeOnStep(
   t: ToolContext,
@@ -534,9 +546,9 @@ async function proposeOnStep(
   const { trig, listRef } = at;
   const judged = await stepJudged(t, input, trig, listRef);
   if ("refusal" in judged) return refuse(judged.refusal);
-  const { cls, specs, by, clock } = judged;
-  const how = await playbookHow(t, stepMessage(by.channels), by, messageAboutOfTrigger(trig.id));
-  const reach = await reachNow(t, trig, listRef, { category: null }, how, clock.cap_per_run);
+  const { cls, specs, by, clock, message, about } = judged;
+  const how = await playbookHow(t, message, by, about);
+  const reach = await reachNow(t, trig, listRef, { category: message.category }, how, clock.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
   const { drawn, reading, policies, listLabel } = reach;
   const held = await allowanceHeld(t, by.channels, reading, clock, purposeOfPlaybook(cls));
@@ -585,12 +597,12 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   let templateId = str(input.template_id, 40);
   // The message an earlier step of Ask's plan writes, named by its token: judged before it is filed (proposeOnStep).
   const step = stepNamed(t, templateId);
-  if (templateId && step === null && !UUID.test(templateId))
-    return refuse(PLAYBOOK_CARD_REFUSALS.templateId(AUDIENCES_CALL));
+  // A step's message: its moment, the calendar's among it, is judged once there (stepJudged).
+  if (step !== null) return proposeOnStep(t, input, { trig, listRef }, step);
+  if (templateId && !UUID.test(templateId)) return refuse(PLAYBOOK_CARD_REFUSALS.templateId(AUDIENCES_CALL));
   // An appointment's moment where no calendar is connected, refused before its message or its channels are read (D2).
   const notOffered = await calendarRefusal(t, trig);
   if (notOffered) return refuse(notOffered);
-  if (step !== null) return proposeOnStep(t, input, { trig, listRef }, step);
   if (!templateId) {
     const own = await heldStarter(t, trig);
     // A starter not on file is added at the card's Approve (A0), never refused while one is offered.

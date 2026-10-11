@@ -527,6 +527,13 @@ const ROWS = [
     words: [REUSED, W.noteKnown, GOES, REMINDS],
   },
   {
+    name: "the journey unread: an offer is planned all the same, with no reminder said, since who has booked cannot be told (fix round 1)",
+    intent: offer(),
+    world: world({ messages: [monthsOfferMessage()], journey: null }),
+    steps: [noteStep(1), firstSend(2, [1])],
+    words: [REUSED, NOTE, GOES],
+  },
+  {
     name: "asked by a member who may not approve a note for the receptionist: no note step, the steps renumbered, and the words say the receptionist is not told until an owner or a partner adds it (pre-review ruling 1)",
     intent: offer(),
     world: world({ messages: [monthsOfferMessage()], playbooks: [monthsOffer()], canNote: false }),

@@ -281,15 +281,16 @@ after(() => {
   setServiceClient(null);
 });
 
-const ctxOf = (rows, user = USER, people = PEOPLE) => ({
-  supabase: fakeDb(rows, {}, { people_list: () => people }),
+/** A request over `rows`, People being `people`, and `faults` failing a read the way PostgREST fails one. */
+const ctxOf = (rows, user = USER, people = PEOPLE, faults = {}) => ({
+  supabase: fakeDb(rows, faults, { people_list: () => people }),
   userId: user,
   email: "ada@example.com",
   params: {},
 });
 /** A call of propose_campaign by a member of `role` over `rows`, People being `people`: its outcome. */
-const call = (input, rows = tables(), role = "owner", people = PEOPLE) => {
-  const t = newToolContext(ctxOf(rows, role === "owner" ? USER : "u2", people), A, role, TZ, NOW);
+const call = (input, rows = tables(), role = "owner", people = PEOPLE, faults = {}) => {
+  const t = newToolContext(ctxOf(rows, role === "owner" ? USER : "u2", people, faults), A, role, TZ, NOW);
   return buildProposal(t, "propose_campaign", input);
 };
 const plan = (intent, rows, role) => call({ action: "plan", ...intent }, rows, role);
@@ -476,6 +477,26 @@ test("a token outside a plan, or naming a step that is not an earlier one, names
   assert.equal(yes.proposal.payload.template_id, stepToken(1));
 });
 
+test("a new campaign on a step's message that names no channels ticks them by the composer's own rule, as for any message: by email on a workspace with no number, never WhatsApp alone; and counts who the offer reaches (fix round 1)", async () => {
+  const asStep = (input) =>
+    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_campaign", {
+      action: "playbook",
+      trigger: "saved_list",
+      list: OFFERS,
+      policy_class: "campaign",
+      template_id: stepToken(1),
+      params: ["@first_name", "@business_name", LINE, "@booking_link"],
+      ...input,
+    });
+  const r = await asStep({});
+  assert.equal(r.isError, false, r.result);
+  assert.deepEqual(r.proposal.payload.channels, ["email"], "what a new campaign opens on here: email, its one channel");
+  assert.equal(r.proposal.payload.candidates, PEOPLE.length, "everyone who can receive the offer by email");
+  // Texts named for an offer are refused in the route's own words.
+  const text = await asStep({ channels: ["sms"] });
+  assert.equal(said(text).error, C.CHANNEL_WORDS.noOffersByText);
+});
+
 test("a change to the campaign an earlier step makes (no plan names one today) takes what is said without its row: a pause, its words, its end; the rest is refused in words, and the card names the step", async () => {
   const asStep = (input) =>
     buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_campaign", {
@@ -543,6 +564,85 @@ test("texts never carry an offer: a plan asked for by text alone says so, in wor
   assert.equal(said(r).error, W.textOnly);
   assert.notEqual(W.textOnly, W.noChannel);
   assert.match(W.textOnly, /[Tt]exts/);
+});
+
+/* ------------------------------------------------------------------ a read that fails */
+
+const BOOM = { message: "connection reset" };
+/** A plan whose read failed: refused in the plan's own words, no card made. */
+const refusedFor = (r, words) => {
+  assert.equal(r.isError, true, r.result);
+  assert.deepEqual([r.proposal, r.proposals], [null, undefined], "no card of the plan is made");
+  assert.equal(said(r).error, words);
+};
+
+test("which channels can carry an offer, unread: the plan refuses in its own words, never planning on a guess of WhatsApp alone (fix round 1)", async () => {
+  // The mailbox's read fails, so the channels' readiness is none (campaigns/channels-ready.ts channelsReadyOrNull).
+  const r = await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "mailboxes.select": BOOM });
+  refusedFor(r, W.channelsUnread);
+  assert.ok(!r.result.includes(W.withoutEmail), "never says email is not set up when it could not be read");
+  const journey = await call({ action: "plan", intent: "cover_journey" }, withCalendar(), "owner", PEOPLE, {
+    "mailboxes.select": BOOM,
+  });
+  refusedFor(journey, W.channelsUnread);
+});
+
+test("the Library or the campaigns unread: refused in the plan's words; the journey unread refuses a setup in journeyUnread; the room unread is not known, and an offer goes on (fix round 1)", async () => {
+  for (const intent of [offer(), { intent: "cover_journey" }])
+    refusedFor(
+      await call({ action: "plan", ...intent }, withCalendar(), "owner", PEOPLE, { "templates.select": BOOM }),
+      W.libraryUnread,
+    );
+  // The campaigns' read fails: an offer cannot know the month's offer to pause; a setup cannot know the journey.
+  refusedFor(
+    await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "playbooks.select": BOOM }),
+    W.playbooksUnread,
+  );
+  refusedFor(
+    await call({ action: "plan", intent: "cover_journey" }, withCalendar(), "owner", PEOPLE, {
+      "playbooks.select": BOOM,
+    }),
+    W.journeyUnread,
+  );
+  // The calendar's appointments on record unread: calendar.room says it cannot count (`unavailable`), the room is not
+  // known (never full), and the offer is its broadcast. A room read that throws is the same: not known (act/plan.ts).
+  const roomless = await call(
+    { action: "plan", ...offer() },
+    withCalendar({ templates: [tpl(OFFER_EMAIL)] }),
+    "owner",
+    PEOPLE,
+    {
+      "appointments.select": BOOM,
+    },
+  );
+  assert.equal(roomless.isError, false, roomless.result);
+  assert.ok(!said(roomless).words.includes("open slot"), said(roomless).words);
+  assert.equal(roomless.proposals.at(-1).kind, "broadcast");
+});
+
+test("the receptionist's notes are the settings read's own (the notes in force the receptionist is told), and a configuration that does not read is refused in words, never read as no notes (fix round 1)", async () => {
+  const [cfg] = tables().tenant_config;
+  const withNotes = (notes) => [
+    { ...cfg, config: { ...cfg.config, brain: { ...cfg.config.brain, profile: { ...PROFILE, notes } } } },
+  ];
+  // The offer's note already in force: the plan makes none, and says the receptionist has it.
+  const held = await plan(
+    offer(),
+    tables({
+      tenant_config: withNotes([
+        { title: `Offer: ${WORDS}`, text: "Ten percent off colour through November.", until: "2026-11-30" },
+      ]),
+    }),
+  );
+  assert.equal(held.isError, false, held.result);
+  assert.deepEqual(
+    held.proposals.map((p) => p.kind),
+    ["playbook_change", "broadcast"],
+  );
+  assert.ok(said(held).words.includes(W.noteKnown));
+  // A configuration that does not parse: not "no notes", which would make a second note over the first.
+  const broken = tables({ tenant_config: withNotes("not a list") });
+  refusedFor(await plan(offer(), broken), W.notesUnread);
 });
 
 /* ------------------------------------------------------------------ the journey */
@@ -770,12 +870,25 @@ test("POST playbooks takes until: judged by core's judge of an end at the route'
   const made = await postPlaybook(rows, PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body);
   const filed = rows.playbooks.find((p) => p.id === made.id);
   assert.equal(filed.until, "2026-11-30");
-  const without = await postPlaybook(rows, PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body);
-  assert.ok(without.id);
+  // With no last day named, none is written.
+  const { until: _until, ...withoutUntil } = PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body;
+  const without = await postPlaybook(rows, { ...withoutUntil, name: "Win-back, no end" });
+  assert.equal(rows.playbooks.find((p) => p.id === without.id).until, null);
   const before = rows.playbooks.length;
   await assert.rejects(
     postPlaybook(rows, { ...PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body, until: "2026-10-01" }),
     (e) => e.message === PLAYBOOK_PATCH_WORDS.untilPast("Oct 11"),
   );
   assert.equal(rows.playbooks.length, before, "nothing started");
+  // Judged before a starter is filed: a past end on a card that names a starter files nothing and asks nothing of Meta.
+  const templates = rows.templates.length;
+  await assert.rejects(
+    postPlaybook(rows, { trigger: "visit_tomorrow", starter_key: "visit_reminder", until: "2026-10-01" }),
+    (e) => e.message === PLAYBOOK_PATCH_WORDS.untilPast("Oct 11"),
+  );
+  assert.deepEqual(
+    [rows.templates.length, rows.playbooks.length],
+    [templates, before],
+    "no starter filed, nothing started",
+  );
 });

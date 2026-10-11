@@ -1,15 +1,10 @@
 import "server-only";
 import { z } from "zod";
-import {
-  AskSettingsChangeSchema,
-  PROPOSAL_SPECS,
-  describeSettingsChange,
-  proposalBelowNeeds,
-} from "@chanlytics/contracts";
-import { roleAtLeast } from "../../../with-route";
+import { AskSettingsChangeSchema, describeSettingsChange, proposalBelowNeeds } from "@chanlytics/contracts";
 import {
   approvalWords,
   defineAct,
+  offeredTo,
   propose,
   refuse,
   type ActDef,
@@ -18,7 +13,8 @@ import {
 } from "../context";
 
 async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
-  if (!roleAtLeast(t.role, PROPOSAL_SPECS.settings.needs)) return refuse(proposalBelowNeeds("settings"));
+  // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
+  if (!offeredTo(settingsAct, t.role)) return refuse(proposalBelowNeeds("settings"));
   const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
   if (!raw) return refuse("change is required");
   const clean: Record<string, unknown> = { op: raw.op };

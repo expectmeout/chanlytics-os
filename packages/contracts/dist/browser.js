@@ -18461,6 +18461,7 @@ var capOf = (room) => Math.min(
   PLAYBOOK_LIMITS.cap_per_run.max,
   Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.ceil(room.open / Math.max(1, room.days)))
 );
+var unreadWords = (what) => `${what} could not be read just now, so nothing was proposed: say so, and ask again in a moment.`;
 var PLAN_WORDS = {
   noOffer: "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
   noWords: "words is the offer in the owner's words: ask what the offer is.",
@@ -18473,6 +18474,12 @@ var PLAN_WORDS = {
   textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
   noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
   journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  /** A read the plan is made against that failed (Task 17's world): never a plan on a guess of what it would have said. */
+  channelsUnread: unreadWords("Which channels can carry an offer"),
+  libraryUnread: unreadWords("The message library"),
+  playbooksUnread: unreadWords("The campaigns, and so whether the month's offer runs,"),
+  listsUnread: unreadWords("The lists an offer goes to"),
+  notesUnread: unreadWords("The receptionist's notes"),
   nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
   /** What an offer is called: the receptionist's note, the send and the campaign. */
   offerTitle: (words2) => `Offer: ${words2}`,

@@ -196,6 +196,10 @@ const capOf = (room: Room): number =>
     Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.ceil(room.open / Math.max(1, room.days))),
   );
 
+/** A plan refused for a read that failed: what could not be read, that nothing was proposed, and to ask again. */
+const unreadWords = (what: string): string =>
+  `${what} could not be read just now, so nothing was proposed: say so, and ask again in a moment.`;
+
 /**
  * What a plan says. Its refusals are the model's to say back (each ends on what to do); its words and each step's why
  * are the person's. WhatsApp's review is WhatsApp's.
@@ -218,6 +222,12 @@ export const PLAN_WORDS = {
     "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
   journeyUnread:
     "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  /** A read the plan is made against that failed (Task 17's world): never a plan on a guess of what it would have said. */
+  channelsUnread: unreadWords("Which channels can carry an offer"),
+  libraryUnread: unreadWords("The message library"),
+  playbooksUnread: unreadWords("The campaigns, and so whether the month's offer runs,"),
+  listsUnread: unreadWords("The lists an offer goes to"),
+  notesUnread: unreadWords("The receptionist's notes"),
   nothingToCover:
     "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
   /** What an offer is called: the receptionist's note, the send and the campaign. */

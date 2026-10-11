@@ -7,22 +7,23 @@ import {
   PLAN_WORDS,
   channelChoices,
   listToken,
-  parseTenantConfig,
+  parseTenantConfigResult,
   planOf,
-  readyOrWhatsApp,
   type AskProposal,
   type PlanIntent,
   type PlanStep,
   type PlanWorld,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
-import { channelsReady, config } from "../../../readers/facts";
+import { channelsReady, config, facts as factsReader } from "../../../readers/facts";
 import { playbooks } from "../../../readers/playbooks";
+import { workspaceFacts } from "../../prompt";
 import {
   actAction,
   offeredTo,
   proposeMany,
   refuse,
+  unread,
   type ActDef,
   type ProposalOutcome,
   type ToolContext,
@@ -67,55 +68,119 @@ function intentOf(asked: PlanAsked): PlanIntent | { refusal: string } {
   return { intent: "offer", offer: asked.offer, ...(asked.say ? { say: asked.say } : {}) };
 }
 
+/** A read the world is made of, or null where it failed, said in the log as every tool's failed read is (context.ts unread). */
+const orNull = <T>(t: ToolContext, read: string, p: Promise<T>): Promise<T | null> =>
+  p.catch(unread(t, "propose_campaign.plan", read));
+
+/** Everything a plan reads, each null where its read failed. */
+async function worldReads(t: ToolContext) {
+  const [library, lists, journey, pb, room, ready, settings, facts] = await Promise.all([
+    orNull(t, "messages", readMessages(t)),
+    orNull(t, "lists", listLists(t)),
+    orNull(t, "journey", readJourney(t)),
+    orNull(
+      t,
+      "playbooks",
+      load(t.rc, playbooks, undefined).then((r) => r.data.playbooks),
+    ),
+    orNull(t, "room", getRoom(t)),
+    // Null where the channels could not be read (campaigns/channels-ready.ts channelsReadyOrNull): never "WhatsApp alone".
+    orNull(
+      t,
+      "channels",
+      load(t.rc, channelsReady, undefined).then((r) => r.data),
+    ),
+    // The row, or none: a workspace with no row has no notes; a read that failed is null.
+    orNull(
+      t,
+      "settings",
+      load(t.rc, config, undefined).then((r) => ({ row: r.data })),
+    ),
+    orNull(
+      t,
+      "facts",
+      load(t.rc, factsReader, undefined).then((r) => r.data),
+    ),
+  ]);
+  return { library, lists, journey, pb, room, ready, settings, facts };
+}
+
+/**
+ * The receptionist's notes as Ask's settings read says them (prompt.ts workspaceFacts: the notes in force the receptionist
+ * is told), or null where they could not be read: a read that failed, or a configuration that does not parse, which would
+ * otherwise read as no notes and make a second note over the first.
+ */
+function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorld["notes"] | null {
+  if (!r.settings || !r.facts) return null;
+  const raw = r.settings.row?.config ?? null;
+  if (!parseTenantConfigResult(raw).ok) return null;
+  return workspaceFacts(r.facts.name, r.facts.timezone, raw, now).notes;
+}
+
 /**
  * The workspace as a plan is made against (contracts PlanWorld), each part read by the read Ask's own action of it makes,
  * so what the plan reuses, counts and covers is what those actions say: the Library (campaigns.messages), the lists and
  * their counts (people.lists: People's offered here and the workspace's own), the journey (campaigns.journey, as
  * Campaigns' home composes it), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
- * none where no calendar can say it, or one with no slot either way), the receptionist's notes (the settings), and the
- * channels an offer may go by now (the channels' readiness with the offer's own rule, contracts channelChoices). Each
+ * none where no calendar can say it, or one with no slot either way), the receptionist's notes (workspace.settings'), and
+ * the channels an offer may go by now (the channels' readiness with the offer's own rule, contracts channelChoices). Each
  * read once a turn, the independent ones together. And whether the member asking may approve a note for the
  * receptionist (context.ts offeredTo, the registry's own predicate), so a plan is never dead at a step its member may
  * not approve.
+ *
+ * A read that failed is never a guess of what it would have said: the plan is refused in its own words where it needs
+ * the read (the channels, the Library and the campaigns always; an offer the lists and the notes, which a setup reads
+ * neither of), and goes on without what it can do without: the room not known (never full), and an offer's journey (only
+ * its reminder's sentence reads it, and is not said). A setup's journey unread is planOf's own refusal (journeyUnread).
  */
-async function planWorld(t: ToolContext, language: PlanWorld["language"]): Promise<PlanWorld> {
-  const [library, lists, journey, pb, room, ready, cfg] = await Promise.all([
-    readMessages(t),
-    listLists(t),
-    readJourney(t),
-    load(t.rc, playbooks, undefined).then((r) => r.data.playbooks),
-    getRoom(t),
-    load(t.rc, channelsReady, undefined).then((r) => r.data),
-    load(t.rc, config, undefined).then((r) => r.data),
-  ]);
+async function planWorld(
+  t: ToolContext,
+  intent: PlanIntent["intent"],
+  language: PlanWorld["language"],
+): Promise<PlanWorld | { refusal: string }> {
+  const r = await worldReads(t);
+  const offer = intent === "offer";
+  const notes = notesOf(r, t.rc.now);
+  if (!r.ready) return { refusal: PLAN_WORDS.channelsUnread };
+  // The campaigns before the Library: the Library's read names the campaigns that send each message, so it fails with them.
+  if (!r.pb) return { refusal: offer ? PLAN_WORDS.playbooksUnread : PLAN_WORDS.journeyUnread };
+  if (!r.library) return { refusal: PLAN_WORDS.libraryUnread };
+  if (offer && !r.lists) return { refusal: PLAN_WORDS.listsUnread };
+  if (offer && !notes) return { refusal: PLAN_WORDS.notesUnread };
   // An offer is the business's news (decision D1): whether each channel may carry one now, by the rule a send's ticks are.
-  const offers = channelChoices(readyOrWhatsApp(ready), "marketing", "ours");
+  const offers = channelChoices(r.ready, "marketing", "ours");
   const may = (c: "whatsapp" | "email") => offers.some((o) => o.channel === c && o.ok);
   // The stages this workspace can run are the guide's (contracts journeyGuide: an appointment's only with a calendar, a
   // proposal's only where deals are on); the rail draws the others too, as needing what they lack.
-  const runs = new Set(journey.guide.map((g) => g.stage));
+  const runs = new Set(r.journey?.guide.map((g) => g.stage));
+  const room = r.room && !("none" in r.room) && r.room.open + r.room.taken > 0 ? r.room : null;
   return {
     now: t.now,
     tz: t.timezone,
     language,
     channels: { whatsapp: may("whatsapp"), email_offers: may("email") },
-    messages: library.messages,
+    messages: r.library.messages,
     lists: [
-      ...lists.lists.map((l) => ({ token: l.list, name: l.label, count: l.count })),
-      ...lists.own.map((l) => ({ token: l.list, name: l.name, count: "count" in l ? (l.count ?? null) : null })),
+      ...(r.lists?.lists ?? []).map((l) => ({ token: l.list, name: l.label, count: l.count })),
+      ...(r.lists?.own ?? []).map((l) => ({
+        token: l.list,
+        name: l.name,
+        count: "count" in l ? (l.count ?? null) : null,
+      })),
     ],
-    playbooks: pb.map((p) => ({
+    playbooks: r.pb.map((p) => ({
       id: p.id,
       name: p.name,
       trigger: p.trigger,
       state: p.state,
       template_name: p.template_name ?? null,
     })),
-    notes: parseTenantConfig(cfg?.config ?? null)?.brain?.profile?.notes ?? [],
-    room: "none" in room || room.open + room.taken === 0 ? null : { open: room.open, days: room.days },
-    journey: journey.stages
-      .filter((s) => runs.has(s.id))
-      .map((s) => ({ id: s.id, covered: s.covered, moment: s.moment })),
+    notes: notes ?? [],
+    room: room ? { open: room.open, days: room.days } : null,
+    journey:
+      r.journey?.stages
+        .filter((s) => runs.has(s.id))
+        .map((s) => ({ id: s.id, covered: s.covered, moment: s.moment })) ?? null,
     offersList: OFFERS_LIST,
     // Whether this member may approve the receptionist's note, by the predicate the registry offers propose_settings by.
     canNote: offeredTo(settingsAct, t.role),
@@ -148,7 +213,9 @@ async function stepCard(t: ToolContext, step: PlanStep): Promise<AskProposal | {
 async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOutcome> {
   const intent = intentOf(asked);
   if ("refusal" in intent) return refuse(intent.refusal);
-  const planned = planOf(intent, await planWorld(t, asked.language ?? "en"));
+  const world = await planWorld(t, intent.intent, asked.language ?? "en");
+  if ("refusal" in world) return refuse(world.refusal);
+  const planned = planOf(intent, world);
   if ("refused" in planned) return refuse(planned.refused);
   const made = await Promise.all(planned.steps.map((s) => stepCard(t, s)));
   const id = `plan-${randomUUID()}`;
