@@ -260,3 +260,22 @@ test("a real workspace's Campaigns chrome has no strip, and an Ads address is th
     delete globalThis.window;
   }
 });
+
+test("a workspace's Ads preview is on only where its config says features.ads_preview is true, and the schema keeps the key", () => {
+  assert.equal(ads.adsPreviewOf({ features: { ads_preview: true } }), true);
+  for (const off of [
+    null,
+    undefined,
+    {},
+    { features: null },
+    { features: {} },
+    { features: { ads_preview: "true" } },
+    { features: { ads_preview: false } },
+  ])
+    assert.equal(ads.adsPreviewOf(off), false, JSON.stringify(off));
+  // A save of the settings parses the config: the switch survives it, so the next save does not drop it.
+  assert.deepEqual(ads.FeaturesConfigSchema.parse({ vision: true, ads_preview: true }), {
+    vision: true,
+    ads_preview: true,
+  });
+});

@@ -29,6 +29,7 @@ export {
   ADS_SCOPE_ALL,
   ADS_WORDS,
   adRoute,
+  adsPreviewOf,
   adsResultsRoute,
   adsScopeKey,
   adsScopeOfKey,

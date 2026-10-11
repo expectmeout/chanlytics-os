@@ -11,7 +11,7 @@ import "./zod-config";
 export { ACTIVITY_FAMILIES, ACTIVITY_PROBLEM_KINDS, ACTIVITY_SPANS, ACTIVITY_SPAN_DAYS, ACTIVITY_ACTORS, ACTIVITY_PAGE_WORDS, activityFamily, activityFamilyKinds, activityKindGroups, isActivityFamily } from "./activity/families";
 export { ACTIVITY_FOLD_KINDS, activityDoor, activityLines, activityMemberWords, activityRowsForLines } from "./activity/lines";
 export { activityTone } from "./activity/tones";
-export { ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adRoute, adsResultsRoute, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
+export { ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adRoute, adsPreviewOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
 export { MINOR_PER_UNIT, aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads/ads";
 export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInline, injectionQuestion, promptSafeName } from "./ai/fence";
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";

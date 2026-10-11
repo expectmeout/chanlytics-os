@@ -16,7 +16,7 @@ import {
   parseAds,
   templateTitle,
 } from "@chanlytics/contracts";
-import { demoSession } from "../legacy-verbs";
+import { adsShown } from "./ads/shown";
 import { surfaceValue } from "../surface-values";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
@@ -27,10 +27,11 @@ import { parseHome } from "./home/address";
 type Crumb = string | { label: string; to: string };
 
 /**
- * Whether this is a demo session: Ads is drawn there alone, from a sample, so nothing of it (its strip, its chrome, its page)
- * reaches a real workspace. The frame draws a chrome in the browser, but a test reads one with no window.
+ * Whether Ads is drawn: a demo session, or a workspace whose Ads preview is on (ads/shown.ts), from a sample, so nothing of it
+ * (its strip, its chrome, its page) reaches any other workspace. The frame draws a chrome in the browser, but a test reads one
+ * with no window.
  */
-const inDemo = (): boolean => typeof window !== "undefined" && demoSession();
+const inDemo = (): boolean => adsShown();
 
 /** Campaigns, the first crumb of every address: the way back to the home. */
 const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: "campaigns" };

@@ -94,7 +94,13 @@ const BookingsConfigSchema = z.object({ tool: z.string().max(40).optional(), by_
  * answers them like words, under every rule it already follows. Off, a photo
  * is acknowledged and handed to a person, as before.
  */
-export const FeaturesConfigSchema = z.object({ vision: z.boolean().optional() }).strip();
+export const FeaturesConfigSchema = z
+  .object({
+    vision: z.boolean().optional(),
+    /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
+    ads_preview: z.boolean().optional(),
+  })
+  .strip();
 export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 
 export const TenantConfigSchema = z.object({
