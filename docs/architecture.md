@@ -656,6 +656,7 @@ packages/contracts/src/
   journey/
   leads/
   lines/
+  logo/
   mobile/
   new-conversation/
   notes/

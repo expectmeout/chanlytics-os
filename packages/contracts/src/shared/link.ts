@@ -60,3 +60,21 @@ export function linkHost(url: string): string {
     return url;
   }
 }
+
+/**
+ * Where a file in one of our public buckets is served: the project's own storage, on the Supabase origin the
+ * dashboard's content policy already lets images in from (csp.ts reads the same variable). The caller has already held
+ * the path to its bucket's own shape (a lead's mark, a workspace's logo); this answers null without an https origin to
+ * serve it from (a laptop's own stack aside), so nothing is ever drawn from an address a browser would refuse.
+ */
+export function publicObjectSrc(supabaseUrl: string | null | undefined, bucket: string, path: string): string | null {
+  if (!supabaseUrl) return null;
+  let origin: string;
+  try {
+    origin = new URL(supabaseUrl).origin;
+  } catch {
+    return null;
+  }
+  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
+  return `${origin}/storage/v1/object/public/${bucket}/${path}`;
+}

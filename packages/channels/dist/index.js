@@ -558,6 +558,72 @@ function setPublicFetch(f) {
   return before;
 }
 
+// src/site-reads.ts
+var BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
+var READ_FLOOR_MS = 500;
+var PAGE_READ_CAP_MS = 8e3;
+var IMAGE_READ_CAP_MS = 5e3;
+var PAGE_MAX_BYTES = 96e3;
+async function pageText(fetchImpl, url, timeoutMs) {
+  const stop = AbortSignal.timeout(Math.max(READ_FLOOR_MS, Math.min(timeoutMs, PAGE_READ_CAP_MS)));
+  try {
+    const res = await fetchImpl(url, {
+      signal: stop,
+      redirect: "follow",
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": BOT_USER_AGENT
+      }
+    });
+    if (!res.ok) return null;
+    if (!(res.headers.get("content-type") ?? "").toLowerCase().includes("html")) return null;
+    const body = await res.text();
+    return body.slice(0, PAGE_MAX_BYTES);
+  } catch {
+    return null;
+  }
+}
+async function imageBytes(fetchImpl, url, timeoutMs, maxBytes) {
+  const stop = AbortSignal.timeout(Math.max(READ_FLOOR_MS, Math.min(timeoutMs, IMAGE_READ_CAP_MS)));
+  try {
+    const res = await fetchImpl(url, {
+      signal: stop,
+      redirect: "follow",
+      headers: {
+        accept: "image/png,image/jpeg,image/webp,image/gif,image/x-icon;q=0.9,*/*;q=0.5",
+        "user-agent": BOT_USER_AGENT
+      }
+    });
+    if (!res.ok || !res.body) return null;
+    if (Number(res.headers.get("content-length") ?? 0) > maxBytes) {
+      await res.body.cancel().catch(() => void 0);
+      return null;
+    }
+    const reader = res.body.getReader();
+    const parts = [];
+    let size = 0;
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => void 0);
+        return null;
+      }
+      parts.push(value);
+    }
+    const out = new Uint8Array(size);
+    let at = 0;
+    for (const part of parts) {
+      out.set(part, at);
+      at += part.byteLength;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // src/models/anthropic.ts
 import { fallbackModel, modelRoute, usageOf, NO_USAGE } from "../../contracts/dist/index.js";
 var ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
@@ -4970,6 +5036,7 @@ export {
   APIFY_TIMEOUT_MS,
   ApifyRefused,
   ApifyRetryable,
+  BOT_USER_AGENT,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
   EDGE_TOKEN_TTL_MS,
@@ -5105,6 +5172,7 @@ export {
   hostedAddress,
   hostedIdentity,
   idTokenClaims,
+  imageBytes,
   importPhoneNumber,
   isAreaCode,
   isBrandNotReady,
@@ -5135,6 +5203,7 @@ export {
   noteTenant,
   oneTimeCodeOf,
   ownDomainIdentity,
+  pageText,
   parseAccounts,
   parseLocations,
   parsePlaceDetails,

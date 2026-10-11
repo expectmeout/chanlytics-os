@@ -6061,6 +6061,7 @@ type Database = {
                     id: string;
                     left_empty_at: string | null;
                     locale: string;
+                    logo_path: string | null;
                     name: string;
                     sells_by: string | null;
                     slug: string;
@@ -6073,6 +6074,7 @@ type Database = {
                     id?: string;
                     left_empty_at?: string | null;
                     locale?: string;
+                    logo_path?: string | null;
                     name: string;
                     sells_by?: string | null;
                     slug: string;
@@ -6085,6 +6087,7 @@ type Database = {
                     id?: string;
                     left_empty_at?: string | null;
                     locale?: string;
+                    logo_path?: string | null;
                     name?: string;
                     sells_by?: string | null;
                     slug?: string;
@@ -9483,6 +9486,13 @@ type Database = {
                     p_title: string;
                 };
                 Returns: Json;
+            };
+            set_workspace_logo: {
+                Args: {
+                    p_logo_path: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
             };
             setup_request: {
                 Args: {

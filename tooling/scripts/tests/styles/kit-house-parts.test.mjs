@@ -110,13 +110,19 @@ test("a row draws its label, its value, where the value came from and one act; a
   assert.equal(find(tree, (n) => classes(n).includes("rec-src")).props["data-state"], "verified");
   const act = { click: () => acted.push("clicked") };
   row.props.onClick({
-    currentTarget: { querySelector: () => act, contains: () => false },
+    currentTarget: { querySelector: () => act, contains: () => true },
     target: { closest: () => null },
   });
   assert.deepEqual(acted, ["clicked"], "the whole row is the act's press");
   const own = { closest: () => ({}) };
   row.props.onClick({ currentTarget: { querySelector: () => act, contains: () => true }, target: own });
   assert.deepEqual(acted, ["clicked"], "something pressable of its own in the row keeps its own press");
+  // A press that reached the row through a portal (the menu its act opened, drawn on the body) is not the row's.
+  row.props.onClick({
+    currentTarget: { querySelector: () => act, contains: () => false },
+    target: { closest: () => null },
+  });
+  assert.deepEqual(acted, ["clicked"], "a press elsewhere, carried up by React, is not a press on the row");
 });
 
 test("a typed source is not said, an empty row says so, a serious disagreement is on the row at full strength", () => {

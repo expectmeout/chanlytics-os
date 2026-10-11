@@ -408,6 +408,7 @@
     "00403_a_yes_or_a_stop_after_a_campaign_is_the_answer_to_its_run.sql": "3c11cac3035f4ef2150b84e878cdb8d0c3ed64a03bec752983062330e883df4d",
     "00404_a_reach_out_is_counted_in_the_businesses_it_wrote_to.sql": "f7499080b7599d817c368569fecc5971035c5df8eb753c8589c56c311ddec008",
     "00405_the_campaigns_lens_is_read_beyond_the_days_counts.sql": "b147c560f1a73a799842bb881986b5be61e4fdaba9e101547660b1bb93a6ec70",
-    "00406_what_is_stuck_in_a_workspace_s_campaigns_is_read_as_it_stands.sql": "75ea067386120f66daf809961b8bee857f5b71a0ed52af01331dbb92de5b2737"
+    "00406_what_is_stuck_in_a_workspace_s_campaigns_is_read_as_it_stands.sql": "75ea067386120f66daf809961b8bee857f5b71a0ed52af01331dbb92de5b2737",
+    "00407_a_workspace_wears_its_own_logo.sql": "4632d59f0dd0e5b9da6a19a6f1b27c024f32462c0ac851c12c3dd7b31857a992"
   }
 }

@@ -4130,6 +4130,9 @@ async function createWorkspaceFn(db, args) {
 async function lineForwardingSet(db, args) {
   return db.rpc("line_forwarding_set", args);
 }
+async function setWorkspaceLogo(db, tenantId, path) {
+  return db.rpc("set_workspace_logo", { p_tenant_id: tenantId, p_logo_path: path });
+}
 async function updatePlaybook(db, id, patch) {
   const { error } = await db.from("playbooks").update(patch).eq("id", id);
   return { error };
@@ -5565,6 +5568,7 @@ export {
   setPersonReplyMode,
   setPolicyMode,
   setTemplateQuality,
+  setWorkspaceLogo,
   settleDelivery,
   signUpOnPublicKey,
   staleSends,

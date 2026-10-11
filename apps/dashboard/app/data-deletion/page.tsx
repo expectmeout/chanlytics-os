@@ -35,8 +35,8 @@ export default function DataDeletionPage() {
       <p>
         Write to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a> from the email address on the account and ask
         us to delete the workspace. We remove it and everything in it — conversations, contacts, call transcripts and
-        recordings, and the credentials for every service you connected — within 30 days, except what the law requires
-        us to keep. There is nothing to pay and no notice period.
+        recordings, its logo, and the credentials for every service you connected — within 30 days, except what the law
+        requires us to keep. There is nothing to pay and no notice period.
       </p>
       <p>
         Take what you want to keep first. Contacts export from People, and any single conversation or call exports from

@@ -94,8 +94,10 @@ test("a press on a row is a press on its act, never for a press on something of 
   link.closest = (sel) => (sel.includes("a[href]") ? link : null);
   box.closest = (sel) => (sel.includes("input") ? box : null);
   const words = { closest: () => null };
+  // Drawn on the body, through a portal, by the menu an act opened: React carries its press up to the row all the same.
+  const elsewhere = { closest: () => null };
   const row = {
-    contains: (n) => n === act || n === link || n === box,
+    contains: (n) => n === act || n === link || n === box || n === words,
     querySelector: (sel) => (sel === ".rec-row-act" ? act : null),
   };
   const at = (target) => ({ currentTarget: row, target });
@@ -110,12 +112,45 @@ test("a press on a row is a press on its act, never for a press on something of 
     assert.deepEqual(pressed, ["act"], "a link or a box in the row is pressed for itself");
     W.recRowPress(at({ closest: (sel) => (sel.includes("button") ? act : null) }));
     assert.deepEqual(pressed, ["act"], "the act itself has already answered its own press");
+    W.recRowPress(at(elsewhere));
+    assert.deepEqual(
+      pressed,
+      ["act"],
+      "a press on the menu the act opened is not a press on the row: it opened it again",
+    );
     selected.text = "marisas";
     W.recRowPress(at(words));
     assert.deepEqual(pressed, ["act"], "words dragged over are a selection, not a press");
   } finally {
     W.getSelection = was;
   }
+});
+
+test("an act that opens something of its own hands its button and its face to the page, which draws them as its menu's control", () => {
+  // The Logo row (00407): one act, as every row has, whose press opens a few choices. The kit asks nothing of the menu:
+  // the page's MoreMenu draws the act's face (its words and chevron) on its own trigger.
+  const handed = [];
+  const tree = draw(W.RecordRow, {
+    id: "logo",
+    label: "Logo",
+    value: "BC",
+    act: {
+      label: "Add",
+      wrap: (button, face) => {
+        handed.push({ button, face });
+        return W.React.createElement("button", { className: "rec-row-act", "data-testid": "the-pages-menu" }, face);
+      },
+    },
+  });
+  assert.equal(handed.length, 1);
+  assert.ok(classes(handed[0].button).includes("rec-row-act"), "the row's own act");
+  const menu = find(tree, (n) => n.props?.["data-testid"] === "the-pages-menu");
+  assert.ok(menu, "drawn where the act stands");
+  assert.equal(textOf(find(menu, (n) => classes(n).includes("rec-row-act-words"))), "Add", "the act's words");
+  assert.ok(
+    find(menu, (n) => classes(n).includes("rec-row-chev")),
+    "and the phone's chevron",
+  );
 });
 
 test("an act's arrow is drawn beside its words, never inside the box a phone clips to a pixel", () => {
@@ -139,8 +174,12 @@ test("an act's arrow is drawn beside its words, never inside the box a phone cli
   const icon = find(act, (n) => classes(n).includes("rec-row-act-icon"));
   assert.equal(find(icon, isIcon).props.name, "arrow-right", "the arrow, beside them");
   assert.equal(icon.props["aria-hidden"], "true", "a picture of where it goes, which the act's name already says");
-  const kids = [].concat(act.props.children).filter(Boolean);
-  assert.ok(kids.indexOf(words) < kids.indexOf(icon), "after the words");
+  // The act draws its face (one fragment, which a page's menu may draw on its own control): its parts, in order.
+  const kids = []
+    .concat(act.props.children)
+    .flatMap((k) => (k && k.type === W.React.Fragment ? [].concat(k.props.children) : [k]))
+    .filter(Boolean);
+  assert.ok(kids.indexOf(words) >= 0 && kids.indexOf(words) < kids.indexOf(icon), "after the words");
   // An act with no icon draws none.
   const plain = draw(W.RecordRow, {
     id: "website",

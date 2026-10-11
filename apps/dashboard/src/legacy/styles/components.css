@@ -67,6 +67,8 @@
   border-bottom: 1px solid var(--line);
 }
 .sb-team-mark {
+  position: relative;
+  overflow: hidden;
   width: 26px; height: 26px;
   border-radius: 7px;
   background: var(--ink);
@@ -79,7 +81,6 @@
 }
 .sb-team-body { min-width: 0; flex: 1; line-height: 1.2; }
 .sb-team-name { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sb-team-plan { margin-top: 1px; }
 
 /* Scrollable nav region — lets long nav not fight with the agents block */
 .sb-nav-scroll {
@@ -305,7 +306,7 @@
   font-weight: 500;
   flex-shrink: 0;
 }
-.user-chip .who { line-height: 1.2; min-width: 0; }
+.user-chip .who { line-height: 1.2; min-width: 0; flex: 1; }
 .user-chip .who .name {
   font-size: var(--text-sm); color: var(--ink); font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1436,7 +1437,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sidebar.collapsed .sb-team-body,
 .sidebar.collapsed .sb-team > .icon,
 .sidebar.collapsed .user-chip .who,
+.sidebar.collapsed .sb-chev,
 .sidebar.collapsed .sb-collapse-label { display: none; }
+/* Both buttons open a menu and say so with the same chevrons, in the dim ink: the workspace row's and the account chip's. */
+.sb-chev { flex-shrink: 0; color: var(--ink-dim); }
 .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
 /* The rail draws no labels, so its groups keep no room over and under them: with 4px each, three pairs of icons stood 11px
    apart and the rest 3 (Ruben, 7 Oct 2026). */
@@ -1501,19 +1505,24 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 .sb-menu-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+/* The face at the menu's head is the sidebar's: 32px, the inset, the initials in ink (Ruben, 11 Oct 2026). */
 .sb-menu-head .avatar {
-  width: 30px; height: 30px; border-radius: var(--radius-full); flex-shrink: 0;
-  background: linear-gradient(135deg, oklch(0.62 0.19 25), oklch(0.55 0.16 35));
-  color: white; display: grid; place-items: center; font-size: 11.5px; font-weight: 500;
+  width: 32px; height: 32px; border-radius: var(--radius-full); flex-shrink: 0;
+  border: 1px solid var(--surface-inset-edge); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth);
+  color: var(--ink); display: grid; place-items: center; font-size: var(--text-xs); font-weight: var(--weight-semibold);
 }
 .sb-menu-head .who { min-width: 0; flex: 1; line-height: 1.25; }
 .sb-menu-head .name { font-size: var(--text-sm); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-menu-head .email { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-role { flex: none; }
+/* A workspace in the menu wears the sidebar's circle: the face's inset, its logo over its initials, the initials in the
+   accent as the row's are, so a workspace never reads as a member's face (Ruben, 11 Oct 2026). */
 .sb-ws-mark {
-  width: 20px; height: 20px; border-radius: var(--radius-sm); flex-shrink: 0;
-  background: var(--ink); color: var(--bg); display: grid; place-items: center;
-  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  position: relative; overflow: hidden;
+  width: 22px; height: 22px; border-radius: var(--radius-full); flex-shrink: 0;
+  border: 1px solid var(--surface-inset-edge); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth);
+  color: var(--accent); display: grid; place-items: center;
+  font-size: 9px; font-weight: var(--weight-semibold);
 }
 .sb-ws.active .more-item-label { color: var(--ink); font-weight: 500; }
 .sb-ws-role { margin-left: 6px; font-size: 10.5px; color: var(--ink-dim); font-weight: 400; }
@@ -1940,30 +1949,36 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   box-shadow: var(--surface-inset-depth);
   color: var(--ink);
 }
-/* The workspace row as E3 draws it: the three in a 36px inset tile (sidebar.jsx draws them in Glass), the name
-   semibold, the lines under it, no rule under the row; and the member's row under the rail's one hairline, a 32px
-   face, the name semibold and the role under it, no chip of its own. Each reached by its place, since the ratchet
-   counts the mark's, the chip's and the face's names. */
+/* The workspace row: the three in a circle like the member's face (sidebar.jsx draws them in Glass), the name semibold
+   and under it only how many workspaces there are to switch between, where there is more than one (Ruben, 11 Oct 2026:
+   "1 of 1 line on" said again what Today says), no rule under the row; and the member's row under the rail's one hairline, a 32px face, the name semibold and the role under it, no
+   chip of its own. Each reached by its place, since the ratchet counts the mark's, the chip's and the face's names.
+   The row is as wide as the nav rows and lit as the chip is (below), its room under it a margin so the fill stays even. */
 .sidebar:not(.collapsed) .sb-team {
   gap: 11px;
-  padding: 4px 6px 16px;
+  margin-bottom: 12px;
+  padding: 4px 8px;
   border-bottom: 0;
+  border-radius: var(--radius-xl);
 }
-.sb-team:hover {
-  background: transparent;
-}
+/* The workspace's circle is the member's face's, at its size and in its inset: its logo over its initials (00407), the
+   initials in the accent and the face's type, so the business's circle and a member's own face never read alike. */
 .sb-team > :first-child {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-lg);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
   color: var(--accent);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
 }
 .sb-team-name {
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 .sb-team-plan {
-  font-size: var(--text-sm);
+  margin-top: 1px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .sidebar:not(.collapsed) .sidebar-foot {
@@ -1971,13 +1986,28 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   padding: 10px 8px 2px;
   border-top: 1px solid var(--line);
 }
+/* The chip's fill reaches the foot's 8px past the face and the name, the nav rows' width, so they stand where they did. */
 .sidebar:not(.collapsed) [data-testid="sb-account"] {
   gap: 10px;
-  padding: 4px 0;
-  border-radius: 0;
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-xl);
 }
-[data-testid="sb-account"]:hover {
+/* The two buttons that open a menu light as a nav row does: an inset's fill under a pointer, the ink lozenge while
+   their menu is open. */
+:is([data-testid="sb-workspace"], [data-testid="sb-account"]) {
   background: transparent;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  :is([data-testid="sb-workspace"], [data-testid="sb-account"]):hover {
+    background: var(--surface-inset-fill);
+  }
+}
+:is([data-testid="sb-workspace"], [data-testid="sb-account"])[aria-expanded="true"] {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
 }
 [data-testid="sb-account"] > :first-child {
   width: 32px;

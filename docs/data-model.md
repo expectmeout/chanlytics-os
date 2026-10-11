@@ -2923,6 +2923,7 @@ Foreign keys:
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `sells_by` | text | yes |  | How this workspace's customers buy (0008): booking (they book an appointment) or proposal (some get a proposal first). Deals are on exactly when it is proposal; null is not asked yet. Owner-settable through PATCH workspaces, like the timezone (00084). |
 | `left_empty_at` | timestamp with time zone | yes |  | When the workspace's last member left it (delete_my_account, 00262): it is paused, its plan is ended, and billing never resumes it. Null while anyone is in it. |
+| `logo_path` | text | yes |  | The workspace's own logo (00407): <tenant id>/<uuid>.png in the public workspace-logos bucket, a square PNG the server remade; null when it has none and its initials stand in. Written only by set_workspace_logo. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |

@@ -103,7 +103,7 @@
   "apps/dashboard/src/server/workspace/setup.ts": 11,
   "apps/dashboard/src/server/workspace/team.ts": 4,
   "apps/dashboard/src/server/workspace/team.ts::rpc": 10,
-  "apps/dashboard/src/server/workspace/workspace-list.ts": 5,
+  "apps/dashboard/src/server/workspace/workspace-list.ts": 4,
   "apps/edge/api/health.ts::rpc": 2,
   "apps/edge/lib/ask-gateway.ts::rpc": 1,
   "apps/edge/lib/billing/billing-admin.ts": 2,

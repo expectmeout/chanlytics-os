@@ -42,10 +42,10 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 54,
+    "font": 53,
     "radius": 14,
     "shadow": 5,
-    "colour": 7,
+    "colour": 4,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/conversations.css": {

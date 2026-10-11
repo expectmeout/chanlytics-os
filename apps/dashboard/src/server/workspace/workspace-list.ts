@@ -20,6 +20,7 @@ import {
   pendingWorkspaceOf,
   providerNameOf,
   signupPosture,
+  workspaceLogoSrc,
   type SellsBy,
 } from "@chanlytics/contracts";
 import { acceptOpenInvites, openInvitesFor } from "@/server/workspace/team";
@@ -42,28 +43,58 @@ interface WorkspaceRow {
   sells_by: string | null;
   /** The caller's role in it (0012): the switcher says it beside every workspace, and the partner's pane counts theirs. */
   role?: string | null;
+  /** Where its own logo is served (00407), on the storage origin the content policy allows; null for none. */
+  logo_url?: string | null;
 }
 
 const WORKSPACE_COLUMNS = "id, slug, name, status, timezone, sells_by";
 
 const OLDER_COLUMNS = "id, slug, name, status, timezone";
 
-/** The error a read that names sells_by gets from a database 00160 has not reached. */
-const noSellsBy = (message: string): boolean =>
-  /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
+/** What the list reads first: the row with the logo's address (00407). */
+const LIST_COLUMNS = "id, slug, name, status, timezone, sells_by, logo_path";
+
+/** The error a read that names a newer column gets from a database the migration adding it has not reached. */
+const lacksNewer = (message: string): boolean =>
+  /\b(logo_path|sells_by)\b/.test(message) && /does not exist|could not find/i.test(message);
+
+/** A tenant row as any of the three reads gives it. */
+interface TenantRead {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  timezone: string;
+  sells_by?: string | null;
+  logo_path?: string | null;
+}
+
+/** The rows as the list answers them: a workspace's logo as the address it is served at, never its storage path. */
+const listed = (rows: TenantRead[] | null): WorkspaceRow[] | null =>
+  rows?.map(({ logo_path: path, ...t }) => ({
+    ...t,
+    sells_by: t.sells_by ?? null,
+    logo_url: workspaceLogoSrc(env.NEXT_PUBLIC_SUPABASE_URL, path),
+  })) ?? null;
 
 /**
- * The session's tenants, RLS-scoped, by name. The whole app boots on this read, so on a database 00160 has not reached
- * -- which answers "column does not exist" for sells_by -- it reads again without it, and every workspace is not asked
- * yet: deals off, never a blank app. Either deploy order works.
+ * The session's tenants, RLS-scoped, by name. The whole app boots on this read, so on a database a migration has not
+ * reached -- which answers "column does not exist" for a newer column -- it reads again without it (the logo's 00407,
+ * then how its customers buy, 00160), and what that database cannot say is not said yet: no logo, deals off, never a
+ * blank app. Either deploy order works.
  */
 async function tenantsOf(
   supabase: RouteContext["supabase"],
 ): Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }> {
-  const r = await supabase.from("tenants").select(WORKSPACE_COLUMNS).order("name");
-  if (!r.error || !noSellsBy(r.error.message)) return r;
-  const older = await supabase.from("tenants").select(OLDER_COLUMNS).order("name");
-  return { data: older.data?.map((t) => ({ ...t, sells_by: null })) ?? null, error: older.error };
+  const read = <C extends string>(columns: C) => supabase.from("tenants").select(columns).order("name");
+  const newest = await read(LIST_COLUMNS);
+  if (!newest.error) return { data: listed(newest.data), error: null };
+  if (!lacksNewer(newest.error.message)) return { data: null, error: newest.error };
+  const mid = await read(WORKSPACE_COLUMNS);
+  if (!mid.error) return { data: listed(mid.data), error: null };
+  if (!lacksNewer(mid.error.message)) return { data: null, error: mid.error };
+  const older = await read(OLDER_COLUMNS);
+  return { data: listed(older.data), error: older.error };
 }
 
 /** The caller's role in each of their workspaces: their own memberships, by RLS. */
